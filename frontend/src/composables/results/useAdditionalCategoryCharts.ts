@@ -3,6 +3,7 @@ import {
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
 } from 'src/constant/charts';
+import type { TooltipState } from 'src/types/chartTooltip';
 
 export type AdditionalCategoryKey =
   | 'commuting'
@@ -32,6 +33,7 @@ export function buildDoughnutOption(
   category: AdditionalCategoryKey,
   entries: DisplayEntry[],
   useQuantity: boolean,
+  emitTooltip?: (state: TooltipState) => void,
 ): EChartsOption {
   const colorScheme = CHART_SUBCATEGORY_COLOR_SCHEMES.value[category] ?? {};
   const noBreakdownColor = '#D5D5D5';
@@ -77,17 +79,19 @@ export function buildDoughnutOption(
     animation: false,
     tooltip: {
       trigger: 'item',
-      appendToBody: true,
-      extraCssText: 'z-index: 9999;',
       formatter: (params: unknown) => {
-        const p = params as { name?: unknown; percent?: unknown };
+        const p = params as { name?: unknown; percent?: unknown; color?: unknown };
         const name = String(p.name ?? '');
         const percent =
           typeof p.percent === 'number' ? p.percent : Number(p.percent);
         const percentDisplay = Number.isFinite(percent) ? percent : 0;
-        const percentText = Number.isFinite(percentDisplay)
-          ? percentDisplay.toFixed(0)
-          : '0';
+        const percentText = percentDisplay.toFixed(0);
+        if (emitTooltip) {
+          emitTooltip({
+            rows: [{ label: name, value: `${percentText}%`, color: String(p.color ?? '#888') }],
+          });
+          return '';
+        }
         return `${name}: ${percentText}%`;
       },
     },

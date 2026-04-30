@@ -5,6 +5,7 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
+import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
@@ -343,36 +344,36 @@ const chartOption = computed((): EChartsOption => {
         type: 'shadow',
       },
       formatter: (params: unknown) => {
-        emitTooltip(params);
+        const arr = Array.isArray(params) ? params : params ? [params] : [];
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
+
+        const firstParam = arr[0] as Record<string, unknown>;
+        const data = firstParam.data as Record<string, unknown> | undefined;
+        const title = String(firstParam.axisValue ?? firstParam.name ?? '');
+
+        const rows: TooltipRow[] = [];
+
+        for (const param of [...arr].reverse()) {
+          const p = param as Record<string, unknown>;
+          const series = seriesArray.find((s) => s.name === p.seriesName);
+          const key = series?.encode.y;
+          const dataValue = Number(data?.[key]) || 0;
+          if (dataValue > 0 && series) {
+            rows.push({
+              label: series.name,
+              value: formatTonnesForChart(dataValue),
+              color: (series.itemStyle?.color as string) ?? '#888',
+            });
+          }
+        }
+
+        const state: TooltipState = { title, rows };
+        emitTooltip(state);
         return '';
       },
-      // formatter: (params: unknown) => {
-      //   const arr = Array.isArray(params) ? params : params ? [params] : [];
-      //   if (!arr.length) return '';
-
-      //   const firstParam = arr[0] as Record<string, unknown>;
-      //   const data = firstParam.data as Record<string, unknown> | undefined;
-      //   const name = (firstParam.axisValue || firstParam.name || '') as string;
-
-      //   let total = 0;
-      //   let tooltip = `<strong>${name}</strong><br/>`;
-
-      //   arr.reverse().forEach((param) => {
-      //     const p = param as Record<string, unknown>;
-      //     const series = seriesArray.find((s) => s.name === p.seriesName);
-      //     const key = series?.encode.y;
-      //     const dataValue = Number(data?.[key]) || 0;
-
-      //     if (dataValue > 0) {
-      //       tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
-      //       total += dataValue;
-      //     }
-      //   });
-
-      //   const totalDisplay = formatTonnesForChart(total);
-
-      //   return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
-      // },
     },
 
     grid: {
@@ -564,14 +565,11 @@ const downloadCSV = () => {
           :option="chartOption"
           @vue:mounted="onChartReady"
         />
-        <!-- ✅ REAL VUE TOOLTIP -->
         <Teleport to="body">
-          {{ tooltip.x }} {{ tooltip.y }} {{ style }}
           <tooltip-echarts
             v-if="tooltip.visible"
-            :data="tooltip.data"
+            :tooltip-state="tooltip.data"
             :style="style"
-            class="echart-tooltip"
           />
         </Teleport>
       </q-card-section>

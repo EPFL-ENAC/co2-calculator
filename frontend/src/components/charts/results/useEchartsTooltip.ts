@@ -1,51 +1,78 @@
 import { ref, computed, onBeforeUnmount } from 'vue';
+import type { TooltipState } from 'src/types/chartTooltip';
+import type { EChartsType } from 'echarts/types/dist/shared';
 
-type TooltipState = {
+type InternalTooltipState = {
   visible: boolean;
   x: number;
   y: number;
-  data?: any;
+  data: TooltipState;
+};
+
+type ZrMouseEvent = {
+  offsetX: number;
+  offsetY: number;
+};
+
+type ZrOnHandler = ((e: ZrMouseEvent) => void) | (() => void);
+
+type ZrLike = {
+  on: (event: string, handler: ZrOnHandler) => void;
+};
+
+type UpdateAxisPointerParams = {
+  axesInfo?: Array<Record<string, unknown>>;
 };
 
 export function useEchartsTooltip() {
-  const tooltip = ref<TooltipState>({
+  const tooltip = ref<InternalTooltipState>({
     visible: false,
     x: 0,
     y: 0,
-    data: undefined,
+    data: null,
   });
 
   const cleanupFns: Array<() => void> = [];
   const lastMouse = { x: 0, y: 0 };
 
-  function emitTooltip(params) {
+  function emitTooltip(state: TooltipState) {
+    if (state === null) {
+      tooltip.value.visible = false;
+      tooltip.value.data = null;
+      return;
+    }
     tooltip.value = {
       visible: true,
       x: lastMouse.x,
       y: lastMouse.y,
-      data: params,
+      data: state,
     };
   }
 
-  function attach(chart: any) {
-    const zr = chart.getZr();
+  function attach(chart: EChartsType) {
+    const zr = chart.getZr() as ZrLike;
+    const canvas: HTMLElement = chart.getDom();
 
-    zr.on('mousemove', (e: any) => {
-      lastMouse.x = e.offsetX;
-      lastMouse.y = e.offsetY;
+    zr.on('mousemove', (e: ZrMouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      lastMouse.x = rect.left + e.offsetX;
+      lastMouse.y = rect.top + e.offsetY;
     });
 
-    chart.on('updateAxisPointer', (params: any) => {
+    chart.on('updateAxisPointer', (params: UpdateAxisPointerParams) => {
       const axis = params.axesInfo?.[0];
-
       if (!axis) {
         tooltip.value.visible = false;
         return;
       }
-
       tooltip.value.visible = true;
       tooltip.value.x = lastMouse.x;
       tooltip.value.y = lastMouse.y;
+    });
+
+    // Hide when mouse leaves a data item (needed for trigger:'item' charts)
+    chart.on('mouseout', () => {
+      tooltip.value.visible = false;
     });
 
     zr.on('globalout', () => {

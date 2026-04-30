@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -17,6 +17,8 @@ import {
   DatasetComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
 
 use([
   CanvasRenderer,
@@ -367,15 +369,22 @@ const chartOption = computed((): EChartsOption => {
       formatter: (params: unknown) => {
         const p = params as {
           seriesName?: string;
-          marker?: string;
+          color?: string;
           seriesIndex?: number;
           data?: Record<string, unknown>;
         };
         const dimKey = segmentKeys[p.seriesIndex ?? 0];
         const row = p.data;
         const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
+        if (val <= 0) { emitTooltip(null); return ''; }
+        emitTooltip({
+          rows: [{
+            label: p.seriesName ?? '',
+            value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+            color: p.color ?? '#888',
+          }],
+        });
+        return '';
       },
     },
     legend: { show: false },
@@ -415,6 +424,16 @@ const chartHeight = computed(() => {
   const barCount = chartData.value.bars.length;
   return Math.max(200, barCount * 60 + 60);
 });
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 </script>
 
 <template>
@@ -422,15 +441,24 @@ const chartHeight = computed(() => {
     <div class="flex justify-center items-center">
       <v-chart
         v-if="chartData.bars.length"
+        ref="chartRef"
         class="chart"
         autoresize
         :option="chartOption"
         :style="{ height: chartHeight + 'px' }"
+        @vue:mounted="onChartReady"
       />
       <span v-else class="text-body2 text-secondary">
         {{ $t('no-chart-data') }}
       </span>
     </div>
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>
 
