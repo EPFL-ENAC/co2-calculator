@@ -325,11 +325,13 @@ const barChartOption = computed<EChartsOption>(() => {
           return '';
         }
         emitTooltip({
-          rows: [{
-            label: p.seriesName ?? '',
-            value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-            color: p.color ?? '#888',
-          }],
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
         });
         return '';
       },

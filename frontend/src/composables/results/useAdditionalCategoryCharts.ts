@@ -80,7 +80,11 @@ export function buildDoughnutOption(
     tooltip: {
       trigger: 'item',
       formatter: (params: unknown) => {
-        const p = params as { name?: unknown; percent?: unknown; color?: unknown };
+        const p = params as {
+          name?: unknown;
+          percent?: unknown;
+          color?: unknown;
+        };
         const name = String(p.name ?? '');
         const percent =
           typeof p.percent === 'number' ? p.percent : Number(p.percent);
@@ -88,7 +92,13 @@ export function buildDoughnutOption(
         const percentText = percentDisplay.toFixed(0);
         if (emitTooltip) {
           emitTooltip({
-            rows: [{ label: name, value: `${percentText}%`, color: String(p.color ?? '#888') }],
+            rows: [
+              {
+                label: name,
+                value: `${percentText}%`,
+                color: String(p.color ?? '#888'),
+              },
+            ],
           });
           return '';
         }

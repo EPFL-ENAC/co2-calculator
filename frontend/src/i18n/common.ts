@@ -480,4 +480,8 @@ export default {
     en: 'Carbon footprint from the use of research infrastructures',
     fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
+  headcount_fte: {
+    en: 'FTE',
+    fr: 'EPT',
+  },
 };

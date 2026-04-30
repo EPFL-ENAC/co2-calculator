@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -101,9 +109,12 @@ watch(chartsInView, async (v) => {
   if (!v) return;
   await nextTick();
   for (const r of [
-    commutingCO2Ref, commutingPhysicalRef,
-    foodCO2Ref, foodPhysicalRef,
-    wasteCO2Ref, wastePhysicalRef,
+    commutingCO2Ref,
+    commutingPhysicalRef,
+    foodCO2Ref,
+    foodPhysicalRef,
+    wasteCO2Ref,
+    wastePhysicalRef,
     embodiedEnergyCO2Ref,
   ]) {
     const chart = r.value?.chart;
@@ -179,7 +190,13 @@ const commutingEntries = computed((): DisplayEntry[] => {
 });
 
 const commutingCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'commuting', commutingEntries.value, false, emitTooltip),
+  buildDoughnutOption(
+    { t, te },
+    'commuting',
+    commutingEntries.value,
+    false,
+    emitTooltip,
+  ),
 );
 
 const commutingPhysicalOption = computed(() => {
@@ -211,7 +228,13 @@ const foodCO2Option = computed(() =>
 );
 
 const foodPhysicalOption = computed(() => {
-  return buildDoughnutOption({ t, te }, 'food', foodEntries.value, true, emitTooltip);
+  return buildDoughnutOption(
+    { t, te },
+    'food',
+    foodEntries.value,
+    true,
+    emitTooltip,
+  );
 });
 
 // ── waste ─────────────────────────────────────────────────────────────────
@@ -257,11 +280,23 @@ const wasteGrouped = computed((): DisplayEntry[] => {
 });
 
 const wasteCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'waste', wasteGrouped.value, false, emitTooltip),
+  buildDoughnutOption(
+    { t, te },
+    'waste',
+    wasteGrouped.value,
+    false,
+    emitTooltip,
+  ),
 );
 
 const wastePhysicalOption = computed(() => {
-  return buildDoughnutOption({ t, te }, 'waste', wasteGrouped.value, true, emitTooltip);
+  return buildDoughnutOption(
+    { t, te },
+    'waste',
+    wasteGrouped.value,
+    true,
+    emitTooltip,
+  );
 });
 
 const commutingLegend = computed(() =>
@@ -310,7 +345,13 @@ const embodiedEnergyCO2Option = computed((): EChartsOption => {
       quantity_unit: 'kg',
     }),
   );
-  return buildDoughnutOption({ t, te }, 'embodied_energy', entries, false, emitTooltip);
+  return buildDoughnutOption(
+    { t, te },
+    'embodied_energy',
+    entries,
+    false,
+    emitTooltip,
+  );
 });
 
 const embodiedEnergyLegend = computed(() =>

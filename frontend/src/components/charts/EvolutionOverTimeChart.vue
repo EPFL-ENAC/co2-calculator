@@ -129,15 +129,25 @@ const chartOption = computed((): EChartsOption => {
       trigger: 'axis',
       formatter: (params: unknown) => {
         const arr = Array.isArray(params) ? params : [];
-        if (!arr.length) { emitTooltip(null); return ''; }
-        const title = arr[0].axisValue != null ? String(arr[0].axisValue) : undefined;
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
+        const title =
+          arr[0].axisValue != null ? String(arr[0].axisValue) : undefined;
         emitTooltip({
           title,
-          rows: arr.map((item: { seriesName?: string; value?: number; color?: string }) => ({
-            label: item.seriesName ?? '',
-            value: item.value != null ? item.value.toFixed(0) : '-',
-            color: item.color ?? '#888',
-          })),
+          rows: arr.map(
+            (item: {
+              seriesName?: string;
+              value?: number;
+              color?: string;
+            }) => ({
+              label: item.seriesName ?? '',
+              value: item.value != null ? item.value.toFixed(0) : '-',
+              color: item.color ?? '#888',
+            }),
+          ),
         });
         return '';
       },

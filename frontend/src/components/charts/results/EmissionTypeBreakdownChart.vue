@@ -376,13 +376,18 @@ const chartOption = computed((): EChartsOption => {
         const dimKey = segmentKeys[p.seriesIndex ?? 0];
         const row = p.data;
         const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) { emitTooltip(null); return ''; }
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
         emitTooltip({
-          rows: [{
-            label: p.seriesName ?? '',
-            value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-            color: p.color ?? '#888',
-          }],
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
         });
         return '';
       },

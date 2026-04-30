@@ -1074,7 +1074,10 @@ const chartOption = computed((): EChartsOption => {
 
       formatter: (params: unknown) => {
         const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) { emitTooltip(null); return ''; }
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
         const first = arr[0] as {
           data?: Record<string, unknown>;
           axisValue?: string;

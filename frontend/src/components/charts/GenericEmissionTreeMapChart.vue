@@ -172,13 +172,18 @@ const chartOption = computed((): EChartsOption => {
           data?: { value: number; originalValue: number };
         };
         const val = p.data?.originalValue ?? 0;
-        if (val <= 0) { emitTooltip(null); return ''; }
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
         emitTooltip({
-          rows: [{
-            label: p.seriesName ?? '',
-            value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-            color: p.color ?? '#888',
-          }],
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
         });
         return '';
       },

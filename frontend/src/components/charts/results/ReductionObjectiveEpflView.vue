@@ -312,7 +312,9 @@ function buildTooltipState(rawParams: unknown): TooltipState {
   const separatorRow: TooltipRow | undefined = populationParam
     ? {
         label: t('results_objectives_population_forecast'),
-        value: formatTooltipPopulation(extractSeriesValue(populationParam.value)),
+        value: formatTooltipPopulation(
+          extractSeriesValue(populationParam.value),
+        ),
         color: '#ff0000',
       }
     : undefined;
