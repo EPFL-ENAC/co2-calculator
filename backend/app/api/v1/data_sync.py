@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.security import is_permitted, require_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -68,6 +69,8 @@ class SyncJobResponse(BaseModel):
     meta: Optional[dict] = None
     state: Optional[IngestionState] = None
     result: Optional[IngestionResult] = None
+    locked_by: Optional[str] = None
+    is_current: Optional[bool] = None
 
 
 class RecalculationStatus(BaseModel):
@@ -770,4 +773,52 @@ async def sync_units_from_accred(
         job_id=0,  # No persistent job tracking for now
         state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
+    )
+
+
+@router.post("/jobs/{job_id}/recover", response_model=SyncJobResponse)
+async def recover_job(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+):
+    """
+    Recover a job stuck in RUNNING after a pod crash.
+
+    Resets the job to NOT_STARTED and clears the lock. Only allowed
+    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
+
+    **Required Permission**: ``backoffice.data_management.sync``
+    """
+    settings = get_settings()
+    repo = DataIngestionRepository(db)
+    recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
+    if not recovered:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Job {job_id} cannot be recovered: not found, not in RUNNING state, "
+                "or lock is not yet stale"
+            ),
+        )
+    if recovered.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Recovered job has no ID",
+        )
+    return SyncJobResponse(
+        job_id=recovered.id,
+        module_type_id=recovered.module_type_id,
+        data_entry_type_id=recovered.data_entry_type_id,
+        year=recovered.year,
+        ingestion_method=recovered.ingestion_method,
+        target_type=recovered.target_type,
+        state=recovered.state,
+        result=recovered.result,
+        status_message=recovered.status_message,
+        meta=recovered.meta,
+        locked_by=recovered.locked_by,
+        is_current=recovered.is_current,
     )

@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum, IntEnum, StrEnum
 from typing import Callable, Optional, TypedDict
 
-from sqlalchemy import ForeignKey
+from sqlalchemy import Float, ForeignKey
 from sqlmodel import JSON, TIMESTAMP, Column, Field, Integer, SQLModel
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -1068,6 +1068,15 @@ class DataEntryEmissionBase(SQLModel):
     )
     additional_value: float | None = Field(
         default=None,
+        sa_column=Column(
+            Float,
+            nullable=True,
+            comment=(
+                "Polymorphic physical quantity tied to this emission row. "
+                "Unit is inferred from emission_type_id "
+                "(e.g. km for commuting and travel, kg for food and waste)."
+            ),
+        ),
         description=(
             "Polymorphic physical quantity tied to this emission row. "
             "Unit is inferred from emission_type_id "

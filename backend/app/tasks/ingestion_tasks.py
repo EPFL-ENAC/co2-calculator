@@ -1,20 +1,23 @@
+"""Background tasks for data ingestion."""
+
 import asyncio
-import logging
 from typing import Optional
 
+from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks._pod_id import POD_ID
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def run_sync_task(
     provider_class_name: str,
     job_id: int,
     filters: Optional[dict] = None,
-):
+) -> None:
     """
     Async helper function to run ingestion with database operations.
     Uses two separate sessions:
@@ -22,14 +25,27 @@ async def run_sync_task(
     - data_session: For data operations (single atomic commit at the end)
     """
     async with SessionLocal() as job_session, SessionLocal() as data_session:
-        # Retrieve job from db
-        job = await DataIngestionRepository(job_session).get_job_by_id(job_id)
-        if not job:
-            logger.error(f"Job ID {job_id} not found.")
-            return
+        job_repo = DataIngestionRepository(job_session)
+
+        # Validate cheap things BEFORE acquiring the lock — otherwise a
+        # bogus provider name leaves the job stuck in RUNNING until the
+        # 30-minute stale-recovery window expires.  claim_job itself
+        # handles the "job not found" case (returns False), so we don't
+        # need a separate existence check here.
         provider_class = ProviderFactory.get_provider_class(provider_class_name)
         if not provider_class:
             logger.error(f"Provider class '{provider_class_name}' not found.")
+            return
+
+        claimed = await job_repo.claim_job(job_id, POD_ID)
+        if not claimed:
+            logger.info(f"Job {job_id} already claimed or not eligible — skipping")
+            return
+
+        # Re-fetch the now-RUNNING row for use in provider construction.
+        job = await job_repo.get_job_by_id(job_id)
+        if not job:
+            logger.error(f"Job ID {job_id} not found after claim.")
             return
 
         # Extract config from job.meta if available, otherwise use job.__dict__

@@ -1,8 +1,9 @@
 import enum
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, TypedDict
 
-from sqlalchemy import and_, func
+from sqlalchemy import and_, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -16,6 +17,14 @@ from app.models.data_ingestion import (
 )
 
 logger = get_logger(__name__)
+
+
+class _ClaimUnavailable(Exception):
+    """Internal sentinel — Step 2 of claim_job matched no row.
+
+    Raised inside ``begin_nested()`` to trigger SAVEPOINT rollback so Step 1's
+    demote is undone without disturbing the outer transaction.
+    """
 
 
 class DataIngestionRepository:
@@ -81,8 +90,6 @@ class DataIngestionRepository:
             DataIngestionJob.model_validate(result_job)
 
             result_job.status_message = status_message
-            result_job.state = state
-            # Use new state/result if provided, otherwise derive from legacy status_code
             if state is not None:
                 result_job.state = state
             if result is not None:
@@ -119,6 +126,157 @@ class DataIngestionRepository:
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
+
+    # ---- Plan 310A: atomic claim, recovery, poller helpers ----
+
+    def _build_combo_where(self, job: DataIngestionJob):
+        """Build WHERE clause for the same module/det/target/method/year combo."""
+        where = and_(
+            col(DataIngestionJob.target_type) == job.target_type,
+            col(DataIngestionJob.ingestion_method) == job.ingestion_method,
+            col(DataIngestionJob.year) == job.year,
+        )
+        if job.module_type_id is None:
+            where = and_(where, col(DataIngestionJob.module_type_id).is_(None))
+        else:
+            where = and_(
+                where, col(DataIngestionJob.module_type_id) == job.module_type_id
+            )
+        if job.data_entry_type_id is None:
+            where = and_(where, col(DataIngestionJob.data_entry_type_id).is_(None))
+        else:
+            where = and_(
+                where,
+                col(DataIngestionJob.data_entry_type_id) == job.data_entry_type_id,
+            )
+        return where
+
+    async def claim_job(self, job_id: int, pod_id: str) -> bool:
+        """Atomically claim a job for execution.
+
+        Two-step transaction:
+        1. Unset is_current on previous current row (if any) for the same combo.
+        2. Atomic UPDATE that flips to RUNNING + is_current + locked_by.
+           The partial unique index trips here if a concurrent claimer already set
+           is_current=TRUE on a different row for the same combo.
+
+        Returns True if claimed, False otherwise.
+        """
+        job = await self.get_job_by_id(job_id)
+        if job is None:
+            return False
+
+        # Wrap both steps in a SAVEPOINT so a failed Step 2 rolls back
+        # Step 1's demote without touching the outer transaction.  Without
+        # this, an unsuccessful claim (locked, attempts exhausted, run_after
+        # in future, …) would silently strip the previous is_current sibling
+        # of its current marker.
+        try:
+            async with self.session.begin_nested():
+                # Step 1 — clear previous is_current for the same combo,
+                # but only for siblings that are NOT currently RUNNING.
+                # Demoting a RUNNING sibling would let two pods process
+                # the same combo concurrently — the partial unique index
+                # can't catch it once the demote commits.
+                combo_where = and_(
+                    col(DataIngestionJob.is_current),
+                    col(DataIngestionJob.id) != job_id,
+                    col(DataIngestionJob.state) != IngestionState.RUNNING,
+                    self._build_combo_where(job),
+                )
+                await self.session.execute(
+                    update(DataIngestionJob).where(combo_where).values(is_current=False)
+                )
+
+                # Step 2 — atomic claim
+                result = await self.session.execute(
+                    update(DataIngestionJob)
+                    .where(
+                        col(DataIngestionJob.id) == job_id,
+                        col(DataIngestionJob.state).in_(
+                            [IngestionState.NOT_STARTED, IngestionState.QUEUED]
+                        ),
+                        col(DataIngestionJob.locked_by).is_(None),
+                        col(DataIngestionJob.attempts)
+                        < col(DataIngestionJob.max_attempts),
+                        or_(
+                            col(DataIngestionJob.run_after).is_(None),
+                            col(DataIngestionJob.run_after) <= func.now(),
+                        ),
+                    )
+                    .values(
+                        locked_by=pod_id,
+                        locked_at=func.now(),
+                        state=IngestionState.RUNNING,
+                        is_current=True,
+                        attempts=col(DataIngestionJob.attempts) + 1,
+                    )
+                    .returning(col(DataIngestionJob.id))
+                )
+                if result.scalar_one_or_none() is None:
+                    raise _ClaimUnavailable
+        except _ClaimUnavailable:
+            return False
+        except IntegrityError:
+            return False
+
+        await self.session.commit()
+        return True
+
+    async def recover_job(
+        self, job_id: int, stale_timeout_minutes: int
+    ) -> Optional[DataIngestionJob]:
+        """Reset a job stuck in RUNNING (pod crash) back to NOT_STARTED.
+
+        Atomic UPDATE — safe under concurrent claim/recover.  Only succeeds
+        when locked_at is older than ``stale_timeout_minutes`` (or NULL).
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
+        result = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+                or_(
+                    col(DataIngestionJob.locked_at).is_(None),
+                    col(DataIngestionJob.locked_at) < cutoff,
+                ),
+            )
+            .values(
+                state=IngestionState.NOT_STARTED,
+                locked_by=None,
+                locked_at=None,
+                is_current=False,
+                attempts=0,
+                run_after=None,
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        await self.session.commit()
+        recovered_id = result.scalar_one_or_none()
+        if recovered_id is None:
+            return None
+        return await self.get_job_by_id(recovered_id)
+
+    def _pending_jobs_query(self, limit: int = 10):
+        """Build the query used by the safety poller.
+
+        Uses FOR UPDATE SKIP LOCKED to let multiple pods pick up different jobs.
+        """
+        return (
+            select(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.state) == IngestionState.NOT_STARTED,
+                or_(
+                    col(DataIngestionJob.run_after).is_(None),
+                    col(DataIngestionJob.run_after) <= func.now(),
+                ),
+                col(DataIngestionJob.locked_by).is_(None),
+                col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+            )
+            .with_for_update(skip_locked=True)
+            .limit(limit)
+        )
 
     async def get_latest_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         """
@@ -168,8 +326,13 @@ class DataIngestionRepository:
             raise ValueError("target_type cannot be None when marking job as current")
 
         try:
+            # Mirror claim_job's invariant: never demote a RUNNING sibling,
+            # since that would let two pods process the same combo
+            # concurrently (the partial unique index can't catch it once
+            # the demote commits).
             where_clause = and_(
                 col(DataIngestionJob.is_current),
+                col(DataIngestionJob.state) != IngestionState.RUNNING,
                 col(DataIngestionJob.module_type_id) == job.module_type_id,
                 col(DataIngestionJob.target_type) == job.target_type,
                 col(DataIngestionJob.year) == job.year,
