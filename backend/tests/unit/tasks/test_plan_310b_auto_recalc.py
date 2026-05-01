@@ -73,27 +73,22 @@ async def test_enqueue_stale_recalculations_creates_one_job_per_target():
 
 
 @pytest.mark.asyncio
-async def test_enqueue_stale_recalculations_filters_by_parent_scope():
-    """When parent job has module_type_id set, only matching combos fan out."""
+async def test_enqueue_stale_recalculations_multitype_fans_out_per_module_det():
+    """Multi-type factor upload (parent has module set, det=NULL) fans out
+    one recalc per data_entry_type in MODULE_TYPE_TO_DATA_ENTRY_TYPES for
+    that module — bypassing get_recalculation_status_by_year, which filters
+    out factor jobs with data_entry_type_id IS NULL and would silently
+    drop the recalc.
+    """
     session = MagicMock()
     session.commit = AsyncMock()
 
     repo = MagicMock()
+    # Should not be consulted in the multi-type branch — fail loudly if it is.
     repo.get_recalculation_status_by_year = AsyncMock(
-        return_value=[
-            {
-                "module_type_id": 1,
-                "data_entry_type_id": 10,
-                "year": 2025,
-                "needs_recalculation": True,
-            },
-            {
-                "module_type_id": 2,
-                "data_entry_type_id": 20,
-                "year": 2025,
-                "needs_recalculation": True,
-            },
-        ]
+        side_effect=AssertionError(
+            "multi-type fan-out must not consult get_recalculation_status_by_year"
+        )
     )
     repo.create_ingestion_job = AsyncMock(return_value=MagicMock(id=100))
 
@@ -105,16 +100,23 @@ async def test_enqueue_stale_recalculations_filters_by_parent_scope():
         await _enqueue_stale_recalculations(
             session,
             parent_job_id=42,
-            module_type_id=1,  # only module 1 → only the first row matches
+            module_type_id=1,  # headcount → [member, student]
             data_entry_type_id=None,
             year=2025,
             pipeline_id=uuid4(),
         )
 
-    assert repo.create_ingestion_job.await_count == 1
-    new_job = repo.create_ingestion_job.await_args.args[0]
-    assert new_job.module_type_id == 1
-    assert new_job.data_entry_type_id == 10
+    # MODULE_TYPE_TO_DATA_ENTRY_TYPES[ModuleTypeEnum.headcount] is
+    # [member=1, student=2] — both should land.
+    assert repo.create_ingestion_job.await_count == 2
+    landed_dets = {
+        call.args[0].data_entry_type_id
+        for call in repo.create_ingestion_job.await_args_list
+    }
+    assert landed_dets == {1, 2}
+    for call in repo.create_ingestion_job.await_args_list:
+        assert call.args[0].module_type_id == 1
+        assert call.args[0].meta["config"]["parent_job_id"] == 42
 
 
 @pytest.mark.asyncio

@@ -473,8 +473,13 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.job_id is None:
             raise ValueError("job_id is required for factor upsert")
         affected = await factor_repo.upsert_factors(batch, current_job_id=self.job_id)
-        logger.info(f"Upserted {affected} factors in batch of {len(batch)}")
-        return affected
+        # asyncpg can return rowcount=-1 for executemany ON CONFLICT
+        # statements where it can't tally the result reliably.  Fall back
+        # to the input batch size for stats so the operator-visible count
+        # isn't a confusing -1.
+        reported = affected if affected >= 0 else len(batch)
+        logger.info(f"Upserted {reported} factors in batch of {len(batch)}")
+        return reported
 
     def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
         """

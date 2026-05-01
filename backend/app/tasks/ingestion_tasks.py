@@ -1,7 +1,7 @@
 """Background tasks for data ingestion."""
 
 import asyncio
-from typing import Optional
+from typing import Any, Optional
 from uuid import UUID, uuid4
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -169,20 +169,54 @@ async def _enqueue_stale_recalculations(
         logger.warning("Cannot enqueue recalculations without a year on the parent job")
         return
 
-    # Late import to avoid a circular import via app.workflows.
+    # Late imports to avoid circular imports.
+    from app.models.module_type import (
+        MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+        ModuleTypeEnum,
+    )
     from app.tasks.emission_recalculation_tasks import run_recalculation_task
 
     repo = DataIngestionRepository(session)
-    rows = await repo.get_recalculation_status_by_year(year)
-    targets = [
-        r
-        for r in rows
-        if r["needs_recalculation"]
-        and (module_type_id is None or r["module_type_id"] == module_type_id)
-        and (
-            data_entry_type_id is None or r["data_entry_type_id"] == data_entry_type_id
-        )
-    ]
+
+    if data_entry_type_id is None and module_type_id is not None:
+        # Multi-type factor upload (e.g. equipments_factors.csv covers
+        # scientific + it + other under module=equipment_electric_consumption).
+        # The parent job has data_entry_type_id=NULL, which
+        # get_recalculation_status_by_year filters out — so we'd silently
+        # skip the recalc.  Expand to one target per det in the module
+        # instead.  We don't gate on needs_recalculation here: a fresh
+        # successful factor ingest just landed, every linked det is by
+        # definition stale.
+        try:
+            module = ModuleTypeEnum(module_type_id)
+        except ValueError:
+            logger.warning(
+                f"Unknown module_type_id={module_type_id}; skipping recalc fan-out"
+            )
+            return
+        dets = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module, [])
+        # Same key shape as RecalculationStatusRow so the downstream loop
+        # can treat both branches uniformly.
+        targets: list[Any] = [
+            {
+                "module_type_id": module_type_id,
+                "data_entry_type_id": d.value,
+                "year": year,
+            }
+            for d in dets
+        ]
+    else:
+        rows = await repo.get_recalculation_status_by_year(year)
+        targets = [
+            r
+            for r in rows
+            if r["needs_recalculation"]
+            and (module_type_id is None or r["module_type_id"] == module_type_id)
+            and (
+                data_entry_type_id is None
+                or r["data_entry_type_id"] == data_entry_type_id
+            )
+        ]
 
     if not targets:
         logger.info(f"No stale (module, det) combos to recalculate for year={year}")
