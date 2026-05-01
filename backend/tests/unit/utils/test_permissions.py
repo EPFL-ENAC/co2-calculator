@@ -62,23 +62,27 @@ class TestCalculateUserPermissions:
 
     def test_user_principal_unit_scope(self):
         """Test user principal with unit scope grants module permissions."""
-        roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="10208"))]
+        roles = [
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+            )
+        ]
         result = calculate_user_permissions(roles)
 
-        assert "view" in result["modules.headcount"]
-        assert "edit" in result["modules.headcount"]
-        assert "view" in result["modules.equipment"]
-        assert "edit" in result["modules.equipment"]
-        assert "view" in result["modules.professional_travel"]
-        assert "edit" in result["modules.professional_travel"]
-        assert "view" in result["modules.buildings"]
-        assert "edit" in result["modules.buildings"]
-        assert "view" in result["modules.purchase"]
-        assert "edit" in result["modules.purchase"]
-        assert "view" in result["modules.research_facilities"]
-        assert "edit" in result["modules.research_facilities"]
-        assert "view" in result["modules.external_cloud_and_ai"]
-        assert "edit" in result["modules.external_cloud_and_ai"]
+        assert "view" in result["modules.headcount/10208"]
+        assert "edit" in result["modules.headcount/10208"]
+        assert "view" in result["modules.equipment/10208"]
+        assert "edit" in result["modules.equipment/10208"]
+        assert "view" in result["modules.professional_travel/10208"]
+        assert "edit" in result["modules.professional_travel/10208"]
+        assert "view" in result["modules.buildings/10208"]
+        assert "edit" in result["modules.buildings/10208"]
+        assert "view" in result["modules.purchase/10208"]
+        assert "edit" in result["modules.purchase/10208"]
+        assert "view" in result["modules.research_facilities/10208"]
+        assert "edit" in result["modules.research_facilities/10208"]
+        assert "view" in result["modules.external_cloud_and_ai/10208"]
+        assert "edit" in result["modules.external_cloud_and_ai/10208"]
         # Principal also gets backoffice.users.edit for unit-scoped role assignment
         assert "edit" in result["backoffice.users"]
 

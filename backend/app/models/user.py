@@ -125,18 +125,23 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         return False
 
     def as_scope_key(s):
-        # Note: not using affiliation for now
+        # Note: affiliation-based permissions are not implemented yet,
+        # so we return empty string for now to avoid granting permissions
+        # based on unrecognized scope formats, but this can be updated in
+        # the future when affiliation-based permissions are implemented
         if is_global_scope(s):
             return ""
         if isinstance(s, RoleScope):
             if s.institutional_id and s.institutional_id is not None:
                 return f"/{s.institutional_id}"
-            return ""
+            if s.affiliation:
+                return ""
         elif isinstance(s, dict):
             if "institutional_id" in s and s["institutional_id"] is not None:
                 return f"/{s['institutional_id']}"
-            return ""
-        # Default to empty string for unrecognized formats
+            if "affiliation" in s:
+                return ""
+        # Default to no scope if unrecognized format (should not grant permissions)
         return "/?"
 
     # Helper to merge permission actions and keep unique actions

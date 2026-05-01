@@ -47,6 +47,7 @@ import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
 } from 'src/api/modules';
+import { PermissionAction } from 'src/constant/permissions';
 
 const { t: $t } = useI18n();
 
@@ -72,7 +73,7 @@ const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
 const canEditHeadcount = computed(() =>
-  authStore.hasUserModulePermission(MODULES.Headcount, 'edit'),
+  authStore.hasUserModulePermission(MODULES.Headcount, PermissionAction.EDIT),
 );
 const isNotValidated = computed(
   () => members.value.length === 0 && !canEditHeadcount.value,

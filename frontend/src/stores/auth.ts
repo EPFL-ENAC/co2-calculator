@@ -123,22 +123,13 @@ export const useAuthStore = defineStore('auth', () => {
       path,
       action,
     );
-    console.log(
-      `[global] Checking permission for path: ${path} and action: ${action}`,
-    );
     if (globallyPermitted) return true;
     // append workspace context to permission path if available
     const institutionalId = workspaceStore.selectedUnit?.institutional_id;
     if (institutionalId) {
       path = `${path}/${institutionalId}`;
-      console.log(
-        `[workspace] Checking permission for path: ${path} and action: ${action}`,
-      );
       return hasPermission(user.value.permissions, path, action);
     }
-    console.log(
-      `[workspace] No institutional ID found for path: ${path} and action: ${action}`,
-    );
     return false;
   }
 
@@ -155,7 +146,7 @@ export const useAuthStore = defineStore('auth', () => {
     action: PermissionAction = PermissionAction.VIEW,
   ): boolean {
     const path = getModulePermissionPath(module);
-    if (!path) return false; // FIXME If module doesn't have a permission path, treat as no access
+    if (!path) return false; // If module doesn't have a permission path, treat as no access
     return hasUserPermission(path, action);
   }
 

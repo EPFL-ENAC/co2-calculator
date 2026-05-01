@@ -24,7 +24,7 @@ def has_permission(
         bool: True if the permission exists and is True, False otherwise
 
     Examples:
-        >>> perms = {"modules.headcount": {"view": True, "edit": False}}
+        >>> perms = {"modules.headcount": ["view"]}
         >>> has_permission(perms, "modules.headcount", "view")
         True
         >>> has_permission(perms, "modules.headcount", "edit")

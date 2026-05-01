@@ -14,30 +14,14 @@ import { MODULES, type Module } from 'src/constant/modules';
 /**
  * Check if a user has a specific permission.
  *
- * This function checks if a permission exists and is set to `true` for the given
- * path and action. Returns `false` for any edge cases (null permissions, missing
+ * This function checks if an action is allowed for the given permission
+ * path. Returns `false` for any edge cases (null permissions, missing
  * paths, invalid actions, etc.).
  *
  * @param permissions - The permissions object (from user.permissions), can be null/undefined
  * @param path - The permission path (e.g., 'modules.headcount')
  * @param action - The action to check (defaults to 'view')
  * @returns `true` if the permission exists and is `true`, `false` otherwise
- *
- * @example
- * ```typescript
- * // Check if user can view headcount module
- * const canView = hasPermission(user.permissions, 'modules.headcount', 'view');
- * if (canView) {
- *   // Show headcount module
- * }
- *
- * // Check if user can edit equipment (using enum)
- * const canEdit = hasPermission(
- *   user.permissions,
- *   'modules.equipment',
- *   PermissionAction.EDIT
- * );
- * ```
  */
 export function hasPermission(
   permissions: FlatUserPermissions | null | undefined,
