@@ -1,4 +1,4 @@
-"""Integration tests for Plan 310A: Pod Safety + Atomic Claim.
+"""Integration tests for Plan 310A: Pod Safety + Atomic Claim (SQLite).
 
 Tests cover:
 - claim_job: success, duplicate, max_attempts, finished, is_current unsetting
@@ -9,9 +9,9 @@ Tests cover:
 - poll_pending_jobs: picks up orphan, dispatches by job_type
 - dispatch_job: routes to correct handler per job_type
 
-Note: The concurrent claim race test simulates the race conditions since
-SQLite doesn't support true concurrent transactions with unique index trips.
-Real Postgres testing would be needed to verify the IntegrityError path.
+The true concurrent-claim race (partial unique index → IntegrityError) is
+covered separately in ``test_pod_safety_310a_pg.py`` against a real
+Postgres container — SQLite cannot reproduce that contention.
 """
 
 from datetime import datetime, timedelta, timezone
