@@ -70,7 +70,6 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             logger.info("Safety poller cancelled successfully")
 
-    """Run on application shutdown."""
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
 

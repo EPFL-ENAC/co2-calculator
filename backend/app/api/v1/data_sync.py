@@ -803,7 +803,6 @@ async def recover_job(
                 "or lock is not yet stale"
             ),
         )
-    await db.commit()
     if recovered.id is None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
