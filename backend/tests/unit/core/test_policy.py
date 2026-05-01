@@ -254,7 +254,7 @@ class TestQueryPolicyPermissionCheck:
                     }
                 ],
             },
-            "path": "modules.professional_travel",
+            "path": "modules.professional_travel/123",
             "action": "view",
         }
 

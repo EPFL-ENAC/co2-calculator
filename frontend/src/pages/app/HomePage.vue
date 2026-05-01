@@ -13,7 +13,6 @@ import {
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 import { useTimelineStore } from 'src/stores/modules';
@@ -62,11 +61,7 @@ function hasModulePermission(
   module: Module,
   action: PermissionAction,
 ): boolean {
-  return hasPermission(
-    authStore.user?.permissions,
-    getModulePermissionPath(module),
-    action,
-  );
+  return authStore.hasUserModulePermission(module, action);
 }
 const timelineStore = useTimelineStore();
 

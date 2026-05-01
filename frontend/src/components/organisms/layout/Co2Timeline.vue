@@ -4,7 +4,6 @@ import { useTimelineStore } from 'src/stores/modules';
 import Co2TimelineItem from 'src/components/molecules/Co2TimelineItem.vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 import { timelineItems } from 'src/constant/timelineItems';
@@ -19,11 +18,7 @@ function hasModulePermission(
   module: Module,
   action: PermissionAction,
 ): boolean {
-  return hasPermission(
-    authStore.user?.permissions,
-    getModulePermissionPath(module),
-    action,
-  );
+  return authStore.hasUserModulePermission(module, action);
 }
 
 const visibleTimelineItems = computed(() => {

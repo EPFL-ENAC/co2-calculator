@@ -357,7 +357,6 @@ import {
   TargetType,
 } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
@@ -690,14 +689,8 @@ const hasModuleUpload = computed(() => {
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
-  const permissionPath = getModulePermissionPath(props.moduleType);
-  if (!permissionPath) {
-    // Module doesn't require permission, allow editing (backward compatibility)
-    return true;
-  }
-  return hasPermission(
-    authStore.user?.permissions,
-    permissionPath,
+  return authStore.hasUserModulePermission(
+    props.moduleType,
     PermissionAction.EDIT,
   );
 });

@@ -98,7 +98,6 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
@@ -200,14 +199,8 @@ const effectiveThreshold = computed<Threshold>(() => {
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
-  const permissionPath = getModulePermissionPath(props.moduleType);
-  if (!permissionPath) {
-    // Module doesn't require permission, allow editing (backward compatibility)
-    return true;
-  }
-  return hasPermission(
-    authStore.user?.permissions,
-    permissionPath,
+  return authStore.hasUserModulePermission(
+    props.moduleType,
     PermissionAction.EDIT,
   );
 });
