@@ -84,7 +84,9 @@ class TestCalculateUserPermissions:
 
     def test_user_std_unit_scope(self):
         """Test user std with unit scope grants view and edit for professional_travel."""  # noqa: E501
-        roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208"))]
+        roles = [
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208"))
+        ]
         result = calculate_user_permissions(roles)
 
         assert "modules.headcount/10208" not in result
@@ -129,7 +131,9 @@ class TestCalculateUserPermissions:
         """Test multiple user roles for same unit combine correctly."""
         roles = [
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208")),
-            Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")),
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+            ),
         ]
         result = calculate_user_permissions(roles)
 
