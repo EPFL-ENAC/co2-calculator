@@ -136,7 +136,7 @@ not touch.
 ## The four-plan roadmap
 
 ```
-310a  →  310b  →  310c  →  310d
+310-a  →  310-b  →  310-c  →  310-d
  │         │         │         │
 Pod      Factor    DAG +     Bulk path
 safety   pipeline  handler   = pure
@@ -153,7 +153,7 @@ claim    sync     (poller)   (Path 2)
 
 ---
 
-## Plan A — Pod Safety + Atomic Claim (`310a-pod-safety.md`)
+## Plan A — Pod Safety + Atomic Claim (`310-a-pod-safety.md`)
 
 ### What
 
@@ -176,7 +176,7 @@ because it is the orphan-recovery mechanism that pairs with `claim_job`).
 
 ---
 
-## Plan B — Factor Pipeline + Unit Sync Tracking (`310b-factor-pipeline.md`)
+## Plan B — Factor Pipeline + Unit Sync Tracking (`310-b-factor-pipeline.md`)
 
 ### What
 
@@ -201,7 +201,7 @@ because it is the orphan-recovery mechanism that pairs with `claim_job`).
 
 ---
 
-## Plan C — DAG + Handler Registry + Observability (`310c-dag-handler-registry.md`)
+## Plan C — DAG + Handler Registry + Observability (`310-c-dag-handler-registry.md`)
 
 ### What
 
@@ -223,7 +223,7 @@ because it is the orphan-recovery mechanism that pairs with `claim_job`).
 
 ---
 
-## Plan D — Bulk Path Pure Async (`310d-pipeline-responsibility-split.md`)
+## Plan D — Bulk Path Pure Async (`310-d-pipeline-responsibility-split.md`)
 
 ### What
 

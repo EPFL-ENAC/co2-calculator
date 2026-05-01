@@ -7,6 +7,7 @@ These tests exercise behavior that SQLite cannot:
   same combo.
 - True transactional concurrency (separate engines = separate connections,
   separate PG transactions).
+- ``claim_job`` refusing to demote a sibling that is already RUNNING.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
@@ -104,4 +105,114 @@ async def test_concurrent_claim_same_combo_only_one_wins(pg_dsn):
         assert loser.state == IngestionState.NOT_STARTED
         assert loser.locked_by is None
         assert loser.attempts == 0
+    await verify_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_claim_blocked_by_running_sibling(pg_dsn):
+    """A new pod cannot claim a sibling job while another sibling for the
+    same combo is RUNNING.  Without the ``state != RUNNING`` guard in
+    step 1, claim_job would demote the running sibling's ``is_current``
+    and slip past the unique index — producing two concurrent runs for
+    the same combo."""
+    seed_engine = create_async_engine(pg_dsn, future=True)
+    Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sseed() as s:
+        # Sibling already in flight — pod-A claimed it earlier.
+        running = _make_pending_job()
+        running.state = IngestionState.RUNNING
+        running.is_current = True
+        running.locked_by = "pod-A"
+        running.attempts = 1
+        # New job for the same combo, freshly enqueued.
+        candidate = _make_pending_job()
+        s.add_all([running, candidate])
+        await s.commit()
+        assert running.id is not None and candidate.id is not None
+        running_id: int = running.id
+        candidate_id: int = candidate.id
+    await seed_engine.dispose()
+
+    # Pod-B tries to claim the new sibling.  The partial unique index
+    # should reject step 2 because step 1 no longer demotes RUNNING
+    # siblings.
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sf() as session:
+        claimed = await DataIngestionRepository(session).claim_job(
+            candidate_id, "pod-B"
+        )
+    await engine.dispose()
+
+    assert claimed is False, "claim_job should refuse when a sibling is RUNNING"
+
+    # Verify the running sibling was untouched and the candidate stayed pending.
+    verify_engine = create_async_engine(pg_dsn, future=True)
+    Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Vf() as session:
+        repo = DataIngestionRepository(session)
+        running_after = await repo.get_job_by_id(running_id)
+        candidate_after = await repo.get_job_by_id(candidate_id)
+        assert running_after is not None and candidate_after is not None
+
+        # Running sibling unchanged.
+        assert running_after.is_current is True
+        assert running_after.state == IngestionState.RUNNING
+        assert running_after.locked_by == "pod-A"
+        assert running_after.attempts == 1
+        # Candidate stayed pending; nothing leaked through.
+        assert candidate_after.is_current is False
+        assert candidate_after.state == IngestionState.NOT_STARTED
+        assert candidate_after.locked_by is None
+        assert candidate_after.attempts == 0
+    await verify_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_claim_demotes_finished_sibling(pg_dsn):
+    """``claim_job`` must still demote a FINISHED sibling so the new run
+    becomes the current one — fixing the RUNNING-protection guard must
+    not break the normal previous-run-then-new-run path."""
+    seed_engine = create_async_engine(pg_dsn, future=True)
+    Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sseed() as s:
+        finished = _make_pending_job()
+        finished.state = IngestionState.FINISHED
+        finished.is_current = True
+        finished.locked_by = "pod-A"
+        finished.attempts = 1
+        candidate = _make_pending_job()
+        s.add_all([finished, candidate])
+        await s.commit()
+        assert finished.id is not None and candidate.id is not None
+        finished_id: int = finished.id
+        candidate_id: int = candidate.id
+    await seed_engine.dispose()
+
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sf() as session:
+        claimed = await DataIngestionRepository(session).claim_job(
+            candidate_id, "pod-B"
+        )
+    await engine.dispose()
+
+    assert claimed is True
+
+    verify_engine = create_async_engine(pg_dsn, future=True)
+    Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Vf() as session:
+        repo = DataIngestionRepository(session)
+        finished_after = await repo.get_job_by_id(finished_id)
+        candidate_after = await repo.get_job_by_id(candidate_id)
+        assert finished_after is not None and candidate_after is not None
+
+        # Previous FINISHED run was demoted.
+        assert finished_after.is_current is False
+        assert finished_after.state == IngestionState.FINISHED
+        # New run took over.
+        assert candidate_after.is_current is True
+        assert candidate_after.state == IngestionState.RUNNING
+        assert candidate_after.locked_by == "pod-B"
+        assert candidate_after.attempts == 1
     await verify_engine.dispose()

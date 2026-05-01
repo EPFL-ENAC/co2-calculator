@@ -1,4 +1,4 @@
-# 310c — DAG + Handler Registry + Observability
+# 310-c — DAG + Handler Registry + Observability
 
 ## Context
 
@@ -10,11 +10,19 @@ After Plans A and B ship:
   calls (`run_recalculation`, `run_module_recalculation`) for emission tasks, a different
   function for unit sync. Plan B's `_enqueue_stale_recalculations` is a one-off helper that
   re-implements the chaining logic in-line.
+- **Plan A's safety poller (`_poller.dispatch_job`) does not actually recover real ingestion
+  jobs.** Today it tries to look up the handler via `meta["provider_name"]`, but real jobs
+  don't persist the provider class name in `meta` — `provider_name` on provider classes is
+  an `IngestionMethod` enum (`csv`, `api`), not a class name. The poller picks orphan
+  `NOT_STARTED` rows, then logs `"No provider_name in meta — skipping"` and never
+  re-dispatches them. Until this plan replaces `dispatch_job` with the unified runner,
+  orphan recovery is effectively manual (via `POST /sync/jobs/{id}/recover`).
 
 This plan unifies dispatch under a **handler registry** (`job_type` → handler fn) and a single
 `run_job(job_id)` runner that every entry point uses. Every existing task becomes a handler
 registered with a `job_type`. Plan B's helper folds into a generic `chain_job` used by every
-handler.
+handler. The poller is rewired to call `run_job(job_id)` — at which point orphan recovery
+finally works.
 
 Scope: **Path 2 only.** Path 1 (interactive UI) does not go through the runner.
 
@@ -249,6 +257,51 @@ NULL`. Handling at deploy time:
 4. The poller skips `job_type IS NULL` rows (filter added to its SELECT).
 
 No backfill migration needed.
+
+### Poller cutover (resolves Plan A's broken `dispatch_job`)
+
+Plan A's `_poller.dispatch_job` reads `meta["provider_name"]` to choose a handler. Real
+ingestion jobs don't persist that field, so the poller silently skips them. Plan C replaces
+the poller's body with a single call:
+
+```python
+# backend/app/tasks/_poller.py — after Plan C
+from app.tasks.runner import run_job
+
+async def poll_pending_jobs() -> None:
+    while True:
+        try:
+            async with SessionLocal() as session:
+                stmt = (
+                    select(DataIngestionJob)
+                    .where(
+                        DataIngestionJob.state == IngestionState.NOT_STARTED,
+                        DataIngestionJob.job_type.is_not(None),  # NEW
+                        or_(
+                            DataIngestionJob.run_after.is_(None),
+                            DataIngestionJob.run_after <= func.now(),
+                        ),
+                        DataIngestionJob.locked_by.is_(None),
+                        DataIngestionJob.attempts < DataIngestionJob.max_attempts,
+                    )
+                    .with_for_update(skip_locked=True)
+                    .limit(10)
+                )
+                jobs = (await session.execute(stmt)).scalars().all()
+                for job in jobs:
+                    asyncio.create_task(run_job(job.id))
+        except Exception as exc:
+            logger.warning(f"Poller iteration failed: {exc}", exc_info=True)
+        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+```
+
+The old `dispatch_job` / `schedule_job` helpers are deleted. The `run_job` runner reads
+`job_type` from the row itself, looks up the registered handler, and invokes it — no
+`meta["provider_name"]` plumbing needed.
+
+Until Plan C lands, document the gap explicitly: orphan recovery for ingestion jobs is
+**manual** via `POST /sync/jobs/{id}/recover` and the 30-min stale window. Operators should
+be aware.
 
 ---
 

@@ -1,4 +1,4 @@
-# 310d — Bulk Path Pure Async (Path 2 only)
+# 310-d — Bulk Path Pure Async (Path 2 only)
 
 ## Context
 

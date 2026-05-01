@@ -27,19 +27,25 @@ async def run_sync_task(
     async with SessionLocal() as job_session, SessionLocal() as data_session:
         job_repo = DataIngestionRepository(job_session)
 
+        # Validate cheap things BEFORE acquiring the lock — otherwise a
+        # bogus provider name leaves the job stuck in RUNNING until the
+        # 30-minute stale-recovery window expires.  claim_job itself
+        # handles the "job not found" case (returns False), so we don't
+        # need a separate existence check here.
+        provider_class = ProviderFactory.get_provider_class(provider_class_name)
+        if not provider_class:
+            logger.error(f"Provider class '{provider_class_name}' not found.")
+            return
+
         claimed = await job_repo.claim_job(job_id, POD_ID)
         if not claimed:
             logger.info(f"Job {job_id} already claimed or not eligible — skipping")
             return
 
-        # Retrieve job from db
+        # Re-fetch the now-RUNNING row for use in provider construction.
         job = await job_repo.get_job_by_id(job_id)
         if not job:
-            logger.error(f"Job ID {job_id} not found.")
-            return
-        provider_class = ProviderFactory.get_provider_class(provider_class_name)
-        if not provider_class:
-            logger.error(f"Provider class '{provider_class_name}' not found.")
+            logger.error(f"Job ID {job_id} not found after claim.")
             return
 
         # Extract config from job.meta if available, otherwise use job.__dict__

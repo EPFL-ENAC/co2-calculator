@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.security import is_permitted, require_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -791,8 +792,6 @@ async def recover_job(
 
     **Required Permission**: ``backoffice.data_management.sync``
     """
-    from app.core.config import get_settings
-
     settings = get_settings()
     repo = DataIngestionRepository(db)
     recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)

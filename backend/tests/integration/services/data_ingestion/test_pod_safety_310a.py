@@ -150,34 +150,57 @@ async def test_claim_job_none_id(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_claim_job_unsets_previous_is_current(db_session: AsyncSession):
-    old_job = _make_job(
-        state=IngestionState.FINISHED,
-        result=IngestionResult.SUCCESS,
-        is_current=True,
-        ingestion_method=IngestionMethod.api,
-        data_entry_type_id=1,
-    )
-    new_job = _make_job(
+async def test_claim_job_respects_future_run_after(db_session: AsyncSession):
+    """Jobs scheduled for the future (e.g. retry backoff) must not be
+    claimable until ``run_after`` has elapsed."""
+    job = _make_job(
         state=IngestionState.NOT_STARTED,
-        ingestion_method=IngestionMethod.csv,
-        data_entry_type_id=2,
+        run_after=datetime.now(timezone.utc) + timedelta(minutes=5),
     )
-    db_session.add(old_job)
-    db_session.add(new_job)
-    await db_session.commit()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
 
     repo = DataIngestionRepository(db_session)
-    claimed = await repo.claim_job(new_job.id, "pod-1")
+    claimed = await repo.claim_job(job.id, "pod-1")
+    assert claimed is False
 
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.NOT_STARTED
+    assert refreshed.locked_by is None
+    assert refreshed.attempts == 0
+
+
+@pytest.mark.asyncio
+async def test_claim_job_succeeds_when_run_after_has_elapsed(
+    db_session: AsyncSession,
+):
+    """Once ``run_after`` is in the past, the job becomes claimable."""
+    job = _make_job(
+        state=IngestionState.NOT_STARTED,
+        run_after=datetime.now(timezone.utc) - timedelta(minutes=1),
+    )
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    repo = DataIngestionRepository(db_session)
+    claimed = await repo.claim_job(job.id, "pod-1")
     assert claimed is True
-    # Verify new job was claimed and set as current
-    refreshed_new = await repo.get_job_by_id(new_job.id)
-    assert refreshed_new.is_current is True
-    assert refreshed_new.state == IngestionState.RUNNING
-    # Note: the "unset is_current on previous same-combo row" path can only
-    # be verified on Postgres (SQLite full unique index prevents two rows with
-    # the same combo and is_current=True from coexisting).
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.RUNNING
+    assert refreshed.locked_by == "pod-1"
+
+
+# Note: the "unset previous is_current for the same combo" behavior cannot
+# be exercised in SQLite — `postgresql_where` is a dialect-specific kwarg
+# and SQLite ignores it, so the unique index becomes a *full* unique index
+# on the combo columns.  Two same-combo rows can't coexist there, even with
+# different is_current values.  See ``test_pod_safety_310a_pg.py``'s
+# ``test_claim_demotes_finished_sibling`` for the real coverage on Postgres.
 
 
 # ======================================================================
@@ -291,6 +314,46 @@ async def test_run_sync_task_claim_fails_skips_provider(db_session: AsyncSession
         )
 
     fake_provider.ingest.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_sync_task_invalid_provider_does_not_claim(
+    db_session: AsyncSession,
+):
+    """If the provider class doesn't resolve, ``run_sync_task`` must
+    return BEFORE acquiring the claim — otherwise the job ends up stuck
+    in RUNNING and only the 30-min stale-recovery window can release it.
+    """
+    job = _make_job(state=IngestionState.NOT_STARTED)
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    with patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local:
+        mock_data_session = MagicMock()
+        mock_data_session.commit = AsyncMock()
+        mock_data_session.rollback = AsyncMock()
+        mock_session_local.return_value.__aenter__ = AsyncMock(
+            side_effect=[db_session, mock_data_session]
+        )
+        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
+
+        # No patch on ProviderFactory: the real factory returns None for
+        # this bogus name, which is exactly what we want to exercise.
+        await run_sync_task(
+            "DefinitelyNotAProviderClass",
+            job_id=job.id,
+            filters={},
+        )
+
+    # Job must be untouched — no claim occurred.
+    repo = DataIngestionRepository(db_session)
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.NOT_STARTED
+    assert refreshed.is_current is False
+    assert refreshed.locked_by is None
+    assert refreshed.attempts == 0
 
 
 # ======================================================================

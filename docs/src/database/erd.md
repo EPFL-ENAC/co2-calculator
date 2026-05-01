@@ -62,7 +62,7 @@ erDiagram
     DATETIME updated_at
   }
   data_entry_emissions {
-    FLOAT additional_value
+    FLOAT additional_value "Polymorphic physical quantity tied to this emission row. Unit is inferred from emission_type_id (e.g. km for commuting and travel, kg for food and waste)."
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
     INTEGER emission_type_id "indexed"

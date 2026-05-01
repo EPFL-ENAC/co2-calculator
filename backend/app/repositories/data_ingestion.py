@@ -82,8 +82,6 @@ class DataIngestionRepository:
             DataIngestionJob.model_validate(result_job)
 
             result_job.status_message = status_message
-            result_job.state = state
-            # Use new state/result if provided, otherwise derive from legacy status_code
             if state is not None:
                 result_job.state = state
             if result is not None:
@@ -160,10 +158,15 @@ class DataIngestionRepository:
         if job is None:
             return False
 
-        # Step 1 — clear previous is_current for the same combo
+        # Step 1 — clear previous is_current for the same combo, but only
+        # for siblings that are NOT currently RUNNING.  Demoting a RUNNING
+        # sibling here would let two pods process the same combo
+        # concurrently — the partial unique index can't catch it once the
+        # demote commits.
         combo_where = and_(
             col(DataIngestionJob.is_current),
             col(DataIngestionJob.id) != job_id,
+            col(DataIngestionJob.state) != IngestionState.RUNNING,
             self._build_combo_where(job),
         )
         await self.session.execute(
@@ -181,6 +184,10 @@ class DataIngestionRepository:
                     ),
                     col(DataIngestionJob.locked_by).is_(None),
                     col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+                    or_(
+                        col(DataIngestionJob.run_after).is_(None),
+                        col(DataIngestionJob.run_after) <= func.now(),
+                    ),
                 )
                 .values(
                     locked_by=pod_id,

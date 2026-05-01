@@ -1,4 +1,4 @@
-# 310b — Factor Pipeline + Unit Sync Tracking
+# 310-b — Factor Pipeline + Unit Sync Tracking
 
 ## Context
 
