@@ -52,6 +52,7 @@ async def test_run_sync_task_success():
             side_effect=[mock_job_session, mock_data_session]
         )
         mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_repo.return_value.claim_job = AsyncMock(return_value=True)
         mock_repo.return_value.get_job_by_id = AsyncMock(return_value=fake_job)
 
         await run_sync_task("FakeProviderClass", job_id=123, filters={"foo": "bar"})
@@ -86,6 +87,7 @@ async def test_run_sync_task_job_not_found():
             side_effect=[mock_job_session, mock_data_session]
         )
         mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_repo.return_value.claim_job = AsyncMock(return_value=True)
         mock_repo.return_value.get_job_by_id = AsyncMock(return_value=None)
 
         # Should not raise

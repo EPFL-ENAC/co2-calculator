@@ -73,16 +73,23 @@ erDiagram
     INTEGER scope
   }
   data_ingestion_jobs {
+    INTEGER attempts
     INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
     INTEGER id PK
     VARCHAR ingestion_method "indexed"
     BOOLEAN is_current
+    VARCHAR job_type
+    DATETIME locked_at
+    VARCHAR locked_by
+    INTEGER max_attempts
     JSON meta
     INTEGER module_type_id "indexed"
+    UUID pipeline_id
     VARCHAR provider
     VARCHAR result
+    DATETIME run_after "indexed"
     VARCHAR state
     VARCHAR status_message
     VARCHAR target_type "indexed"
@@ -140,6 +147,7 @@ erDiagram
     INTEGER id PK
     VARCHAR institutional_id "indexed"
     DATETIME last_login
+    DATETIME last_roles_sync_at
     VARCHAR provider
     JSON roles_raw
   }

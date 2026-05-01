@@ -46,6 +46,7 @@ async def test_run_recalculation_task_success():
     fake_job.id = 42
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -81,6 +82,7 @@ async def test_run_recalculation_task_success():
         ),
     ):
         _patch_session_local(mock_sl, job_session, data_session)
+        fake_repo.claim_job = AsyncMock(return_value=True)
 
         await run_recalculation_task(
             module_type_id=1,
@@ -108,6 +110,7 @@ async def test_run_recalculation_task_partial_errors_returns_warning():
     fake_job.id = 42
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -163,6 +166,7 @@ async def test_run_recalculation_task_error_path():
     fake_job.id = 42
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -215,6 +219,7 @@ async def test_run_recalculation_task_job_not_found():
     job_session, data_session = _make_mock_sessions()
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=None)
     fake_repo.update_ingestion_job = AsyncMock()
 
@@ -252,6 +257,7 @@ async def test_run_module_recalculation_task_all_success():
     fake_job.id = 99
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -301,7 +307,7 @@ async def test_run_module_recalculation_task_all_success():
 
     # One per-type stub job created and marked current for each data entry type
     assert fake_repo.create_ingestion_job.await_count == 2
-    assert fake_repo.mark_job_as_current.await_count == 3  # 1 module + 2 per-type
+    assert fake_repo.mark_job_as_current.await_count == 2  # 2 per-type jobs only
 
 
 @pytest.mark.asyncio
@@ -313,6 +319,7 @@ async def test_run_module_recalculation_task_one_type_error_warning():
     fake_job.id = 99
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -373,6 +380,7 @@ async def test_run_module_recalculation_task_all_types_error():
     fake_job.id = 99
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -419,6 +427,7 @@ async def test_run_module_recalculation_task_per_type_progress_messages():
     fake_job.id = 99
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=fake_job)
     fake_repo.update_ingestion_job = AsyncMock()
     fake_repo.mark_job_as_current = AsyncMock()
@@ -470,6 +479,7 @@ async def test_run_module_recalculation_task_job_not_found():
     job_session, data_session = _make_mock_sessions()
 
     fake_repo = MagicMock()
+    fake_repo.claim_job = AsyncMock(return_value=True)
     fake_repo.get_job_by_id = AsyncMock(return_value=None)
     fake_repo.update_ingestion_job = AsyncMock()
 

@@ -1,20 +1,23 @@
+"""Background tasks for data ingestion."""
+
 import asyncio
-import logging
 from typing import Optional
 
+from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks._pod_id import POD_ID
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def run_sync_task(
     provider_class_name: str,
     job_id: int,
     filters: Optional[dict] = None,
-):
+) -> None:
     """
     Async helper function to run ingestion with database operations.
     Uses two separate sessions:
@@ -22,8 +25,15 @@ async def run_sync_task(
     - data_session: For data operations (single atomic commit at the end)
     """
     async with SessionLocal() as job_session, SessionLocal() as data_session:
+        job_repo = DataIngestionRepository(job_session)
+
+        claimed = await job_repo.claim_job(job_id, POD_ID)
+        if not claimed:
+            logger.info(f"Job {job_id} already claimed or not eligible — skipping")
+            return
+
         # Retrieve job from db
-        job = await DataIngestionRepository(job_session).get_job_by_id(job_id)
+        job = await job_repo.get_job_by_id(job_id)
         if not job:
             logger.error(f"Job ID {job_id} not found.")
             return

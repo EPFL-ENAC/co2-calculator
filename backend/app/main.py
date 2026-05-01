@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, status
@@ -48,7 +49,26 @@ async def lifespan(app: FastAPI):
         from app.db import init_db
 
         await init_db()
+
+    # Start the safety poller (Plan 310A)
+    if settings.RUN_BACKGROUND_POLLER:
+        from app.tasks._pod_id import POD_ID
+        from app.tasks._poller import poll_pending_jobs
+
+        logger.info(f"Starting safety poller on pod {POD_ID}")
+        app.state.poller_task = asyncio.create_task(poll_pending_jobs())
+
     yield
+
+    # Cancel the safety poller on shutdown
+    task = getattr(app.state, "poller_task", None)
+    if task:
+        logger.info("Cancelling safety poller")
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            logger.info("Safety poller cancelled successfully")
 
     """Run on application shutdown."""
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
@@ -190,6 +210,7 @@ app = FastAPI(
     root_path=settings.API_DOCS_PREFIX,
     lifespan=lifespan,
 )
+
 # NO CORS origins configured allowed on this instance
 
 # Add this after creating the FastAPI app

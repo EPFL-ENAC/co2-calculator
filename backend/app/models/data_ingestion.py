@@ -1,7 +1,11 @@
+from datetime import datetime
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
-from sqlalchemy import JSON, Column, Index, Integer, text
+from sqlalchemy import JSON, Column, Index, Integer, String, text
+from sqlalchemy import UUID as SAUUID
+from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
@@ -232,6 +236,47 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         ),
     )
 
+    # Claiming (Plan 310A)
+    locked_by: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(255)),
+        description="Pod ID that atomically claimed this job",
+    )
+    locked_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(SADateTime(timezone=True)),
+        description="Timestamp of the most recent successful claim",
+    )
+
+    # Retry scaffolding (Plan 310A)
+    attempts: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+        description="Number of times this job has been attempted",
+    )
+    max_attempts: int = Field(
+        default=3,
+        sa_column=Column(Integer, nullable=False, server_default="3"),
+        description="Maximum number of attempts before giving up",
+    )
+    run_after: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(SADateTime(timezone=True)),
+        description="Earliest time the job may be claimed (NULL = immediately)",
+    )
+
+    # Grouping / dispatch (Plan 310A)
+    pipeline_id: Optional[UUID] = Field(
+        default=None,
+        sa_column=Column(SAUUID),
+        description="UUID grouping jobs belonging to the same multi-step pipeline run",
+    )
+    job_type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(String(100)),
+        description="Job type identifier (csv_ingest, factor_ingest, etc.)",
+    )
+
     __table_args__ = (
         Index(
             "ix_data_ingestion_jobs_is_current_unique",
@@ -242,6 +287,13 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "year",
             unique=True,
             postgresql_where=text("is_current = true"),
+        ),
+        Index(
+            "ix_data_ingestion_jobs_pending",
+            "run_after",
+            postgresql_where=text(
+                "state = 'NOT_STARTED'::ingestion_state_enum AND locked_by IS NULL"
+            ),
         ),
     )
 
