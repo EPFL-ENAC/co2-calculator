@@ -50,6 +50,22 @@ class EmissionRecalculationWorkflow:
         """
         repo = DataEntryRepository(self.session)
         entries = await repo.list_by_data_entry_type_and_year(data_entry_type_id, year)
+        logger.info(
+            f"Recalc {data_entry_type_id.name}/{year}: "
+            f"{len(entries)} data entries to process"
+        )
+
+        # Early-exit: nothing to recalculate.  Keeps the recalc task off the
+        # handler / factor lookup paths entirely when the slice is empty,
+        # which is the dominant case right after a factor reupload for a
+        # det that has no data entries yet.
+        if not entries:
+            return {
+                "recalculated": 0,
+                "modules_refreshed": 0,
+                "errors": 0,
+                "error_details": [],
+            }
 
         emission_svc = DataEntryEmissionService(self.session)
         module_svc = CarbonReportModuleService(self.session)

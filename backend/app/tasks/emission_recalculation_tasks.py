@@ -71,11 +71,17 @@ async def run_recalculation_task(
                 metadata={},
             )
             await job_session.commit()
+            logger.info(
+                f"Recalc job {job_id}: claimed and status committed; "
+                f"running workflow for det={data_entry_type.name}/year={year}"
+            )
 
             stats = await svc.recalculate_for_data_entry_type(data_entry_type, year)
+            logger.info(f"Recalc job {job_id}: workflow returned {stats}")
 
             # Commit the data session atomically
             await data_session.commit()
+            logger.info(f"Recalc job {job_id}: data session committed")
 
             result = (
                 IngestionResult.SUCCESS
@@ -90,7 +96,9 @@ async def run_recalculation_task(
                 result=result,
             )
             await job_session.commit()
-            logger.info(f"Recalculation job {job_id} finished: {stats}")
+            logger.info(
+                f"Recalc job {job_id}: FINISHED state committed (result={result.name})"
+            )
 
         except Exception as exc:
             logger.error(f"Recalculation job {job_id} failed: {exc}", exc_info=True)
