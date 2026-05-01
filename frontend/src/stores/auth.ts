@@ -11,6 +11,7 @@ import { computed } from 'vue';
 import { PermissionAction } from 'src/constant/permissions';
 import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
+import { useWorkspaceStore } from './workspace';
 interface User {
   id: string;
   email: string;
@@ -33,6 +34,8 @@ interface User {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
+
+  const workspaceStore = useWorkspaceStore();
 
   const displayName = computed(() => {
     if (!user.value) return '';
@@ -113,8 +116,30 @@ export const useAuthStore = defineStore('auth', () => {
     path: string,
     action: PermissionAction = PermissionAction.VIEW,
   ): boolean {
-    if (!user.value) return false;
-    return hasPermission(user.value.permissions, path, action);
+    if (!user.value || !user.value.permissions) return false;
+    // Check for global permission first (without workspace context)
+    const globallyPermitted = hasPermission(
+      user.value.permissions,
+      path,
+      action,
+    );
+    console.log(
+      `[global] Checking permission for path: ${path} and action: ${action}`,
+    );
+    if (globallyPermitted) return true;
+    // append workspace context to permission path if available
+    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
+    if (institutionalId) {
+      path = `${path}/${institutionalId}`;
+      console.log(
+        `[workspace] Checking permission for path: ${path} and action: ${action}`,
+      );
+      return hasPermission(user.value.permissions, path, action);
+    }
+    console.log(
+      `[workspace] No institutional ID found for path: ${path} and action: ${action}`,
+    );
+    return false;
   }
 
   /**

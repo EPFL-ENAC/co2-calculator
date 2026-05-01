@@ -54,23 +54,13 @@ export function hasPermission(
     return false;
   }
 
-  // Edge case: path is null/undefined or not a string
-  if (!path || typeof path !== 'string') {
+  // Edge case: path is null/undefined or not a string or empty/whitespace-only
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
     return false;
   }
 
-  // Edge case: path is empty or whitespace-only
-  if (path.trim().length === 0) {
-    return false;
-  }
-
-  // Edge case: action is null/undefined or not a string
-  if (!action || typeof action !== 'string') {
-    return false;
-  }
-
-  // Edge case: action is empty or whitespace-only
-  if (action.trim().length === 0) {
+  // Edge case: action is null/undefined or not a string or empty/whitespace-only
+  if (!action || typeof action !== 'string' || action.trim().length === 0) {
     return false;
   }
 
@@ -82,30 +72,13 @@ export function hasPermission(
 
     const permSet = permissions[path];
 
-    // Edge case: permission set is null/undefined
-    if (permSet === null || permSet === undefined) {
+    // Edge case: permission set is null/undefined or not an array (should be an array of allowed actions)
+    if (permSet === null || permSet === undefined || !Array.isArray(permSet)) {
       return false;
     }
 
-    // Edge case: permission set is not an object (could be array, primitive, etc.)
-    if (typeof permSet !== 'object' || Array.isArray(permSet)) {
-      return false;
-    }
-
-    // Edge case: action not in permission set
-    if (!(action in permSet)) {
-      return false;
-    }
-
-    const value = permSet[action];
-
-    // Edge case: value is null/undefined (explicitly check for null)
-    if (value === null || value === undefined) {
-      return false;
-    }
-
-    // Return the boolean value (coerce to boolean for safety)
-    return Boolean(value);
+    // Check if the action exists in the permission set
+    return permSet.includes(action);
   } catch (error) {
     // Edge case: any unexpected error (TypeError, etc.)
     // Log in development for debugging, but return false in production

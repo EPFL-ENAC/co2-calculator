@@ -10,10 +10,11 @@ from app.models.unit import Unit, UnitBase
 class UnitWithUserRole(BaseModel):
     """Schema for unit with current user's role from join."""
 
-    id: int = Field(..., description="EPFL unit/unit ID")
+    id: int = Field(..., description="DB ID")
     name: str = Field(
         ..., min_length=1, max_length=255, description="Unit name like 'ENAC-IT4R'"
     )
+    institutional_id: str = Field(..., description="EPFL unit/unit ID")
     current_user_role: str = Field(
         ..., description="Current user's role within this unit"
     )
