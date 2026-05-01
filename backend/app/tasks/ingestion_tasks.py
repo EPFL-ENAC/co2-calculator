@@ -174,6 +174,7 @@ async def _enqueue_stale_recalculations(
         MODULE_TYPE_TO_DATA_ENTRY_TYPES,
         ModuleTypeEnum,
     )
+    from app.tasks._background import fire_and_forget
     from app.tasks.emission_recalculation_tasks import run_recalculation_task
 
     repo = DataIngestionRepository(session)
@@ -253,13 +254,14 @@ async def _enqueue_stale_recalculations(
                 f"(module={row['module_type_id']}, det={row['data_entry_type_id']})"
             )
             continue
-        asyncio.create_task(
+        fire_and_forget(
             run_recalculation_task(
                 row["module_type_id"],
                 row["data_entry_type_id"],
                 year,
                 created.id,
-            )
+            ),
+            name=f"recalc-{created.id}",
         )
         logger.info(
             f"Enqueued recalc job {created.id} for module={row['module_type_id']} "

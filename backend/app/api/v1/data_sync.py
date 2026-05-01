@@ -24,6 +24,7 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks._background import fire_and_forget
 from app.tasks.emission_recalculation_tasks import (
     run_module_recalculation,
     run_recalculation,
@@ -786,8 +787,13 @@ async def sync_units_from_accred(
         )
 
     # Fire-and-forget; the safety poller (Plan 310A) recovers the job if
-    # this pod crashes before run_sync_task_accred claims it.
-    asyncio.create_task(run_sync_task_accred(syncRequest, created.id))
+    # this pod crashes before run_sync_task_accred claims it.  Use
+    # fire_and_forget (not bare asyncio.create_task) so the task isn't
+    # garbage-collected before the loop schedules its first step.
+    fire_and_forget(
+        run_sync_task_accred(syncRequest, created.id),
+        name=f"unit-sync-{created.id}",
+    )
 
     return SyncStatusResponse(
         job_id=created.id,
