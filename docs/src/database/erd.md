@@ -100,6 +100,7 @@ erDiagram
     INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id "indexed"
     INTEGER id PK
+    INTEGER last_seen_job_id FK
     JSON values
     INTEGER year "indexed"
   }
@@ -161,6 +162,7 @@ erDiagram
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
+  data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"

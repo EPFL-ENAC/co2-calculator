@@ -14,6 +14,7 @@ def _make_mock_entry(entry_id: int, module_id: int) -> MagicMock:
     entry.id = entry_id
     entry.carbon_report_module_id = module_id
     entry.data_entry_type_id = DataEntryTypeEnum.plane
+    entry.data = {}  # primary_factor_id is read from / written to entry.data
     return entry
 
 
@@ -44,7 +45,17 @@ async def test_recalculate_all_success():
         patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
     ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={}
+        )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -86,7 +97,17 @@ async def test_recalculate_partial_error():
         patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
     ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={}
+        )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -131,6 +152,8 @@ async def test_recalculate_empty_result():
         ) as mock_repo_cls,
         patch("app.workflows.emission_recalculation.DataEntryEmissionService"),
         patch("app.workflows.emission_recalculation.CarbonReportModuleService"),
+        patch("app.workflows.emission_recalculation.BaseModuleHandler"),
+        patch("app.workflows.emission_recalculation.ModuleHandlerService"),
     ):
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=[]
@@ -144,6 +167,100 @@ async def test_recalculate_empty_result():
     assert result["errors"] == 0
     assert result["modules_refreshed"] == 0
     assert result["error_details"] == []
+
+
+@pytest.mark.asyncio
+async def test_recalculate_rematches_primary_factor_id_when_changed():
+    """Plan 310B Part 6: when resolve_primary_factor_id returns a different
+    factor id than what's stored on entry.data, the workflow updates
+    entry.data['primary_factor_id'] before computing emissions.
+    """
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entry = _make_mock_entry(1, 10)
+    entry.data = {"primary_factor_id": 999}  # stale: points at the old factor
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch(
+            "app.workflows.emission_recalculation.CarbonReportModuleService"
+        ) as mock_module_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
+    ):
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=[entry]
+        )
+        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_module_cls.return_value.recompute_stats = AsyncMock()
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        # New factor matches against current state — different id
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={"primary_factor_id": 1234}
+        )
+
+        result = await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.plane, 2025
+        )
+
+    assert result["recalculated"] == 1
+    assert entry.data["primary_factor_id"] == 1234
+
+
+@pytest.mark.asyncio
+async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
+    """When resolve_primary_factor_id returns the same id, entry.data is
+    untouched (no churn).
+    """
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entry = _make_mock_entry(1, 10)
+    original_data = {"primary_factor_id": 7, "extra": "preserved"}
+    entry.data = dict(original_data)
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch(
+            "app.workflows.emission_recalculation.CarbonReportModuleService"
+        ) as mock_module_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
+    ):
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=[entry]
+        )
+        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_module_cls.return_value.recompute_stats = AsyncMock()
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={"primary_factor_id": 7}
+        )
+
+        await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
+
+    assert entry.data == original_data
 
 
 @pytest.mark.asyncio
@@ -173,7 +290,17 @@ async def test_recalculate_module_stats_called_once_per_module():
         patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
     ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={}
+        )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )

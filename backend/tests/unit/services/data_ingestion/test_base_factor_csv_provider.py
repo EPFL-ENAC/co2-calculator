@@ -28,6 +28,7 @@ def _build_stats():
         "row_errors": [],
         "row_errors_count": 0,
         "factors_deleted": 0,
+        "factors_upserted": 0,
     }
 
 
@@ -286,6 +287,7 @@ async def test_finalize_and_commit_move_file_failure():
         factor_service=MagicMock(),
         stats=_build_stats(),
         setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+        factor_repo=MagicMock(),
     )
     assert result["state"] == IngestionState.FINISHED
 

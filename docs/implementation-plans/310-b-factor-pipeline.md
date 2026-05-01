@@ -305,6 +305,75 @@ directly (we are already in an async context).
 
 ---
 
+## Part 6 — Rematch on recalc (Strategy A only)
+
+### Why this is needed
+
+Parts 2–4 close most of the FK-stability problem: upsert-in-place preserves `factor.id` when a
+CSV re-uploads the same factor (same identity key) with new values. The recalc dereferences the
+stable FK and reads the new values. Correct.
+
+The hole is the **classification-change** case. The factor identity key includes
+`classification`, so a CSV reupload that changes a factor's classification (supplier renamed,
+vendor consolidated, sub-class added) does **not** update the existing row — it inserts a new
+factor row, and the old row stays as stale (`last_seen_job_id` < latest). Existing
+`DataEntry.primary_factor_id` continues to point at the stale row. The recalc job would then
+read stale values via the stale FK and emit wrong numbers, silently.
+
+This affects **Strategy A** entries only (equipment, purchases, process_emissions, etc. — see
+`data_entry_emission_service._fetch_factors`, line 296). Strategy B entries (headcount,
+travel, building) already re-match by classification at every recompute via
+`factor_service.get_by_classification`, so they pick up the new factor automatically.
+
+### Fix
+
+In `EmissionRecalculationWorkflow.recalculate_for_data_entry_type`, before computing emissions
+for each Strategy A data entry, re-resolve `primary_factor_id` against current factors. This
+treats stored `primary_factor_id` as a cache and matching as the truth — within Plan B's
+structure, no architectural reframe.
+
+The canonical matching function already exists:
+`ModuleHandlerService.resolve_primary_factor_id` (`module_handler_service.py:28`). Reuse it.
+
+```python
+# Inside EmissionRecalculationWorkflow, per data entry, before compute:
+handler = get_handler(data_entry.data_entry_type)
+if handler.kind_field is not None:           # Strategy A handlers expose kind_field
+    refreshed = await module_handler_service.resolve_primary_factor_id(
+        handler=handler,
+        payload=data_entry.data,             # has kind/subkind classification fields
+        data_entry_type_id=DataEntryTypeEnum(data_entry.data_entry_type),
+        year=year,
+        existing_data=None,
+    )
+    new_factor_id = refreshed.get("primary_factor_id")
+    if new_factor_id != data_entry.primary_factor_id:
+        data_entry.primary_factor_id = new_factor_id
+        # data_session.add not strictly needed if data_entry already attached;
+        # the dual-session pattern flushes on data_session.commit at end of task
+```
+
+After the loop, the existing `_fetch_factors` Strategy A path (`comp.factor_id = ...`) reads
+the refreshed FK and computes against the correct factor.
+
+### What this is **not**
+
+- Not a switch to derived-only (Option A): we still cache `primary_factor_id` for read-time
+  performance.
+- Not full invalidation-and-relink at ingest time: the rematch happens during recalc, where we
+  already iterate every affected entry. No extra query fan-out at ingest.
+- Not a JSONB-classification change: that is Part 1, separate concern.
+
+### Tests added (folded into the table below)
+
+- Factor reupload that **changes classification** of an existing factor → existing
+  Strategy A data_entries are re-linked to the new factor row; emissions reflect new values.
+- Factor reupload that **only changes values** (same identity key) → existing
+  `primary_factor_id` is unchanged (no churn), emissions reflect new values via stable FK.
+- Strategy B entry → no `primary_factor_id` mutation needed (already derived).
+
+---
+
 ## Tests
 
 | Test                                        | Assertion                                                                             |
@@ -320,6 +389,9 @@ directly (we are already in an async context).
 | `run_sync_task_accred` claim guard          | mock claim_job → False, asserts task returns without API calls                        |
 | `POST /sync/units`                          | returns real job_id (not 0); job is created, claimable                                |
 | `claim_job` with `module_type_id IS NULL`   | unsets previous GLOBAL_PER_YEAR is_current correctly                                  |
+| Recalc rematches on classification change   | Strategy A entries re-link to the new factor row; emissions use new values            |
+| Recalc no-op on values-only change          | `primary_factor_id` unchanged when identity key matches; emissions reflect new values |
+| Recalc Strategy B unaffected                | no `primary_factor_id` mutation; classification re-match happens in `_fetch_factors`  |
 
 ---
 

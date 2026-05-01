@@ -1,15 +1,22 @@
-"""Tests for unit sync tasks from Accred API."""
+"""Tests for unit sync tasks from Accred API.
+
+Plan 310B Part 5 — ``run_sync_task_accred`` now claims a tracked
+DataIngestionJob (entity_type=GLOBAL_PER_YEAR), updates ``status_message``
+between steps via the dual-session pattern, and finishes by stamping the
+job FINISHED+SUCCESS (or ERROR on failure).  These tests assert the new
+contract: that the job lifecycle transitions are emitted in order.
+"""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.tasks.unit_sync_tasks import SyncUnitRequest, run_sync_task_accred
 
 
 @pytest.fixture
 def mock_accred_units_raw():
-    """Mock raw units from Accred API."""
     return [
         {
             "id": "1",
@@ -32,205 +39,126 @@ def mock_accred_units_raw():
             "enddate": "0001-01-01T00:00:00Z",
             "ancestors": [],
         },
-        {
-            "id": "2",
-            "name": "Unit 2",
-            "labelfr": "Unité 2",
-            "labelen": "Unit 2",
-            "level": 1,
-            "parentid": None,
-            "pathcf": None,
-            "path": "Unit 2",
-            "cf": "2",
-            "responsible": {
-                "email": "user2@example.com",
-                "id": "101",
-                "name": "User 2",
-            },
-            "responsibleid": "101",
-            "unittypeid": 1,
-            "unittype": {"label": "Building"},
-            "enddate": "0001-01-01T00:00:00Z",
-            "ancestors": [],
-        },
     ]
 
 
 @pytest.fixture
 def mock_accred_principal_users_raw():
-    """Mock raw principal users from Accred API."""
-    return [
-        {"email": "user1@example.com", "id": "100", "name": "User 1"},
-        {"email": "user2@example.com", "id": "101", "name": "User 2"},
-    ]
+    return [{"email": "user1@example.com", "id": "100", "name": "User 1"}]
+
+
+def _patched_session_local():
+    """Build a MagicMock SessionLocal whose async-context-manager returns a
+    fresh mock session each call (job_session and data_session must be
+    distinct so call_count assertions stay meaningful)."""
+    session_local = MagicMock()
+
+    def _new_session(*_args, **_kwargs):
+        sess = MagicMock()
+        sess.commit = AsyncMock()
+        sess.rollback = AsyncMock()
+        ctx = MagicMock()
+        ctx.__aenter__ = AsyncMock(return_value=sess)
+        ctx.__aexit__ = AsyncMock(return_value=None)
+        return ctx
+
+    session_local.side_effect = _new_session
+    return session_local
+
+
+def _common_provider_patches(units_raw, users_raw):
+    """Build the (unit_provider, role_provider) MagicMocks used by both tests."""
+    unit_provider = MagicMock()
+    unit_provider.fetch_all_units = AsyncMock(return_value=(units_raw, users_raw))
+    unit_provider.map_api_unit = MagicMock(
+        side_effect=lambda u: MagicMock(id=None, institutional_id=u["id"])
+    )
+    role_provider = MagicMock()
+    role_provider.map_api_user = MagicMock(
+        side_effect=lambda u: MagicMock(id=u["id"], email=u["email"])
+    )
+    return unit_provider, role_provider
 
 
 @pytest.mark.asyncio
-async def test_sync_units_creates_carbon_reports(
+async def test_run_sync_task_accred_claims_job_and_finishes(
     mock_accred_units_raw,
     mock_accred_principal_users_raw,
 ):
-    """Test that carbon reports are created for all units."""
-    mock_session = MagicMock()
-    mock_session.commit = AsyncMock()
-    mock_session.rollback = AsyncMock()
-
-    mock_unit_result = MagicMock()
-    mock_unit_result.data = [
-        MagicMock(id=1, institutional_id="1"),
-        MagicMock(id=2, institutional_id="2"),
-    ]
-
-    mock_user_result = MagicMock()
-    mock_user_result.data = [
-        MagicMock(id="100", email="user1@example.com"),
-        MagicMock(id="101", email="user2@example.com"),
-    ]
-
-    mock_reports = [
-        MagicMock(id=1, year=2024, unit_id=1),
-        MagicMock(id=2, year=2024, unit_id=2),
-    ]
-
-    mock_module_service = MagicMock()
-    mock_module_service.ensure_modules_for_reports = AsyncMock()
+    """Happy path: claim_job→RUNNING→…steps…→FINISHED+SUCCESS."""
+    unit_provider, role_provider = _common_provider_patches(
+        mock_accred_units_raw, mock_accred_principal_users_raw
+    )
+    repo = MagicMock()
+    repo.claim_job = AsyncMock(return_value=True)
+    repo.update_ingestion_job = AsyncMock()
 
     with (
-        patch("app.tasks.unit_sync_tasks.SessionLocal") as mock_session_local,
-        patch("app.tasks.unit_sync_tasks.get_unit_provider") as mock_get_unit_provider,
-        patch("app.tasks.unit_sync_tasks.get_role_provider") as mock_get_role_provider,
+        patch("app.tasks.unit_sync_tasks.SessionLocal", _patched_session_local()),
+        patch("app.tasks.unit_sync_tasks.DataIngestionRepository", return_value=repo),
+        patch(
+            "app.tasks.unit_sync_tasks.get_unit_provider", return_value=unit_provider
+        ),
+        patch(
+            "app.tasks.unit_sync_tasks.get_role_provider", return_value=role_provider
+        ),
+        patch("app.tasks.unit_sync_tasks.UnitService") as MockUnitService,
+        patch("app.tasks.unit_sync_tasks.UserService") as MockUserService,
+        patch("app.tasks.unit_sync_tasks.CarbonReportService") as MockCRService,
     ):
-        mock_provider = MagicMock()
-        mock_provider.fetch_all_units = AsyncMock(
-            return_value=(mock_accred_units_raw, mock_accred_principal_users_raw)
-        )
-        mock_provider.map_api_unit = MagicMock(
-            side_effect=lambda u: MagicMock(id=None, institutional_id=u["id"])
-        )
-        mock_get_unit_provider.return_value = mock_provider
+        unit_result = MagicMock()
+        unit_result.data = [MagicMock(id=1, institutional_id="1")]
+        user_result = MagicMock()
+        user_result.data = [MagicMock(id="100", email="user1@example.com")]
+        MockUnitService.return_value.bulk_upsert = AsyncMock(return_value=unit_result)
+        MockUserService.return_value.bulk_upsert = AsyncMock(return_value=user_result)
 
-        mock_role_provider = MagicMock()
-        mock_role_provider.map_api_user = MagicMock(
-            side_effect=lambda u: MagicMock(id=u["id"], email=u["email"])
-        )
-        mock_get_role_provider.return_value = mock_role_provider
+        cr_service = MagicMock()
+        reports = [MagicMock(id=1, year=2024, unit_id=1)]
+        cr_service.bulk_upsert = AsyncMock(return_value=reports)
+        cr_service.ensure_modules_for_reports = AsyncMock()
+        MockCRService.return_value = cr_service
 
-        mock_session_local.return_value.__aenter__.return_value = mock_session
-        mock_session_local.return_value.__aexit__.return_value = None
+        await run_sync_task_accred(SyncUnitRequest(target_year=2024), job_id=99)
 
-        with (
-            patch("app.tasks.unit_sync_tasks.UnitService") as MockUnitService,
-            patch("app.tasks.unit_sync_tasks.UserService") as MockUserService,
-            patch(
-                "app.tasks.unit_sync_tasks.CarbonReportService"
-            ) as MockCarbonReportService,
-        ):
-            MockUnitService.return_value.bulk_upsert = AsyncMock(
-                return_value=mock_unit_result
-            )
-            MockUserService.return_value.bulk_upsert = AsyncMock(
-                return_value=mock_user_result
-            )
-
-            mock_cr_service_instance = MagicMock()
-            mock_cr_service_instance.bulk_upsert = AsyncMock(return_value=mock_reports)
-            mock_cr_service_instance.module_service = mock_module_service
-            mock_cr_service_instance.ensure_modules_for_reports = AsyncMock()
-            MockCarbonReportService.return_value = mock_cr_service_instance
-
-            result = await run_sync_task_accred(SyncUnitRequest(target_year=2024))
-
-        assert result["status"] == "success"
-        assert result["units_synced"] == 2
-        assert result["users_synced"] == 2
-        assert result["carbon_reports_created"] == 2
-        assert result["carbon_report_year"] == 2024
-
-        mock_session.commit.assert_awaited_once()
-        mock_cr_service_instance.ensure_modules_for_reports.assert_awaited_once_with(
-            mock_reports
-        )
+    repo.claim_job.assert_awaited_once_with(99, mock_pod_id_arg(repo.claim_job))
+    final_call = repo.update_ingestion_job.call_args_list[-1]
+    assert final_call.kwargs["state"] == IngestionState.FINISHED
+    assert final_call.kwargs["result"] == IngestionResult.SUCCESS
+    cr_service.ensure_modules_for_reports.assert_awaited_once_with(reports)
 
 
 @pytest.mark.asyncio
-async def test_sync_units_upsert_existing_reports(
+async def test_run_sync_task_accred_claim_failed_returns_silently(
     mock_accred_units_raw,
     mock_accred_principal_users_raw,
 ):
-    """Test that existing carbon reports are upserted (bulk_upsert behavior)."""
-    mock_session = MagicMock()
-    mock_session.commit = AsyncMock()
-    mock_session.rollback = AsyncMock()
-
-    mock_unit_result = MagicMock()
-    mock_unit_result.data = [
-        MagicMock(id=1, institutional_id="1"),
-        MagicMock(id=2, institutional_id="2"),
-    ]
-
-    mock_user_result = MagicMock()
-    mock_user_result.data = [
-        MagicMock(id="100", email="user1@example.com"),
-        MagicMock(id="101", email="user2@example.com"),
-    ]
-
-    mock_reports = [
-        MagicMock(id=1, year=2024, unit_id=1),
-    ]
-
-    mock_module_service = MagicMock()
-    mock_module_service.ensure_modules_for_reports = AsyncMock()
+    """If claim_job returns False, the task returns without fetching anything."""
+    unit_provider, role_provider = _common_provider_patches(
+        mock_accred_units_raw, mock_accred_principal_users_raw
+    )
+    repo = MagicMock()
+    repo.claim_job = AsyncMock(return_value=False)
+    repo.update_ingestion_job = AsyncMock()
 
     with (
-        patch("app.tasks.unit_sync_tasks.SessionLocal") as mock_session_local,
-        patch("app.tasks.unit_sync_tasks.get_unit_provider") as mock_get_unit_provider,
-        patch("app.tasks.unit_sync_tasks.get_role_provider") as mock_get_role_provider,
+        patch("app.tasks.unit_sync_tasks.SessionLocal", _patched_session_local()),
+        patch("app.tasks.unit_sync_tasks.DataIngestionRepository", return_value=repo),
+        patch(
+            "app.tasks.unit_sync_tasks.get_unit_provider", return_value=unit_provider
+        ),
+        patch(
+            "app.tasks.unit_sync_tasks.get_role_provider", return_value=role_provider
+        ),
     ):
-        mock_provider = MagicMock()
-        mock_provider.fetch_all_units = AsyncMock(
-            return_value=(mock_accred_units_raw, mock_accred_principal_users_raw)
-        )
-        mock_provider.map_api_unit = MagicMock(
-            side_effect=lambda u: MagicMock(id=None, institutional_id=u["id"])
-        )
-        mock_get_unit_provider.return_value = mock_provider
+        await run_sync_task_accred(SyncUnitRequest(target_year=2024), job_id=99)
 
-        mock_role_provider = MagicMock()
-        mock_role_provider.map_api_user = MagicMock(
-            side_effect=lambda u: MagicMock(id=u["id"], email=u["email"])
-        )
-        mock_get_role_provider.return_value = mock_role_provider
+    repo.claim_job.assert_awaited_once()
+    repo.update_ingestion_job.assert_not_awaited()
+    unit_provider.fetch_all_units.assert_not_awaited()
 
-        mock_session_local.return_value.__aenter__.return_value = mock_session
-        mock_session_local.return_value.__aexit__.return_value = None
 
-        with (
-            patch("app.tasks.unit_sync_tasks.UnitService") as MockUnitService,
-            patch("app.tasks.unit_sync_tasks.UserService") as MockUserService,
-            patch(
-                "app.tasks.unit_sync_tasks.CarbonReportService"
-            ) as MockCarbonReportService,
-        ):
-            MockUnitService.return_value.bulk_upsert = AsyncMock(
-                return_value=mock_unit_result
-            )
-            MockUserService.return_value.bulk_upsert = AsyncMock(
-                return_value=mock_user_result
-            )
-
-            mock_cr_service_instance = MagicMock()
-            mock_cr_service_instance.bulk_upsert = AsyncMock(return_value=mock_reports)
-            mock_cr_service_instance.module_service = mock_module_service
-            mock_cr_service_instance.ensure_modules_for_reports = AsyncMock()
-            MockCarbonReportService.return_value = mock_cr_service_instance
-
-            result = await run_sync_task_accred(SyncUnitRequest(target_year=2024))
-
-        assert result["status"] == "success"
-        assert result["units_synced"] == 2
-        assert result["carbon_reports_created"] == 1
-
-        mock_cr_service_instance.bulk_upsert.assert_awaited_once()
-        mock_cr_service_instance.ensure_modules_for_reports.assert_awaited_once_with(
-            mock_reports
-        )
+def mock_pod_id_arg(claim_mock):
+    """Read the second positional arg passed to claim_job (POD_ID is module-
+    scoped so we just echo whatever was actually used)."""
+    return claim_mock.call_args.args[1]

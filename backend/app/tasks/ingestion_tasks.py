@@ -2,10 +2,20 @@
 
 import asyncio
 from typing import Optional
+from uuid import UUID, uuid4
+
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_ingestion import IngestionResult, IngestionState
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionResult,
+    IngestionState,
+    TargetType,
+)
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._pod_id import POD_ID
@@ -78,6 +88,25 @@ async def run_sync_task(
             ingestion_result = result.get("data", {}).get(
                 "result", IngestionResult.SUCCESS
             )
+
+            # Plan 310B Part 4 — fan out emission recalculation jobs after a
+            # successful FACTORS sync.  Operators previously had to trigger
+            # this manually and forgot.  Children inherit the parent's
+            # pipeline_id so dashboards can group the chain.
+            if (
+                job.target_type == TargetType.FACTORS
+                and ingestion_result != IngestionResult.ERROR
+            ):
+                pipeline_id = job.pipeline_id or uuid4()
+                await _enqueue_stale_recalculations(
+                    job_session,
+                    parent_job_id=job.id,
+                    module_type_id=job.module_type_id,
+                    data_entry_type_id=job.data_entry_type_id,
+                    year=job.year,
+                    pipeline_id=pipeline_id,
+                )
+
             # Update final job status with the computed result
             await provider._update_job(
                 state=IngestionState.FINISHED,
@@ -110,3 +139,95 @@ def run_ingestion(provider_name: str, job_id: int, filters: dict):
         logger.error(f"Sync failed for job ID {job_id}: {str(e)}")
         # Error already logged and job status updated in run_sync_task
         raise  # propagate exception for Celery retry
+
+
+async def _enqueue_stale_recalculations(
+    session: AsyncSession,
+    *,
+    parent_job_id: Optional[int],
+    module_type_id: Optional[int],
+    data_entry_type_id: Optional[int],
+    year: Optional[int],
+    pipeline_id: UUID,
+) -> None:
+    """Fan out one ``emission_recalc`` job per stale ``(module, det)`` combo
+    after a successful factor ingest.
+
+    Filters ``get_recalculation_status_by_year`` by the parent job's scope
+    (module/det if set; otherwise all combos that need recalc).  Each child
+    inherits ``pipeline_id`` from the parent so dashboards can group runs.
+
+    Children are fired in-process via ``asyncio.create_task``.  If the pod
+    crashes between enqueue and dispatch, the safety poller (Plan 310A)
+    picks them up via ``state=NOT_STARTED AND run_after<=now()``.
+
+    This helper is intentionally local to ingestion_tasks.py — Plan C
+    generalises it as ``chain_job(parent, child)`` once the handler
+    registry lands.
+    """
+    if year is None:
+        logger.warning("Cannot enqueue recalculations without a year on the parent job")
+        return
+
+    # Late import to avoid a circular import via app.workflows.
+    from app.tasks.emission_recalculation_tasks import run_recalculation_task
+
+    repo = DataIngestionRepository(session)
+    rows = await repo.get_recalculation_status_by_year(year)
+    targets = [
+        r
+        for r in rows
+        if r["needs_recalculation"]
+        and (module_type_id is None or r["module_type_id"] == module_type_id)
+        and (
+            data_entry_type_id is None or r["data_entry_type_id"] == data_entry_type_id
+        )
+    ]
+
+    if not targets:
+        logger.info(f"No stale (module, det) combos to recalculate for year={year}")
+        return
+
+    for row in targets:
+        new_job = DataIngestionJob(
+            job_type="emission_recalc",
+            module_type_id=row["module_type_id"],
+            data_entry_type_id=row["data_entry_type_id"],
+            year=year,
+            ingestion_method=IngestionMethod.computed,
+            target_type=TargetType.DATA_ENTRIES,
+            entity_type=EntityType.MODULE_PER_YEAR,
+            state=IngestionState.NOT_STARTED,
+            pipeline_id=pipeline_id,
+            # run_after=None means runnable immediately; claim_job's WHERE
+            # treats NULL run_after as eligible.
+            run_after=None,
+            meta={
+                "config": {
+                    "year": year,
+                    "data_entry_type_id": row["data_entry_type_id"],
+                    "module_type_id": row["module_type_id"],
+                    "parent_job_id": parent_job_id,
+                }
+            },
+        )
+        created = await repo.create_ingestion_job(new_job)
+        await session.commit()
+        if created.id is None:
+            logger.error(
+                "Failed to create child recalc job for "
+                f"(module={row['module_type_id']}, det={row['data_entry_type_id']})"
+            )
+            continue
+        asyncio.create_task(
+            run_recalculation_task(
+                row["module_type_id"],
+                row["data_entry_type_id"],
+                year,
+                created.id,
+            )
+        )
+        logger.info(
+            f"Enqueued recalc job {created.id} for module={row['module_type_id']} "
+            f"det={row['data_entry_type_id']} year={year} pipeline={pipeline_id}"
+        )

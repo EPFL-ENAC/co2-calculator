@@ -142,6 +142,9 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         factor_service: Any,
         stats: FactorStatsDict,
         setup_result: Dict[str, Any],
+        factor_repo: Any,  # signature-compat with base; legacy seed path
+        # uses bulk_create and assumes the factor table starts empty
+        # (seed scripts run against a fresh DB).
     ) -> Dict[str, Any]:
 
         if batch:

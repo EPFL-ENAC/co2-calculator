@@ -21,12 +21,16 @@ class EntityType(int, Enum):
     """
     Docstring for EntityType
 
+    :var GLOBAL_PER_YEAR: Job not scoped to a module
+        (e.g. unit sync, role sync).
+    :vartype GLOBAL_PER_YEAR: Literal[1]
     :var MODULE_PER_YEAR: Description
     :vartype MODULE_PER_YEAR: Literal[2]
     :var MODULE_UNIT_SPECIFIC: Description
     :vartype MODULE_UNIT_SPECIFIC: Literal[3]
     """
 
+    GLOBAL_PER_YEAR = 1
     MODULE_PER_YEAR = 2
     MODULE_UNIT_SPECIFIC = 3
 

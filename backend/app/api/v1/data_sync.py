@@ -29,7 +29,7 @@ from app.tasks.emission_recalculation_tasks import (
     run_recalculation,
 )
 from app.tasks.ingestion_tasks import run_ingestion
-from app.tasks.unit_sync_tasks import SyncUnitRequest, sync_units_from_accred_task
+from app.tasks.unit_sync_tasks import SyncUnitRequest, run_sync_task_accred
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 router = APIRouter()
@@ -756,21 +756,41 @@ async def sync_units_from_accred(
     """
     Sync units from Accred API.
 
-    Triggers background task to fetch and upsert all units and principal users
-    from the Accred API. Uses hardcoded UserProvider.ACCRED for now.
+    Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
+    unit_sync, entity_type=GLOBAL_PER_YEAR) so progress is observable via
+    the SSE stream and the job is recoverable on pod crash via the safety
+    poller.
 
     **Required Permission**: `backoffice.data_management.sync`
 
     Returns:
-        SyncStatusResponse with job status (note: job_id is 0 as this is a
-        simple background task without persistent job tracking)
+        SyncStatusResponse with the persistent job_id and initial state.
     """
+    job = DataIngestionJob(
+        job_type="unit_sync",
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=syncRequest.target_year,
+        ingestion_method=IngestionMethod.api,
+        target_type=TargetType.REFERENCE_DATA,
+        entity_type=EntityType.GLOBAL_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        meta={"config": {"target_year": syncRequest.target_year}},
+    )
+    created = await DataIngestionRepository(db).create_ingestion_job(job)
+    await db.commit()
+    if created.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create unit sync job",
+        )
 
-    # Schedule background task
-    background_tasks.add_task(sync_units_from_accred_task, syncRequest)
+    # Fire-and-forget; the safety poller (Plan 310A) recovers the job if
+    # this pod crashes before run_sync_task_accred claims it.
+    asyncio.create_task(run_sync_task_accred(syncRequest, created.id))
 
     return SyncStatusResponse(
-        job_id=0,  # No persistent job tracking for now
+        job_id=created.id,
         state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
     )

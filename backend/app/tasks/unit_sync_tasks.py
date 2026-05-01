@@ -1,19 +1,28 @@
-"""Background tasks for unit synchronization with Accred API."""
+"""Background task for unit + principal-user synchronization with Accred API.
 
-import asyncio
+Plan 310B Part 5 — unit_sync is now a tracked DataIngestionJob (job_type=
+unit_sync, entity_type=GLOBAL_PER_YEAR).  The endpoint creates the job
+synchronously and returns its id; this task claims it via Plan 310A's
+``claim_job`` and updates ``status_message`` between steps so the SSE stream
+shows progress.
+"""
+
 from typing import Any, Dict
 
 from pydantic import BaseModel
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
+from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.user import UserProvider
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
+from app.repositories.data_ingestion import DataIngestionRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.services.carbon_report_service import CarbonReportService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
+from app.tasks._pod_id import POD_ID
 
 logger = get_logger(__name__)
 
@@ -22,114 +31,124 @@ class SyncUnitRequest(BaseModel):
     target_year: int
 
 
-async def run_sync_task_accred(syncRequest: SyncUnitRequest) -> Dict[str, Any]:
+async def run_sync_task_accred(
+    sync_request: SyncUnitRequest,
+    job_id: int,
+) -> None:
+    """Run the Accred unit + principal-user sync as a tracked job.
+
+    Dual session — mirrors ``ingestion_tasks.run_sync_task``:
+
+    - ``job_session`` commits ``status_message`` updates immediately so the
+      SSE stream reflects progress.
+    - ``data_session`` writes units / users / carbon reports inside one
+      atomic transaction; rolled back as a unit on failure.
+
+    Claim via ``claim_job`` ensures pod safety (Plan 310A): if two pods race
+    on the same job_id, only one wins and the other returns silently.
     """
-    Background task to sync units and principal users from Accred API.
+    target_year = sync_request.target_year
 
-    This task:
-    1. Fetches all units from Accred API
-    2. Bulk upserts units into database
-    3. Fetches and upserts principal users
-    4. Commits changes
-    5. Create all carbon reports for all units (one per unit, using target_year)
-    6. All corresponding carbon_reports_modules are auto-created by service
+    async with SessionLocal() as job_session, SessionLocal() as data_session:
+        job_repo = DataIngestionRepository(job_session)
 
-    Args:
-        target_year: The year for carbon reports (required)
+        claimed = await job_repo.claim_job(job_id, POD_ID)
+        if not claimed:
+            logger.info(
+                f"Unit sync job {job_id} already claimed or not eligible — skipping"
+            )
+            return
 
-    Returns:
-        Dict with sync results including counts and status
-    """
-    target_year = syncRequest.target_year
+        try:
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message="Fetching units from Accred…",
+                metadata={},
+            )
+            await job_session.commit()
 
-    try:
-        logger.info("Starting unit sync from Accred API")
-
-        async with SessionLocal() as session:
-            carbon_reports_created = 0
-            # Get providers
-            provider = get_unit_provider(UserProvider.ACCRED)
+            unit_provider = get_unit_provider(UserProvider.ACCRED)
             role_provider = get_role_provider(UserProvider.ACCRED)
+            units_raw, principal_users_raw = await unit_provider.fetch_all_units()
 
-            # Fetch data from Accred API
-            units_raw, principal_users_raw = await provider.fetch_all_units()
-
-            # Map API responses to domain models
-            units = [provider.map_api_unit(unit) for unit in units_raw]
+            units = [unit_provider.map_api_unit(u) for u in units_raw]
             principal_users = [
-                role_provider.map_api_user(user) for user in principal_users_raw
+                role_provider.map_api_user(u) for u in principal_users_raw
             ]
 
-            logger.info(
-                f"Fetched {len(units)} units and "
-                f"{len(principal_users)} principal users from Accred API"
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message=(
+                    f"Upserting {len(units)} units and "
+                    f"{len(principal_users)} principal users…"
+                ),
+                metadata={},
             )
+            await job_session.commit()
 
-            unit_service = UnitService(session)
+            unit_service = UnitService(data_session)
             unit_upsert_result = await unit_service.bulk_upsert(units)
             units = unit_upsert_result.data
 
-            carbon_report_service = CarbonReportService(session)
-
-            user_service = UserService(session)
+            user_service = UserService(data_session)
             user_upsert_result = await user_service.bulk_upsert(principal_users)
             principal_users = user_upsert_result.data
 
-            try:
-                report_create_data = [
-                    CarbonReportCreate(year=target_year, unit_id=unit.id)
-                    for unit in units
-                    if unit.id is not None
-                ]
-                new_carbon_reports = await carbon_report_service.bulk_upsert(
-                    report_create_data
-                )
-                carbon_reports_created = len(new_carbon_reports)
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message=f"Creating carbon reports for year {target_year}…",
+                metadata={},
+            )
+            await job_session.commit()
 
-                logger.info(
-                    f"Upserted {carbon_reports_created} carbon reports "
-                    f"for {len(units)} units"
-                )
+            carbon_report_service = CarbonReportService(data_session)
+            report_create_data = [
+                CarbonReportCreate(year=target_year, unit_id=u.id)
+                for u in units
+                if u.id is not None
+            ]
+            new_carbon_reports = await carbon_report_service.bulk_upsert(
+                report_create_data
+            )
 
-                await carbon_report_service.ensure_modules_for_reports(
-                    new_carbon_reports
-                )
-                logger.info(
-                    f"Ensured modules for {len(new_carbon_reports)} carbon reports"
-                )
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message=(
+                    f"Ensuring modules for {len(new_carbon_reports)} carbon reports…"
+                ),
+                metadata={},
+            )
+            await job_session.commit()
 
-                await session.commit()
+            await carbon_report_service.ensure_modules_for_reports(new_carbon_reports)
+            await data_session.commit()
 
-            except Exception as e:
-                logger.error(f"Failed to create carbon reports: {e}", exc_info=True)
-                await session.rollback()
-                raise
-
-            result = {
-                "status": "success",
+            result_summary: Dict[str, Any] = {
                 "units_synced": len(units),
                 "users_synced": len(principal_users),
                 "unit_results": str(unit_upsert_result),
                 "user_results": str(user_upsert_result),
-                "carbon_reports_created": carbon_reports_created,
+                "carbon_reports_created": len(new_carbon_reports),
                 "carbon_report_year": target_year,
             }
-
-            logger.info(f"Unit sync completed successfully: {result}")
-            return result
-
-    except Exception as e:
-        logger.error(f"Unit sync from Accred API failed: {e}", exc_info=True)
-        return {"status": "error", "error": str(e)}
-
-
-# @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
-# add self to make it celery compatible
-def sync_units_from_accred_task(syncRequest: SyncUnitRequest):
-    """almost celery compatible sync wrapper for run_sync_task"""
-    try:
-        asyncio.run(run_sync_task_accred(syncRequest))
-    except Exception:
-        logger.error(f"Sync failed for sync request: {syncRequest}", exc_info=True)
-        # Error already logged and job status updated in run_sync_task
-        raise  # propagate exception for Celery retry
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message="Unit sync completed",
+                metadata=result_summary,
+                state=IngestionState.FINISHED,
+                result=IngestionResult.SUCCESS,
+            )
+            await job_session.commit()
+            logger.info(f"Unit sync job {job_id} completed: {result_summary}")
+        except Exception as exc:
+            logger.error(f"Unit sync job {job_id} failed: {exc}", exc_info=True)
+            await data_session.rollback()
+            await job_repo.update_ingestion_job(
+                job_id=job_id,
+                status_message=str(exc),
+                metadata={"error": str(exc)},
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+            )
+            await job_session.commit()
+            raise

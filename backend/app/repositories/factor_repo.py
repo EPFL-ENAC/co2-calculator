@@ -2,11 +2,19 @@
 
 from typing import Dict, List, Optional
 
+from sqlalchemy import or_, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    IngestionResult,
+    IngestionState,
+    TargetType,
+)
 from app.models.factor import Factor
 from app.schemas.data_entry import BaseModuleHandler
 
@@ -62,6 +70,130 @@ class FactorRepository:
         for factor in factors:
             await self.session.refresh(factor)
         return factors
+
+    async def upsert_factors(
+        self,
+        factors: List[Factor],
+        current_job_id: int,
+    ) -> int:
+        """Insert-or-update factors keyed on the identity index.
+
+        Identity key is ``(data_entry_type_id, year, emission_type_id,
+        classification::text)``. Two partial unique indexes back this
+        (``year IS NOT NULL`` vs ``year IS NULL``) because NULL ≠ NULL in a
+        unique index expression — so the input must be split by year-presence
+        and one ON CONFLICT inference issued per partition.
+
+        Preserves ``factor.id`` for existing rows so downstream FKs
+        (``DataEntry.primary_factor_id``) stay valid across reuploads.
+        Stamps ``last_seen_job_id`` so callers can later detect rows not
+        present in the current batch.
+
+        Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
+
+        Returns the number of rows affected (insert + update).
+        """
+        if not factors:
+            return 0
+
+        with_year = [f for f in factors if f.year is not None]
+        no_year = [f for f in factors if f.year is None]
+
+        affected = 0
+        if with_year:
+            affected += await self._upsert_subset(
+                with_year, current_job_id, year_present=True
+            )
+        if no_year:
+            affected += await self._upsert_subset(
+                no_year, current_job_id, year_present=False
+            )
+        return affected
+
+    async def _upsert_subset(
+        self,
+        factors: List[Factor],
+        current_job_id: int,
+        *,
+        year_present: bool,
+    ) -> int:
+        payload = [
+            {
+                **f.model_dump(exclude={"id", "last_seen_job_id"}),
+                "last_seen_job_id": current_job_id,
+            }
+            for f in factors
+        ]
+        stmt = pg_insert(Factor).values(payload)
+
+        # Conflict target must match the partial index exactly: same column
+        # list (with the (classification::text) functional element) and
+        # same WHERE predicate.
+        if year_present:
+            index_elements: list = [
+                "data_entry_type_id",
+                "year",
+                "emission_type_id",
+                text("(classification::text)"),
+            ]
+            index_where = text("year IS NOT NULL")
+        else:
+            index_elements = [
+                "data_entry_type_id",
+                "emission_type_id",
+                text("(classification::text)"),
+            ]
+            index_where = text("year IS NULL")
+
+        # Bracket access on excluded avoids the .values name clash with
+        # Insert.values().
+        stmt = stmt.on_conflict_do_update(
+            index_elements=index_elements,
+            index_where=index_where,
+            set_={
+                "values": stmt.excluded["values"],
+                "last_seen_job_id": stmt.excluded["last_seen_job_id"],
+            },
+        )
+        result = await self.session.execute(stmt)
+        # rowcount is a CursorResult attribute on DML; cast away the
+        # narrower Result[Any] type Pyright infers from session.execute.
+        return getattr(result, "rowcount", 0) or 0
+
+    async def list_stale_for_year(self, year: int) -> List[Factor]:
+        """Return factors whose ``last_seen_job_id`` predates the latest
+        successful FACTORS ingest job for their ``(data_entry_type_id, year)``
+        combo.
+
+        Operators use this to surface rows that exist in the DB but were not
+        present in the most recent CSV upload. Stale factors are not
+        deleted (that would re-introduce dangling FKs), only flagged.
+
+        Args:
+            year: Restrict to factors and jobs in this year.
+        """
+        stmt = (
+            select(Factor)
+            .join(
+                DataIngestionJob,
+                col(Factor.data_entry_type_id)
+                == col(DataIngestionJob.data_entry_type_id),
+            )
+            .where(
+                col(Factor.year) == year,
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.target_type) == TargetType.FACTORS,
+                col(DataIngestionJob.state) == IngestionState.FINISHED,
+                col(DataIngestionJob.result) != IngestionResult.ERROR,
+                col(DataIngestionJob.is_current),
+                or_(
+                    col(Factor.last_seen_job_id).is_(None),
+                    col(Factor.last_seen_job_id) < col(DataIngestionJob.id),
+                ),
+            )
+        )
+        result = await self.session.exec(stmt)
+        return list(result.all())
 
     async def update(self, factor_id: int, update_data: Dict) -> Optional[Factor]:
         """Update an existing factor."""
