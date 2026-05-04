@@ -73,7 +73,7 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     provider: str
     spent_amount: float
-    currency: Optional[str] = "eur"
+    currency: Optional[str] = None
     note: Optional[str] = None
 
     @model_validator(mode="before")
@@ -101,10 +101,11 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     def validate_currency(cls, v: Optional[str]) -> str:
         if v is None:
             return "eur"
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class ExternalAIHandlerCreate(DataEntryCreate):
@@ -155,10 +156,11 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):

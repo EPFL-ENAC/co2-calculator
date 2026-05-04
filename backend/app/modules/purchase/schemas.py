@@ -52,7 +52,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: float
-    currency: Optional[str] = "chf"
+    currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
@@ -101,10 +101,11 @@ class PurchaseHandlerCreate(DataEntryCreate):
     def validate_currency(cls, v: Optional[str]) -> str:
         if v is None:
             return "chf"
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class PurchaseAdditionalHandlerCreate(DataEntryCreate):
@@ -156,10 +157,11 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
