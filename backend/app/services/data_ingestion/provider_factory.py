@@ -197,8 +197,6 @@ class ProviderFactory:
 
         data_entry_type_id = config.get("data_entry_type_id")
         module_type_id = config.get("module_type_id")
-        # if module_type_id is None:
-        #     return None
         provider_class = cls.get_provider_by_keys(
             module_type_id=module_type_id,
             ingestion_method=ingestion_method,

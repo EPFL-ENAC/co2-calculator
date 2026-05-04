@@ -117,7 +117,7 @@ def _first_module_and_sub():
         dets = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(mt, [])
         if dets:
             return mt, dets[0]
-    pytest.skip("No module with submodules found")
+    return pytest.skip("No module with submodules found")
 
 
 def test_check_threshold_exceeded_true():
