@@ -1,10 +1,12 @@
-"""Integration smoke for the plane CSV import path.
+"""Integration smoke for the plane ``_process_batch`` carrier flow.
 
-Exercises the carrier flow end-to-end against a real DB session: a batch
-of plane ``DataEntry`` rows (with ``kg_co2eq`` stripped from ``data``,
-mimicking what ``BaseCSVProvider._process_row`` produces) goes through
-the same ``_process_batch`` routine the production CSV upload uses,
-backed by the real ``DataEntryService`` and ``DataEntryEmissionService``.
+Exercises the second half of the CSV ingestion pipeline end-to-end
+against a real DB session: a batch of plane ``DataEntry`` rows
+(constructed by hand, mirroring what
+``BaseCSVProvider._process_row`` produces — i.e. ``kg_co2eq`` already
+stripped from ``data``) goes through the same ``_process_batch``
+routine the production CSV upload uses, backed by the real
+``DataEntryService`` and ``DataEntryEmissionService``.
 
 Asserts the two invariants from the PR's manual test plan:
 
@@ -14,11 +16,22 @@ Asserts the two invariants from the PR's manual test plan:
    value, and the row must have ``primary_factor_id=None`` (override
    bypasses the formula path).
 
-Unit-level coverage of ``_process_row`` (CSV row → 4-tuple) and
-``prepare_create`` (override param → emission shape) lives elsewhere;
-this test fills the integration gap by wiring real services and DB.
+**Coverage seam — what this test does NOT exercise:**
+
+- The ``CSV row → _process_row → 4-tuple`` half of the pipeline. That's
+  unit-tested in ``tests/unit/services/data_ingestion/test_base_csv_provider.py``
+  (``test_process_row_consumes_dumb_csv_fixture_for_plane`` and
+  siblings). The two tests together sandwich the full CSV import path,
+  but no single test reads the fixture file and runs it through both
+  halves end-to-end.
+- The ``user`` / audit-versioning branch of ``DataEntryService.bulk_create``
+  (we pass ``user=None`` to keep the test focused on persistence). If
+  a future change to that branch accidentally mutated ``data_entry.data``,
+  this test would not catch it.
 """
 
+import csv
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -72,12 +85,13 @@ def _make_provider(data_session: AsyncSession) -> _MinimalPlaneCSVProvider:
 
 
 @pytest.mark.asyncio
-async def test_csv_import_carrier_keeps_kg_co2eq_out_of_data_entry(
+async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     db_session: AsyncSession,
 ):
-    """End-to-end: feed the real services a 3-entry batch matching the
-    plane fixture (GVA→ZRH/CDG→JFK/GVA→LHR), with overrides carried on
-    a parallel list, and verify the final DB state."""
+    """End-to-end through the carrier half of the pipeline: feed the real
+    services a 3-entry batch matching the plane fixture
+    (GVA→ZRH/CDG→JFK/GVA→LHR), with overrides carried on a parallel list,
+    and verify the final DB state."""
     # ---------- arrange: factor + module --------------------------------
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)
@@ -107,57 +121,46 @@ async def test_csv_import_carrier_keeps_kg_co2eq_out_of_data_entry(
     provider = _make_provider(db_session)
     provider._year_cache = {module.id: 2025}
 
-    # ---------- arrange: a CSV-shaped batch -----------------------------
-    # Mimics what BaseCSVProvider._process_row returns: kg_co2eq has been
-    # extracted out of the row and stripped from `data`. Three entries
-    # mirror the fixture file backend/tests/integration/data_ingestion/
-    # fixtures/regression_kg_co2eq_plane.csv.
-    rows = [
-        {
-            "data": {
-                "origin_iata": "GVA",
-                "destination_iata": "ZRH",
-                "cabin_class": "first",
-                "user_institutional_id": "150322",
-                "number_of_trips": 1,
-                "primary_factor_id": None,
-            },
-            "kg_co2eq_override": 152.685,
-        },
-        {
-            "data": {
-                "origin_iata": "CDG",
-                "destination_iata": "JFK",
-                "cabin_class": "eco",
-                "user_institutional_id": "150322",
-                "number_of_trips": 1,
-                "primary_factor_id": None,
-            },
-            "kg_co2eq_override": 420.5,
-        },
-        {
-            "data": {
-                "origin_iata": "GVA",
-                "destination_iata": "LHR",
-                "cabin_class": "business",
-                "user_institutional_id": "200001",
-                "number_of_trips": 2,
-                "primary_factor_id": None,
-            },
-            "kg_co2eq_override": 380.0,
-        },
-    ]
+    # ---------- arrange: rows derived from the actual CSV fixture -------
+    # The same fixture file the unit test consumes via csv.DictReader.
+    # Mirroring what BaseCSVProvider._process_row produces: kg_co2eq is
+    # extracted out-of-band into the parallel overrides list and the
+    # remaining columns become DataEntry.data with primary_factor_id=None.
+    fixture_path = (
+        Path(__file__).parent.parent.parent
+        / "data_ingestion"
+        / "fixtures"
+        / "regression_kg_co2eq_plane.csv"
+    )
+    assert fixture_path.exists(), f"missing fixture: {fixture_path}"
 
-    batch = [
-        DataEntry(
-            carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.plane,
-            data=dict(r["data"]),
-        )
-        for r in rows
-    ]
-    overrides = [r["kg_co2eq_override"] for r in rows]
-    expected_originals = [dict(r["data"]) for r in rows]
+    batch: list[DataEntry] = []
+    overrides: list[float | None] = []
+    expected_originals: list[dict] = []
+    with open(fixture_path, encoding="utf-8") as f:
+        for raw_row in csv.DictReader(f):
+            kg_str = raw_row.pop("kg_co2eq")  # carry out-of-band, never persist
+            row_data = {
+                "origin_iata": raw_row["origin_iata"],
+                "destination_iata": raw_row["destination_iata"],
+                "cabin_class": raw_row["cabin_class"],
+                "user_institutional_id": raw_row["user_institutional_id"],
+                "number_of_trips": int(raw_row["number_of_trips"]),
+                "primary_factor_id": None,
+            }
+            batch.append(
+                DataEntry(
+                    carbon_report_module_id=module.id,
+                    data_entry_type_id=DataEntryTypeEnum.plane,
+                    data=dict(row_data),
+                )
+            )
+            overrides.append(float(kg_str))
+            expected_originals.append(row_data)
+
+    assert len(batch) >= 2, (
+        "fixture should provide enough rows to exercise multi-entry routing"
+    )
 
     # ---------- act: run the real carrier through _process_batch --------
     data_entry_service = DataEntryService(db_session)
@@ -191,7 +194,9 @@ async def test_csv_import_carrier_keeps_kg_co2eq_out_of_data_entry(
         .scalars()
         .all()
     )
-    assert len(persisted_entries) == 3, "expected 3 persisted plane rows"
+    assert len(persisted_entries) == len(batch), (
+        f"expected {len(batch)} persisted plane rows, got {len(persisted_entries)}"
+    )
 
     # Key by (origin, destination) — origin alone isn't unique in the
     # fixture (GVA appears twice, paired with ZRH and LHR).
@@ -224,8 +229,9 @@ async def test_csv_import_carrier_keeps_kg_co2eq_out_of_data_entry(
         .scalars()
         .all()
     )
-    assert len(emissions) == 3, (
-        f"expected 3 emission rows (one per data_entry override), got {len(emissions)}"
+    assert len(emissions) == len(batch), (
+        f"expected {len(batch)} emission rows (one per data_entry override), "
+        f"got {len(emissions)}"
     )
 
     # Pair each emission with its data_entry → original override value via
