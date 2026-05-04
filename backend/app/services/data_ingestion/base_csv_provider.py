@@ -863,7 +863,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
-                year_value = self.year or 0
+                # Defense in depth: setup-time guards in the entity-specific
+                # providers (_setup_handlers_and_factors for
+                # MODULE_UNIT_SPECIFIC, _resolve_module_per_year_modules for
+                # MODULE_PER_YEAR) raise before any row reaches this method,
+                # so reaching this branch with year unset would mean a future
+                # caller bypassed setup. Re-raise loudly rather than fall back
+                # to a sentinel year that silently misses every factor lookup.
+                if self.year is None:
+                    raise ValueError(
+                        "year must be set before processing rows; "
+                        "setup-time guard was bypassed"
+                    )
+                year_value = self.year
                 # Build lookup key same way as load_factors_map does
                 key_full = (
                     f"{data_entry_type.value}:"

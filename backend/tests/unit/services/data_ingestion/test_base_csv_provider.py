@@ -445,7 +445,7 @@ def _build_stats() -> StatsDict:
 @pytest.mark.asyncio
 async def test_process_row_success_with_unit_mapping(monkeypatch):
     """Test _process_row builds data entry when mapping is present."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
@@ -598,7 +598,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     ``filtered_row`` (and hence into ``DataEntry.data``), corrupting the
     source-of-truth JSON column with a derived/imported value.
     """
-    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
@@ -684,7 +684,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
 async def test_process_row_with_no_kg_co2eq_returns_none_override():
     """Rows without a kg_co2eq column produce a None override — not an
     error, not a side effect on DataEntry.data."""
-    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
@@ -733,7 +733,7 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
     """
     import logging
 
-    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
@@ -815,7 +815,7 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
     )
     assert fixture_path.exists(), f"missing fixture: {fixture_path}"
 
-    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
