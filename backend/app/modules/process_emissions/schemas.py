@@ -94,18 +94,21 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
         "subcategory": Factor.classification[subkind_field].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ProcessEmissionsHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ProcessEmissionsHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "category": primary_factor.get("kind")
-                or data_entry.data.get("category"),
-                "subcategory": primary_factor.get("subkind")
-                or data_entry.data.get("subcategory"),
+                **data,
+                "category": primary_factor.get("kind") or data.get("category"),
+                "subcategory": primary_factor.get("subkind") or data.get("subcategory"),
             }
         )
 

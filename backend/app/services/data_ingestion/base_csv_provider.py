@@ -589,6 +589,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Process CSV rows
             batch: List[DataEntry] = []
+            # Parallel list of kg_co2eq overrides aligned with `batch` by index.
+            # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
+            batch_kg_co2eq_overrides: List[float | None] = []
             # Track seen user_institutional_ids per module to catch intra-CSV duplicates
             seen_institutional_ids: Dict[int, set] = {}
             csv_reader = csv.DictReader(
@@ -596,8 +599,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             for row_idx, row in enumerate(csv_reader, start=1):
-                # Process single row, returns (data_entry, error_msg, factor)
-                data_entry, error_msg, factor = await self._process_row(
+                # Process single row, returns
+                # (data_entry, error_msg, factor, kg_co2eq_override)
+                (
+                    data_entry,
+                    error_msg,
+                    factor,
+                    kg_co2eq_override,
+                ) = await self._process_row(
                     row,
                     row_idx,
                     setup_result,
@@ -644,6 +653,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
                 # Row processed successfully
                 batch.append(data_entry)
+                batch_kg_co2eq_overrides.append(kg_co2eq_override)
                 if factor:
                     stats["rows_with_factors"] += 1
                 else:
@@ -653,7 +663,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Process batch when it reaches BATCH_SIZE
                 if len(batch) >= BATCH_SIZE:
                     await self._process_batch(
-                        batch, data_entry_service, emission_service, self.user
+                        batch,
+                        data_entry_service,
+                        emission_service,
+                        self.user,
+                        batch_kg_co2eq_overrides,
                     )
                     stats["batches_processed"] += 1
                     logger.info(
@@ -661,6 +675,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"{stats['rows_processed']} rows total"
                     )
                     batch = []
+                    batch_kg_co2eq_overrides = []
                     # Update job progress every batche
                     if stats["batches_processed"]:
                         await self._update_job(
@@ -672,7 +687,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Finalize: process remaining batch, move file, update job
             return await self._finalize_and_commit(
-                batch, data_entry_service, emission_service, stats, setup_result
+                batch,
+                data_entry_service,
+                emission_service,
+                stats,
+                setup_result,
+                batch_kg_co2eq_overrides,
             )
 
         except Exception as e:
@@ -772,11 +792,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: Dict[str, int] | None = None,
-    ) -> tuple[DataEntry | None, str | None, Any | None]:
+    ) -> tuple[DataEntry | None, str | None, Any | None, float | None]:
         """
         Process a single CSV row.
-        Returns (DataEntry, error_msg, factor) tuple.
+        Returns (DataEntry, error_msg, factor, kg_co2eq_override) tuple.
         If error_msg is not None, row processing failed and error was recorded.
+
+        ``kg_co2eq_override`` is carried out-of-band so it never lands in
+        ``DataEntry.data``; the caller passes it transiently to
+        ``prepare_create`` when emissions are built.
 
         Args:
             unit_to_module_map: Optional mapping of institutional_id
@@ -785,13 +809,23 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         try:
             handlers = setup_result["handlers"]
-            # factors_map = setup_result["factors_map"]
             expected_columns = setup_result["expected_columns"]
-            # force kg_co2eq column in expected columns to allow flexibility
-            # in handlers (some may not require it,
-            # for module_year it is required for factor resolution,
-            # but for module_unit_specific it is not needed and often not provided)
-            # expected_columns.add("kg_co2eq")
+
+            # Extract kg_co2eq override from the raw row (carried out-of-band).
+            # Bypasses expected_columns intentionally: not every handler lists
+            # kg_co2eq there, but it's still a valid override when present.
+            kg_co2eq_override: float | None = None
+            raw_kg = row.get("kg_co2eq")
+            if raw_kg is not None and raw_kg.strip() != "":
+                try:
+                    kg_co2eq_override = float(raw_kg)
+                except (ValueError, TypeError):
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
+                        f"Row {row_idx}: invalid kg_co2eq value {raw_kg!r}, "
+                        f"ignoring override"
+                    )
 
             # Filter row to only include expected columns
             filtered_row = {
@@ -799,14 +833,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 for k, v in row.items()
                 if k in expected_columns and v is not None and v.strip() != ""
             }
-            # special kg_co2eq handling: include it if present in row,
-            # even if not in expected_columns
-            if (
-                "kg_co2eq" in row
-                and row["kg_co2eq"] is not None
-                and row["kg_co2eq"].strip() != ""
-            ):
-                filtered_row["kg_co2eq"] = row["kg_co2eq"]
 
             # Extract kind/subkind values (entity-specific extraction)
             kind_value, subkind_value = self._extract_kind_subkind_values(
@@ -823,12 +849,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             if error_msg:
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             if not data_entry_type or not handler:
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
             # This avoids 100k+ DB queries - factors already loaded in setup phase
@@ -869,7 +895,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 ):
                     error_msg = "Missing unit_institutional_id in row"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
 
                 unit_institutional_id = str(unit_institutional_id).strip()
 
@@ -884,7 +910,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         self._missing_units_logged.add(unit_institutional_id)
                     error_msg = f"Unit '{unit_institutional_id}' not found"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
 
                 carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
@@ -893,7 +919,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"institutional_id={unit_institutional_id}"
                     )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
             elif self.carbon_report_module_id:
                 # MODULE_UNIT_SPECIFIC: use pre-configured value
                 carbon_report_module_id = self.carbon_report_module_id
@@ -901,7 +927,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Neither mapping nor pre-configured value available
                 error_msg = "Missing carbon_report_module_id"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Validate payload with handler (primary_factor_id already
             # set by ModuleHandlerService)
@@ -916,7 +942,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Build DataEntry
             data = dict(validated.data)
@@ -955,13 +981,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 data=data,
             )
 
-            return data_entry, None, None
+            return data_entry, None, None, kg_co2eq_override
 
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
             error_msg = f"Row processing error: {row_error}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, error_msg, None
+            return None, error_msg, None, None
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
         """
@@ -996,6 +1022,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         emission_service: DataEntryEmissionService,
         stats: StatsDict,
         setup_result: Dict[str, Any],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> Dict[str, Any]:
         """
         Finalize: process remaining batch, move file to processed/, update job.
@@ -1003,7 +1030,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Process final batch (remaining rows < BATCH_SIZE)
         if batch:
             await self._process_batch(
-                batch, data_entry_service, emission_service, self.user
+                batch,
+                data_entry_service,
+                emission_service,
+                self.user,
+                batch_kg_co2eq_overrides,
             )
             stats["batches_processed"] += 1
             logger.info(
@@ -1073,8 +1104,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
         user: Optional[User],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> None:
-        """Process a batch of data entries: bulk insert entries and emissions"""
+        """Process a batch of data entries: bulk insert entries and emissions.
+
+        ``batch_kg_co2eq_overrides`` is index-aligned with ``batch``. Values are
+        applied transiently when emissions are built — they never enter
+        ``DataEntry.data``.
+        """
         if not batch:
             return
 
@@ -1119,12 +1156,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             created_by_id=self.job_id,
         )
 
+        # Build {data_entry.id: kg_co2eq} override map. bulk_create preserves
+        # input order (see DataEntryRepository.bulk_create), so zipping the
+        # responses with the parallel overrides list is safe.
+        overrides_by_id: dict[int, float] = {
+            resp.id: ov
+            for resp, ov in zip(data_entries_response, batch_kg_co2eq_overrides)
+            if ov is not None and resp.id is not None
+        }
+
         # 2. Prepare emissions for all created data entries
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
                 emission_objs = await emission_service.prepare_create(
-                    data_entry_response
+                    data_entry_response,
+                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
                 )
                 if emission_objs is not None:
                     emissions_to_create.extend(emission_objs)

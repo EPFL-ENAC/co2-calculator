@@ -13,12 +13,13 @@ PR_NUMBER=$(echo "$PR_JSON" | jq -r '.number')
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 
 # 2. Extract Issue ID from branch name (assumes digits at start or after a slash)
-# Regex matches the first sequence of numbers found in the branch name
+# Regex matches the first sequence of numbers found in the branch name.
+# Falls back to the PR number when the branch name has no digits, so this
+# still works for PRs that aren't tied to a numbered issue.
 ISSUE_ID=$(echo "$CURRENT_BRANCH" | grep -oE '[0-9]+' | head -1)
 
 if [ -z "$ISSUE_ID" ]; then
-  echo "Error: Could not extract an Issue ID from branch name '$CURRENT_BRANCH'."
-  exit 1
+  ISSUE_ID="$PR_NUMBER"
 fi
 
 # 3. Define the path according to your Implementation Plan rules

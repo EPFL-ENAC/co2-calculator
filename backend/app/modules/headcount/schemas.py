@@ -193,13 +193,18 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> HeadcountItemResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> HeadcountItemResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 
@@ -248,13 +253,18 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> HeadCountStudentResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> HeadCountStudentResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 

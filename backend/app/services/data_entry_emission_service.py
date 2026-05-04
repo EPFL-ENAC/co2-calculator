@@ -119,6 +119,7 @@ class DataEntryEmissionService:
     async def prepare_create(
         self,
         data_entry: DataEntry | DataEntryResponse,
+        kg_co2eq_override: float | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
 
@@ -132,6 +133,10 @@ class DataEntryEmissionService:
 
         Args:
             data_entry: Fully hydrated data entry with ``data_entry_type``.
+            kg_co2eq_override: When set (CSV / API ingestion path), short-circuits
+                the formula and produces a single emission with this kg_co2eq and
+                ``primary_factor_id=None``. The override is passed transiently —
+                it must NOT be persisted in ``data_entry.data``.
 
         Returns:
             Ready-to-insert ``DataEntryEmission`` rows; empty on any failure.
@@ -178,11 +183,9 @@ class DataEntryEmissionService:
             for comp in computations:
                 factors = await self._fetch_factors(comp, year)
 
-                # Check if CSV provides an override value (takes precedence)
-                csv_kg_co2eq = data_entry.data.get("kg_co2eq")
-                if csv_kg_co2eq is not None:
+                if kg_co2eq_override is not None:
                     logger.info(
-                        f"Using CSV-provided kg_co2eq={csv_kg_co2eq} override for "
+                        f"Using kg_co2eq={kg_co2eq_override} override for "
                         f"emission_type={emission_type.name!r} "
                         f"data_entry_id={data_entry.id!r}"
                     )
@@ -191,7 +194,7 @@ class DataEntryEmissionService:
                             data_entry_id=data_entry.id,
                             emission_type_id=comp.emission_type.value,
                             primary_factor_id=None,
-                            kg_co2eq=float(csv_kg_co2eq),
+                            kg_co2eq=float(kg_co2eq_override),
                             scope=comp.emission_type.scope,
                             meta={
                                 "factors_used": [
@@ -480,17 +483,6 @@ class DataEntryEmissionService:
         First deletes existing emissions for this data entry, then creates new ones.
         Returns the list of created/updated emissions.
         """
-        # Strip any stored kg_co2eq from data before recomputing so that the
-        # CSV override in prepare_create does not suppress the formula.
-        # (e.g. a changed number_of_trips).
-        if data_entry_response.data.get("kg_co2eq") is not None:
-            clean_data = {
-                k: v for k, v in data_entry_response.data.items() if k != "kg_co2eq"
-            }
-            data_entry_response = data_entry_response.model_copy(
-                update={"data": clean_data}
-            )
-
         # Prepare the emission records
         prepared_emissions = await self.prepare_create(data_entry_response)
         if not prepared_emissions:

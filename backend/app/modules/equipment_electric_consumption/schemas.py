@@ -224,23 +224,24 @@ class EquipmentModuleHandler(BaseModuleHandler):
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> EquipmentHandlerResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> EquipmentHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         new_entry = {
             "id": data_entry.id,
             "data_entry_type_id": data_entry.data_entry_type_id,
             "carbon_report_module_id": data_entry.carbon_report_module_id,
-            **data_entry.data,
-            "active_power_w": data_entry.data.get("primary_factor", {}).get(
-                "active_power_w", None
-            ),
-            "standby_power_w": data_entry.data.get("primary_factor", {}).get(
-                "standby_power_w", None
-            ),
-            "equipment_class": data_entry.data.get("primary_factor", {}).get("class")
-            or data_entry.data.get("equipment_class"),
-            "sub_class": data_entry.data.get("primary_factor", {}).get("sub_class")
-            or data_entry.data.get("sub_class"),
-            "kg_co2eq": data_entry.data.get("kg_co2eq", None),
+            **data,
+            "active_power_w": primary_factor.get("active_power_w", None),
+            "standby_power_w": primary_factor.get("standby_power_w", None),
+            "equipment_class": primary_factor.get("class")
+            or data.get("equipment_class"),
+            "sub_class": primary_factor.get("sub_class") or data.get("sub_class"),
+            "kg_co2eq": data.get("kg_co2eq", None),
         }
         return self.response_dto.model_validate(new_entry)
 

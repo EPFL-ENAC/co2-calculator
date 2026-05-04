@@ -204,13 +204,18 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
-    def to_response(self, data_entry: DataEntry) -> DataEntryResponseGen:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> DataEntryResponseGen:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 
