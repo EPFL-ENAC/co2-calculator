@@ -7,7 +7,7 @@ export default {
   },
   [`${MODULES.EquipmentElectricConsumption}-title-tooltip-subtext`]: {
     en: 'The emissions from the equipment module contribute to Scope 2 of the laboratory’s carbon footprint.',
-    fr: 'Les émissions du module équipement contribue au Scope 2 de l\'empreinte carbone du laboratoire.',
+    fr: "Les émissions du module équipement contribue au Scope 2 de l'empreinte carbone du laboratoire.",
   },
   [`${MODULES.EquipmentElectricConsumption}-common`]: {
     en: 'Common data and factors | Common data and factors',
@@ -153,16 +153,16 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Scientific}-table-title-info-tooltip`]:
     {
       en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: 'Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l\'utilisation active et standby de chaque équipement.',
+      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.IT}-table-title-info-tooltip`]:
     {
       en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: 'Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l\'utilisation active et standby de chaque équipement.',
+      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Other}-table-title-info-tooltip`]:
     {
       en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: 'Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l\'utilisation active et standby de chaque équipement.',
+      fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
 } as const;
