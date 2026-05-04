@@ -13,6 +13,7 @@ from app.core.policy import check_module_permission as _check_module_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -91,7 +92,18 @@ async def get_module_stats(
     Returns:
         Dict with statistics (e.g., total items, total kg_co2eq)
     """
-    await _check_module_permission(current_user, module_id, "view")
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+    await _check_module_permission(
+        current_user,
+        module_id,
+        "view",
+        institutional_id=unit.institutional_id,
+    )
 
     logger.info(
         f"GET module stats: module_id={sanitize(module_id)}, "

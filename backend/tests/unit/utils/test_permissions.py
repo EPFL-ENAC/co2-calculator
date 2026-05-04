@@ -249,3 +249,73 @@ class TestHasPermission:
         }
         result = has_permission(perms, "modules.headcount", "view")
         assert result is False
+
+
+class TestHasPermissionInstitutionalId:
+    """Scoped lookup via the ``institutional_id`` kwarg."""
+
+    def test_scoped_match(self):
+        perms = {"modules.headcount/0184": ["view", "edit"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="0184")
+            is True
+        )
+
+    def test_scoped_match_misses_unscoped_key(self):
+        """A bare ``modules.headcount`` key must NOT satisfy a scoped check —
+        scope must be enforced strictly when iid is provided."""
+        perms = {"modules.headcount": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="0184")
+            is False
+        )
+
+    def test_scoped_wrong_unit(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="9999")
+            is False
+        )
+
+    def test_scoped_action_missing(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "edit", institutional_id="0184")
+            is False
+        )
+
+
+class TestHasPermissionAnyScope:
+    """Any-scope lookup. Taxonomy-only escape hatch."""
+
+    def test_any_scope_matches_scoped_key(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is True
+        )
+
+    def test_any_scope_matches_unscoped_key(self):
+        perms = {"modules.headcount": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is True
+        )
+
+    def test_any_scope_no_match(self):
+        perms = {"modules.equipment/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is False
+        )
+
+    def test_any_scope_action_missing(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "edit", any_scope=True) is False
+        )
+
+    def test_any_scope_does_not_leak_across_modules(self):
+        """``modules.headcount/`` prefix must not match e.g.
+        ``modules.headcount_x/...``"""
+        perms = {"modules.headcount_x/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is False
+        )
