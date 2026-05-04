@@ -87,6 +87,10 @@ class LocationRepository:
                 f"LOWER({table_name}.name COLLATE {collation}) LIKE :search_pattern"
             ).bindparams(search_pattern_param),
             text(
+                f"LOWER({table_name}.iata_code COLLATE {collation}) "
+                "LIKE :search_pattern"
+            ).bindparams(search_pattern_param),
+            text(
                 f"LOWER({table_name}.municipality COLLATE {collation}) "
                 f"LIKE :search_pattern"
             ).bindparams(search_pattern_param),
@@ -111,6 +115,14 @@ class LocationRepository:
                         f"LOWER({table_name}.name COLLATE {collation}) = :query_exact"
                     ).bindparams(query_exact_param),
                     text(
+                        f"LOWER({table_name}.iata_code COLLATE {collation}) "
+                        "= :query_exact"
+                    ).bindparams(query_exact_param),
+                    text(
+                        f"LOWER({table_name}.municipality COLLATE {collation}) "
+                        f"= :query_exact"
+                    ).bindparams(query_exact_param),
+                    text(
                         f"LOWER({table_name}.municipality COLLATE {collation}) "
                         f"= :query_exact"
                     ).bindparams(query_exact_param),
@@ -126,6 +138,10 @@ class LocationRepository:
                 or_(
                     text(
                         f"LOWER({table_name}.name COLLATE {collation}) "
+                        f"LIKE :query_starts"
+                    ).bindparams(query_starts_param),
+                    text(
+                        f"LOWER({table_name}.iata_code COLLATE {collation}) "
                         f"LIKE :query_starts"
                     ).bindparams(query_starts_param),
                     text(

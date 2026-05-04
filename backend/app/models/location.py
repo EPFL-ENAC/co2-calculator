@@ -77,6 +77,7 @@ class LocationBase(SQLModel):
     keywords: Optional[str] = Field(
         default=None,
         max_length=255,
+        index=True,
         description="Keywords (e.g., ['airport', 'train station'])",
     )
 
