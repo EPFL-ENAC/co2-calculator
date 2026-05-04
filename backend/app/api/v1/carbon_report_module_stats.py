@@ -13,6 +13,7 @@ from app.core.policy import check_module_permission as _check_module_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -20,7 +21,11 @@ from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_totals_service import UnitTotalsService
 from app.utils.emission_category import build_chart_breakdown
-from app.utils.it_breakdown import build_it_breakdown
+from app.utils.it_breakdown import (
+    IT_EMISSION_TYPES,
+    build_it_breakdown,
+    get_validated_source_module_type_ids,
+)
 from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
@@ -87,7 +92,18 @@ async def get_module_stats(
     Returns:
         Dict with statistics (e.g., total items, total kg_co2eq)
     """
-    await _check_module_permission(current_user, module_id, "view")
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+    await _check_module_permission(
+        current_user,
+        module_id,
+        "view",
+        institutional_id=unit.institutional_id,
+    )
 
     logger.info(
         f"GET module stats: module_id={sanitize(module_id)}, "
@@ -265,9 +281,6 @@ async def get_it_breakdown(
     )
     total_fte = sum(fte_stats.values())
 
-    # Compute total emissions for percentage calculation
-    total_emissions_kg = sum(row[2] for row in emission_rows)
-
     result = await db.execute(
         select(
             CarbonReportModule.id,
@@ -289,8 +302,18 @@ async def get_it_breakdown(
     # Map module_type_id → carbon_report_module_id
     crm_by_type = {row[1]: row[0] for row in module_rows}
 
+    validated_source_module_type_ids = get_validated_source_module_type_ids(
+        validated_module_type_ids
+    )
+
     # Fetch top-class breakdowns for equipment IT and purchases IT
     emission_svc = DataEntryEmissionService(db)
+    sql_totals = await emission_svc.get_it_emission_sql_totals(
+        carbon_report_id=carbon_report_id,
+        it_emission_type_ids=[et.value for et in IT_EMISSION_TYPES],
+        validated_source_module_type_ids=validated_source_module_type_ids,
+        exclude_module_type_ids=exclude_set,
+    )
     top_class_detail: dict[str, list] = {}
 
     equip_crm_id = crm_by_type.get(ModuleTypeEnum.equipment_electric_consumption.value)
@@ -317,13 +340,13 @@ async def get_it_breakdown(
 
     emission_rows_no_qty: list[tuple[int, int, float]] = [
         (module_type_id, emission_type_id, kg_co2eq)
-        for module_type_id, emission_type_id, kg_co2eq, _qty in emission_rows
+        for module_type_id, emission_type_id, kg_co2eq, _add in emission_rows
     ]
 
     return build_it_breakdown(
         rows=emission_rows_no_qty,
         total_fte=total_fte,
-        total_emissions_kg=total_emissions_kg,
+        sql_totals=sql_totals,
         validated_module_type_ids=validated_module_type_ids,
         top_class_detail=top_class_detail,
         exclude_module_type_ids=exclude_set,

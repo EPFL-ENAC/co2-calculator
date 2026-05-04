@@ -131,6 +131,7 @@ class UnitService:
             {
                 "id": unit.id,
                 "name": unit.name,
+                "institutional_id": unit.institutional_id,
                 "current_user_role": role,
                 "principal_user_institutional_id": unit.principal_user_institutional_id,
                 "principal_user_name": principal_user_name,

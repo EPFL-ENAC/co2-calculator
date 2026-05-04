@@ -36,6 +36,12 @@ def pytest_configure():
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
 
 
+@pytest.fixture(autouse=True)
+def disable_poller(monkeypatch):
+    """Disable the background poller for all tests."""
+    monkeypatch.setattr("app.main.settings.RUN_BACKGROUND_POLLER", False)
+
+
 # ---------------------------------------------------------------------------
 # Core DB session fixture
 # ---------------------------------------------------------------------------

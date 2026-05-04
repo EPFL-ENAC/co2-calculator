@@ -2,31 +2,23 @@
 import { computed } from 'vue';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-
 import { isBackOfficeRoute } from 'src/router/routes';
-import { hasPermission } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const workspaceStore = useWorkspaceStore();
 
 const unitName = computed(() => {
-  if (!route.params.unit) return '';
-  const unit = decodeURIComponent(route.params.unit as string);
-  // Extract name from format: {id}-{name}
-  // The name part is everything after the first dash
-  const parts = unit.split('-');
-  if (parts.length > 1) {
-    // Join all parts except the first (which is the ID) and replace dashes with spaces
-    return parts.slice(1).join('-').replace(/-/g, ' ');
-  }
-  return unit;
+  return workspaceStore.selectedUnit?.name || '';
 });
 
 const year = computed(() => {
-  return route.params.year || '';
+  return workspaceStore.selectedYear || '';
 });
 
 const workspaceDisplay = computed(() => {
@@ -39,7 +31,7 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'view');
+  return authStore.hasUserPermission('backoffice.users', PermissionAction.VIEW);
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));

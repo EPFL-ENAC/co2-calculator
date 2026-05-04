@@ -20,10 +20,50 @@ from app.repositories.data_entry_emission_repo import (
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    resolve_emission_types,
+)
+from app.utils.emission_category import additional_value_unit
+from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
 logger = get_logger(__name__)
+
+
+def _emission_depth(et: EmissionType) -> int:
+    """Count parent chain length (0 = root)."""
+    depth = 0
+    p = et.parent
+    while p is not None:
+        depth += 1
+        p = p.parent
+    return depth
+
+
+def _pick_emission_type_id(
+    comp_emission_type: EmissionType, factor_emission_type_id: int
+) -> int:
+    """Return the more specific emission_type_id between computation and factor.
+
+    When a factor stores a generic parent (e.g. buildings__rooms,
+    professional_travel__plane) but the computation targets a specific leaf,
+    the computation's type must be used so the emission has a known scope/category.
+    When the factor is more specific (e.g. headcount food sub-types), the
+    factor's type is preferred.
+    """
+    try:
+        factor_et = EmissionType(factor_emission_type_id)
+        if _emission_depth(factor_et) > _emission_depth(comp_emission_type):
+            return factor_emission_type_id
+    except ValueError:
+        logger.debug(
+            "Unknown factor_emission_type_id=%s; "
+            "falling back to computation emission type=%s",
+            factor_emission_type_id,
+            comp_emission_type.value,
+        )
+    return comp_emission_type.value
 
 
 class DataEntryEmissionService:
@@ -137,121 +177,119 @@ class DataEntryEmissionService:
 
             for comp in computations:
                 factors = await self._fetch_factors(comp, year)
-                kg_co2eq: float | None = None
 
                 # Check if CSV provides an override value (takes precedence)
                 csv_kg_co2eq = data_entry.data.get("kg_co2eq")
                 if csv_kg_co2eq is not None:
-                    # Use CSV-provided value as override
                     logger.info(
                         f"Using CSV-provided kg_co2eq={csv_kg_co2eq} override for "
                         f"emission_type={emission_type.name!r} "
                         f"data_entry_id={data_entry.id!r}"
                     )
-                    kg_co2eq = float(csv_kg_co2eq)
-                else:
-                    if comp.emit_per_factor:
-                        # Emit one row per factor with the factor's own
-                        # emission_type_id.
-                        # Skip the aggregate computation entirely to avoid double
-                        # formula evaluation (and duplicated warnings).
-                        for factor in factors:
-                            per_factor_kg = self._apply_formula(
-                                ctx, factor.values or {}, comp
-                            )
-                            if per_factor_kg is None:
-                                continue
-                            quantity: float | None = None
-                            if (
-                                comp.quantity_key
-                                and ctx.get(comp.quantity_key) is not None
-                            ):
-                                base_qty = float(ctx[comp.quantity_key])
-                                multiplier = float(
-                                    (factor.values or {}).get(
-                                        comp.multiplier_key, comp.multiplier_default
-                                    )
-                                    if comp.multiplier_key
-                                    else comp.multiplier_default
-                                )
-                                quantity = base_qty * multiplier
-                            quantity_unit: str | None = (factor.values or {}).get(
-                                "unit"
-                            )
-                            results.append(
-                                DataEntryEmission(
-                                    data_entry_id=data_entry.id,
-                                    emission_type_id=factor.emission_type_id,
-                                    primary_factor_id=factor.id,
-                                    kg_co2eq=per_factor_kg,
-                                    meta={
-                                        "factors_used": [
-                                            {"id": factor.id, "values": factor.values}
-                                        ],
-                                        "quantity": quantity,
-                                        "quantity_unit": quantity_unit,
-                                        **ctx,
-                                    },
-                                )
-                            )
-                        continue
-
-                    # Compute kg_co2eq using factors and formulas
-                    for factor in factors:
-                        # If there are multiple factors for this computation,
-                        # we sum their contributions
-                        # only use case: headcount (multiple factors per emission)
-                        kg_co2eq = 0 if kg_co2eq is None else kg_co2eq
-                        temp_kg_co2eq: float | None = self._apply_formula(
-                            ctx, factor.values or {}, comp
-                        )
-                        if temp_kg_co2eq is not None:
-                            kg_co2eq = kg_co2eq + temp_kg_co2eq
-                        if temp_kg_co2eq is None:
-                            # Log which values are missing for debugging
-                            missing_ctx_keys = [
-                                key
-                                for key in [comp.quantity_key, comp.multiplier_key]
-                                if key and ctx.get(key) is None
-                            ]
-                            missing_factor_keys = [
-                                key
-                                for key in [comp.formula_key, comp.multiplier_key]
-                                if key and factor.values.get(key) is None
-                            ]
-                            logger.warning(
-                                f"Formula returned None for "
-                                f"emission_type={emission_type.name!r} "
-                                f"data_entry_id={data_entry.id!r} - "
-                                f"Missing context keys: {missing_ctx_keys}, "
-                                f"Missing factor keys: {missing_factor_keys}"
-                            )
-                            continue
-                if kg_co2eq is not None:
-                    emission_chosen_factor: Factor | None = (
-                        factors[0] if factors is not None and len(factors) > 0 else None
-                    )  # attach first factor for reference
                     results.append(
                         DataEntryEmission(
                             data_entry_id=data_entry.id,
-                            emission_type_id=emission_type.value,
-                            primary_factor_id=emission_chosen_factor.id
-                            if emission_chosen_factor is not None
-                            else None,
-                            kg_co2eq=kg_co2eq,
+                            emission_type_id=comp.emission_type.value,
+                            primary_factor_id=None,
+                            kg_co2eq=float(csv_kg_co2eq),
+                            scope=comp.emission_type.scope,
                             meta={
                                 "factors_used": [
-                                    {
-                                        "id": factor.id,
-                                        "values": factor.values,
-                                    }
+                                    {"id": factor.id, "values": factor.values}
                                     for factor in factors
-                                    if factor is not None
                                 ],
                                 **ctx,
                             },
                         )
                     )
+                    continue
+
+                for factor in factors:
+                    per_factor_kg = self._apply_formula(ctx, factor.values or {}, comp)
+                    if per_factor_kg is None:
+                        missing_ctx_keys = [
+                            key
+                            for key in [comp.quantity_key, comp.multiplier_key]
+                            if key and ctx.get(key) is None
+                        ]
+                        missing_factor_keys = [
+                            key
+                            for key in [comp.formula_key, comp.multiplier_key]
+                            if key and (factor.values or {}).get(key) is None
+                        ]
+                        logger.warning(
+                            f"Formula returned None for "
+                            f"emission_type={emission_type.name!r} "
+                            f"data_entry_id={data_entry.id!r} - "
+                            f"Missing context keys: {missing_ctx_keys}, "
+                            f"Missing factor keys: {missing_factor_keys}"
+                        )
+                        continue
+                    quantity: float | None = None
+                    if comp.quantity_key and ctx.get(comp.quantity_key) is not None:
+                        base_qty = float(ctx[comp.quantity_key])
+                        multiplier = float(
+                            (factor.values or {}).get(
+                                comp.multiplier_key, comp.multiplier_default
+                            )
+                            if comp.multiplier_key
+                            else comp.multiplier_default
+                        )
+                        quantity = base_qty * multiplier
+                    quantity_unit: str | None = (factor.values or {}).get("unit")
+                    _et_id = _pick_emission_type_id(
+                        comp.emission_type, factor.emission_type_id
+                    )
+                    additional_value: float | None = (
+                        quantity
+                        if (
+                            quantity is not None
+                            and additional_value_unit(comp.emission_type) is not None
+                        )
+                        else None
+                    )
+                    results.append(
+                        DataEntryEmission(
+                            data_entry_id=data_entry.id,
+                            emission_type_id=_et_id,
+                            primary_factor_id=factor.id,
+                            kg_co2eq=per_factor_kg,
+                            additional_value=additional_value,
+                            scope=EmissionType(_et_id).scope,
+                            meta={
+                                "factors_used": [
+                                    {"id": factor.id, "values": factor.values}
+                                ],
+                                "quantity": quantity,
+                                "quantity_unit": quantity_unit,
+                                **ctx,
+                            },
+                        )
+                    )
+
+        rollup_type = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION.get(
+            DataEntryTypeEnum(data_entry.data_entry_type)
+        )
+        if rollup_type is not None and len(results) > 1:
+            total_kg = sum(r.kg_co2eq or 0.0 for r in results)
+            primary_factor_id = min(
+                (
+                    r.primary_factor_id
+                    for r in results
+                    if r.primary_factor_id is not None
+                ),
+                default=None,
+            )
+            results.append(
+                DataEntryEmission(
+                    data_entry_id=data_entry.id,
+                    emission_type_id=rollup_type.value,
+                    primary_factor_id=primary_factor_id,
+                    kg_co2eq=total_kg,
+                    scope=None,
+                    meta={"is_rollup": True},
+                )
+            )
 
         return results
 
@@ -344,7 +382,7 @@ class DataEntryEmissionService:
                 emission_factors = []
                 for node in all_nodes:
                     node_factors = await factor_service.list_by_emission_type(
-                        EmissionType(node)
+                        EmissionType(node), year=year
                     )
                     emission_factors.extend(node_factors)
                 # we should also filter by data_entry_type in case we have factors
@@ -366,7 +404,9 @@ class DataEntryEmissionService:
             #     Returns all factors for this entry type
             elif q.data_entry_type is not None:
                 result.extend(
-                    await factor_service.list_by_data_entry_type(q.data_entry_type)
+                    await factor_service.list_by_data_entry_type(
+                        q.data_entry_type, year=year
+                    )
                 )
 
         return result
@@ -494,10 +534,36 @@ class DataEntryEmissionService:
     ) -> list[tuple[int, int, float, float | None]]:
         """Get emission breakdown by module and emission type.
 
-        Returns list of (module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity).
+        Returns list of
+        (
+            module_type_id,
+            emission_type_id,
+            sum_kg_co2eq,
+            sum_additional_value,
+        ).
         """
         return await self.repo.get_emission_breakdown_with_quantity(
             carbon_report_id=carbon_report_id,
+        )
+
+    async def get_it_emission_sql_totals(
+        self,
+        carbon_report_id: int,
+        it_emission_type_ids: list[int],
+        validated_source_module_type_ids: list[int],
+        exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
+    ) -> ITSqlTotals:
+        """Compute IT emission totals in SQL.
+
+        Delegates to the repository. Returns a dict with
+        ``it_total_kg``, ``overall_total_kg``, ``validated_source_total_kg``,
+        and ``validated_it_kg``.
+        """
+        return await self.repo.get_it_emission_sql_totals(
+            carbon_report_id=carbon_report_id,
+            it_emission_type_ids=it_emission_type_ids,
+            validated_source_module_type_ids=validated_source_module_type_ids,
+            exclude_module_type_ids=exclude_module_type_ids,
         )
 
     async def get_embodied_energy_by_building(

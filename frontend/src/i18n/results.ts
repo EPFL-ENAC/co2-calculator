@@ -39,6 +39,18 @@ export default {
     en: 't CO₂-eq',
     fr: 't CO₂-eq',
   },
+  results_units_population: {
+    en: 'population',
+    fr: 'population',
+  },
+  results_objectives_population_forecast: {
+    en: 'EPFL population forecast',
+    fr: 'Prévision de la population EPFL',
+  },
+  results_objectives_population_axis: {
+    en: 'EPFL population',
+    fr: 'Population EPFL',
+  },
   results_kg_co2eq_per_km: {
     en: 'kg CO₂-eq/km',
     fr: 'kg CO₂-eq/km',
@@ -236,12 +248,116 @@ export default {
     fr: 'Aucune donnée de construction ou rénovation pour ce rapport. Veuillez renseigner les données de bâtiments pour voir les répartitions.',
   },
   results_objectives_2040_title: {
-    en: 'Reduction objective 2040',
-    fr: 'Objectif de réduction 2040',
+    en: '2040 Reduction goal',
+    fr: 'Objectif de réduction 2040 ',
+  },
+  results_objectives_2040_section_subtitle: {
+    en: 'CO₂ emissions trajectory between now and 2040',
+    fr: 'Trajectoire des émissions CO₂ d’ici à 2040',
   },
   results_objectives_2040_subtitle: {
-    en: 'Comparison with intermediate long-term objectives',
-    fr: 'Comparaison avec les objectifs intermédiaires à long terme',
+    en: 'The goal is to reach -40% by 2030 and -90% by 2040 with respect to 2019. The overall goal is net zero by 2040.',
+    fr: "L’objectif est de -40 % d'ici 2030 et -90 % d'ici 2040 par rapport à 2019. L'objectif global est d'atteindre la neutralité carbone d'ici 2040.",
+  },
+  results_objectives_2040_subtitle_link_label: {
+    en: 'Study',
+    fr: 'Étude',
+  },
+  results_objectives_unit_category_tooltip_process_emissions: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_buildings_energy_combustion: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_buildings_room: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_equipment: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_external_cloud_and_ai: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_purchases: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_research_facilities: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_professional_travel: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_commuting: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_food: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_waste: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_unit_category_tooltip_embodied_energy: {
+    en: 'Placeholder tooltip for {category}',
+    fr: 'Texte placeholder pour {category}',
+  },
+  results_objectives_2040_epfl_button: {
+    en: 'EPFL',
+    fr: 'EPFL',
+  },
+  results_objectives_2040_unit_button: {
+    en: 'My unit',
+    fr: 'Mon unité',
+  },
+  results_objectives_2030_tooltip: {
+    en: "This section presents two graphs. The first illustrates the reference “net zero” trajectory for EPFL, aligned with the CO₂ emission reduction targets set by the Swiss Confederation and the Climate Act. The second allows you to simulate the evolution of your unit's emissions and adjust each category in order to converge towards this reference trajectory.",
+    fr: 'Cette section présente deux graphiques. Le premier illustre la trajectoire « net zéro » de référence pour l’EPFL, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat. Le second vous permet de simuler l’évolution des émissions de votre unité et d’ajuster chaque catégorie afin de converger vers cette trajectoire de référence.',
+  },
+  results_objectives_epfl_chart_title: {
+    en: 'EPFL carbon footprint goals over the years',
+    fr: 'Objectifs CO2 de l’EPFL au fil des années',
+  },
+  results_objectives_epfl_chart_tooltip: {
+    en: 'The goal is to reach -40% by 2030 and -90% by 2040 with respect to 2019. The overall goal is net zero by 2040.',
+    fr: "L’objectif est de -40 % d'ici 2030 et -90 % d'ici 2040 par rapport à 2019. L'objectif global est d'atteindre la neutralité carbone d'ici 2040.",
+  },
+  results_objectives_total: {
+    en: 'Total carbon footprint',
+    fr: 'Emission totale',
+  },
+  results_objectives_unit_chart_title: {
+    en: 'My unit carbon footprint by category over the years',
+    fr: 'Empreinte carbone de mon unité par catégorie au fil des années',
+  },
+  results_objectives_unit_chart_tooltip: {
+    en: 'Play around with the different reduction sliders to see if your unit can follow the EPFL objective trajectory.',
+    fr: "Jouez avec les différents curseurs de réduction pour voir si votre unité peut suivre la trajectoire des objectifs de l'EPFL.",
+  },
+  results_objectives_epfl_no_data_title: {
+    en: 'EPFL objectives not available yet',
+    fr: 'Objectifs EPFL pas encore disponibles',
+  },
+  results_objectives_epfl_no_data_message: {
+    en: 'EPFL reduction objectives data has not been loaded yet.',
+    fr: "Les données d'objectifs de réduction EPFL ne sont pas encore chargées.",
+  },
+  results_objectives_unit_no_validated_title: {
+    en: 'Validate modules to see reduction objectives',
+    fr: 'Validez des modules pour voir les objectifs de réduction',
+  },
+  results_objectives_unit_no_validated_message: {
+    en: 'Validate at least one module/category to unlock the unit simulation sliders.',
+    fr: 'Validez au moins un module/catégorie pour déverrouiller les curseurs de simulation.',
   },
   results_additional_data: {
     en: 'Additional data',
@@ -449,9 +565,21 @@ export default {
     en: 'Services',
     fr: 'Services',
   },
-  'charts-other-purchases-subcategory': {
-    en: 'Other Equipment',
+  'charts-vehicles-subcategory': {
+    en: 'Vehicles',
+    fr: 'Véhicules',
+  },
+  'charts-additional-purchases-subcategory': {
+    en: 'Additional purchases',
+    fr: 'Achats supplémentaires',
+  },
+  'charts-other-equipment-subcategory': {
+    en: 'Other equipment',
     fr: 'Autre équipement',
+  },
+  'charts-other-purchases-subcategory': {
+    en: 'Other purchases',
+    fr: 'Autres achats',
   },
   'charts-gc-subcategory': {
     en: 'GC',
@@ -468,6 +596,26 @@ export default {
   'charts-plane-subcategory': {
     en: 'Plane',
     fr: 'Avion',
+  },
+  'charts-class-1-subcategory': {
+    en: 'Class 1',
+    fr: 'Classe 1',
+  },
+  'charts-class-2-subcategory': {
+    en: 'Class 2',
+    fr: 'Classe 2',
+  },
+  'charts-first-class-subcategory': {
+    en: 'First',
+    fr: 'Première',
+  },
+  'charts-business-class-subcategory': {
+    en: 'Business',
+    fr: 'Affaires',
+  },
+  'charts-eco-class-subcategory': {
+    en: 'Eco',
+    fr: 'Éco',
   },
   'charts-clouds-subcategory': {
     en: 'Clouds',
@@ -514,8 +662,8 @@ export default {
     fr: 'Calcul cloud',
   },
   'charts-ai-provider-subcategory': {
-    en: 'AI provider',
-    fr: 'Fournisseur IA',
+    en: 'AI',
+    fr: 'IA',
   },
   'charts-ai-provider-google-subcategory': {
     en: 'Google',

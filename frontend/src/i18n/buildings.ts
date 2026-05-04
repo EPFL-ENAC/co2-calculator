@@ -90,6 +90,10 @@ export default {
     en: 'Surface (m²)',
     fr: 'Surface (m²)',
   },
+  [`${MODULES.Buildings}.inputs.room_allocation_ratio`]: {
+    en: 'Allocation ratio',
+    fr: 'Ratio alloué',
+  },
   [`${MODULES.Buildings}.inputs.heating_kwh_per_square_meter`]: {
     en: 'Heating (kWh/m²)',
     fr: 'Chauffage (kWh/m²)',
@@ -128,6 +132,10 @@ export default {
   },
 
   // Rooms tooltips
+  [`${MODULES.Buildings}.tooltips.ratio`]: {
+    en: 'Ratio of the room surface allocated to the unit. Default is 1 (100%).',
+    fr: "Ratio de surface du local alloué à l'unité. Par défaut, 1 (100%).",
+  },
   [`${MODULES.Buildings}.tooltips.heating`]: {
     en: 'Annual heating energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
     fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",

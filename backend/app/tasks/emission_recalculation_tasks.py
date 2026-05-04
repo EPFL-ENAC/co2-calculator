@@ -6,8 +6,8 @@ Mirrors the dual-session pattern from ingestion_tasks.py:
 """
 
 import asyncio
-import logging
 
+from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -19,9 +19,10 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._pod_id import POD_ID
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -49,22 +50,16 @@ async def run_recalculation_task(
     """
     async with SessionLocal() as job_session, SessionLocal() as data_session:
         job_repo = DataIngestionRepository(job_session)
+
+        claimed = await job_repo.claim_job(job_id, POD_ID)
+        if not claimed:
+            logger.info(f"Job {job_id} already claimed or not eligible — skipping")
+            return
+
         job = await job_repo.get_job_by_id(job_id)
         if not job:
             logger.error(f"Recalculation job {job_id} not found.")
             return
-
-        # Mark as running
-        await job_repo.update_ingestion_job(
-            job_id=job_id,
-            status_message="Starting emission recalculation...",
-            metadata={},
-            state=IngestionState.RUNNING,
-        )
-        job = await job_repo.get_job_by_id(job_id)
-        if job:
-            await job_repo.mark_job_as_current(job)
-        await job_session.commit()
 
         try:
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
@@ -74,7 +69,6 @@ async def run_recalculation_task(
                 job_id=job_id,
                 status_message="Recalculating emissions...",
                 metadata={},
-                state=IngestionState.RUNNING,
             )
             await job_session.commit()
 
@@ -164,21 +158,16 @@ async def run_module_recalculation_task(
     """
     async with SessionLocal() as job_session, SessionLocal() as data_session:
         job_repo = DataIngestionRepository(job_session)
+
+        claimed = await job_repo.claim_job(job_id, POD_ID)
+        if not claimed:
+            logger.info(f"Job {job_id} already claimed or not eligible — skipping")
+            return
+
         job = await job_repo.get_job_by_id(job_id)
         if not job:
             logger.error(f"Module recalculation job {job_id} not found.")
             return
-
-        await job_repo.update_ingestion_job(
-            job_id=job_id,
-            status_message="Starting module emission recalculation...",
-            metadata={},
-            state=IngestionState.RUNNING,
-        )
-        job = await job_repo.get_job_by_id(job_id)
-        if job:
-            await job_repo.mark_job_as_current(job)
-        await job_session.commit()
 
         n = len(data_entry_type_ids)
         per_type_stats: dict[int, dict] = {}
@@ -196,7 +185,6 @@ async def run_module_recalculation_task(
                         f"Recalculating {data_entry_type.name} ({i}/{n})..."
                     ),
                     metadata={},
-                    state=IngestionState.RUNNING,
                 )
                 await job_session.commit()
 

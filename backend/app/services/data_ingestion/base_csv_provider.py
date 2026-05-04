@@ -511,7 +511,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 )
 
                 module_type = ModuleTypeEnum(self.job.module_type_id)
-                valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
+
+                # If the job targets a specific data_entry_type_id, only delete
+                # entries for that type. Deleting all types for the module would
+                # wipe sibling submodules (e.g. uploading research_facilities
+                # data would erase mice_and_fish_animal_facilities entries).
+                if self.job.data_entry_type_id is not None:
+                    valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
+                else:
+                    valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+                        module_type, []
+                    )
 
                 for data_entry_type in valid_entry_types:
                     try:
@@ -827,16 +837,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
+                year_value = self.year or 0
                 # Build lookup key same way as load_factors_map does
                 key_full = (
                     f"{data_entry_type.value}:"
+                    f"{year_value}:"
                     f"{(kind_value or '').lower()}:"
                     f"{(subkind_value or '').lower()}"
                 )
                 factor = setup_result["factors_map"].get(key_full)
                 # Fallback: try without subkind
                 if not factor and subkind_value:
-                    key_kind = f"{data_entry_type.value}:{(kind_value or '').lower()}"
+                    key_kind = (
+                        f"{data_entry_type.value}:"
+                        f"{year_value}:"
+                        f"{(kind_value or '').lower()}"
+                    )
                     factor = setup_result["factors_map"].get(key_kind)
                 if factor:
                     primary_factor_id = factor.id

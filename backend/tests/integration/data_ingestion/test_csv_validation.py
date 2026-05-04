@@ -95,6 +95,7 @@ class TestModulePerYearBehavior:
         # Mock job with module_type_id (required for deletion logic to run)
         mock_job = MagicMock()
         mock_job.module_type_id = 1
+        mock_job.data_entry_type_id = None
         provider.job = mock_job
 
         await provider._delete_existing_entries_for_module_per_year(
@@ -181,6 +182,7 @@ class TestHumanDataProtection:
 
         mock_job = MagicMock()
         mock_job.module_type_id = 1
+        mock_job.data_entry_type_id = None
         provider.job = mock_job
 
         # Call deletion method

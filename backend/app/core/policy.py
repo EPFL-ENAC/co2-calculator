@@ -29,6 +29,10 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
             - "user": User object or dict with user info
             - "path": Permission path (e.g., "modules.headcount")
             - "action": Permission action (e.g., "view", "edit", default: "view")
+            - "institutional_id": Optional unit institutional_id for scoped lookup
+              of ``modules.*`` paths (e.g., ``"modules.headcount/0184"``).
+            - "any_scope": Optional bool. Taxonomy-only escape hatch; see
+              ``has_permission``.
 
     Returns:
         Policy decision dict: {"allow": bool, "reason": str}
@@ -36,6 +40,8 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
     user_data = input_data.get("user")
     path = input_data.get("path")
     action = input_data.get("action", "view")
+    institutional_id = input_data.get("institutional_id")
+    any_scope = input_data.get("any_scope", False)
 
     if not user_data or not path:
         logger.warning(
@@ -72,7 +78,13 @@ async def _evaluate_permission_policy(input_data: dict) -> dict:
         }
 
     # Check permission using existing utility
-    if has_permission(permissions, path, action):
+    if has_permission(
+        permissions,
+        path,
+        action,
+        institutional_id=institutional_id,
+        any_scope=any_scope,
+    ):
         logger.info(
             "Permission granted",
             extra={
@@ -428,7 +440,12 @@ def _get_module_permission_path(module_name: str | None) -> Optional[str]:
 
 
 async def get_module_permission_decision(
-    user: User, module_id: str | int, action: str = "view"
+    user: User,
+    module_id: str | int,
+    action: str = "view",
+    *,
+    institutional_id: Optional[str] = None,
+    any_scope: bool = False,
 ) -> dict:
     """
     Get permission decision for a specific module and action.
@@ -437,6 +454,11 @@ async def get_module_permission_decision(
         user: Current user
         module_id: Module enum identifier or name
         action: Permission action (e.g., "view", "edit", "export", default: "view")
+        institutional_id: Unit institutional_id for scoped permission lookup.
+            Routes that operate on a unit MUST pass this — without it, scoped
+            users (CO2_USER_*) will be denied because their permissions are
+            stored as ``modules.X/{institutional_id}``.
+        any_scope: Taxonomy-only escape hatch. See ``has_permission``.
 
     Returns:
         OPA decision dictionary, e.g. {"allow": True}
@@ -458,12 +480,19 @@ async def get_module_permission_decision(
         },
         "path": permission_path,
         "action": action,
+        "institutional_id": institutional_id,
+        "any_scope": any_scope,
     }
     return await query_policy("authz/permission/check", input_data)
 
 
 async def is_module_permitted(
-    user: User, module_id: str | int, action: str = "view"
+    user: User,
+    module_id: str | int,
+    action: str = "view",
+    *,
+    institutional_id: Optional[str] = None,
+    any_scope: bool = False,
 ) -> bool:
     """
     Check if user has permission for a specific module and action.
@@ -472,18 +501,31 @@ async def is_module_permitted(
         user: Current user
         module_id: Module enum identifier or name
         action: Permission action (e.g., "view", "edit", default: "view")
+        institutional_id: Unit institutional_id for scoped permission lookup.
+        any_scope: Taxonomy-only escape hatch. See ``has_permission``.
 
     Returns:
         True if user has permission, False otherwise
     """
-    decision = await get_module_permission_decision(user, module_id, action)
+    decision = await get_module_permission_decision(
+        user,
+        module_id,
+        action,
+        institutional_id=institutional_id,
+        any_scope=any_scope,
+    )
     return decision.get(
         "allow", False
     )  # Deny by default if decision lacks an explicit allow
 
 
 async def check_module_permission(
-    user: User, module_id: str | int, action: str
+    user: User,
+    module_id: str | int,
+    action: str,
+    *,
+    institutional_id: Optional[str] = None,
+    any_scope: bool = False,
 ) -> None:
     """
     Check if user has permission for the module.
@@ -492,6 +534,9 @@ async def check_module_permission(
         user: Current user
         module_id: Module enum identifier or name
         action: Permission action ("view" or "edit")
+        institutional_id: Unit institutional_id for scoped permission lookup.
+            Routes that operate on a unit MUST pass this.
+        any_scope: Taxonomy-only escape hatch. See ``has_permission``.
 
     Raises:
         HTTPException: 403 if permission denied
@@ -500,7 +545,13 @@ async def check_module_permission(
         module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
     )
     permission_path = _get_module_permission_path(module_name) or "unknown_module"
-    decision = await get_module_permission_decision(user, module_id, action)
+    decision = await get_module_permission_decision(
+        user,
+        module_id,
+        action,
+        institutional_id=institutional_id,
+        any_scope=any_scope,
+    )
 
     logger.info(
         "Module permission check",

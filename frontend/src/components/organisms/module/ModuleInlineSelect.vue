@@ -18,7 +18,6 @@
       dense
       outlined
       hide-bottom-space
-      class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
@@ -174,9 +173,5 @@ async function onChange() {
     #e0e0e0 100%
   );
   cursor: not-allowed;
-}
-
-.inline-input {
-  width: 140px;
 }
 </style>

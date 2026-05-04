@@ -5,8 +5,8 @@ import pytest
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.utils.emission_category import (
-    HEADCOUNT_PER_FTE_KG,
     MODULE_BREAKDOWN_ORDER,
+    additional_value_unit,
     build_chart_breakdown,
     build_treemap,
 )
@@ -20,17 +20,27 @@ def _row_by_category(rows: list[dict], category: str) -> dict:
     return next(row for row in rows if row["category"] == category)
 
 
+def _row(
+    module_type_id: int,
+    emission_type_id: int,
+    kg_co2eq: float,
+    additional_value: float | None = None,
+) -> tuple[int, int, float, float | None]:
+    return (module_type_id, emission_type_id, kg_co2eq, additional_value)
+
+
 def test_build_chart_breakdown_returns_emission_entries_only():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             3_000.0,
+            1_000.0,
         ),
     ]
 
@@ -46,15 +56,17 @@ def test_build_chart_breakdown_returns_emission_entries_only():
     travel = _row_by_category(result["module_breakdown"], "professional_travel")
     assert travel["eco"] == pytest.approx(3.0)
     assert travel["plane"] == pytest.approx(3.0)  # parent_key sum
+    assert travel["emissions"][0]["quantity"] == pytest.approx(1000.0)
+    assert travel["emissions"][0]["quantity_unit"] == "km"
 
     assert result["total_tonnes_co2eq"] == pytest.approx(13.0)
 
 
 def test_build_chart_breakdown_aggregates_same_emission_type():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 4_000.0),
-        (4, EmissionType.equipment__scientific.value, 2_000.0),
-        (4, EmissionType.equipment__it.value, 1_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 4_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 2_000.0),
+        _row(4, EmissionType.equipment__it.value, 1_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -65,8 +77,8 @@ def test_build_chart_breakdown_aggregates_same_emission_type():
 
 def test_build_chart_breakdown_separates_building_categories():
     rows = [
-        (3, EmissionType.buildings__rooms__lighting.value, 3_000.0),
-        (3, EmissionType.buildings__combustion.value, 2_000.0),
+        _row(3, EmissionType.buildings__rooms__lighting.value, 3_000.0),
+        _row(3, EmissionType.buildings__combustion.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows)
@@ -80,44 +92,31 @@ def test_build_chart_breakdown_separates_building_categories():
     assert combustion["combustion"] == pytest.approx(2.0)
 
 
-def test_build_chart_breakdown_headcount_goes_to_additional_breakdown():
-    result = build_chart_breakdown([], total_fte=20.0, headcount_validated=True)
-
-    food = _row_by_category(result["additional_breakdown"], "food")
-    commuting = _row_by_category(result["additional_breakdown"], "commuting")
-
-    assert food["food"] == pytest.approx(
-        HEADCOUNT_PER_FTE_KG[EmissionType.food] * 20.0 / 1000.0
-    )
-    assert commuting["commuting"] == pytest.approx(
-        HEADCOUNT_PER_FTE_KG[EmissionType.commuting] * 20.0 / 1000.0
-    )
-
-
 def test_build_chart_breakdown_per_person_exposes_only_value_keys():
     rows = [
-        (4, EmissionType.equipment__scientific.value, 5_000.0),
-        (4, EmissionType.equipment__it.value, 3_000.0),
-        (2, EmissionType.professional_travel__plane__eco.value, 2_000.0),
+        _row(4, EmissionType.equipment__scientific.value, 5_000.0),
+        _row(4, EmissionType.equipment__it.value, 3_000.0),
+        _row(2, EmissionType.professional_travel__plane__eco.value, 2_000.0),
     ]
 
     result = build_chart_breakdown(rows, total_fte=10.0)
     per_person = result["per_person_breakdown"]
 
     assert per_person == {
-        "buildings": pytest.approx(0.0),
+        "process_emissions": pytest.approx(0.0),
+        "buildings_energy_combustion": pytest.approx(0.0),
+        "buildings_room": pytest.approx(0.0),
         "equipment": pytest.approx(0.8),
+        "external_cloud_and_ai": pytest.approx(0.0),
+        "purchases": pytest.approx(0.0),
         "research_facilities": pytest.approx(0.0),
         "professional_travel": pytest.approx(0.2),
-        "purchases": pytest.approx(0.0),
-        "external_cloud_and_ai": pytest.approx(0.0),
-        "process_emissions": pytest.approx(0.0),
     }
 
 
 def test_build_chart_breakdown_validated_categories_follow_module_validation():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             1_000.0,
@@ -138,12 +137,12 @@ def test_build_chart_breakdown_validated_categories_follow_module_validation():
 
 def test_build_chart_breakdown_excludes_single_module():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.research_facilities.value,
             EmissionType.research_facilities__facilities.value,
             5_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
@@ -159,25 +158,23 @@ def test_build_chart_breakdown_excludes_single_module():
 
     categories = [r["category"] for r in result_excluded["module_breakdown"]]
     assert "research_facilities" not in categories
-    assert result_excluded["per_person_breakdown"][
-        "research_facilities"
-    ] == pytest.approx(0.0)
+    assert "research_facilities" not in result_excluded["per_person_breakdown"]
     assert result_excluded["total_tonnes_co2eq"] < result_full["total_tonnes_co2eq"]
 
 
 def test_build_chart_breakdown_excludes_multiple_modules():
     rows = [
-        (
+        _row(
             ModuleTypeEnum.research_facilities.value,
             EmissionType.research_facilities__facilities.value,
             5_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.professional_travel.value,
             EmissionType.professional_travel__plane__eco.value,
             3_000.0,
         ),
-        (
+        _row(
             ModuleTypeEnum.equipment_electric_consumption.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
@@ -212,3 +209,113 @@ def test_build_treemap_basic():
 def test_build_treemap_zero_total():
     assert build_treemap([]) == []
     assert build_treemap([("zero", 0.0)]) == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# parent_keys_order contract
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_parent_keys_order_child_emission_uses_parent_bar_key():
+    """A depth-2 emission (plane__eco) contributes its *parent* key ('plane')
+    to parent_keys_order, not its own leaf key ('eco')."""
+    rows = [
+        _row(
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            5_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    assert "parent_keys_order" in travel
+    assert travel["parent_keys_order"] == ["plane"]
+    # The child leaf key must NOT leak into parent_keys_order
+    assert "eco" not in travel["parent_keys_order"]
+
+
+def test_parent_keys_order_multiple_children_same_parent_deduplicated():
+    """Multiple children of the same parent (plane__business + plane__eco)
+    must produce exactly one 'plane' entry in parent_keys_order, and the
+    parent sum must equal the combined tonnage."""
+    rows = [
+        _row(
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__business.value,
+            3_000.0,
+        ),
+        _row(
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            7_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    assert travel["parent_keys_order"] == ["plane"]
+    assert travel["plane"] == pytest.approx(10.0)
+
+
+def test_parent_keys_order_reflects_first_seen_value_sorted_order():
+    """parent_keys_order follows the first-seen ordering produced by iterating
+    emission types in ascending EmissionType.value order.
+
+    train__class_1 (50101) < plane__eco (50203), so 'train' must appear
+    before 'plane' regardless of the order rows are supplied in."""
+    rows = [
+        # Deliberately listed in reverse value order to prove input order
+        # does not drive parent_keys_order -- only EmissionType.value sort does.
+        _row(
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,  # 50203
+            6_000.0,
+        ),
+        _row(
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__train__class_1.value,  # 50101
+            4_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    travel = _row_by_category(result["module_breakdown"], "professional_travel")
+
+    # train (50101) is encountered first in the ascending value scan
+    assert travel["parent_keys_order"] == ["train", "plane"]
+
+
+def test_parent_keys_order_standalone_leaf_uses_own_key():
+    """An emission type with no logical parent (level-1 subcategory leaf)
+    uses its own leaf key directly as the bar key and appears in
+    parent_keys_order in ascending EmissionType.value order."""
+    # equipment__scientific (80100) and equipment__it (80200) are both
+    # level-1 leaves: no parent_key is set, so bar_key == key.
+    rows = [
+        _row(
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,  # 80100
+            8_000.0,
+        ),
+        _row(
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__it.value,  # 80200
+            2_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(rows)
+    equipment = _row_by_category(result["module_breakdown"], "equipment")
+
+    # 80100 < 80200 -> "scientific" is first-seen, then "it"
+    assert equipment["parent_keys_order"] == ["scientific", "it"]
+
+
+def test_additional_value_unit_infers_from_tree():
+    assert additional_value_unit(EmissionType.commuting__cycling) == "km"
+    assert additional_value_unit(EmissionType.food__vegetarian) == "kg"
+    assert additional_value_unit(EmissionType.professional_travel__plane__eco) == "km"
+    assert additional_value_unit(EmissionType.equipment__scientific) is None

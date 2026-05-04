@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors, getChartSubcategoryColor } from 'src/constant/charts';
+import {
+  colors,
+  getChartSubcategoryColor,
+  RESULTS_CATEGORY_LABEL_KEYS,
+} from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -15,6 +19,9 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
+import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -331,20 +338,7 @@ function recalculateScopeRects() {
   });
 }
 
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  commuting: 'charts-commuting-category', // Headcount
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  process_emissions: 'charts-process-emissions-category',
-  buildings_room: 'charts-buildings-room-category',
-  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  embodied_energy: 'charts-embodied-energy-category',
-  equipment: 'equipment-electric-consumption',
-  external_cloud_and_ai: 'external-cloud-and-ai',
-  purchases: 'purchase',
-  professional_travel: 'professional-travel',
-  research_facilities: 'charts-research-facilities-category',
-};
+const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 function translateCategory(
   entry: Record<string, unknown>,
@@ -352,6 +346,23 @@ function translateCategory(
   const cat = entry.category as string;
   const i18nKey = CATEGORY_LABEL_MAP[cat];
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
+}
+
+function normalizeCategoryRowKeys(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const cat = String(entry.category ?? entry.category_key ?? '');
+  // Backend sometimes uses `other` for purchases; keep equipment `other` untouched.
+  if (cat === 'purchases') {
+    const next = { ...entry };
+    if (next.other_purchases == null && next.other != null) {
+      next.other_purchases = next.other;
+    }
+    // Prevent collisions with equipment's `other` series key.
+    delete next.other;
+    return next;
+  }
+  return entry;
 }
 
 function zeroNumericValues(
@@ -441,10 +452,10 @@ const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
   'charts-buildings-energy-combustion-category',
   'charts-buildings-room-category',
-  'equipment-electric-consumption',
-  'external-cloud-and-ai',
-  'professional-travel',
-  'purchase',
+  'charts-equipment-electric-consumption-category',
+  'charts-external-cloud-category',
+  'charts-professional-travel-category',
+  'charts-purchases-category',
   'charts-research-facilities-category',
 ];
 
@@ -477,6 +488,7 @@ const datasetSource = computed(() => {
         const category = String(entry.category ?? '');
         return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
       })
+      .map(normalizeCategoryRowKeys)
       .map(translateCategory),
   );
 
@@ -497,6 +509,7 @@ const datasetSource = computed(() => {
           return { ...entry, __validated: true };
         })
         .map(withAdditionalCategoryTotals)
+        .map(normalizeCategoryRowKeys)
         .map(translateCategory),
     );
     allData = [...baseData, ...additionalData];
@@ -732,6 +745,21 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
+      name: t('charts-heating-elec-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'heating_elec' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_room',
+          'heating_elec',
+          colors.value.lilac.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
       name: t('charts-lighting-subcategory'),
       type: 'bar' as const,
       stack: 'total',
@@ -776,21 +804,6 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    {
-      name: t('charts-heating-elec-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'heating_elec',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
     // Equipment — subcategories: scientific, it, other
     {
       name: t('charts-scientific-subcategory'),
@@ -802,7 +815,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'scientific',
-          colors.value.mauve.darker,
+          colors.value.plum.darker,
         ),
       },
       label: { show: false },
@@ -814,12 +827,12 @@ const chartOption = computed((): EChartsOption => {
       animation: true,
       encode: { x: 'category', y: 'it' },
       itemStyle: {
-        color: getSubcategoryColor('equipment', 'it', colors.value.mauve.dark),
+        color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
       },
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-other-equipment-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -828,7 +841,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'other',
-          colors.value.mauve.default,
+          colors.value.plum.default,
         ),
       },
       label: { show: false },
@@ -910,7 +923,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-vehicles-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -926,6 +939,21 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-other-purchases-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'other_purchases' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'purchases',
+          'other_purchases',
+          colors.value.lavender.dark,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-additional-purchases-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -1046,17 +1074,17 @@ const chartOption = computed((): EChartsOption => {
 
       formatter: (params: unknown) => {
         const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-        const p = arr[0] as {
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
+        const first = arr[0] as {
           data?: Record<string, unknown>;
           axisValue?: string;
           name?: string;
-          seriesName?: string;
-          marker?: string;
-          value?: number | number[];
         };
-        const data = p.data;
-        const name = p.axisValue || p.name || '';
+        const data = first.data;
+        const name = String(first.axisValue || first.name || '');
         const isValidated = validatedLabels.value.has(name);
 
         if (!isValidated) {
@@ -1065,37 +1093,54 @@ const chartOption = computed((): EChartsOption => {
             : additionalBuildingsLabels.value.has(name)
               ? t('buildings')
               : name;
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
+          emitTooltip({
+            title: name,
+            rows: [],
+            tone: 'muted',
+            footer: t('results_validate_module_title', { module: moduleName }),
+          });
+          return '';
         }
 
+        const rows: TooltipRow[] = [];
         let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
 
-        arr.reverse().forEach((param: unknown) => {
+        for (const param of [...arr].reverse()) {
           const p = param as {
             seriesName?: string;
             seriesIndex?: number;
-            marker?: string;
-            value?: number | number[];
-            data?: Record<string, unknown>;
           };
           const series =
             typeof p.seriesIndex === 'number'
               ? seriesArray[p.seriesIndex]
               : seriesArray.find((s) => s.name === p.seriesName);
           const key = series?.encode.y;
-
-          if (!data || !key) return;
+          if (!data || !key) continue;
           const dataValue = Number(data[key]) || 0;
           if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
+            rows.push({
+              label: series?.name ?? String(p.seriesName ?? ''),
+              value: formatTonnesForChart(dataValue),
+              color: (series?.itemStyle?.color as string) ?? '#888',
+            });
             total += dataValue;
           }
-        });
+        }
 
-        const totalDisplay = formatTonnesForChart(total);
-
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
+        const state: TooltipState = {
+          title: name,
+          rows,
+          ...(rows.length > 1
+            ? {
+                separatorRow: {
+                  label: t('results_objectives_total'),
+                  value: formatTonnesForChart(total),
+                },
+              }
+            : {}),
+        };
+        emitTooltip(state);
+        return '';
       },
     },
 
@@ -1168,6 +1213,7 @@ const chartOption = computed((): EChartsOption => {
         'biological_chemical_gaseous',
         'services',
         'vehicles',
+        'other_purchases',
         'additional',
         'plane',
         'train',
@@ -1191,6 +1237,15 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 
 const downloadPNG = async () => {
   const chart = chartRef.value?.chart;
@@ -1353,7 +1408,15 @@ const downloadCSV = () => {
         autoresize
         :option="chartOption"
         @rendered="recalculateScopeRects"
+        @vue:mounted="onChartReady"
       />
+      <Teleport to="body">
+        <tooltip-echarts
+          v-if="tooltip.visible"
+          :tooltip-state="tooltip.data"
+          :style="style"
+        />
+      </Teleport>
     </q-card-section>
   </q-card>
 </template>

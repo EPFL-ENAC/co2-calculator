@@ -7,6 +7,8 @@ Tests cover:
 - Edge cases and combinations
 """
 
+import pytest
+
 from app.models.user import (
     GlobalScope,
     Role,
@@ -15,7 +17,6 @@ from app.models.user import (
     calculate_user_permissions,
 )
 from app.utils.permissions import (
-    get_permission_value,
     has_permission,
 )
 
@@ -33,21 +34,21 @@ class TestCalculateUserPermissions:
         roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
-        assert result["backoffice.users"]["export"] is True
-        assert result["system.users"]["edit"] is True
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.equipment"]["view"] is False
+        assert "view" in result["backoffice.users"]
+        assert "edit" in result["backoffice.users"]
+        assert "export" in result["backoffice.users"]
+        assert "edit" in result["system.users"]
+        assert "modules.headcount" not in result
+        assert "modules.equipment" not in result
 
     def test_backoffice_metier_global_scope(self):
         """Test backoffice metier with global scope grants full backoffice access."""
         roles = [Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
-        assert result["backoffice.users"]["export"] is True
+        assert "view" in result["backoffice.users"]
+        assert "edit" in result["backoffice.users"]
+        assert "export" in result["backoffice.users"]
 
     def test_superadmin_wrong_scope(self):
         """Test superadmin with unit scope does not grant permissions."""
@@ -59,91 +60,93 @@ class TestCalculateUserPermissions:
         ]
         result = calculate_user_permissions(roles)
 
-        assert result["backoffice.users"]["view"] is False
-        assert result["backoffice.users"]["edit"] is False
+        assert "backoffice.users" not in result
 
     def test_user_principal_unit_scope(self):
         """Test user principal with unit scope grants module permissions."""
-        roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="10208"))]
+        roles = [
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+            )
+        ]
         result = calculate_user_permissions(roles)
 
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is True
-        assert result["modules.equipment"]["view"] is True
-        assert result["modules.equipment"]["edit"] is True
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.buildings"]["view"] is True
-        assert result["modules.buildings"]["edit"] is True
-        assert result["modules.purchase"]["view"] is True
-        assert result["modules.purchase"]["edit"] is True
-        assert result["modules.research_facilities"]["view"] is True
-        assert result["modules.research_facilities"]["edit"] is True
-        assert result["modules.external_cloud_and_ai"]["view"] is True
-        assert result["modules.external_cloud_and_ai"]["edit"] is True
+        assert "view" in result["modules.headcount/10208"]
+        assert "edit" in result["modules.headcount/10208"]
+        assert "view" in result["modules.equipment/10208"]
+        assert "edit" in result["modules.equipment/10208"]
+        assert "view" in result["modules.professional_travel/10208"]
+        assert "edit" in result["modules.professional_travel/10208"]
+        assert "view" in result["modules.buildings/10208"]
+        assert "edit" in result["modules.buildings/10208"]
+        assert "view" in result["modules.purchase/10208"]
+        assert "edit" in result["modules.purchase/10208"]
+        assert "view" in result["modules.research_facilities/10208"]
+        assert "edit" in result["modules.research_facilities/10208"]
+        assert "view" in result["modules.external_cloud_and_ai/10208"]
+        assert "edit" in result["modules.external_cloud_and_ai/10208"]
         # Principal also gets backoffice.users.edit for unit-scoped role assignment
-        assert result["backoffice.users"]["edit"] is True
+        assert "edit" in result["backoffice.users"]
 
     def test_user_std_unit_scope(self):
         """Test user std with unit scope grants view and edit for professional_travel."""  # noqa: E501
-        roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208"))]
+        roles = [
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208"))
+        ]
         result = calculate_user_permissions(roles)
 
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.headcount"]["edit"] is False
-        assert result["modules.equipment"]["view"] is False
-        assert result["modules.equipment"]["edit"] is False
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.buildings"]["view"] is False
-        assert result["modules.buildings"]["edit"] is False
-        assert result["modules.purchase"]["view"] is False
-        assert result["modules.purchase"]["edit"] is False
-        assert result["modules.research_facilities"]["view"] is False
-        assert result["modules.research_facilities"]["edit"] is False
-        assert result["modules.external_cloud_and_ai"]["view"] is True
-        assert result["modules.external_cloud_and_ai"]["edit"] is True
+        assert "modules.headcount/10208" not in result
+        assert "modules.equipment/10208" not in result
+        assert "modules.professional_travel/10208" in result
+        assert "view" in result["modules.professional_travel/10208"]
+        assert "edit" in result["modules.professional_travel/10208"]
+        assert "modules.buildings/10208" not in result
+        assert "modules.purchase/10208" not in result
+        assert "modules.research_facilities/10208" not in result
+        assert "modules.external_cloud_and_ai/10208" in result
+        assert "view" in result["modules.external_cloud_and_ai/10208"]
+        assert "edit" in result["modules.external_cloud_and_ai/10208"]
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
         roles = [Role(role=RoleName.CO2_USER_STD, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.headcount"]["edit"] is False
+        assert "modules.headcount/10208" not in result
 
     def test_combined_backoffice_and_user_roles(self):
         """Test that permissions from different domains combine."""
         roles = [
             Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope()),
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208")),
         ]
         result = calculate_user_permissions(roles)
 
         # Backoffice permissions
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
+        assert "backoffice.users" in result
+        assert "view" in result["backoffice.users"]
+        assert "edit" in result["backoffice.users"]
 
         # Module permissions - CO2_USER_STD grants professional_travel.view and edit
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.headcount"]["edit"] is False
-        assert result["modules.equipment"]["view"] is False
-        assert result["modules.equipment"]["edit"] is False
+        assert "view" in result["modules.professional_travel/10208"]
+        assert "edit" in result["modules.professional_travel/10208"]
+        assert "modules.headcount/10208" not in result
+        assert "modules.equipment/10208" not in result
 
     def test_multiple_user_roles_same_unit(self):
         """Test multiple user roles for same unit combine correctly."""
         roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="10208")),
-            Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="10208")),
+            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208")),
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+            ),
         ]
         result = calculate_user_permissions(roles)
 
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is True
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
+        assert "view" in result["modules.headcount/10208"]
+        assert "edit" in result["modules.headcount/10208"]
+        assert "view" in result["modules.professional_travel/10208"]
+        assert "edit" in result["modules.professional_travel/10208"]
 
     def test_role_name_as_string(self):
         """Test that role name can be string or enum."""
@@ -156,8 +159,8 @@ class TestCalculateUserPermissions:
         roles = [role]
         result = calculate_user_permissions(roles)
 
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
+        assert "view" in result["backoffice.users"]
+        assert "edit" in result["backoffice.users"]
 
     def test_all_permissions_initialized(self):
         """Test that all permissions are initialized even with no roles."""
@@ -175,9 +178,9 @@ class TestCalculateUserPermissions:
         result = calculate_user_permissions(roles)
 
         # Superadmin should grant all backoffice permissions
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
-        assert result["backoffice.users"]["export"] is True
+        assert "view" in result["backoffice.users"]
+        assert "edit" in result["backoffice.users"]
+        assert "export" in result["backoffice.users"]
 
 
 class TestHasPermission:
@@ -186,7 +189,7 @@ class TestHasPermission:
     def test_has_permission_view_true(self):
         """Test has_permission returns True for valid view permission."""
         perms = {
-            "modules.headcount": {"view": True, "edit": False},
+            "modules.headcount": ["view", "edit"],
         }
         result = has_permission(perms, "modules.headcount", "view")
         assert result is True
@@ -194,7 +197,7 @@ class TestHasPermission:
     def test_has_permission_edit_false(self):
         """Test has_permission returns False for false edit permission."""
         perms = {
-            "modules.headcount": {"view": True, "edit": False},
+            "modules.headcount": ["view"],
         }
         result = has_permission(perms, "modules.headcount", "edit")
         assert result is False
@@ -202,7 +205,7 @@ class TestHasPermission:
     def test_has_permission_missing_path(self):
         """Test has_permission returns False for missing path."""
         perms = {
-            "modules.headcount": {"view": True},
+            "modules.headcount": ["view"],
         }
         result = has_permission(perms, "modules.equipment", "view")
         assert result is False
@@ -210,7 +213,7 @@ class TestHasPermission:
     def test_has_permission_missing_action(self):
         """Test has_permission returns False for missing action."""
         perms = {
-            "modules.headcount": {"view": True},
+            "modules.headcount": ["view"],
         }
         result = has_permission(perms, "modules.headcount", "export")
         assert result is False
@@ -228,7 +231,7 @@ class TestHasPermission:
     def test_has_permission_export_action(self):
         """Test has_permission works with export action."""
         perms = {
-            "backoffice.users": {"view": True, "edit": True, "export": True},
+            "backoffice.users": ["view", "edit", "export"],
         }
         result = has_permission(perms, "backoffice.users", "export")
         assert result is True
@@ -236,7 +239,7 @@ class TestHasPermission:
     def test_has_permission_default_action_view(self):
         """Test has_permission defaults to view action."""
         perms = {
-            "modules.headcount": {"view": True, "edit": False},
+            "modules.headcount": ["view", "edit"],
         }
         result = has_permission(perms, "modules.headcount")
         assert result is True
@@ -250,216 +253,437 @@ class TestHasPermission:
         assert result is False
 
 
-class TestGetPermissionValue:
-    """Tests for get_permission_value helper function."""
+class TestHasPermissionInstitutionalId:
+    """Scoped lookup via the ``institutional_id`` kwarg."""
 
-    def test_get_permission_value_view_true(self):
-        """Test get_permission_value returns True for valid permission."""
-        perms = {
-            "modules.headcount": {"view": True, "edit": False},
-        }
-        result = get_permission_value(perms, "modules.headcount.view")
-        assert result is True
+    def test_scoped_match(self):
+        perms = {"modules.headcount/0184": ["view", "edit"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="0184")
+            is True
+        )
 
-    def test_get_permission_value_edit_false(self):
-        """Test get_permission_value returns False for false permission."""
-        perms = {
-            "modules.headcount": {"view": True, "edit": False},
-        }
-        result = get_permission_value(perms, "modules.headcount.edit")
-        assert result is False
+    def test_scoped_match_misses_unscoped_key(self):
+        """A bare ``modules.headcount`` key must NOT satisfy a scoped check —
+        scope must be enforced strictly when iid is provided."""
+        perms = {"modules.headcount": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="0184")
+            is False
+        )
 
-    def test_get_permission_value_missing_path(self):
-        """Test get_permission_value returns None for missing path."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "modules.equipment.view")
-        assert result is None
+    def test_scoped_wrong_unit(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", institutional_id="9999")
+            is False
+        )
 
-    def test_get_permission_value_missing_action(self):
-        """Test get_permission_value returns None for missing action."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "modules.headcount.export")
-        assert result is None
+    def test_scoped_action_missing(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "edit", institutional_id="0184")
+            is False
+        )
 
-    def test_get_permission_value_none_permissions(self):
-        """Test get_permission_value handles None permissions."""
-        result = get_permission_value(None, "modules.headcount.view")
-        assert result is None
 
-    def test_get_permission_value_empty_dict(self):
-        """Test get_permission_value handles empty dict."""
-        result = get_permission_value({}, "modules.headcount.view")
-        assert result is None
+class TestHasPermissionAnyScope:
+    """Any-scope lookup. Taxonomy-only escape hatch."""
 
-    def test_get_permission_value_invalid_path_format(self):
-        """Test get_permission_value handles invalid path format."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "invalid")
-        assert result is None
+    def test_any_scope_matches_scoped_key(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is True
+        )
 
-    def test_get_permission_value_too_many_dots(self):
-        """Test get_permission_value handles paths with too many dots."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "modules.headcount.view.extra")
-        # Should still work, splits from right
-        assert result is None
+    def test_any_scope_matches_unscoped_key(self):
+        perms = {"modules.headcount": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is True
+        )
 
-    def test_get_permission_value_export_action(self):
-        """Test get_permission_value works with export action."""
-        perms = {
-            "backoffice.users": {"view": True, "edit": True, "export": True},
-        }
-        result = get_permission_value(perms, "backoffice.users.export")
-        assert result is True
+    def test_any_scope_no_match(self):
+        perms = {"modules.equipment/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is False
+        )
 
-    def test_get_permission_value_invalid_structure(self):
-        """Test get_permission_value handles invalid permission structure."""
-        perms = {
-            "modules.headcount": "invalid",
-        }
-        result = get_permission_value(perms, "modules.headcount.view")
-        assert result is None
+    def test_any_scope_action_missing(self):
+        perms = {"modules.headcount/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "edit", any_scope=True) is False
+        )
 
-    def test_get_permission_value_empty_path(self):
-        """Test get_permission_value with empty path."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "")
-        assert result is None
+    def test_any_scope_does_not_leak_across_modules(self):
+        """``modules.headcount/`` prefix must not match e.g.
+        ``modules.headcount_x/...``"""
+        perms = {"modules.headcount_x/0184": ["view"]}
+        assert (
+            has_permission(perms, "modules.headcount", "view", any_scope=True) is False
+        )
 
-    def test_get_permission_value_no_dot(self):
-        """Test get_permission_value with path that has no dot."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "invalid")
-        assert result is None
 
-    def test_has_permission_with_none_action(self):
-        """Test has_permission with None action."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        # Should default to "view"
-        result = has_permission(perms, "modules.headcount")
-        assert result is True
+# ─────────────────────────────────────────────────────────────────────────────
+# Role-composition tests
+#
+# Three layers, each catching a different class of regression:
+#   1. Domain isolation       — each role only emits keys in its own domain
+#                               (modules.* / backoffice.* / system.*)
+#   2. Composition matrix     — multi-role combinations produce the expected
+#                               key-set with no scope leaks
+#   3. Scope-leak invariants  — structural rules that must hold for ANY input
+#
+# Why this matters:
+#   PR #974 changed module-permission keys to ``modules.X/{institutional_id}``.
+#   The three role domains (user.*, backoffice.*, system.*) are independent
+#   "apps" and must not collide. Module perms are scoped per unit; backoffice
+#   and system perms are always un-scoped. These tests pin those rules.
+# ─────────────────────────────────────────────────────────────────────────────
 
-    def test_has_permission_with_empty_action(self):
-        """Test has_permission with empty action string."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = has_permission(perms, "modules.headcount", "")
-        assert result is False
+# Module sets each user-role grants. Kept as bare names so we can scope them
+# per-unit at test time via ``_modules(names, iid)``.
+_PRINCIPAL_MODULES = (
+    "headcount",
+    "equipment",
+    "professional_travel",
+    "buildings",
+    "purchase",
+    "research_facilities",
+    "external_cloud_and_ai",
+    "process_emissions",
+)
+_STD_MODULES = ("professional_travel", "external_cloud_and_ai")
 
-    def test_calculate_user_permissions_with_none_roles(self):
-        """Test calculate_user_permissions with None roles."""
-        result = calculate_user_permissions(None)
-        assert result == {}
+_BACKOFFICE_KEYS = frozenset(
+    {
+        "backoffice.reporting",
+        "backoffice.users",
+        "backoffice.data_management",
+        "backoffice.documentation",
+    }
+)
+_SYSTEM_KEYS = frozenset({"system.users"})
 
-    def test_calculate_user_permissions_backoffice_metier_with_affiliation_scope(self):
-        """Test backoffice metier with affiliation scope grants full backoffice."""
+_IID_A = "0184"
+_IID_B = "9999"
+
+
+def _modules(names, iid: str) -> set[str]:
+    """Build the scoped module-permission keys for a given unit."""
+    return {f"modules.{n}/{iid}" for n in names}
+
+
+def _r_principal(iid: str) -> Role:
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+
+
+def _r_std(iid: str) -> Role:
+    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+
+
+def _r_backoffice() -> Role:
+    return Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())
+
+
+def _r_superadmin() -> Role:
+    return Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
+
+
+class TestRoleDomainIsolation:
+    """Layer 1: each role only emits keys in its declared domain.
+
+    This is the structural firewall — if someone adds e.g. ``modules.X`` to
+    backoffice or ``system.Y`` to a user role, this test fires immediately.
+    """
+
+    @pytest.mark.parametrize(
+        "role, allowed_prefixes",
+        [
+            pytest.param(_r_std(_IID_A), ("modules.",), id="std"),
+            pytest.param(
+                _r_principal(_IID_A),
+                # TODO(pm-confirm): principal currently grants
+                # ``backoffice.users.edit`` (for unit-scoped role assignment).
+                # Verify with PM whether this exception is still desired; if
+                # removed, drop "backoffice.users" below and the matching line
+                # in calculate_user_permissions.
+                ("modules.", "backoffice.users"),
+                id="principal",
+            ),
+            pytest.param(_r_backoffice(), ("backoffice.",), id="backoffice"),
+            pytest.param(_r_superadmin(), ("backoffice.", "system."), id="superadmin"),
+        ],
+    )
+    def test_role_only_grants_keys_in_its_domain(self, role, allowed_prefixes):
+        perms = calculate_user_permissions([role])
+        for key in perms:
+            assert any(key.startswith(p) for p in allowed_prefixes), (
+                f"Role {role.role} produced out-of-domain key: {key!r} "
+                f"(allowed prefixes: {allowed_prefixes})"
+            )
+
+
+# ── Composition matrix ───────────────────────────────────────────────────────
+#
+# Each row asserts:
+#   - ``expected``  — keys that MUST be in the result
+#   - ``forbidden`` — keys that MUST NOT be in the result
+# Action sets are intentionally NOT checked here; Layer-1 + invariants below
+# already cover the structural concerns, and the simpler matrix stays readable.
+
+# Pre-built sets reused across rows
+_PRINCIPAL_KEYS_A = _modules(_PRINCIPAL_MODULES, _IID_A)
+_PRINCIPAL_KEYS_B = _modules(_PRINCIPAL_MODULES, _IID_B)
+_STD_KEYS_A = _modules(_STD_MODULES, _IID_A)
+_STD_KEYS_B = _modules(_STD_MODULES, _IID_B)
+
+
+_COMPOSITION_CASES = [
+    pytest.param(
+        [_r_principal(_IID_A)],
+        # TODO(pm-confirm): principal grants backoffice.users.edit
+        _PRINCIPAL_KEYS_A | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS | (_BACKOFFICE_KEYS - {"backoffice.users"}),
+        id="principal-A",
+    ),
+    pytest.param(
+        [_r_std(_IID_A)],
+        _STD_KEYS_A,
+        (_PRINCIPAL_KEYS_A - _STD_KEYS_A) | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        id="std-A",
+    ),
+    pytest.param(
+        [_r_backoffice()],
+        set(_BACKOFFICE_KEYS),
+        _PRINCIPAL_KEYS_A | _SYSTEM_KEYS,
+        id="backoffice",
+    ),
+    pytest.param(
+        [_r_superadmin()],
+        set(_BACKOFFICE_KEYS) | set(_SYSTEM_KEYS),
+        _PRINCIPAL_KEYS_A,
+        id="superadmin",
+    ),
+    pytest.param(
+        # std + principal on the same unit: principal subsumes std (idempotent).
+        [_r_std(_IID_A), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS,
+        id="std+principal-same-unit",
+    ),
+    pytest.param(
+        # Multi-unit: full perms on A, only travel+cloud on B. Critically,
+        # principal-only modules MUST NOT appear under /B.
+        [_r_principal(_IID_A), _r_std(_IID_B)],
+        _PRINCIPAL_KEYS_A | _STD_KEYS_B | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B - _STD_KEYS_B,
+        id="principal-A+std-B",
+    ),
+    pytest.param(
+        # Two domains active: backoffice + principal — system.* must stay absent.
+        [_r_backoffice(), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS,
+        set(_SYSTEM_KEYS),
+        id="backoffice+principal",
+    ),
+    pytest.param(
+        # All three domains — full union, nothing forbidden.
+        [_r_superadmin(), _r_backoffice(), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        set(),
+        id="superadmin+backoffice+principal",
+    ),
+]
+
+
+class TestRoleCompositionKeys:
+    """Layer 2: role combinations produce the expected key-set."""
+
+    @pytest.mark.parametrize("roles, expected, forbidden", _COMPOSITION_CASES)
+    def test_composition(self, roles, expected, forbidden):
+        perms = calculate_user_permissions(roles)
+        keys = set(perms)
+
+        missing = expected - keys
+        assert not missing, f"missing expected keys: {sorted(missing)}"
+
+        leaked = forbidden & keys
+        assert not leaked, f"unexpected keys present: {sorted(leaked)}"
+
+
+# Representative role lists used by the invariant checks below
+_INVARIANT_ROLE_LISTS = [
+    [_r_std(_IID_A)],
+    [_r_principal(_IID_A)],
+    [_r_backoffice()],
+    [_r_superadmin()],
+    [_r_std(_IID_A), _r_principal(_IID_A)],
+    [_r_principal(_IID_A), _r_std(_IID_B)],
+    [_r_backoffice(), _r_principal(_IID_A)],
+    [_r_superadmin(), _r_backoffice(), _r_principal(_IID_A)],
+]
+
+
+class TestPermissionInvariants:
+    """Layer 3: structural rules that must hold for ANY role input."""
+
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_no_module_key_is_unscoped(self, roles):
+        """Every ``modules.*`` key must carry an ``/{institutional_id}`` suffix.
+        A bare ``modules.X`` key would mean the scope-blind regression that
+        PR #974 was designed to close."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if key.startswith("modules."):
+                assert "/" in key, (
+                    f"Un-scoped module key found: {key!r} (roles={roles})"
+                )
+
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_backoffice_and_system_keys_never_scoped(self, roles):
+        """``backoffice.*`` and ``system.*`` permissions are flat (un-scoped).
+        Adding a unit suffix to them would silently break un-scoped lookups."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if key.startswith(("backoffice.", "system.")):
+                assert "/" not in key, (
+                    f"Scoped non-module key found: {key!r} (roles={roles})"
+                )
+
+    def test_principal_subsumes_std_for_same_unit(self):
+        """``[std, principal]`` for the same unit yields the same key-set as
+        ``[principal]`` alone, and at least the same actions per key.
+        Encodes the rule: 'if a user has both, std is dominated.'"""
+        principal_only = calculate_user_permissions([_r_principal(_IID_A)])
+        combined = calculate_user_permissions([_r_std(_IID_A), _r_principal(_IID_A)])
+        assert set(combined) == set(principal_only)
+        for key, actions in principal_only.items():
+            assert set(combined[key]) >= set(actions), (
+                f"principal lost actions on {key} when merged with std: "
+                f"{set(actions) - set(combined[key])}"
+            )
+
+    def test_cross_unit_no_principal_leak(self):
+        """A user with ``principal/A`` and ``std/B`` must not get
+        principal-only modules on unit B."""
+        perms = calculate_user_permissions([_r_principal(_IID_A), _r_std(_IID_B)])
+        principal_only = set(_PRINCIPAL_MODULES) - set(_STD_MODULES)
+        for module in principal_only:
+            assert f"modules.{module}/{_IID_B}" not in perms, (
+                f"Cross-unit leak: {module} appeared under unit B"
+            )
+
+
+class TestBackofficeScopingCurrentBehavior:
+    """Pin current backoffice-permission scoping behaviour.
+
+    Backoffice metier permissions are ALWAYS stored un-scoped today, even when
+    the role itself carries a ``RoleScope`` (institutional_id or affiliation).
+    Issue #459 will introduce a sub-perimeter (per-affiliation) scoping for
+    backoffice managers (e.g. "Anna can only see SV"). When that lands, these
+    tests are expected to fail — that's the signal to update the contract.
+
+    NOTE: Affiliation-based roles are intentionally only meaningful for
+    backoffice; we do not test affiliation on ``user.*`` roles because the
+    role-assignment layer is responsible for never producing that shape.
+    """
+
+    def test_backoffice_with_iid_role_scope_keys_stay_unscoped(self):
+        # TODO(#459): backoffice scoping by sub-perimeter — replace this with
+        # a scoped assertion once the new key shape is decided.
         roles = [
             Role(
                 role=RoleName.CO2_BACKOFFICE_METIER,
-                on=RoleScope(affiliation="TEST-AFF"),
+                on=RoleScope(institutional_id="0184"),
             )
         ]
-        result = calculate_user_permissions(roles)
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
-        assert result["backoffice.users"]["export"] is True
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            assert key.startswith("backoffice."), (
+                f"unexpected non-backoffice key: {key!r}"
+            )
+            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
 
-    def test_calculate_user_permissions_user_principal_global_scope(self):
-        """Test user principal with global scope does not grant permissions."""
-        roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=GlobalScope())]
-        result = calculate_user_permissions(roles)
-        # Global scope for user roles should not grant permissions
-        assert result["modules.headcount"]["view"] is False
-        assert result["modules.equipment"]["view"] is False
-
-    def test_calculate_user_permissions_superadmin_global_scope(self):
-        """Test superadmin with global scope grants system and backoffice perms."""
-        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
-        result = calculate_user_permissions(roles)
-        assert result["system.users"]["edit"] is True
-        assert result["backoffice.users"]["view"] is True
-        assert result["backoffice.users"]["edit"] is True
-        assert result["modules.headcount"]["view"] is False
-
-    def test_calculate_user_permissions_superadmin_unit_scope(self):
-        """Test superadmin with unit scope does not grant permissions."""
+    def test_backoffice_with_affiliation_role_scope_keys_stay_unscoped(self):
+        # TODO(#459): this is exactly the case the new sub-perimeter scoping
+        # is meant to address — Anna with affiliation "SV" should only see
+        # data for SV. Update this test then.
         roles = [
-            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(institutional_id="12345"))
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="SV"),
+            )
         ]
-        result = calculate_user_permissions(roles)
-        assert result["system.users"]["edit"] is False
+        perms = calculate_user_permissions(roles)
+        assert perms, "backoffice on affiliation should currently grant flat perms"
+        for key in perms:
+            assert key.startswith("backoffice."), (
+                f"unexpected non-backoffice key: {key!r}"
+            )
+            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
 
-    def test_calculate_user_permissions_role_as_string(self):
-        """Test calculate_user_permissions with role name as string."""
-        # Create role with string role name directly
-        role_dict = {
-            "role": RoleName.CO2_USER_PRINCIPAL.value,
-            "on": {"unit": "12345"},
-        }
-        role = Role(**role_dict)
-        roles = [role]
-        result = calculate_user_permissions(roles)
-        assert result["modules.headcount"]["view"] is True
-        assert result["modules.headcount"]["edit"] is True
 
-    def test_calculate_user_permissions_invalid_role_scope(self):
-        """Test calculate_user_permissions with role that has wrong scope."""
-        # Test that roles with wrong scope don't grant permissions
-        roles = [
-            Role(role=RoleName.CO2_SUPERADMIN, on=RoleScope(institutional_id="12345"))
-        ]
-        result = calculate_user_permissions(roles)
-        # Superadmin with unit scope (not global) should not grant permissions
-        assert result["system.users"]["edit"] is False
-        assert result["backoffice.users"]["view"] is False
-        assert result["modules.headcount"]["view"] is False
+class TestHasPermissionAgainstRealPermissions:
+    """Bridge tests: feed ``has_permission`` the actual output of
+    ``calculate_user_permissions``. If the two sides ever disagree on the key
+    format (e.g. someone changes the ``/`` separator on one side), these fail.
+    """
 
-    def test_calculate_user_permissions_multiple_units(self):
-        """Test calculate_user_permissions with roles for multiple units."""
-        roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")),
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(unit="99999")),
-        ]
-        result = calculate_user_permissions(roles)
-        # Should grant permissions (same role, different units)
-        assert result["modules.professional_travel"]["view"] is True
-        assert result["modules.professional_travel"]["edit"] is True
+    def test_principal_scoped_lookup_matches(self):
+        perms = calculate_user_permissions([_r_principal(_IID_A)])
+        # Right unit → granted
+        for module in _PRINCIPAL_MODULES:
+            assert has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"principal/A should have view on modules.{module}"
+        # Wrong unit → denied
+        for module in _PRINCIPAL_MODULES:
+            assert not has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_B
+            ), f"principal/A must NOT have view on modules.{module}/{_IID_B}"
+        # Bare-path lookup → denied (no global module key was emitted)
+        assert not has_permission(perms, "modules.headcount", "view")
 
-    def test_has_permission_with_false_value(self):
-        """Test has_permission with explicitly False value."""
-        perms = {
-            "modules.headcount": {"view": False, "edit": False},
-        }
-        result = has_permission(perms, "modules.headcount", "view")
-        assert result is False
+    def test_std_scoped_lookup_only_matches_std_modules(self):
+        perms = calculate_user_permissions([_r_std(_IID_A)])
+        # Std grants only travel + cloud_and_ai
+        for module in _STD_MODULES:
+            assert has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"std/A should have view on modules.{module}"
+        # Modules std doesn't grant → denied
+        for module in set(_PRINCIPAL_MODULES) - set(_STD_MODULES):
+            assert not has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"std/A must NOT have view on modules.{module}"
 
-    def test_get_permission_value_with_false_value(self):
-        """Test get_permission_value with explicitly False value."""
-        perms = {
-            "modules.headcount": {"view": False},
-        }
-        result = get_permission_value(perms, "modules.headcount.view")
-        assert result is False
+    def test_any_scope_taxonomy_lookup_matches_principal(self):
+        """Taxonomy endpoints use ``any_scope=True``. A principal on any unit
+        should pass the module-level taxonomy gate."""
+        perms = calculate_user_permissions([_r_principal(_IID_A)])
+        for module in _PRINCIPAL_MODULES:
+            assert has_permission(perms, f"modules.{module}", "view", any_scope=True), (
+                f"taxonomy gate failed for {module}"
+            )
 
-    def test_get_permission_value_with_zero_dots(self):
-        """Test get_permission_value with path that has no dots."""
-        perms = {
-            "modules.headcount": {"view": True},
-        }
-        result = get_permission_value(perms, "invalidpath")
-        assert result is None
+
+class TestMultiUnitSameRole:
+    """Same role across multiple units must compose without dominating either."""
+
+    def test_principal_on_two_units(self):
+        perms = calculate_user_permissions([_r_principal(_IID_A), _r_principal(_IID_B)])
+        keys = set(perms)
+        for module in _PRINCIPAL_MODULES:
+            assert f"modules.{module}/{_IID_A}" in keys
+            assert f"modules.{module}/{_IID_B}" in keys
+
+    def test_std_on_two_units(self):
+        perms = calculate_user_permissions([_r_std(_IID_A), _r_std(_IID_B)])
+        keys = set(perms)
+        for module in _STD_MODULES:
+            assert f"modules.{module}/{_IID_A}" in keys
+            assert f"modules.{module}/{_IID_B}" in keys
+        # Modules std doesn't grant must be absent on both units
+        for module in set(_PRINCIPAL_MODULES) - set(_STD_MODULES):
+            assert f"modules.{module}/{_IID_A}" not in keys
+            assert f"modules.{module}/{_IID_B}" not in keys

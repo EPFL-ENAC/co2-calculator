@@ -857,3 +857,102 @@ class TestResolveDataEntryTypeFromCategory:
         assert result is None
         assert stats["rows_skipped"] == 1
         assert stats["row_errors_count"] == 1
+
+
+# ======================================================================
+# _delete_existing_entries_for_module_per_year – scope isolation tests
+# ======================================================================
+
+
+def _make_provider_with_job(module_type_id: int, data_entry_type_id: int | None):
+    """Return a ConcreteCSVProvider whose self.job is pre-populated."""
+    config = {"file_path": "tmp/test.csv", "module_type_id": module_type_id}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider.job = SimpleNamespace(
+        module_type_id=module_type_id,
+        data_entry_type_id=data_entry_type_id,
+    )
+    provider.user = None
+    return provider
+
+
+def _make_stats() -> dict:
+    return {
+        "rows_processed": 0,
+        "rows_skipped": 0,
+        "rows_with_factors": 0,
+        "rows_without_factors": 0,
+        "batches_processed": 0,
+        "row_errors": [],
+        "row_errors_count": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_delete_scoped_to_specific_data_entry_type():
+    """When data_entry_type_id is set, only that type is deleted.
+
+    Regression: research_facilities (module 6) has two submodules — 70 and 71.
+    Uploading for type 70 must NOT wipe type 71 entries, and vice-versa.
+    """
+    # module_type_id=6 (research_facilities) has types 70 and 71
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=70)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    # bulk_delete_by_source must be called exactly once — for type 70 only
+    assert data_entry_service.bulk_delete_by_source.call_count == 1
+    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
+    assert call_kwargs["data_entry_type_id"] == DataEntryTypeEnum.research_facilities
+    assert call_kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+
+
+@pytest.mark.asyncio
+async def test_delete_sibling_submodule_not_wiped():
+    """Uploading animal facilities (71) must not delete research facilities (70)."""
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=71)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    assert data_entry_service.bulk_delete_by_source.call_count == 1
+    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
+    assert (
+        call_kwargs["data_entry_type_id"]
+        == DataEntryTypeEnum.mice_and_fish_animal_facilities
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_all_types_when_no_data_entry_type_id():
+    """Without data_entry_type_id on the job, all module types are deleted."""
+    # module_type_id=6 has two types; no specific type given
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=None)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    # Both types (70 and 71) should be deleted
+    assert data_entry_service.bulk_delete_by_source.call_count == 2
+    deleted_types = {
+        call.kwargs["data_entry_type_id"]
+        for call in data_entry_service.bulk_delete_by_source.call_args_list
+    }
+    assert DataEntryTypeEnum.research_facilities in deleted_types
+    assert DataEntryTypeEnum.mice_and_fish_animal_facilities in deleted_types

@@ -32,19 +32,14 @@ export async function exportReport(
   return api.get('backoffice/export', { searchParams }).blob();
 }
 
-function _applyReportFilters(
+export function applyUnitFiltersToParams(
   searchParams: URLSearchParams,
   unitFilters: UnitFilters,
   withModules: boolean = true,
 ): void {
-  if (unitFilters.path_lvl2) {
-    unitFilters.path_lvl2.forEach((v) =>
-      searchParams.append('path_lvl2', String(v)),
-    );
-  }
-  if (unitFilters.path_lvl3) {
-    unitFilters.path_lvl3.forEach((v) =>
-      searchParams.append('path_lvl3', String(v)),
+  if (unitFilters.path_affiliation) {
+    unitFilters.path_affiliation.forEach((v) =>
+      searchParams.append('path_affiliation', String(v)),
     );
   }
   if (unitFilters.path_lvl4) {
@@ -54,6 +49,7 @@ function _applyReportFilters(
   }
   if (
     unitFilters.completion_status !== undefined &&
+    unitFilters.completion_status !== null &&
     unitFilters.completion_status !== ''
   ) {
     searchParams.append(
@@ -86,10 +82,8 @@ export async function downloadUsageReportFile(
   if (format === 'pdf') {
     throw new Error('PDF format is not supported for usage report');
   }
-  const searchParams = new URLSearchParams({
-    format,
-  });
-  _applyReportFilters(searchParams, unitFilters);
+  const searchParams = new URLSearchParams({ format });
+  applyUnitFiltersToParams(searchParams, unitFilters);
 
   return api.get('backoffice/report/usage', { searchParams }).blob();
 }
@@ -101,10 +95,8 @@ export async function downloadDetailedReportFile(
   if (format === 'pdf') {
     throw new Error('PDF format is not supported for detailed report');
   }
-  const searchParams = new URLSearchParams({
-    format,
-  });
-  _applyReportFilters(searchParams, unitFilters);
+  const searchParams = new URLSearchParams({ format });
+  applyUnitFiltersToParams(searchParams, unitFilters);
 
   return api.get('backoffice/report/detailed', { searchParams }).blob();
 }
@@ -116,10 +108,8 @@ export async function downloadResultsReportFile(
   if (format === 'pdf') {
     throw new Error('PDF format is not supported for results report');
   }
-  const searchParams = new URLSearchParams({
-    format,
-  });
-  _applyReportFilters(searchParams, unitFilters, false);
+  const searchParams = new URLSearchParams({ format });
+  applyUnitFiltersToParams(searchParams, unitFilters, false);
 
   return api.get('backoffice/report/results', { searchParams }).blob();
 }

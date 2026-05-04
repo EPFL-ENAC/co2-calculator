@@ -219,6 +219,10 @@ export default {
     en: 'ReUpload Factors',
     fr: 'Re-téléverser des facteurs',
   },
+  data_management_reupload_reference: {
+    en: 'ReUpload Reference',
+    fr: 'Re-téléverser référence',
+  },
   data_management_import_title: {
     en: 'Import {type}',
     fr: 'Importer {type}',
@@ -364,8 +368,8 @@ export default {
     fr: 'Objectifs de réduction',
   },
   data_management_institution_carbon_footprint_title: {
-    en: "Upload Institution's Carbon Footprint Data",
-    fr: "Téléverser les données d'empreinte carbone de l'institution",
+    en: "Institution's Carbon Footprint Data",
+    fr: "Les données d'empreinte carbone de l'institution",
   },
   data_management_module_activation_title: {
     en: 'Module Activation',
@@ -382,6 +386,18 @@ export default {
   data_management_submodule_activation_description: {
     en: 'Enable this submodule to make it visible to your institute.',
     fr: 'Activez ce sous-module pour le rendre visible pour votre institut.',
+  },
+  data_management_submodule_inputs_deactivation_title: {
+    en: 'Deactivate input form',
+    fr: 'Désactiver le formulaire de saisie',
+  },
+  data_management_submodule_inputs_deactivation_description: {
+    en: 'When checked, users will not be able to add or edit data entries for this submodule.',
+    fr: 'Lorsque cette option est cochée, les utilisateurs ne pourront pas ajouter ou modifier des entrées de données pour ce sous-module.',
+  },
+  data_management_submodule_inputs_deactivation_label: {
+    en: 'Deactivate input form',
+    fr: 'Désactiver le formulaire de saisie',
   },
   data_management_uncertainty_title: {
     en: 'Uncertainty',
@@ -428,16 +444,16 @@ export default {
     fr: "Le jeu de données global de l'empreinte carbone de votre institution utilisé comme référence pour les objectifs de réduction et les rapports.",
   },
   data_management_population_projections_title: {
-    en: 'Upload Population Projections',
-    fr: 'Téléverser les projections de population',
+    en: 'Population Projections',
+    fr: 'Les projections de population',
   },
   data_management_population_projections_description: {
     en: 'Projected headcount for your institution — used to normalise per-capita emissions over time.',
     fr: 'Effectif projeté de votre institution — utilisé pour normaliser les émissions par habitant au fil du temps.',
   },
   data_management_unit_reduction_scenarios_title: {
-    en: 'Upload Unit Reduction Scenarios',
-    fr: 'Téléverser les scénarios de réduction unitaires',
+    en: 'Unit Reduction Scenarios',
+    fr: 'Les scénarios de réduction unitaires',
   },
   data_management_unit_reduction_scenarios_description: {
     en: 'Per-unit emission reduction pathways used in activity-level projections. ',
@@ -631,5 +647,13 @@ export default {
   data_management_open_year_disabled_tooltip: {
     en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
     fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
+  },
+  data_management_job_in_progress: {
+    en: 'Job in progress…',
+    fr: 'Traitement en cours…',
+  },
+  data_management_cancel_job: {
+    en: 'Cancel',
+    fr: 'Annuler',
   },
 } as const;

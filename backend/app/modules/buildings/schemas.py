@@ -68,6 +68,7 @@ class BuildingRoomHandlerResponse(DataEntryResponseGen):
     room_name: Optional[str] = None
     room_type: Optional[str] = None
     room_surface_square_meter: Optional[float] = None
+    room_allocation_ratio: Optional[float] = None
     heating_kwh_per_square_meter: Optional[float] = None
     cooling_kwh_per_square_meter: Optional[float] = None
     ventilation_kwh_per_square_meter: Optional[float] = None
@@ -91,6 +92,7 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
     building_name: str
     room_name: str
     room_type: Optional[str] = None
+    room_allocation_ratio: Optional[float] = None
     note: Optional[str] = None
 
     @field_validator("room_type", mode="after")
@@ -102,11 +104,19 @@ class BuildingRoomHandlerCreate(DataEntryCreate):
             )
         return v
 
+    @field_validator("room_allocation_ratio", mode="after")
+    @classmethod
+    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("room_allocation_ratio must be between 0 and 1")
+        return v
+
 
 class BuildingRoomHandlerUpdate(DataEntryUpdate):
     building_name: Optional[str] = None
     room_name: Optional[str] = None
     room_type: Optional[str] = None
+    room_allocation_ratio: Optional[float] = None
     note: Optional[str] = None
 
     @field_validator("room_type", mode="after")
@@ -116,6 +126,13 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
             raise ValueError(
                 f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
             )
+        return v
+
+    @field_validator("room_allocation_ratio", mode="after")
+    @classmethod
+    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and (v < 0 or v > 1):
+            raise ValueError("room_allocation_ratio must be between 0 and 1")
         return v
 
 
@@ -140,6 +157,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         "room_surface_square_meter": DataEntry.data[
             "room_surface_square_meter"
         ].as_float(),
+        "room_allocation_ratio": DataEntry.data["room_allocation_ratio"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
@@ -189,13 +207,18 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         # room_surface_square_meter should be resolve like travel! from room
 
         surface = ctx.get("room_surface_square_meter")
+        ratio = ctx.get("room_allocation_ratio")
         kwh_per_m2 = factor_values.get(kwh_field)
         ef = factor_values.get("ef_kg_co2eq_per_kwh")
         if surface is None or kwh_per_m2 is None or ef is None:
             return None
 
+        # ratio is already validated to be in [0, 1],
+        # set a default value of 1.0 if not provided
+        ratio_nb = float(ratio) if ratio is not None else 1.0
+
         conversion_factor = factor_values.get("conversion_factor") or 1.0
-        kwh = float(surface) * float(kwh_per_m2)
+        kwh = float(surface) * float(kwh_per_m2) * ratio_nb
         return kwh * float(ef) * float(conversion_factor)
 
     def resolve_computations(

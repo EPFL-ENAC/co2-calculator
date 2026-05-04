@@ -38,41 +38,51 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
-          :threshold="threshold"
+          :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
           :submodule-type="submodule.id"
           :module-config="moduleConfig"
           :submodule-config="submodule"
-          :disable="disable"
+          :disable="isTableDisabled"
         />
       </div>
       <q-separator />
-      <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
-        <module-form
-          ref="formRef"
-          :fields="submodule.moduleFields"
-          :submodule-type="submodule.type"
-          :module-type="moduleType"
-          :item="item"
-          :has-subtitle="submodule.hasFormSubtitle"
-          :has-add-with-note="submodule.hasFormAddWithNote"
-          :add-button-label-key="submodule.addButtonLabelKey"
-          :has-tooltip="submodule.hasFormTooltip"
-          :unit-id="unitId"
-          :year="year"
-          :form-defaults="formDefaults"
-          @submit="submitForm"
-        />
-      </div>
       <div
-        v-else-if="submodule.moduleFields && !disable && !canEdit"
-        class="q-mx-lg q-my-md"
+        v-if="isInputDeactivated"
+        class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
-        <q-badge color="warning" class="q-px-md q-py-sm">
-          {{ $t('common_view_only') }}
-        </q-badge>
+        <div class="inputs-deactivated-notice__content">
+          <q-icon name="edit_off" size="sm" color="accent" class="q-mb-sm" />
+          <div class="text-body2 text-weight-medium text-center text-primary">
+            {{ $t('module_submodule_inputs_deactivated_notice') }}
+          </div>
+        </div>
       </div>
+      <template v-else>
+        <div v-if="showModuleForm" class="q-mx-lg">
+          <module-form
+            ref="formRef"
+            :fields="submodule.moduleFields"
+            :submodule-type="submodule.type"
+            :module-type="moduleType"
+            :item="item"
+            :has-subtitle="submodule.hasFormSubtitle"
+            :has-add-with-note="submodule.hasFormAddWithNote"
+            :add-button-label-key="submodule.addButtonLabelKey"
+            :has-tooltip="submodule.hasFormTooltip"
+            :unit-id="unitId"
+            :year="year"
+            :form-defaults="formDefaults"
+            @submit="submitForm"
+          />
+        </div>
+        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
+          <q-badge color="warning" class="q-px-md q-py-sm">
+            {{ $t('common_view_only') }}
+          </q-badge>
+        </div>
+      </template>
     </q-card-section>
   </q-expansion-item>
 </template>
@@ -88,16 +98,17 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
   Threshold,
   ConditionalSubmoduleProps,
   EnumSubmoduleType,
+  Module,
 } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 interface Option {
   label: string;
@@ -148,23 +159,53 @@ type CommonProps = {
 
 type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
 
+const yearConfigStore = useYearConfigStore();
 const props = defineProps<SubModuleSectionProps>();
-
 const authStore = useAuthStore();
+
+const submoduleKey = computed(() => {
+  return props.submodule.id;
+});
+
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  return subConfig?.inputs_deactivated ?? false;
+});
+
+const isTableDisabled = computed(
+  () => props.disable || isInputDeactivated.value,
+);
+
+const backendThreshold = computed<Threshold | null>(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return null;
+
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+    return null;
+  }
+
+  return {
+    type: MODULES_THRESHOLD_TYPES[0],
+    value: subConfig.threshold,
+  };
+});
+
+const effectiveThreshold = computed<Threshold>(() => {
+  return backendThreshold.value || props.threshold;
+});
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
-  const permissionPath = getModulePermissionPath(props.moduleType);
-  if (!permissionPath) {
-    // Module doesn't require permission, allow editing (backward compatibility)
-    return true;
-  }
-  return hasPermission(
-    authStore.user?.permissions,
-    permissionPath,
+  return authStore.hasUserModulePermission(
+    props.moduleType,
     PermissionAction.EDIT,
   );
 });
+
+const isFormDisabled = computed(() => props.disable);
 
 const submoduleCount = computed(
   () =>
@@ -188,6 +229,14 @@ const hasModuleForm = computed(() => {
       0
   );
 });
+
+const showModuleForm = computed(
+  () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
+);
+
+const showViewOnlyBadge = computed(
+  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
+);
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
@@ -235,3 +284,19 @@ async function submitForm(payload: Record<string, FieldValue>) {
   }
 }
 </script>
+
+<style scoped>
+.inputs-deactivated-notice {
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+.inputs-deactivated-notice__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+</style>

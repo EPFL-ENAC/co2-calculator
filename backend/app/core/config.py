@@ -314,6 +314,16 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Background job safety (Plan 310A)
+    STALE_JOB_TIMEOUT_MINUTES: int = Field(
+        default=30,
+        description="Minutes before a RUNNING job is considered stale",
+    )
+    RUN_BACKGROUND_POLLER: bool = Field(
+        default=True,
+        description="Whether to run the in-process safety poller",
+    )
+
 
 @lru_cache()
 def get_settings() -> Settings:

@@ -10,13 +10,6 @@
  * Available actions that can be performed on a permission resource.
  *
  * @enum {string}
- * @example
- * ```typescript
- * const action = PermissionAction.VIEW;
- * if (hasPermission(user.permissions, 'modules.headcount', action)) {
- *   // User can view headcount module
- * }
- * ```
  */
 export enum PermissionAction {
   /** View/read access to a resource */
@@ -26,33 +19,6 @@ export enum PermissionAction {
   /** Export/download access to a resource */
   EXPORT = 'export',
 }
-
-/**
- * Valid permission paths in the system.
- *
- * These paths use dot-notation to represent the resource hierarchy.
- * Each path corresponds to a specific resource that can have permissions.
- *
- * @example
- * ```typescript
- * const path: PermissionPath = 'modules.headcount';
- * const canEdit = hasPermission(permissions, path, PermissionAction.EDIT);
- * ```
- */
-export type PermissionPath =
-  | 'backoffice.reporting'
-  | 'backoffice.users'
-  | 'backoffice.data_management'
-  | 'backoffice.documentation'
-  | 'modules.headcount'
-  | 'modules.equipment'
-  | 'modules.professional_travel'
-  | 'modules.buildings'
-  | 'modules.purchase'
-  | 'modules.research_facilities'
-  | 'modules.external_cloud_and_ai'
-  | 'modules.process_emissions'
-  | 'system.users';
 
 /**
  * Permission set for a single resource.

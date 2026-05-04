@@ -31,6 +31,14 @@ export default {
     en: 'Assessment years',
     fr: 'Années d’évaluation',
   },
+  workspace_setup_workspace_title: {
+    en: 'Select your workspace',
+    fr: 'Sélectionnez votre espace de travail',
+  },
+  workspace_setup_workspace_description: {
+    en: 'Choose whether you want to use the calculator or the simulator:',
+    fr: 'Choisissez si vous souhaitez utiliser le calculateur ou le simulateur :',
+  },
   workspace_setup_year_description: {
     en: 'Choose which year to evaluate',
     fr: 'Choisissez l’année sur laquelle vous souhaitez évaluer',
@@ -94,5 +102,29 @@ export default {
   workspace_setup_unit_progress: {
     en: 'Progress from last year',
     fr: "Progression de l'année dernière",
+  },
+  workspace_setup_calculator_description: {
+    en: "Calculate your unit's emissions",
+    fr: 'Calculez les émissions de votre unité',
+  },
+  workspace_setup_simulator_title: {
+    en: 'CO₂ Simulator',
+    fr: 'CO₂ Simulateur',
+  },
+  workspace_setup_simulator_description: {
+    en: 'Simulate your emissions for a grant or a specific project',
+    fr: 'Simulez vos émissions pour une subvention ou un projet spécifique',
+  },
+  workspace_setup_calculator_current_progress: {
+    en: "Current year's progress",
+    fr: "Progression de l'année en cours",
+  },
+  workspace_setup_simulator_completed_simulations: {
+    en: 'Completed simulations',
+    fr: 'Simulations complétées',
+  },
+  workspace_setup_continue_simulator: {
+    en: 'Continue to simulator',
+    fr: 'Continuer vers le simulateur',
   },
 } as const;

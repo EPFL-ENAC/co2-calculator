@@ -4,9 +4,9 @@ from types import SimpleNamespace
 
 from app.api.v1.year_configuration import (
     _build_job_lookup,
-    _build_jobs_list,
     _deep_merge,
     _enrich_config_with_jobs,
+    _pick_latest_job,
     generate_unique_filename,
     get_files_storage_path,
 )
@@ -40,8 +40,8 @@ class TestBuildJobLookup:
     def test_builds_lookup(self):
         job = _fake_job(id=5, module_type_id=1, data_entry_type_id=10)
         lookup = _build_job_lookup([job])
-        assert (1, 10) in lookup
-        assert lookup[(1, 10)].job_id == 5
+        assert (1, 10, 0, 0) in lookup
+        assert lookup[(1, 10, 0, 0)].job_id == 5
 
     def test_skips_none_id(self):
         job = _fake_job(id=None)
@@ -56,7 +56,7 @@ class TestBuildJobLookup:
             ingestion_method=None, target_type=None, state=None, result=None
         )
         lookup = _build_job_lookup([job])
-        summary = lookup[(2, 20)]
+        summary = lookup[(2, 20, None, 0)]
         assert summary.ingestion_method == 0
         assert summary.target_type is None
         assert summary.state is None
@@ -64,48 +64,90 @@ class TestBuildJobLookup:
 
 
 # ---------------------------------------------------------------------------
-# _build_jobs_list
-# ---------------------------------------------------------------------------
-class TestBuildJobsList:
-    def test_builds_list(self):
-        jobs = [_fake_job(id=1), _fake_job(id=2, module_type_id=3)]
-        result = _build_jobs_list(jobs)
-        assert len(result) == 2
-
-    def test_skips_none_id(self):
-        result = _build_jobs_list([_fake_job(id=None)])
-        assert len(result) == 0
-
-
-# ---------------------------------------------------------------------------
 # _enrich_config_with_jobs
 # ---------------------------------------------------------------------------
 class TestEnrichConfigWithJobs:
-    def test_injects_job(self):
+    def test_injects_per_target_type_jobs(self):
         config = {"modules": {"2": {"submodules": {"20": {}}}}}
         job = _fake_job()
         lookup = _build_job_lookup([job])
         _enrich_config_with_jobs(config, lookup)
-        assert config["modules"]["2"]["submodules"]["20"]["latest_job"] is not None
+        sub = config["modules"]["2"]["submodules"]["20"]
+        assert sub["latest_data_job"] is not None
+        assert sub["latest_factor_job"] is None
+        assert sub["latest_reference_job"] is None
+        assert sub["latest_api_data_job"] is not None
+
+    def test_injects_factor_job(self):
+        config = {"modules": {"2": {"submodules": {"20": {}}}}}
+        job = _fake_job(target_type=SimpleNamespace(value=1))
+        lookup = _build_job_lookup([job])
+        _enrich_config_with_jobs(config, lookup)
+        sub = config["modules"]["2"]["submodules"]["20"]
+        assert sub["latest_data_job"] is None
+        assert sub["latest_factor_job"] is not None
+        assert sub["latest_reference_job"] is None
+        assert sub["latest_api_data_job"] is None
 
     def test_no_matching_job(self):
         config = {"modules": {"99": {"submodules": {"99": {}}}}}
         _enrich_config_with_jobs(config, {})
-        assert config["modules"]["99"]["submodules"]["99"]["latest_job"] is None
+        sub = config["modules"]["99"]["submodules"]["99"]
+        assert sub["latest_data_job"] is None
+        assert sub["latest_factor_job"] is None
+        assert sub["latest_reference_job"] is None
+        assert sub["latest_api_data_job"] is None
 
     def test_non_dict_module_skipped(self):
         config = {"modules": {"bad": "string_value"}}
-        _enrich_config_with_jobs(config, {})  # no crash
+        _enrich_config_with_jobs(config, {})
 
     def test_non_numeric_keys_skipped(self):
         config = {"modules": {"abc": {"submodules": {"xyz": {}}}}}
         _enrich_config_with_jobs(config, {})
-        # xyz should not have latest_job since keys aren't numeric
-        assert "latest_job" not in config["modules"]["abc"]["submodules"]["xyz"]
+        sub = config["modules"]["abc"]["submodules"]["xyz"]
+        assert "latest_data_job" not in sub
+        assert "latest_factor_job" not in sub
+        assert "latest_reference_job" not in sub
+        assert "latest_api_data_job" not in sub
 
     def test_empty_modules(self):
         config = {"modules": {}}
-        _enrich_config_with_jobs(config, {})  # no crash
+        _enrich_config_with_jobs(config, {})
+
+    def test_api_data_job_separate_from_csv(self):
+        config = {"modules": {"2": {"submodules": {"20": {}}}}}
+        api_job = _fake_job(id=10, ingestion_method=SimpleNamespace(value=0))
+        csv_job = _fake_job(id=11, ingestion_method=SimpleNamespace(value=1))
+        lookup = _build_job_lookup([api_job, csv_job])
+        _enrich_config_with_jobs(config, lookup)
+        sub = config["modules"]["2"]["submodules"]["20"]
+        assert sub["latest_data_job"] is not None
+        assert sub["latest_api_data_job"] is not None
+        assert sub["latest_api_data_job"]["job_id"] == 10
+        assert sub["latest_data_job"]["job_id"] == 10
+
+
+class TestPickLatestJob:
+    def test_prefers_api_over_csv(self):
+        api_job = _fake_job(id=1, ingestion_method=SimpleNamespace(value=0))
+        csv_job = _fake_job(id=2, ingestion_method=SimpleNamespace(value=1))
+        lookup = _build_job_lookup([api_job, csv_job])
+        result = _pick_latest_job(lookup, 2, 20, 0)
+        assert result is not None
+        assert result.ingestion_method == 0
+
+    def test_returns_csv_when_no_api(self):
+        csv_job = _fake_job(id=2, ingestion_method=SimpleNamespace(value=1))
+        lookup = _build_job_lookup([csv_job])
+        result = _pick_latest_job(lookup, 2, 20, 0)
+        assert result is not None
+        assert result.ingestion_method == 1
+
+    def test_returns_none_when_no_match(self):
+        lookup = _build_job_lookup([])
+        result = _pick_latest_job(lookup, 2, 20, 0)
+        assert result is None
 
 
 # ---------------------------------------------------------------------------

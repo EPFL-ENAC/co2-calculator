@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.security import is_permitted, require_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -68,6 +69,8 @@ class SyncJobResponse(BaseModel):
     meta: Optional[dict] = None
     state: Optional[IngestionState] = None
     result: Optional[IngestionResult] = None
+    locked_by: Optional[str] = None
+    is_current: Optional[bool] = None
 
 
 class RecalculationStatus(BaseModel):
@@ -427,6 +430,45 @@ async def get_latest_jobs_by_year(
     ]
 
 
+@router.post("/jobs/{job_id}/cancel", response_model=SyncJobResponse)
+async def cancel_job(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+):
+    """
+    Cancel a stuck ingestion job.
+
+    Sets the job to FINISHED/ERROR and unsets is_current so the user
+    can re-upload. Only jobs in NOT_STARTED, QUEUED, or RUNNING state
+    can be cancelled.
+
+    **Required Permission**: `backoffice.data_management.sync`
+    """
+    repo = DataIngestionRepository(db)
+    job = await repo.cancel_job(job_id)
+    if not job or job.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found or not cancellable",
+        )
+    await db.commit()
+    return SyncJobResponse(
+        job_id=job.id,
+        module_type_id=job.module_type_id,
+        data_entry_type_id=job.data_entry_type_id,
+        year=job.year,
+        ingestion_method=job.ingestion_method,
+        target_type=job.target_type,
+        state=job.state,
+        result=job.result,
+        status_message=job.status_message,
+        meta=job.meta,
+    )
+
+
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(
@@ -731,4 +773,52 @@ async def sync_units_from_accred(
         job_id=0,  # No persistent job tracking for now
         state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
+    )
+
+
+@router.post("/jobs/{job_id}/recover", response_model=SyncJobResponse)
+async def recover_job(
+    job_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "sync")
+    ),
+):
+    """
+    Recover a job stuck in RUNNING after a pod crash.
+
+    Resets the job to NOT_STARTED and clears the lock. Only allowed
+    when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
+
+    **Required Permission**: ``backoffice.data_management.sync``
+    """
+    settings = get_settings()
+    repo = DataIngestionRepository(db)
+    recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
+    if not recovered:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Job {job_id} cannot be recovered: not found, not in RUNNING state, "
+                "or lock is not yet stale"
+            ),
+        )
+    if recovered.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Recovered job has no ID",
+        )
+    return SyncJobResponse(
+        job_id=recovered.id,
+        module_type_id=recovered.module_type_id,
+        data_entry_type_id=recovered.data_entry_type_id,
+        year=recovered.year,
+        ingestion_method=recovered.ingestion_method,
+        target_type=recovered.target_type,
+        state=recovered.state,
+        result=recovered.result,
+        status_message=recovered.status_message,
+        meta=recovered.meta,
+        locked_by=recovered.locked_by,
+        is_current=recovered.is_current,
     )

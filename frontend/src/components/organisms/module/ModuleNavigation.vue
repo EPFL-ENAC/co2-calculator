@@ -5,6 +5,7 @@ import { Module, MODULES_LIST } from 'src/constant/modules';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useTimelineStore } from 'src/stores/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 
 const props = defineProps<{
   currentModule: Module;
@@ -12,25 +13,30 @@ const props = defineProps<{
 
 const $route = useRoute();
 const timelineStore = useTimelineStore();
+const yearConfigStore = useYearConfigStore();
+
+const visibleModulesList = computed(() =>
+  MODULES_LIST.filter((m) => yearConfigStore.isModuleVisible(m)),
+);
 
 const currentIndex = computed(() => {
-  return MODULES_LIST.indexOf(props.currentModule);
+  return visibleModulesList.value.indexOf(props.currentModule);
 });
 
 const isLastModule = computed(() => {
-  return currentIndex.value === MODULES_LIST.length - 1;
+  return currentIndex.value === visibleModulesList.value.length - 1;
 });
 
 const previousModule = computed(() => {
   if (currentIndex.value > 0) {
-    return MODULES_LIST[currentIndex.value - 1];
+    return visibleModulesList.value[currentIndex.value - 1];
   }
   return null;
 });
 
 const nextModule = computed(() => {
-  if (currentIndex.value < MODULES_LIST.length - 1) {
-    return MODULES_LIST[currentIndex.value + 1];
+  if (currentIndex.value < visibleModulesList.value.length - 1) {
+    return visibleModulesList.value[currentIndex.value + 1];
   }
   return null;
 });
