@@ -357,7 +357,7 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: Dict[str, int] | None = None,
-    ) -> tuple[Any, str | None, Any]:
+    ) -> tuple[Any, str | None, Any, float | None]:
         if self._location_fields:
             row = dict(row)  # shallow copy to avoid mutating original
             location_id_cache = setup_result.get("location_id_cache", {})
@@ -400,10 +400,15 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         emission_service: Any,
         stats: StatsDict,
         setup_result: Dict[str, Any],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> Dict[str, Any]:
         if batch:
             await self._process_batch(
-                batch, data_entry_service, emission_service, self.user
+                batch,
+                data_entry_service,
+                emission_service,
+                self.user,
+                batch_kg_co2eq_overrides,
             )
             stats["batches_processed"] += 1
 

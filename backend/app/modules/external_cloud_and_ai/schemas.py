@@ -200,18 +200,22 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         "provider": Factor.classification[kind_field].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ExternalCloudHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
                 "service_type": primary_factor.get("subkind")
-                or data_entry.data.get("service_type"),
-                "provider": primary_factor.get("kind")
-                or data_entry.data.get("provider"),
+                or data.get("service_type"),
+                "provider": primary_factor.get("kind") or data.get("provider"),
             }
         )
 
@@ -382,18 +386,22 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         "usage_type": Factor.classification["usage_type"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ExternalAIHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "provider": primary_factor.get("provider")
-                or data_entry.data.get("provider"),
+                **data,
+                "provider": primary_factor.get("provider") or data.get("provider"),
                 "usage_type": primary_factor.get("usage_type")
-                or data_entry.data.get("usage_type"),
+                or data.get("usage_type"),
             }
         )
 

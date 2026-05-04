@@ -480,7 +480,12 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     row = {"unit_institutional_id": "U1", "amount": "10", "label": "x"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=1,
         setup_result=setup_result,
@@ -512,7 +517,12 @@ async def test_process_row_missing_unit_mapping_records_error():
     row = {"unit_id": "UNKNOWN", "amount": "10"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=2,
         setup_result=setup_result,
@@ -553,7 +563,12 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     row = {"amount": "10"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=3,
         setup_result=setup_result,
@@ -565,6 +580,231 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     assert data_entry is None
     assert result_factor is None
     assert stats["rows_skipped"] == 1
+
+
+# ======================================================================
+# Regression: kg_co2eq must NOT be persisted into DataEntry.data
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_row_extracts_kg_co2eq_out_of_band():
+    """A CSV row with a `kg_co2eq` column must produce a `DataEntry` whose
+    persisted ``data`` does NOT contain that key. The value must be returned
+    as the 4th tuple element so the caller can pass it to ``prepare_create``
+    transiently.
+
+    Regression for the bug where the CSV provider stuffed ``kg_co2eq`` into
+    ``filtered_row`` (and hence into ``DataEntry.data``), corrupting the
+    source-of-truth JSON column with a derived/imported value.
+    """
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    # validate_create receives the filtered_row payload — confirm kg_co2eq is
+    # NOT present in what it sees, then return whatever data it likes.
+    captured_validation_payload: list[dict] = []
+
+    def fake_validate_create(payload):
+        captured_validation_payload.append(dict(payload))
+        return SimpleNamespace(
+            data={
+                "origin_iata": "GVA",
+                "destination_iata": "ZRH",
+                "cabin_class": "first",
+                "primary_factor_id": None,
+            }
+        )
+
+    handler.validate_create.side_effect = fake_validate_create
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {
+            "origin_iata",
+            "destination_iata",
+            "cabin_class",
+            "user_institutional_id",
+            "number_of_trips",
+        },
+    }
+    # Note: kg_co2eq is intentionally absent from expected_columns — the
+    # provider must extract it directly from the raw row regardless.
+    row = {
+        "origin_iata": "GVA",
+        "destination_iata": "ZRH",
+        "cabin_class": "first",
+        "user_institutional_id": "150322",
+        "number_of_trips": "1",
+        "kg_co2eq": "152.685",
+    }
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        _factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert error_msg is None
+    assert data_entry is not None
+
+    # 1. The override is returned out-of-band as a float.
+    assert kg_co2eq_override == pytest.approx(152.685)
+
+    # 2. kg_co2eq must NOT have leaked into the persisted DataEntry.data.
+    assert "kg_co2eq" not in data_entry.data, (
+        f"kg_co2eq leaked into DataEntry.data: {data_entry.data!r}"
+    )
+
+    # 3. validate_create must have received the row WITHOUT kg_co2eq.
+    assert len(captured_validation_payload) == 1
+    assert "kg_co2eq" not in captured_validation_payload[0]
+
+
+@pytest.mark.asyncio
+async def test_process_row_with_no_kg_co2eq_returns_none_override():
+    """Rows without a kg_co2eq column produce a None override — not an
+    error, not a side effect on DataEntry.data."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "primary_factor_id": None,
+        }
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"origin_iata", "destination_iata"},
+    }
+    row = {"origin_iata": "GVA", "destination_iata": "ZRH"}
+    stats = _build_stats()
+
+    _data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert error_msg is None
+    assert kg_co2eq_override is None
+
+
+@pytest.mark.asyncio
+async def test_process_row_consumes_dumb_csv_fixture_for_plane():
+    """Consume the dumb plane CSV fixture row-by-row via csv.DictReader and
+    verify each row's kg_co2eq is extracted out-of-band — not persisted into
+    DataEntry.data. This is the integration-shape regression for the user's
+    debugging case (GVA→ZRH plane import).
+    """
+    import csv as _csv
+    from pathlib import Path
+
+    fixture_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "integration"
+        / "data_ingestion"
+        / "fixtures"
+        / "regression_kg_co2eq_plane.csv"
+    )
+    assert fixture_path.exists(), f"missing fixture: {fixture_path}"
+
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.side_effect = lambda payload: SimpleNamespace(
+        data={k: v for k, v in payload.items() if k != "data_entry_type_id"}
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {
+            "origin_iata",
+            "destination_iata",
+            "cabin_class",
+            "user_institutional_id",
+            "number_of_trips",
+        },
+    }
+
+    with open(fixture_path, encoding="utf-8") as f:
+        rows = list(_csv.DictReader(f))
+
+    # Sanity: fixture really has kg_co2eq column with non-empty values.
+    assert all(r.get("kg_co2eq") for r in rows), rows
+    expected_overrides = [float(r["kg_co2eq"]) for r in rows]
+
+    actual_overrides = []
+    for row_idx, row in enumerate(rows, start=1):
+        stats = _build_stats()
+        (
+            data_entry,
+            error_msg,
+            _factor,
+            kg_co2eq_override,
+        ) = await provider._process_row(
+            row,
+            row_idx=row_idx,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            unit_to_module_map=None,
+        )
+
+        assert error_msg is None, f"row {row_idx} errored: {error_msg}"
+        assert data_entry is not None
+        # Per-row invariant: kg_co2eq is NOT in the persisted data dict.
+        assert "kg_co2eq" not in data_entry.data, (
+            f"row {row_idx}: kg_co2eq leaked into DataEntry.data: {data_entry.data!r}"
+        )
+        actual_overrides.append(kg_co2eq_override)
+
+    assert actual_overrides == pytest.approx(expected_overrides)
 
 
 # ======================================================================
@@ -602,11 +842,74 @@ async def test_process_batch_creates_emissions():
         institutional_id="default-1441",
     )
 
-    await provider._process_batch(batch, data_entry_service, emission_service, user)
+    # No CSV kg_co2eq overrides for this batch (parallel list of None).
+    await provider._process_batch(
+        batch, data_entry_service, emission_service, user, [None]
+    )
 
     data_entry_service.bulk_create.assert_awaited_once()
-    emission_service.prepare_create.assert_awaited_once_with(created_entry)
+    emission_service.prepare_create.assert_awaited_once_with(
+        created_entry, kg_co2eq_override=None
+    )
     emission_service.bulk_create.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_process_batch_routes_kg_co2eq_overrides_by_id():
+    """Carrier flow regression: a batch with kg_co2eq overrides aligned to
+    its inputs must produce a {data_entry.id: kg_co2eq} dict and forward
+    each override per-call to ``prepare_create``.
+
+    This covers the end-to-end carrier path that the unit-level _process_row
+    and prepare_create tests cover only in isolation.
+    """
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._year_cache = {999: 2025}
+
+    data_entry_service = MagicMock()
+    emission_service = AsyncMock()
+
+    # bulk_create preserves input order — return three responses with
+    # incrementing IDs aligned to the input batch.
+    created_entries = [
+        SimpleNamespace(id=10, carbon_report_module_id=999),
+        SimpleNamespace(id=11, carbon_report_module_id=999),
+        SimpleNamespace(id=12, carbon_report_module_id=999),
+    ]
+    data_entry_service.bulk_create = AsyncMock(return_value=created_entries)
+    emission_service.prepare_create = AsyncMock(return_value=[SimpleNamespace(id=99)])
+    emission_service.bulk_create = AsyncMock()
+
+    batch = []
+    for _ in range(3):
+        e = MagicMock()
+        e.carbon_report_module_id = 999
+        batch.append(e)
+
+    user = SimpleNamespace(
+        id=1,
+        email="test@example.com",
+        display_name="Test User",
+        provider=UserProvider.DEFAULT,
+        institutional_id="default-1441",
+    )
+
+    # Two of three rows have an override; the middle one does not.
+    overrides = [152.685, None, 380.0]
+
+    await provider._process_batch(
+        batch, data_entry_service, emission_service, user, overrides
+    )
+
+    # prepare_create must be called once per response, with the override
+    # routed by data_entry.id (not by index, not by formula path).
+    assert emission_service.prepare_create.await_count == 3
+    actual_calls = {
+        call.args[0].id: call.kwargs.get("kg_co2eq_override")
+        for call in emission_service.prepare_create.await_args_list
+    }
+    assert actual_calls == {10: 152.685, 11: None, 12: 380.0}
 
 
 # ======================================================================
@@ -640,6 +943,7 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
         emission_service=MagicMock(),
         stats=stats,
         setup_result=setup_result,
+        batch_kg_co2eq_overrides=[None],
     )
 
     provider._process_batch.assert_awaited_once()

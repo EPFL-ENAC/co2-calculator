@@ -44,6 +44,23 @@ class DataEntryRepository:
         self.entity_type = DataEntry.__name__
         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
 
+    def _detach(self, *objs: Any) -> None:
+        """Expunge ORM rows from the session so accidental mutations cannot
+        be flushed back to the DB. Use on read-path methods that return rows
+        the caller should treat as read-only.
+
+        Silently ignores rows that are not currently attached.
+        """
+        from sqlalchemy.exc import InvalidRequestError
+
+        for obj in objs:
+            if obj is None:
+                continue
+            try:
+                self.session.expunge(obj)
+            except InvalidRequestError:
+                pass
+
     async def get(self, id: int) -> Optional[DataEntry]:
         statement = select(DataEntry).where(DataEntry.id == id)
         result = await self.session.exec(statement)
@@ -181,6 +198,10 @@ class DataEntryRepository:
         sort_order,
         filter: Optional[str] = None,
     ) -> list[DataEntry]:
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. Some callers (delete flows in
+        # data_entry_service.py) only read; others may mutate. Audit each
+        # caller before adding self._detach.
         statement = select(DataEntry).where(
             DataEntry.carbon_report_module_id == carbon_report_module_id
         )
@@ -206,6 +227,10 @@ class DataEntryRepository:
         Returns:
             List of matching DataEntry rows (may be empty).
         """
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. The recalculation workflow in
+        # workflows/emission_recalculation.py is the primary caller and may
+        # mutate; audit before adding self._detach.
         statement = (
             select(DataEntry)
             .join(
@@ -568,6 +593,16 @@ class DataEntryRepository:
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
 
+            # Defense-in-depth: detach loaded ORM rows from the session so any
+            # accidental mutation (here or downstream) cannot be flushed back to
+            # the DB. This method only reads scalar columns and the JSON `data`
+            # field after unpack — no lazy relationships — so expunge is safe.
+            self._detach(data_entry, primary_factor)
+            if is_travel_entry:
+                self._detach(member_entry, _emission)
+            elif is_buildings_entry:
+                self._detach(building_room)
+
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
@@ -579,12 +614,18 @@ class DataEntryRepository:
                     factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
                     factor_result = await self.session.execute(factor_stmt)
                     primary_factor = factor_result.scalar_one_or_none()
+                    if primary_factor is not None:
+                        self._detach(primary_factor)
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
                 primary_factor.classification if primary_factor else {}
             )
-            data_entry.data = {
+            # Build the enriched response payload as a fresh dict — never
+            # mutate `data_entry.data`, which would dirty the ORM row and
+            # cause SQLAlchemy to flush computed values back into the source-
+            # of-truth JSON column on the next session flush/commit.
+            enriched_data: dict = {
                 **data_entry.data,
                 "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
@@ -597,27 +638,18 @@ class DataEntryRepository:
                 distance_km = (
                     float(_emission.additional_value)
                     if _emission is not None and _emission.additional_value is not None
-                    else data_entry.data.get("distance_km")
+                    else enriched_data.get("distance_km")
                 )
-                data_entry.data = {
-                    **data_entry.data,
-                    **(
-                        {"traveler_name": member_entry.data.get("name")}
-                        if member_entry
-                        else {}
-                    ),
-                    **({"distance_km": distance_km} if distance_km is not None else {}),
-                }
+                if member_entry is not None:
+                    enriched_data["traveler_name"] = member_entry.data.get("name")
+                if distance_km is not None:
+                    enriched_data["distance_km"] = distance_km
             if is_buildings_entry and building_room:
-                surface = building_room.room_surface_square_meter
-                data_entry.data = {
-                    **data_entry.data,
-                    "room_surface_square_meter": surface
-                    if surface is not None
-                    else None,
-                }
+                enriched_data["room_surface_square_meter"] = (
+                    building_room.room_surface_square_meter
+                )
 
-            items.append(handler.to_response(data_entry))
+            items.append(handler.to_response(data_entry, enriched_data))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,

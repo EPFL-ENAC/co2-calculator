@@ -128,7 +128,21 @@ class ModuleHandler(Protocol[T]):
     subkind_label_field: Optional[str] = None
     factor_value_fields: Optional[list[str]] = None
 
-    def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
+    def to_response(
+        self,
+        data_entry: T,
+        enriched_data: dict | None = None,
+    ) -> DataEntryResponseGen:
+        """Build the response DTO for a data entry.
+
+        ``enriched_data`` overrides ``data_entry.data`` when provided. Callers
+        from listing endpoints pass it to inject computed values (kg_co2eq,
+        primary_factor, distance_km, ...) without mutating the ORM row, which
+        would otherwise be flushed back to ``DataEntry.data`` and corrupt the
+        source-of-truth column.
+        """
+        ...
+
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
     async def pre_compute(

@@ -192,24 +192,27 @@ class PurchaseModuleHandler(BaseModuleHandler):
         ].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> PurchaseHandlerResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> PurchaseHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
-                **data_entry.data,
+                **data,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                "name": data_entry.data.get("name"),
-                "supplier": data_entry.data.get("supplier"),
-                "quantity": data_entry.data.get("quantity"),
-                "purchase_institutional_code": data_entry.data.get(
-                    "purchase_institutional_code"
-                ),
-                "purchase_institutional_description": data_entry.data.get(
+                "name": data.get("name"),
+                "supplier": data.get("supplier"),
+                "quantity": data.get("quantity"),
+                "purchase_institutional_code": data.get("purchase_institutional_code"),
+                "purchase_institutional_description": data.get(
                     "purchase_institutional_description"
                 ),
-                "total_spent_amount": data_entry.data.get("total_spent_amount"),
-                "kg_co2eq": data_entry.data.get("kg_co2eq", None),
+                "total_spent_amount": data.get("total_spent_amount"),
+                "kg_co2eq": data.get("kg_co2eq", None),
             }
         )
 
@@ -293,13 +296,18 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         "unit": DataEntry.data["unit"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> PurchaseAdditionalHandlerResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> PurchaseAdditionalHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 

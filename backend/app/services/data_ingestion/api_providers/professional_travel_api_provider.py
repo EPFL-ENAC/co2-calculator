@@ -406,20 +406,21 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         emission_service = DataEntryEmissionService(self.data_session)
 
         # Create data entries with preserved CO2 values
+        # kg_co2eq is carried out-of-band (parallel list) so it never lands
+        # in DataEntry.data; the override is applied transiently when emissions
+        # are created.
         entries = []
+        kg_co2eq_overrides: list[float | None] = []
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")
             if not carbon_report_module_id:
                 continue
 
-            # Extract CO2 values from item (preserved from source)
             kg_co2eq = item.get("kg_co2eq") or item.get("OUT_CO2_CORRECTED")
             distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
 
-            # Store in data payload
             data_payload = dict(item)
-            if kg_co2eq is not None:
-                data_payload["kg_co2eq"] = kg_co2eq
+            data_payload.pop("kg_co2eq", None)
             if distance_km is not None:
                 data_payload["distance_km"] = distance_km
 
@@ -429,6 +430,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 data=data_payload,
             )
             entries.append(entry)
+            kg_co2eq_overrides.append(float(kg_co2eq) if kg_co2eq is not None else None)
 
         if not entries:
             return {"inserted": 0}
@@ -442,14 +444,21 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             created_by_id=self.job_id,
         )
 
+        # Build {data_entry.id: kg_co2eq} override map. bulk_create preserves
+        # input order, so we can zip responses with the parallel overrides list.
+        overrides_by_id: dict[int, float] = {
+            resp.id: ov
+            for resp, ov in zip(data_entries_response, kg_co2eq_overrides)
+            if ov is not None and resp.id is not None
+        }
+
         # Prepare and create emissions using preserved CO2 values
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
-                # Use emission service to prepare emissions
-                # This will use the preserved kg_co2eq from data payload
                 emission_objs = await emission_service.prepare_create(
-                    data_entry_response
+                    data_entry_response,
+                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
                 )
                 if emission_objs is not None:
                     emissions_to_create.extend(emission_objs)
