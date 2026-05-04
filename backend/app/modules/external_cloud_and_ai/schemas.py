@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import ValidationInfo, field_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 from sqlalchemy import case
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -73,8 +73,21 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     service_type: str
     provider: str
     spent_amount: float
-    currency: Optional[str] = None
+    currency: Optional[str] = "eur"
     note: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_default_currency(cls, data: Any) -> Any:
+        """Ensure default currency is applied when input has null or empty currency."""
+        if isinstance(data, dict):
+            currency = data.get("currency")
+            # Apply default when currency is None, empty string, or whitespace-only
+            if currency is None or (
+                isinstance(currency, str) and currency.strip() == ""
+            ):
+                data["currency"] = "eur"
+        return data
 
     @field_validator("spent_amount", mode="after")
     @classmethod
@@ -85,9 +98,9 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+    def validate_currency(cls, v: Optional[str]) -> str:
         if v is None:
-            return v
+            return "eur"
         valid_currencies = ["chf", "eur", "usd"]
         if v.lower() not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")

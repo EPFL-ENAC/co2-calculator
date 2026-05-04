@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -52,11 +52,24 @@ class PurchaseHandlerCreate(DataEntryCreate):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: float
-    currency: Optional[str] = None
+    currency: Optional[str] = "chf"
     purchase_institutional_code: Optional[str] = None
     purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_default_currency(cls, data: Any) -> Any:
+        """Ensure default currency is applied when input has null or empty currency."""
+        if isinstance(data, dict):
+            currency = data.get("currency")
+            # Apply default when currency is None, empty string, or whitespace-only
+            if currency is None or (
+                isinstance(currency, str) and currency.strip() == ""
+            ):
+                data["currency"] = "chf"
+        return data
 
     @field_validator("quantity", mode="after")
     @classmethod
@@ -81,6 +94,16 @@ class PurchaseHandlerCreate(DataEntryCreate):
             raise ValueError(
                 "Purchase institutional code must be at least 1 character long"
             )
+        return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> str:
+        if v is None:
+            return "chf"
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
 
@@ -112,7 +135,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
+    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
         if v < 0:
@@ -126,6 +149,16 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             return v
         if v < 0:
             raise ValueError("Total spend amount must be non-negative")
+        return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        valid_currencies = ["chf", "eur", "usd"]
+        if v.lower() not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
         return v
 
 
