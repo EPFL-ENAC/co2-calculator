@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -51,14 +52,13 @@ class DataEntryRepository:
 
         Silently ignores rows that are not currently attached.
         """
-        from sqlalchemy.exc import InvalidRequestError
-
         for obj in objs:
             if obj is None:
                 continue
             try:
                 self.session.expunge(obj)
             except InvalidRequestError:
+                # Already detached or session-state edge case — nothing to do.
                 pass
 
     async def get(self, id: int) -> Optional[DataEntry]:

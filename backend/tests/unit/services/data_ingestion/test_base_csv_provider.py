@@ -726,6 +726,77 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
 
 
 @pytest.mark.asyncio
+async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
+    """A non-empty but non-numeric kg_co2eq cell must surface a WARNING-level
+    log (not a silent debug) and still produce a valid DataEntry with no
+    override applied. Locks in the visibility bump from the bot review.
+    """
+    import logging
+
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "primary_factor_id": None,
+        }
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"origin_iata", "destination_iata"},
+    }
+    row = {
+        "origin_iata": "GVA",
+        "destination_iata": "ZRH",
+        "kg_co2eq": "not-a-number",
+    }
+    stats = _build_stats()
+
+    with caplog.at_level(
+        logging.WARNING, logger="app.services.data_ingestion.base_csv_provider"
+    ):
+        data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+            row,
+            row_idx=7,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            unit_to_module_map=None,
+        )
+
+    # The row still processes — only the override is dropped.
+    assert error_msg is None
+    assert data_entry is not None
+    assert kg_co2eq_override is None
+
+    # The parse failure is visible at WARNING level, not debug.
+    warnings = [
+        rec
+        for rec in caplog.records
+        if rec.levelno == logging.WARNING and "kg_co2eq" in rec.message
+    ]
+    assert warnings, (
+        "expected a WARNING-level log mentioning kg_co2eq, "
+        f"got: {[(r.levelname, r.message) for r in caplog.records]}"
+    )
+    assert "not-a-number" in warnings[0].message
+    assert "Row 7" in warnings[0].message
+
+
+@pytest.mark.asyncio
 async def test_process_row_consumes_dumb_csv_fixture_for_plane():
     """Consume the dumb plane CSV fixture row-by-row via csv.DictReader and
     verify each row's kg_co2eq is extracted out-of-band — not persisted into

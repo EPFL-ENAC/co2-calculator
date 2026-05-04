@@ -820,7 +820,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 try:
                     kg_co2eq_override = float(raw_kg)
                 except (ValueError, TypeError):
-                    logger.debug(
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
                         f"Row {row_idx}: invalid kg_co2eq value {raw_kg!r}, "
                         f"ignoring override"
                     )

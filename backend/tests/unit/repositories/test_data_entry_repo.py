@@ -1166,3 +1166,63 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
         assert forbidden_key not in refreshed.data, (
             f"computed key {forbidden_key!r} leaked into DataEntry.data"
         )
+
+
+# ======================================================================
+# Regression: _detach helper handles all session-state edge cases
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_detach_handles_none_attached_and_already_detached(
+    db_session: AsyncSession,
+):
+    """`_detach` must:
+    - silently no-op on None entries (varargs may include unloaded joins),
+    - successfully detach an attached ORM row,
+    - swallow InvalidRequestError when an already-detached row is passed.
+
+    Locks in the helper's contract so a future tightening of the except clause
+    or removal of the None guard would be caught.
+    """
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"origin_iata": "GVA"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    # 1. None varargs are tolerated.
+    repo._detach(None, None)
+
+    # 2. An attached ORM instance is detached.
+    assert entry in db_session.sync_session
+    repo._detach(entry)
+    assert entry not in db_session.sync_session
+
+    # 3. A second call on the now-detached row swallows InvalidRequestError.
+    repo._detach(entry)  # must not raise
+
+    # 4. Mixed call (None + already-detached + freshly-loaded) all succeed.
+    other = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"origin_iata": "ZRH"},
+    )
+    db_session.add(other)
+    await db_session.flush()
+    repo._detach(None, entry, other)
+    assert other not in db_session.sync_session

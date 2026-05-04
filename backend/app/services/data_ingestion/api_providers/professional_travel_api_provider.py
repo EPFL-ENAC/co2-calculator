@@ -437,7 +437,9 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 try:
                     override = float(kg_co2eq)
                 except (ValueError, TypeError):
-                    logger.debug(
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
                         f"Invalid kg_co2eq value {kg_co2eq!r} from API source, "
                         f"ignoring override"
                     )
