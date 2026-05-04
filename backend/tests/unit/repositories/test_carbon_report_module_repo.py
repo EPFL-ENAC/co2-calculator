@@ -211,12 +211,14 @@ class TestCRUD:
         cr = await make_carbon_report(db_session, unit_id=unit.id)
         repo = CarbonReportModuleRepository(db_session)
         mod = await repo.create(cr.id, ModuleTypeEnum.headcount)
-        assert await repo.delete(mod.id) is True
+        deleted = await repo.delete(mod.id)
+        assert deleted is True
         assert await repo.get(mod.id) is None
 
     async def test_delete_nonexistent(self, db_session):
         repo = CarbonReportModuleRepository(db_session)
-        assert await repo.delete(999) is False
+        deleted = await repo.delete(999)
+        assert deleted is False
 
     async def test_delete_by_report(self, db_session, make_unit, make_carbon_report):
         unit = await make_unit(db_session)
@@ -258,7 +260,7 @@ class TestGetUsageReport:
         self, db_session, make_unit, make_user, make_carbon_report
     ):
         unit = await make_unit(db_session, institutional_id="CF-100", name="LAB-A")
-        _user = await make_user(db_session)
+        await make_user(db_session)
         cr = await make_carbon_report(db_session, unit_id=unit.id, year=2024)
         repo = CarbonReportModuleRepository(db_session)
         await repo.create(
@@ -315,7 +317,7 @@ class TestGetResultsReport:
         self, db_session, make_unit, make_carbon_report
     ):
         unit = await make_unit(db_session, institutional_id="CF-200", name="LAB-R")
-        _cr = await make_carbon_report(
+        await make_carbon_report(
             db_session,
             unit_id=unit.id,
             year=2024,
@@ -339,9 +341,7 @@ class TestGetResultsReport:
 
     async def test_empty_stats(self, db_session, make_unit, make_carbon_report):
         unit = await make_unit(db_session, name="LAB-E")
-        _cr = await make_carbon_report(
-            db_session, unit_id=unit.id, year=2024, stats=None
-        )
+        await make_carbon_report(db_session, unit_id=unit.id, year=2024, stats=None)
         repo = CarbonReportModuleRepository(db_session)
         results = await repo.get_results_report(years=[2024])
         assert len(results) == 1
@@ -363,7 +363,7 @@ class TestGetReportingOverview:
     async def test_basic_overview(
         self, db_session, make_unit, make_user, make_carbon_report
     ):
-        _user = await make_user(db_session, institutional_id="SCIPER-P1")
+        await make_user(db_session, institutional_id="SCIPER-P1")
         unit = await make_unit(
             db_session,
             name="LAB-O",
@@ -391,7 +391,7 @@ class TestGetReportingOverview:
         self, db_session, make_unit, make_carbon_report
     ):
         unit = await make_unit(db_session, name="LAB-HF")
-        _cr = await make_carbon_report(db_session, unit_id=unit.id, year=2024)
+        await make_carbon_report(db_session, unit_id=unit.id, year=2024)
         repo = CarbonReportModuleRepository(db_session)
         # Filter for nonexistent units → should short-circuit
         result = await repo.get_reporting_overview(

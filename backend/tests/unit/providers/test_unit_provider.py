@@ -288,8 +288,8 @@ class TestAccredFetchAllUnits:
 class TestDefaultUnitProvider:
     @pytest.mark.asyncio
     async def test_get_all_units(self, db_session, make_unit):
-        _u1 = await make_unit(db_session, name="Unit A")
-        _u2 = await make_unit(db_session, name="Unit B")
+        await make_unit(db_session, name="Unit A")
+        await make_unit(db_session, name="Unit B")
 
         provider = DefaultUnitProvider(db_session)
         units = await provider.get_units()
@@ -298,7 +298,7 @@ class TestDefaultUnitProvider:
     @pytest.mark.asyncio
     async def test_get_units_filtered(self, db_session, make_unit):
         u1 = await make_unit(db_session, name="Unit A")
-        _u2 = await make_unit(db_session, name="Unit B")
+        await make_unit(db_session, name="Unit B")
 
         provider = DefaultUnitProvider(db_session)
         units = await provider.get_units(unit_ids=[u1.id])
