@@ -1,11 +1,11 @@
 ---
 name: review-copilot-comments
-description: Fetch Copilot/github-actions review comments for the current branch's PR, then produce a prioritized action checklist that filters out nitpicks and groups substantive feedback by file.
+description: Fetch automated bot review comments (Copilot, github-actions, GitHub Advanced Security / CodeQL) for the current branch's PR, then produce a prioritized action checklist that filters out nitpicks and groups substantive feedback by file.
 ---
 
-# Review Copilot PR comments
+# Review automated bot PR comments
 
-Run this when the user wants to triage Copilot's automated review on the current branch's PR.
+Run this when the user wants to triage automated review on the current branch's PR — Copilot summary reviews, `github-actions[bot]` checks, and `github-advanced-security[bot]` CodeQL findings.
 
 ## Step 1 — Fetch the comments
 
@@ -21,11 +21,11 @@ If the script exits non-zero (no PR for branch, no issue ID in branch name), sur
 
 ## Step 2 — Read the file
 
-Read the file at `OUTPUT_FILE`. It contains a `## Raw Feedback` section with summary reviews and inline comments from Copilot/github-actions.
+Read the file at `OUTPUT_FILE`. It contains a `## Raw Feedback` section with summary reviews and inline comments from Copilot, `github-actions[bot]`, and `github-advanced-security[bot]`. The author login is annotated on each entry — use it to weigh comments (Copilot tends to mix nitpicks and real bugs; GHAS items are CodeQL security alerts and rarely nitpicks).
 
 ## Step 3 — Verify against the code
 
-Do not trust Copilot's claims. For each non-nitpick comment, open the cited file at the referenced line(s) with the Read tool and confirm what the code actually does. Read enough surrounding context to judge — usually the whole function plus its callers. Where a comment depends on cross-file behavior (e.g. "this repo method commits, the endpoint also commits"), read both sides.
+Do not trust the bot's claims — this includes GHAS, which can flag false positives on intentional patterns. For each non-nitpick comment, open the cited file at the referenced line(s) with the Read tool and confirm what the code actually does. Read enough surrounding context to judge — usually the whole function plus its callers. Where a comment depends on cross-file behavior (e.g. "this repo method commits, the endpoint also commits"), read both sides.
 
 For each verified comment, assign one verdict:
 
@@ -40,7 +40,7 @@ Filter out nitpicks before verification to save effort: trivial naming, whitespa
 
 ## Step 4 — Cluster and form recommendations
 
-Cluster overlapping comments by **root cause**, not by file or by Copilot comment ID. One bullet per root cause, not one per comment. Common cluster patterns:
+Cluster overlapping comments by **root cause**, not by file or by bot comment ID. One bullet per root cause, not one per comment. Common cluster patterns:
 
 - Multiple comments on the same function describing different symptoms of one bug → one bullet, fix the function once.
 - Repeated filename/style remarks across sibling files → one bullet covering the rename set.
@@ -50,12 +50,12 @@ For each cluster, write a **verdict + fix recommendation**, not a paraphrase of 
 
 1. What's the underlying defect (one sentence, in your words).
 2. What's the concrete fix — function, approach, and any call-site updates.
-3. Anything Copilot got wrong about it (when verdict is partial), so the implementer doesn't blindly apply the suggested patch.
+3. Anything the bot got wrong about it (when verdict is partial), so the implementer doesn't blindly apply the suggested patch.
 
 **Anti-patterns to avoid:**
 
-- Restating Copilot's comment verbatim or near-verbatim.
-- Listing one bullet per Copilot comment when several share a root cause.
+- Restating the bot's comment verbatim or near-verbatim.
+- Listing one bullet per bot comment when several share a root cause.
 - Hedging ("consider doing X") when verification gave you a definite answer — say "do X" or "skip; reason."
 - Including any item you didn't verify against the code.
 
@@ -69,7 +69,7 @@ Append (do not overwrite) a new section to the same file using the Edit tool, im
 ## Action Items
 
 ### Critical: logic, security, correctness
-- [ ] **<file path>** — <one-sentence defect>. Fix: <concrete change, function/lines/approach>. <Optional: note on what Copilot got wrong.>
+- [ ] **<file path>** — <one-sentence defect>. Fix: <concrete change, function/lines/approach>. <Optional: note on what the bot got wrong.>
 
 ### Performance
 - [ ] **<file path>** — <defect>. Fix: <change>.
@@ -82,7 +82,7 @@ Omit any section that has no items rather than leaving an empty header. If every
 
 ## Step 6 — Report
 
-Tell the user the output path and a one-line summary of the triage (e.g., "3 critical, 1 perf, 0 refactor; 2 Copilot comments dropped as wrong/already-fixed"). Do not paste the checklist into chat — the file is the deliverable.
+Tell the user the output path and a one-line summary of the triage (e.g., "3 critical, 1 perf, 0 refactor; 2 bot comments dropped as wrong/already-fixed"). Do not paste the checklist into chat — the file is the deliverable.
 
 ## Re-runs
 
