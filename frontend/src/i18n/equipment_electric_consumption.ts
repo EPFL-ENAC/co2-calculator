@@ -163,6 +163,6 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Other}-table-title-info-tooltip`]:
     {
       en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: 'Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l"'"utilisation active et standby de chaque équipement.',
+      fr: 'Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l\'utilisation active et standby de chaque équipement.',
     },
 } as const;
