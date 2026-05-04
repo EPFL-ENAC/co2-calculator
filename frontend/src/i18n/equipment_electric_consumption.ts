@@ -7,7 +7,7 @@ export default {
   },
   [`${MODULES.EquipmentElectricConsumption}-title-tooltip-subtext`]: {
     en: 'The emissions from the equipment module contribute to Scope 2 of the laboratory’s carbon footprint.',
-    fr: 'Les émissions du module équipement contribue au Scope 2 de l"'"empreinte carbone du laboratoire.',
+    fr: 'Les émissions du module équipement contribue au Scope 2 de l\'empreinte carbone du laboratoire.',
   },
   [`${MODULES.EquipmentElectricConsumption}-common`]: {
     en: 'Common data and factors | Common data and factors',
