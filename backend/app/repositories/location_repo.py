@@ -26,11 +26,13 @@ class LocationRepository:
         limit: int = 20,
     ) -> List[Location]:
         """
-        Search locations by keywords, municipality, and name with relevance ordering.
+        Search locations by keywords, municipality, iata and name with
+        relevance ordering.
 
         Search is performed across:
         - keywords column
         - municipality column
+        - iata_code column
         - name column
 
         Search is accent-insensitive and case-insensitive using PostgreSQL ICU
@@ -117,10 +119,6 @@ class LocationRepository:
                     text(
                         f"LOWER({table_name}.iata_code COLLATE {collation}) "
                         "= :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.municipality COLLATE {collation}) "
-                        f"= :query_exact"
                     ).bindparams(query_exact_param),
                     text(
                         f"LOWER({table_name}.municipality COLLATE {collation}) "
