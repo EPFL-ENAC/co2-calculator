@@ -7,6 +7,8 @@ Tests cover:
 - Edge cases and combinations
 """
 
+import pytest
+
 from app.models.user import (
     GlobalScope,
     Role,
@@ -319,3 +321,369 @@ class TestHasPermissionAnyScope:
         assert (
             has_permission(perms, "modules.headcount", "view", any_scope=True) is False
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Role-composition tests
+#
+# Three layers, each catching a different class of regression:
+#   1. Domain isolation       — each role only emits keys in its own domain
+#                               (modules.* / backoffice.* / system.*)
+#   2. Composition matrix     — multi-role combinations produce the expected
+#                               key-set with no scope leaks
+#   3. Scope-leak invariants  — structural rules that must hold for ANY input
+#
+# Why this matters:
+#   PR #974 changed module-permission keys to ``modules.X/{institutional_id}``.
+#   The three role domains (user.*, backoffice.*, system.*) are independent
+#   "apps" and must not collide. Module perms are scoped per unit; backoffice
+#   and system perms are always un-scoped. These tests pin those rules.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Module sets each user-role grants. Kept as bare names so we can scope them
+# per-unit at test time via ``_modules(names, iid)``.
+_PRINCIPAL_MODULES = (
+    "headcount",
+    "equipment",
+    "professional_travel",
+    "buildings",
+    "purchase",
+    "research_facilities",
+    "external_cloud_and_ai",
+    "process_emissions",
+)
+_STD_MODULES = ("professional_travel", "external_cloud_and_ai")
+
+_BACKOFFICE_KEYS = frozenset(
+    {
+        "backoffice.reporting",
+        "backoffice.users",
+        "backoffice.data_management",
+        "backoffice.documentation",
+    }
+)
+_SYSTEM_KEYS = frozenset({"system.users"})
+
+_IID_A = "0184"
+_IID_B = "9999"
+
+
+def _modules(names, iid: str) -> set[str]:
+    """Build the scoped module-permission keys for a given unit."""
+    return {f"modules.{n}/{iid}" for n in names}
+
+
+def _r_principal(iid: str) -> Role:
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+
+
+def _r_std(iid: str) -> Role:
+    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+
+
+def _r_backoffice() -> Role:
+    return Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())
+
+
+def _r_superadmin() -> Role:
+    return Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
+
+
+class TestRoleDomainIsolation:
+    """Layer 1: each role only emits keys in its declared domain.
+
+    This is the structural firewall — if someone adds e.g. ``modules.X`` to
+    backoffice or ``system.Y`` to a user role, this test fires immediately.
+    """
+
+    @pytest.mark.parametrize(
+        "role, allowed_prefixes",
+        [
+            pytest.param(_r_std(_IID_A), ("modules.",), id="std"),
+            pytest.param(
+                _r_principal(_IID_A),
+                # TODO(pm-confirm): principal currently grants
+                # ``backoffice.users.edit`` (for unit-scoped role assignment).
+                # Verify with PM whether this exception is still desired; if
+                # removed, drop "backoffice.users" below and the matching line
+                # in calculate_user_permissions.
+                ("modules.", "backoffice.users"),
+                id="principal",
+            ),
+            pytest.param(_r_backoffice(), ("backoffice.",), id="backoffice"),
+            pytest.param(_r_superadmin(), ("backoffice.", "system."), id="superadmin"),
+        ],
+    )
+    def test_role_only_grants_keys_in_its_domain(self, role, allowed_prefixes):
+        perms = calculate_user_permissions([role])
+        for key in perms:
+            assert any(key.startswith(p) for p in allowed_prefixes), (
+                f"Role {role.role} produced out-of-domain key: {key!r} "
+                f"(allowed prefixes: {allowed_prefixes})"
+            )
+
+
+# ── Composition matrix ───────────────────────────────────────────────────────
+#
+# Each row asserts:
+#   - ``expected``  — keys that MUST be in the result
+#   - ``forbidden`` — keys that MUST NOT be in the result
+# Action sets are intentionally NOT checked here; Layer-1 + invariants below
+# already cover the structural concerns, and the simpler matrix stays readable.
+
+# Pre-built sets reused across rows
+_PRINCIPAL_KEYS_A = _modules(_PRINCIPAL_MODULES, _IID_A)
+_PRINCIPAL_KEYS_B = _modules(_PRINCIPAL_MODULES, _IID_B)
+_STD_KEYS_A = _modules(_STD_MODULES, _IID_A)
+_STD_KEYS_B = _modules(_STD_MODULES, _IID_B)
+
+
+_COMPOSITION_CASES = [
+    pytest.param(
+        [_r_principal(_IID_A)],
+        # TODO(pm-confirm): principal grants backoffice.users.edit
+        _PRINCIPAL_KEYS_A | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS | (_BACKOFFICE_KEYS - {"backoffice.users"}),
+        id="principal-A",
+    ),
+    pytest.param(
+        [_r_std(_IID_A)],
+        _STD_KEYS_A,
+        (_PRINCIPAL_KEYS_A - _STD_KEYS_A) | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        id="std-A",
+    ),
+    pytest.param(
+        [_r_backoffice()],
+        set(_BACKOFFICE_KEYS),
+        _PRINCIPAL_KEYS_A | _SYSTEM_KEYS,
+        id="backoffice",
+    ),
+    pytest.param(
+        [_r_superadmin()],
+        set(_BACKOFFICE_KEYS) | set(_SYSTEM_KEYS),
+        _PRINCIPAL_KEYS_A,
+        id="superadmin",
+    ),
+    pytest.param(
+        # std + principal on the same unit: principal subsumes std (idempotent).
+        [_r_std(_IID_A), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS,
+        id="std+principal-same-unit",
+    ),
+    pytest.param(
+        # Multi-unit: full perms on A, only travel+cloud on B. Critically,
+        # principal-only modules MUST NOT appear under /B.
+        [_r_principal(_IID_A), _r_std(_IID_B)],
+        _PRINCIPAL_KEYS_A | _STD_KEYS_B | {"backoffice.users"},
+        _PRINCIPAL_KEYS_B - _STD_KEYS_B,
+        id="principal-A+std-B",
+    ),
+    pytest.param(
+        # Two domains active: backoffice + principal — system.* must stay absent.
+        [_r_backoffice(), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS,
+        set(_SYSTEM_KEYS),
+        id="backoffice+principal",
+    ),
+    pytest.param(
+        # All three domains — full union, nothing forbidden.
+        [_r_superadmin(), _r_backoffice(), _r_principal(_IID_A)],
+        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        set(),
+        id="superadmin+backoffice+principal",
+    ),
+]
+
+
+class TestRoleCompositionKeys:
+    """Layer 2: role combinations produce the expected key-set."""
+
+    @pytest.mark.parametrize("roles, expected, forbidden", _COMPOSITION_CASES)
+    def test_composition(self, roles, expected, forbidden):
+        perms = calculate_user_permissions(roles)
+        keys = set(perms)
+
+        missing = expected - keys
+        assert not missing, f"missing expected keys: {sorted(missing)}"
+
+        leaked = forbidden & keys
+        assert not leaked, f"unexpected keys present: {sorted(leaked)}"
+
+
+# Representative role lists used by the invariant checks below
+_INVARIANT_ROLE_LISTS = [
+    [_r_std(_IID_A)],
+    [_r_principal(_IID_A)],
+    [_r_backoffice()],
+    [_r_superadmin()],
+    [_r_std(_IID_A), _r_principal(_IID_A)],
+    [_r_principal(_IID_A), _r_std(_IID_B)],
+    [_r_backoffice(), _r_principal(_IID_A)],
+    [_r_superadmin(), _r_backoffice(), _r_principal(_IID_A)],
+]
+
+
+class TestPermissionInvariants:
+    """Layer 3: structural rules that must hold for ANY role input."""
+
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_no_module_key_is_unscoped(self, roles):
+        """Every ``modules.*`` key must carry an ``/{institutional_id}`` suffix.
+        A bare ``modules.X`` key would mean the scope-blind regression that
+        PR #974 was designed to close."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if key.startswith("modules."):
+                assert "/" in key, (
+                    f"Un-scoped module key found: {key!r} (roles={roles})"
+                )
+
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_backoffice_and_system_keys_never_scoped(self, roles):
+        """``backoffice.*`` and ``system.*`` permissions are flat (un-scoped).
+        Adding a unit suffix to them would silently break un-scoped lookups."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if key.startswith(("backoffice.", "system.")):
+                assert "/" not in key, (
+                    f"Scoped non-module key found: {key!r} (roles={roles})"
+                )
+
+    def test_principal_subsumes_std_for_same_unit(self):
+        """``[std, principal]`` for the same unit yields the same key-set as
+        ``[principal]`` alone, and at least the same actions per key.
+        Encodes the rule: 'if a user has both, std is dominated.'"""
+        principal_only = calculate_user_permissions([_r_principal(_IID_A)])
+        combined = calculate_user_permissions([_r_std(_IID_A), _r_principal(_IID_A)])
+        assert set(combined) == set(principal_only)
+        for key, actions in principal_only.items():
+            assert set(combined[key]) >= set(actions), (
+                f"principal lost actions on {key} when merged with std: "
+                f"{set(actions) - set(combined[key])}"
+            )
+
+    def test_cross_unit_no_principal_leak(self):
+        """A user with ``principal/A`` and ``std/B`` must not get
+        principal-only modules on unit B."""
+        perms = calculate_user_permissions([_r_principal(_IID_A), _r_std(_IID_B)])
+        principal_only = set(_PRINCIPAL_MODULES) - set(_STD_MODULES)
+        for module in principal_only:
+            assert f"modules.{module}/{_IID_B}" not in perms, (
+                f"Cross-unit leak: {module} appeared under unit B"
+            )
+
+
+class TestBackofficeScopingCurrentBehavior:
+    """Pin current backoffice-permission scoping behaviour.
+
+    Backoffice metier permissions are ALWAYS stored un-scoped today, even when
+    the role itself carries a ``RoleScope`` (institutional_id or affiliation).
+    Issue #459 will introduce a sub-perimeter (per-affiliation) scoping for
+    backoffice managers (e.g. "Anna can only see SV"). When that lands, these
+    tests are expected to fail — that's the signal to update the contract.
+
+    NOTE: Affiliation-based roles are intentionally only meaningful for
+    backoffice; we do not test affiliation on ``user.*`` roles because the
+    role-assignment layer is responsible for never producing that shape.
+    """
+
+    def test_backoffice_with_iid_role_scope_keys_stay_unscoped(self):
+        # TODO(#459): backoffice scoping by sub-perimeter — replace this with
+        # a scoped assertion once the new key shape is decided.
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(institutional_id="0184"),
+            )
+        ]
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            assert key.startswith("backoffice."), (
+                f"unexpected non-backoffice key: {key!r}"
+            )
+            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+
+    def test_backoffice_with_affiliation_role_scope_keys_stay_unscoped(self):
+        # TODO(#459): this is exactly the case the new sub-perimeter scoping
+        # is meant to address — Anna with affiliation "SV" should only see
+        # data for SV. Update this test then.
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="SV"),
+            )
+        ]
+        perms = calculate_user_permissions(roles)
+        assert perms, "backoffice on affiliation should currently grant flat perms"
+        for key in perms:
+            assert key.startswith("backoffice."), (
+                f"unexpected non-backoffice key: {key!r}"
+            )
+            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+
+
+class TestHasPermissionAgainstRealPermissions:
+    """Bridge tests: feed ``has_permission`` the actual output of
+    ``calculate_user_permissions``. If the two sides ever disagree on the key
+    format (e.g. someone changes the ``/`` separator on one side), these fail.
+    """
+
+    def test_principal_scoped_lookup_matches(self):
+        perms = calculate_user_permissions([_r_principal(_IID_A)])
+        # Right unit → granted
+        for module in _PRINCIPAL_MODULES:
+            assert has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"principal/A should have view on modules.{module}"
+        # Wrong unit → denied
+        for module in _PRINCIPAL_MODULES:
+            assert not has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_B
+            ), f"principal/A must NOT have view on modules.{module}/{_IID_B}"
+        # Bare-path lookup → denied (no global module key was emitted)
+        assert not has_permission(perms, "modules.headcount", "view")
+
+    def test_std_scoped_lookup_only_matches_std_modules(self):
+        perms = calculate_user_permissions([_r_std(_IID_A)])
+        # Std grants only travel + cloud_and_ai
+        for module in _STD_MODULES:
+            assert has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"std/A should have view on modules.{module}"
+        # Modules std doesn't grant → denied
+        for module in set(_PRINCIPAL_MODULES) - set(_STD_MODULES):
+            assert not has_permission(
+                perms, f"modules.{module}", "view", institutional_id=_IID_A
+            ), f"std/A must NOT have view on modules.{module}"
+
+    def test_any_scope_taxonomy_lookup_matches_principal(self):
+        """Taxonomy endpoints use ``any_scope=True``. A principal on any unit
+        should pass the module-level taxonomy gate."""
+        perms = calculate_user_permissions([_r_principal(_IID_A)])
+        for module in _PRINCIPAL_MODULES:
+            assert has_permission(perms, f"modules.{module}", "view", any_scope=True), (
+                f"taxonomy gate failed for {module}"
+            )
+
+
+class TestMultiUnitSameRole:
+    """Same role across multiple units must compose without dominating either."""
+
+    def test_principal_on_two_units(self):
+        perms = calculate_user_permissions([_r_principal(_IID_A), _r_principal(_IID_B)])
+        keys = set(perms)
+        for module in _PRINCIPAL_MODULES:
+            assert f"modules.{module}/{_IID_A}" in keys
+            assert f"modules.{module}/{_IID_B}" in keys
+
+    def test_std_on_two_units(self):
+        perms = calculate_user_permissions([_r_std(_IID_A), _r_std(_IID_B)])
+        keys = set(perms)
+        for module in _STD_MODULES:
+            assert f"modules.{module}/{_IID_A}" in keys
+            assert f"modules.{module}/{_IID_B}" in keys
+        # Modules std doesn't grant must be absent on both units
+        for module in set(_PRINCIPAL_MODULES) - set(_STD_MODULES):
+            assert f"modules.{module}/{_IID_A}" not in keys
+            assert f"modules.{module}/{_IID_B}" not in keys
