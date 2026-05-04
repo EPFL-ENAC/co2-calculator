@@ -583,6 +583,13 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for row in rows:
+            # Pre-bind conditionally-unpacked variables so static type checkers
+            # see them as definitely-bound (T | None) on every branch path.
+            # MemberEntry is a SQLAlchemy alias of DataEntry, so the runtime
+            # type is DataEntry.
+            member_entry: DataEntry | None = None
+            _emission: DataEntryEmission | None = None
+            building_room: BuildingRoom | None = None
             # Unpack based on query shape
             if is_travel_entry:
                 data_entry, total_kg_co2eq, primary_factor, member_entry, _emission = (

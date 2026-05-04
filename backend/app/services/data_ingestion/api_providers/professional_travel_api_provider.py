@@ -430,7 +430,18 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 data=data_payload,
             )
             entries.append(entry)
-            kg_co2eq_overrides.append(float(kg_co2eq) if kg_co2eq is not None else None)
+            # Coerce the override value to float; log + skip on garbage values
+            # rather than crashing the whole batch (mirrors base_csv_provider).
+            override: float | None = None
+            if kg_co2eq is not None:
+                try:
+                    override = float(kg_co2eq)
+                except (ValueError, TypeError):
+                    logger.debug(
+                        f"Invalid kg_co2eq value {kg_co2eq!r} from API source, "
+                        f"ignoring override"
+                    )
+            kg_co2eq_overrides.append(override)
 
         if not entries:
             return {"inserted": 0}

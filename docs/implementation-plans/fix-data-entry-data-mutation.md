@@ -107,11 +107,10 @@ Extend `prepare_create`:
 async def prepare_create(
     self,
     data_entry: DataEntry | DataEntryResponse,
-    csv_kg_co2eq_override: float | None = None,
+    kg_co2eq_override: float | None = None,
 ) -> list[DataEntryEmission]:
     ...
-    csv_kg_co2eq = csv_kg_co2eq_override
-    if csv_kg_co2eq is not None:
+    if kg_co2eq_override is not None:
         # CSV/API ingestion path: build override emission record
 ```
 
@@ -119,7 +118,7 @@ Drop the `data_entry.data.get("kg_co2eq")` fallback at line 182 — the override
 
 ### Provider changes
 
-- **CSV provider** (`base_csv_provider.py`): in `_process_row`, extract `kg_co2eq` from `filtered_row` _before_ the `DataEntry(data=...)` build (line 952), keep it on a parallel structure (e.g. `data_entry._csv_kg_co2eq` transient attribute, or zip alongside batch). Strip the key from `data` so the persisted row is clean. In `_persist_batch` (line 1126 region), pass `csv_kg_co2eq_override=...` to `prepare_create`.
+- **CSV provider** (`base_csv_provider.py`): in `_process_row`, extract `kg_co2eq` from `filtered_row` _before_ the `DataEntry(data=...)` build (line 952), keep it on a parallel structure (e.g. `data_entry._kg_co2eq_override` transient attribute, or zip alongside batch). Strip the key from `data` so the persisted row is clean. In `_persist_batch` (line 1126 region), pass `kg_co2eq_override=...` to `prepare_create`.
 
   Easiest carrier: add a private `_csv_overrides_by_idx: dict[int, float]` on the provider instance keyed by the index in the batch list, and look it up after `bulk_create` returns the response objects in batch order.
 
@@ -197,22 +196,22 @@ Fixture location: `backend/tests/fixtures/csv/regression_kg_co2eq/<year>/<module
 
 Mirror the CSV test for the professional-travel API provider — feed it a synthetic API response with `OUT_CO2_CORRECTED`, assert the persisted `DataEntry.data` has no `kg_co2eq` key and `DataEntryEmission.kg_co2eq` matches the API value.
 
-### Unit test — `prepare_create(csv_kg_co2eq_override=...)`
+### Unit test — `prepare_create(kg_co2eq_override=...)`
 
 Direct unit test on `DataEntryEmissionService.prepare_create`:
 
-- Given a `DataEntry` whose `data` does NOT contain `kg_co2eq`, calling with `csv_kg_co2eq_override=42.0` returns an emission with `kg_co2eq=42.0`.
+- Given a `DataEntry` whose `data` does NOT contain `kg_co2eq`, calling with `kg_co2eq_override=42.0` returns an emission with `kg_co2eq=42.0`.
 - Without the override, the formula path runs.
 
 ## 7. Risks
 
-- **`csv_kg_co2eq` override semantics**: the existing override path skipped factor-based formula computation entirely. After the refactor, that semantic must hold — the new `csv_kg_co2eq_override` param must produce the same single-emission row with `primary_factor_id=None`.
+- **`kg_co2eq_override` override semantics**: the existing override path skipped factor-based formula computation entirely. After the refactor, that semantic must hold — the new `kg_co2eq_override` param must produce the same single-emission row with `primary_factor_id=None`.
 - **`EnergyCombustion` shape fix**: ensure response_dto fields still resolve. The latent bug means consumers were getting `{}` for `factor_values`; verify the response_dto doesn't depend on a `values`-keyed sub-dict.
 - **API provider parity**: ensure the same override path works in the API provider's call to `bulk_create` + `prepare_create` (verify it uses the same emission_service surface).
 
 ## 8. Implementation order (single PR)
 
-1. Add `csv_kg_co2eq_override` param to `prepare_create`; remove `data.get("kg_co2eq")` fallback. Update unit tests.
+1. Add `kg_co2eq_override` param to `prepare_create`; remove `data.get("kg_co2eq")` fallback. Update unit tests.
 2. Update CSV provider to strip `kg_co2eq` from `data` and pass override transiently.
 3. Update API provider similarly.
 4. Remove workaround strip in `upsert_by_data_entry`.
