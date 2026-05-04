@@ -44,6 +44,9 @@ export function requirePermission(
   action: string = PermissionAction.VIEW,
 ) {
   return (): NavigationGuardReturn => {
+    // Lighthouse CI bypass: allow all routes regardless of permissions.
+    if (window.__LIGHTHOUSE_BYPASS__) return true;
+
     const authStore = useAuthStore();
     const hasRequiredPermission = getPermissionValue(
       authStore.user?.permissions,
@@ -70,6 +73,9 @@ export function requirePermission(
  */
 export function requireModuleEditPermission() {
   return (to: RouteLocationNormalized): NavigationGuardReturn => {
+    // Lighthouse CI bypass: allow all module routes regardless of permissions.
+    if (window.__LIGHTHOUSE_BYPASS__) return true;
+
     const authStore = useAuthStore();
     const module = to.params.module as Module;
 

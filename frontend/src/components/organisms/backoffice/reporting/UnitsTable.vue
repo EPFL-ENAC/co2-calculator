@@ -15,8 +15,8 @@ interface UnitReportingData {
   validation_status: string; // e.g. "3/7"
   principal_user: string; // Source: ACCRED
   last_update: string; // Date of last validation
-  highest_result_category: string; // Module name with max tCO2-eq
-  total_carbon_footprint: number; // (tCO2-eq)
+  highest_result_category: string; // Module name with max tCO₂-eq
+  total_carbon_footprint: number; // (tCO₂-eq)
 }
 
 const props = defineProps<{

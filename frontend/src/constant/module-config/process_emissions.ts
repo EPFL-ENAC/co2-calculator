@@ -65,6 +65,7 @@ export const processEmissions: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   description:
     'Estimate greenhouse gas emissions from chemical/physical reactions',
   hasSubmodules: true,

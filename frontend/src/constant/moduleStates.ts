@@ -30,7 +30,7 @@ export const MODULE_TYPE_IDS = {
   [MODULES.Commuting]: 9,
   [MODULES.Food]: 10,
   [MODULES.Waste]: 11,
-  [MODULES.GreyEnergy]: 12,
+  [MODULES.EmbodiedEnergy]: 12,
 } as const;
 
 export type ModuleTypeId =

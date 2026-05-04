@@ -53,6 +53,11 @@ app.kubernetes.io/component: {{ .component }}
 {{- printf "%s:%s" .Values.frontend.image.repository $tag -}}
 {{- end -}}
 
+{{- define "co2-calculator.docs.image" -}}
+{{- $tag := .Values.docs.image.tag | default .Chart.AppVersion -}}
+{{- printf "%s:%s" .Values.docs.image.repository $tag -}}
+{{- end -}}
+
 {{- define "co2-calculator.backendSecretName" -}}
 {{- if and .Values.backend.existingSecret.enabled .Values.backend.existingSecret.name -}}
 {{- .Values.backend.existingSecret.name -}}

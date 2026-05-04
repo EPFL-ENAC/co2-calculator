@@ -23,8 +23,6 @@ from app.core.policy import query_policy
 from app.core.role_priority import pick_role_for_institutional_id
 from app.models.unit import Unit
 from app.models.user import Role, RoleScope, User, UserProvider
-from app.providers.role_provider import get_role_provider
-from app.providers.unit_provider import get_unit_provider
 from app.repositories.user_repo import UpsertUserResult, UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
@@ -41,17 +39,21 @@ class UserService:
         self.unit_user_service = UnitUserService(session)
         self.unit_service = UnitService(session)
 
-    def get_user_unit_ids(self, roles: Optional[List[Role]]) -> list[str]:
-        """Get list of unit IDs associated with a user (from RoleScope.unit for now)."""
+    def get_uniq_unit_institutional_id_from_roles(
+        self, roles: Optional[List[Role]]
+    ) -> list[str]:
+        """Get list of unit IDs associated with a user (from RoleScope.unit for now).
+        here unit ids should be unit institutional ids. a.k.a CF
+        """
         if not roles:
             return []
 
-        unit_ids: set[str] = set()
+        unit_institutional_ids: set[str] = set()
         for role in roles:
             if isinstance(role.on, RoleScope) and role.on.institutional_id:
-                unit_ids.add(role.on.institutional_id)
+                unit_institutional_ids.add(role.on.institutional_id)
 
-        return list(unit_ids)
+        return list(unit_institutional_ids)
 
     async def _upsert_user_identity(
         self,
@@ -120,114 +122,59 @@ class UserService:
         await self.session.flush()
         return user
 
-    async def unit_sync_from_provider(
-        self,
-        provider: UserProvider,
-        provider_unit_codes: list[str],
-        skip_principal_user_for_institutional_id: Optional[str] = None,
-    ) -> list[int]:
-        """
-        Sync units and their principals from provider.
-
-        Args:
-            provider: The user provider type (e.g., UserProvider.ACCRED)
-            provider_unit_codes: List of unit codes to sync
-            skip_principal_user_for_institutional_id: Optional - skip upserting
-                                                 the principal user
-                                                 if it matches this
-                                                 institutional_id.
-                                                 Used to avoid upserting the
-                                                 current user.
-        """
-        # Fetch full unit details from provider
-        unit_provider = get_unit_provider(provider_type=provider)
-        units = await unit_provider.get_units(unit_ids=provider_unit_codes)
-        # Upsert units with full metadata
-        # TODO: simplify the code, by assuming that provider returns all needed info
-        # unit_provider.fetch_all_units() all principal info!
-        # and upserting in one step without fetching principal users separately.
-        role_provider = get_role_provider(provider_type=provider)
-        unit_ids = []
-        for unit in units:
-            if not unit.principal_user_institutional_id:
-                raise ValueError(
-                    f"Unit {unit.id} missing principal_user_institutional_id"
-                )
-
-            # Upsert principal user if needed
-            principal_user = await role_provider.get_user_by_user_id(
-                unit.principal_user_institutional_id
-            )
-
-            # Skip upserting if it's the same as
-            # skip_principal_user_for_institutional_id
-            if (
-                principal_user
-                and unit.principal_user_institutional_id
-                != skip_principal_user_for_institutional_id
-            ):
-                await self.upsert_user(
-                    email=principal_user.get("email", ""),
-                    institutional_id=principal_user.get("institutional_id", ""),
-                    display_name=principal_user.get("display_name", None),
-                    id=None,
-                    roles=principal_user.get("roles", []),
-                    stop_recursion=True,
-                    provider=principal_user.get("provider", None),
-                    function=principal_user.get("function", None),
-                )
-
-            created_unit: Unit = await self.unit_service.upsert(
-                unit_data=unit,
-            )
-            if created_unit is None or created_unit.id is None:
-                raise ValueError(f"Failed to upsert unit {unit.id}")
-            unit_ids.append(created_unit.id)
-
-        # Flush all unit operations together
-        await self.session.flush()
-
-        return unit_ids
-
     async def unit_membership_sync_user(
         self,
         user: User,
         roles: List[Role],
-        unit_ids: List[int],
-        unit_codes: List[str],
+        units: List[Unit],
     ) -> None:
-        # step 5. Create/update UnitUser associations
-        if len(unit_codes) != len(unit_ids):
-            raise ValueError(
-                "Unit codes and IDs length mismatch during membership sync"
-            )
-        for unit_id, unit_code in zip(unit_ids, unit_codes):
-            chosen_role = pick_role_for_institutional_id(roles, unit_code)
+        """Sync UnitUser associations for a user based on their current roles.
+
+        Strategy: delete all existing associations, then recreate from current roles.
+        This handles role changes, unit remapping, and removed associations cleanly.
+        """
+        if user is None or user.id is None:
+            raise ValueError("User must have a valid ID for unit membership sync")
+
+        # 1. Delete all existing associations for this user
+        await self.unit_user_service.delete_all_for_user(user.id)
+
+        # 2. Recreate associations from current roles
+        created_count = 0
+        for unit in units:
+            if unit.institutional_id is None:
+                raise ValueError(
+                    "unit.institutional_id should exist before picking a role"
+                )
+            chosen_role = pick_role_for_institutional_id(roles, unit.institutional_id)
             if not chosen_role:
                 logger.warning(
                     "No valid role found for user-unit association",
                     extra={
                         "user_id": sanitize(user.id),
-                        "unit_id": sanitize(unit_id),
+                        "unit_id": sanitize(unit.id),
+                        "unit_institutional_id": sanitize(unit.institutional_id),
                     },
                 )
                 continue
-            if user is None or user.id is None:
-                raise ValueError("User must have a valid ID for unit membership sync")
+            if unit.id is None:
+                raise ValueError(
+                    "unit.id should exist before trying to create N-N relationship"
+                )
             await self.unit_user_service.upsert(
-                unit_id=unit_id,
+                unit_id=unit.id,
                 user_id=user.id,
                 role=chosen_role,
             )
+            created_count += 1
 
-        # Flush all unit_user operations together
         await self.session.flush()
 
         logger.info(
-            "User upserted with units",
+            "User unit memberships synced",
             extra={
                 "user_id": sanitize(user.id),
-                "unit_count": len(unit_ids),
+                "unit_count": created_count,
                 "provider": user.provider,
             },
         )
@@ -258,39 +205,51 @@ class UserService:
         if stop_recursion:
             return user
 
-        provider_unit_codes = self.get_user_unit_ids(roles)
-        if not provider_unit_codes:
+        unit_institutional_ids: list[str] = (
+            self.get_uniq_unit_institutional_id_from_roles(roles)
+        )
+        if not unit_institutional_ids:
+            # No unit-scoped roles — clean up any existing associations
+            if user.id is not None:
+                await self.unit_user_service.delete_all_for_user(user.id)
             return user
 
         if user.provider is None:
             raise ValueError("User provider is required for unit synchronization")
 
-        # Pulls units from the provider,
-        # upserts missing principal users,
-        # then upserts units.”
-        unit_ids = await self.unit_sync_from_provider(
-            provider=user.provider,
-            provider_unit_codes=provider_unit_codes,
-            skip_principal_user_for_institutional_id=user.institutional_id,
-        )
-
+        # we used to sync units on user upsert, but not anymore
         if roles is None:
             roles = []
-        # Upserts UnitUser relationships by resolving
-        # the user's role per unit
-        # (should be .id to .id mapping, not .institutional_id)
+
+        # 1. Resolve unit.ids from the database based on unit_institutional_ids
+        units = await self.unit_service.get_by_institutional_ids(unit_institutional_ids)
+
+        if not units:
+            logger.warning(
+                "No units found in DB for the given institutional IDs",
+                extra={
+                    "user_id": sanitize(user.id),
+                    "unit_institutional_ids": sanitize(unit_institutional_ids),
+                },
+            )
+            if user.id is None:
+                raise ValueError("User ID is required for unit synchronization")
+            # Still delete stale associations even if no units matched
+            await self.unit_user_service.delete_all_for_user(user.id)
+            return user
+
+        # 2 & 3. Delete old associations and recreate from current roles
         await self.unit_membership_sync_user(
             user=user,
             roles=roles,
-            unit_ids=unit_ids,
-            unit_codes=provider_unit_codes,
+            units=units,
         )
 
         logger.info(
             "User upserted with units",
             extra={
                 "id": user.id,
-                "unit_count": len(provider_unit_codes),
+                "unit_count": len(unit_institutional_ids),
                 "provider": user.provider,
             },
         )

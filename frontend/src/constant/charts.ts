@@ -111,6 +111,23 @@ const colorDefinitions = {
       lighter: '#EDF3FA',
     },
   },
+  // 5.5 — midpoints between periwinkle steps, giving 9 shades total for waste
+  cobalt: {
+    default: {
+      darker: '#B0B7DE',
+      dark: '#C5CAE9',
+      default: '#D4D9EC',
+      light: '#DEE3EF',
+      lighter: '#EBEFF9',
+    },
+    colorblind: {
+      darker: '#5A89C2',
+      dark: '#7AA4D6',
+      default: '#9DC1E7',
+      light: '#C2DBF2',
+      lighter: '#E4F1FB',
+    },
+  },
   // 6
   periwinkle: {
     default: {
@@ -275,6 +292,7 @@ export const colors = computed(() => {
     lavender: colorDefinitions.lavender[mode],
     mauve: colorDefinitions.mauve[mode],
     lilac: colorDefinitions.lilac[mode],
+    cobalt: colorDefinitions.cobalt[mode],
     periwinkle: colorDefinitions.periwinkle[mode],
     skyBlue: colorDefinitions.skyBlue[mode],
     babyBlue: colorDefinitions.babyBlue[mode],
@@ -293,14 +311,14 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
   buildings_energy_combustion: colors.value.lilac.light,
   buildings_room: colors.value.lilac.darker,
   equipment: colors.value.mauve.darker,
-  external_cloud_and_ai: colors.value.paleYellowGreen.darker,
+  external_cloud_and_ai: colors.value.lavender.dark,
   purchases: colors.value.lavender.darker,
-  research_facilities: colors.value.peach.darker,
+  research_facilities: colors.value.paleYellowGreen.darker,
   professional_travel: colors.value.babyBlue.darker,
   commuting: colors.value.aqua.darker,
   food: colors.value.mint.darker,
   waste: colors.value.periwinkle.darker,
-  grey_energy: colors.value.skyBlue.dark,
+  embodied_energy: colors.value.skyBlue.dark,
 }));
 
 // Maps chart category name -> full color scale (shared across charts)
@@ -309,14 +327,14 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   buildings_energy_combustion: colors.value.lilac,
   buildings_room: colors.value.lilac,
   equipment: colors.value.lilac,
-  external_cloud_and_ai: colors.value.paleYellowGreen,
+  external_cloud_and_ai: colors.value.lavender,
   purchases: colors.value.lightGreen,
-  research_facilities: colors.value.peach,
+  research_facilities: colors.value.paleYellowGreen,
   professional_travel: colors.value.babyBlue,
   commuting: colors.value.aqua,
   food: colors.value.mint,
   waste: colors.value.periwinkle,
-  grey_energy: colors.value.skyBlue,
+  embodied_energy: colors.value.skyBlue,
 }));
 
 // Maps category -> subcategory key -> exact shade, shared across charts.
@@ -361,15 +379,19 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       train: colors.value.babyBlue.dark,
     },
     external_cloud_and_ai: {
-      clouds: colors.value.paleYellowGreen.darker,
-      ai: colors.value.paleYellowGreen.dark,
-      stockage: colors.value.paleYellowGreen.default,
-      virtualisation: colors.value.paleYellowGreen.light,
-      calcul: colors.value.paleYellowGreen.lighter,
+      clouds: colors.value.lavender.darker,
+      ai: colors.value.lavender.dark,
+      stockage: colors.value.lavender.default,
+      virtualisation: colors.value.lavender.light,
+      calcul: colors.value.lavender.lighter,
       // Backend flattens AI providers under the parent key `provider`
       // (from emission type `external__ai__provider_*`).
-      provider: colors.value.paleYellowGreen.light,
-      ai_provider: colors.value.paleYellowGreen.light,
+      provider: colors.value.lavender.light,
+      ai_provider: colors.value.lavender.light,
+    },
+    research_facilities: {
+      facilities: colors.value.paleYellowGreen.darker,
+      animal: colors.value.paleYellowGreen.dark,
     },
     purchases: {
       scientific_equipment: colors.value.lightGreen.darker,
@@ -381,6 +403,52 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       other: colors.value.lightGreen.dark,
       additional: colors.value.lightGreen.light,
       ln2: colors.value.lightGreen.darker,
+    },
+    commuting: {
+      walking: colors.value.aqua.darker,
+      cycling: colors.value.aqua.dark,
+      powered_two_wheeler: colors.value.aqua.default,
+      public_transport: colors.value.aqua.light,
+      car: colors.value.aqua.lighter,
+    },
+    food: {
+      vegetarian: colors.value.mint.darker,
+      non_vegetarian: colors.value.mint.dark,
+    },
+    embodied_energy: {
+      embodied_energy: colors.value.skyBlue.dark,
+      'new-env': colors.value.skyBlue.darker,
+      'new-tech': colors.value.skyBlue.dark,
+      'ren-env': colors.value.skyBlue.default,
+      'ren-tech': colors.value.skyBlue.light,
+      demolition: colors.value.skyBlue.lighter,
+    },
+    waste: {
+      incineration: colors.value.periwinkle.darker,
+      composting: colors.value.periwinkle.dark,
+      biogas: colors.value.periwinkle.default,
+      recycling: colors.value.periwinkle.light,
+      cardboard: colors.value.skyBlue.dark,
+      plastics: colors.value.skyBlue.default,
+      ferrous_metals: colors.value.babyBlue.darker,
+      non_ferrous_metals: colors.value.babyBlue.dark,
+      pet: colors.value.babyBlue.lighter,
+      aluminum: colors.value.aqua.darker,
+      textile: colors.value.aqua.dark,
+      toner_and_ink_cartridges: colors.value.aqua.default,
+      inert_waste: colors.value.aqua.light,
+      organic_waste_food_leftovers: colors.value.mint.darker,
+      cooking_vegetable_oil: colors.value.mint.dark,
+      // Display category keys — 9 shades: periwinkle steps interleaved with cobalt midpoints
+      domestic: colors.value.periwinkle.darker, // #A5ADD8 — step 1
+      organic: colors.value.cobalt.darker, // #B0B7DE — step 2
+      paper: colors.value.periwinkle.dark, // #BAC0E4 — step 3
+      plastic: colors.value.cobalt.dark, // #C5CAE9 — step 4
+      glass: colors.value.periwinkle.default, // #CFD4EE — step 5
+      metals: colors.value.cobalt.default, // #D4D9EC — step 6
+      electronics: colors.value.periwinkle.light, // #D9DEE9 — step 7
+      wood: colors.value.cobalt.light, // #DEE3EF — step 8
+      other: colors.value.periwinkle.lighter, // #E3E8F4 — step 9
     },
   }),
 );
@@ -398,13 +466,14 @@ export function getChartSubcategoryColor(
 // Maps Module enum value → category names present in module_breakdown
 export const MODULE_TO_CATEGORIES = computed(
   (): Record<string, string[]> => ({
+    [MODULES.Headcount]: ['headcount'],
     [MODULES.ProcessEmissions]: ['process_emissions'],
     [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
     [MODULES.EquipmentElectricConsumption]: ['equipment'],
-    [MODULES.Purchase]: ['purchases'],
-    [MODULES.ResearchFacilities]: ['research_facilities'],
     [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
+    [MODULES.Purchase]: ['purchases'],
     [MODULES.ProfessionalTravel]: ['professional_travel'],
+    [MODULES.ResearchFacilities]: ['research_facilities'],
   }),
 );
 

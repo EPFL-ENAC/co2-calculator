@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { SYSTEM_NAV } from 'src/constant/navigation';
+
+import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import AuditStatCards from 'src/components/audit/AuditStatCards.vue';
 import AuditFilterBar from 'src/components/audit/AuditFilterBar.vue';
@@ -173,7 +174,7 @@ const environments: EnvironmentConfig[] = [
 
 <template>
   <q-page>
-    <navigation-header :item="SYSTEM_NAV.SYSTEM_LOGS" />
+    <navigation-header :item="BACKOFFICE_NAV.BACKOFFICE_LOGS" />
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="q-gutter-md">

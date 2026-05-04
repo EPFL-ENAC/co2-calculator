@@ -5,11 +5,12 @@ Manages factor lifecycle with full audit trail.
 
 from typing import Any, Dict, List, Optional
 
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.repositories.factor_repo import FactorRepository
 
@@ -59,16 +60,16 @@ class FactorService:
             year=year,
         )
 
-    async def get_factor(
+    async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[Dict[str, Any]] = None,
         year: Optional[int] = None,
         **classification: Any,
-    ) -> Optional[Factor]:
+    ) -> List[Factor]:
         """Flexible factor lookup with dynamic classification filters and fallbacks.
 
-        Forwards to ``FactorRepository.get_factor``.
+        Forwards to ``FactorRepository.get_factors``.
 
         Args:
             data_entry_type: Scopes the query to this data entry type.
@@ -79,9 +80,9 @@ class FactorService:
                               (e.g. ``kind="plane"``, ``category="short_haul"``).
 
         Returns:
-            Matching factor or ``None``.
+            List of matching factors.
         """
-        return await self.repo.get_factor(
+        return await self.repo.get_factors(
             data_entry_type=data_entry_type,
             fallbacks=fallbacks,
             year=year,
@@ -250,5 +251,25 @@ class FactorService:
         await self.repo.bulk_delete(factor_ids)
 
     async def find_modules_for_recalculation(self, factor_id: int) -> List[int]:
-        """Find module IDs that need recalculation when factor changes."""
-        raise NotImplementedError
+        """Find CarbonReportModule IDs that used the given factor.
+
+        Queries DataEntryEmission rows where primary_factor_id matches, then
+        returns the distinct carbon_report_module_ids of the linked DataEntries.
+
+        Args:
+            factor_id: The ID of the factor that changed.
+
+        Returns:
+            List of distinct carbon_report_module_id values that reference this factor.
+        """
+        stmt = (
+            select(col(DataEntry.carbon_report_module_id))
+            .join(
+                DataEntryEmission,
+                col(DataEntry.id) == col(DataEntryEmission.data_entry_id),
+            )
+            .where(col(DataEntryEmission.primary_factor_id) == factor_id)
+            .distinct()
+        )
+        result = await self.session.exec(stmt)
+        return [row for row in result.all() if row is not None]

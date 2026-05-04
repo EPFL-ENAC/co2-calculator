@@ -227,29 +227,44 @@ def root():
     }
 
 
-@app.get("/health", response_class=JSONResponse)
-async def health():
-    """Health check endpoint."""
+@app.get("/healthz")
+async def healthz():
+    """Lightweight liveness check endpoint.
+
+    Returns 200 OK if the process is alive.
+    No external calls, no database access, no logging on success.
+    Used by Kubernetes livenessProbe.
+    """
+    return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
+
+
+@app.get("/ready", response_class=JSONResponse)
+async def ready():
+    """Readiness check endpoint.
+
+    Performs database connectivity check and external provider health check.
+    Returns 200 if ready, 503 if not ready.
+    Logs only on failure to reduce log noise.
+    Used by Kubernetes readinessProbe.
+    """
     details = {}
 
     # Database check
+    db_status = "ok"
     try:
-        from app.db import get_db_session  # Adjust import as needed
+        from app.db import get_db_session
 
-        session = await get_db_session()
-        async with session:
+        async with await get_db_session() as session:
             from sqlmodel import text
 
             await session.execute(text("SELECT 1"))
-        db_status = "ok"
     except Exception as e:
         db_status = "error"
         details["db_error"] = str(e)
 
     # Role provider health check
-    if (settings.PROVIDER_PLUGIN != "accred") or (not settings.ACCRED_API_HEALTH_URL):
-        role_provider_status = "skipped"
-    else:
+    role_provider_status = "skipped"
+    if (settings.PROVIDER_PLUGIN == "accred") and settings.ACCRED_API_HEALTH_URL:
         try:
             import httpx
 
@@ -269,16 +284,18 @@ async def health():
     healthy = db_status == "ok"
     status_code = status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE
 
-    log = logger.info if healthy else logger.warning
-    log(
-        "Health check",
-        extra={
-            "healthy": healthy,
-            "database_status": db_status,
-            "role_provider": role_provider_status,
-            "details": details,
-        },
-    )
+    # Log only on failure to reduce log noise
+    if not healthy:
+        logger.warning(
+            "Health check failed",
+            extra={
+                "healthy": healthy,
+                "database_status": db_status,
+                "role_provider": role_provider_status,
+                "details": details,
+            },
+        )
+
     return JSONResponse(
         status_code=status_code,
         content={

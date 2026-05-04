@@ -53,7 +53,7 @@ ENV PATH="/app/.venv/bin:$PATH" \
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT}/health || exit 1
+  CMD wget -qO- http://127.0.0.1:${PORT}/ready || exit 1
 
 # Use environment variables in CMD
 CMD ["sh", "-c", "exec opentelemetry-instrument uvicorn app.main:app --host $HOST --port $PORT --workers $WORKERS"]

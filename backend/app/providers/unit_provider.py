@@ -14,12 +14,12 @@ from app.providers.test_fixtures import TEST_UNITS
 """
 Unit provider interface and implementations.
 
-Flow: 
+Flow:
 Fetch roles from role_provider
 Extract unit IDs from roles
- - For each unit ID, fetch full unit details from unit_provider
- - Upsert units with complete metadata (name, principal, path_name (affiliations)
-  , visibility)
+  - For each unit ID, fetch full unit details from unit_provider
+  - Upsert units with complete metadata (name, principal, path_name (affiliations)
+    , visibility)
 Create/update unit_users associations with role info
 
 """
@@ -118,7 +118,7 @@ class AccredUnitProvider(UnitProvider):
         all_principal_users: list[dict] = []
         seen_users: set[tuple[str, str]] = set()
 
-        page = 1
+        page = 0
         page_size = 100
         total = None  # we don't know it yet
 
@@ -200,7 +200,9 @@ class AccredUnitProvider(UnitProvider):
             label_fr=unit_raw.get("labelfr") or None,
             label_en=unit_raw.get("labelen") or None,
             level=unit_raw["level"],
-            parent_institutional_code=unit_raw.get("parentid"),
+            parent_institutional_code=str(unit_raw["parentid"])
+            if unit_raw.get("parentid") is not None
+            else None,
             parent_institutional_id=get_parent_institutional_id(
                 unit_raw["level"], unit_raw
             ),

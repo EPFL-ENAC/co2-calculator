@@ -15,10 +15,11 @@ This module is the backend contract for chart-related category semantics:
 
 # Define Scope enum locally (if needed for legacy)
 from enum import IntEnum, StrEnum
-from typing import Any, NotRequired, TypedDict
+from typing import Any, NotRequired, Sequence, TypedDict
 
 from app.models.data_entry_emission import EmissionType
 from app.models.module_type import ModuleTypeEnum
+from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 
 class Scope(IntEnum):
@@ -56,6 +57,8 @@ class EmissionBreakdownValue(TypedDict):
     key: str
     value: float
     parent_key: NotRequired[str]
+    quantity: NotRequired[float]
+    quantity_unit: NotRequired[str]
 
 
 class EmissionBreakdownCategoryRow(TypedDict):
@@ -70,11 +73,115 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
         "scope": Scope.scope3,
         "category": EmissionCategory.food,
     },
+    EmissionType.food__vegetarian: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.food,
+    },
+    EmissionType.food__non_vegetarian: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.food,
+    },
     EmissionType.waste: {
         "scope": Scope.scope3,
         "category": EmissionCategory.waste,
     },
+    EmissionType.waste__incineration: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__composting: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas__organic_waste_food_leftovers: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__biogas__cooking_vegetable_oil: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__paper: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__cardboard: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__plastics: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__glass: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__ferrous_metals: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__non_ferrous_metals: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__electronics: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__wood: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__pet: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__aluminum: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__textile: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__toner_and_ink_cartridges: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
+    EmissionType.waste__recycling__inert_waste: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.waste,
+    },
     EmissionType.commuting: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__walking: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__cycling: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__powered_two_wheeler: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__public_transport: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.commuting,
+    },
+    EmissionType.commuting__car: {
         "scope": Scope.scope3,
         "category": EmissionCategory.commuting,
     },
@@ -396,8 +503,21 @@ EMISSION_SCOPE: dict[EmissionType, EmissionMeta] = {
 
 # Headcount categories are those whose emission types sit at level 0 in
 # EMISSION_SCOPE (food, waste, commuting — no "__" sub-path).
-_ADDITIONAL_CATEGORIES: frozenset[EmissionCategory] = frozenset(
-    meta["category"] for etype, meta in EMISSION_SCOPE.items() if etype.level == 0
+_HEADCOUNT_ADDITIONAL: frozenset[EmissionCategory] = frozenset(
+    [
+        EmissionCategory.commuting,
+        EmissionCategory.food,
+        EmissionCategory.waste,
+    ]
+)
+# Buildings-derived additional categories (validated independently of headcount).
+_BUILDINGS_ADDITIONAL: frozenset[EmissionCategory] = frozenset(
+    [
+        EmissionCategory.embodied_energy,
+    ]
+)
+_ADDITIONAL_CATEGORIES: frozenset[EmissionCategory] = (
+    _HEADCOUNT_ADDITIONAL | _BUILDINGS_ADDITIONAL
 )
 
 # Order follows the EmissionCategory enum declaration.
@@ -448,6 +568,8 @@ def _resolve_emission_type(emission_type_id: int) -> EmissionType | None:
 def _build_emission_value(
     emission_type: EmissionType,
     kg_co2eq: float,
+    quantity: float | None = None,
+    quantity_unit: str | None = None,
 ) -> EmissionBreakdownValue:
     value: EmissionBreakdownValue = {
         "emission_type": emission_type.name,
@@ -456,12 +578,17 @@ def _build_emission_value(
     }
     if emission_type.level >= 2 and emission_type.parent is not None:
         value["parent_key"] = emission_type.parent.name.split("__")[-1]
+    if quantity is not None:
+        value["quantity"] = quantity
+    if quantity_unit is not None:
+        value["quantity_unit"] = quantity_unit
     return value
 
 
 def _build_category_row(
     category: EmissionCategory,
     values_kg: dict[EmissionType, float],
+    quantities: dict[EmissionType, tuple[float | None, str | None]] | None = None,
 ) -> dict[str, Any]:
     flat: dict[str, Any] = {
         "category": category.value,
@@ -472,7 +599,8 @@ def _build_category_row(
     for emission_type, kg_co2eq in sorted(values_kg.items(), key=lambda i: i[0].value):
         if kg_co2eq <= 0:
             continue
-        emission = _build_emission_value(emission_type, kg_co2eq)
+        qty, qty_unit = (quantities or {}).get(emission_type, (None, None))
+        emission = _build_emission_value(emission_type, kg_co2eq, qty, qty_unit)
         emissions.append(emission)
         key = emission["key"]
         value = emission["value"]
@@ -486,21 +614,27 @@ def _build_category_row(
 
 
 def build_chart_breakdown(
-    rows: list[tuple[int, int, float]],
+    rows: Sequence[tuple[int, int, float] | tuple[int, int, float, float | None]],
     total_fte: float = 0.0,
     headcount_validated: bool = False,
+    buildings_validated: bool = False,
     validated_module_type_ids: set[int] | None = None,
+    exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
 ) -> dict:
     """Build chart payload sections from raw aggregated emission rows.
 
     Args:
         rows: Aggregated tuples of
-            ``(module_type_id, emission_type_id, kg_co2eq)``.
+            ``(module_type_id, emission_type_id, kg_co2eq)`` or
+            ``(module_type_id, emission_type_id, kg_co2eq, sum_quantity)``.
         total_fte: Total headcount FTE used for per-person normalization and
             headcount-derived additional categories.
         headcount_validated: Whether headcount module is validated for the
             report. When ``True`` and ``total_fte > 0``, additional categories
-            are synthesized from ``HEADCOUNT_PER_FTE_KG``.
+            are synthesized from real DB rows (or ``HEADCOUNT_PER_FTE_KG`` as
+            fallback when no sub-type rows are present).
+        buildings_validated: Whether buildings module is validated. Controls
+            validation status for embodied_energy additional category.
         validated_module_type_ids: Set of validated module type IDs used to
             determine ``validated_categories``.
 
@@ -510,8 +644,10 @@ def build_chart_breakdown(
         - ``module_breakdown``: non-headcount categories in deterministic enum
           order, each row containing category keys, emission entries, and
           flattened YY/parent sums in tonnes.
-        - ``additional_breakdown``: headcount-derived categories
-          (``commuting``, ``food``, ``waste``).
+        - ``additional_breakdown``: additional categories appended after main
+          categories. Contains headcount-derived categories (``commuting``,
+          ``food``, ``waste``) and building-derived embodied energy
+          (``embodied_energy``) when present.
         - ``per_person_breakdown``: snake_case metric keys normalized by FTE.
         - ``validated_categories``: validated category keys (snake_case).
         - ``total_tonnes_co2eq``: global total including real emissions and
@@ -520,17 +656,35 @@ def build_chart_breakdown(
 
     Notes:
         - Unknown emission_type IDs are ignored.
-        - Headcount-only emission types from DB rows are excluded from
-          ``module_breakdown`` and derived from FTE instead.
+        - Headcount sub-type rows (food__, waste__, commuting__) flow into
+          ``additional_breakdown`` directly.
+        - If no sub-type rows exist for a category and headcount is validated,
+          falls back to ``HEADCOUNT_PER_FTE_KG`` synthetic totals.
         - If ``total_fte <= 0``, per-person values are ``0.0`` and additional
           headcount rows remain empty even when headcount is validated.
     """
     category_data: dict[EmissionCategory, dict[EmissionType, float]] = {}
+    additional_data: dict[EmissionCategory, dict[EmissionType, float]] = {}
+    additional_quantities: dict[
+        EmissionCategory, dict[EmissionType, tuple[float | None, str | None]]
+    ] = {}
     module_totals_kg: dict[int, float] = {}
     real_kg = 0.0
+    additional_kg = 0.0
+
+    def _additional_quantity_unit(category: EmissionCategory) -> str:
+        if category is EmissionCategory.commuting:
+            return "km"
+        return "kg"
 
     for row in rows:
-        module_type_id, emission_type_id, kg_co2eq = row
+        if len(row) == 3:
+            module_type_id, emission_type_id, kg_co2eq = row
+            sum_quantity: float | None = None
+        else:
+            module_type_id, emission_type_id, kg_co2eq, sum_quantity = row
+        if module_type_id in exclude_module_type_ids:
+            continue
         emission_type = _resolve_emission_type(emission_type_id)
         if emission_type is None:
             continue
@@ -539,36 +693,63 @@ def build_chart_breakdown(
             continue
         category = meta["category"]
         if category in ADDITIONAL_BREAKDOWN_ORDER:
-            continue
-        sub = category_data.setdefault(category, {})
-        sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
-        module_totals_kg[module_type_id] = (
-            module_totals_kg.get(module_type_id, 0.0) + kg_co2eq
-        )
-        real_kg += kg_co2eq
+            sub = additional_data.setdefault(category, {})
+            sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
+            if sum_quantity is not None:
+                qty_map = additional_quantities.setdefault(category, {})
+                existing_qty, existing_unit = qty_map.get(emission_type, (0.0, None))
+                # quantity_unit is not summed from DB; store alongside quantity sum
+                qty_map[emission_type] = (
+                    (existing_qty or 0.0) + sum_quantity,
+                    existing_unit or _additional_quantity_unit(category),
+                )
+            additional_kg += kg_co2eq
+        else:
+            sub = category_data.setdefault(category, {})
+            sub[emission_type] = sub.get(emission_type, 0.0) + kg_co2eq
+            module_totals_kg[module_type_id] = (
+                module_totals_kg.get(module_type_id, 0.0) + kg_co2eq
+            )
+            real_kg += kg_co2eq
 
     module_breakdown = [
         _build_category_row(category, category_data.get(category, {}))
         for category in MODULE_BREAKDOWN_ORDER
+        if CATEGORY_TO_MODULE_PER_UNIT.get(category) not in exclude_module_type_ids
     ]
 
-    headcount_data: dict[EmissionType, float] = (
+    # Build additional_breakdown from real DB sub-type rows.
+    # Fall back to HEADCOUNT_PER_FTE_KG synthetic values per category when that
+    # category has no real rows (backward compatibility with pre-emit_per_factor data).
+    fallback_data: dict[EmissionType, float] = (
         {et: per_fte_kg * total_fte for et, per_fte_kg in HEADCOUNT_PER_FTE_KG.items()}
         if headcount_validated and total_fte > 0
         else {}
     )
 
-    additional_breakdown = [
-        _build_category_row(
-            category,
-            {
+    additional_breakdown = []
+    fallback_kg_applied = 0.0
+    for category in ADDITIONAL_BREAKDOWN_ORDER:
+        real_cat = additional_data.get(category, {})
+        if real_cat:
+            additional_breakdown.append(
+                _build_category_row(
+                    category,
+                    real_cat,
+                    additional_quantities.get(category),
+                )
+            )
+        else:
+            # Fallback: synthesize from HEADCOUNT_PER_FTE_KG for headcount categories
+            fallback_cat = {
                 et: kg
-                for et, kg in headcount_data.items()
+                for et, kg in fallback_data.items()
                 if EMISSION_SCOPE[et]["category"] is category
-            },
-        )
-        for category in ADDITIONAL_BREAKDOWN_ORDER
-    ]
+            }
+            additional_breakdown.append(_build_category_row(category, fallback_cat))
+            fallback_kg_applied += sum(fallback_cat.values())
+
+    additional_total_kg = additional_kg + fallback_kg_applied
 
     per_person: dict[str, float] = {
         pp_key: (module_totals_kg.get(mid, 0.0) / total_fte / 1000.0)
@@ -576,10 +757,18 @@ def build_chart_breakdown(
         else 0.0
         for mid, pp_key in MODULE_TYPE_TO_PER_FTE_KEY.items()
     }
-    for et, kg in headcount_data.items():
-        per_person[et.name] = (kg / total_fte / 1000.0) if total_fte > 0 else 0.0
+    if headcount_validated and total_fte > 0:
+        for category in _HEADCOUNT_ADDITIONAL:
+            cat_kg = sum(additional_data.get(category, {}).values())
+            if cat_kg <= 0:
+                cat_kg = sum(
+                    kg
+                    for et, kg in fallback_data.items()
+                    if EMISSION_SCOPE[et]["category"] is category
+                )
+            per_person[category.value] = cat_kg / total_fte / 1000.0
 
-    total_tonnes = (real_kg + sum(headcount_data.values())) / 1000.0
+    total_tonnes = (real_kg + additional_total_kg) / 1000.0
 
     validated_ids = validated_module_type_ids or set()
     validated_categories = [
@@ -589,7 +778,25 @@ def build_chart_breakdown(
         and mid in validated_ids
     ]
     if headcount_validated:
-        validated_categories.extend(c.value for c in ADDITIONAL_BREAKDOWN_ORDER)
+        validated_categories.extend(
+            c.value for c in ADDITIONAL_BREAKDOWN_ORDER if c in _HEADCOUNT_ADDITIONAL
+        )
+    if buildings_validated:
+        validated_categories.extend(
+            c.value for c in ADDITIONAL_BREAKDOWN_ORDER if c in _BUILDINGS_ADDITIONAL
+        )
+
+    # IT summary: sum IT-relevant emission types from already-processed data
+    it_kg = sum(
+        kg
+        for cat_vals in category_data.values()
+        for et, kg in cat_vals.items()
+        if et in IT_EMISSION_TYPES
+    )
+    it_summary = {
+        "total_tonnes_co2eq": it_kg / 1000.0,
+        "percentage_of_total": (it_kg / real_kg * 100.0) if real_kg > 0 else 0.0,
+    }
 
     return {
         "module_breakdown": module_breakdown,
@@ -597,8 +804,12 @@ def build_chart_breakdown(
         "per_person_breakdown": per_person,
         "validated_categories": validated_categories,
         "headcount_validated": headcount_validated,
+        "buildings_validated": buildings_validated,
         "total_tonnes_co2eq": total_tonnes,
         "total_fte": total_fte,
+        "embodied_energy_by_building": [],
+        "embodied_energy_by_category": [],
+        "it_summary": it_summary,
     }
 
 

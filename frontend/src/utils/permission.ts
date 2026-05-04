@@ -323,7 +323,7 @@ export function getModulePermissionPath(module: Module): string | null {
     [MODULES.Commuting]: null,
     [MODULES.Food]: null,
     [MODULES.Waste]: null,
-    [MODULES.GreyEnergy]: null,
+    [MODULES.EmbodiedEnergy]: null,
   };
   return modulePermissionMap[module] || null;
 }

@@ -186,22 +186,46 @@ export default {
     en: 'Number of validated modules',
     fr: 'Nombre de modules validées',
   },
+  backoffice_reporting_usage_downloaded: {
+    en: 'Usage report downloaded',
+    fr: "Rapport d'utilisation téléchargé",
+  },
+  backoffice_reporting_usage_download_failed: {
+    en: 'Failed to download usage report',
+    fr: "Échec du téléchargement du rapport d'utilisation",
+  },
+  backoffice_reporting_detailed_downloaded: {
+    en: 'Detailed report downloaded',
+    fr: 'Rapport détaillé téléchargé',
+  },
+  backoffice_reporting_detailed_download_failed: {
+    en: 'Failed to download detailed report',
+    fr: 'Échec du téléchargement du rapport détaillé',
+  },
+  backoffice_reporting_results_downloaded: {
+    en: 'Results report downloaded',
+    fr: 'Rapport de résultats téléchargé',
+  },
+  backoffice_reporting_results_download_failed: {
+    en: 'Failed to download results report',
+    fr: 'Échec du téléchargement du rapport de résultats',
+  },
 
   backoffice_reporting_chart_unit_footprint_title: {
     en: 'Unit Carbon Footprint',
     fr: 'Empreinte carbone par unite',
   },
   backoffice_reporting_chart_unit_footprint_description: {
-    en: 'One bar per unit using aggregated total carbon footprint (tCO2-eq).',
-    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO2-eq).',
+    en: 'One bar per unit using aggregated total carbon footprint (tCO₂-eq).',
+    fr: 'Une barre par unite avec l empreinte carbone totale agregee (tCO₂-eq).',
   },
   backoffice_reporting_chart_per_fte_title: {
     en: 'Carbon Footprint per FTE',
     fr: 'Empreinte carbone par EPT',
   },
   backoffice_reporting_chart_per_fte_description: {
-    en: 'Computed as total carbon footprint divided by total FTE (tCO2-eq/FTE).',
-    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO2-eq/EPT).',
+    en: 'Computed as total carbon footprint divided by total FTE (tCO₂-eq/FTE).',
+    fr: 'Calculee comme empreinte carbone totale divisee par le total EPT (tCO₂-eq/EPT).',
   },
   backoffice_reporting_chart_no_data: {
     en: 'No data available for the current filters.',
@@ -236,5 +260,9 @@ export default {
   backoffice_reporting_generate_formats: {
     en: 'PDF: Formatted report with charts and visualizations, ideal for presentations and sharing.\nCSV: Raw data in spreadsheet format for further analysis in Excel or other tools.',
     fr: 'PDF : Rapport mis en forme avec graphiques, idéal pour les présentations et le partage.\nCSV : Données brutes au format tableur pour analyse dans Excel ou d’autres outils.',
+  },
+  open_year_for_users: {
+    en: 'Open year for users',
+    fr: 'Ouvrir l’année pour les utilisateurs',
   },
 } as const;

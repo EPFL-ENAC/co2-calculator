@@ -54,6 +54,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ModuleTypeEnum.buildings: [
         DataEntryTypeEnum.building,
         DataEntryTypeEnum.energy_combustion,
+        DataEntryTypeEnum.building_embodied_energy,
     ],
     ModuleTypeEnum.external_cloud_and_ai: [
         DataEntryTypeEnum.external_clouds,

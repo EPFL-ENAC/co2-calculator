@@ -23,6 +23,9 @@ async function validateUnit() {
 }
 
 export default async function validateUnitGuard(to) {
+  // Lighthouse CI bypass: skip unit validation so workspace pages render without a backend.
+  if (window.__LIGHTHOUSE_BYPASS__) return true;
+
   // redirectToWorkspaceIfNotSelectedGuard
   useWorkspaceStore().setSelectedParams({
     year: parseInt(to.params.year as string, 10),

@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors } from 'src/constant/charts';
+import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -34,10 +34,14 @@ const props = defineProps<{
   headcountValidated?: boolean;
   showValidationPlaceholder?: boolean;
   title?: string;
+  viewAdditionalData?: boolean;
 }>();
 
 const { t } = useI18n();
 const toggleAdditionalData = ref(false);
+const effectiveToggle = computed(
+  () => props.viewAdditionalData ?? toggleAdditionalData.value,
+);
 const SHOW_EPFL_REFERENCE_ROW = false;
 const SHOW_OBJECTIVE_ROW = false;
 const SHOW_OBJECTIVE_BAR = SHOW_OBJECTIVE_ROW;
@@ -75,7 +79,7 @@ const EPFL_REFERENCE_VALUES: Record<string, number> = {
   commuting: 8.8,
   food: 10.4,
   waste: 0.0,
-  grey_energy: 0.0,
+  embodied_energy: 0.0,
 };
 
 const epflReferenceRow = computed<Record<string, unknown>>(() => {
@@ -106,7 +110,7 @@ const datasetSource = computed(() => {
 });
 
 const additionalSeriesData = computed(() => {
-  if (!toggleAdditionalData.value) return [];
+  if (!effectiveToggle.value) return [];
 
   return [
     {
@@ -155,12 +159,12 @@ const additionalSeriesData = computed(() => {
       },
     },
     {
-      name: t('charts-grey-energy-category'),
+      name: t('charts-embodied-energy-category'),
       type: 'bar' as const,
       stack: 'total',
       encode: {
         x: 'category',
-        y: 'grey_energy',
+        y: 'embodied_energy',
       },
       itemStyle: {
         color: colors.value.skyBlue.darker,
@@ -228,7 +232,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'research_facilities',
       },
       itemStyle: {
-        color: colors.value.lavender.darker,
+        color: colors.value.paleYellowGreen.darker,
       },
       label: {
         show: false,
@@ -273,7 +277,7 @@ const chartOption = computed((): EChartsOption => {
         y: 'external_cloud_and_ai',
       },
       itemStyle: {
-        color: colors.value.paleYellowGreen.darker,
+        color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
       },
       label: {
         show: false,
@@ -402,7 +406,7 @@ const chartOption = computed((): EChartsOption => {
         'commuting',
         'food',
         'waste',
-        'grey_energy',
+        'embodied_energy',
         ...(SHOW_OBJECTIVE_BAR ? ['objective2030'] : []),
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
@@ -466,43 +470,52 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none">
+  <q-card flat class="container container--pa-none full-width">
     <q-card-section class="flex justify-between items-center">
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ props.title ?? $t('results_carbon_footprint_per_person_title') }}
+          {{
+            props.title ?? $t('results_carbon_footprint_per_FTE_no_headcount')
+          }}
         </span>
       </div>
 
-      <div v-if="headcountValidated">
+      <div class="flex items-center no-wrap q-gutter-sm">
         <q-btn
+          v-if="headcountValidated"
           unelevated
           no-caps
           outline
           icon="o_download"
           :label="$t('common_download_as_png')"
-          size="sm"
-          class="text-weight-medium q-mr-sm"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
           @click="downloadPNG"
         />
         <q-btn
+          v-if="headcountValidated"
           unelevated
           no-caps
           outline
           icon="o_download"
           :label="$t('common_download_as_csv')"
-          size="sm"
-          class="text-weight-medium"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
           @click="downloadCSV"
         />
+        <q-checkbox
+          v-if="
+            props.viewAdditionalData === undefined &&
+            (headcountValidated || props.showValidationPlaceholder === false)
+          "
+          v-model="toggleAdditionalData"
+          :label="$t('results_module_carbon_toggle_additional_data')"
+          size="xs"
+          color="accent"
+        />
       </div>
-      <q-checkbox
-        v-if="headcountValidated"
-        v-model="toggleAdditionalData"
-        :label="$t('results_module_carbon_toggle_additional_data')"
-        size="xs"
-        color="accent"
-      />
     </q-card-section>
 
     <template v-if="headcountValidated || showValidationPlaceholder === false">
@@ -543,7 +556,7 @@ const downloadCSV = () => {
 }
 
 .chart {
-  width: 500px;
+  width: 200px;
   min-height: 500px;
 }
 

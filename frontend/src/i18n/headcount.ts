@@ -169,4 +169,8 @@ export default {
     en: 'Other',
     fr: 'Autre',
   },
+  [`${MODULES.Headcount}-title-tooltip-subtext`]: {
+    en: 'The total FTE is used to generate the generic indicators for Food and Commuting, as well as total carbon footprint per FTE for your unit.',
+    fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs génériques relatifs à l'Alimentation et au Mobilité pendulaire, ainsi que l'empreinte carbone totale par EPT pour votre unité.",
+  },
 } as const;

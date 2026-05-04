@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_BUILDINGS_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.Buildings]: {
@@ -18,8 +18,8 @@ export default {
     fr: ' ',
   },
   [`${MODULES.Buildings}-title-tooltip-title`]: {
-    en: ' ',
-    fr: ' ',
+    en: 'Buildings Title Tooltip',
+    fr: 'Buildings Title Tooltip',
   },
 
   // Rooms submodule
@@ -191,5 +191,15 @@ export default {
   [`${MODULES.Buildings}.work_in_progress`]: {
     en: 'work in progress, please validate to confirm your entries',
     fr: "en cours jusqu'à validation de vos entrées",
+  },
+  [`${MODULES.Buildings}-${SUBMODULE_BUILDINGS_TYPES.EnergyCombustion}-table-title-info-tooltip`]:
+    {
+      en: 'Buildings Energy Combustion Tooltip',
+      fr: 'Buildings Energy Combustion Tooltip',
+    },
+
+  [`${MODULES.Buildings}-title-tooltip-subtext`]: {
+    en: 'Buildings Title Tooltip',
+    fr: 'Buildings Title Tooltip',
   },
 } as const;

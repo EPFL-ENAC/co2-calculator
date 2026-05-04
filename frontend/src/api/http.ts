@@ -25,7 +25,7 @@ export const api = ky.create({
       },
     ],
     afterResponse: [
-      async (req, _o, res) => {
+      async (req, options, res) => {
         if (res.status === 401 && !isRefresh(req.url)) {
           // If still 401 after refresh, redirect to login
           const isSessionCheck = req.url.endsWith(API_ME_URL);

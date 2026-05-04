@@ -141,6 +141,13 @@ erDiagram
     VARCHAR provider
     JSON roles_raw
   }
+  year_configuration {
+    JSON config
+    BOOLEAN is_reports_synced
+    BOOLEAN is_started
+    DATETIME updated_at
+    INTEGER year PK
+  }
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"

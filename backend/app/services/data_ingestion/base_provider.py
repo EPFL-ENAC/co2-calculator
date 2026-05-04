@@ -60,11 +60,11 @@ class DataIngestionProvider(ABC):
 
     async def create_job(
         self,
-        module_type_id: ModuleTypeEnum,
-        data_entry_type_id: Optional[int],
         ingestion_method: IngestionMethod,
         entity_type: EntityType,
         target_type: TargetType,
+        module_type_id: Optional[ModuleTypeEnum] = None,
+        data_entry_type_id: Optional[int] = None,
         year: Optional[int] = None,
         factor_type_id: FactorType | None = None,
         config: Dict[str, Any] | None = None,

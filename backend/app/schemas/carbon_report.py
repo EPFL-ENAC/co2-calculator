@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from app.models.carbon_report import ModuleStatus
+from app.core.constants import ModuleStatus
 
 
 class CarbonReportBase(BaseModel):
@@ -48,11 +48,10 @@ class CarbonReportModuleBase(BaseModel):
     status: int = Field(default=ModuleStatus.NOT_STARTED)
 
 
-class CarbonReportModuleCreate(BaseModel):
+class CarbonReportModuleCreate(CarbonReportModuleBase):
     """Schema for creating a carbon report module (carbon_report_id set by path)."""
 
-    module_type_id: int
-    status: int = Field(default=ModuleStatus.NOT_STARTED)
+    pass
 
 
 class CarbonReportModuleRead(BaseModel):

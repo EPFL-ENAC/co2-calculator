@@ -329,6 +329,11 @@ class EmissionComputation:
     # Signature: (ctx: dict, factor_values: dict) -> Optional[float]
     formula_func: Optional[Callable[[dict, dict], Optional[float]]] = None
 
+    # When True, emit one DataEntryEmission per factor (with sub-type
+    # emission_type_id) instead of summing all factors into one row.
+    # The meta dict will include `quantity` and `quantity_unit`.
+    emit_per_factor: bool = False
+
 
 ####
 

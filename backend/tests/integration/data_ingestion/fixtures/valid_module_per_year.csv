@@ -1,0 +1,3 @@
+unit_institutional_id,name,position_title,position_category,user_institutional_id,fte,note
+UNIT001,John Doe,Professor,professor,UID001,1.0,
+UNIT002,Jane Smith,Post-doctoral researcher,postdoctoral_assistant,UID002,0.5,

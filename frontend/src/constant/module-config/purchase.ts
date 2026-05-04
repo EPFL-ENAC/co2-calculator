@@ -138,7 +138,8 @@ export const purchase: ModuleConfig = {
   type: MODULES.Purchase as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: false,
+  hasTooltip: true,
+  hasTooltipSubText: true,
   description:
     'Track purchases of scientific and IT equipment, and their associated emissions.',
   hasSubmodules: true,

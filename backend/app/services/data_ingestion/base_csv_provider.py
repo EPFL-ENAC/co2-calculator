@@ -488,6 +488,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         that was uploaded through the same mechanism, preserving manual
         entries and unit-specific uploads.
 
+        Note: MODULE_UNIT_SPECIFIC uses append-only strategy (no deletion).
+
         Args:
             unit_to_module_map: Mapping of unit ID to module ID
             stats: Statistics dict to update
@@ -602,6 +604,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     raise ValueError("Data entry is None without error message")
 
                 # Check institutional ID uniqueness for member entries
+                # TODO: refactor, should not be done in base_csv_provider but elsewhere
+                # process or task or sql
                 if (
                     data_entry.data_entry_type_id == DataEntryTypeEnum.member
                     and data_entry.data
@@ -716,6 +720,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         entity_setup = await self._setup_handlers_and_factors()
         handlers = entity_setup["handlers"]
         factors_map = entity_setup["factors_map"]
+        factor_id_to_factor = entity_setup["factor_id_to_factor"]
         expected_columns = entity_setup["expected_columns"]
         required_columns = entity_setup["required_columns"]
 
@@ -730,7 +735,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             error_message = str(validation_error)
             logger.error(f"CSV validation failed: {error_message}")
             await self._update_job(
-                status_message=f"Column validation failed: {error_message}",
+                status_message=f"Wrong CSV format or encoding: {error_message}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"validation_error": error_message},
@@ -742,6 +747,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "entity_type": self.entity_type,
             "handlers": handlers,
             "factors_map": factors_map,
+            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "processing_path": processing_path,

@@ -29,7 +29,7 @@ jobs:
       # Optional inputs can be passed here
       ORG: epfl
       REPO: co2-calculator
-      build_context: '[ "./frontend", "./backend" ]' # context paths to build
+      build_context: '[ "./frontend", "./backend", "./docs" ]' # context paths to build
       argo_repository: "['EPFL-ENAC/openshift-app-config']"
       registry: quay-its.epfl.ch
       registry_path: svc1751

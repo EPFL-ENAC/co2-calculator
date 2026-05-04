@@ -113,6 +113,20 @@ class UnitUserRepository:
         await self.session.flush()
         return True
 
+    async def delete_by_user_id(self, user_id: int) -> int:
+        """Delete all UnitUser associations for a user.
+        Returns count of deleted rows."""
+        result = await self.session.exec(
+            select(UnitUser).where(UnitUser.user_id == user_id)
+        )
+        entities = result.all()
+        count = len(entities)
+        for entity in entities:
+            await self.session.delete(entity)
+        if count > 0:
+            await self.session.flush()
+        return count
+
     async def count(self, filters: Optional[dict] = None) -> int:
         """Count UnitUser associations with optional filters."""
         query = select(func.count()).select_from(UnitUser)

@@ -14,9 +14,10 @@ Your ITCSS-like structure already aligns with design token architecture:
 Quasar provides extensive SCSS variables (as you've shown). Here's how to approach it:
 
 **Option A: Override Quasar Variables with Your Tokens**
+
 ```scss
 // 02-tokens/_quasar-overrides.scss
-@use 'design-tokens' as tokens;
+@use "design-tokens" as tokens;
 
 // Map your design tokens to Quasar variables
 $primary: tokens.$color-brand-primary;
@@ -25,20 +26,21 @@ $space-base: tokens.$spacing-base;
 $breakpoint-xs: tokens.$breakpoint-mobile;
 
 // Import Quasar with your overrides
-@import 'quasar/src/css/variables.sass';
+@import "quasar/src/css/variables.sass";
 ```
 
 **Option B: Create a Token Mapping Layer**
+
 ```scss
 // 02-tokens/_design-tokens.scss
 // Your source of truth
-$color-brand-primary: #1976D2;
-$color-brand-secondary: #26A69A;
+$color-brand-primary: #1976d2;
+$color-brand-secondary: #26a69a;
 $spacing-base: 16px;
 
 // 02-tokens/_quasar-bridge.scss
 // Bridge layer that maps tokens to Quasar
-@use 'design-tokens' as tokens;
+@use "design-tokens" as tokens;
 
 $primary: tokens.$color-brand-primary;
 $secondary: tokens.$color-brand-secondary;
@@ -65,27 +67,28 @@ Since your designer uses Atomic Design, organize your components layer:
 ```
 
 **BEM with Component Tokens:**
+
 ```scss
 // 05-components/_atoms/_button.scss
-@use '../../02-tokens/decisions' as decisions;
+@use "../../02-tokens/decisions" as decisions;
 
 .button {
   // Base button using decision tokens
   padding: decisions.$button-padding;
   border-radius: decisions.$button-border-radius;
   font-size: decisions.$button-font-size;
-  
+
   &--primary {
     // Component token: button-primary
     background: decisions.$button-primary-background;
     color: decisions.$button-primary-text;
   }
-  
+
   &--secondary {
     background: decisions.$button-secondary-background;
     color: decisions.$button-secondary-text;
   }
-  
+
   &__icon {
     // Element within button
     margin-right: decisions.$button-icon-spacing;
@@ -96,6 +99,7 @@ Since your designer uses Atomic Design, organize your components layer:
 ### 4. **Three-Layer Token Architecture**
 
 **Layer 1: Options (Primitives)**
+
 ```scss
 // 02-tokens/_options.scss
 // What's available (the palette)
@@ -107,9 +111,10 @@ $spacing-16: 16px;
 ```
 
 **Layer 2: Decisions (Semantic)**
+
 ```scss
 // 02-tokens/_decisions.scss
-@use 'options' as opt;
+@use "options" as opt;
 
 // How they're applied
 $color-primary: opt.$color-blue-900;
@@ -122,9 +127,10 @@ $button-border-radius: 4px;
 ```
 
 **Layer 3: Component Tokens**
+
 ```scss
 // 02-tokens/_components.scss
-@use 'decisions' as dec;
+@use "decisions" as dec;
 
 // Where they're applied
 $button-primary-background: dec.$color-primary;
@@ -165,27 +171,27 @@ styles/
 @layer reset, tokens, layout, utils, components;
 
 @layer reset {
-  @import '01-reset/normalize';
+  @import "01-reset/normalize";
 }
 
 @layer tokens {
   // Tokens generate CSS custom properties
-  @import '02-tokens/index';
+  @import "02-tokens/index";
 }
 
 @layer layout {
-  @import '03-layout/grid';
-  @import '03-layout/container';
+  @import "03-layout/grid";
+  @import "03-layout/container";
 }
 
 @layer utils {
-  @import '04-utils/spacing';
-  @import '04-utils/text';
+  @import "04-utils/spacing";
+  @import "04-utils/text";
 }
 
 @layer components {
-  @import '05-components/atoms/button';
-  @import '05-components/molecules/search-bar';
+  @import "05-components/atoms/button";
+  @import "05-components/molecules/search-bar";
 }
 ```
 
@@ -210,17 +216,17 @@ $button-radius: 4px;
   // Use decision tokens
   padding: $button-padding-y $button-padding-x;
   border-radius: $button-radius;
-  
+
   &--primary {
     background: $color-primary;
     color: $color-text-on-primary;
   }
-  
+
   &--outline {
     border: 2px solid $color-primary;
     color: $color-primary;
   }
-  
+
   &__icon {
     margin-right: $spacing-small;
   }
@@ -237,6 +243,7 @@ $button-radius: 4px;
 6. **Document which tokens are public** in your `02-tokens/_index.scss`
 
 This approach gives you:
+
 - ✅ Design token architecture (flexibility + automation potential)
 - ✅ ITCSS organization (scalability)
 - ✅ Atomic Design (designer alignment)
@@ -244,6 +251,7 @@ This approach gives you:
 - ✅ Quasar integration (framework leverage)
 
 # Complete break down
+
 ```scss
 // ============================================================================
 // 02-TOKENS LAYER - DESIGN TOKEN ARCHITECTURE
@@ -253,7 +261,7 @@ This approach gives you:
 // -----------------------------
 // This is NOT SCSS-specific - it's a design token architecture pattern
 // from the "Design Token-Based UI Architecture" methodology.
-// 
+//
 // Think of it as THREE LEVELS OF DECISION-MAKING:
 //
 // ┌─────────────────────────────────────────────────────────────────┐
@@ -277,7 +285,7 @@ This approach gives you:
 //
 // WHY THREE LAYERS?
 // -----------------
-// 1. FLEXIBILITY: Change "primary" from blue to green without touching 
+// 1. FLEXIBILITY: Change "primary" from blue to green without touching
 //    every component
 // 2. CONSISTENCY: All "primary" colors update together
 // 3. SCALABILITY: Add new components easily by referencing decisions
@@ -364,15 +372,23 @@ $color-grey-700: #616161 !default;
 $color-white: #ffffff !default;
 
 // Shadow primitives (from Quasar's system)
-$shadow-1: 0 1px 3px rgba(0,0,0,.2), 0 1px 1px rgba(0,0,0,.14), 0 2px 1px -1px rgba(0,0,0,.12) !default;
-$shadow-2: 0 1px 5px rgba(0,0,0,.2), 0 2px 2px rgba(0,0,0,.14), 0 3px 1px -2px rgba(0,0,0,.12) !default;
-$shadow-5: 0 3px 5px -1px rgba(0,0,0,.2), 0 5px 8px rgba(0,0,0,.14), 0 1px 14px rgba(0,0,0,.12) !default;
+$shadow-1:
+  0 1px 3px rgba(0, 0, 0, 0.2),
+  0 1px 1px rgba(0, 0, 0, 0.14),
+  0 2px 1px -1px rgba(0, 0, 0, 0.12) !default;
+$shadow-2:
+  0 1px 5px rgba(0, 0, 0, 0.2),
+  0 2px 2px rgba(0, 0, 0, 0.14),
+  0 3px 1px -2px rgba(0, 0, 0, 0.12) !default;
+$shadow-5:
+  0 3px 5px -1px rgba(0, 0, 0, 0.2),
+  0 5px 8px rgba(0, 0, 0, 0.14),
+  0 1px 14px rgba(0, 0, 0, 0.12) !default;
 
 // Transition options
-$transition-fast: .15s !default;
-$transition-normal: .3s !default;
-$transition-easing: cubic-bezier(.25, .8, .5, 1) !default;
-
+$transition-fast: 0.15s !default;
+$transition-normal: 0.3s !default;
+$transition-easing: cubic-bezier(0.25, 0.8, 0.5, 1) !default;
 
 // ----------------------------------------------------------------------------
 // 02-tokens/_decisions.scss (PUBLIC - Semantic/Contextual)
@@ -398,14 +414,14 @@ $transition-easing: cubic-bezier(.25, .8, .5, 1) !default;
 // Without decisions: Designer says "change brand color"
 //   → You search codebase for all "blue-600" (200+ files)
 //   → Miss some, inconsistent results
-// With decisions: 
+// With decisions:
 //   → Change $color-primary: blue-600 to $color-primary: green-600
 //   → Done! Everything updates
 //
 // REFERENCE PATTERN:
 // Notice how we reference options using: opt.$option-name
 // This is SCSS modules syntax - it imports from _options.scss
-@use 'options' as opt;
+@use "options" as opt;
 
 // Brand colors (semantic naming)
 $color-primary: opt.$color-blue-600 !default;
@@ -437,7 +453,6 @@ $text-body-size: opt.$font-size-sm !default;
 $text-body-line-height: opt.$line-height-relaxed !default;
 $text-weight-emphasis: opt.$font-weight-medium !default;
 
-
 // ----------------------------------------------------------------------------
 // 02-tokens/_components.scss (PUBLIC - Component-specific)
 // ----------------------------------------------------------------------------
@@ -460,7 +475,7 @@ $text-weight-emphasis: opt.$font-weight-medium !default;
 // 4. Component Isolation: Change button styles without affecting cards
 //
 // WHEN TO USE COMPONENT TOKENS VS DECISIONS?
-// 
+//
 // Use DECISIONS directly when:
 //   → Simple, one-off usage
 //   → No component-specific variations needed
@@ -480,14 +495,14 @@ $text-weight-emphasis: opt.$font-weight-medium !default;
 //   → Change $button-primary-bg = $color-primary-dark
 //   → Only buttons affected!
 //
-@use 'decisions' as dec;
+@use "decisions" as dec;
 
 // Button component tokens
 // Notice: We're creating a "namespace" for all button-related tokens
 $button-padding-y: dec.$spacing-sm !default;
 $button-padding-x: dec.$spacing-md !default;
 $button-padding: $button-padding-y $button-padding-x !default;
-$button-padding-dense: .285em !default;
+$button-padding-dense: 0.285em !default;
 
 $button-radius: dec.$interactive-radius !default;
 $button-radius-rounded: dec.$interactive-radius-round !default;
@@ -528,7 +543,6 @@ $card-shadow: dec.$interactive-shadow !default;
 $card-header-padding: dec.$spacing-md dec.$spacing-lg !default;
 $card-body-padding: dec.$spacing-lg !default;
 $card-footer-padding: dec.$spacing-md dec.$spacing-lg !default;
-
 
 // ----------------------------------------------------------------------------
 // 02-tokens/_quasar-bridge.scss
@@ -578,8 +592,8 @@ $card-footer-padding: dec.$spacing-md dec.$spacing-lg !default;
 //
 // Bridge layer: Maps your tokens to Quasar's variable names
 // This file overrides Quasar defaults with your design tokens
-@use 'components' as comp;
-@use 'decisions' as dec;
+@use "components" as comp;
+@use "decisions" as dec;
 
 // Override Quasar's button variables with your component tokens
 // Pattern: $quasar-var-name: comp.$your-token-name
@@ -612,7 +626,6 @@ $space-base: dec.$spacing-md !default;
 //   → NO → Use Quasar's default
 //
 // RESULT: All Quasar buttons automatically use your design tokens!
-
 
 // ----------------------------------------------------------------------------
 // 02-tokens/_index.scss (Public API)
@@ -648,10 +661,9 @@ $space-base: dec.$spacing-md !default;
 // @forward 'file';       → Re-export for others who import THIS file
 // @import 'file';        → Old way (global namespace, avoid in new code)
 
-@forward 'decisions';
-@forward 'components';
+@forward "decisions";
+@forward "components";
 // Note: 'options' is NOT forwarded - it's private/internal only
-
 
 // ============================================================================
 // 05-COMPONENTS LAYER (Atomic Design Structure)
@@ -662,7 +674,7 @@ $space-base: dec.$spacing-md !default;
 // ----------------------------------------------------------------------------
 // Custom button using BEM + Design Tokens
 // This demonstrates building components alongside Quasar
-@use '../../02-tokens' as tokens;
+@use "../../02-tokens" as tokens;
 
 .btn {
   // Base button styles using component tokens
@@ -679,58 +691,58 @@ $space-base: dec.$spacing-md !default;
   border: none;
   text-decoration: none;
   user-select: none;
-  
+
   // Variants (BEM modifiers)
   &--primary {
     background-color: tokens.$button-primary-bg;
     color: tokens.$button-primary-text;
     box-shadow: tokens.$button-shadow;
-    
+
     &:hover {
       background-color: tokens.$button-primary-bg-hover;
       box-shadow: tokens.$button-shadow-active;
     }
-    
+
     &:active {
       box-shadow: tokens.$button-shadow;
     }
   }
-  
+
   &--secondary {
     background-color: tokens.$button-secondary-bg;
     color: tokens.$button-secondary-text;
     box-shadow: tokens.$button-shadow;
-    
+
     &:hover {
       opacity: 0.9;
       box-shadow: tokens.$button-shadow-active;
     }
   }
-  
+
   &--outline {
     background-color: transparent;
     color: tokens.$button-outline-text;
     border: 2px solid tokens.$button-outline-border;
     box-shadow: none;
-    
+
     &:hover {
       background-color: tokens.$button-outline-bg-hover;
     }
   }
-  
+
   &--rounded {
     border-radius: tokens.$button-radius-rounded;
   }
-  
+
   &--dense {
     padding: tokens.$button-padding-dense;
   }
-  
+
   &--block {
     display: flex;
     width: 100%;
   }
-  
+
   // States
   &:disabled,
   &--disabled {
@@ -738,53 +750,52 @@ $space-base: dec.$spacing-md !default;
     cursor: not-allowed;
     pointer-events: none;
   }
-  
+
   // Elements (BEM elements)
   &__icon {
     &--left {
       margin-right: tokens.$spacing-sm;
     }
-    
+
     &--right {
       margin-left: tokens.$spacing-sm;
     }
   }
-  
+
   &__label {
     flex: 1;
   }
 }
 
-
 // ----------------------------------------------------------------------------
 // 05-components/_molecules/_card.scss
 // ----------------------------------------------------------------------------
 // Custom card component using BEM + Design Tokens
-@use '../../02-tokens' as tokens;
+@use "../../02-tokens" as tokens;
 
 .card {
   background-color: tokens.$card-bg;
   border-radius: tokens.$card-radius;
   box-shadow: tokens.$card-shadow;
   overflow: hidden;
-  
+
   // Elements
   &__header {
     padding: tokens.$card-header-padding;
     border-bottom: 1px solid tokens.$color-surface-variant;
   }
-  
+
   &__title {
     margin: 0;
     font-size: tokens.$text-body-size;
     font-weight: tokens.$text-weight-emphasis;
     color: tokens.$color-on-surface;
   }
-  
+
   &__body {
     padding: tokens.$card-body-padding;
   }
-  
+
   &__footer {
     padding: tokens.$card-footer-padding;
     border-top: 1px solid tokens.$color-surface-variant;
@@ -792,25 +803,24 @@ $space-base: dec.$spacing-md !default;
     justify-content: flex-end;
     gap: tokens.$spacing-sm;
   }
-  
+
   // Modifiers
   &--flat {
     box-shadow: none;
     border: 1px solid tokens.$color-surface-variant;
   }
-  
+
   &--bordered {
     border: 1px solid tokens.$color-surface-variant;
   }
 }
-
 
 // ----------------------------------------------------------------------------
 // 05-components/_quasar-overrides/_q-btn-custom.scss
 // ----------------------------------------------------------------------------
 // Additional customization for Quasar's q-btn component
 // This goes beyond variable overrides for specific use cases
-@use '../../02-tokens' as tokens;
+@use "../../02-tokens" as tokens;
 
 .q-btn {
   // Add custom variant that Quasar doesn't have
@@ -822,13 +832,13 @@ $space-base: dec.$spacing-md !default;
     );
     color: tokens.$button-primary-text;
   }
-  
+
   // Custom size variant
   &.q-btn--xs {
     font-size: 12px;
     padding: tokens.$spacing-xs tokens.$spacing-sm;
   }
-  
+
   // Industry-specific variant (e.g., for your domain)
   &.q-btn--action {
     text-transform: none;
@@ -836,7 +846,6 @@ $space-base: dec.$spacing-md !default;
     font-weight: tokens.$font-weight-bold;
   }
 }
-
 
 // ============================================================================
 // MAIN.SCSS - Putting it all together
@@ -853,16 +862,16 @@ $space-base: dec.$spacing-md !default;
 //
 // Step 1: Import Quasar bridge BEFORE Quasar itself
 // ↓
-@use '02-tokens/quasar-bridge';
+@use "02-tokens/quasar-bridge";
 //   ↑ This defines variables like $button-padding
 //
 // Step 2: Import Quasar (it will use your overridden variables)
 // ↓
-@import 'quasar/src/css/index.sass';
+@import "quasar/src/css/index.sass";
 //   ↑ Quasar reads $button-padding and uses YOUR value
 //   ↑ Why @import here? Quasar uses old syntax, we must too
 //
-// 💡 KEY INSIGHT: 
+// 💡 KEY INSIGHT:
 // The ORDER matters because SCSS processes files sequentially
 // If you import Quasar BEFORE bridge, it uses defaults (bridge is too late!)
 //
@@ -919,36 +928,36 @@ $space-base: dec.$spacing-md !default;
 // → Gives you surgical control over Quasar without !important
 
 @layer reset {
-  @import '01-reset/normalize';
+  @import "01-reset/normalize";
 }
 
 @layer tokens {
   // Generate CSS custom properties from tokens if needed
   // Example: :root { --color-primary: #1976d2; }
   // This is optional - useful for runtime theme switching
-  @import '02-tokens/css-properties'; // Optional
+  @import "02-tokens/css-properties"; // Optional
 }
 
 @layer layout {
-  @import '03-layout/grid';
-  @import '03-layout/container';
+  @import "03-layout/grid";
+  @import "03-layout/container";
 }
 
 @layer quasar-overrides {
   // Additional Quasar customizations beyond variable overrides
-  @import '05-components/quasar-overrides/q-btn-custom';
+  @import "05-components/quasar-overrides/q-btn-custom";
 }
 
 @layer components {
   // Your custom components (Atomic Design structure)
-  @import '05-components/atoms/button';
-  @import '05-components/molecules/card';
+  @import "05-components/atoms/button";
+  @import "05-components/molecules/card";
   // ... more components
 }
 
 @layer utilities {
-  @import '04-utils/spacing';
-  @import '04-utils/text';
+  @import "04-utils/spacing";
+  @import "04-utils/text";
 }
 
 //
@@ -974,7 +983,6 @@ $space-base: dec.$spacing-md !default;
 // ✓ Your custom components stay consistent
 // ✓ Predictable cascade (no specificity wars!)
 //
-
 
 // ============================================================================
 // USAGE EXAMPLES

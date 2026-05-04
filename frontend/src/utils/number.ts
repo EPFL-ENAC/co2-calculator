@@ -73,5 +73,8 @@ export function formatFTE(value: number | string | null | undefined): string {
 }
 
 export function formatTonnesForChart(value: number): string {
-  return Math.abs(value) >= 1 ? value.toFixed(0) : value.toFixed(1);
+  const abs = Math.abs(value);
+  if (abs >= 1) return value.toFixed(0);
+  if (abs >= 0.1) return value.toFixed(1);
+  return value.toFixed(2);
 }

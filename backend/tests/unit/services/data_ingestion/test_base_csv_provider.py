@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import EntityType
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
     BATCH_SIZE,
@@ -668,3 +668,192 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
 
     assert result["inserted"] == 2
+
+
+# ======================================================================
+# _compute_ingestion_result Tests
+# ======================================================================
+
+
+class TestComputeIngestionResult:
+    """Tests for BaseCSVProvider._compute_ingestion_result."""
+
+    def _make_provider(self):
+        config = {"file_path": "tmp/test.csv"}
+        return ConcreteCSVProvider(config, data_session=MagicMock())
+
+    def test_all_processed_no_skipped_returns_success(self):
+        provider = self._make_provider()
+        stats = _build_stats()
+        stats["rows_processed"] = 10
+        stats["rows_skipped"] = 0
+        assert provider._compute_ingestion_result(stats) == IngestionResult.SUCCESS
+
+    def test_some_skipped_returns_warning(self):
+        provider = self._make_provider()
+        stats = _build_stats()
+        stats["rows_processed"] = 7
+        stats["rows_skipped"] = 3
+        assert provider._compute_ingestion_result(stats) == IngestionResult.WARNING
+
+    def test_none_processed_returns_error(self):
+        provider = self._make_provider()
+        stats = _build_stats()
+        stats["rows_processed"] = 0
+        stats["rows_skipped"] = 5
+        assert provider._compute_ingestion_result(stats) == IngestionResult.ERROR
+
+    def test_none_processed_none_skipped_returns_error(self):
+        provider = self._make_provider()
+        stats = _build_stats()
+        assert provider._compute_ingestion_result(stats) == IngestionResult.ERROR
+
+
+# ======================================================================
+# _record_row_error Tests
+# ======================================================================
+
+
+class TestRecordRowError:
+    """Tests for BaseCSVProvider._record_row_error (static method)."""
+
+    def test_increments_skipped_and_error_count(self):
+        stats = _build_stats()
+        BaseCSVProvider._record_row_error(stats, 1, "bad value", max_row_errors=10)
+        assert stats["rows_skipped"] == 1
+        assert stats["row_errors_count"] == 1
+        assert len(stats["row_errors"]) == 1
+        assert stats["row_errors"][0] == {"row": 1, "reason": "bad value"}
+
+    def test_caps_row_errors_list_at_max(self):
+        stats = _build_stats()
+        for i in range(5):
+            BaseCSVProvider._record_row_error(stats, i, f"err {i}", max_row_errors=3)
+        # All 5 counted, but only 3 stored
+        assert stats["rows_skipped"] == 5
+        assert stats["row_errors_count"] == 5
+        assert len(stats["row_errors"]) == 3
+
+    def test_max_zero_stores_nothing(self):
+        stats = _build_stats()
+        BaseCSVProvider._record_row_error(stats, 1, "err", max_row_errors=0)
+        assert stats["rows_skipped"] == 1
+        assert stats["row_errors_count"] == 1
+        assert len(stats["row_errors"]) == 0
+
+
+# ======================================================================
+# _get_source_from_entity_type Tests
+# ======================================================================
+
+
+class TestGetSourceFromEntityType:
+    """Tests for BaseCSVProvider._get_source_from_entity_type."""
+
+    def test_module_per_year(self):
+        config = {"file_path": "tmp/test.csv"}
+        p = ConcreteCSVProvider(config, data_session=MagicMock())
+        # ConcreteCSVProvider.entity_type already returns MODULE_PER_YEAR
+        assert (
+            p._get_source_from_entity_type() == DataEntrySourceEnum.CSV_MODULE_PER_YEAR
+        )
+
+    def test_module_unit_specific(self, monkeypatch):
+        config = {"file_path": "tmp/test.csv"}
+        p = ConcreteCSVProvider(config, data_session=MagicMock())
+        monkeypatch.setattr(
+            type(p),
+            "entity_type",
+            property(lambda self: EntityType.MODULE_UNIT_SPECIFIC),
+        )
+        assert (
+            p._get_source_from_entity_type()
+            == DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC
+        )
+
+    def test_unknown_entity_type_returns_none(self, monkeypatch):
+        config = {"file_path": "tmp/test.csv"}
+        p = ConcreteCSVProvider(config, data_session=MagicMock())
+        monkeypatch.setattr(type(p), "entity_type", property(lambda self: MagicMock()))
+        assert p._get_source_from_entity_type() is None
+
+
+# ======================================================================
+# _resolve_data_entry_type_from_category Tests
+# ======================================================================
+
+
+class TestResolveDataEntryTypeFromCategory:
+    """Tests for BaseCSVProvider._resolve_data_entry_type_from_category."""
+
+    def test_no_category_field_returns_none(self):
+        handler = SimpleNamespace()  # no category_field attribute
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={"col": "val"},
+            handler=handler,
+            row_idx=1,
+            stats=stats,
+            max_row_errors=5,
+        )
+        assert result is None
+        assert stats["rows_skipped"] == 0
+
+    def test_empty_category_value_returns_none(self):
+        handler = SimpleNamespace(category_field="category")
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={"category": ""},
+            handler=handler,
+            row_idx=1,
+            stats=stats,
+            max_row_errors=5,
+        )
+        assert result is None
+        assert stats["rows_skipped"] == 0
+
+    def test_missing_category_key_returns_none(self):
+        handler = SimpleNamespace(category_field="category")
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={}, handler=handler, row_idx=1, stats=stats, max_row_errors=5
+        )
+        assert result is None
+
+    def test_valid_category_resolves_enum(self):
+        handler = SimpleNamespace(category_field="category")
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={"category": "scientific"},
+            handler=handler,
+            row_idx=1,
+            stats=stats,
+            max_row_errors=5,
+        )
+        assert result == DataEntryTypeEnum.scientific
+
+    def test_valid_category_case_insensitive(self):
+        handler = SimpleNamespace(category_field="category")
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={"category": "Scientific"},
+            handler=handler,
+            row_idx=1,
+            stats=stats,
+            max_row_errors=5,
+        )
+        assert result == DataEntryTypeEnum.scientific
+
+    def test_invalid_category_records_error_returns_none(self):
+        handler = SimpleNamespace(category_field="category")
+        stats = _build_stats()
+        result = BaseCSVProvider._resolve_data_entry_type_from_category(
+            row={"category": "nonexistent"},
+            handler=handler,
+            row_idx=1,
+            stats=stats,
+            max_row_errors=5,
+        )
+        assert result is None
+        assert stats["rows_skipped"] == 1
+        assert stats["row_errors_count"] == 1

@@ -12,11 +12,11 @@ export interface ModuleTotalsResponse {
 }
 
 /**
- * Fetch total tCO2eq for modules.
+ * Fetch total tCO₂eq for modules.
  *
  * @param unitId - Unit ID
  * @param year - Year for the data
- * @returns Dictionary with `total` tCO2eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
+ * @returns Dictionary with `total` tCO₂eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
  */
 export async function getModuleTotals(
   unitId: number,
@@ -81,7 +81,7 @@ export async function getHeadcountMembers(
   const unitEncoded = encodeURIComponent(unitId);
   const yearEncoded = encodeURIComponent(String(year));
   return api
-    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`)
+    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {})
     .json<HeadcountMemberDropdownItem[]>();
 }
 
@@ -89,11 +89,18 @@ export async function getHeadcountMembers(
  * Fetch the results summary for a carbon report.
  *
  * @param carbonReportId - Carbon report ID
+ * @param excludeModules - Optional list of module_type_ids to exclude from totals
  * @returns Unit-wide totals and per-module breakdowns
  */
 export async function getResultsSummary(
   carbonReportId: number,
+  excludeModules: number[] = [],
 ): Promise<ResultsSummary> {
   const path = `modules-stats/${encodeURIComponent(carbonReportId)}/results-summary`;
-  return api.get(path).json<ResultsSummary>();
+  const searchParams = new URLSearchParams();
+  for (const id of excludeModules) {
+    searchParams.append('exclude_modules', String(id));
+  }
+  const query = searchParams.toString();
+  return api.get(query ? `${path}?${query}` : path).json<ResultsSummary>();
 }

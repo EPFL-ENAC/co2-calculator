@@ -244,6 +244,12 @@ class UnitService:
         await self.session.flush()  # Ensure unit IDs are populated
         return db_objs
 
+    async def get_by_institutional_ids(
+        self, institutional_ids: List[str]
+    ) -> List[Unit]:
+        """Get units by their institutional IDs (batch lookup, no policy checks)."""
+        return await self.unit_repo.get_by_institutional_ids(institutional_ids)
+
     async def count(self, filters: Optional[dict] = None) -> int:
         """Count units with optional filters."""
         return await self.unit_repo.count(filters)

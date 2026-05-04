@@ -1,30 +1,4 @@
-import { SYSTEM_NAV } from 'src/constant/navigation';
-
 export default {
-  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.routeName]: {
-    en: 'User Management',
-    fr: 'Gestion des utilisateurs',
-  },
-  [SYSTEM_NAV.SYSTEM_USER_MANAGEMENT.description]: {
-    en: 'Manage user accounts, assign roles and permissions, monitor user activity, and control access to the CO₂ calculator.',
-    fr: "Gérer les comptes utilisateurs, assigner des rôles et des permissions, surveiller l'activité des utilisateurs, et contrôler l'accès au calculateur CO₂.",
-  },
-  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.routeName]: {
-    en: 'Module Management',
-    fr: 'Gestion des modules',
-  },
-  [SYSTEM_NAV.SYSTEM_MODULE_MANAGEMENT.description]: {
-    en: 'Enable or disable calculation modules system-wide, controlling which data collection features are available to all laboratories.',
-    fr: 'Activer ou désactiver les modules de calcul systématiquement, contrôlant quelles fonctionnalités de collecte de données sont disponibles pour tous les laboratoires.',
-  },
-  [SYSTEM_NAV.SYSTEM_LOGS.routeName]: {
-    en: 'Logs',
-    fr: 'Logs',
-  },
-  [SYSTEM_NAV.SYSTEM_LOGS.description]: {
-    en: 'View, search, and export application logs and user activity history for security auditing and troubleshooting.',
-    fr: "Voir, rechercher et exporter les logs de l'application et l'historique d'activité des utilisateurs pour la sécurité et le dépannage.",
-  },
   module_management_active: {
     en: 'Active',
     fr: 'Actif',

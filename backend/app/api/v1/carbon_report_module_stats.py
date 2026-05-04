@@ -1,15 +1,17 @@
 """Module stats API endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.carbon_report import CarbonReportModule, ModuleStatus
+from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
@@ -18,6 +20,7 @@ from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_totals_service import UnitTotalsService
 from app.utils.emission_category import build_chart_breakdown
+from app.utils.it_breakdown import build_it_breakdown
 from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
@@ -115,6 +118,7 @@ async def get_module_stats(
 @router.get("/{carbon_report_id}/results-summary", response_model=dict)
 async def get_results_summary(
     carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -141,12 +145,14 @@ async def get_results_summary(
         raw["prev_emissions"],
         get_settings().CO2_PER_KM_KG,
         str(ModuleTypeEnum.headcount.value),
+        exclude_module_type_ids=set(exclude_modules),
     )
 
 
 @router.get("/{carbon_report_id}/emission-breakdown")
 async def get_emission_breakdown(
     carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -182,15 +188,143 @@ async def get_emission_breakdown(
     headcount_validated = (
         module_statuses.get(ModuleTypeEnum.headcount.value) == ModuleStatus.VALIDATED
     )
+    buildings_validated = (
+        module_statuses.get(ModuleTypeEnum.buildings.value) == ModuleStatus.VALIDATED
+    )
     validated_module_type_ids = {
         mid
         for mid, status in module_statuses.items()
         if status == ModuleStatus.VALIDATED
     }
 
-    return build_chart_breakdown(
+    breakdown = build_chart_breakdown(
         rows=emission_rows,
         total_fte=total_fte,
         headcount_validated=headcount_validated,
+        buildings_validated=buildings_validated,
         validated_module_type_ids=validated_module_type_ids,
+        exclude_module_type_ids=set(exclude_modules),
+    )
+
+    breakdown["embodied_energy_by_building"] = []
+    breakdown["embodied_energy_by_category"] = []
+
+    if buildings_validated:
+        emission_svc = DataEntryEmissionService(db)
+
+        # Per-building embodied energy breakdown for the doughnut chart.
+        building_rows = await emission_svc.get_embodied_energy_by_building(
+            carbon_report_id=carbon_report_id,
+        )
+        breakdown["embodied_energy_by_building"] = [
+            {"building_name": name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            for name, kg in building_rows
+            if kg > 0
+        ]
+
+        # Per-category embodied energy breakdown (new_env, new_tech, ren_env, ren_tech,
+        # demolition).
+        category_rows = await emission_svc.get_embodied_energy_by_category(
+            carbon_report_id=carbon_report_id,
+        )
+        breakdown["embodied_energy_by_category"] = [
+            {"category": cat, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            for cat, kg in category_rows
+            if kg > 0
+        ]
+    return breakdown
+
+
+@router.get("/{carbon_report_id}/it-breakdown")
+async def get_it_breakdown(
+    carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return IT-focused emission breakdown for a carbon report.
+
+    Aggregates IT-related emissions from Equipment (IT electricity),
+    Purchases (IT hardware), and External Cloud & AI into a single view.
+    Includes top-class breakdown per IT category.
+
+    ``exclude_modules`` matches emission-breakdown / results-summary filtering
+    (e.g. hide research facilities).
+    """
+    logger.info(f"GET IT breakdown: carbon_report_id={sanitize(carbon_report_id)}")
+
+    exclude_set = set(exclude_modules)
+
+    emission_rows = await DataEntryEmissionService(db).get_emission_breakdown(
+        carbon_report_id=carbon_report_id,
+    )
+
+    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
+        carbon_report_id=carbon_report_id,
+        aggregate_by="module_type_id",
+    )
+    total_fte = sum(fte_stats.values())
+
+    # Compute total emissions for percentage calculation
+    total_emissions_kg = sum(row[2] for row in emission_rows)
+
+    result = await db.execute(
+        select(
+            CarbonReportModule.id,
+            CarbonReportModule.module_type_id,
+            CarbonReportModule.status,
+        ).where(
+            CarbonReportModule.carbon_report_id == carbon_report_id,
+        )
+    )
+    module_rows = result.all()
+
+    cr_year_result = await db.execute(
+        select(CarbonReport.year).where(CarbonReport.id == carbon_report_id)
+    )
+    report_year = cr_year_result.scalar_one_or_none()
+    validated_module_type_ids = {
+        row[1] for row in module_rows if row[2] == ModuleStatus.VALIDATED
+    }
+    # Map module_type_id → carbon_report_module_id
+    crm_by_type = {row[1]: row[0] for row in module_rows}
+
+    # Fetch top-class breakdowns for equipment IT and purchases IT
+    emission_svc = DataEntryEmissionService(db)
+    top_class_detail: dict[str, list] = {}
+
+    equip_crm_id = crm_by_type.get(ModuleTypeEnum.equipment_electric_consumption.value)
+    if (
+        equip_crm_id is not None
+        and ModuleTypeEnum.equipment_electric_consumption.value not in exclude_set
+    ):
+        top_class_detail["equipment_it"] = await emission_svc.get_top_class_breakdown(
+            carbon_report_module_id=equip_crm_id,
+            data_entry_types=[DataEntryTypeEnum.it],
+            group_by_field="equipment_class",
+            report_year=report_year,
+        )
+
+    purchase_crm_id = crm_by_type.get(ModuleTypeEnum.purchase.value)
+    if purchase_crm_id is not None and ModuleTypeEnum.purchase.value not in exclude_set:
+        top_class_detail["purchases_it"] = await emission_svc.get_top_class_breakdown(
+            carbon_report_module_id=purchase_crm_id,
+            data_entry_types=[DataEntryTypeEnum.it_equipment],
+            group_by_field="purchase_institutional_code",
+            label_field="purchase_institutional_description",
+            report_year=report_year,
+        )
+
+    emission_rows_no_qty: list[tuple[int, int, float]] = [
+        (module_type_id, emission_type_id, kg_co2eq)
+        for module_type_id, emission_type_id, kg_co2eq, _qty in emission_rows
+    ]
+
+    return build_it_breakdown(
+        rows=emission_rows_no_qty,
+        total_fte=total_fte,
+        total_emissions_kg=total_emissions_kg,
+        validated_module_type_ids=validated_module_type_ids,
+        top_class_detail=top_class_detail,
+        exclude_module_type_ids=exclude_set,
     )

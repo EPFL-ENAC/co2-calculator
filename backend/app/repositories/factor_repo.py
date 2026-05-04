@@ -293,13 +293,13 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return result.one_or_none()
 
-    async def get_factor(
+    async def get_factors(
         self,
         data_entry_type: DataEntryTypeEnum,
         fallbacks: Optional[dict[str, str]] = None,
         year: Optional[int] = None,
         **classification: str,
-    ) -> Optional[Factor]:
+    ) -> List[Factor]:
         """Generic factor lookup with dynamic classification filters and year support.
 
         Args:
@@ -312,10 +312,10 @@ class FactorRepository:
 
         Examples:
             # Flight factor
-            get_factor(DataEntryTypeEnum.trips, kind="plane", category="short_haul")
+            get_factors(DataEntryTypeEnum.trips, kind="plane", category="short_haul")
 
             # Train factor with RoW fallback
-            get_factor(
+            get_factors(
                 DataEntryTypeEnum.trips,
                 fallbacks={"country_code": "RoW"},
                 kind=TransportModeEnum.train.value,
@@ -369,7 +369,6 @@ class FactorRepository:
         # Keys that are *already* concrete (e.g. "country_code") pass through
         # unchanged.
         conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
-
         # Add year filter if provided
         if year is not None:
             conditions.append(col(Factor.year) == year)
@@ -383,12 +382,12 @@ class FactorRepository:
                 key = subkind_field
             conditions.append(Factor.classification[key].as_string() == value)
 
-        stmt = select(Factor).where(*conditions)
+        stmt = select(Factor).where(*conditions).order_by(col(Factor.id).asc())
         result = await self.session.exec(stmt)
-        factor = result.one_or_none()
+        factors = result.all()
 
-        if factor or not fallbacks:
-            return factor
+        if factors or not fallbacks:
+            return [factor for factor in factors]
 
         # Try with remaining fallback values (for keys that had a non-None
         # original value that didn't match).
@@ -398,6 +397,10 @@ class FactorRepository:
 
         # Rebuild conditions with fallback-replaced values (same remapping).
         conditions = [col(Factor.data_entry_type_id) == data_entry_type.value]
+        # Add year filter if provided
+        if year is not None:
+            conditions.append(col(Factor.year) == year)
+
         for key, value in classification.items():
             if value is None:
                 continue
@@ -407,6 +410,6 @@ class FactorRepository:
                 key = subkind_field
             conditions.append(Factor.classification[key].as_string() == value)
 
-        stmt = select(Factor).where(*conditions)
+        stmt = select(Factor).where(*conditions).order_by(col(Factor.id).asc())
         result = await self.session.exec(stmt)
-        return result.one_or_none()
+        return [factor for factor in result.all()]

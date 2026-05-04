@@ -48,6 +48,7 @@ def compute_results_summary(
     prev_emissions: dict[str, float],
     co2_per_km_kg: float,
     headcount_key: str,
+    exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
 ) -> dict:
     """Build the results-summary response from raw emission/FTE data.
 
@@ -60,6 +61,8 @@ def compute_results_summary(
         prev_emissions: ``{module_type_id_str: kg_co2eq}`` (empty if no prev year)
         co2_per_km_kg: conversion factor for equivalent car km (must be > 0)
         headcount_key: string form of ``ModuleTypeEnum.headcount.value``
+        exclude_module_type_ids: set of integer module_type_ids to omit from
+            both per-module results and unit totals.
 
     Raises:
         ValueError: If *co2_per_km_kg* is zero or negative.
@@ -72,6 +75,8 @@ def compute_results_summary(
     # --- Per-module results ---
     module_results: list[dict] = []
     for module_key, kg_co2eq in current_emissions.items():
+        if int(module_key) in exclude_module_type_ids:
+            continue
         if kg_co2eq is None:
             continue
         total_tonnes = kg_co2eq / 1000
@@ -99,8 +104,16 @@ def compute_results_summary(
         )
 
     # --- Unit totals ---
-    non_none_emissions = [v for v in current_emissions.values() if v is not None]
-    non_none_prev = [v for v in prev_emissions.values() if v is not None]
+    non_none_emissions = [
+        v
+        for k, v in current_emissions.items()
+        if v is not None and int(k) not in exclude_module_type_ids
+    ]
+    non_none_prev = [
+        v
+        for k, v in prev_emissions.items()
+        if v is not None and int(k) not in exclude_module_type_ids
+    ]
     total_kg: float | None = sum(non_none_emissions) if non_none_emissions else None
     total_prev_kg: float | None = sum(non_none_prev) if non_none_prev else None
     total_tonnes_all = total_kg / 1000 if total_kg is not None else None

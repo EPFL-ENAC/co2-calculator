@@ -1,15 +1,16 @@
 apiVersion: v2
 name: co2-calculator
-description: Helm chart for the CO2 Calculator frontend and backend
+description: Helm chart for the CO2 Calculator frontend, backend, and documentation
 kubeVersion: ">=1.24.0-0"
 icon: https://www.epfl.ch/wp-content/themes/wp-theme-2018/assets/svg/epfl-logo.svg
 type: application
-version: 0.2.0
-appVersion: "0.2.0"
+version: 0.3.0
+appVersion: "0.3.0"
 keywords:
   - co2
   - fastapi
   - quasar
   - postgres
+  - documentation
 maintainers:
   - name: EPFL-ENAC

@@ -136,6 +136,70 @@ def test_build_chart_breakdown_validated_categories_follow_module_validation():
     assert "professional_travel" not in result["validated_categories"]
 
 
+def test_build_chart_breakdown_excludes_single_module():
+    rows = [
+        (
+            ModuleTypeEnum.research_facilities.value,
+            EmissionType.research_facilities__facilities.value,
+            5_000.0,
+        ),
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+            10_000.0,
+        ),
+    ]
+
+    result_full = build_chart_breakdown(rows, total_fte=10.0)
+    result_excluded = build_chart_breakdown(
+        rows,
+        total_fte=10.0,
+        exclude_module_type_ids={ModuleTypeEnum.research_facilities.value},
+    )
+
+    categories = [r["category"] for r in result_excluded["module_breakdown"]]
+    assert "research_facilities" not in categories
+    assert result_excluded["per_person_breakdown"][
+        "research_facilities"
+    ] == pytest.approx(0.0)
+    assert result_excluded["total_tonnes_co2eq"] < result_full["total_tonnes_co2eq"]
+
+
+def test_build_chart_breakdown_excludes_multiple_modules():
+    rows = [
+        (
+            ModuleTypeEnum.research_facilities.value,
+            EmissionType.research_facilities__facilities.value,
+            5_000.0,
+        ),
+        (
+            ModuleTypeEnum.professional_travel.value,
+            EmissionType.professional_travel__plane__eco.value,
+            3_000.0,
+        ),
+        (
+            ModuleTypeEnum.equipment_electric_consumption.value,
+            EmissionType.equipment__scientific.value,
+            10_000.0,
+        ),
+    ]
+
+    result = build_chart_breakdown(
+        rows,
+        exclude_module_type_ids={
+            ModuleTypeEnum.research_facilities.value,
+            ModuleTypeEnum.professional_travel.value,
+        },
+    )
+
+    categories = [r["category"] for r in result["module_breakdown"]]
+    assert "research_facilities" not in categories
+    assert "professional_travel" not in categories
+    equipment_row = _row_by_category(result["module_breakdown"], "equipment")
+    assert equipment_row["scientific"] == pytest.approx(10.0)
+    assert result["total_tonnes_co2eq"] == pytest.approx(10.0)
+
+
 def test_build_treemap_basic():
     rows = [("eco", 200.0), ("business", 600.0), ("first", 200.0)]
     result = build_treemap(rows)

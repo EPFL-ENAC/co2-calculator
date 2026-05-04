@@ -1001,3 +1001,179 @@ async def test_emission_stats_empty(db_session: AsyncSession):
     repo = DataEntryEmissionRepository(db_session)
     result = await repo.get_stats_by_carbon_report_id(99999)
     assert result == {}
+
+
+# ======================================================================
+# _looks_like_purchase_institutional_code Tests
+# ======================================================================
+
+
+class TestLooksLikePurchaseInstitutionalCode:
+    """Tests for the static helper that filters out non-code names."""
+
+    def test_empty_string(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code("")
+            is False
+        )
+
+    def test_whitespace_only(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code("   ")
+            is False
+        )
+
+    def test_rest_lowercase(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code("rest")
+            is False
+        )
+
+    def test_rest_mixed_case(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code("Rest")
+            is False
+        )
+
+    def test_unknown_lowercase(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
+                "unknown"
+            )
+            is False
+        )
+
+    def test_unknown_uppercase(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
+                "UNKNOWN"
+            )
+            is False
+        )
+
+    def test_valid_code(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
+                "ABC-123"
+            )
+            is True
+        )
+
+    def test_valid_code_with_whitespace(self):
+        assert (
+            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
+                "  ABC-123  "
+            )
+            is True
+        )
+
+
+# ======================================================================
+# get_emission_breakdown_with_quantity Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_emission_breakdown_with_quantity_empty(db_session: AsyncSession):
+    """No data returns empty list."""
+    repo = DataEntryEmissionRepository(db_session)
+    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=99999)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
+    """Returns module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=200,
+        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        status=ModuleStatus.IN_PROGRESS,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Equip"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=entry.id,
+            emission_type_id=EmissionType.equipment__scientific,
+            kg_co2eq=1500.0,
+            meta={"quantity": 3},
+        )
+    )
+    await db_session.flush()
+
+    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=200)
+    assert len(result) == 1
+    module_type_id, emission_type_id, kg, qty = result[0]
+    assert module_type_id == ModuleTypeEnum.equipment_electric_consumption.value
+    assert emission_type_id == EmissionType.equipment__scientific.value
+    assert kg == pytest.approx(1500.0)
+
+
+# ======================================================================
+# get_embodied_energy_by_building Tests
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_embodied_energy_by_building_empty(db_session: AsyncSession):
+    """No data returns empty list."""
+    repo = DataEntryEmissionRepository(db_session)
+    result = await repo.get_embodied_energy_by_building(carbon_report_id=99999)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSession):
+    """Emissions are grouped and summed per building_name."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=300,
+        module_type_id=ModuleTypeEnum.buildings.value,
+        status=ModuleStatus.VALIDATED,
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entries = []
+    for building, kg in [
+        ("Building A", 100.0),
+        ("Building A", 200.0),
+        ("Building B", 50.0),
+    ]:
+        entry = DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.building_embodied_energy,
+            status=DataEntryStatusEnum.PENDING,
+            data={"building_name": building},
+        )
+        db_session.add(entry)
+        await db_session.flush()
+        db_session.add(
+            DataEntryEmission(
+                data_entry_id=entry.id,
+                emission_type_id=EmissionType.buildings__embodied_energy,
+                kg_co2eq=kg,
+            )
+        )
+        entries.append(entry)
+    await db_session.flush()
+
+    result = await repo.get_embodied_energy_by_building(carbon_report_id=300)
+
+    # Sorted by building name
+    assert len(result) == 2
+    assert result[0] == ("Building A", pytest.approx(300.0))
+    assert result[1] == ("Building B", pytest.approx(50.0))

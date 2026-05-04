@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { nextTick, ref } from 'vue';
 import { useAuthStore } from 'src/stores/auth';
 import { ROLES } from 'src/constant/roles';
-import { BACKOFFICE_NAV, SYSTEM_NAV } from 'src/constant/navigation';
+import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import Co2Sidebar from './Co2Sidebar.vue';
 
 /**
@@ -191,46 +191,6 @@ export const BackofficeMetier: Story = {
   ],
   args: {
     items: BACKOFFICE_NAV,
-  },
-  render: (args) => ({
-    components: { Co2Sidebar },
-    setup() {
-      return { args };
-    },
-    template: '<Co2Sidebar :items="args.items" />',
-  }),
-};
-
-/**
- * System sidebar with SuperAdmin role user.
- * All system navigation items are enabled.
- * This is the system sidebar area.
- */
-export const SuperAdmin: Story = {
-  parameters: {
-    layout: 'padded',
-  },
-  decorators: [
-    withRouterAndAuth({
-      route: {
-        name: 'system-user-management',
-        params: { language: 'en' },
-      },
-      user: {
-        id: '3',
-        email: 'superadmin@example.com',
-        display_name: 'Super Admin User',
-        roles_raw: [
-          {
-            role: ROLES.SuperAdmin,
-            on: 'global',
-          },
-        ],
-      },
-    }),
-  ],
-  args: {
-    items: SYSTEM_NAV,
   },
   render: (args) => ({
     components: { Co2Sidebar },

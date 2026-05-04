@@ -321,16 +321,3 @@ class User(UserBase, table=True):
 
     def refresh_permissions(self) -> None:
         self.permissions = self.calculate_permissions()
-
-
-# {
-#     "id": "391260",
-#     "lastname": "Vigneau",
-#     "firstname": "Brice Julien Claude",
-#     "lastnameusual": "",
-#     "firstnameusual": "",
-#     "gender": "F",
-#     "canon": "vigno",
-#     "email": "",
-#     "display": "Vigneau Brice Julien Claude",
-# }

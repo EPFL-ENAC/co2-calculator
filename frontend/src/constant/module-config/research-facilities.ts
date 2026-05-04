@@ -92,6 +92,7 @@ export const researchFacilities: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   description:
     'This module estimates the carbon footprint of research facilities, including animal facilities.',
   hasSubmodules: true,

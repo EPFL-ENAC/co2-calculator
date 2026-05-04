@@ -39,9 +39,6 @@
         self="top right"
         class="u-tooltip"
       >
-        <div class="text-h5 text-weight-medium q-mb-sm">
-          {{ $t(`${type}-title-tooltip-title`) }}
-        </div>
         <p v-if="hasTooltipSubText">
           {{ $t(`${type}-title-tooltip-subtext`) }}
         </p>

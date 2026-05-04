@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from http import HTTPStatus
 from typing import Any, Dict, List, Optional, Set, TypedDict
 
-import requests
+import httpx
 from joserfc import jwt as JWT
 from joserfc.jwk import OctKey
 
@@ -510,7 +510,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             raise
 
     async def _signin_with_jwt(
-        self, session: requests.Session, jwt_token: str
+        self, session: httpx.Client, jwt_token: str
     ) -> Optional[str]:
         url = f"{self.server_url}/api/{self.min_api_version}/auth/signin"
 
@@ -585,7 +585,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             )
             return None
 
-    def _create_session(self) -> requests.Session:
+    def _create_session(self) -> httpx.Client:
         logger.debug(
             "Creating HTTP session",
             extra={
@@ -593,13 +593,13 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 "timeout": self.timeout,
             },
         )
-        session = requests.Session()
-        session.verify = self.verify_ssl
-        session.headers.update({"Accept": "application/json"})
+        session = httpx.Client(
+            verify=self.verify_ssl, headers={"Accept": "application/json"}
+        )
         logger.debug("HTTP session created successfully")
         return session
 
-    async def _vds_read_metadata(self, session: requests.Session, x_auth: str) -> Dict:
+    async def _vds_read_metadata(self, session: httpx.Client, x_auth: str) -> Dict:
         url = f"{self.server_url}/api/v1/vizql-data-service/read-metadata"
         payload = {"datasource": {"datasourceLuid": self.datasource_luid}}
         headers = {
@@ -666,7 +666,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         return payload
 
     async def _vds_query_datasource(
-        self, session: requests.Session, x_auth: str, payload: Dict
+        self, session: httpx.Client, x_auth: str, payload: Dict
     ) -> Dict:
         url = f"{self.server_url}/api/v1/vizql-data-service/query-datasource"
         headers = {

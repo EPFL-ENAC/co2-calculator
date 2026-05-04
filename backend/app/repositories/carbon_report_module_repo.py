@@ -6,13 +6,15 @@ from typing import Any, List, Optional
 from sqlmodel import and_, case, col, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule, ModuleStatus
-from app.models.data_entry import DataEntry
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.schemas.carbon_report import CarbonReportModuleCreate
 from app.utils.emission_category import build_chart_breakdown
 
 logger = get_logger(__name__)
@@ -42,6 +44,21 @@ class CarbonReportModuleRepository:
         return db_obj
 
     async def bulk_create(
+        self,
+        carbon_report_modules_to_create: list[CarbonReportModuleCreate],
+    ) -> List[CarbonReportModule]:
+        """Create multiple carbon report module records in one transaction."""
+        carbon_report_modules = [
+            CarbonReportModule(**carbon_report_module.model_dump())
+            for carbon_report_module in carbon_report_modules_to_create
+        ]
+        self.session.add_all(carbon_report_modules)
+        await self.session.flush()
+        for obj in carbon_report_modules:
+            await self.session.refresh(obj)
+        return carbon_report_modules
+
+    async def bulk_create_carbon_report_modules_of_carbon_report(
         self,
         carbon_report_id: int,
         module_type_ids: List[int],
@@ -680,6 +697,380 @@ class CarbonReportModuleRepository:
             "total_units_count": total_units_count,
             "module_status_counts": module_status_counts,
         }
+
+    async def get_usage_report(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
+    ) -> list[dict]:
+        """
+        Get a report of all carbon reports and their modules with status and
+        last updated timestamp.
+
+        Args:
+            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
+            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
+            completion_status: Optional filter for report-level completion status.
+            search: Optional search term to filter results.
+            modules: Optional filter for specific module types (ModuleTypeEnum names)
+              and statuses (e.g., ["headcount:2", "professional_travel:1"])
+            years: Optional filter for specific years (e.g., [2024, 2025])
+        Returns:
+            A list of dictionaries containing year, unit information, module type,
+            module status, and last updated timestamp for each module matching
+            the filters.
+        """
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+        # If hierarchy filters were provided but matched no units, return no results.
+        if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
+            return []
+
+        report: list[dict] = []
+
+        columns: List[Any] = [
+            col(CarbonReport.year),
+            col(Unit.institutional_id).label("unit_institutional_id"),
+            col(Unit.path_name).label("unit_path_name"),
+            col(CarbonReportModule.module_type_id),
+            col(CarbonReportModule.status),
+            col(CarbonReportModule.last_updated),
+        ]
+        statement = (
+            select(*columns)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.carbon_report_id == CarbonReport.id,
+            )
+            .join(Unit, Unit.id == CarbonReport.unit_id)
+            .order_by(CarbonReport.id, CarbonReportModule.module_type_id)
+        )
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
+        if completion_status:
+            statement = statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        if search:
+            search_term = f"%{search.strip().lower()}%"
+            statement = statement.where(
+                or_(
+                    func.lower(Unit.name).like(search_term),
+                    func.lower(Unit.institutional_code).like(search_term),
+                )
+            )
+        if modules:
+            module_conditions: List[Any] = []
+            for mod in modules:
+                if ":" in mod:
+                    module_type_name, status_str = mod.split(":", 1)
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    try:
+                        status_int = int(status_str)
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"Invalid status in modules filter (must be integer): "
+                            f"{status_str}"
+                        ) from exc
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        (col(CarbonReportModule.module_type_id) == module_type)
+                        & (col(CarbonReportModule.status) == status_int)
+                    )
+                else:
+                    module_type_name = mod
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        col(CarbonReportModule.module_type_id) == module_type
+                    )
+            statement = statement.where(or_(*module_conditions))
+        if hierarchy_unit_ids is not None:
+            statement = statement.where(col(Unit.id).in_(hierarchy_unit_ids))
+
+        cursor = await self.session.stream(statement)
+        async for partition in cursor.partitions(500):
+            for row in partition:
+                report.append(
+                    {
+                        "year": row.year,
+                        "unit_institutional_id": row.unit_institutional_id,
+                        "unit_path_name": row.unit_path_name,
+                        "module_name": ModuleTypeEnum(row.module_type_id).name,
+                        "module_status": row.status,
+                        "last_updated": row.last_updated,
+                    }
+                )
+
+        return report
+
+    async def get_detailed_report(
+        self,
+        data_entry_type: DataEntryTypeEnum,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
+    ) -> list[dict]:
+        """
+        Get a detailed report of carbon report data entries for a given data entry
+        type, including associated units, years, raw data payloads, and emissions.
+
+        Args:
+            data_entry_type: The type of data entry to filter by
+            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
+            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
+            completion_status: Optional filter for report-level completion status.
+            search: Optional search term to filter results.
+            modules: Optional filter for specific module types (ModuleTypeEnum names)
+              and statuses (e.g., ["headcount:2", "professional_travel:1"])
+            years: Optional filter for specific years (e.g., [2024, 2025])
+        Returns:
+            A list of dictionaries where each item represents a data entry and
+            contains:
+            - ``data_entry_type``: The name of the data entry type.
+            - ``year``: The reporting year.
+            - ``unit_institutional_id``: The institutional identifier of the unit.
+            - ``unit_path_name``: The full hierarchy path of the unit.
+            - ``data_entry_id``: The ID of the data entry record.
+            - ``kg_co2eq``: The summed emissions in kilograms of CO2 equivalent
+              associated with the data entry.
+            - All fields from the underlying data-entry payload, flattened into
+              the top-level dictionary.
+        """
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+        # If hierarchy filters were provided but matched no units, return no results.
+        if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
+            return []
+
+        report: list[dict] = []
+
+        columns: List[Any] = [
+            col(DataEntry.data_entry_type_id),
+            col(CarbonReport.year),
+            col(Unit.institutional_id).label("unit_institutional_id"),
+            col(Unit.path_name).label("unit_path_name"),
+            col(DataEntry.id).label("data_entry_id"),
+            col(DataEntry.data),
+            func.coalesce(
+                func.sum(col(DataEntryEmission.kg_co2eq)),
+                0,
+            ).label("kg_co2eq"),
+        ]
+        statement = (
+            select(*columns)
+            .select_from(DataEntry)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.id == DataEntry.carbon_report_module_id,
+            )
+            .join(
+                CarbonReport,
+                CarbonReport.id == CarbonReportModule.carbon_report_id,
+            )
+            .join(Unit, Unit.id == CarbonReport.unit_id)
+            .outerjoin(
+                DataEntryEmission,
+                DataEntryEmission.data_entry_id == DataEntry.id,
+            )
+            .where(DataEntry.data_entry_type_id == data_entry_type.value)
+            .group_by(
+                col(CarbonReport.year),
+                col(Unit.institutional_id),
+                col(Unit.path_name),
+                col(DataEntry.id),
+            )
+        )
+
+        # Additional filters based on provided parameters
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
+        if completion_status:
+            statement = statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        if search:
+            search_term = f"%{search.strip().lower()}%"
+            statement = statement.where(
+                or_(
+                    func.lower(Unit.name).like(search_term),
+                    func.lower(Unit.institutional_code).like(search_term),
+                )
+            )
+        if modules:
+            module_conditions: List[Any] = []
+            for mod in modules:
+                if ":" in mod:
+                    module_type_name, status_str = mod.split(":", 1)
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    try:
+                        status_int = int(status_str)
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"Invalid status in modules filter (must be integer): "
+                            f"{status_str}"
+                        ) from exc
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        (col(CarbonReportModule.module_type_id) == module_type)
+                        & (col(CarbonReportModule.status) == status_int)
+                    )
+                else:
+                    module_type_name = mod
+                    if module_type_name not in ModuleTypeEnum.__members__:
+                        raise ValueError(
+                            f"Invalid module type in modules filter: {module_type_name}"
+                        )
+                    module_type = ModuleTypeEnum[module_type_name].value
+                    module_conditions.append(
+                        col(CarbonReportModule.module_type_id) == module_type
+                    )
+            statement = statement.where(or_(*module_conditions))
+        if hierarchy_unit_ids is not None:
+            statement = statement.where(col(Unit.id).in_(hierarchy_unit_ids))
+
+        cursor = await self.session.stream(statement)
+        async for partition in cursor.partitions(500):
+            for row in partition:
+                # Remove primary_factor_id from data
+                data = row.data.copy() if row.data else {}
+                data.pop("primary_factor_id", None)
+                report.append(
+                    {
+                        "data_entry_type": DataEntryTypeEnum(
+                            row.data_entry_type_id
+                        ).name,
+                        "year": row.year,
+                        "unit_institutional_id": row.unit_institutional_id,
+                        "unit_path_name": row.unit_path_name,
+                        "data_entry_id": row.data_entry_id,
+                        **data,
+                        "kg_co2eq": row.kg_co2eq,
+                    }
+                )
+
+        return report
+
+    async def get_results_report(
+        self,
+        path_lvl2: Optional[List[str]] = None,
+        path_lvl3: Optional[List[str]] = None,
+        path_lvl4: Optional[List[str]] = None,
+        completion_status: Optional[ModuleStatus] = None,
+        search: Optional[str] = None,
+        years: Optional[List[int]] = None,
+    ) -> list[dict]:
+        """
+        Get a report of carbon report results aggregated at the unit-year level,
+        including scope totals and breakdowns by emission type.
+
+        Args:
+            path_lvl2: Optional list of hierarchy level 2 filters (unit names or IDs)
+            path_lvl3: Optional list of hierarchy level 3 filters (unit names or IDs)
+            path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
+            completion_status: Optional filter for report-level completion status.
+            search: Optional search term to filter results.
+            years: Optional filter for specific years (e.g., [2024, 2025])
+        Returns:
+            A list of dictionaries containing year, unit info, scope1/2/3 totals,
+            and breakdown by emission type.
+        """
+        hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
+            path_lvl2=path_lvl2,
+            path_lvl3=path_lvl3,
+            path_lvl4=path_lvl4,
+        )
+        # If hierarchy filters were provided but matched no units, return no results.
+        if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
+            return []
+
+        report: list[dict] = []
+
+        columns: List[Any] = [
+            col(CarbonReport.year),
+            col(Unit.institutional_id).label("unit_institutional_id"),
+            col(Unit.path_name).label("unit_path_name"),
+            col(CarbonReport.stats),
+        ]
+        statement = (
+            select(*columns)
+            .join(Unit, Unit.id == CarbonReport.unit_id)
+            .order_by(CarbonReport.id)
+        )
+        if years:
+            statement = statement.where(col(CarbonReport.year).in_(years))
+        if completion_status:
+            statement = statement.where(
+                col(CarbonReport.overall_status) == int(completion_status)
+            )
+        if search:
+            search_term = f"%{search.strip().lower()}%"
+            statement = statement.where(
+                or_(
+                    func.lower(Unit.name).like(search_term),
+                    func.lower(Unit.institutional_code).like(search_term),
+                )
+            )
+        if hierarchy_unit_ids is not None:
+            statement = statement.where(col(Unit.id).in_(hierarchy_unit_ids))
+
+        cursor = await self.session.stream(statement)
+        async for partition in cursor.partitions(500):
+            for row in partition:
+                stats = row.stats if isinstance(row.stats, dict) else {}
+                by_emission_type = stats.get("by_emission_type") or {}
+                # Convert emission type keys to names if possible
+                converted_by_emission_type: dict[str, Any] = {}
+                for k, v in by_emission_type.items():
+                    k_str = str(k)
+                    try:
+                        emission_type = EmissionType(int(k_str))
+                        key = emission_type.name.replace("__", "_")
+                    except (ValueError, TypeError):
+                        key = k_str
+                    converted_by_emission_type[key] = v
+                by_emission_type = converted_by_emission_type
+                report.append(
+                    {
+                        "year": row.year,
+                        "unit_institutional_id": row.unit_institutional_id,
+                        "unit_path_name": row.unit_path_name,
+                        "scope1": stats.get("scope1"),
+                        "scope2": stats.get("scope2"),
+                        "scope3": stats.get("scope3"),
+                        "total": stats.get("total"),
+                        # Flatten by_emission_type into top-level keys
+                        **by_emission_type,
+                    }
+                )
+
+        return report
 
     def _map_module_id_to_name(self, module_type_id: Optional[int]) -> str:
         """Helper to map internal IDs to the display names used in UI."""

@@ -10,9 +10,17 @@ from app.services.data_ingestion.api_providers.professional_travel_api_provider 
     ProfessionalTravelApiProvider,
 )
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.data_ingestion.computed_providers.research_facilities_animal import (
+    ResearchFacilitiesAnimalFactorUpdateProvider,
+)
+from app.services.data_ingestion.computed_providers.research_facilities_common import (
+    ResearchFacilitiesCommonFactorUpdateProvider,
+)
 from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
+    ModulePerYearReductionObjectivesApiProvider,
+    ModulePerYearReferenceDataApiProvider,
     ModuleUnitSpecificCSVProvider,
 )
 
@@ -21,10 +29,10 @@ class ProviderFactory:
     """Factory to create the right provider based on module + provider
     type + entity type"""
 
-    # Registry of available providers
+    # Registry of CSV/API providers.
     # Key: (module_type, ingestion_method, target_type, entity_type)
     PROVIDERS: dict[
-        tuple[ModuleTypeEnum, IngestionMethod, TargetType, EntityType],
+        tuple[ModuleTypeEnum | None, IngestionMethod, TargetType, EntityType],
         type[DataIngestionProvider],
     ] = {
         # MODULE_UNIT_SPECIFIC CSV Providers
@@ -57,6 +65,20 @@ class ProviderFactory:
             ): ModulePerYearFactorCSVProvider
             for module_type in ModuleTypeEnum
         },
+        ## MODULE_PER_YEAR REDUCTION OBJECTIVES
+        (
+            None,
+            IngestionMethod.csv,
+            TargetType.REDUCTION_OBJECTIVES,
+            EntityType.MODULE_PER_YEAR,
+        ): ModulePerYearReductionObjectivesApiProvider,
+        ## MODULE_PER_YEAR REFERENCE DATA
+        (
+            None,
+            IngestionMethod.csv,
+            TargetType.REFERENCE_DATA,
+            EntityType.MODULE_PER_YEAR,
+        ): ModulePerYearReferenceDataApiProvider,
         # API Providers
         (
             ModuleTypeEnum.professional_travel,
@@ -66,8 +88,38 @@ class ProviderFactory:
         ): ProfessionalTravelApiProvider,
     }
 
+    # WHAT IS THAT?
+    # Registry of computed providers that are keyed by data_entry_type as well.
+    # Key: (module_type, data_entry_type, ingestion_method, target_type, entity_type)
+    COMPUTED_FACTOR_PROVIDERS: dict[
+        tuple[
+            ModuleTypeEnum,
+            DataEntryTypeEnum,
+            IngestionMethod,
+            TargetType,
+            EntityType,
+        ],
+        type[DataIngestionProvider],
+    ] = {
+        (
+            ModuleTypeEnum.research_facilities,
+            DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            IngestionMethod.computed,
+            TargetType.FACTORS,
+            EntityType.MODULE_PER_YEAR,
+        ): ResearchFacilitiesAnimalFactorUpdateProvider,
+        (
+            ModuleTypeEnum.research_facilities,
+            DataEntryTypeEnum.research_facilities,
+            IngestionMethod.computed,
+            TargetType.FACTORS,
+            EntityType.MODULE_PER_YEAR,
+        ): ResearchFacilitiesCommonFactorUpdateProvider,
+    }
+
     PROVIDERS_BY_CLASS_NAME: dict[str, type[DataIngestionProvider]] = {
-        v.__name__: v for _, v in PROVIDERS.items()
+        **{v.__name__: v for _, v in PROVIDERS.items()},
+        **{v.__name__: v for _, v in COMPUTED_FACTOR_PROVIDERS.items()},
     }
 
     @staticmethod
@@ -81,7 +133,7 @@ class ProviderFactory:
 
     @staticmethod
     def get_provider_by_keys(
-        module_type_id: ModuleTypeEnum,
+        module_type_id: Optional[ModuleTypeEnum],
         ingestion_method: IngestionMethod,
         target_type: TargetType,
         entity_type: EntityType,
@@ -90,9 +142,28 @@ class ProviderFactory:
         """
         Get the appropriate provider class by routing keys.
 
-        entity_type determines which provider variant to use
-        (e.g., MODULE_UNIT_SPECIFIC vs MODULE_PER_YEAR).
+        For computed providers, a 5-tuple lookup using data_entry_type is
+        attempted first; falls back to the 4-tuple PROVIDERS dict for CSV/API
+        providers that don't carry a data_entry_type in their key.
         """
+        if data_entry_type_id is not None:
+            try:
+                det = DataEntryTypeEnum(data_entry_type_id)
+            except ValueError:
+                det = None
+            if module_type_id is None:
+                raise ValueError("module_type_id is required for computed providers")
+            if det is not None:
+                five_tuple_key = (
+                    module_type_id,
+                    det,
+                    ingestion_method,
+                    target_type,
+                    entity_type,
+                )
+                result = ProviderFactory.COMPUTED_FACTOR_PROVIDERS.get(five_tuple_key)
+                if result is not None:
+                    return result
         return ProviderFactory.PROVIDERS.get(
             (module_type_id, ingestion_method, target_type, entity_type)
         )
@@ -100,7 +171,6 @@ class ProviderFactory:
     @classmethod
     async def create_provider(
         cls,
-        module_type_id: ModuleTypeEnum,
         ingestion_method: IngestionMethod,
         target_type: TargetType,
         config: dict,
@@ -126,6 +196,7 @@ class ProviderFactory:
             return None
 
         data_entry_type_id = config.get("data_entry_type_id")
+        module_type_id = config.get("module_type_id")
         provider_class = cls.get_provider_by_keys(
             module_type_id=module_type_id,
             ingestion_method=ingestion_method,

@@ -232,11 +232,13 @@ class TestAccredRoleProvider:
                     "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
+                    "reason": {"resource": {"cf": "12345"}},
                 },
                 {
                     "name": RoleName.CO2_USER_PRINCIPAL.value,
                     "state": "active",
                     "accredunitid": "67890",
+                    "reason": {"resource": {"cf": "67890"}},
                 },
             ]
         }
@@ -274,6 +276,7 @@ class TestAccredRoleProvider:
                     "name": f"{RoleName.CO2_SUPERADMIN.value}",
                     "state": "active",
                     "accredunitid": "12345",
+                    "reason": {"resource": {"cf": "12345"}},
                 }
             ]
         }
@@ -306,7 +309,7 @@ class TestAccredRoleProvider:
                     "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
                     "state": "active",
                     "accredunitid": "12345",
-                    "reason": {"resource": {"sortpath": "Engineering"}},
+                    "reason": {"resource": {"cf": "12345", "sortpath": "Engineering"}},
                 }
             ]
         }
@@ -370,6 +373,7 @@ class TestAccredRoleProvider:
                     "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
+                    "reason": {"resource": {"cf": "12345"}},
                 },
             ]
         }
@@ -407,6 +411,7 @@ class TestAccredRoleProvider:
                     "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
+                    "reason": {"resource": {"cf": "12345"}},
                 },
             ]
         }
@@ -438,11 +443,13 @@ class TestAccredRoleProvider:
                 {
                     "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
+                    "reason": {"resource": {"cf": ""}},
                 },
                 {
                     "name": RoleName.CO2_USER_STD.value,
                     "state": "active",
                     "accredunitid": "12345",
+                    "reason": {"resource": {"cf": "12345"}},
                 },
             ]
         }

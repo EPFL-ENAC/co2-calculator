@@ -27,14 +27,18 @@ def test_carbon_report_read_schema():
 
 
 def test_carbon_report_module_create_schema():
-    data = {"module_type_id": 1, "status": ModuleStatus.IN_PROGRESS}
+    data = {
+        "carbon_report_id": 1,
+        "module_type_id": 1,
+        "status": ModuleStatus.IN_PROGRESS,
+    }
     obj = CarbonReportModuleCreate(**data)
     assert obj.module_type_id == 1
     assert obj.status == ModuleStatus.IN_PROGRESS
 
 
 def test_carbon_report_module_create_default_status():
-    data = {"module_type_id": 1}
+    data = {"carbon_report_id": 1, "module_type_id": 1}
     obj = CarbonReportModuleCreate(**data)
     assert obj.status == ModuleStatus.NOT_STARTED
 

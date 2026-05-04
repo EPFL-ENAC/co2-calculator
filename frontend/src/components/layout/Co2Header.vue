@@ -5,7 +5,7 @@ import { useAuthStore } from 'src/stores/auth';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 
-import { isBackOfficeRoute, isSystemRoute } from 'src/router/routes';
+import { isBackOfficeRoute } from 'src/router/routes';
 import { hasPermission } from 'src/utils/permission';
 
 const authStore = useAuthStore();
@@ -43,12 +43,6 @@ const hasBackOfficeAccess = computed(() => {
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
-
-const hasSystemAccess = computed(() => {
-  return hasPermission(authStore.user?.permissions, 'system.users', 'edit');
-});
-
-const isInSystemRoute = computed(() => isSystemRoute(route));
 </script>
 
 <template>
@@ -91,22 +85,7 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
       />
 
       <q-btn
-        v-if="hasSystemAccess && isInSystemRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('documentation_dev_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :href="$t('header_dev_documentation_link')"
-        target="_blank"
-      />
-
-      <q-btn
-        v-if="!isInBackOfficeRoute && !isInSystemRoute"
+        v-if="!isInBackOfficeRoute"
         icon="o_article"
         color="grey-4"
         text-color="primary"
@@ -150,36 +129,6 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
         }"
       />
 
-      <q-btn
-        v-if="hasSystemAccess && !isInSystemRoute"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('user_management_system_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :to="{ name: 'system-user-management' }"
-      />
-      <q-btn
-        v-if="hasSystemAccess && isInSystemRoute"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('back_to_calculator_button')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :to="{
-          name: 'workspace-setup',
-          params: {
-            language: route.params.language || 'en',
-          },
-        }"
-      />
-
       <template v-if="route.name !== 'workspace-setup'">
         <span
           v-if="workspaceDisplay"
@@ -190,11 +139,14 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
 
         <q-btn
           icon="o_autorenew"
+          color="grey-4"
+          text-color="primary"
           :label="$t('workspace_change_btn')"
           unelevated
           no-caps
+          outline
           size="sm"
-          class="text-weight-medium btn-secondary"
+          class="text-weight-medium q-ml-xl"
           :to="{
             name: 'workspace-setup',
             params: {
@@ -212,6 +164,7 @@ const isInSystemRoute = computed(() => isSystemRoute(route));
         flat
         dense
         no-caps
+        outline
         color="accent"
         size="md"
         :label="authStore.displayName"

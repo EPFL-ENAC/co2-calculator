@@ -44,6 +44,14 @@ jobs:
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
+    # Official Playwright image ships both OS-level dependencies and browser binaries.
+    # Keep the image tag in sync with the @playwright/* versions in frontend/package.json.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-jammy
+      # Run as uid 1001 to match the owner of /github/home set by the GitHub Actions
+      # runner. Browsers (Firefox in particular) refuse to launch when $HOME is owned
+      # by a different user than the process running them.
+      options: --user 1001
     defaults:
       run:
         working-directory: ./frontend
@@ -52,7 +60,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v4
         with:
           node-version: ">=24.0.0"
           cache: "npm"
@@ -61,13 +69,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache Build Folders
+        uses: actions/cache@v4
+        with:
+          path: |
+            ./frontend/dist
+            ./frontend/node_modules/.cache
+          # The key changes if any source file or dependency changes
+          key: ${{ runner.os }}-build-${{ hashFiles('frontend/src/**', 'frontend/package-lock.json', 'frontend/quasar.config.js') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
+
       - name: Quasar prepare
         run: npx quasar prepare
 
-      - name: install playwright browsers
-        run: npx playwright install --with-deps
-
       - name: Build frontend
+        # Vite is smart: if node_modules/.cache exists, this will be significantly faster
         run: npm run build
 
       - name: Run frontend tests components

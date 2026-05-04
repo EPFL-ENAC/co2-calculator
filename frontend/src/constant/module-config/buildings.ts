@@ -183,6 +183,7 @@ export const buildings: ModuleConfig = {
   hasDescription: true,
   hasDescriptionSubtext: true,
   hasTooltip: true,
+  hasTooltipSubText: true,
   description:
     'Estimate building-related carbon footprint from energy consumption and combustion',
   hasSubmodules: true,

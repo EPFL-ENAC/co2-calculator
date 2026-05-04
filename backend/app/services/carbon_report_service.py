@@ -5,9 +5,9 @@ from typing import List, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import ModuleStatus
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import (
     CarbonReportCreate,
@@ -40,12 +40,23 @@ class CarbonReportService:
 
         return carbon_report_read
 
+    async def bulk_upsert(
+        self, data: list[CarbonReportCreate]
+    ) -> list[CarbonReportRead]:
+        """Bulk upsert carbon reports."""
+        carbon_reports = await self.repo.bulk_upsert(data)
+        return [CarbonReportRead.model_validate(cr) for cr in carbon_reports]
+
     async def get(self, carbon_report_id: int) -> Optional[CarbonReportRead]:
         """Get a carbon report by ID."""
         carbon_report = await self.repo.get(carbon_report_id)
         if carbon_report is None:
             return None
         return CarbonReportRead.model_validate(carbon_report)
+
+    async def get_reporting_overview(self, args) -> list[CarbonReportRead]:
+        results = await self.repo.get_reporting_overview(*args)
+        return [CarbonReportRead.model_validate(cr) for cr in results]
 
     async def list_by_unit(self, unit_id: int) -> List[CarbonReportRead]:
         """List all carbon reports for a unit."""
@@ -78,6 +89,11 @@ class CarbonReportService:
         await self.module_service.delete_all_modules_for_report(carbon_report_id)
         # Then delete the report
         return await self.repo.delete(carbon_report_id)
+
+    async def ensure_modules_for_reports(
+        self, carbon_reports: list[CarbonReportRead]
+    ) -> None:
+        await self.module_service.ensure_modules_for_reports(carbon_reports)
 
     async def recompute_report_stats(self, carbon_report_id: int) -> None:
         """

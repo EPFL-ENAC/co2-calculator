@@ -1,3 +1,400 @@
+"""Unit tests for DataEntryEmissionService."""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.schemas.data_entry import DataEntryResponse
+from app.services.data_entry_emission_service import DataEntryEmissionService
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_service() -> DataEntryEmissionService:
+    session = MagicMock()
+    session.flush = AsyncMock()
+    service = DataEntryEmissionService(session)
+    service.repo = MagicMock()
+    service.repo.delete_by_data_entry_id = AsyncMock()
+    service.repo.bulk_create = AsyncMock()
+    return service
+
+
+def _make_data_entry_response(data: dict) -> DataEntryResponse:
+    return DataEntryResponse(
+        id=1,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        carbon_report_module_id=10,
+        data=data,
+    )
+
+
+def _make_fake_emission() -> DataEntryEmission:
+    emission = MagicMock(spec=DataEntryEmission)
+    emission.kg_co2eq = 123.45
+    return emission
+
+
+# ---------------------------------------------------------------------------
+# upsert_by_data_entry — kg_co2eq stripping (regression: commit f9576005b)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upsert_strips_kg_co2eq_before_prepare_create():
+    """kg_co2eq stored by CSV import must not override the formula on user edits.
+
+    Regression introduced by f9576005b renaming co2_kg → kg_co2eq in the CSV
+    provider, which made prepare_create's CSV-override branch trigger for every
+    subsequent edit of a CSV-imported entry.
+    """
+    service = _make_service()
+    fake_emission = _make_fake_emission()
+    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
+
+    data_entry = _make_data_entry_response(
+        {
+            "number_of_trips": 5,
+            "distance_one_trip_km": 800.0,
+            "kg_co2eq": 99999.0,  # stale value from CSV import
+        }
+    )
+
+    captured: list[DataEntryResponse] = []
+
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+        captured.append(de)
+        return [fake_emission]
+
+    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
+        result = await service.upsert_by_data_entry(data_entry)
+
+    assert result == [fake_emission]
+    assert len(captured) == 1
+    called_with = captured[0]
+
+    # The stale kg_co2eq must have been removed so the formula runs
+    assert "kg_co2eq" not in called_with.data
+    # Other fields must be preserved
+    assert called_with.data["number_of_trips"] == 5
+    assert called_with.data["distance_one_trip_km"] == 800.0
+
+
+@pytest.mark.asyncio
+async def test_upsert_does_not_strip_when_no_kg_co2eq():
+    """Entries without a stored kg_co2eq must pass through untouched."""
+    service = _make_service()
+    fake_emission = _make_fake_emission()
+    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
+
+    data_entry = _make_data_entry_response(
+        {"number_of_trips": 3, "distance_one_trip_km": 500.0}
+    )
+
+    captured: list[DataEntryResponse] = []
+
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+        captured.append(de)
+        return [fake_emission]
+
+    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
+        await service.upsert_by_data_entry(data_entry)
+
+    called_with = captured[0]
+    assert called_with.data == {"number_of_trips": 3, "distance_one_trip_km": 500.0}
+
+
+@pytest.mark.asyncio
+async def test_upsert_does_not_mutate_original_data_entry():
+    """model_copy must be used — the caller's object must stay unchanged."""
+    service = _make_service()
+    fake_emission = _make_fake_emission()
+    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
+
+    original_data = {
+        "number_of_trips": 2,
+        "distance_one_trip_km": 300.0,
+        "kg_co2eq": 42.0,
+    }
+    data_entry = _make_data_entry_response(original_data)
+
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+        return [fake_emission]
+
+    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
+        await service.upsert_by_data_entry(data_entry)
+
+    # The original response object's data must be unchanged
+    assert data_entry.data.get("kg_co2eq") == 42.0
+
+
+@pytest.mark.asyncio
+async def test_upsert_deletes_then_creates_emissions():
+    """Existing emissions must be deleted before new ones are inserted."""
+    service = _make_service()
+    fake_emission = _make_fake_emission()
+    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
+
+    call_order: list[str] = []
+    service.repo.delete_by_data_entry_id = AsyncMock(
+        side_effect=lambda *_: call_order.append("delete")
+    )
+    service.repo.bulk_create = AsyncMock(
+        side_effect=lambda *_: call_order.append("create") or [fake_emission]
+    )
+
+    data_entry = _make_data_entry_response({"number_of_trips": 1})
+
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+        return [fake_emission]
+
+    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
+        await service.upsert_by_data_entry(data_entry)
+
+    assert call_order == ["delete", "create"]
+
+
+@pytest.mark.asyncio
+async def test_upsert_returns_none_and_flushes_when_no_emissions():
+    """When prepare_create yields nothing, existing emissions are cleared
+    and None returned."""
+    service = _make_service()
+
+    data_entry = _make_data_entry_response({"number_of_trips": 1})
+
+    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+        return []
+
+    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
+        result = await service.upsert_by_data_entry(data_entry)
+
+    assert result is None
+    service.repo.delete_by_data_entry_id.assert_awaited_once_with(data_entry.id)
+    service.session.flush.assert_awaited_once()
+    service.repo.bulk_create.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# _apply_formula (pure computation)
+# ---------------------------------------------------------------------------
+
+
+class TestApplyFormula:
+    """Tests for the _apply_formula method (pure, no DB)."""
+
+    def _make_service(self) -> DataEntryEmissionService:
+        return DataEntryEmissionService(MagicMock())
+
+    def test_key_based_simple(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            quantity_key="fte",
+            formula_key="kg_co2eq_per_fte",
+        )
+        ctx = {"fte": 0.8}
+        factor_values = {"kg_co2eq_per_fte": 420.0}
+        result = service._apply_formula(ctx, factor_values, comp)
+        assert result == pytest.approx(336.0)
+
+    def test_key_based_with_multiplier(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.professional_travel__plane__eco,
+            quantity_key="distance_km",
+            formula_key="kg_co2eq_per_km",
+            multiplier_key="rfi_adjustment",
+            multiplier_default=1.0,
+        )
+        ctx = {"distance_km": 1000.0}
+        factor_values = {"kg_co2eq_per_km": 0.15, "rfi_adjustment": 2.0}
+        result = service._apply_formula(ctx, factor_values, comp)
+        assert result == pytest.approx(300.0)
+
+    def test_multiplier_key_missing_uses_default(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            quantity_key="fte",
+            formula_key="kg_co2eq_per_fte",
+            multiplier_key="missing_key",
+            multiplier_default=2.0,
+        )
+        ctx = {"fte": 1.0}
+        factor_values = {"kg_co2eq_per_fte": 100.0}
+        result = service._apply_formula(ctx, factor_values, comp)
+        assert result == pytest.approx(200.0)
+
+    def test_missing_quantity_returns_none(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            quantity_key="fte",
+            formula_key="kg_co2eq_per_fte",
+        )
+        ctx = {}  # missing fte
+        factor_values = {"kg_co2eq_per_fte": 420.0}
+        assert service._apply_formula(ctx, factor_values, comp) is None
+
+    def test_missing_formula_key_returns_none(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            quantity_key="fte",
+            formula_key="missing_factor_key",
+        )
+        ctx = {"fte": 1.0}
+        factor_values = {}
+        assert service._apply_formula(ctx, factor_values, comp) is None
+
+    def test_no_keys_returns_none(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            # no quantity_key or formula_key
+        )
+        assert service._apply_formula({}, {}, comp) is None
+
+    def test_formula_func_takes_precedence(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+
+        def custom_formula(ctx, factor_values):
+            return ctx.get("x", 0) * factor_values.get("y", 0)
+
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            quantity_key="fte",
+            formula_key="kg_co2eq_per_fte",
+            formula_func=custom_formula,
+        )
+        ctx = {"x": 3.0, "fte": 999}
+        factor_values = {"y": 5.0, "kg_co2eq_per_fte": 999}
+        result = service._apply_formula(ctx, factor_values, comp)
+        assert result == pytest.approx(15.0)
+
+    def test_formula_func_can_return_none(self):
+        from app.models.data_entry_emission import EmissionComputation, EmissionType
+
+        service = self._make_service()
+        comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            formula_func=lambda ctx, fv: None,
+        )
+        assert service._apply_formula({}, {}, comp) is None
+
+
+# ---------------------------------------------------------------------------
+# prepare_create edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareCreate:
+    async def test_none_data_entry(self):
+        service = _make_service()
+        result = await service.prepare_create(None)
+        assert result == []
+
+    async def test_no_data_entry_type(self):
+        service = _make_service()
+        de = MagicMock()
+        de.data_entry_type = None
+        result = await service.prepare_create(de)
+        assert result == []
+
+    async def test_no_id(self):
+        service = _make_service()
+        de = _make_data_entry_response({"fte": 1.0})
+        de = de.model_copy(update={"id": None})
+        # resolve_emission_types needs a valid type, mock it
+        with patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=[MagicMock()],
+        ):
+            result = await service.prepare_create(de)
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# _get_year_from_data_entry
+# ---------------------------------------------------------------------------
+
+
+class TestGetYearFromDataEntry:
+    async def test_missing_carbon_report_module_id(self):
+        service = _make_service()
+        de = MagicMock()
+        de.carbon_report_module_id = None
+        result = await service._get_year_from_data_entry(de)
+        assert result is None
+
+    async def test_module_not_found(self):
+        service = _make_service()
+        service.session.exec = AsyncMock(
+            return_value=MagicMock(one_or_none=MagicMock(return_value=None))
+        )
+        de = MagicMock()
+        de.carbon_report_module_id = 999
+        result = await service._get_year_from_data_entry(de)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Delegation methods
+# ---------------------------------------------------------------------------
+
+
+class TestDelegationMethods:
+    async def test_get_stats_delegates(self):
+        service = _make_service()
+        service.repo.get_stats = AsyncMock(return_value={"total": 100})
+        result = await service.get_stats(1)
+        assert result == {"total": 100}
+        service.repo.get_stats.assert_awaited_once()
+
+    async def test_get_stats_by_carbon_report_id_delegates(self):
+        service = _make_service()
+        service.repo.get_stats_by_carbon_report_id = AsyncMock(return_value={"a": 1})
+        result = await service.get_stats_by_carbon_report_id(1)
+        assert result == {"a": 1}
+
+    async def test_create_with_no_emissions(self):
+        service = _make_service()
+        de = _make_data_entry_response({"fte": 1.0})
+        with patch.object(service, "prepare_create", new=AsyncMock(return_value=[])):
+            result = await service.create(de)
+        assert result == []
+
+    async def test_bulk_create_delegates(self):
+        service = _make_service()
+        fake = [MagicMock()]
+        service.repo.bulk_create = AsyncMock(return_value=fake)
+        result = await service.bulk_create(fake)
+        assert result == fake
+
+
+# ---------------------------------------------------------------------------
+# Commented-out legacy tests kept for reference (not yet updated to match
+# current implementation — uncomment and adapt as needed).
+# ---------------------------------------------------------------------------
+
 # """Unit tests for DataEntryEmissionService - emission calculation formulas."""
 
 # from unittest.mock import AsyncMock, MagicMock

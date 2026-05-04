@@ -224,11 +224,21 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                 # Use factors_map already loaded in setup_result
                 # (NOT per-row DB queries)
                 # Build factors_maps_by_type from existing setup_result["factors_map"]
-                factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {
-                    entry_type: setup_result["factors_map"]
-                    for entry_type in valid_entry_types
-                }
+                # Assuming setup_result["factors_map"] is your large dictionary
+                original_map = setup_result["factors_map"]
 
+                factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {}
+
+                for entry_type in valid_entry_types:
+                    # Convert enum value to string (e.g., "10") to match the key prefix
+                    prefix = f"{entry_type.value}:"
+
+                    # Filter the original map for keys that start with this prefix
+                    factors_maps_by_type[entry_type] = {
+                        key: factor
+                        for key, factor in original_map.items()
+                        if key.startswith(prefix)
+                    }
                 # Extract kind/subkind from row
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
