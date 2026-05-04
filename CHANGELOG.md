@@ -1,5 +1,47 @@
 # [0.9.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.8.1...v0.9.0) (2026-05-04)
 
+## Key Changes
+
+| Area                       | What changed                                                                                                                              | Consequences / Reason                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Simulation & planning      | New Simulation Explore/Plan pages, simulator integrated into workspace setup, reduction objective chart for EPFL and units                 | Enables what-if planning and visual tracking against reduction goals               |
+| Job system (#310a, #780)   | Plan 310A job claiming with safety poller; cancel-job endpoint and UI for stuck ingestion jobs                                            | Prevents zombie/lost ingestion jobs and gives operators a recovery path            |
+| Data ingestion             | Seed data and seed factors refactored to reuse the CSV ingestion logic; `BaseFactorCSVProvider` aligned with parent move-failure handling | Single source of truth for ingestion; less drift between seed and runtime imports  |
+| Permissions & roles (#974) | Module permissions contextualized by workspace unit and scoped to unit `institutional_id`; background role sync (later simplified to refresh-triggered) | Closes cross-unit permission leaks; roles stay current without persistent SSE      |
+| Module configuration (#837) | Uncertainty tag and module constants now sourced from backend config; submodule input deactivation                                       | Consolidates configuration on the backend; less front-end drift                    |
+| Year-aware factors (#927)  | Year propagated to all factor lookups; `factors_map` no longer collides across years                                                      | Resolves 500 errors and silent miscalculations on multi-year selections            |
+| Pagination & filtering (#757, #781) | Server-side pagination and sorting for backoffice reporting; clearable completion status filter; multi-year validation count           | Scales reporting to large datasets and clarifies multi-year completion state       |
+| Reporting & breakdowns     | SQL-driven totals in IT breakdown; rollup rows excluded from aggregations; more specific emission type id; physical quantity unified as `additional_value` | Accurate aggregations without double-counting and cleaner type granularity         |
+| Affiliation filter         | Replaced Faculties/Institutes filters with a single Affiliation filter                                                                    | Simpler, less confusing filter UI                                                  |
+| Locations                  | Faster CSV upload for locations                                                                                                           | Reduced ingestion time on large location datasets                                  |
+| Charts & UI                | Unified ECharts tooltip component; consistent module chart order/colors; room allocation ratio (#690); calculator update card             | Visual consistency and easier interpretation                                       |
+
+---
+
+## Bug Fixes
+
+| Category                 | Fixes                                                                                                                                                  | Consequences / Reason                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Job system / async       | Plugged `claim_job` silent-zero leak; mirrored RUNNING guard; safer mocks (`data_entry_type_id=None`); SSE endpoint path correction; UTC time comparison | Prevents lost or duplicate ingestion jobs            |
+| Data management (#780, #898) | Stale props in data entry dialog; broken upload event chain; submodule config leak; module CSV upload; `ExternalAIHandlerResponse` fields optional; deletion scoped to uploaded `data_entry_type` only | Restores reliability of the upload pipeline          |
+| Permissions (#974)       | Module permission checks scoped to unit `institutional_id`                                                                                             | Closes cross-unit permission bypass                  |
+| Year-aware factors (#927) | Year passed to factor values endpoint to avoid multi-year 500                                                                                          | Resolves crash on multi-year reporting selections    |
+| Pagination & filters (#757, #781) | Made pagination work on backoffice reporting; respect empty filter results in `_resolve_hierarchy_unit_ids`; corrected status update test; correct stats filtering | Stops empty/invalid pagination states                |
+| UX & labels (#619, #853) | Better contextual dialog text; corrected upload naming without duplication; restored compute-factors button for research-facilities; changed 0/7 to 0/8 | Removes user confusion and restores expected actions |
+| Display                  | Correct decimals; correct `last_update` timestamp display in backoffice reporting                                                                      | Accurate user-facing values                          |
+| Roles                    | Commit after sync of user units; updated role tests; completed role change detection                                                                    | Reliable role propagation                            |
+
+---
+
+## Technical Improvements (Non-functional)
+
+| Area     | Change                                                                                                                  | Consequences / Reason                                |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Backend  | Seed data and seed factors now use CSV ingestion; removed emit-per-factor logic; CodeQL findings addressed (PR #980)    | Less code duplication; reduced static-analysis debt  |
+| Frontend | Unified ECharts tooltip component; chart colors and module order normalized; `make format` cleanup                       | Consistency across charts; lint/format kept clean    |
+| Testing  | Tests updated for `BaseFactorCSVProvider` refactor; safer mocks for ingestion jobs; year-aware factor coverage           | Higher confidence in pipeline changes                |
+
+
 
 ### Bug Fixes
 
