@@ -27,26 +27,24 @@ Actors and external dependencies surrounding the system.
 flowchart LR
     User([EPFL User])
     Admin([IT / Team Admin])
-    System["co2-calculator<br/>(SPA + API + Workers)"]
+    System["co2-calculator<br/>(SPA + API)"]
     Entra[(Microsoft Entra ID<br/>OAuth2 / OIDC)]
     S3[(EPFL S3<br/>Object Storage)]
-    Mail[[Notification Email]]
 
     User -->|Browse, upload, view reports| System
     Admin -->|Manage users, units, factors| System
     System <-->|Authenticate| Entra
     System <-->|Files and exports| S3
-    System -->|Status emails| Mail
 
     classDef system fill:#fff3e0,stroke:#e65100,stroke-width:2px
     classDef ext fill:#ffebee,stroke:#c62828,stroke-width:2px
     class System system
-    class Entra,S3,Mail ext
+    class Entra,S3 ext
 ```
 
-**Boundaries.** The system owns its data (PostgreSQL) and queues
-(Redis). Identity is delegated to Entra ID. File blobs live in EPFL S3.
-Everything else is internal.
+**Boundaries.** The system owns its data (PostgreSQL, which also stores
+the background-job queue table). Identity is delegated to Entra ID. File
+blobs live in EPFL S3. Everything else is internal.
 
 ---
 
@@ -65,9 +63,7 @@ flowchart TB
 
     subgraph K8s["Kubernetes (EPFL XaaS)"]
         FE["Frontend<br/>Vue 3 + Quasar (Nginx)"]
-        BE["Backend API<br/>FastAPI + Uvicorn"]
-        WK["Workers<br/>Celery"]
-        Redis[(Redis<br/>queue + cache)]
+        BE["Backend API<br/>FastAPI + Uvicorn<br/>(in-process background tasks)"]
         PG[(PostgreSQL<br/>via PgBouncer)]
     end
 
@@ -77,39 +73,32 @@ flowchart TB
     Browser -->|HTTPS| Ingress
     Ingress -->|/| FE
     Ingress -->|/api| BE
-    FE -->|REST / JSON| BE
+    FE -->|REST / JSON<br/>auth cookies| BE
     BE <-->|OIDC| Entra
     BE -->|SQLAlchemy async| PG
-    BE -->|enqueue| Redis
-    BE <-->|presigned URLs| S3
-    Redis -->|dispatch| WK
-    WK -->|results| PG
-    WK <-->|files| S3
+    BE <-->|read/write blobs| S3
 
     classDef fe fill:#e1f5ff,stroke:#01579b,stroke-width:2px
     classDef be fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef wk fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
     classDef data fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
     classDef ext fill:#ffebee,stroke:#c62828,stroke-width:2px
     classDef edge fill:#e8eaf6,stroke:#3949ab,stroke-width:2px
 
     class FE fe
     class BE be
-    class WK wk
-    class Redis,PG data
+    class PG data
     class Entra,S3 ext
     class Ingress edge
 ```
 
 ### Container responsibilities
 
-| Container       | Role                                                     |
-| --------------- | -------------------------------------------------------- |
-| **Frontend**    | Static SPA bundle, Quasar UI, calls Backend over REST.   |
-| **Backend API** | Auth, business logic, persistence, presigned-URL broker. |
-| **Workers**     | CPU-bound jobs: factor recalc, CSV ingest, exports.      |
-| **Redis**       | Celery broker + short-lived caches.                      |
-| **PostgreSQL**  | System of record, accessed via PgBouncer.                |
+| Container           | Role                                                                                                                |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**        | Static SPA bundle, Quasar UI, calls Backend over REST with HTTP-only auth cookies.                                  |
+| **Backend API**     | Auth, business logic, persistence, file uploads via `/files/temp-upload`.                                           |
+| **Background tasks**| In-process FastAPI `BackgroundTasks` chained via `asyncio.create_task`; 10s safety-net poller. See ADR-010.         |
+| **PostgreSQL**      | System of record (also holds the background-job queue table), accessed via PgBouncer.                               |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md).
 
@@ -123,18 +112,15 @@ sequenceDiagram
     actor U as User
     participant FE as Frontend
     participant BE as Backend
-    participant Q as Redis
-    participant W as Worker
     participant DB as PostgreSQL
 
     U->>FE: Action (e.g. upload CSV)
-    FE->>BE: REST + JWT
-    BE->>DB: Persist metadata
-    BE->>Q: Enqueue job
+    FE->>BE: REST + auth cookie
+    BE->>DB: Persist metadata + claim job
     BE-->>FE: 202 + job id
-    Q->>W: Dispatch
-    W->>DB: Write results
-    FE->>BE: Poll status
+    Note over BE: asyncio.create_task chain
+    BE->>DB: Write results
+    FE->>BE: Poll status (or SSE)
     BE->>DB: Read status
     BE-->>FE: Result / progress
 ```
@@ -146,11 +132,12 @@ Detailed sequences (uploads, exports, auth) are in
 
 ## Cross-cutting
 
-- **Identity.** JWT issued after Entra ID OIDC handshake — see
+- **Identity.** Entra ID OIDC handshake exchanged for HTTP-only
+  `auth_token` / `refresh_token` cookies — see
   [Auth Flow](./04-auth-flow.md).
 - **Observability.** Prometheus scrapes Backend + PgBouncer; Grafana
   dashboards in cluster.
 - **Config.** ConfigMaps + Secrets per environment — see
   [Environments](./05-environments.md).
-- **Scaling.** Stateless API + workers scale via HPA — see
-  [Scalability](./12-scalability.md).
+- **Scaling.** Stateless API (and its in-process tasks) scales via HPA —
+  see [Scalability](./12-scalability.md).
