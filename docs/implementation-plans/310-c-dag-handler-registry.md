@@ -157,6 +157,58 @@ The legacy `run_ingestion`, `run_recalculation`, `run_module_recalculation`,
 `sync_units_from_accred_task` sync wrappers are removed once their handler bodies are
 registered. This is a follow-up cleanup commit within the same PR.
 
+### Pod-crash safety net: heartbeat + preemption check (rolled in from PR #998 review)
+
+PR #998 added an auto-recovery sweep to the safety poller (jobs stuck in RUNNING past
+`STALE_JOB_TIMEOUT_MINUTES` get reset to NOT_STARTED or marked FINISHED+ERROR). The
+review on that PR flagged a real concurrency hazard that lives until the runner
+heartbeats: any job whose runtime exceeds the stale-timeout window is falsely
+classified as stuck — the sweep recovers the row, another pod re-claims, and now two
+pods are processing the same job. PR #998's mitigation is operational: bump
+`STALE_JOB_TIMEOUT_MINUTES` to 60 min and document the caveat. The proper fix lives
+here, in `run_job`, in two parts:
+
+**1. Heartbeat the active worker.** Add a column or repurpose `locked_at`:
+
+```python
+# repo helper
+async def heartbeat(self, job_id: int) -> None:
+    await self.session.execute(
+        update(DataIngestionJob)
+        .where(col(DataIngestionJob.id) == job_id,
+               col(DataIngestionJob.locked_by) == POD_ID,  # only OUR job
+               col(DataIngestionJob.state) == IngestionState.RUNNING)
+        .values(locked_at=func.now())
+    )
+    await self.session.commit()
+```
+
+Inside `run_job`, spawn a per-job heartbeat task that wakes every
+`STALE_JOB_TIMEOUT_MINUTES / 4` (default: every 15 min for a 60 min timeout) and
+calls `heartbeat(job_id)` until the handler returns. Wrap with `try/finally` so the
+heartbeat task is reliably cancelled even if the handler raises. The auto-recovery
+sweep then becomes safe regardless of how long the worker takes — what it actually
+detects is "no heartbeat for >`STALE_JOB_TIMEOUT_MINUTES`," i.e. real pod death.
+
+**2. Worker-side preemption check.** Defence-in-depth for the brief window before
+the first heartbeat fires, and for any future regression in heartbeat scheduling.
+Inside `run_job`, before each `data_session.commit()`:
+
+```python
+current = await repo.get_job_by_id(job_id)
+if current is None or current.locked_by != POD_ID:
+    logger.warning(
+        f"Job {job_id} was preempted (locked_by={current and current.locked_by!r}); "
+        "rolling back our work and exiting"
+    )
+    await data_session.rollback()
+    return  # do NOT update job state — the new owner will
+```
+
+Together these eliminate the duplicate-processing risk that PR #998's sweep adds.
+With the heartbeat, `STALE_JOB_TIMEOUT_MINUTES` can be tightened back down (10–15 min)
+to bound recovery latency on real crashes.
+
 ---
 
 ## DAG chaining via `chain_job` helper

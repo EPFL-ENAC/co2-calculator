@@ -223,6 +223,95 @@ class DataIngestionRepository:
         await self.session.commit()
         return True
 
+    async def sweep_stuck_running_jobs(
+        self, stale_timeout_minutes: int
+    ) -> tuple[int, int]:
+        """Auto-recovery sweep for jobs stuck in RUNNING after a pod crash.
+
+        The poller calls this once per tick.  Jobs whose ``locked_at`` is
+        older than the stale window are split into two buckets:
+
+        - **Recoverable** (``attempts < max_attempts``) — reset to
+          NOT_STARTED so the next poll cycle can re-dispatch them.  Unlike
+          ``recover_job`` (the manual API path, which resets ``attempts=0``
+          on operator intent), this preserves ``attempts`` so a genuinely
+          broken job that crashes every claim can't loop forever — once
+          ``attempts`` reaches ``max_attempts`` the next sweep abandons it.
+
+        - **Abandoned** (``attempts >= max_attempts``) — moved to
+          ``state=FINISHED, result=ERROR`` with a diagnostic
+          ``status_message``.  Operators see the failure on the dashboard
+          instead of a silently-stuck row.
+
+        Returns ``(recovered_count, abandoned_count)``.
+
+        ⚠️ **No heartbeat (yet)**: ``locked_at`` is set ONCE by
+        ``claim_job`` and never refreshed during execution, so any
+        legitimately long-running job whose runtime exceeds
+        ``stale_timeout_minutes`` will be falsely classified as stale.
+        That triggers duplicate processing — the sweep recovers the row,
+        another pod claims and re-runs it, while the original pod is
+        still working toward its commit.  Mitigation today: set
+        ``STALE_JOB_TIMEOUT_MINUTES`` *above* the longest plausible job
+        runtime (default 60 min, raise if needed).  Plan 310C wires a
+        per-job heartbeat into the generic ``run_job`` runner; until
+        then, this method shares the same long-running-job hazard as the
+        manual ``recover_job`` path — the sweep just exercises it more
+        often.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
+        stale_filter = and_(
+            col(DataIngestionJob.state) == IngestionState.RUNNING,
+            or_(
+                col(DataIngestionJob.locked_at).is_(None),
+                col(DataIngestionJob.locked_at) < cutoff,
+            ),
+        )
+
+        # Bucket 1: still has retries left → unlock and let claim_job pick
+        # it up next cycle.  Preserve ``attempts`` so claim_job's
+        # ``attempts < max_attempts`` guard caps the retry count.
+        recovered = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                stale_filter,
+                col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+            )
+            .values(
+                state=IngestionState.NOT_STARTED,
+                locked_by=None,
+                locked_at=None,
+                is_current=False,
+                run_after=None,
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        recovered_ids = list(recovered.scalars().all())
+
+        # Bucket 2: out of retries → mark FINISHED+ERROR loud and clear.
+        abandoned = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                stale_filter,
+                col(DataIngestionJob.attempts) >= col(DataIngestionJob.max_attempts),
+            )
+            .values(
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+                status_message=(
+                    "Auto-recovery: pod-crash sweep found this job RUNNING past "
+                    "the stale-timeout window with attempts >= max_attempts.  "
+                    "Marking FINISHED+ERROR.  If the underlying issue is fixed, "
+                    "create a new job — this row's attempts counter is exhausted."
+                ),
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        abandoned_ids = list(abandoned.scalars().all())
+
+        await self.session.commit()
+        return len(recovered_ids), len(abandoned_ids)
+
     async def recover_job(
         self, job_id: int, stale_timeout_minutes: int
     ) -> Optional[DataIngestionJob]:

@@ -314,10 +314,20 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Background job safety (Plan 310A)
+    # Background job safety (Plan 310A + auto-recovery sweep, PR #998)
     STALE_JOB_TIMEOUT_MINUTES: int = Field(
-        default=30,
-        description="Minutes before a RUNNING job is considered stale",
+        default=60,
+        description=(
+            "Minutes before a RUNNING job is considered stale.  Doubles as "
+            "the auto-recovery sweep's threshold: jobs whose ``locked_at`` "
+            "is older than this are reset to NOT_STARTED (or marked "
+            "FINISHED+ERROR if attempts >= max_attempts).  Until the worker "
+            "heartbeats ``locked_at`` (planned in 310C), set this *above* "
+            "the longest plausible job runtime — otherwise the sweep will "
+            "preempt a still-working pod and trigger duplicate processing.  "
+            "60 min gives ample headroom for current ingest/recalc loads; "
+            "raise if a specific job type is expected to run longer."
+        ),
     )
     RUN_BACKGROUND_POLLER: bool = Field(
         default=True,
