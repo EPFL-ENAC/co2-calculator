@@ -351,6 +351,6 @@ if resource_type == "your_resource":
 
 For detailed developer instructions and examples, see:
 
-- [Developer Guide: Permission-Based Authorization](./07-DEVELOPER-GUIDE-PERMISSIONS.md)
+- [Developer Guide: Permission-Based Authorization](./permissions/index.md)
 - [Backend Architecture](./02-ARCHITECTURE.md)
 - [Request Flow](./05-REQUEST_FLOW.md)

@@ -112,6 +112,6 @@ Human entries have `source = DataEntrySourceEnum.USER_MANUAL` (value: 0) and are
 
 ---
 
-## Real-World Examples from Seed Data
+## Production seed data (not in repo)
 
 Production CSVs are mirrored locally to an untracked `backend/seed_data/` directory. They are not part of the repository; ask a team member if you need access. For schema reference and developer use, treat this `fixtures/` directory as the canonical example.

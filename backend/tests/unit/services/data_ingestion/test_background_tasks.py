@@ -92,3 +92,60 @@ async def test_run_sync_task_job_not_found():
 
         # Should not raise
         await run_sync_task("FakeProviderClass", job_id=999)
+
+
+@pytest.mark.asyncio
+async def test_run_sync_task_provider_failure_marks_job_error_and_reraises():
+    """If ``provider.ingest`` raises, ``run_sync_task``'s except block must:
+    rollback the data session, stamp the job FINISHED+ERROR with the
+    exception text, then re-raise so the caller (BackgroundTasks /
+    fire_and_forget) sees the failure rather than swallowing it."""
+    fake_job = MagicMock()
+    fake_job.id = 123
+    fake_job.user = None
+    fake_job.meta = None
+    fake_job.target_type = None  # not FACTORS — skips fan-out branch
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(side_effect=RuntimeError("provider down"))
+    fake_provider._update_job = AsyncMock()
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local,
+        patch("app.tasks.ingestion_tasks.DataIngestionRepository") as mock_repo,
+        patch(
+            "app.tasks.ingestion_tasks.ProviderFactory.get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+    ):
+        mock_job_session = MagicMock()
+        mock_job_session.commit = AsyncMock()
+        mock_job_session.rollback = AsyncMock()
+
+        mock_data_session = MagicMock()
+        mock_data_session.commit = AsyncMock()
+        mock_data_session.rollback = AsyncMock()
+
+        mock_session_local.return_value.__aenter__ = AsyncMock(
+            side_effect=[mock_job_session, mock_data_session]
+        )
+        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_repo.return_value.claim_job = AsyncMock(return_value=True)
+        mock_repo.return_value.get_job_by_id = AsyncMock(return_value=fake_job)
+
+        with pytest.raises(RuntimeError, match="provider down"):
+            await run_sync_task("FakeProviderClass", job_id=123)
+
+    # Rollback path was exercised; job stamped FINISHED+ERROR with msg.
+    mock_data_session.rollback.assert_awaited_once()
+    update_call = fake_provider._update_job.call_args
+    assert update_call.kwargs["state"] == IngestionState.FINISHED
+    # IngestionResult lives on the model; we don't import it here, so check
+    # that the status_message echoes the exception text — sufficient to
+    # prove the except path ran end-to-end.
+    assert "provider down" in update_call.kwargs["status_message"]

@@ -52,16 +52,7 @@ The two relevant code points:
 - `base_csv_provider.py:794-799` — even though `kg_co2eq` is not in any handler's `create_dto`, the provider explicitly preserves it from the source row when present and non-empty.
 - `data_entry_emission_service.py:143-151` — emission compute logs `Using CSV-provided kg_co2eq=… override` and returns the float as-is, bypassing factor lookup.
 
-Operationally:
-
-1. **CSV provides `kg_co2eq`** → CSV value is stored on the data entry; computation is skipped.
-2. **CSV omits `kg_co2eq`** (column missing or empty cell) → backend computes from factors via the handler-specific formula.
-
-This matters for clients who maintain their own emission calculations, run external measurements, or need graceful handling when factor data is incomplete. **Do not put `kg_co2eq` in `*_test.csv`** — those fixtures exercise the compute path, and an override would mask compute-path bugs.
-
-## Column inventory
-
-For the full per-file column list across all 14 factor files, 13 data files, and 22 test files, see [CSV column inventory](csv-seed-formats/inventory.md). That page documents the canonical SharePoint spec and flags every drift between the spec and the parser code.
+For the complete per-file column tables, see [CSV column inventory](./csv-seed-formats/inventory.md).
 
 ## Provider overview
 
@@ -83,16 +74,28 @@ Routing keys live in `backend/app/services/data_ingestion/provider_factory.py`.
 
 ## Common conventions
 
-All CSV providers share these defaults (see `base_csv_provider.py:716` and
-the `csv.DictReader` calls in each provider):
+CSV providers share many — but not all — defaults. The list below splits them
+into truly-shared behaviour and per-provider differences.
 
-- **Encoding:** UTF-8 with optional BOM (`utf-8-sig`).
+### Shared by all providers
+
 - **Delimiter:** comma. Quote character: double quote.
 - **Header row:** required; column order is free.
 - **Extra columns:** silently ignored.
-- **Empty file:** rejected with `Wrong CSV format or encoding: CSV file is empty`.
+- **Empty file:** rejected with `CSV file is empty`
+  (`base_csv_provider.py:244`, `base_factor_csv_provider.py:300`,
+  `base_reduction_objective_csv_provider.py:320`). The data-entry path wraps
+  this message with the prefix described below; the factor and
+  reduction-objective paths raise a bare `ValueError`.
 - **Source paths:** must start with `tmp/`, `uploads/`, or `temporary/`
   (`base_csv_provider.py::_validate_file_path`).
+
+### Per-provider differences
+
+| Aspect | `BaseCSVProvider` (data entries) | `BaseFactorCSVProvider` (factors, reference data) | `BaseReductionObjectiveCSVProvider` |
+|---|---|---|---|
+| Encoding | `utf-8-sig` (BOM tolerated) — `base_csv_provider.py:746` | plain `utf-8` (no BOM tolerance) — `base_factor_csv_provider.py:272` | `utf-8-sig` (BOM tolerated) — `base_reduction_objective_csv_provider.py:279` |
+| Header-validation error wrapping | `Wrong CSV format or encoding: <message>` (`base_csv_provider.py:768`) | bare `ValueError` (`base_factor_csv_provider.py::_validate_csv_headers`) | bare `ValueError` (`base_reduction_objective_csv_provider.py::_validate_csv_headers`) |
 
 ## Module-per-year CSV (data entries)
 
@@ -105,7 +108,7 @@ the `csv.DictReader` calls in each provider):
 ### Required and expected columns
 
 The only column required by the provider for every row is
-`unit_institutional_id` (`module_per_year.py:109`). Remaining columns are
+`unit_institutional_id` (`module_per_year.py:111`). Remaining columns are
 derived from the active `BaseModuleHandler` subclasses' `create_dto.model_fields`
 (see `_get_expected_columns_from_handlers` in `base_csv_provider.py:79`).
 
@@ -118,7 +121,7 @@ derived from the active `BaseModuleHandler` subclasses' `create_dto.model_fields
 For the headcount-member handler the columns are
 `unit_institutional_id, name, position_title, position_category,
 user_institutional_id, fte, note` (verified against
-`tests/integration/data_ingestion/fixtures/valid_module_per_year.csv`).
+`backend/tests/integration/data_ingestion/fixtures/valid_module_per_year.csv`).
 
 ### Idempotency
 
@@ -166,9 +169,11 @@ standby_usage_hours_per_week, note` (verified against
 
 ### Idempotency
 
-**Append-only.** No prior rows are deleted (verified at
-`base_csv_provider.py:478` and confirmed in
-`docs/implementation-plans/220-csv-upload-implementation-summary.md`).
+**Append-only.** No prior rows are deleted: the deletion call is gated by an
+`if self.entity_type == EntityType.MODULE_PER_YEAR` guard
+(`base_csv_provider.py:568`), so `MODULE_UNIT_SPECIFIC` never enters the
+`_delete_existing_entries_for_module_per_year` branch. Confirmed in
+`docs/implementation-plans/220-csv-upload-implementation-summary.md`.
 
 ### Example
 
@@ -195,7 +200,7 @@ columns for a given factor type, read its `*FactorCreate` class in
 `backend/app/modules/<module>/schemas.py`.
 
 Example — `TravelPlaneFactorHandler` (verified at
-`backend/app/modules/professional_travel/schemas.py:407`):
+`backend/app/modules/professional_travel/schemas.py:412`):
 
 | Column | Type | Required | Description |
 |---|---|---|---|
@@ -209,8 +214,14 @@ Example — `TravelPlaneFactorHandler` (verified at
 ### Idempotency
 
 Delete-then-insert by `(data_entry_type_id, year)`
-(`base_factor_csv_provider.py:189-205`). All existing factor rows for that
-combination are removed before the new batch is inserted.
+(`base_factor_csv_provider.py:173-191`). All existing factor rows for that
+combination are removed via `factor_service.bulk_delete_by_data_entry_type`
+before the new batch is inserted via `factor_service.bulk_create`. The set of
+types deleted is computed by `_get_types_to_delete`
+(`base_factor_csv_provider.py:572-582`); subclasses (notably
+`LocalFactorCSVProvider` in `csv_providers/local_seed.py`) override that hook
+to scope deletion to specific data-entry types when a single CSV covers only
+part of a module's types.
 
 ### Example
 
@@ -229,7 +240,7 @@ long_haul,0.151,2.0,1.4,3500,20000
 - **Target entity:** `year_configuration.config.reduction_objectives.<key>`
   (single JSON blob per category, not row-per-row).
 - **Selector:** `reduction_objective_type_id` in the upload config picks one of
-  three sub-formats (`backend/app/schemas/year_configuration.py:114`).
+  three sub-formats (`backend/app/schemas/year_configuration.py:119`).
 
 ### Sub-formats
 
@@ -239,7 +250,7 @@ long_haul,0.151,2.0,1.4,3500,20000
 | `1` (POPULATION) | `population_projections` | `year, pop` |
 | `2` (SCENARIOS) | `unit_scenarios` | `scenario, year, reduction_percentage` |
 
-Validation rules (`schemas/year_configuration.py:43-89`):
+Validation rules (`backend/app/schemas/year_configuration.py:43-94`):
 
 - `co2 >= 0`, `pop >= 0`, `0.0 <= reduction_percentage <= 1.0`.
 
