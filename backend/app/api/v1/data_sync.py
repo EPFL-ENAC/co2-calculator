@@ -96,6 +96,47 @@ class ModuleRecalculationStatus(BaseModel):
     data_entry_types: list[RecalculationStatus]
 
 
+@router.get("/_debug/bg-tasks")
+async def debug_bg_tasks():
+    """Diagnostic endpoint for stuck recalc/ingest jobs.
+
+    Reports:
+    - which Tasks ``fire_and_forget`` is currently holding strong refs to
+      (i.e. tasks that should still be running)
+    - every Task on the running event loop, with its coroutine repr —
+      the repr usually shows the line currently being awaited
+
+    Use this when a DataIngestionJob is stuck in RUNNING with no logs
+    after the claim — the response tells you whether the Task is still
+    alive, hung at a specific await, crashed with an exception, or
+    cancelled.  Remove once the diagnosis is done; not gated by auth on
+    purpose so it can be hit from psql/curl during debugging.
+    """
+    import asyncio as _asyncio
+
+    from app.tasks._background import _BACKGROUND_TASKS
+
+    def _task_summary(t: _asyncio.Task) -> dict:
+        info: dict = {
+            "name": t.get_name(),
+            "done": t.done(),
+            "cancelled": t.cancelled() if t.done() else False,
+            "coro": repr(t.get_coro()),
+        }
+        if t.done() and not t.cancelled():
+            try:
+                exc = t.exception()
+                info["exception"] = repr(exc) if exc is not None else None
+            except Exception as e:  # defensive — exception() raises if cancelled
+                info["exception_lookup_error"] = repr(e)
+        return info
+
+    return {
+        "fire_and_forget_tracked": [_task_summary(t) for t in _BACKGROUND_TASKS],
+        "all_loop_tasks": [_task_summary(t) for t in _asyncio.all_tasks()],
+    }
+
+
 @router.post("/dispatch", response_model=SyncStatusResponse)
 async def sync_module_data_entries(
     syncRequest: SyncRequest,
