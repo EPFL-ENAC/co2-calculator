@@ -22,6 +22,38 @@ The `backend/seed_data/` directory is **not tracked in git**. It is a local mirr
 
 For a self-contained example of the CSV shapes documented below, see `backend/tests/integration/data_ingestion/fixtures/` — the canonical in-repo reference for these formats.
 
+## Three families: factors, data, test
+
+The seed-data folder follows a strict naming convention. Every CSV belongs to one of three families, distinguished by suffix:
+
+- **`*_factors.csv`** — emission factors (`ef_*`) and unit definitions. One row per `(classification, year)` tuple. Loaded into the `factors` table.
+- **`*_data.csv`** — per-unit observations: `unit_institutional_id` + entity fields + optional `note` and optional `kg_co2eq` override. One row per data entry. Loaded into `data_entries`.
+- **`*_test.csv`** — a subset of `*_data.csv` columns with `unit_institutional_id` and `kg_co2eq` removed. Used as upload-pipeline fixtures, not seed data.
+
+```mermaid
+flowchart LR
+    F["*_factors.csv row<br/>(ef_*, unit, classification)"] --> J{kg_co2eq<br/>in row?}
+    D["*_data.csv row<br/>(unit_id + entity fields)"] --> J
+    J -->|yes| OV["Use CSV value<br/>as-is"]
+    J -->|no| C["Compute<br/>quantity × ef × adj"]
+    OV --> E[(data_entry_emissions<br/>kg_co2eq)]
+    C --> E
+```
+
+For the runtime computation path see `data_entry_emission_service.py`; for the override pass-through see `base_csv_provider.py`.
+
+## kg_co2eq override semantics
+
+!!! warning "Override behavior"
+    The `kg_co2eq` column on `*_data.csv` is an **override**, not an input. When the column is present and non-empty, the backend skips the factor-based computation and uses the CSV value verbatim.
+
+The two relevant code points:
+
+- `base_csv_provider.py:794-799` — even though `kg_co2eq` is not in any handler's `create_dto`, the provider explicitly preserves it from the source row when present and non-empty.
+- `data_entry_emission_service.py:143-151` — emission compute logs `Using CSV-provided kg_co2eq=… override` and returns the float as-is, bypassing factor lookup.
+
+For the complete per-file column tables, see [CSV column inventory](./csv-seed-formats/inventory.md).
+
 ## Provider overview
 
 ```mermaid
