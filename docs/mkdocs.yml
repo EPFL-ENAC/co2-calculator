@@ -118,6 +118,7 @@ nav:
       - Component Tree: frontend/01-overview/components.md
       - Persona Flows: frontend/01-overview/personas.md
       - Design Tokens: frontend/02-design-tokens.md
+      - Quasar Bridge: frontend/quasar-bridge.md
       - Data Management:
           - Overview: frontend/data-management/index.md
           - Architecture: frontend/data-management/architecture.md
