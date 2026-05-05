@@ -40,10 +40,25 @@ understand why certain choices were made.
 
 ### Infrastructure & Operations
 
-| ADR                                           | Decision                      | Status     | Key Rationale                  |
-| --------------------------------------------- | ----------------------------- | ---------- | ------------------------------ |
-| [ADR-010](./010-background-job-processing.md) | Background Jobs               | 📋 Planned | Celery + Redis preferred       |
-| [ADR-013](./013-object-storage-strategy.md)   | Local filesystem, S3 optional | 📋 Planned | Zero-config dev, scalable prod |
+| ADR                                           | Decision                                     | Status      | Key Rationale                            |
+| --------------------------------------------- | -------------------------------------------- | ----------- | ---------------------------------------- |
+| [ADR-010](./010-background-job-processing.md) | In-process asyncio + 10s safety-net poller   | ✅ Accepted | No new infra; Celery deferred            |
+| [ADR-013](./013-object-storage-strategy.md)   | Local filesystem, S3 optional                | 📋 Planned  | Zero-config dev, scalable prod           |
+| [ADR-015](./015-claim-job-atomic-state-is-current.md) | Atomic claim_job on (state, is_current)      | ✅ Accepted | Closes pod-collision race                |
+| [ADR-016](./016-pipeline-two-path-principle.md)       | Two-path principle (interactive vs bulk)     | ✅ Accepted | One writer per table per path            |
+
+### Data Pipeline
+
+| ADR                                                       | Decision                                | Status      | Key Rationale                          |
+| --------------------------------------------------------- | --------------------------------------- | ----------- | -------------------------------------- |
+| [ADR-011](./011-factor-classification-jsonb.md)           | factors.classification → JSONB          | ✅ Accepted | Deterministic key order, real uniqueness |
+| [ADR-018](./018-factor-csv-delete-before-insert.md)       | Factor CSV delete-before-insert         | ✅ Accepted | Idempotent re-uploads scoped by (det,year) |
+
+### Auth & Identity
+
+| ADR                                                   | Decision                              | Status      | Key Rationale                          |
+| ----------------------------------------------------- | ------------------------------------- | ----------- | -------------------------------------- |
+| [ADR-017](./017-me-endpoint-async-role-sync.md)       | /me pure DB read; /refresh async sync | ✅ Accepted | ~8ms /me; eventual 15-min consistency  |
 
 ## Planned Decisions
 
@@ -51,7 +66,7 @@ understand why certain choices were made.
 | --- | ------------------- | ---------- | ------------------------------------------ |
 | 008 | Observability Stack | 📋 Planned | Prometheus + Grafana + OpenTelemetry       |
 | 009 | Caching Strategy    | 📋 Planned | Redis for emissions factors, rate limiting |
-| 011 | OIDC Integration    | 📋 Planned | MS Entra ID for EPFL SSO                   |
+| 019 | OIDC Integration    | 📋 Planned | MS Entra ID for EPFL SSO                   |
 
 ## Rejected Alternatives
 
@@ -97,4 +112,4 @@ small refactorings.
 
 ---
 
-**Last Updated**: November 11, 2025
+**Last Updated**: 2026-05-05
