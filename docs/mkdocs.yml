@@ -118,15 +118,36 @@ plugins:
   #     enabled_if_env: ENABLE_PDF_EXPORT
   #     # custom_styles: styles/pdf-custom.css
   #     verbose: false
-  - git-authors
+  - awesome-pages
+  - gen-files:
+      scripts:
+        - gen_indexes.py
+  - literate-nav
+  - git-authors:
+      # Auto-generated INDEX.md files live in a temp dir from gen-files
+      # and have no git history. Don't escalate that to a build error.
+      strict: false
+      fallback_to_empty: true
   - git-revision-date-localized:
       fallback_to_build_date: true
       locale: en
       timezone: Europe/Zurich
+      strict: false
   - minify:
       minify_html: true
       minify_css: true
       minify_js: true
+
+# Auto-generated section indexes are intentionally excluded from `nav:`;
+# whitelist them so `mkdocs build --strict` keeps passing.
+# Filename `_index.md` (not `INDEX.md`) avoids case-insensitive collisions
+# with hand-authored `index.md` pages on macOS/Windows filesystems.
+not_in_nav: |
+  /architecture/_index.md
+  /backend/_index.md
+  /frontend/_index.md
+  /implementation-plans/_index.md
+  /contributing/auto-index.md
 
 copyright: >
   2025 EPFL — GPL-3.0 License. Built with MkDocs

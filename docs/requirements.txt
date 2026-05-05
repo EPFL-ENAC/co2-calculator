@@ -1,0 +1,6 @@
+# Plugin pins for the auto-index pipeline (issue #860 / B0).
+# Existing core deps are managed via pyproject.toml + uv.lock.
+mkdocs-gen-files>=0.5.0
+mkdocs-literate-nav>=0.6.1
+mkdocs-awesome-pages-plugin>=2.9.3
+python-frontmatter>=1.1.0
