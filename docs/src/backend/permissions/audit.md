@@ -13,17 +13,19 @@ logging so events can be queried by user, permission, or resource id.
 
 ## What gets logged
 
-- `require_permission` — emits `permission_check` events with the user id,
-  required `path.action`, the user's calculated grant, and the decision
-  (`allow` / `deny`).
+- `require_permission` — emits a `Permission check denied` warning log on
+  deny, with `user_id`, the required `path`, and the requested `action`
+  (see [`app/core/security.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/core/security.py)).
 - `get_data_filters` — emits `data_filter` events with the chosen scope
   (`global` / `unit` / `own`) and the resulting filters dict.
 - `check_resource_access` — emits `resource_access` events with the
   resource type, the resource snapshot fields used by policy, and the
   policy decision plus its `reason` string.
-- HTTP 403 responses include the missing permission in the response body
-  (`Permission denied: modules.headcount.edit required`) which is the same
-  string used in the audit log.
+- HTTP 403 responses carry a generic `{"detail": "Permission denied"}`
+  body — the missing `path.action` is **not** echoed to the client. To
+  identify which permission was missing, inspect the server-side
+  `Permission check denied` log entry (it carries `path` and `action` in
+  its `extra` payload).
 
 ## Decision flow (audit emission points)
 
@@ -39,24 +41,28 @@ logging so events can be queried by user, permission, or resource id.
 
 ## Debugging a 403
 
-1. Read the response detail — it names the missing permission, e.g.
-   `Permission denied: modules.headcount.edit required`.
-2. Call `/api/v1/auth/me` with the user's token and verify
-   `permissions.modules.headcount.edit` is `true`.
-3. If the permission grant looks correct but the request still fails, check
-   the most recent `resource_access` event for the reason string (e.g.
+The 403 body is generic, so debugging starts with the server log.
+
+1. Find the most recent `Permission check denied` warning in the API logs
+   for the request's `user_id` and `request_id`. Its `extra` payload
+   carries the required `path` and `action`.
+2. Call `/api/v1/auth/me` with the user's token and inspect the flat
+   `permissions` dict — look for a key matching `path` (or
+   `path/<institutional_id>` for module permissions) whose action list
+   contains `action`.
+3. If the grant looks correct but the request still fails, check the most
+   recent `resource_access` event for the reason string (e.g.
    `API trips are read-only`, `Insufficient permissions`).
-4. If neither event is present, suspect token expiry — re-authenticate and
-   retry.
+4. If no `permission_check` deny event is present at all, suspect token
+   expiry or an upstream auth failure — re-authenticate and retry.
 
-## Deprecated patterns to flag
+## Migrating legacy role checks
 
-The codebase still emits `DeprecationWarning` for legacy role checks
-(`User.has_role(...)`, `get_current_active_user_with_any_role(...)`). Run
-tests with `pytest -W default::DeprecationWarning` to surface call sites
-and migrate them to `require_permission` / `get_data_filters` /
-`check_resource_access`. See [how-to-add](./how-to-add.md) for the target
-shape.
+Legacy `User.has_role(...)` call sites should be migrated to the
+permission-based helpers. Grep for `has_role(` across `backend/app` and
+replace with `require_permission` (route layer), `get_data_filters`
+(service layer), or `check_resource_access` (resource layer). See
+[how-to-add](./how-to-add.md) for the target shape.
 
 ## Where the policy lives
 
@@ -65,4 +71,6 @@ shape.
   [`app/services/authorization_service.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/services/authorization_service.py)
   and [`app/core/policy.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/core/policy.py).
 - Permission calculation:
-  [`app/utils/permissions.py`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/utils/permissions.py).
+  [`app/models/user.py::calculate_user_permissions`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/models/user.py).
+- Permission check helper:
+  [`app/utils/permissions.py::has_permission`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/utils/permissions.py).

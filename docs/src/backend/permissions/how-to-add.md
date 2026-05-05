@@ -6,30 +6,43 @@ summary: Step-by-step recipe for adding a new permission end-to-end.
 
 # How to add a new permission
 
-## 1. Declare it in `app/utils/permissions.py`
+## 1. Grant it in `app/models/user.py::calculate_user_permissions`
 
-Add the new key to the structure returned by `initialize_permissions()`,
-then grant it from the relevant role mappers:
+Permissions are computed dynamically from a user's roles by
+[`calculate_user_permissions`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/models/user.py).
+The returned object is a **flat** dict keyed by dot-notation paths, with a
+list of action strings as the value (e.g.
+`{"backoffice.users": ["view", "edit", "export"]}`). To introduce a new
+permission, add the key under the appropriate `RoleName.*` branch:
 
 ```python
-def initialize_permissions() -> dict:
-    return {
-        "backoffice": {
-            "users": {"view": False, "edit": False},
-            "your_new_resource": {"view": False, "edit": False},  # ADD
-        },
-        "modules": {
-            "headcount": {"view": False, "edit": False},
-        },
-    }
-
-def map_role_permissions(role: str) -> dict:
-    permissions = initialize_permissions()
-    if role == "co2.superadmin":
-        permissions["backoffice"]["your_new_resource"]["view"] = True
-        permissions["backoffice"]["your_new_resource"]["edit"] = True
-    return permissions
+# inside calculate_user_permissions(...)
+elif role_name == RoleName.CO2_SUPERADMIN.value:
+    if is_global_scope(scope):
+        # ... existing grants ...
+        permissions["backoffice.your_new_resource"] = merge_actions(
+            permissions.get("backoffice.your_new_resource"),
+            ["view", "edit"],
+        )
 ```
+
+Module permissions are unit-scoped — append `scope_key` to the path so the
+key looks like `modules.your_new_resource/<institutional_id>`:
+
+```python
+elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
+    if is_role_scope(scope):
+        permissions[f"modules.your_new_resource{scope_key}"] = merge_actions(
+            permissions.get(f"modules.your_new_resource{scope_key}"),
+            ["view", "edit", "sync"],
+        )
+```
+
+There is no separate "registry" of permission keys — adding the key to a
+role branch IS the declaration. The runtime check helper
+[`app/utils/permissions.py::has_permission`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/utils/permissions.py)
+reads the resulting dict; no changes needed there unless you introduce a
+new scope shape.
 
 ## 2. Protect the route
 
@@ -49,6 +62,11 @@ async def get_your_resource(
     """Required permission: ``backoffice.your_new_resource.view``."""
     ...
 ```
+
+`require_permission` raises `HTTPException(403, detail="Permission denied")`
+on failure — the missing `path.action` is **not** echoed back to the
+client, but is recorded in the `permission_check` log entry (see
+[audit](./audit.md)).
 
 ## 3. Filter data in the service (list endpoints)
 
