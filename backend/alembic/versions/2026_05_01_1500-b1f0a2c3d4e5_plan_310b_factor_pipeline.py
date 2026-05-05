@@ -9,18 +9,23 @@ Changes:
   1. factors.classification → JSONB so Postgres normalises key order
      alphabetically; (classification::text) becomes deterministic regardless
      of dict insertion order in Python.
-  2. Two partial unique indexes on factor identity:
+  2. Strip the legacy ``"year"`` key from existing classification dicts.
+     ``base_factor_csv_provider._process_row`` used to copy ``self.year``
+     into ``classification`` before persisting; the dedicated ``year``
+     column already carries the same data, and duplicating it inside
+     ``classification`` made ``classification::text`` writer-dependent
+     (any new path forgetting the inject would silently insert a
+     duplicate).  Strip happens BEFORE the unique index in step 3 so the
+     index is built against the year-less representation.
+  3. Two partial unique indexes on factor identity:
        (data_entry_type_id, year, emission_type_id, classification::text)
          WHERE year IS NOT NULL
        (data_entry_type_id, emission_type_id, classification::text)
          WHERE year IS NULL
      Two indexes because NULL ≠ NULL in a unique index expression.
-     Note: classification dict already includes a "year" key (injected by
-     base_factor_csv_provider._process_row), so year is doubly encoded in
-     the year-present index. That's redundant but does not break uniqueness.
-  3. factors.last_seen_job_id INT FK to data_ingestion_jobs(id) so operators
+  4. factors.last_seen_job_id INT FK to data_ingestion_jobs(id) so operators
      can detect factors not present in the latest CSV upload.
-  4. ALTER TYPE entity_type_enum ADD VALUE 'GLOBAL_PER_YEAR' for unit-sync jobs.
+  5. ALTER TYPE entity_type_enum ADD VALUE 'GLOBAL_PER_YEAR' for unit-sync jobs.
      Postgres ≥ 12 supports ADD VALUE in any transaction. Cannot be reversed
      (no DROP VALUE), so downgrade leaves the enum value in place.
 """
@@ -58,7 +63,18 @@ def upgrade() -> None:
         postgresql_using="classification::jsonb",
     )
 
-    # 2. Partial unique indexes on factor identity
+    # 2. Drop the redundant "year" key from existing classification dicts.
+    # MUST run before the unique index in step 3 so the index is built on
+    # the canonical year-less representation; otherwise the index would
+    # bake the legacy duplicated-year shape into uniqueness comparisons.
+    # Idempotent: if the key is already absent, ``-`` is a no-op.
+    op.execute(
+        "UPDATE factors "
+        "SET classification = classification - 'year' "
+        "WHERE classification ? 'year'"
+    )
+
+    # 3. Partial unique indexes on factor identity
     op.execute(
         "CREATE UNIQUE INDEX uq_factor_identity "
         "ON factors (data_entry_type_id, year, emission_type_id, "
@@ -106,9 +122,15 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema.
 
-    Note: ALTER TYPE ADD VALUE cannot be reversed in Postgres (no DROP VALUE).
-    The 'GLOBAL_PER_YEAR' enum value stays after downgrade — harmless if no
-    jobs reference it.
+    Notes:
+    - ALTER TYPE ADD VALUE cannot be reversed in Postgres (no DROP VALUE).
+      The 'GLOBAL_PER_YEAR' enum value stays after downgrade — harmless if
+      no jobs reference it.
+    - The "year"-key strip in step 2 is not reversed.  Re-injecting the
+      key would require knowing each row's writer-of-origin (CSV vs seed
+      script), which we do not track.  All current writers should already
+      have stopped emitting the duplicated key by the time downgrade
+      runs, so leaving the data clean is the right behaviour.
     """
     op.drop_index("ix_factors_last_seen_job_id", table_name="factors")
     op.drop_constraint("fk_factors_last_seen_job_id", "factors", type_="foreignkey")

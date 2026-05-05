@@ -385,11 +385,13 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg
 
-            # Add year to classification if specified
-            if self.year is not None:
-                classification["year"] = self.year
-
-            # Create factor using prepare_create (like seed_generic_factors.py)
+            # ``year`` is stored on the dedicated ``Factor.year`` column;
+            # do NOT also inject it into ``classification``.  The Plan 310B
+            # identity index keys on ``(det, year, emission_type,
+            # classification::text)`` — duplicating ``year`` inside
+            # ``classification`` would silently shift the
+            # ``classification::text`` representation between writers and
+            # break the upsert's identity match.
             factor = await factor_service.prepare_create(
                 emission_type_id=emission_type_id,
                 data_entry_type_id=data_entry_type.value,

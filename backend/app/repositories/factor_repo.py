@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Optional
 
-from sqlalchemy import or_, text
+from sqlalchemy import case, or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,6 +16,10 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.factor import Factor
+from app.models.module_type import (
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    ModuleTypeEnum,
+)
 from app.schemas.data_entry import BaseModuleHandler
 
 
@@ -160,37 +164,110 @@ class FactorRepository:
         # narrower Result[Any] type Pyright infers from session.execute.
         return getattr(result, "rowcount", 0) or 0
 
+    async def _latest_factor_job_per_det(self, year: int) -> Dict[int, int]:
+        """Resolve the most recent ``is_current`` finished FACTORS job that
+        covers each ``data_entry_type_id`` for the given year.
+
+        Multi-type CSV uploads (e.g. ``equipments_factors.csv``) create a
+        single FACTORS job with ``data_entry_type_id=NULL`` and
+        ``module_type_id`` set; that one job covers every det in the
+        module via ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.  A naive SQL join
+        on ``Factor.det = Job.det`` misses these uploads (NULL ≠ any det),
+        so we expand them in Python.  Cardinality of "is_current FACTORS
+        jobs for one year" is small (one per active module / det), so
+        loading them in-process is cheap.
+
+        Returns:
+            Map from ``data_entry_type_id`` to the highest job id that
+            wrote factors for that det in this year.
+        """
+        stmt = select(
+            DataIngestionJob.id,
+            DataIngestionJob.module_type_id,
+            DataIngestionJob.data_entry_type_id,
+        ).where(
+            col(DataIngestionJob.year) == year,
+            col(DataIngestionJob.target_type) == TargetType.FACTORS,
+            col(DataIngestionJob.state) == IngestionState.FINISHED,
+            col(DataIngestionJob.result) != IngestionResult.ERROR,
+            col(DataIngestionJob.is_current).is_(True),
+        )
+        rows = (await self.session.execute(stmt)).all()
+
+        latest: Dict[int, int] = {}
+        for job_id, module_type_id, det_id in rows:
+            if job_id is None:
+                continue
+            covered: tuple[int, ...]
+            if det_id is not None:
+                covered = (det_id,)
+            elif module_type_id is not None:
+                try:
+                    module = ModuleTypeEnum(module_type_id)
+                except ValueError:
+                    # Unknown module — skip rather than raise; operator can
+                    # see the orphaned job via the existing jobs endpoints.
+                    continue
+                covered = tuple(
+                    d.value for d in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module, [])
+                )
+            else:
+                # Both NULLs is meaningless for FACTORS scoping; skip.
+                continue
+
+            for det in covered:
+                if latest.get(det, 0) < job_id:
+                    latest[det] = job_id
+        return latest
+
     async def list_stale_for_year(self, year: int) -> List[Factor]:
         """Return factors whose ``last_seen_job_id`` predates the latest
-        successful FACTORS ingest job for their ``(data_entry_type_id, year)``
-        combo.
+        successful FACTORS ingest job that covers their ``data_entry_type_id``
+        in the given year.
 
-        Operators use this to surface rows that exist in the DB but were not
-        present in the most recent CSV upload. Stale factors are not
+        "Covers" handles two ingest shapes:
+
+        - Per-det FACTORS job (``data_entry_type_id`` set) — covers exactly
+          that det.
+        - Multi-type FACTORS job (``data_entry_type_id`` NULL,
+          ``module_type_id`` set) — covers every det in the module via
+          ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.
+
+        Operators use this to surface rows that exist in the DB but were
+        not present in the most recent CSV upload.  Stale factors are not
         deleted (that would re-introduce dangling FKs), only flagged.
 
         Args:
             year: Restrict to factors and jobs in this year.
         """
+        latest_per_det = await self._latest_factor_job_per_det(year)
+        if not latest_per_det:
+            # No is_current FACTORS job for this year → nothing to compare
+            # against.  Returning all factors as "stale" would be misleading.
+            return []
+
+        # Per-det threshold: factor stale iff last_seen_job_id < latest[det].
+        # CASE expression keeps the threshold lookup in SQL so we don't have
+        # to fetch every factor row to filter in Python.
+        threshold = case(
+            *[
+                (col(Factor.data_entry_type_id) == det, latest_id)
+                for det, latest_id in latest_per_det.items()
+            ],
+            else_=None,
+        )
+
         stmt = (
             select(Factor)
-            .join(
-                DataIngestionJob,
-                col(Factor.data_entry_type_id)
-                == col(DataIngestionJob.data_entry_type_id),
-            )
             .where(
                 col(Factor.year) == year,
-                col(DataIngestionJob.year) == year,
-                col(DataIngestionJob.target_type) == TargetType.FACTORS,
-                col(DataIngestionJob.state) == IngestionState.FINISHED,
-                col(DataIngestionJob.result) != IngestionResult.ERROR,
-                col(DataIngestionJob.is_current),
+                col(Factor.data_entry_type_id).in_(latest_per_det.keys()),
                 or_(
                     col(Factor.last_seen_job_id).is_(None),
-                    col(Factor.last_seen_job_id) < col(DataIngestionJob.id),
+                    col(Factor.last_seen_job_id) < threshold,
                 ),
             )
+            .order_by(col(Factor.data_entry_type_id), col(Factor.id))
         )
         result = await self.session.exec(stmt)
         return list(result.all())

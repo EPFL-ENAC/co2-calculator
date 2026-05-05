@@ -277,13 +277,15 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
         s.add(module)
         await s.commit()
 
+        # ``year`` is stored on the dedicated column only — Plan 310B
+        # stops duplicating it inside ``classification``, so the seed
+        # matches the canonical year-less shape that re-uploads now write.
         factor = Factor(
             emission_type_id=EmissionType.equipment__it.value,
             data_entry_type_id=DataEntryTypeEnum.it.value,
             classification={
                 "equipment_class": "Laptop",
                 "sub_class": "Standard",
-                "year": 2025,
             },
             values={
                 "active_power_w": 100.0,

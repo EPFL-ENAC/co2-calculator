@@ -211,6 +211,12 @@ async def _enqueue_stale_recalculations(
         logger.info(f"No stale (module, det) combos to recalculate for year={year}")
         return
 
+    # Build all child jobs first, persist them in a single commit, then fan
+    # out the in-process tasks.  Per-iteration commits (the previous shape)
+    # multiplied roundtrips and gave intermediate visibility states for no
+    # benefit; the safety poller already rescues NOT_STARTED rows if this
+    # process dies between commit and fire_and_forget.
+    created_pairs: list[tuple[DataIngestionJob, Any]] = []
     for row in targets:
         new_job = DataIngestionJob(
             job_type="emission_recalc",
@@ -234,8 +240,11 @@ async def _enqueue_stale_recalculations(
                 }
             },
         )
-        created = await repo.create_ingestion_job(new_job)
-        await session.commit()
+        created_pairs.append((await repo.create_ingestion_job(new_job), row))
+
+    await session.commit()
+
+    for created, row in created_pairs:
         if created.id is None:
             logger.error(
                 "Failed to create child recalc job for "

@@ -241,3 +241,44 @@ forward and back if a provider's chain-job semantics turn out to need adjustment
 - `frontend/src/pages/back-office/DataManagementPage.vue` and module cards — "Recalculating..." badge + pipeline SSE
 - `backend/app/core/config.py` — `BULK_PATH_PURE_ASYNC: bool = True` feature flag
 - `backend/migrations/` — `uq_aggregation_active` partial unique index
+
+---
+
+## Follow-ups rolled in from PR #976 review
+
+### Batch the rematch in `EmissionRecalculationWorkflow`
+
+Plan B added a per-entry rematch in `recalculate_for_data_entry_type`
+(`backend/app/workflows/emission_recalculation.py`):
+
+```python
+for entry in entries:
+    refreshed = await handler_svc.resolve_primary_factor_id(
+        handler=handler, payload=dict(entry.data),
+        data_entry_type_id=data_entry_type_id, year=year,
+        existing_data=None,
+    )
+    ...
+```
+
+This is **N+1**: one `resolve_primary_factor_id` call (and at least one factor query)
+per data entry. Acknowledged in code as Plan D scope. Concrete shape for the fix:
+
+1. Pull all factors for `(data_entry_type_id, year)` once, into a Python `dict` keyed
+   by classification tuple (using `handler.kind_field` / `subkind_field` to derive
+   the key).
+2. Replace `resolve_primary_factor_id` per-entry call with a Python lookup against
+   that dict.
+3. Fall back to the existing per-entry path only when the lookup misses (e.g. a
+   classification value the bulk-load query didn't see).
+
+For the largest existing module (purchases ~10k entries), this collapses ~10k DB
+roundtrips into one. Don't ship Plan D without this — the per-entry cost adds up
+once we move emission writes out of the ingest path and into recalc-only.
+
+### Two-pass partition in `FactorRepository.upsert_factors`
+
+Minor: the upsert splits its input into `with_year` / `no_year` via two list
+comprehensions. Single-pass with a defaultdict is cleaner and saves a list copy
+on 50k-row uploads. Pure refactor, no behavior change — fits Plan D's broader
+provider/repo audit.

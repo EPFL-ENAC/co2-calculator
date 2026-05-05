@@ -301,3 +301,90 @@ async def test_list_stale_for_year_returns_outdated_factors(pg_dsn):
         assert stale[0].last_seen_job_id == old_id
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn):
+    """Regression: multi-type FACTORS jobs (``data_entry_type_id`` NULL,
+    ``module_type_id`` set — e.g. ``equipments_factors.csv`` covering
+    ``it`` + ``scientific`` under ``equipment_electric_consumption``) must
+    be expanded to the dets they cover when computing the stale-threshold.
+
+    Earlier shape: ``list_stale_for_year`` joined ``Factor.det = Job.det``,
+    so a multi-type job (``Job.det = NULL``) failed the equality and the
+    factor row was dropped from the result entirely.  Effect: any stale
+    factor written by a multi-type CSV ingest was silently invisible to
+    operators.
+    """
+    from app.models.data_entry import DataEntryTypeEnum
+    from app.models.module_type import ModuleTypeEnum
+
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_plan_310b_indexes(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    module_id = ModuleTypeEnum.equipment_electric_consumption.value
+    det_it = DataEntryTypeEnum.it.value
+    det_scientific = DataEntryTypeEnum.scientific.value
+
+    def _multi_type_job() -> DataIngestionJob:
+        """Job with det=NULL, module set — the shape produced by uploading
+        a multi-type CSV like ``equipments_factors.csv``."""
+        return DataIngestionJob(
+            entity_type=EntityType.MODULE_PER_YEAR,
+            module_type_id=module_id,
+            data_entry_type_id=None,
+            year=2025,
+            target_type=TargetType.FACTORS,
+            ingestion_method=IngestionMethod.csv,
+            provider=UserProvider.DEFAULT,
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            is_current=False,
+        )
+
+    async with Sf() as session:
+        old_job = _multi_type_job()
+        latest_job = _multi_type_job()
+        latest_job.is_current = True
+        session.add_all([old_job, latest_job])
+        await session.commit()
+        assert old_job.id is not None and latest_job.id is not None
+        old_id: int = old_job.id
+        latest_id: int = latest_job.id
+
+        repo = FactorRepository(session)
+
+        # One stale factor (stamped by the old job) under det=it.
+        await repo.upsert_factors(
+            [
+                _make_factor(
+                    {"kind": "Laptop", "subkind": "Standard"},
+                    data_entry_type_id=det_it,
+                )
+            ],
+            current_job_id=old_id,
+        )
+        # One fresh factor (stamped by the latest job) under det=scientific.
+        # Different det proves the multi-type expansion covers the whole
+        # module, not just one of its dets.
+        await repo.upsert_factors(
+            [
+                _make_factor(
+                    {"kind": "Centrifugation", "subkind": "Ultra"},
+                    data_entry_type_id=det_scientific,
+                )
+            ],
+            current_job_id=latest_id,
+        )
+        await session.commit()
+
+        stale = await repo.list_stale_for_year(2025)
+        assert len(stale) == 1, (
+            "multi-type FACTORS jobs must expand to their covered dets "
+            "when resolving the stale-threshold"
+        )
+        assert stale[0].data_entry_type_id == det_it
+        assert stale[0].last_seen_job_id == old_id
+
+    await engine.dispose()
