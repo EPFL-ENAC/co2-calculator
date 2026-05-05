@@ -50,9 +50,9 @@ except ImportError:  # minimal fallback parser
 # Repo root resolves from this script's location: docs/gen_indexes.py -> repo
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_SRC = REPO_ROOT / "docs" / "src"
-PLANS_DIR = REPO_ROOT / "docs" / "implementation-plans"
+PLANS_DIR = REPO_ROOT / "docs" / "src" / "implementation-plans"
 PLANS_GH_URL = (
-    "https://github.com/epfl-enac/co2-calculator/blob/main/docs/implementation-plans"
+    "https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans"
 )
 
 STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
@@ -92,7 +92,7 @@ def _section_index(section: str) -> None:
 
 
 def _plans_index() -> None:
-    """Emit grouped index for implementation-plans (lives outside docs_dir)."""
+    """Emit grouped index for implementation-plans (lives under docs_dir/src)."""
     if not PLANS_DIR.is_dir():
         return
     groups: dict[str, list[dict[str, Any]]] = {key: [] for key in STATUS_ORDER}
@@ -114,7 +114,7 @@ def _plans_index() -> None:
     lines = [
         "# Implementation plans",
         "",
-        f"Plans live in `docs/implementation-plans/` (outside `docs_dir`); links point to GitHub. {sum(len(v) for v in groups.values())} total.",
+        f"Plans live in `docs/src/implementation-plans/`; links point to GitHub. {sum(len(v) for v in groups.values())} total.",
         "",
     ]
     for key in STATUS_ORDER:
