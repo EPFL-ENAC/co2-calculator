@@ -3,7 +3,6 @@
 from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
-from sqlalchemy.sql.elements import BindParameter
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -35,8 +34,7 @@ class LocationRepository:
         - iata_code column
         - name column
 
-        Search is accent-insensitive and case-insensitive using PostgreSQL ICU
-        collations.
+        Search uses PostgreSQL trigram similarity for efficient pattern matching.
 
         Results are prioritized by:
         1. Switzerland (country_code == "CH") first
@@ -62,43 +60,15 @@ class LocationRepository:
         if not query:
             return []
 
-        # Validate collation against whitelist to prevent injection
-        allowed_collations = {"ch_fr_ci_ai", "ch_de_ci_ai", "ch_it_ci_ai"}
-        collation = "ch_fr_ci_ai"
-        if collation not in allowed_collations:
-            raise ValueError(f"Invalid collation: {collation}")
-
         statement = select(Location)
 
-        search_pattern = f"%{query}%".lower()
-        query_lower = query.lower()
-        query_starts_pattern = f"{query}%".lower()
-
-        table_name = Location.__tablename__
-
-        search_pattern_param: BindParameter[str] = bindparam(
-            "search_pattern", search_pattern
-        )
-        query_exact_param: BindParameter[str] = bindparam("query_exact", query_lower)
-        query_starts_param: BindParameter[str] = bindparam(
-            "query_starts", query_starts_pattern
-        )
-
+        # Use PostgreSQL trigram similarity for efficient searching
+        # This works with our GIN indexes using gin_trgm_ops
         search_condition = or_(
-            text(
-                f"LOWER({table_name}.name COLLATE {collation}) LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
-            text(
-                f"LOWER({table_name}.iata_code COLLATE {collation}) "
-                "LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
-            text(
-                f"LOWER({table_name}.municipality COLLATE {collation}) "
-                f"LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
-            text(
-                f"LOWER({table_name}.keywords COLLATE {collation}) LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
+            text("name % :query").bindparams(bindparam("query", query)),
+            text("iata_code % :query").bindparams(bindparam("query", query)),
+            text("municipality % :query").bindparams(bindparam("query", query)),
+            text("keywords % :query").bindparams(bindparam("query", query)),
         )
 
         statement = statement.where(search_condition)
@@ -107,55 +77,27 @@ class LocationRepository:
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
-        # Build relevance scoring using parameterized queries with collations
-        # for accent-insensitive matching
-        relevance = case(
-            # Exact matches (highest priority) - accent-insensitive
-            (
-                or_(
-                    text(
-                        f"LOWER({table_name}.name COLLATE {collation}) = :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.iata_code COLLATE {collation}) "
-                        "= :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.municipality COLLATE {collation}) "
-                        f"= :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.keywords COLLATE {collation}) "
-                        f"= :query_exact"
-                    ).bindparams(query_exact_param),
-                ),
-                1,
-            ),
-            # Starts with (medium priority) - accent-insensitive
-            (
-                or_(
-                    text(
-                        f"LOWER({table_name}.name COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                    text(
-                        f"LOWER({table_name}.iata_code COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                    text(
-                        f"LOWER({table_name}.municipality COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                    text(
-                        f"LOWER({table_name}.keywords COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                ),
-                2,
-            ),
-            # Contains (lowest priority)
-            else_=3,
-        )
+        # Calculate relevance score using trigram similarity
+        # The % operator returns a similarity score between 0 and 1
+        relevance_score = case(
+            # Exact matches get highest score (1.0)
+            (text("LOWER(name) = LOWER(:exact_query)"), 1.0),
+            # Similarity scores for partial matches
+            else_=text("""
+                GREATEST(
+                    similarity(name, :query),
+                    similarity(iata_code, :query),
+                    similarity(municipality, :query),
+                    similarity(keywords, :query)
+                )
+            """),
+        ).label("relevance")
+
+        # Add relevance score to select (use separate var to preserve base type)
+        extended = statement.add_columns(relevance_score)
+
+        # Bind parameters for relevance calculation
+        extended = extended.params(exact_query=query, query=query)
 
         # Prioritize Switzerland
         switzerland_priority = case(
@@ -169,35 +111,35 @@ class LocationRepository:
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,
             )
-            statement = statement.order_by(
+            extended = extended.order_by(
                 switzerland_priority.asc(),
                 airport_priority.asc(),
-                relevance.asc(),
+                text("relevance DESC"),  # Higher similarity scores first
                 col(Location.name).asc(),
             )
         else:
-            # For train searches, order by Switzerland first
-            statement = statement.order_by(
+            # For train searches, order by Switzerland first, then relevance
+            extended = extended.order_by(
                 switzerland_priority.asc(),
-                relevance.asc(),
+                text("relevance DESC"),  # Higher similarity scores first
                 col(Location.name).asc(),
             )
 
-        statement = statement.limit(limit)
+        extended = extended.limit(limit)
 
         try:
-            compiled = statement.compile(compile_kwargs={"literal_binds": False})
+            compiled = extended.compile(compile_kwargs={"literal_binds": False})
             logger.debug(f"Location search SQL: {compiled}")
 
-            result = await self.session.execute(statement)
-            locations = list(result.scalars().all())
+            result = await self.session.execute(extended)
+            # Since we added a relevance column, extract just the Location objects
+            locations = [row[0] for row in result.fetchall()]
+
             logger.debug(f"Found {len(locations)} locations for query '{query}'")
             return locations
         except Exception as e:
             logger.error(
-                f"Error executing location search query for '{query}'. "
-                f"Collation {collation} may not exist or query syntax error. "
-                f"Error: {e}",
+                f"Error executing location search query for '{query}'. Error: {e}",
                 exc_info=True,
             )
             raise
