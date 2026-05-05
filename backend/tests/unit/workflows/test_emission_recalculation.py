@@ -422,6 +422,11 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
     mock_handler_svc_cls.return_value.resolve_primary_factor_id.assert_not_called()
     assert entry.data["primary_factor_id"] == 7
     assert result["recalculated"] == 1
+    # Plan 310D Copilot follow-up: the bulk-prefetch SELECT must also be
+    # skipped for Strategy B slices.  Without this gate every Strategy B
+    # recalc paid for an extra ``list_by_data_entry_type`` query that
+    # was guaranteed to feed zero useful lookups.
+    mock_factor_repo_cls.return_value.list_by_data_entry_type.assert_not_called()
 
 
 @pytest.mark.asyncio

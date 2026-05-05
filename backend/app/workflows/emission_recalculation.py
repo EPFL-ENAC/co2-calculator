@@ -87,7 +87,16 @@ class EmissionRecalculationWorkflow:
         # which itself does a kind-only fallback when the exact
         # (kind, subkind) row is absent.
         factor_lookup: dict[tuple[str, str | None], int] = {}
-        if handler.kind_field is not None:
+        # Skip the bulk SELECT entirely when the handler has no
+        # ``kind_field`` OR when no entry actually carries that key in
+        # ``entry.data``.  Strategy B handlers (e.g.
+        # professional_travel/plane) declare ``kind_field`` but derive
+        # the value in ``pre_compute`` — every entry would fail
+        # ``should_refresh`` below, so prefetching factors here would be
+        # a wasted SELECT per recalc slice.
+        if handler.kind_field is not None and any(
+            handler.kind_field in e.data for e in entries
+        ):
             kind_field = handler.kind_field
             subkind_field = handler.subkind_field
             factors = await factor_repo.list_by_data_entry_type(
@@ -143,6 +152,10 @@ class EmissionRecalculationWorkflow:
             old_data = entry.data
             try:
                 if should_refresh:
+                    # ``should_refresh`` is True iff ``handler.kind_field is not
+                    # None``; bind to a local non-Optional so ``_lookup_factor_id``
+                    # type-checks against its ``kind_field: str`` signature.
+                    assert handler.kind_field is not None
                     new_factor_id = self._lookup_factor_id(
                         entry_data=entry.data,
                         kind_field=handler.kind_field,
