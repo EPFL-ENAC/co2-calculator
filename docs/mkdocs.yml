@@ -24,6 +24,16 @@ use_directory_urls: false
 watch:
   - src
   - mkdocs.yml
+validation:
+  nav:
+    omitted_files: info
+    not_found: info
+    absolute_links: info
+  links:
+    not_found: info
+    absolute_links: info
+    unrecognized_links: info
+    anchors: info
 markdown_extensions:
   - admonition
   - toc:
@@ -122,6 +132,8 @@ nav:
 
   - User Documentation:
       - Overview: user-docs/01-overview.md
+
+  - Implementation Plans: implementation-plans/INDEX.md
 extra:
   version: "1.0.0"
 extra_css:
