@@ -88,6 +88,12 @@ nav:
   - Frontend:
       - Overview: frontend/01-overview.md
       - Design Tokens: frontend/02-design-tokens.md
+      - Data Management:
+          - Overview: frontend/data-management/index.md
+          - Architecture: frontend/data-management/architecture.md
+          - Data Flows: frontend/data-management/data-flows.md
+          - Modules & Configuration: frontend/data-management/modules-and-config.md
+          - API & Troubleshooting: frontend/data-management/api-and-troubleshooting.md
 
   - Backend:
       - Overview: backend/01-overview.md
