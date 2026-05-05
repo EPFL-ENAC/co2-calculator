@@ -244,6 +244,20 @@ class DataIngestionRepository:
           instead of a silently-stuck row.
 
         Returns ``(recovered_count, abandoned_count)``.
+
+        ⚠️ **No heartbeat (yet)**: ``locked_at`` is set ONCE by
+        ``claim_job`` and never refreshed during execution, so any
+        legitimately long-running job whose runtime exceeds
+        ``stale_timeout_minutes`` will be falsely classified as stale.
+        That triggers duplicate processing — the sweep recovers the row,
+        another pod claims and re-runs it, while the original pod is
+        still working toward its commit.  Mitigation today: set
+        ``STALE_JOB_TIMEOUT_MINUTES`` *above* the longest plausible job
+        runtime (default 60 min, raise if needed).  Plan 310C wires a
+        per-job heartbeat into the generic ``run_job`` runner; until
+        then, this method shares the same long-running-job hazard as the
+        manual ``recover_job`` path — the sweep just exercises it more
+        often.
         """
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
         stale_filter = and_(
