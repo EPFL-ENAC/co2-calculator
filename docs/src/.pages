@@ -1,0 +1,11 @@
+nav:
+  - index.md
+  - architecture/spec.md
+  - architecture
+  - architecture-decision-records
+  - backend
+  - frontend
+  - database
+  - infra
+  - implementation-plans
+  - user-docs

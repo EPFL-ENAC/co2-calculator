@@ -45,6 +45,7 @@ markdown_extensions:
 docs_dir: src
 nav:
   - Home: index.md
+  - CRD: architecture/spec.md
   - Architecture:
       - Overview: architecture/index.md
       - Purpose & Scope: architecture/01-purpose-scope.md
@@ -78,10 +79,6 @@ nav:
       - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
       - ADR-014 Security Checklist: architecture-decision-records/014-security-checklist.md
 
-  - Frontend:
-      - Overview: frontend/01-overview.md
-      - Design Tokens: frontend/02-design-tokens.md
-
   - Backend:
       - Overview: backend/01-overview.md
       - Architecture: backend/02-ARCHITECTURE.md
@@ -92,11 +89,18 @@ nav:
       - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
       - Location Search: backend/09-LOCATION-SEARCH.md
 
+  - Frontend:
+      - Overview: frontend/01-overview.md
+      - Design Tokens: frontend/02-design-tokens.md
+
   - Database:
       - Overview: database/01-overview.md
 
   - Infrastructure:
       - Overview: infra/01-overview.md
+
+  - Implementation Plans:
+      - Overview: implementation-plans/index.md
 
   - User Documentation:
       - Overview: user-docs/01-overview.md
