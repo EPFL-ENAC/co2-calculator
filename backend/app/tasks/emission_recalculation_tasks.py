@@ -46,19 +46,15 @@ async def run_recalculation_task(
         year: The report year to scope the recalculation.
         job_id: The DataIngestionJob id to update with progress.
     """
-    logger.info(f"Recalc job {job_id}: task entered, opening sessions")
     async with SessionLocal() as job_session, SessionLocal() as data_session:
-        logger.info(f"Recalc job {job_id}: sessions opened")
         job_repo = DataIngestionRepository(job_session)
 
         claimed = await job_repo.claim_job(job_id, POD_ID)
-        logger.info(f"Recalc job {job_id}: claim_job returned {claimed}")
         if not claimed:
             logger.info(f"Job {job_id} already claimed or not eligible — skipping")
             return
 
         job = await job_repo.get_job_by_id(job_id)
-        logger.info(f"Recalc job {job_id}: get_job_by_id returned {job is not None}")
         if not job:
             logger.error(f"Recalculation job {job_id} not found.")
             return
@@ -67,27 +63,19 @@ async def run_recalculation_task(
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             svc = EmissionRecalculationWorkflow(data_session)
 
-            logger.info(f"Recalc job {job_id}: about to update_ingestion_job")
             await job_repo.update_ingestion_job(
                 job_id=job_id,
                 status_message="Recalculating emissions...",
                 metadata={},
             )
-            logger.info(
-                f"Recalc job {job_id}: update done; about to commit job_session"
-            )
             await job_session.commit()
             logger.info(
-                f"Recalc job {job_id}: claimed and status committed; "
-                f"running workflow for det={data_entry_type.name}/year={year}"
+                f"Recalc job {job_id}: running workflow for "
+                f"det={data_entry_type.name}/year={year}"
             )
 
             stats = await svc.recalculate_for_data_entry_type(data_entry_type, year)
-            logger.info(f"Recalc job {job_id}: workflow returned {stats}")
-
-            # Commit the data session atomically
             await data_session.commit()
-            logger.info(f"Recalc job {job_id}: data session committed")
 
             result = (
                 IngestionResult.SUCCESS
