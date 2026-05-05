@@ -9,7 +9,7 @@ summary: claim_job sets state=RUNNING and is_current=TRUE atomically, letting th
 **Status**: Accepted
 **Date**: 2026-05-05
 **Deciders**: Backend Team
-**Related**: [ADR-010: Background Job Processing](./010-background-job-processing.md); plan `docs/implementation-plans/310-a-pod-safety.md`
+**Related**: [ADR-010: Background Job Processing](./010-background-job-processing.md); plan `docs/src/implementation-plans/310-a-pod-safety.md`
 
 ## Context
 
@@ -73,6 +73,6 @@ returns `True`. SQLite is not a substitute for this test.
 
 ## References
 
-- `docs/implementation-plans/310-a-pod-safety.md`
-- `docs/implementation-plans/310-overview.md`
+- `docs/src/implementation-plans/310-a-pod-safety.md`
+- `docs/src/implementation-plans/310-overview.md`
 - [ADR-010: Background Job Processing](./010-background-job-processing.md)

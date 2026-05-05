@@ -9,7 +9,7 @@ summary: Migrate factors.classification from JSON to JSONB so cast-to-text is de
 **Status**: Accepted
 **Date**: 2026-05-05
 **Deciders**: Backend Team
-**Related**: [ADR-004: Database Selection](./004-database-selection.md); plan `docs/implementation-plans/310-b-factor-pipeline.md`
+**Related**: [ADR-004: Database Selection](./004-database-selection.md); plan `docs/src/implementation-plans/310-b-factor-pipeline.md`
 
 ## Context
 
@@ -75,6 +75,6 @@ unchanged.
 
 ## References
 
-- `docs/implementation-plans/310-b-factor-pipeline.md`
-- `docs/implementation-plans/310-overview.md`
+- `docs/src/implementation-plans/310-b-factor-pipeline.md`
+- `docs/src/implementation-plans/310-overview.md`
 - [PostgreSQL JSON Types](https://www.postgresql.org/docs/current/datatype-json.html)

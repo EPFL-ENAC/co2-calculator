@@ -9,7 +9,7 @@ summary: Path 1 (interactive UI) writes inline; Path 2 (bulk operator) chains as
 **Status**: Accepted
 **Date**: 2026-05-05
 **Deciders**: Backend Team
-**Related**: [ADR-010: Background Job Processing](./010-background-job-processing.md); plan `docs/implementation-plans/310-d-pipeline-responsibility-split.md`
+**Related**: [ADR-010: Background Job Processing](./010-background-job-processing.md); plan `docs/src/implementation-plans/310-d-pipeline-responsibility-split.md`
 
 ## Context
 
@@ -59,7 +59,7 @@ recalcs collapse to one stats refresh.
 Path 1 keeps inline writes. Single-row request scope serializes its
 writes naturally; this is a deliberate UX choice, not a violation.
 
-See `docs/implementation-plans/310-d-pipeline-responsibility-split.md`.
+See `docs/src/implementation-plans/310-d-pipeline-responsibility-split.md`.
 
 ## Consequences
 
@@ -84,5 +84,5 @@ Path 2's job-split lands and lock duration becomes the bottleneck.
 
 ## References
 
-- `docs/implementation-plans/310-d-pipeline-responsibility-split.md`
-- `docs/implementation-plans/310-overview.md`
+- `docs/src/implementation-plans/310-d-pipeline-responsibility-split.md`
+- `docs/src/implementation-plans/310-overview.md`

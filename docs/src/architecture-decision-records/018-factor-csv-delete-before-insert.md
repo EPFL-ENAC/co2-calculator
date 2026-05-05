@@ -9,7 +9,7 @@ summary: Factor CSV uploads delete then re-insert scoped by (data_entry_type_id,
 **Status**: Accepted
 **Date**: 2026-05-05
 **Deciders**: Backend Team
-**Related**: [ADR-011: Factor Classification JSONB](./011-factor-classification-jsonb.md); plan `docs/implementation-plans/243-data-management-full-data-flow.md`
+**Related**: [ADR-011: Factor Classification JSONB](./011-factor-classification-jsonb.md); plan `docs/src/implementation-plans/243-data-management-full-data-flow.md`
 
 ## Context
 
@@ -55,7 +55,7 @@ Combined with 310-b's `last_seen_job_id` stamping and JSONB
 classification (ADR-011), this gives operators predictable
 re-upload semantics without leaking duplicate rows.
 
-See `docs/implementation-plans/243-data-management-full-data-flow.md`.
+See `docs/src/implementation-plans/243-data-management-full-data-flow.md`.
 
 ## Consequences
 
@@ -82,6 +82,6 @@ operator UX accommodates "stale factor" badges.
 
 ## References
 
-- `docs/implementation-plans/243-data-management-full-data-flow.md`
-- `docs/implementation-plans/310-b-factor-pipeline.md`
+- `docs/src/implementation-plans/243-data-management-full-data-flow.md`
+- `docs/src/implementation-plans/310-b-factor-pipeline.md`
 - [ADR-011: Factor Classification JSONB](./011-factor-classification-jsonb.md)

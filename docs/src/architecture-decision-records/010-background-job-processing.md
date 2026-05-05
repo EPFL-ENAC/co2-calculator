@@ -9,7 +9,7 @@ summary: In-process asyncio.create_task chained jobs with a 10s safety-net polle
 **Status**: Accepted
 **Date**: 2026-05-05 (supersedes 2025-11-10 "Planned")
 **Deciders**: Development Team
-**Related**: [ADR-004: Database Selection](./004-database-selection.md); plan `docs/implementation-plans/310-overview.md`
+**Related**: [ADR-004: Database Selection](./004-database-selection.md); plan `docs/src/implementation-plans/310-overview.md`
 
 ## Context
 
@@ -44,7 +44,7 @@ backed by a **10-second safety-net poller** in every web pod.
 registry (`run_job(job_id)`) keeps the dispatch boundary clean: a
 future Deployment can host the runner without rewriting handlers.
 
-See `docs/implementation-plans/310-overview.md` for the full
+See `docs/src/implementation-plans/310-overview.md` for the full
 rationale and the four-plan roadmap (310-a through 310-d).
 
 ## Consequences
@@ -73,6 +73,6 @@ rationale and the four-plan roadmap (310-a through 310-d).
 
 ## References
 
-- `docs/implementation-plans/310-overview.md`
-- `docs/implementation-plans/310-a-pod-safety.md`
+- `docs/src/implementation-plans/310-overview.md`
+- `docs/src/implementation-plans/310-a-pod-safety.md`
 - [ADR-015: claim_job atomic claim](./015-claim-job-atomic-state-is-current.md)

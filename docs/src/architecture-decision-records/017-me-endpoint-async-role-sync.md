@@ -9,7 +9,7 @@ summary: /me is a pure DB read; /refresh triggers async role sync with 15-minute
 **Status**: Accepted
 **Date**: 2026-05-05
 **Deciders**: Backend Team, Auth Lead
-**Related**: [ADR-005: Authorization Strategy](./005-authorization-strategy.md), [ADR-012: JWT Authentication](./012-jwt-authentication-strategy.md); plan `docs/implementation-plans/334-me-performance-optimization.md`; `docs/role-sync-architecture.md`
+**Related**: [ADR-005: Authorization Strategy](./005-authorization-strategy.md), [ADR-012: JWT Authentication](./012-jwt-authentication-strategy.md); plan `docs/src/implementation-plans/334-me-performance-optimization.md`; `docs/role-sync-architecture.md`
 
 ## Context
 
@@ -46,7 +46,7 @@ Authorization always reads `User.roles` from the database, so the
 guarantee is **eventual consistency within 15 minutes**, not
 strict freshness. Operators can force a sync by hitting `/refresh`.
 
-See `docs/implementation-plans/334-me-performance-optimization.md`
+See `docs/src/implementation-plans/334-me-performance-optimization.md`
 and `docs/role-sync-architecture.md`.
 
 ## Consequences
@@ -71,6 +71,6 @@ and `docs/role-sync-architecture.md`.
 
 ## References
 
-- `docs/implementation-plans/334-me-performance-optimization.md`
+- `docs/src/implementation-plans/334-me-performance-optimization.md`
 - `docs/role-sync-architecture.md`
 - [ADR-005: Authorization Strategy](./005-authorization-strategy.md)
