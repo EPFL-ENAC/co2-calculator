@@ -136,12 +136,42 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         )
         return None
 
+    # ------------------------------------------------------------------
+    # Override: stay on the legacy bulk_create path during the batch loop
+    # ------------------------------------------------------------------
+
+    async def _upsert_batch(
+        self,
+        batch: List[Any],
+        factor_repo: Any,
+    ) -> int:
+        """Local seed scripts have no DataIngestionJob and therefore no
+        ``job_id`` to stamp on ``last_seen_job_id``.  The base class's
+        ``_upsert_batch`` requires a job_id and raises if absent — so once
+        a seed CSV exceeds BATCH_SIZE the main loop would crash.
+
+        Override here to keep large seed runs on the legacy
+        ``bulk_create`` path.  Seed scripts already assume an empty
+        factor table (delete-and-insert semantics), so identity-key
+        upsert is unnecessary; staying on bulk_create avoids the
+        job_id requirement entirely.
+        """
+        # Late import to avoid circular import at module load.
+        from app.services.factor_service import FactorService
+
+        factor_service = FactorService(self.data_session)
+        await self._process_batch(batch, factor_service)
+        return len(batch)
+
     async def _finalize_and_commit(
         self,
         batch: List[Any],
         factor_service: Any,
         stats: FactorStatsDict,
         setup_result: Dict[str, Any],
+        factor_repo: Any,  # signature-compat with base; legacy seed path
+        # uses bulk_create and assumes the factor table starts empty
+        # (seed scripts run against a fresh DB).
     ) -> Dict[str, Any]:
 
         if batch:

@@ -469,8 +469,8 @@ export default {
     fr: 'Empreinte carbone des achats',
   },
   carbon_footprint_title_buildings: {
-    en: 'Energy combustion carbon footprint',
-    fr: "Empreinte carbone de la combustion d'énergie",
+    en: 'Building and Energy combustion carbon footprint',
+    fr: "Empreinte carbone bâtiment et combustion d'énergie",
   },
   'carbon_footprint_title_external-cloud-and-ai': {
     en: 'Carbon footprint from the use of AI services and external cloud services',
@@ -483,5 +483,9 @@ export default {
   headcount_fte: {
     en: 'FTE',
     fr: 'EPT',
+  },
+  http_error_occurred: {
+    en: 'An error occurred: {status} {text}',
+    fr: 'Une erreur est survenue : {status} {text}',
   },
 };

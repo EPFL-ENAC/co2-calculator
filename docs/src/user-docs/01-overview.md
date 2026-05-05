@@ -1,5 +1,3 @@
-# User Documentation Overview
+# User Documentation
 
-Organize in multiple modules covering different aspects of CO2 calculation for users.
-
-## Purpose and goals
+This section is reserved for end-user documentation owned by the product team and is not yet drafted.

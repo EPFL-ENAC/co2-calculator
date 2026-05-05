@@ -33,12 +33,14 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
+        timeout-minutes: 5
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: EPFL-ENAC/co2-calculator
           flags: backend
-          directory: ./backend
+          files: ./backend/coverage.xml
+          disable_search: true
           fail_ci_if_error: false
 
   test-frontend:

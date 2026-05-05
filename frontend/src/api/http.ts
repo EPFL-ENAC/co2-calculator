@@ -1,5 +1,14 @@
-import ky from 'ky';
+import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
+import { i18n } from 'src/boot/i18n';
+
+declare module 'ky' {
+  interface Options {
+    /** HTTP status codes for which the default error notification should be suppressed */
+    skipErrorCodes?: number[];
+  }
+}
+export type ApiOptions = Options;
 
 export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
@@ -26,7 +35,13 @@ export const api = ky.create({
     ],
     afterResponse: [
       async (req, options, res) => {
-        if (res.status === 401 && !isRefresh(req.url)) {
+        if (res.status === 401) {
+          if (isRefresh(req.url)) {
+            // If refresh returns 401, let it pass through and be handled by
+            // next api call, which will trigger the login redirect. This prevents infinite
+            // loops in case the refresh token is also expired or invalid.
+            return;
+          }
           // If still 401 after refresh, redirect to login
           const isSessionCheck = req.url.endsWith(API_ME_URL);
           if (isSessionCheck) {
@@ -51,8 +66,7 @@ export const api = ky.create({
             // should not make authenticated API calls.
             location.replace(loginPageName);
           }
-        }
-        if (res.status === 403) {
+        } else if (res.status === 403) {
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;
@@ -137,6 +151,21 @@ export const api = ky.create({
             ? `/unauthorized?${queryString}`
             : '/unauthorized';
           location.replace(redirectUrl);
+        } else if (!res.ok) {
+          const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
+          if (!skipCodes.includes(res.status)) {
+            // For other errors, show a generic error toast
+            Notify.create({
+              color: 'negative',
+              message: i18n.global.t('http_error_occurred', {
+                status: res.status,
+                text: res.statusText,
+              }),
+              position: 'top',
+              timeout: 3000,
+              actions: [{ icon: 'close', color: 'white' }],
+            });
+          }
         }
       },
     ],
