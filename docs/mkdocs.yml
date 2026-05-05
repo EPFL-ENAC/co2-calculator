@@ -89,7 +89,12 @@ nav:
       - Quick Start: backend/04-README.md
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
-      - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
+      - "Developer Guide: Permissions":
+          - Overview: backend/permissions/index.md
+          - Model: backend/permissions/model.md
+          - Matrix: backend/permissions/matrix.md
+          - How to add a permission: backend/permissions/how-to-add.md
+          - Audit trail: backend/permissions/audit.md
       - Location Search: backend/09-LOCATION-SEARCH.md
 
   - Database:

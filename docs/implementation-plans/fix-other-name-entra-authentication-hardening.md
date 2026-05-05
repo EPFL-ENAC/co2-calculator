@@ -306,4 +306,4 @@ After deployment, monitor for:
 
 - PRD: "Harden Authentication Identity Resolution"
 - Architecture: `docs/src/backend/06-PERMISSION-SYSTEM.md`
-- API: `docs/src/backend/07-DEVELOPER-GUIDE-PERMISSIONS.md`
+- API: `docs/src/backend/permissions/index.md`
