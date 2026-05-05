@@ -2,10 +2,13 @@ import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
 import { i18n } from 'src/boot/i18n';
 
-export type ApiOptions = Options & {
-  /** HTTP status codes for which the default error notification should be suppressed */
-  skipErrorCodes?: number[];
-};
+declare module 'ky' {
+  interface Options {
+    /** HTTP status codes for which the default error notification should be suppressed */
+    skipErrorCodes?: number[];
+  }
+}
+export type ApiOptions = Options;
 
 export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
@@ -32,7 +35,13 @@ export const api = ky.create({
     ],
     afterResponse: [
       async (req, options, res) => {
-        if (res.status === 401 && !isRefresh(req.url)) {
+        if (res.status === 401) {
+          if (isRefresh(req.url)) {
+            // If refresh returns 401, let it pass through and be handled by
+            // next api call, which will trigger the login redirect. This prevents infinite
+            // loops in case the refresh token is also expired or invalid.
+            return;
+          }
           // If still 401 after refresh, redirect to login
           const isSessionCheck = req.url.endsWith(API_ME_URL);
           if (isSessionCheck) {
@@ -57,8 +66,7 @@ export const api = ky.create({
             // should not make authenticated API calls.
             location.replace(loginPageName);
           }
-        }
-        if (res.status === 403) {
+        } else if (res.status === 403) {
           // Parse permission error details from response body
           let permissionDetails: {
             path?: string;
