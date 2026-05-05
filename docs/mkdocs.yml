@@ -81,6 +81,7 @@ nav:
   - Frontend:
       - Overview: frontend/01-overview.md
       - Design Tokens: frontend/02-design-tokens.md
+      - Quasar Bridge: frontend/quasar-bridge.md
 
   - Backend:
       - Overview: backend/01-overview.md
