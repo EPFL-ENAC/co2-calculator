@@ -102,10 +102,12 @@ git diff backup-<branch-name>
 
 ```bash
 # Search for implementation plan with matching issue number
-find docs/implementation-plans -name "<issue-number>-*.md" -type f
+find docs/src/implementation-plans -name "<issue-number>-*.md" -type f
 ```
 
-**Example**: For branch `feat/243-backoffice-data-management`, search for `docs/implementation-plans/243-*.md`
+**Example**: For branch `feat/243-backoffice-data-management`, search for `docs/src/implementation-plans/243-*.md`
+
+> **Note (2026-05-05):** Plans moved from `docs/implementation-plans/` to `docs/src/implementation-plans/` so they sit inside MkDocs' `docs_dir` and can be navigated from the docs site.
 
 **Read the implementation plan** to extract:
 

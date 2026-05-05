@@ -168,7 +168,7 @@ We use `release-please` GitHub Action for automation:
 - Publishes GitHub release
 
 Configuration in `.github/workflows/release-please.yml`. For workflow
-details, see [CI/CD Workflows](cicd-workflows.md#10-release-please).
+details, see [CI/CD Workflows](cicd-workflows.md#release-pleaseyml-tag-and-release).
 
 ### Release Notes
 
