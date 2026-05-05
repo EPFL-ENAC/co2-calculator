@@ -1,7 +1,7 @@
 ---
 status: abandoned
 last_updated: 2026-01-20
-title: "**Step 0 — Prep"
+title: "Step 0 — Prep"
 summary: "This gives you a clear separation of responsibilities."
 ---
 

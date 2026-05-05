@@ -2,7 +2,7 @@
 status: abandoned
 issue: 460
 last_updated: 2026-03-19
-title: "Percentagle bar"
+title: "Percentage bar"
 summary: "Implement a completion-percentage bar for Backoffice reporting using the existing completion-status pipeline, without introducing a new endpoint."
 ---
 
