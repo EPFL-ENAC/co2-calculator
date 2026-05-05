@@ -2,6 +2,7 @@
 
 import asyncio
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_ingestion import DataIngestionJob
@@ -98,11 +99,42 @@ async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
 
 
 async def poll_pending_jobs() -> None:
-    """Pick up jobs that were created but never scheduled (e.g. crashed pod)."""
+    """Pick up jobs that were created but never scheduled (e.g. crashed pod).
+
+    Two sweeps per iteration:
+
+    1. ``sweep_stuck_running_jobs`` — auto-recovery for jobs stuck in
+       RUNNING past the stale-timeout window (a pod crashed mid-execution).
+       Recoverable rows go back to NOT_STARTED; rows out of retries are
+       moved to FINISHED+ERROR so operators see them.  Without this, the
+       only way to recover from a pod crash was the manual
+       ``POST /sync/jobs/{id}/recover`` endpoint and the 30-min stale
+       window.
+
+    2. The original NOT_STARTED dispatch sweep.
+    """
+    settings = get_settings()
     while True:
         try:
             async with SessionLocal() as session:
                 repo = DataIngestionRepository(session)
+
+                # Sweep 1: pod-crash auto-recovery.
+                recovered, abandoned = await repo.sweep_stuck_running_jobs(
+                    settings.STALE_JOB_TIMEOUT_MINUTES
+                )
+                if recovered:
+                    logger.warning(
+                        f"Poller: auto-recovered {recovered} stuck RUNNING job(s) "
+                        "(state→NOT_STARTED, attempts preserved for max-retry guard)"
+                    )
+                if abandoned:
+                    logger.error(
+                        f"Poller: abandoned {abandoned} stuck RUNNING job(s) — "
+                        "exhausted max_attempts retries, marked FINISHED+ERROR"
+                    )
+
+                # Sweep 2: dispatch NOT_STARTED jobs (existing Plan 310A behaviour).
                 stmt = repo._pending_jobs_query(10)
                 jobs = (await session.execute(stmt)).scalars().all()
                 for job in jobs:
