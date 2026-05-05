@@ -37,6 +37,9 @@ async def test_recalculate_all_success():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -58,6 +61,9 @@ async def test_recalculate_all_success():
         )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
         mock_module_cls.return_value.recompute_stats = AsyncMock()
@@ -89,6 +95,9 @@ async def test_recalculate_partial_error():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -110,6 +119,9 @@ async def test_recalculate_partial_error():
         )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
         )
 
         # model_validate returns a mock with .id matching the entry
@@ -189,6 +201,9 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -205,14 +220,18 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=[entry]
         )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
         mock_module_cls.return_value.recompute_stats = AsyncMock()
         # Strategy A handler: kind_field maps to a key in entry.data so
         # the gate ``handler.kind_field in entry.data`` evaluates True.
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
+        strategy_a_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_a_handler
-        # New factor matches against current state — different id
+        # Bulk lookup is empty → fallback resolver runs and returns 1234
         mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
             return_value={"primary_factor_id": 1234}
         )
@@ -240,6 +259,9 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -255,6 +277,9 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
     ):
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=[entry]
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
         mock_module_cls.return_value.recompute_stats = AsyncMock()
@@ -287,6 +312,9 @@ async def test_recalculate_module_stats_called_once_per_module():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -308,6 +336,9 @@ async def test_recalculate_module_stats_called_once_per_module():
         )
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
         mock_module_cls.return_value.recompute_stats = AsyncMock()
@@ -347,6 +378,9 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -363,12 +397,16 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=[entry]
         )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
         mock_module_cls.return_value.recompute_stats = AsyncMock()
         # Strategy B handler shape: kind_field set, but its value isn't
         # present in entry.data (would be derived via pre_compute).
         strategy_b_handler = MagicMock()
         strategy_b_handler.kind_field = "kind"  # NOT a key on entry.data
+        strategy_b_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_b_handler
         # If the gate fails and the rematch runs, this would be the
         # value swapped in.  We assert the rematch was NOT called.
@@ -406,6 +444,9 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
@@ -422,6 +463,9 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=[entry]
         )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
         # The compute step raises — simulates a downstream failure between
         # the rematch swap and the emissions-row write.
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock(
@@ -430,6 +474,7 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         mock_module_cls.return_value.recompute_stats = AsyncMock()
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
+        strategy_a_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_a_handler
         # Resolver returns a different id — rematch tentatively swaps
         # entry.data['primary_factor_id'] from 7 → 1234, then upsert fails.
@@ -449,3 +494,93 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
     assert entry.data == original_data, (
         "entry.data must be restored on per-entry failure"
     )
+
+
+@pytest.mark.asyncio
+async def test_recalculate_uses_single_factor_bulk_fetch():
+    """Plan 310D: the workflow pulls all factors for
+    ``(data_entry_type_id, year)`` in a SINGLE call before the per-entry
+    loop, then resolves ``primary_factor_id`` via Python dict lookup.
+
+    Three Strategy A entries:
+    - Two share kind ``Laptop`` → both hit the bulk dict.
+    - One has kind ``Server`` not in the bulk dict → falls back to the
+      per-entry resolver.
+
+    Asserts:
+    - ``factor_repo.list_by_data_entry_type`` is called EXACTLY ONCE.
+    - ``handler_svc.resolve_primary_factor_id`` is called only for the
+      missed entry (1 call, not 3).
+    - Dict-hit entries get the bulk-loaded factor id; the missed entry
+      gets the resolver's returned id.
+    """
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    laptop_a = _make_mock_entry(1, 10)
+    laptop_a.data = {"primary_factor_id": 0, "equipment_class": "Laptop"}
+    laptop_b = _make_mock_entry(2, 10)
+    laptop_b.data = {"primary_factor_id": 0, "equipment_class": "Laptop"}
+    server = _make_mock_entry(3, 10)
+    server.data = {"primary_factor_id": 0, "equipment_class": "Server"}
+    entries = [laptop_a, laptop_b, server]
+
+    # Bulk-loaded factor: matches kind=Laptop only.
+    laptop_factor = MagicMock()
+    laptop_factor.id = 4242
+    laptop_factor.classification = {"equipment_class": "Laptop"}
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch(
+            "app.workflows.emission_recalculation.CarbonReportModuleService"
+        ) as mock_module_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+        patch(
+            "app.workflows.emission_recalculation.ModuleHandlerService"
+        ) as mock_handler_svc_cls,
+    ):
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[laptop_factor]
+        )
+        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_module_cls.return_value.recompute_stats = AsyncMock()
+        strategy_a_handler = MagicMock()
+        strategy_a_handler.kind_field = "equipment_class"
+        strategy_a_handler.subkind_field = None
+        mock_handler_cls.get_by_type.return_value = strategy_a_handler
+        # Fallback resolver — only the Server entry should reach it.
+        mock_handler_svc_cls.return_value.resolve_primary_factor_id = AsyncMock(
+            return_value={"primary_factor_id": 9999}
+        )
+
+        await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.it, 2025)
+
+    # Single bulk SELECT, regardless of entry count.
+    bulk_call = mock_factor_repo_cls.return_value.list_by_data_entry_type
+    assert bulk_call.await_count == 1
+
+    # Dict-hit entries take the fast path; resolver is invoked only for
+    # the miss (Server kind not present in the bulk-loaded factor set).
+    resolver = mock_handler_svc_cls.return_value.resolve_primary_factor_id
+    assert resolver.await_count == 1
+
+    # Bulk-hit entries linked to the bulk factor; miss linked to the
+    # resolver's returned id.
+    assert laptop_a.data["primary_factor_id"] == 4242
+    assert laptop_b.data["primary_factor_id"] == 4242
+    assert server.data["primary_factor_id"] == 9999
