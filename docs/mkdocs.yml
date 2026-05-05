@@ -92,6 +92,7 @@ nav:
       - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
       - Location Search: backend/09-LOCATION-SEARCH.md
       - CSV seed formats: backend/csv-seed-formats.md
+      - "CSV column inventory": backend/csv-seed-formats/inventory.md
 
   - Database:
       - Overview: database/01-overview.md
