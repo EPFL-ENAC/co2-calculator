@@ -91,5 +91,5 @@ When in doubt, this CRD wins. For deeper detail follow these links.
 
 - Implementation plans index: <https://github.com/epfl-enac/co2-calculator/tree/main/docs/src/implementation-plans>
 - Glossary: <https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/glossary.md>
-- LLM agent guide: <https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/llm-agent.md>
+- LLM agent guide: <https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/llm-agent-guide.md>
 - Architecture entry points: [Purpose & Scope](01-purpose-scope.md), [System Overview](02-system-overview.md), [ADR index](../architecture-decision-records/index.md).
