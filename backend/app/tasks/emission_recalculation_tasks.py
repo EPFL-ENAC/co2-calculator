@@ -5,8 +5,6 @@ Mirrors the dual-session pattern from ingestion_tasks.py:
 - data_session: single atomic commit at the end
 """
 
-import asyncio
-
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
@@ -71,10 +69,12 @@ async def run_recalculation_task(
                 metadata={},
             )
             await job_session.commit()
+            logger.info(
+                f"Recalc job {job_id}: running workflow for "
+                f"det={data_entry_type.name}/year={year}"
+            )
 
             stats = await svc.recalculate_for_data_entry_type(data_entry_type, year)
-
-            # Commit the data session atomically
             await data_session.commit()
 
             result = (
@@ -90,7 +90,9 @@ async def run_recalculation_task(
                 result=result,
             )
             await job_session.commit()
-            logger.info(f"Recalculation job {job_id} finished: {stats}")
+            logger.info(
+                f"Recalc job {job_id}: FINISHED state committed (result={result.name})"
+            )
 
         except Exception as exc:
             logger.error(f"Recalculation job {job_id} failed: {exc}", exc_info=True)
@@ -103,29 +105,6 @@ async def run_recalculation_task(
                 result=IngestionResult.ERROR,
             )
             await job_session.commit()
-
-
-def run_recalculation(
-    module_type_id: int,
-    data_entry_type_id: int,
-    year: int,
-    job_id: int,
-) -> None:
-    """Sync wrapper for run_recalculation_task (FastAPI BackgroundTasks compatible).
-
-    Args:
-        module_type_id: The module type being recalculated.
-        data_entry_type_id: The data entry type to recalculate.
-        year: The report year.
-        job_id: Job id to update.
-    """
-    try:
-        asyncio.run(
-            run_recalculation_task(module_type_id, data_entry_type_id, year, job_id)
-        )
-    except Exception as exc:
-        logger.error(f"run_recalculation failed for job {job_id}: {exc}")
-        raise
 
 
 # ---------------------------------------------------------------------------
@@ -278,28 +257,3 @@ async def run_module_recalculation_task(
                 result=IngestionResult.ERROR,
             )
             await job_session.commit()
-
-
-def run_module_recalculation(
-    module_type_id: int,
-    data_entry_type_ids: list[int],
-    year: int,
-    job_id: int,
-) -> None:
-    """Sync wrapper for run_module_recalculation_task.
-
-    Args:
-        module_type_id: The module type being recalculated.
-        data_entry_type_ids: Data entry type IDs to process.
-        year: The report year.
-        job_id: Job id to update.
-    """
-    try:
-        asyncio.run(
-            run_module_recalculation_task(
-                module_type_id, data_entry_type_ids, year, job_id
-            )
-        )
-    except Exception as exc:
-        logger.error(f"run_module_recalculation failed for job {job_id}: {exc}")
-        raise

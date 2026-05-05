@@ -2,8 +2,9 @@
 
 from typing import Optional
 
-from sqlalchemy import Index
-from sqlmodel import JSON, Column, Field, SQLModel
+from sqlalchemy import ForeignKey, Index, Text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlmodel import JSON, Column, Field, Integer, SQLModel
 
 
 class FactorBase(SQLModel):
@@ -23,9 +24,14 @@ class FactorBase(SQLModel):
     )
     classification: dict = Field(
         default_factory=dict,
-        sa_column=Column(JSON),
+        sa_column=Column(
+            JSON().with_variant(JSONB(astext_type=Text()), "postgresql"),
+        ),
         description="""Classification hierarchy as JSON
-            (e.g., {'class': 'Centrifugation', 'sub_class': 'Ultra centrifuges'})""",
+            (e.g., {'class': 'Centrifugation', 'sub_class': 'Ultra centrifuges'}).
+            Stored as JSONB on Postgres so key order is normalised
+            alphabetically and (classification::text) is deterministic
+            regardless of Python dict insertion order.""",
     )
     values: dict = Field(
         default_factory=dict,
@@ -99,6 +105,22 @@ class Factor(FactorBase, table=True):
     )
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
+
+    last_seen_job_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            Integer,
+            ForeignKey("data_ingestion_jobs.id", ondelete="SET NULL"),
+            nullable=True,
+            index=True,
+        ),
+        description=(
+            "DataIngestionJob.id of the most recent factor ingest that "
+            "asserted this row. Operators can compare against the latest "
+            "is_current factor job for the (module, det) combo to surface "
+            "stale factors that no longer appear in the source CSV."
+        ),
+    )
 
     def __repr__(self) -> str:
         emission_type = f"emission_{self.emission_type_id}"

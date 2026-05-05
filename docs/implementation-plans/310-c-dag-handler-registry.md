@@ -458,3 +458,64 @@ multi-step run, not just the first.
 - `backend/app/api/v1/data_sync.py` — endpoints switch from per-task functions to `asyncio.create_task(run_job(id))`; new `GET /sync/pipelines/{id}`
 - `backend/app/models/data_ingestion.py` — `started_at`, `finished_at` columns
 - `backend/migrations/` — 1 migration (started_at, finished_at)
+
+---
+
+## Follow-ups rolled in from PR #976 review
+
+These were noted on PR #976 (Plan B) as "out-of-scope here, fits Plan C." None block
+Plan B's merge; flagged here so they aren't lost.
+
+### Permission gate on `GET /factors/stale`
+
+The stale-factor list endpoint added in Plan B (`backend/app/api/v1/factors.py`) currently
+requires only `Depends(get_current_user)` — any authenticated user can list which factors
+are out of sync with the latest CSV upload. Other operator endpoints in `data_sync.py`
+gate on `backoffice.data_management.view`. Tighten the dependency to match:
+
+```python
+current_user: User = Depends(
+    require_permission("backoffice.data_management", "view")
+),
+```
+
+This is a one-line change but pairs naturally with Plan C's broader cleanup of
+backoffice endpoints, so rolling it in here keeps the auth surface coherent.
+
+### Fan-out instrumentation on the parent factor job
+
+`_enqueue_stale_recalculations` (Plan B, in `ingestion_tasks.py`) returns silently when
+no recalc children get fired (e.g. `year is None`, or
+`MODULE_TYPE_TO_DATA_ENTRY_TYPES[module]` is empty). The parent FACTORS job still
+finishes with `result=SUCCESS` and a generic status message — operators have no in-band
+signal that "factor uploaded but no recalc cascade ran."
+
+When Plan C generalises this into `chain_job`, stamp the count of fired children into
+the parent's `extra_metadata`:
+
+```python
+fired_children = await chain_job(parent, ...)
+await update_ingestion_job(
+    parent.id,
+    extra_metadata={"children_fired": len(fired_children),
+                    "child_pipeline_id": str(pipeline_id)},
+)
+```
+
+Cheap, makes the chain auditable without parsing logs.
+
+### Stable ordering on `list_stale_for_year`
+
+`FactorRepository.list_stale_for_year` orders by `(data_entry_type_id, id)` after the
+PR #976 fix, but if Plan C reshapes the stale-factor surface (e.g. as part of
+`/sync/pipelines/{id}` rollup), preserve the deterministic ordering — operators
+diffing two reads back-to-back rely on it.
+
+### PG test fixture drift
+
+Plan B's PG tests inline `_install_plan_310b_indexes(engine)` to add the partial
+unique indexes that `SQLModel.metadata.create_all` doesn't know about. Once Plan C
+adds `started_at` / `finished_at` and the `pipeline_id` query, more migration-only
+DDL will accumulate. Promote the inline DDL into a shared `pg_dsn_with_310b` fixture
+in `conftest.py` so every PG-bound test gets the production schema without
+copy-pasting `CREATE UNIQUE INDEX` blocks.

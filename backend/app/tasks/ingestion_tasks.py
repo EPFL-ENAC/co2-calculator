@@ -1,11 +1,20 @@
 """Background tasks for data ingestion."""
 
-import asyncio
-from typing import Optional
+from typing import Any, Optional
+from uuid import UUID, uuid4
+
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_ingestion import IngestionResult, IngestionState
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionResult,
+    IngestionState,
+    TargetType,
+)
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._pod_id import POD_ID
@@ -78,6 +87,34 @@ async def run_sync_task(
             ingestion_result = result.get("data", {}).get(
                 "result", IngestionResult.SUCCESS
             )
+
+            # Plan 310B Part 4 — fan out emission recalculation jobs after a
+            # successful FACTORS sync.  Operators previously had to trigger
+            # this manually and forgot.  Children inherit the parent's
+            # pipeline_id so dashboards can group the chain.
+            if (
+                job.target_type == TargetType.FACTORS
+                and ingestion_result != IngestionResult.ERROR
+            ):
+                # Persist a fresh pipeline_id on the parent if it had
+                # none, so children genuinely inherit the same id.  The
+                # alternative — generating a new UUID locally only for
+                # the children — leaves the parent with NULL pipeline_id
+                # and an orphan group of children with a UUID nobody can
+                # correlate back.
+                if job.pipeline_id is None:
+                    job.pipeline_id = uuid4()
+                    job_session.add(job)
+                    await job_session.commit()
+                await _enqueue_stale_recalculations(
+                    job_session,
+                    parent_job_id=job.id,
+                    module_type_id=job.module_type_id,
+                    data_entry_type_id=job.data_entry_type_id,
+                    year=job.year,
+                    pipeline_id=job.pipeline_id,
+                )
+
             # Update final job status with the computed result
             await provider._update_job(
                 state=IngestionState.FINISHED,
@@ -100,13 +137,150 @@ async def run_sync_task(
             raise  # propagate exception
 
 
-# @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
-# add self to make it celery compatible
-def run_ingestion(provider_name: str, job_id: int, filters: dict):
-    """almost celery compatible sync wrapper for run_sync_task"""
-    try:
-        asyncio.run(run_sync_task(provider_name, job_id, filters))
-    except Exception as e:
-        logger.error(f"Sync failed for job ID {job_id}: {str(e)}")
-        # Error already logged and job status updated in run_sync_task
-        raise  # propagate exception for Celery retry
+async def _enqueue_stale_recalculations(
+    session: AsyncSession,
+    *,
+    parent_job_id: Optional[int],
+    module_type_id: Optional[int],
+    data_entry_type_id: Optional[int],
+    year: Optional[int],
+    pipeline_id: UUID,
+) -> None:
+    """Fan out one ``emission_recalc`` job per stale ``(module, det)`` combo
+    after a successful factor ingest.
+
+    Filters ``get_recalculation_status_by_year`` by the parent job's scope
+    (module/det if set; otherwise all combos that need recalc).  Each child
+    inherits ``pipeline_id`` from the parent so dashboards can group runs.
+
+    Children are fired in-process via ``fire_and_forget`` so the Task is
+    held in a strong-ref set and isn't reaped by GC mid-execution.  If
+    the pod crashes between enqueue and dispatch, the safety poller
+    (Plan 310A) picks them up via ``state=NOT_STARTED AND run_after<=now()``.
+
+    This helper is intentionally local to ingestion_tasks.py — Plan C
+    generalises it as ``chain_job(parent, child)`` once the handler
+    registry lands.
+    """
+    if year is None:
+        logger.warning("Cannot enqueue recalculations without a year on the parent job")
+        return
+
+    # Late imports to avoid circular imports.
+    from app.models.module_type import (
+        MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+        ModuleTypeEnum,
+    )
+    from app.tasks._background import fire_and_forget
+    from app.tasks.emission_recalculation_tasks import run_recalculation_task
+
+    repo = DataIngestionRepository(session)
+
+    if module_type_id is not None and data_entry_type_id is not None:
+        # Single-type factor upload — the parent job tells us exactly
+        # which (module, det) just changed.  We do NOT consult
+        # ``get_recalculation_status_by_year`` here because that helper
+        # filters on ``state=FINISHED`` and the parent job is still
+        # RUNNING at this point in the pipeline (the FINISHED stamp
+        # happens *after* fan-out, deliberately, so the fan-out commit
+        # gets included in the parent's atomic data_session).  Without
+        # this short-circuit, single-type uploads silently skipped
+        # recalc — the status query found no matching factor row.
+        targets: list[Any] = [
+            {
+                "module_type_id": module_type_id,
+                "data_entry_type_id": data_entry_type_id,
+                "year": year,
+            }
+        ]
+    elif data_entry_type_id is None and module_type_id is not None:
+        # Multi-type factor upload (e.g. equipments_factors.csv covers
+        # scientific + it + other under module=equipment_electric_consumption).
+        # Same hazard as single-type — the status query would filter the
+        # parent out — but the resolution is different: expand to one
+        # target per det in the module via MODULE_TYPE_TO_DATA_ENTRY_TYPES.
+        # We don't gate on needs_recalculation here either: a fresh
+        # successful factor ingest just landed, every linked det is by
+        # definition stale.
+        try:
+            module = ModuleTypeEnum(module_type_id)
+        except ValueError:
+            logger.warning(
+                f"Unknown module_type_id={module_type_id}; skipping recalc fan-out"
+            )
+            return
+        dets = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module, [])
+        targets = [
+            {
+                "module_type_id": module_type_id,
+                "data_entry_type_id": d.value,
+                "year": year,
+            }
+            for d in dets
+        ]
+    else:
+        # Both NULL — operator wants "anything stale this year".  This
+        # is the only branch that reads from
+        # ``get_recalculation_status_by_year`` (which filters on
+        # state=FINISHED).  Reachable only via admin-style triggers,
+        # not via a normal factor CSV upload.
+        rows = await repo.get_recalculation_status_by_year(year)
+        targets = [r for r in rows if r["needs_recalculation"]]
+
+    if not targets:
+        logger.info(f"No stale (module, det) combos to recalculate for year={year}")
+        return
+
+    # Build all child jobs first, persist them in a single commit, then fan
+    # out the in-process tasks.  Per-iteration commits (the previous shape)
+    # multiplied roundtrips and gave intermediate visibility states for no
+    # benefit; the safety poller already rescues NOT_STARTED rows if this
+    # process dies between commit and fire_and_forget.
+    created_pairs: list[tuple[DataIngestionJob, Any]] = []
+    for row in targets:
+        new_job = DataIngestionJob(
+            job_type="emission_recalc",
+            module_type_id=row["module_type_id"],
+            data_entry_type_id=row["data_entry_type_id"],
+            year=year,
+            ingestion_method=IngestionMethod.computed,
+            target_type=TargetType.DATA_ENTRIES,
+            entity_type=EntityType.MODULE_PER_YEAR,
+            state=IngestionState.NOT_STARTED,
+            pipeline_id=pipeline_id,
+            # run_after=None means runnable immediately; claim_job's WHERE
+            # treats NULL run_after as eligible.
+            run_after=None,
+            meta={
+                "config": {
+                    "year": year,
+                    "data_entry_type_id": row["data_entry_type_id"],
+                    "module_type_id": row["module_type_id"],
+                    "parent_job_id": parent_job_id,
+                }
+            },
+        )
+        created_pairs.append((await repo.create_ingestion_job(new_job), row))
+
+    await session.commit()
+
+    for created, row in created_pairs:
+        if created.id is None:
+            logger.error(
+                "Failed to create child recalc job for "
+                f"(module={row['module_type_id']}, det={row['data_entry_type_id']})"
+            )
+            continue
+        fire_and_forget(
+            run_recalculation_task(
+                row["module_type_id"],
+                row["data_entry_type_id"],
+                year,
+                created.id,
+            ),
+            name=f"recalc-{created.id}",
+        )
+        logger.info(
+            f"Enqueued recalc job {created.id} for module={row['module_type_id']} "
+            f"det={row['data_entry_type_id']} year={year} pipeline={pipeline_id}"
+        )

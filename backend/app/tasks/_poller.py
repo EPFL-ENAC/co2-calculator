@@ -14,22 +14,20 @@ logger = get_logger(__name__)
 POLL_INTERVAL_SECONDS = 10
 
 
-def _dispatch_error_callback(task: asyncio.Task) -> None:
-    """Log unhandled exceptions from dispatch_job tasks."""
-    try:
-        exc = task.exception()
-    except asyncio.CancelledError:
-        return
-    if exc:
-        logger.error(f"dispatch_job failed: {exc}", exc_info=True)
-
-
 def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
-    """Fire-and-forget: dispatch a job, logging any unhandled exception."""
+    """Fire-and-forget: dispatch a job, logging any unhandled exception.
+
+    Routes through ``fire_and_forget`` so the Task is held in a strong-ref
+    set and survives GC (Python 3.11+ asyncio holds only weak references
+    to running tasks).  The earlier bare ``asyncio.create_task`` here had
+    the same hazard that bit recalc enqueuing — orphaned-job recovery
+    would silently fail to dispatch.
+    """
     if job.id is None:
         return
-    task = asyncio.create_task(dispatch_job(job, pod_id))
-    task.add_done_callback(_dispatch_error_callback)
+    from app.tasks._background import fire_and_forget
+
+    fire_and_forget(dispatch_job(job, pod_id), name=f"dispatch-{job.id}")
 
 
 async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
@@ -92,6 +90,29 @@ async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
             module_type_id=mid,
             data_entry_type_ids=det_ids,
             year=yr,
+            job_id=jid,
+        )
+    elif job_type == "unit_sync":
+        # Plan 310B Part 5 — pod-crash recovery for unit sync.  The
+        # endpoint creates a NOT_STARTED job and fires
+        # ``run_sync_task_accred`` in-process; if this pod dies before
+        # the task claims the job, the poller picks up the NOT_STARTED
+        # row and re-runs the task here.  ``run_sync_task_accred`` itself
+        # calls ``claim_job`` so it's safe to invoke from both the
+        # endpoint and the poller.
+        from app.tasks.unit_sync_tasks import (
+            SyncUnitRequest,
+        )
+        from app.tasks.unit_sync_tasks import (
+            run_sync_task_accred as _run_unit_sync,
+        )
+
+        target_year = (meta.get("config") or {}).get("target_year") or job.year
+        if target_year is None:
+            logger.warning(f"Missing target_year for unit_sync job {jid} — skipping")
+            return
+        await _run_unit_sync(
+            SyncUnitRequest(target_year=target_year),
             job_id=jid,
         )
     else:
