@@ -184,15 +184,15 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const chartOption = computed((): EChartsOption => {
-  const encodeFor = (categoryAxis: string, valueAxis: string) =>
-    isPrintMode.value
-      ? { x: valueAxis, y: categoryAxis }
-      : { x: categoryAxis, y: valueAxis };
+function encodeFor(categoryAxis: string, valueAxis: string) {
+  return isPrintMode.value
+    ? { x: valueAxis, y: categoryAxis }
+    : { x: categoryAxis, y: valueAxis };
+}
 
+const seriesArray = computed(() => {
   const barMaxWidth = isPrintMode.value ? 40 : undefined;
-
-  const seriesArray = [
+  return [
     {
       name: t('charts-process-emissions-category'),
       type: 'bar' as const,
@@ -308,99 +308,124 @@ const chartOption = computed((): EChartsOption => {
       : []),
     ...additionalSeriesData.value,
   ];
+});
+
+const chartTooltipOption = computed(() => {
+  if (isPrintMode.value) return { show: false };
+
+  function tooltipFormatter(params: unknown): string {
+    const arr = Array.isArray(params) ? params : params ? [params] : [];
+    if (!arr.length) {
+      emitTooltip(null);
+      return '';
+    }
+
+    const firstParam = arr[0] as Record<string, unknown>;
+    const data = firstParam.data as Record<string, unknown> | undefined;
+    const title = String(firstParam.axisValue ?? firstParam.name ?? '');
+
+    const rows: TooltipRow[] = [];
+
+    for (const param of [...arr].reverse()) {
+      const p = param as Record<string, unknown>;
+      const series = seriesArray.value.find((s) => s.name === p.seriesName);
+      const key = series?.encode.y;
+      const dataValue = Number(data?.[key]) || 0;
+      if (dataValue > 0 && series) {
+        rows.push({
+          label: series.name,
+          value: formatTonnesForChart(dataValue),
+          color: (series.itemStyle?.color as string) ?? '#888',
+        });
+      }
+    }
+
+    const state: TooltipState = { title, rows };
+    emitTooltip(state);
+    return '';
+  }
 
   return {
-    tooltip: isPrintMode.value
-      ? { show: false }
-      : {
-          trigger: 'axis',
-          axisPointer: {
-            type: 'shadow',
-          },
-          formatter: (params: unknown) => {
-            const arr = Array.isArray(params) ? params : params ? [params] : [];
-            if (!arr.length) {
-              emitTooltip(null);
-              return '';
-            }
+    trigger: 'axis' as const,
+    axisPointer: { type: 'shadow' as const },
+    formatter: tooltipFormatter,
+  };
+});
 
-            const firstParam = arr[0] as Record<string, unknown>;
-            const data = firstParam.data as Record<string, unknown> | undefined;
-            const title = String(firstParam.axisValue ?? firstParam.name ?? '');
+const chartGridOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      left: '10%',
+      right: '4%',
+      top: 10,
+      bottom: 30,
+      containLabel: true,
+    };
+  }
+  return { left: '5%', right: '4%', top: 80, bottom: '0%', containLabel: true };
+});
 
-            const rows: TooltipRow[] = [];
+const chartXAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'value' as const,
+      name: t('tco2eq'),
+      nameLocation: 'middle' as const,
+      nameGap: 30,
+      nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+      axisLabel: { formatter: '{value}' },
+    };
+  }
+  return {
+    type: 'category' as const,
+    axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
+  };
+});
 
-            for (const param of [...arr].reverse()) {
-              const p = param as Record<string, unknown>;
-              const series = seriesArray.find((s) => s.name === p.seriesName);
-              const key = series?.encode.y;
-              const dataValue = Number(data?.[key]) || 0;
-              if (dataValue > 0 && series) {
-                rows.push({
-                  label: series.name,
-                  value: formatTonnesForChart(dataValue),
-                  color: (series.itemStyle?.color as string) ?? '#888',
-                });
-              }
-            }
+const chartYAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'category' as const,
+      axisLabel: { fontSize: 11 },
+      axisTick: { alignWithLabel: true },
+    };
+  }
+  return {
+    type: 'value' as const,
+    name: t('tco2eq'),
+    nameLocation: 'middle' as const,
+    nameGap: 40,
+    nameRotate: 90,
+    nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+    axisLabel: { formatter: '{value}' },
+  };
+});
 
-            const state: TooltipState = { title, rows };
-            emitTooltip(state);
-            return '';
-          },
-        },
+const chartGraphicOption = computed(() => {
+  if (isPrintMode.value) return [];
+  return [
+    {
+      type: 'rect',
+      left: '46px',
+      top: '15px',
+      shape: { width: 500, height: 500 },
+      style: {
+        fill: new graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: 'rgba(240,240,240,0.9)' },
+          { offset: 1, color: 'rgba(240,240,240,0.1)' },
+        ]),
+      },
+    },
+  ];
+});
 
-    grid: isPrintMode.value
-      ? { left: '10%', right: '4%', top: 10, bottom: 30, containLabel: true }
-      : { left: '5%', right: '4%', top: 80, bottom: '0%', containLabel: true },
-
-    xAxis: isPrintMode.value
-      ? {
-          type: 'value',
-          name: t('tco2eq'),
-          nameLocation: 'middle' as const,
-          nameGap: 30,
-          nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
-          axisLabel: { formatter: '{value}' },
-        }
-      : {
-          type: 'category',
-          axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
-        },
-
-    yAxis: isPrintMode.value
-      ? {
-          type: 'category',
-          axisLabel: { fontSize: 11 },
-          axisTick: { alignWithLabel: true },
-        }
-      : {
-          type: 'value',
-          name: t('tco2eq'),
-          nameLocation: 'middle' as const,
-          nameGap: 40,
-          nameRotate: 90,
-          nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
-          axisLabel: { formatter: '{value}' },
-        },
-
-    graphic: isPrintMode.value
-      ? []
-      : [
-          {
-            type: 'rect',
-            left: '46px',
-            top: '15px',
-            shape: { width: 500, height: 500 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(240,240,240,0.9)' },
-                { offset: 1, color: 'rgba(240,240,240,0.1)' },
-              ]),
-            },
-          },
-        ],
-
+const chartOption = computed((): EChartsOption => {
+  return {
+    tooltip: chartTooltipOption.value,
+    grid: chartGridOption.value,
+    xAxis: chartXAxisOption.value,
+    yAxis: chartYAxisOption.value,
+    graphic: chartGraphicOption.value,
     dataset: {
       dimensions: [
         'category',
@@ -420,7 +445,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as echarts.SeriesOption[],
+    series: seriesArray.value as echarts.SeriesOption[],
   };
 });
 

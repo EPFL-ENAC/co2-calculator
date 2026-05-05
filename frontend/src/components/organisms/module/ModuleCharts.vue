@@ -70,7 +70,7 @@
             </div>
           </div>
         </div>
-      </div>
+      </template>
       <div
         v-if="carbonFootprintSubtitle"
         class="text-body2 text-secondary q-px-lg q-mx-sm q-mt-xs"

@@ -33,6 +33,7 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 
@@ -1080,17 +1081,18 @@ const chartOption = computed((): EChartsOption => {
 
           formatter: (params: unknown) => {
             const arr = Array.isArray(params) ? params : params ? [params] : [];
-            if (!arr.length) return '';
-            const p = arr[0] as {
+            if (!arr.length) {
+              emitTooltip(null);
+              return '';
+            }
+
+            const firstParam = arr[0] as {
               data?: Record<string, unknown>;
               axisValue?: string;
               name?: string;
-              seriesName?: string;
-              marker?: string;
-              value?: number | number[];
             };
-            const data = p.data;
-            const name = p.axisValue || p.name || '';
+            const data = firstParam.data;
+            const name = firstParam.axisValue || firstParam.name || '';
             const isValidated = validatedLabels.value.has(name);
 
             if (!isValidated) {
@@ -1099,18 +1101,25 @@ const chartOption = computed((): EChartsOption => {
                 : additionalBuildingsLabels.value.has(name)
                   ? t('buildings')
                   : name;
-              return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
+              emitTooltip({
+                title: name,
+                rows: [],
+                footer: t('results_validate_module_title', {
+                  module: moduleName,
+                }),
+                tone: 'muted',
+              });
+              return '';
             }
 
+            const rows: TooltipRow[] = [];
             let total = 0;
-            let tooltip = `<strong>${name}</strong><br/>`;
 
-            arr.reverse().forEach((param: unknown) => {
+            for (const param of [...arr].reverse()) {
               const p = param as {
                 seriesName?: string;
                 seriesIndex?: number;
-                marker?: string;
-                value?: number | number[];
+                color?: string;
                 data?: Record<string, unknown>;
               };
               const series =
@@ -1119,17 +1128,28 @@ const chartOption = computed((): EChartsOption => {
                   : seriesArray.find((s) => s.name === p.seriesName);
               const key = series?.encode.y;
 
-              if (!data || !key) return;
+              if (!data || !key) continue;
               const dataValue = Number(data[key]) || 0;
               if (dataValue > 0) {
-                tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
+                rows.push({
+                  label: series?.name ?? p.seriesName ?? '',
+                  value: formatTonnesForChart(dataValue),
+                  color:
+                    (series?.itemStyle?.color as string) ?? p.color ?? '#888',
+                });
                 total += dataValue;
               }
+            }
+
+            emitTooltip({
+              title: name,
+              rows,
+              separatorRow: {
+                label: t('total'),
+                value: formatTonnesForChart(total),
+              },
             });
-
-            const totalDisplay = formatTonnesForChart(total);
-
-            return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
+            return '';
           },
         },
 
@@ -1227,7 +1247,7 @@ const chartOption = computed((): EChartsOption => {
 
 const chartRef = ref<InstanceType<typeof VChart>>();
 
-const { tooltip, style, attach } = useEchartsTooltip();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
 const onChartReady = async () => {
   await nextTick();
