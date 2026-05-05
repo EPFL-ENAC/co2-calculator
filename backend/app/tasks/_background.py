@@ -45,6 +45,12 @@ def fire_and_forget(coro: Coroutine, *, name: str | None = None) -> asyncio.Task
 def _on_done(task: asyncio.Task) -> None:
     _BACKGROUND_TASKS.discard(task)
     if task.cancelled():
+        # Loud on purpose: a silently-cancelled fire-and-forget task is
+        # indistinguishable from "task never ran" in the logs, which makes
+        # stuck DataIngestionJob rows nearly impossible to diagnose.  If
+        # cancellations become routine for some path, route that path
+        # through its own helper instead of quieting this branch.
+        logger.warning(f"fire_and_forget task {task.get_name()!r} was cancelled")
         return
     exc = task.exception()
     if exc is not None:

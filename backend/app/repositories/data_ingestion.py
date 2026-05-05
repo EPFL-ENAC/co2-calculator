@@ -109,8 +109,11 @@ class DataIngestionRepository:
                 ),
             }
             result_job.meta = merged_meta
+            logger.info(f"update_ingestion_job({job_id}): about to flush")
             await self.session.flush()
+            logger.info(f"update_ingestion_job({job_id}): flush done; about to refresh")
             await self.session.refresh(result_job)
+            logger.info(f"update_ingestion_job({job_id}): refresh done")
         return result_job
 
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:

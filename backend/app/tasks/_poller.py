@@ -14,22 +14,20 @@ logger = get_logger(__name__)
 POLL_INTERVAL_SECONDS = 10
 
 
-def _dispatch_error_callback(task: asyncio.Task) -> None:
-    """Log unhandled exceptions from dispatch_job tasks."""
-    try:
-        exc = task.exception()
-    except asyncio.CancelledError:
-        return
-    if exc:
-        logger.error(f"dispatch_job failed: {exc}", exc_info=True)
-
-
 def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
-    """Fire-and-forget: dispatch a job, logging any unhandled exception."""
+    """Fire-and-forget: dispatch a job, logging any unhandled exception.
+
+    Routes through ``fire_and_forget`` so the Task is held in a strong-ref
+    set and survives GC (Python 3.11+ asyncio holds only weak references
+    to running tasks).  The earlier bare ``asyncio.create_task`` here had
+    the same hazard that bit recalc enqueuing — orphaned-job recovery
+    would silently fail to dispatch.
+    """
     if job.id is None:
         return
-    task = asyncio.create_task(dispatch_job(job, pod_id))
-    task.add_done_callback(_dispatch_error_callback)
+    from app.tasks._background import fire_and_forget
+
+    fire_and_forget(dispatch_job(job, pod_id), name=f"dispatch-{job.id}")
 
 
 async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
