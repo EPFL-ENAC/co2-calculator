@@ -65,7 +65,8 @@ status as suspect, and verify against code.
   safety-net poller. Cite the current ADR-010, not historical chatter.
 - **`fire_and_forget` cancels with the request.** FastAPI `BackgroundTasks`
   must be handed async functions directly; sync wrappers that call
-  `asyncio.run` cancel any tasks they spawn. See plan 310b.
+  `asyncio.run` cancel any tasks they spawn. See
+  [`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-b-factor-pipeline.md).
 - **`backoffice.*` permissions only apply server-side.** Frontend gates
   use the same path but read from `/auth/me`; do not gate UI on raw roles.
 - **Plans named `*-copilot-feedback-*` are review threads, not plans.** They

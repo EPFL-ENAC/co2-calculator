@@ -55,7 +55,8 @@ per-request work for a single user. Path 2 is bulk operator workflows
 
 **Recalc** — Re-running emission computations after a factor change or
 classification fix. Triggered automatically when factor pipelines deliver
-new versions. See plan 310b.
+new versions. See
+[`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-b-factor-pipeline.md).
 
 **`/refresh`** — Endpoint that triggers a background role sync from
 Entra/Accred and returns immediately. Pair with `/me` to read the result.
