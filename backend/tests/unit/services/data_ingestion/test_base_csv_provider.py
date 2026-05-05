@@ -502,6 +502,71 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_process_row_rejects_falsy_year_after_setup_bypass():
+    """Defense-in-depth row-level guard must reject ``year=0`` the same way
+    ``_setup_handlers_and_factors`` does.
+
+    Regression for the asymmetry caught in the PR review: the row-level
+    check originally used ``if self.year is None`` while the setup-time
+    check uses ``if not self.year``, so a caller that bypassed setup with
+    ``year=0`` would slip past the backstop and rebuild the
+    ``{type}:0:...`` silent-miss key — exactly the bug this PR is meant to
+    close. Both layers now use the same falsy check.
+    """
+    config = {"file_path": "tmp/test.csv", "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    # Simulate a future caller that bypassed setup and left year unset/zero.
+    # The setup-time guard would have raised; the row-level guard must too.
+    provider.year = 0
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.student, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda filtered_row, handlers: (
+        "x",
+        None,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {"unused_key": SimpleNamespace(id=1)},
+        "expected_columns": {"unit_institutional_id"},
+    }
+    row = {"unit_institutional_id": "U1"}
+    stats = _build_stats()
+
+    # The row-level ValueError is caught by `_process_row`'s broad
+    # try/except (same path every row-validation failure takes) and
+    # recorded as a per-row error. The desired outcome is "this row is
+    # rejected" — not "process_csv_in_batches aborts" — so assert the
+    # per-row error path, not a propagated exception.
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map={"U1": 123},
+    )
+
+    assert data_entry is None
+    assert error_msg is not None and "year must be set" in error_msg
+    assert kg_co2eq_override is None
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors_count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_process_row_missing_unit_mapping_records_error():
     """Test _process_row records error when unit mapping is missing."""
     config = {"file_path": "tmp/test.csv"}
