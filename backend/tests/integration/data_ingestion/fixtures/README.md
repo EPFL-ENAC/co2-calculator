@@ -114,11 +114,4 @@ Human entries have `source = DataEntrySourceEnum.USER_MANUAL` (value: 0) and are
 
 ## Real-World Examples from Seed Data
 
-See `backend/seed_data/` for production CSV examples:
-
-- `headcount_data.csv` - MODULE_PER_YEAR format
-- `equipments_data.csv` - MODULE_PER_YEAR format (has unit_institutional_id)
-- `travel_planes_data.csv` - MODULE_PER_YEAR format
-- `building_rooms_data.csv` - MODULE_PER_YEAR format
-
-Note: The seed CSV files all use MODULE_PER_YEAR format (with `unit_institutional_id`). MODULE_UNIT_SPECIFIC uploads are typically done via API with `carbon_report_module_id` in the request config.
+Production CSVs are mirrored locally to an untracked `backend/seed_data/` directory. They are not part of the repository; ask a team member if you need access. For schema reference and developer use, treat this `fixtures/` directory as the canonical example.
