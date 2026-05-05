@@ -26,4 +26,4 @@ The docs cover product scope (the CRD/spec), system architecture and decision re
 
 Architectural decisions live in `architecture-decision-records/`; each ADR captures context, options, and consequences.
 The CRD is `architecture/spec.md` — the authoritative product requirement.
-Issue-scoped delivery detail lives in `implementation-plans/`, one file per GitHub issue.
+Issue-scoped delivery detail lives in `docs/implementation-plans/` at the repo root (one file per GitHub issue), indexed at [implementation-plans/](./implementation-plans/index.md).
