@@ -30,6 +30,7 @@ async def test_setup_handlers_and_factors_single_type(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 2025,
         },
         data_session=MagicMock(),
     )
@@ -66,6 +67,51 @@ async def test_setup_handlers_and_factors_single_type(monkeypatch):
     assert "factors_map" in setup
     assert "factor_id_to_factor" in setup
     assert setup["factor_id_to_factor"] == {42: mock_factor}
+
+
+@pytest.mark.asyncio
+async def test_setup_handlers_and_factors_raises_when_year_missing():
+    """Regression: a CSV upload that arrives without ``year`` in the
+    payload must fail loudly at setup time rather than silently importing
+    every row with primary_factor_id=None.
+
+    The factor lookup keys on ``{type}:{year}:{kind}:{subkind}``, so a
+    missing year produces a ``{type}:0:...`` key that never matches any
+    real factor — the kind of silent miscompile this guard is meant to
+    prevent. See base_csv_provider.py::_process_row, which now also has
+    a defensive ``if self.year is None: raise`` so that even if a future
+    caller bypasses setup the row loop refuses to fall back to a sentinel.
+    """
+    provider = ModuleUnitSpecificCSVProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": DataEntryTypeEnum.member.value,
+            # year deliberately omitted — mimics a frontend payload that
+            # forgets to include it (the bug the guard catches).
+        },
+        data_session=MagicMock(),
+    )
+
+    with pytest.raises(ValueError, match="year is required"):
+        await provider._setup_handlers_and_factors()
+
+
+@pytest.mark.asyncio
+async def test_setup_handlers_and_factors_raises_when_year_is_zero():
+    """Sibling regression: ``year=0`` is also invalid. The guard uses
+    ``if not self.year`` (matching the MODULE_PER_YEAR sibling's pattern)
+    so falsy years are rejected the same as ``None``."""
+    provider = ModuleUnitSpecificCSVProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 0,
+        },
+        data_session=MagicMock(),
+    )
+
+    with pytest.raises(ValueError, match="year is required"):
+        await provider._setup_handlers_and_factors()
 
 
 def test_extract_kind_subkind_values_from_handler():
@@ -303,6 +349,7 @@ async def test_setup_returns_empty_factor_id_map_with_no_factors(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 2025,
         },
         data_session=MagicMock(),
     )
@@ -334,6 +381,7 @@ async def test_setup_returns_multiple_factors_in_id_map(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 2025,
         },
         data_session=MagicMock(),
     )
@@ -371,6 +419,7 @@ async def test_setup_skips_factors_without_id(monkeypatch):
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 2025,
         },
         data_session=MagicMock(),
     )
@@ -494,6 +543,7 @@ async def test_all_data_entry_types_return_factor_id_to_factor(monkeypatch):
             {
                 "file_path": "tmp/test.csv",
                 "data_entry_type_id": entry_type.value,
+                "year": 2025,
             },
             data_session=MagicMock(),
         )

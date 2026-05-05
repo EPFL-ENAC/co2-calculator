@@ -123,7 +123,7 @@ export enum IngestionResult {
 
 export type InitiateSyncParams = {
   module_type_id: number;
-  year?: number;
+  year: number;
   provider_type: 'csv' | 'api';
   target_type?: TargetType;
   filters?: Record<string, unknown>;
