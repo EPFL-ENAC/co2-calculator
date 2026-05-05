@@ -40,12 +40,13 @@ def _make_pending_job() -> DataIngestionJob:
 
 @pytest.mark.asyncio
 async def test_started_at_idempotent_then_finished_at_set(pg_dsn):
-    """End-to-end on PG: first set_started_at fires, retry no-ops, finished_at fires.
+    """End-to-end on PG: set_started_at + finished_at auto-stamp on FINISHED.
 
     Mirrors the runner's lifecycle: claim → set_started_at; retry → claim
     again → set_started_at again (no-op); on completion →
-    update_ingestion_job(finished_at=True).  Both observability columns
-    end populated and ``started_at`` is unchanged across the retry call.
+    update_ingestion_job(state=FINISHED) auto-stamps finished_at.  Both
+    observability columns end populated and ``started_at`` is unchanged
+    across the retry call.
     """
     engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -89,14 +90,15 @@ async def test_started_at_idempotent_then_finished_at_set(pg_dsn):
                 "total-duration metric."
             )
 
-            # Completion — finished_at column gets stamped.
+            # Completion — finished_at column auto-stamps on the FINISHED
+            # transition (no opt-in flag; the timestamp is derived from
+            # the lifecycle state itself).
             await repo.update_ingestion_job(
                 job_id,
                 status_message="ok",
                 metadata={},
                 state=IngestionState.FINISHED,
                 result=IngestionResult.SUCCESS,
-                finished_at=True,
             )
             await session.commit()
 

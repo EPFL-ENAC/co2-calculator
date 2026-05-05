@@ -2,8 +2,8 @@
 
 Covers:
 - ``get_recalculation_status_by_year`` (Plan 310B)
-- ``set_started_at`` and ``update_ingestion_job(finished_at=True)``
-  (Plan 310C observability columns)
+- ``set_started_at`` plus state-driven ``finished_at`` auto-stamping in
+  ``update_ingestion_job``, ``cancel_job`` (Plan 310C observability columns)
 """
 
 import pytest
@@ -479,10 +479,15 @@ async def test_set_started_at_second_call_is_noop(
 
 
 @pytest.mark.asyncio
-async def test_update_ingestion_job_finished_at_flag_sets_column(
+async def test_update_ingestion_job_auto_stamps_finished_at_on_finished_state(
     db_session: AsyncSession,
 ):
-    """``finished_at=True`` stamps the top-level column on the FINISHED transition."""
+    """Transitioning to FINISHED auto-stamps ``finished_at``.
+
+    No opt-in flag: the timestamp is derived from the lifecycle state
+    transition itself, not a parameter the caller may forget.  This is
+    the contract the dashboard's duration query depends on.
+    """
     repo = DataIngestionRepository(db_session)
     job = _make_pending_job()
     db_session.add(job)
@@ -496,7 +501,6 @@ async def test_update_ingestion_job_finished_at_flag_sets_column(
         metadata={},
         state=IngestionState.FINISHED,
         result=IngestionResult.SUCCESS,
-        finished_at=True,
     )
     await db_session.commit()
 
@@ -507,14 +511,44 @@ async def test_update_ingestion_job_finished_at_flag_sets_column(
 
 
 @pytest.mark.asyncio
-async def test_update_ingestion_job_without_flag_leaves_finished_at_null(
+async def test_update_ingestion_job_to_running_does_not_stamp_finished_at(
     db_session: AsyncSession,
 ):
-    """Without the flag, ``finished_at`` stays NULL even on FINISHED transitions.
+    """Non-terminal transitions never stamp ``finished_at``.
 
-    Backward-compat guarantee for existing callers that drive only the
-    legacy ``meta["completed_at"]`` JSON field — they continue to work
-    unchanged and the new column stays opt-in.
+    Closes the original ``finished_at: bool`` flag's loophole — callers
+    can no longer accidentally persist a terminal timestamp on a
+    RUNNING/QUEUED job.  Only the transition to FINISHED triggers the
+    stamp.
+    """
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    await repo.update_ingestion_job(
+        job.id,
+        status_message="working",
+        metadata={},
+        state=IngestionState.RUNNING,
+    )
+    await db_session.commit()
+
+    refreshed = await _reload_job(db_session, job.id)
+    assert refreshed.finished_at is None
+    assert refreshed.state == IngestionState.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_finished_at_idempotent_on_repeat_calls(
+    db_session: AsyncSession,
+):
+    """Re-running update on an already-FINISHED row preserves the original timestamp.
+
+    The IS NULL guard (``result_job.finished_at is None``) makes the
+    auto-stamp idempotent so retry-update paths can't drift the recorded
+    completion time.
     """
     repo = DataIngestionRepository(db_session)
     job = _make_pending_job()
@@ -530,7 +564,44 @@ async def test_update_ingestion_job_without_flag_leaves_finished_at_null(
         result=IngestionResult.SUCCESS,
     )
     await db_session.commit()
+    first_value = (await _reload_job(db_session, job.id)).finished_at
+    assert first_value is not None
 
+    await repo.update_ingestion_job(
+        job.id,
+        status_message="updated note",
+        metadata={"extra": "info"},
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+    )
+    await db_session.commit()
+    second_value = (await _reload_job(db_session, job.id)).finished_at
+
+    assert second_value == first_value
+
+
+@pytest.mark.asyncio
+async def test_cancel_job_stamps_finished_at(db_session: AsyncSession):
+    """``cancel_job`` is a terminal transition — must populate ``finished_at``.
+
+    Without this, observability queries that filter on ``finished_at IS
+    NOT NULL`` silently miss cancelled jobs even though they are
+    lifecycle-FINISHED.
+    """
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    job.state = IngestionState.RUNNING
+    job.is_current = True
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+    assert job.finished_at is None
+
+    cancelled = await repo.cancel_job(job.id)
+    await db_session.commit()
+
+    assert cancelled is not None
     refreshed = await _reload_job(db_session, job.id)
-    assert refreshed.finished_at is None
     assert refreshed.state == IngestionState.FINISHED
+    assert refreshed.result == IngestionResult.ERROR
+    assert refreshed.finished_at is not None

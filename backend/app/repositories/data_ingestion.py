@@ -69,23 +69,20 @@ class DataIngestionRepository:
         completed_at: Optional[datetime] = None,
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
-        finished_at: bool = False,
     ) -> Optional[DataIngestionJob]:
         """Update ingestion job with legacy status_code and new state/result.
 
         Args:
             job_id: Job ID to update
             status_message: Status message
-            status_code: Legacy status code (for backward compatibility)
             metadata: Metadata to merge
             completed_at: Optional completed timestamp written into ``meta``
                 (legacy JSON field; pre-dates the ``finished_at`` column).
-            state: New state value (optional, for new code)
+            state: New state value (optional, for new code).  When this
+                transitions the row to ``FINISHED`` and ``finished_at`` is
+                still NULL, the column is auto-stamped (idempotent — a
+                later update keeps the original timestamp).
             result: New result value (optional, for new code)
-            finished_at: When True, also stamp the top-level ``finished_at``
-                column with ``func.now()`` (Plan 310C observability).  Kept
-                opt-in so existing callers that drove only ``meta`` JSON
-                aren't forced to migrate in lockstep.
         """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
         exec_result = await self.session.execute(stmt)
@@ -101,10 +98,11 @@ class DataIngestionRepository:
                 result_job.state = state
             if result is not None:
                 result_job.result = result
-            if finished_at:
-                # ORM-level assignment of a SQL function expression so the
-                # value is rendered server-side (matches set_started_at and
-                # claim_job's locked_at).
+            if state == IngestionState.FINISHED and result_job.finished_at is None:
+                # Auto-stamp on the FIRST transition to FINISHED.  IS NULL
+                # guard makes it idempotent — re-running update on an
+                # already-FINISHED row leaves the original timestamp intact.
+                # Server-side ``func.now()`` matches claim_job's locked_at.
                 result_job.finished_at = func.now()
 
             merged_meta = {
@@ -259,6 +257,15 @@ class DataIngestionRepository:
                     .values(
                         locked_by=pod_id,
                         locked_at=func.now(),
+                        # Stamp ``started_at`` atomically with the RUNNING
+                        # transition so a crash between this commit and the
+                        # runner doing work cannot leave the column NULL.
+                        # ``coalesce`` preserves the original timestamp on
+                        # retry-claim — ``finished_at - started_at`` then
+                        # measures total wall-clock duration across retries.
+                        started_at=func.coalesce(
+                            col(DataIngestionJob.started_at), func.now()
+                        ),
                         state=IngestionState.RUNNING,
                         is_current=True,
                         attempts=col(DataIngestionJob.attempts) + 1,
@@ -350,6 +357,9 @@ class DataIngestionRepository:
             .values(
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
+                # Terminal transition — stamp finished_at so the dashboard
+                # query sees auto-abandoned rows alongside normal completions.
+                finished_at=func.now(),
                 status_message=(
                     "Auto-recovery: pod-crash sweep found this job RUNNING past "
                     "the stale-timeout window with attempts >= max_attempts.  "
@@ -541,6 +551,10 @@ class DataIngestionRepository:
         job.state = IngestionState.FINISHED
         job.result = IngestionResult.ERROR
         job.status_message = "Cancelled by user"
+        # Terminal transition — stamp finished_at so observability queries
+        # see cancelled rows alongside success/error completions.
+        if job.finished_at is None:
+            job.finished_at = func.now()
         job.is_current = False
         merged_meta = {
             **self.sanitize_for_json(job.meta or {}),
