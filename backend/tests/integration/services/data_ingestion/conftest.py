@@ -13,6 +13,7 @@ import docker
 import docker.errors
 import pytest
 import pytest_asyncio
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -122,3 +123,50 @@ async def pg_session(pg_dsn):
     async with factory() as session:
         yield session
     await engine.dispose()
+
+
+async def _install_plan_310b_indexes(engine) -> None:
+    """Create the partial unique indexes that Plan 310B's migration adds.
+
+    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
+    doesn't know about the migration's bare DDL.  Mirror it here so
+    ``ON CONFLICT`` inference can find the index it needs to bind to.
+    """
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity "
+                "ON factors (data_entry_type_id, year, emission_type_id, "
+                "(classification::text)) "
+                "WHERE year IS NOT NULL"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity_no_year "
+                "ON factors (data_entry_type_id, emission_type_id, "
+                "(classification::text)) "
+                "WHERE year IS NULL"
+            )
+        )
+
+
+@pytest_asyncio.fixture(scope="function")
+async def pg_dsn_with_310b(pg_dsn):
+    """``pg_dsn`` plus Plan 310B's migration-only partial unique indexes.
+
+    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
+    doesn't run Alembic and therefore never creates the
+    ``uq_factor_identity`` / ``uq_factor_identity_no_year`` partial unique
+    indexes that ``factor_repo.upsert_factors`` needs to bind its
+    ``ON CONFLICT`` clause.  Tests that exercise the upsert path (or any
+    code reachable from it) should depend on this fixture instead of the
+    bare ``pg_dsn`` so the production schema is mirrored without
+    copy-pasting the DDL into each test file.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    try:
+        await _install_plan_310b_indexes(engine)
+    finally:
+        await engine.dispose()
+    yield pg_dsn

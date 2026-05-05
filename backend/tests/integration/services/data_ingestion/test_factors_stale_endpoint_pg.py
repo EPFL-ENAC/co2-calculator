@@ -19,7 +19,6 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -42,35 +41,15 @@ from tests.integration.services.data_ingestion.test_plan_310b_factor_pipeline_pg
 )
 
 
-async def _install_indexes(engine) -> None:
-    """Mirror migration b1f0a2c3d4e5's partial unique indexes — pg_dsn's
-    SQLModel.metadata.create_all doesn't run Alembic, so the indexes
-    aren't created automatically and ``upsert_factors`` would fail
-    inferring its conflict target."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity "
-                "ON factors (data_entry_type_id, year, emission_type_id, "
-                "(classification::text)) "
-                "WHERE year IS NOT NULL"
-            )
-        )
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity_no_year "
-                "ON factors (data_entry_type_id, emission_type_id, "
-                "(classification::text)) "
-                "WHERE year IS NULL"
-            )
-        )
-
-
 @pytest_asyncio.fixture
-async def pg_app(pg_dsn, monkeypatch):
-    """Wire the FastAPI app to the test Postgres + bypass auth."""
-    engine = create_async_engine(pg_dsn, future=True)
-    await _install_indexes(engine)
+async def pg_app(pg_dsn_with_310b, monkeypatch):
+    """Wire the FastAPI app to the test Postgres + bypass auth.
+
+    Depends on ``pg_dsn_with_310b`` (in conftest) so the Plan 310B
+    partial unique indexes are present — ``upsert_factors`` needs them
+    to bind ``ON CONFLICT``.
+    """
+    engine = create_async_engine(pg_dsn_with_310b, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async def override_get_db():
