@@ -45,6 +45,8 @@ markdown_extensions:
 docs_dir: src
 nav:
   - Home: index.md
+  - LLM Agent Guide: llm-agent-guide.md
+  - Glossary: glossary.md
   - Architecture:
       - Overview: architecture/index.md
       - Purpose & Scope: architecture/01-purpose-scope.md
