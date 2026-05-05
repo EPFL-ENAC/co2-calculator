@@ -270,6 +270,185 @@ async def test_recover_job_none_id(db_session: AsyncSession):
 
 
 # ======================================================================
+# sweep_stuck_running_jobs tests (poller's pod-crash auto-recovery)
+# ======================================================================
+#
+# Difference from ``recover_job``: the sweep PRESERVES ``attempts`` so
+# claim_job's max-retry guard caps an infinitely-crashing job, and it
+# ABANDONS jobs whose attempts have hit max (state=FINISHED+ERROR) so
+# operators see them.  ``recover_job`` (the manual API path) intentionally
+# resets attempts to 0 — operator override of the cap.
+
+
+@pytest.mark.asyncio
+async def test_sweep_recovers_stuck_running_with_retries_left(
+    db_session: AsyncSession,
+):
+    """attempts < max → reset to NOT_STARTED but PRESERVE attempts.
+
+    Locks are cleared so claim_job can pick it up next cycle, but
+    attempts is intact so a job that crashes every time can't loop
+    forever — claim_job's ``attempts < max_attempts`` guard caps it.
+    """
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-crashed-1",
+        locked_at=stale_time,
+        attempts=1,
+        max_attempts=3,
+        is_current=True,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    job_id = job.id
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 0)
+
+    refreshed = await repo.get_job_by_id(job_id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.NOT_STARTED
+    assert refreshed.locked_by is None
+    assert refreshed.locked_at is None
+    assert refreshed.is_current is False
+    assert refreshed.run_after is None
+    # attempts is preserved — that's the whole difference vs recover_job
+    assert refreshed.attempts == 1
+
+
+@pytest.mark.asyncio
+async def test_sweep_abandons_stuck_running_at_max_attempts(
+    db_session: AsyncSession,
+):
+    """attempts >= max → mark FINISHED+ERROR with diagnostic message.
+
+    Without this branch, a job whose handler crashes every claim would
+    sit RUNNING forever after attempts hits max — claim_job won't
+    re-pick it up (``attempts < max_attempts`` is false), and the
+    recoverable branch above won't fire either (same gate).  So we
+    mark it terminally failed; operators see it and can investigate.
+    """
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-crashed-final",
+        locked_at=stale_time,
+        attempts=3,
+        max_attempts=3,
+        is_current=True,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    job_id = job.id
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 1)
+
+    refreshed = await repo.get_job_by_id(job_id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.FINISHED
+    assert refreshed.result == IngestionResult.ERROR
+    assert "Auto-recovery" in (refreshed.status_message or "")
+    assert "max_attempts" in (refreshed.status_message or "")
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_running_within_stale_window(db_session: AsyncSession):
+    """Jobs whose locked_at is within the stale window are presumed alive."""
+    recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-alive",
+        locked_at=recent_time,
+        attempts=1,
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 0)
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.RUNNING  # untouched
+
+
+@pytest.mark.asyncio
+async def test_sweep_recovers_running_with_null_locked_at(db_session: AsyncSession):
+    """RUNNING with NULL locked_at = a clearly-broken row (claim_job
+    always sets locked_at on success).  Treat as stale and recover."""
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-mystery",
+        locked_at=None,
+        attempts=1,
+        max_attempts=3,
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_sweep_does_not_touch_not_started(db_session: AsyncSession):
+    """NOT_STARTED is the dispatch sweep's domain — auto-recovery only
+    cares about RUNNING."""
+    job = _make_job(state=IngestionState.NOT_STARTED, attempts=0)
+    db_session.add(job)
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_sweep_handles_mixed_population(db_session: AsyncSession):
+    """One sweep call handles multiple rows in different buckets without
+    interference — recoverable, abandoned, alive, and not-started all
+    coexist; only the first two are touched."""
+    stale = datetime.now(timezone.utc) - timedelta(minutes=60)
+    fresh = datetime.now(timezone.utc) - timedelta(minutes=5)
+    db_session.add_all(
+        [
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=stale,
+                attempts=1,
+                max_attempts=3,
+                module_type_id=1,
+            ),
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=stale,
+                attempts=3,
+                max_attempts=3,
+                module_type_id=2,
+            ),
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=fresh,
+                attempts=1,
+                module_type_id=3,
+            ),
+            _make_job(state=IngestionState.NOT_STARTED, module_type_id=4),
+        ]
+    )
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 1)
+
+
+# ======================================================================
 # run_sync_task claim guard tests
 # ======================================================================
 

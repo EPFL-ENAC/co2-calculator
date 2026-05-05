@@ -36,6 +36,14 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         - Loads factors for that specific data_entry_type
         - Returns required_columns (strict validation)
         """
+        # Year is required: factor lookups during row processing key on
+        # `{type}:{year}:{kind}:{subkind}`, so a missing year would silently
+        # miss every factor and import rows with primary_factor_id=None.
+        # Symmetric to the MODULE_PER_YEAR guard in
+        # base_csv_provider.py::_resolve_module_per_year_modules.
+        if not self.year:
+            raise ValueError("year is required for MODULE_UNIT_SPECIFIC entity type")
+
         configured_data_entry_type_id = self.config.get("data_entry_type_id")
 
         if configured_data_entry_type_id is None:

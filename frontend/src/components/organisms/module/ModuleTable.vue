@@ -524,6 +524,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
       moduleStore.state.data?.carbon_report_module_id;
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
+      year: Number(props.year),
       provider_type: 'csv',
       target_type: TargetType.DATA_ENTRIES,
       file_path: filePath,
