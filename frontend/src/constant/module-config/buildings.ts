@@ -214,14 +214,6 @@ export const buildings: ModuleConfig = {
   },
   submodules: [
     {
-      id: SUBMODULE_BUILDINGS_TYPES.Building,
-      type: SUBMODULE_BUILDINGS_TYPES.Building as AllSubmoduleTypes,
-      tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
-      moduleFields: roomFields,
-      hasTableAction: true,
-      addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
-    },
-    {
       id: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion,
       type: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion as BuildingsSubType,
       tableNameKey: `${MODULES.Buildings}.combustion_table_title`,
@@ -229,6 +221,14 @@ export const buildings: ModuleConfig = {
       hasTableAction: true,
       hasFormTooltip: `${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`,
       addButtonLabelKey: `${MODULES.Buildings}.add_combustion_button`,
+    },
+    {
+      id: SUBMODULE_BUILDINGS_TYPES.Building,
+      type: SUBMODULE_BUILDINGS_TYPES.Building as AllSubmoduleTypes,
+      tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
+      moduleFields: roomFields,
+      hasTableAction: true,
+      addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
     },
   ],
   totalFormatter: formatTonnesCO2,

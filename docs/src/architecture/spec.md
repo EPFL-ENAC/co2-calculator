@@ -1,91 +1,95 @@
-### 🎯 **Project Goal**
-
-Develop an **open-source CO2 calculator** for EPFL research activities — allowing each lab to measure, visualize, and simulate its CO2 emissions. The tool must be **scalable, secure, and reusable by other academic institutions**.
-
+---
+status: delivered
+last_updated: 2026-05-05
+summary: Code Requirements Document — single source of truth for project scope and decisions.
 ---
 
-### 🧱 **Core Deliverables (Mandate de base)**
+# CRD — co2-calculator (Code Requirements Document)
 
-#### 1. **Custom Web Application**
+This document fixes the project's intent, scope, and decision trail. Treat it as authoritative when other docs disagree.
 
-- Responsive web app following **EPFL IT standards and branding**
-- Multi-language (EN required, extensible to FR and others)
-- Secure authentication via **MS Entra ID (OIDC/SAML2)**
-- Modular, containerized architecture (deployable via Docker/registry)
-- REST API (JSON, documented with OpenAPI/Swagger)
+## 1. WHY — the business problem
 
-#### 2. **Main Functional Modules**
+EPFL labs must report annual CO2 emissions across travel, infrastructure, equipment, purchases, and shared services. Spreadsheets do not scale, hide assumptions, and cannot be audited.
 
-| Module                                 | Purpose                                                              |
-| -------------------------------------- | -------------------------------------------------------------------- |
-| **Mon Laboratoire**                    | Annual data input for CO2 sources                                    |
-| **Déplacements professionnels**        | Capture & calculate travel emissions                                 |
-| **Infrastructure**                     | Buildings, energy use, equipment                                     |
-| **Consommation électrique équipement** | Energy from lab devices                                              |
-| **Achats**                             | Purchases and material impacts                                       |
-| **Services internes**                  | Shared platforms and internal services                               |
-| **Visualisation des résultats**        | Dashboards, PDF/CSV exports                                          |
-| **Documentation & Contact**            | Help, support, resources                                             |
-| **Interfaces de gestion (admin)**      | IT and business management dashboards, logs, user roles, data import |
+The co2-calculator gives each lab a single, secure, multilingual web app to enter activity data, apply curated emission factors, and produce auditable footprints. Other academic institutions must be able to reuse the codebase.
 
-#### 3. **Roles & Access**
+## 2. WHAT — scope
 
-- Gestionnaire IT
-- Gestionnaire Métier (complet / restreint)
-- Utilisateur·rice principal·e
-- Utilisateur·rice standard
+**In-scope deliverables.**
 
-Access rights and views depend on role and faculty (managed via Entra ID groups).
+- Custom web application matching EPFL IT standards and branding.
+- Modules: laboratory profile, professional travel, infrastructure, equipment energy, purchases, internal services, results visualisation.
+- Manual CSV import with validation; optional automated ingestion (lab energy, staff directory).
+- Backoffice tooling: emission-factor management, job history, sync progress, audit logs, role and permission administration.
+- REST API documented with OpenAPI; PDF and CSV exports.
+- Docker-based deployment to the EPFL XaaS Kubernetes platform.
 
-#### 4. **Data Integration**
+**Out-of-scope.**
 
-- Manual CSV import validation
-- Optional automated ingestion (e.g., lab energy data, staff database)
-- Integration with **EPFL Accred** for user–unit linkage
-- Externalized logging and retention (1–10 years)
+- Real-time IoT ingestion of building meters.
+- Public-facing emission dashboards beyond authenticated EPFL users.
+- Financial accounting or scope-3 supply-chain analytics outside listed modules.
+- AI-driven assumption inference (tracked as an optional future extension).
 
-#### 5. **Maintenance & Support**
+**Constraints.**
 
-- **Corrective & preventive maintenance**
-- SLA-based intervention times (P1–P3 priority levels)
-- Annual high-load period in February (optional enhanced support)
-- Regular security & dependency updates, regression tests
+- EPFL IT and security standards (Annexe 8). HERMES project methodology.
+- Production target: Q2 2026. Open-source under GPL-3.0.
 
-#### 6. **Training & Knowledge Transfer**
+## 3. HOW — high-level architecture
 
-- Documentation + training for ~10 internal staff
-- EPFL takes ownership of code and operation after handover
+See [System Overview](02-system-overview.md) for the canonical diagrams (ingress, frontend pods, FastAPI backend, Celery workers, PostgreSQL, S3, Entra ID).
 
----
+The stack is Vue 3 + Quasar on the frontend, FastAPI on the backend, Celery + Redis for async jobs, PostgreSQL behind PgBouncer for persistence, and EPFL S3 for object storage. Authentication runs through Microsoft Entra ID via OIDC.
 
-### ⚙️ **Technical & Organizational Requirements**
+## 4. Decisions trail
 
-- Must comply with **EPFL’s IT and security standards** (Annexe 8)
-- Follow **HERMES project methodology** for project management
-- Code reviews by EPFL (SOLID, OWASP, test coverage required)
-- Deliver within **Q2 2026 (target production)**
-- Open-source and portable to other institutions
+Each architecturally meaningful decision is captured as an ADR. Add a new ADR before changing any of these.
 
----
+- [ADR-001 — Python package manager](../architecture-decision-records/001-python-package-manager.md)
+- [ADR-002 — Frontend framework](../architecture-decision-records/002-frontend-framework.md)
+- [ADR-003 — Backend framework](../architecture-decision-records/003-backend-framework.md)
+- [ADR-004 — Database selection](../architecture-decision-records/004-database-selection.md)
+- [ADR-005 — Authorization strategy](../architecture-decision-records/005-authorization-strategy.md)
+- [ADR-010 — Background job processing](../architecture-decision-records/010-background-job-processing.md)
+- [ADR-012 — JWT authentication strategy](../architecture-decision-records/012-jwt-authentication-strategy.md)
+- [ADR-013 — Object storage strategy](../architecture-decision-records/013-object-storage-strategy.md)
+- [ADR-014 — Security checklist](../architecture-decision-records/014-security-checklist.md)
 
-### 🧩 **Optional Modules / Extensions**
+ADRs 011 and 015 are reserved for in-flight decisions; link them here once their files land in `architecture-decision-records/`.
 
-- Infrastructure – direct emissions
-- Achats – transport & other submodules
-- Impact of external cloud services
-- Simulation of research projects
-- AI-assisted data integration (optional)
-- Additional visualization and emission models
+## 5. Roles
 
----
+The system recognises four actor classes, mapped to Entra ID groups and faculty scopes.
 
-### 💸 **Evaluation Weighting (for awareness)**
+- **Data-entry user** — lab member who records activity (travel, equipment, purchases) for their unit.
+- **Validator** — lab manager (`Utilisateur·rice principal·e`) who reviews, corrects, and signs off annual data.
+- **Backoffice operator** — `Gestionnaire Métier` who curates emission factors, runs imports, and audits cross-unit data; permissions scope to a sub-perimeter (see issue #459).
+- **Admin** — `Gestionnaire IT` with full operational access: user roles, system jobs, retention, and platform configuration.
 
-| Criterion           | Weight |
-| ------------------- | ------ |
-| Functional coverage | 40%    |
-| Price               | 30%    |
-| Organization        | 10%    |
-| References          | 10%    |
-| Sustainability      | 5%     |
-| Offer quality       | 5%     |
+Role assignment and faculty filtering are enforced server-side; see [ADR-005](../architecture-decision-records/005-authorization-strategy.md).
+
+## 6. Data integration
+
+**Inputs.**
+
+- User-entered forms per module.
+- CSV uploads validated against schemas; rejected rows surface as actionable errors.
+- Curated emission-factor datasets (ADEME, DEFRA, custom) ingested via background jobs.
+- EPFL Accred for user–unit linkage; staff directory for headcount.
+
+**Outputs.**
+
+- REST/JSON API for the SPA and external consumers (OpenAPI documented).
+- PDF and CSV exports of footprints and breakdowns.
+- Externalised application logs with 1–10 year retention.
+
+## 7. Source of truth
+
+When in doubt, this CRD wins. For deeper detail follow these links.
+
+- Implementation plans index: <https://github.com/epfl-enac/co2-calculator/tree/main/docs/src/implementation-plans>
+- Glossary: <https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/glossary.md>
+- LLM agent guide: <https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/llm-agent-guide.md>
+- Architecture entry points: [Purpose & Scope](01-purpose-scope.md), [System Overview](02-system-overview.md), [ADR index](../architecture-decision-records/index.md).

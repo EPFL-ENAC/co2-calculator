@@ -1,335 +1,214 @@
+---
+status: delivered
+last_updated: 2026-05-05
+summary: GitHub Actions workflows and release pipeline overview.
+---
+
 # CI/CD Workflows
 
-GitHub Actions workflows for automated quality checks, testing,
-security scanning, and deployment. This document provides detailed
-configuration reference for each workflow.
+GitHub Actions pipelines that gate pull requests, scan for
+vulnerabilities, and promote artefacts through `dev` → `stage` →
+`main` (tagged) environments.
 
-**Related documentation:**
+**Related:**
 
-- [CI/CD Pipeline](06-cicd-pipeline.md) - Architecture overview
-- [Workflow Guide](workflow-guide.md) - Developer daily workflow
-- [Release Management](release-management.md) - Release process
+- [CI/CD Pipeline](06-cicd-pipeline.md) — architecture overview
+- [Release Management](release-management.md) — versioning &
+  promotion
+- [Workflow Guide](workflow-guide.md) — developer day-to-day
 
-## Workflow Overview
+## Pipeline Flow
 
 ```mermaid
-graph TD
-    A[Push/PR] --> B{Event Type}
-    B -->|Code Change| C[Quality Check]
-    B -->|Code Change| D[Tests]
-    B -->|Code Change| E[Build]
-    B -->|Frontend Change| F[Lighthouse]
-    B -->|Any Change| G[Security]
-    B -->|Docker Change| H[Docker]
-    B -->|Frontend Change| I[Accessibility]
-    B -->|Tag| J[Deploy]
+flowchart LR
+    PR[Pull Request] --> Q[Quality Checks]
+    PR --> T[Tests]
+    PR --> S[Security]
+    PR -->|frontend diff| L[Lighthouse]
+    Q --> R[Review]
+    T --> R
+    S --> R
+    L --> R
+    R --> Mdev[Merge to dev]
+    Mdev --> Ddev[Deploy dev]
+    Ddev --> PRstage[Open dev → stage PR]
+    PRstage --> Mstage[Merge to stage]
+    Mstage --> CL[Changelog]
+    Mstage --> Dstage[Deploy stage]
+    Dstage --> PRmain[Open stage → main PR]
+    PRmain --> Mmain[Merge to main]
+    Mmain --> Tag[Tag from package.json]
+    Tag --> Release[GitHub Release]
+    Tag --> Dprod[Deploy prod + Helm chart]
 
-    C --> K[Lint]
-    C --> L[Format Check]
+    Cron[Weekly cron · Sun 03:00 UTC] --> Scan[Image vulnerability scan]
 
-    D --> M[Backend Tests]
-    D --> N[Frontend Tests]
-
-    E --> O[Build Backend]
-    E --> P[Build Frontend]
-    E --> Q[Build Docs]
-
-    style C fill:#e1f5ff
-    style D fill:#fff4e1
-    style E fill:#e8f5e9
-    style G fill:#ffe1e1
+    classDef ci fill:#e1f5ff,stroke:#0288d1
+    classDef deploy fill:#e8f5e9,stroke:#2e7d32
+    classDef release fill:#fff4e1,stroke:#ef6c00
+    classDef cron fill:#f3e5f5,stroke:#6a1b9a
+    class Q,T,S,L ci
+    class Ddev,Dstage,Dprod deploy
+    class CL,Tag,Release release
+    class Cron,Scan cron
 ```
+
+The `Cron → Scan` branch runs independently of the deploy chain
+(scheduled trigger only); it is drawn separately to avoid implying
+production deploys cause the scan.
 
 ## Workflows
 
-### 1. Quality Check (`quality-check.yml`)
+The repository ships twelve workflows under `.github/workflows/`.
 
-**Trigger:** Push/PR to main or dev  
-**Purpose:** Code quality enforcement
+### `quality-check.yml` — Quality Checks
 
-- ✅ ESLint for JavaScript/TypeScript
-- ✅ Prettier format checking
-- ✅ Ruff for Python
-- ✅ Runs lefthook pre-commit hooks
+**Trigger:** PR / push to `main`, `dev`, `stage`, `ci-test/**`.
+**Jobs:** `frontent-quality` runs `make lint` then `tsc`/`vue-tsc`;
+`backend-quality` runs `make lint` (Ruff + Prettier) followed by a
+separate `make type-check` step (mypy). Both jobs run in parallel;
+failure blocks merge.
 
-**Commands:**
+### `test.yml` — Tests
 
-```bash
-make lint
-```
+**Trigger:** PR / push to `main`, `dev`, `stage`, `ci-test/**`.
+**Jobs:** `test-backend` (pytest + Codecov), `test-frontend` (Vitest +
+Codecov). Coverage uploads target the same Codecov project; tokens
+are required only for private forks.
 
-### 2. Tests (`test.yml`)
+### `integration-tests.yml` — Backend Integration Tests
 
-**Trigger:** Push/PR to main or dev  
-**Purpose:** Unit and integration testing
+**Trigger:** daily cron (03:30 UTC), `workflow_dispatch`, push to
+`ci-test/**`. **Job:** `test-backend-integration` runs
+`make test-cov-xml-integration` and uploads the report to Codecov
+under the `backend-integration` flag.
 
-**Backend:**
+### `security.yml` — Security Checks
 
-- Python tests with pytest
-- Coverage reports to Codecov
+**Trigger:** PR to `main`/`dev`/`stage`, push to `main`, weekly cron
+(Mon 00:00 UTC). **Jobs:** `npm-audit` (root + frontend),
+`python-security` (`uvx uv-audit` + Bandit), `codeql` (JavaScript +
+Python matrix), `secrets-scan` (TruffleHog).
 
-**Frontend:**
+### `lighthouse.yml` — Lighthouse CI
 
-- JavaScript/TypeScript tests
-- Coverage reports to Codecov
+**Trigger:** PR touching `frontend/**` or its config. **Job:**
+`lighthouse` audits 5 critical routes via
+`frontend/.lighthouserc.ci.json`. The build injects
+`window.__LIGHTHOUSE_BYPASS__ = true` into the served `index.html`
+so navigation guards skip auth in CI; the flag never reaches
+production builds. Full 24-route sweep stays local
+(`make lighthouse`).
 
-**Commands:**
+### `deploy.yml` — App Deploy
 
-```bash
-make test
-make test-backend
-make test-frontend
-```
+**Trigger:** push to `dev`, `stage`, `ci-test/**`, or tags
+`v*.*.*`. **Jobs:** `publish-chart` (delegated to
+`publish_chart.yaml`) then `deploy` (EPFL-ENAC build-push-deploy
+action). A single `deploy` job pushes images to **both**
+`ghcr.io` and the EPFL Quay registry `quay-its.epfl.ch` (path
+`svc1751`); manifests update Argo CD repos
+`EPFL-ENAC/enack8s-app-config` and
+`EPFL-ENAC/openshift-app-config` respectively. Tags promote to
+production; branches map to the matching environment URL.
 
-### 3. Build (`build.yml`)
+### `publish_chart.yaml` — Helm Chart Packager
 
-**Trigger:** Push/PR to main or dev  
-**Purpose:** Verify builds succeed
+**Trigger:** `workflow_call` only (reused by `deploy.yml`).
+**Job:** `build-image` packages the Helm chart and exposes
+`chart_version` as an output for the downstream deploy step.
 
-- Backend build verification
-- Frontend production build
-- Documentation build
-- Artifacts uploaded for 7 days
+### `deploy-storybook.yml` — Storybook Image + Manifest Dispatch
 
-**Commands:**
+**Trigger:** push to `dev`, `main`, `stage`, or the storybook
+feature branch. **Job:** `build-and-push` builds the Storybook
+container from `frontend/Dockerfile.storybook`, pushes it to
+`ghcr.io/epfl-enac/co2-calculator-storybook`, then POSTs a
+`repository_dispatch` (`event_type: update-manifest`) to
+`EPFL-ENAC/enack8s-app-config` so Argo CD picks up the new image.
+It does not publish a static Storybook site — the artifact is the
+container image plus the dispatch event.
 
-```bash
-make build
-make build-backend
-make build-frontend
-make build-docs
-```
+### `deploy-mkdocs.yml` — Docs (GitHub Pages, deprecated)
 
-### 4. Security (`security.yml`)
+**Trigger:** push/PR to `main`, push to `stage`/`ci-test/**`. Kept
+as a fallback for the `main` GitHub Pages mirror. Per-environment
+docs (`/docs` path) ship with `deploy.yml`.
 
-**Trigger:** Push/PR to main or dev + Weekly schedule  
-**Purpose:** Security vulnerability scanning
+### `changelog.yml` — Changelog on dev → stage
 
-**Checks:**
+**Trigger:** PR closed against `stage`. **Job:** `changelog` runs
+only when the merged PR came from `dev`, regenerating
+`CHANGELOG.md` ahead of the next release.
 
-- 🔒 Dependency Review (PRs only)
-- 🔒 NPM Audit (root + frontend)
-- 🔒 Python Security (Safety + Bandit)
-- 🔒 CodeQL Analysis (JS + Python)
-- 🔒 Secrets Scanning (TruffleHog)
+### `release-please.yml` — Tag and Release
 
-**Setup Required:**
+**Trigger:** PR closed against `main`. **Job:** `release` runs
+only when the merged PR came from `stage`. Despite the workflow
+filename, **it does not invoke the release-please action**: it
+reads the version from `package.json`, creates an annotated git
+tag `v<version>` directly, extracts the matching section from
+`CHANGELOG.md`, and publishes a GitHub Release via
+`softprops/action-gh-release`. See
+[Release Management](release-management.md) for the full
+promotion flow.
 
-```bash
-# Add to pyproject.toml [tool.uv.dev-dependencies]
-safety = ">=3.0.0"
-bandit = ">=1.7.0"
-```
+### `image-vulnerability-scan.yml` — Registry Vulnerability Scan
 
-### 5. Lighthouse CI (`lighthouse.yml`)
+**Trigger:** weekly cron (Sun 03:00 UTC) + `workflow_dispatch`.
+**Job:** `scan-images` pulls published container images and runs a
+vulnerability scan, opening issues for newly discovered CVEs.
 
-**Trigger:** PR with frontend changes  
-**Purpose:** Performance, accessibility, SEO, and eco-design audits
+## Release Management
 
-**Metrics:**
-
-- ⚡ Performance (min 80%)
-- ♿ Accessibility (min 70%)
-- ✅ Best Practices (min 90%)
-- 🔍 SEO (min 90%)
-
-**Configuration:** `.lighthouserc.ci.json` (5 critical routes, ~2 min)
-
-The app requires authentication, so Lighthouse cannot navigate
-protected routes without a backend. The workflow injects
-`window.__LIGHTHOUSE_BYPASS__ = true` into the built `index.html`
-after the build step. All navigation guards skip auth checks when
-this flag is set. The flag never enters the production build.
-
-**Two audit configs:**
-
-| Config                  | Routes     | Purpose                              |
-| ----------------------- | ---------- | ------------------------------------ |
-| `.lighthouserc.ci.json` | 5 critical | CI (login → workspace → results)     |
-| `.lighthouserc.json`    | 24 routes  | Local full audit (`make lighthouse`) |
-
-> ℹ️ Auditing all 24 routes in CI would take ~36 minutes.
-> CI covers the critical path; full coverage runs locally.
-
-See implementation plan #264 for full technical details.
-
-### 6. Docker (`docker.yml`)
-
-**Trigger:** Push/PR with Docker changes + tags  
-**Purpose:** Container image building and testing
-
-- Builds backend and frontend images
-- Pushes to GitHub Container Registry
-- Tests docker-compose configuration
-
-**Commands:**
-
-```bash
-make up
-make down
-make ps
-```
-
-### 7. Accessibility (`accessibility.yml`)
-
-**Trigger:** PR with frontend changes  
-**Purpose:** WCAG compliance testing
-
-- Pa11y automated tests
-- Axe accessibility checks
-- Ensures compliance with accessibility standards
-
-### 8. Deploy (`deploy.yml`)
-
-**Trigger:** Push to dev or tags  
-**Purpose:** Automated deployment
-
-Uses EPFL-ENAC deployment action for:
-
-- Dev environment (push to dev)
-- Production (tags v*.*.\*)
-
-For deployment flow details, see
-[CI/CD Pipeline](06-cicd-pipeline.md#deployment-flow).
-
-### 9. Deploy MkDocs (`deploy-mkdocs.yml`)
-
-**Trigger:** Push to main  
-**Purpose:** Documentation deployment
-
-Builds and deploys documentation to GitHub Pages.
-
-### 10. Release Please (`release-please.yml`)
-
-**Trigger:** Push to main  
-**Purpose:** Automated release management
-
-- Creates/updates release PR
-- Generates changelogs
-- Creates GitHub releases
-
-## Workflow Status Badges
-
-Add these to your README.md:
-
-```markdown
-[![Quality Checks](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml)
-[![Tests](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml)
-[![Security](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
-[![Build](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/build.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/build.yml)
-```
+Versioning, environment promotion (`dev` → `stage` → `main`), and
+hotfix procedure live in
+[Release Management](release-management.md). The
+`release-please.yml` workflow is the automation entry point for
+that flow.
 
 ## Required Secrets
 
-### GitHub Secrets
+| Secret | Used by | Notes |
+| --- | --- | --- |
+| `GITHUB_TOKEN` | all | auto-provided |
+| `MY_RELEASE_PLEASE_TOKEN` | `release-please.yml` | PAT with `contents: write` to push tags + create releases |
+| `CD_TOKEN` | `deploy.yml` | EPFL-ENAC build-push-deploy action token |
+| `QUAY_TOKEN` | `deploy.yml` | passed as `registry_token` for `quay-its.epfl.ch` push |
+| `token` | `deploy-storybook.yml` | bearer token for the `repository_dispatch` POST to `EPFL-ENAC/enack8s-app-config`; the workflow references `secrets.token` literally — the secret name is generic and currently undocumented |
+| `CODECOV_TOKEN` | `test.yml`, `integration-tests.yml` | optional, required for private forks |
 
-- `MY_RELEASE_PLEASE_TOKEN` - For release-please workflow
-- `CD_TOKEN` - For deployment workflow
-- `GITHUB_TOKEN` - Auto-provided by GitHub Actions
+## Status Badges
 
-### Optional Integrations
+```markdown
+[![Quality](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/quality-check.yml)
+[![Tests](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/test.yml)
+[![Security](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml/badge.svg)](https://github.com/EPFL-ENAC/co2-calculator/actions/workflows/security.yml)
+```
 
-- **Codecov**: Add `CODECOV_TOKEN` for private repos
-- **Lighthouse CI Server**: Configure LHCI server URL
+## Local Pre-flight
 
-## Manual Setup Tasks
-
-1. **Enable CodeQL**
-   - Go to Settings → Code security and analysis
-   - Enable "CodeQL analysis"
-
-2. **Configure Branch Protection**
-   - Require status checks to pass
-   - Require review before merging
-   - Include:
-     - Quality Check
-     - Tests
-     - Build
-     - Security
-
-3. **Install Python Security Tools**
-
-   ```bash
-   cd backend
-   uv add --dev safety bandit pytest-cov
-   ```
-
-4. **Configure Codecov** (optional)
-   - Sign up at codecov.io
-   - Add repository
-   - Copy token to GitHub secrets
-
-5. **Configure Lighthouse CI Server** (optional)
-   - Self-host or use managed service
-   - Update `.lighthouserc.json`
-
-## Workflow Optimization
-
-### Parallel Execution
-
-Workflows run in parallel to minimize CI time:
-
-- Quality checks and tests run simultaneously
-- Backend and frontend builds are independent
-- Security scans run in parallel
-
-### Caching Strategy
-
-- NPM dependencies cached by Node.js action
-- Docker layers cached with GitHub Actions cache
-- Python packages managed by uv
-
-### Cost Optimization
-
-- Use `paths` filters to avoid unnecessary runs
-- Schedule security scans weekly instead of every push
-- Use `continue-on-error` for non-blocking checks
-
-## Local Testing
-
-Before pushing, run the same checks locally:
+Reproduce CI locally before pushing:
 
 ```bash
-# Quality checks
-make lint
-
-# Tests
-make test
-
-# Build
-make build
-
-# Full CI simulation
-make ci
+make lint     # quality-check.yml
+make test     # test.yml
+make ci       # full simulation
 ```
 
 ## Troubleshooting
 
-### Common Issues
+- **CodeQL fails on Python:** confirm `language: [javascript, python]`
+  matrix and that `pyproject.toml` is detected.
+- **Lighthouse times out:** raise the per-run budget in
+  `frontend/.lighthouserc.ci.json` or trim the URL list.
+- **Deploy step missing chart version:** check that
+  `publish_chart.yaml` ran first; the `deploy` job consumes its
+  `chart_version` output.
+- **Tag not created on main merge:** `release-please.yml` only
+  fires when the merged PR's head ref is `stage`; merges from any
+  other branch are skipped by design. The tag name comes from
+  `package.json` — bump it on the `stage` branch before merging.
 
-1. **NPM audit failures**: Review and fix or add exceptions
-2. **Lighthouse timeouts**: Increase timeout in config
-3. **CodeQL errors**: Check language matrix configuration
-4. **Docker build failures**: Verify Dockerfile paths
-
-### Debug Mode
-
-Enable workflow debugging:
-
-```bash
-# Set these secrets in repository settings
-ACTIONS_RUNNER_DEBUG = true
-ACTIONS_STEP_DEBUG = true
-```
-
-## Future Enhancements
-
-Potential additions:
-
-- 🎯 E2E tests with Playwright/Cypress
-- 📊 Bundle size tracking
-- 🔄 Visual regression testing
-- 🌐 Cross-browser testing
-- 📱 Mobile app testing (if applicable)
-- 🐳 Container vulnerability scanning (Trivy)
-- 📈 Performance regression detection
+Enable verbose logs by setting repo secrets
+`ACTIONS_RUNNER_DEBUG=true` and `ACTIONS_STEP_DEBUG=true`.

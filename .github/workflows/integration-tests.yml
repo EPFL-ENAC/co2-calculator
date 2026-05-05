@@ -1,0 +1,46 @@
+name: Integration Tests (Backend, daily)
+
+on:
+  schedule:
+    # Every day at 03:30 UTC
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+  push:
+    branches: ['ci-test/**']
+
+jobs:
+  test-backend-integration:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run backend integration tests (with coverage)
+        run: make test-cov-xml-integration
+
+      - name: Upload coverage reports
+        if: always()
+        timeout-minutes: 5
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          slug: EPFL-ENAC/co2-calculator
+          flags: backend-integration
+          files: ./backend/coverage.xml
+          disable_search: true
+          fail_ci_if_error: false
