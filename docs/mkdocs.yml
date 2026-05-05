@@ -24,6 +24,16 @@ use_directory_urls: false
 watch:
   - src
   - mkdocs.yml
+validation:
+  nav:
+    omitted_files: info
+    not_found: info
+    absolute_links: info
+  links:
+    not_found: info
+    absolute_links: info
+    unrecognized_links: info
+    anchors: info
 markdown_extensions:
   - admonition
   - toc:
@@ -103,6 +113,8 @@ nav:
       - Module Equipment: user-docs/02-equipment.md
       - Module Travel: user-docs/03-travel.md
       - Module Headcount: user-docs/04-headcount.md
+
+  - Implementation Plans: implementation-plans/INDEX.md
 extra:
   version: "1.0.0"
 extra_css:
@@ -121,7 +133,8 @@ plugins:
   #     enabled_if_env: ENABLE_PDF_EXPORT
   #     # custom_styles: styles/pdf-custom.css
   #     verbose: false
-  - git-authors
+  - git-authors:
+      strict: false
   - git-revision-date-localized:
       fallback_to_build_date: true
       locale: en
