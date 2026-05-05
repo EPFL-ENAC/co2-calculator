@@ -149,7 +149,12 @@ stateDiagram-v2
     FINISHED --> [*]: result = WARNING
     FINISHED --> [*]: result = ERROR
 
-    RUNNING --> CANCELLED: cancelJob
-    QUEUED --> CANCELLED: cancelJob
-    CANCELLED --> [*]: result = ERROR, cancelled = true
+    NOT_STARTED --> FINISHED: cancelJob<br/>(result=ERROR, meta.cancelled=true)
+    QUEUED --> FINISHED: cancelJob<br/>(result=ERROR, meta.cancelled=true)
+    RUNNING --> FINISHED: cancelJob<br/>(result=ERROR, meta.cancelled=true)
 ```
+
+> Note: The `IngestionState` enum has no separate `CANCELLED` state. Cancellation
+> (`cancel_job` in `backend/app/repositories/data_ingestion.py`) transitions the
+> job to `state=FINISHED` with `result=ERROR` and `meta.cancelled=true`
+> (additionally setting `is_current=False`).

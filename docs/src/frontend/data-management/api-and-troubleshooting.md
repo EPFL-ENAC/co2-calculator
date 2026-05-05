@@ -99,7 +99,7 @@ flowchart TD
     S5 --> Fix5[Must have state=FINISHED<br/>result=SUCCESS]
 
     Symptom -->|Job stuck RUNNING| S6[Backend may have restarted]
-    S6 --> Fix6[Use cancel button or<br/>POST /sync/jobs/id/cancel]
+    S6 --> Fix6[Use cancel button or<br/>POST /sync/jobs/{jobId}/cancel]
 
     Symptom -->|Common upload<br/>no status/download| S7[Check latest_common_data_job<br/>at module level in config]
     S7 --> Fix7[Ensure backend enrichment<br/>includes common jobs]

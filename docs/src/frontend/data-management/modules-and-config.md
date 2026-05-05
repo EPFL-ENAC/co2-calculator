@@ -83,7 +83,7 @@ erDiagram
         boolean is_started
         boolean is_reports_synced
         YearConfig config
-        RecalculationStatusEntry[] recalculation_status
+        ModuleRecalculationStatusEntry[] recalculation_status
         string updated_at
     }
 
