@@ -19,7 +19,7 @@ Read top-down. Lower tiers refine higher tiers, never override them.
 2. **ADRs** — [`architecture-decision-records/`](./architecture-decision-records/index.md).
    Accepted architectural decisions with explicit `Status`. An accepted ADR
    binds; a superseded ADR is history only.
-3. **Implementation plans** — [`docs/implementation-plans/`](https://github.com/epfl-enac/co2-calculator/tree/main/docs/implementation-plans).
+3. **Implementation plans** — [`docs/src/implementation-plans/`](https://github.com/epfl-enac/co2-calculator/tree/main/docs/src/implementation-plans).
    Issue-scoped detail. Filter by frontmatter `status` (see below) before
    trusting.
 4. **Code** — ground truth. If docs and code disagree, code wins. File an
@@ -53,7 +53,7 @@ status as suspect, and verify against code.
 | Auth flow / token lifecycle     | [`backend/05-REQUEST_FLOW.md`](./backend/05-REQUEST_FLOW.md), ADR-012, ADR-013                                                |
 | Permission model                | [`backend/06-PERMISSION-SYSTEM.md`](./backend/06-PERMISSION-SYSTEM.md), ADR-005                                               |
 | Adding a permission             | [`backend/07-DEVELOPER-GUIDE-PERMISSIONS.md`](./backend/07-DEVELOPER-GUIDE-PERMISSIONS.md)                                    |
-| Background jobs / poller        | ADR-010, [`310-overview.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/implementation-plans/310-overview.md) |
+| Background jobs / poller        | ADR-010, [`310-overview.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-overview.md) |
 | CI/CD                           | [`architecture/cicd-workflows.md`](./architecture/cicd-workflows.md)                                                          |
 | Role sync (`/me` vs `/refresh`) | [`role-sync-architecture.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/role-sync-architecture.md)           |
 | Glossary of project terms       | [`glossary.md`](./glossary.md)                                                                                                |

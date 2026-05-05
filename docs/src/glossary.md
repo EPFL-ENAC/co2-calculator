@@ -40,7 +40,7 @@ kg CO2-eq. Versioned by year and scope; ingested via the factor pipeline.
 **Factor pipeline** — Bulk import and normalization workflow that ingests
 CSV factor sources into canonical factor tables and triggers
 recalculation. See
-[`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/implementation-plans/310-b-factor-pipeline.md).
+[`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-b-factor-pipeline.md).
 
 **GHG Protocol** — The Greenhouse Gas Protocol, the international
 emissions accounting standard. Defines Scope 1, 2, and 3.
