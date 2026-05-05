@@ -17,7 +17,7 @@
             :options="fromOptions"
             :loading="loadingFrom"
             use-input
-            input-debounce="100"
+            input-debounce="300"
             hide-selected
             fill-input
             option-label="name"
@@ -88,7 +88,7 @@
             :options="toOptions"
             :loading="loadingTo"
             use-input
-            input-debounce="100"
+            input-debounce="300"
             hide-selected
             fill-input
             option-label="name"
