@@ -56,7 +56,7 @@ Your bridge file successfully maps these Quasar variables to our token system:
 - ✅ `$body-font-size` → `dec.$text-size-sm` (0.875rem / 14px)
 - ✅ `$body-line-height` → `dec.$text-line-height-base` (1.25rem)
 - ✅ `$typography-font-family` → 'Roboto', '-apple-system', sans-serif
-- ✅ `$min-line-height` → NOT MAPPED (but exists in official variables at 1.12)
+- ❌ **Missing**: `$min-line-height` (official default: 1.12) — see Typography missing list below
 - ❌ **Missing**: `$h1` through `$h6` (6 heading maps)
 - ❌ **Missing**: `$subtitle1`, `$subtitle2`, `$body1`, `$body2`, `$overline`, `$caption` (6 text style maps)
 - ❌ **Missing**: `$headings` (map), `$h-tags` (map), `$text-weights` (map)
