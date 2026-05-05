@@ -91,6 +91,7 @@ nav:
       - Permission System: backend/06-PERMISSION-SYSTEM.md
       - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
       - Location Search: backend/09-LOCATION-SEARCH.md
+      - CSV seed formats: backend/csv-seed-formats.md
 
   - Database:
       - Overview: database/01-overview.md
