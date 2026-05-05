@@ -144,3 +144,67 @@ async def test_enqueue_stale_recalculations_noop_when_no_stale():
 
     repo.create_ingestion_job.assert_not_awaited()
     mock_create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_stale_recalculations_returns_when_year_is_none():
+    """If the parent factor job has no year, fan-out can't choose a recalc
+    scope — log a warning and return without consulting the repo."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+
+    repo = MagicMock()
+    repo.get_recalculation_status_by_year = AsyncMock()
+    repo.create_ingestion_job = AsyncMock()
+
+    with (
+        patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
+        patch("app.tasks._background.fire_and_forget") as mock_create_task,
+    ):
+        await _enqueue_stale_recalculations(
+            session,
+            parent_job_id=42,
+            module_type_id=1,
+            data_entry_type_id=None,
+            year=None,
+            pipeline_id=uuid4(),
+        )
+
+    # Early-return path: nothing should be queried, nothing should be fired.
+    repo.get_recalculation_status_by_year.assert_not_awaited()
+    repo.create_ingestion_job.assert_not_awaited()
+    mock_create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_stale_recalculations_skips_unknown_module_type():
+    """Multi-type fan-out with an unknown ``module_type_id`` (e.g. an enum
+    value that no longer exists after a deletion) must skip rather than
+    raise — the parent factor job already finished; we don't want to take
+    the calling code down with a ValueError from MdoduleTypeEnum()."""
+    session = MagicMock()
+    session.commit = AsyncMock()
+
+    repo = MagicMock()
+    repo.get_recalculation_status_by_year = AsyncMock(
+        side_effect=AssertionError(
+            "Unknown-module branch must short-circuit before consulting the repo"
+        )
+    )
+    repo.create_ingestion_job = AsyncMock()
+
+    with (
+        patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
+        patch("app.tasks._background.fire_and_forget") as mock_create_task,
+    ):
+        await _enqueue_stale_recalculations(
+            session,
+            parent_job_id=42,
+            module_type_id=99999,  # not a valid ModuleTypeEnum value
+            data_entry_type_id=None,
+            year=2025,
+            pipeline_id=uuid4(),
+        )
+
+    repo.create_ingestion_job.assert_not_awaited()
+    mock_create_task.assert_not_called()

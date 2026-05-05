@@ -162,3 +162,44 @@ def mock_pod_id_arg(claim_mock):
     """Read the second positional arg passed to claim_job (POD_ID is module-
     scoped so we just echo whatever was actually used)."""
     return claim_mock.call_args.args[1]
+
+
+@pytest.mark.asyncio
+async def test_run_sync_task_accred_marks_job_error_when_provider_fails(
+    mock_accred_units_raw,
+    mock_accred_principal_users_raw,
+):
+    """Service raises mid-sync → except block runs: data_session rolled back,
+    job stamped FINISHED+ERROR with the exception message, exception
+    re-raised so the task's caller sees the failure."""
+    unit_provider, role_provider = _common_provider_patches(
+        mock_accred_units_raw, mock_accred_principal_users_raw
+    )
+    # Make fetch_all_units the failure point — an Accred outage is the
+    # most realistic trigger for the except branch.
+    unit_provider.fetch_all_units = AsyncMock(side_effect=RuntimeError("Accred down"))
+
+    repo = MagicMock()
+    repo.claim_job = AsyncMock(return_value=True)
+    repo.update_ingestion_job = AsyncMock()
+
+    with (
+        patch("app.tasks.unit_sync_tasks.SessionLocal", _patched_session_local()),
+        patch("app.tasks.unit_sync_tasks.DataIngestionRepository", return_value=repo),
+        patch(
+            "app.tasks.unit_sync_tasks.get_unit_provider", return_value=unit_provider
+        ),
+        patch(
+            "app.tasks.unit_sync_tasks.get_role_provider", return_value=role_provider
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="Accred down"):
+            await run_sync_task_accred(SyncUnitRequest(target_year=2024), job_id=99)
+
+    # The error path's final update should mark the job FINISHED+ERROR with
+    # the exception message in status_message — operators need to see why
+    # it failed without digging through logs.
+    final_call = repo.update_ingestion_job.call_args_list[-1]
+    assert final_call.kwargs["state"] == IngestionState.FINISHED
+    assert final_call.kwargs["result"] == IngestionResult.ERROR
+    assert "Accred down" in final_call.kwargs["status_message"]

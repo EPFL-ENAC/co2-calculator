@@ -379,3 +379,45 @@ def test_get_types_to_delete_configured_id_ignores_listed():
     result = provider._get_types_to_delete(listed)
 
     assert result == [DataEntryTypeEnum.scientific]
+
+
+@pytest.mark.asyncio
+async def test_upsert_batch_raises_when_job_id_missing():
+    """``_upsert_batch`` requires ``self.job_id`` so each row can be stamped
+    with ``last_seen_job_id``.  If the job_id was never set (e.g. the
+    seed-script path that bypasses DataIngestionJob creation), raise
+    eagerly rather than persist factors with a NULL pointer to "current
+    factor job."""
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
+        data_session=MagicMock(),
+    )
+    # No set_job_id call → self.job_id stays None.
+    factor_repo = MagicMock()
+    factor_repo.upsert_factors = AsyncMock(return_value=0)
+
+    with pytest.raises(ValueError, match="job_id is required"):
+        await provider._upsert_batch([MagicMock()], factor_repo)
+
+    factor_repo.upsert_factors.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_upsert_batch_falls_back_to_batch_size_when_rowcount_negative():
+    """asyncpg returns rowcount=-1 for executemany ON CONFLICT statements
+    where it can't tally the result reliably.  ``_upsert_batch`` should
+    fall back to the input batch size so operator-visible stats don't
+    show a confusing -1."""
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "data_entry_type_id": 1},
+        data_session=MagicMock(),
+    )
+    await provider.set_job_id(42)
+
+    factor_repo = MagicMock()
+    factor_repo.upsert_factors = AsyncMock(return_value=-1)
+
+    batch = [MagicMock(), MagicMock(), MagicMock()]
+    reported = await provider._upsert_batch(batch, factor_repo)
+
+    assert reported == 3, "negative rowcount should fall back to len(batch)"

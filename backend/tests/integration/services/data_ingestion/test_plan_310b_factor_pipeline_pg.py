@@ -388,3 +388,114 @@ async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn):
         assert stale[0].last_seen_job_id == old_id
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_list_stale_for_year_returns_empty_when_no_factor_job(pg_dsn):
+    """No is_current FACTORS job for the requested year → return [] rather
+    than treat every factor as stale.  Without this short-circuit, the
+    endpoint would noisily flag every existing factor on a year that never
+    had a CSV uploaded.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_plan_310b_indexes(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        # Seed a finished FACTORS job for 2024 (different year than the query)
+        # plus a factor row stamped against it.
+        other_year_job = _seed_factor_job()
+        other_year_job.year = 2024
+        session.add(other_year_job)
+        await session.commit()
+        assert other_year_job.id is not None
+
+        repo = FactorRepository(session)
+        await repo.upsert_factors(
+            [_make_factor({"kind": "food", "subkind": None}, year=2024)],
+            current_job_id=other_year_job.id,
+        )
+        await session.commit()
+
+        # Query for 2025 — no is_current FACTORS job exists for that year.
+        stale = await repo.list_stale_for_year(2025)
+        assert stale == []
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_latest_factor_job_per_det_skips_unknown_module(pg_dsn):
+    """A multi-type FACTORS job with a ``module_type_id`` that no longer
+    maps to a ``ModuleTypeEnum`` value (legacy enum cleanup, hand-edited
+    row, etc.) must be skipped silently rather than crash the stale
+    detection.  Defensive: lets operators view stale factors even when
+    one rogue job row would otherwise raise ValueError.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_plan_310b_indexes(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        # One job with a bogus module_type_id, marked is_current — used to
+        # exercise the ValueError branch in _latest_factor_job_per_det.
+        rogue = DataIngestionJob(
+            entity_type=EntityType.MODULE_PER_YEAR,
+            module_type_id=99999,  # not a valid ModuleTypeEnum
+            data_entry_type_id=None,
+            year=2025,
+            target_type=TargetType.FACTORS,
+            ingestion_method=IngestionMethod.csv,
+            provider=UserProvider.DEFAULT,
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            is_current=True,
+        )
+        session.add(rogue)
+        await session.commit()
+
+        repo = FactorRepository(session)
+        # Should not raise.  No factors → returns empty map, list_stale
+        # returns [].
+        latest = await repo._latest_factor_job_per_det(2025)
+        assert latest == {}
+
+        stale = await repo.list_stale_for_year(2025)
+        assert stale == []
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_latest_factor_job_per_det_skips_both_nulls(pg_dsn):
+    """A FACTORS job with both ``module_type_id`` and ``data_entry_type_id``
+    NULL has no meaningful scope — it covers no factors, so it shouldn't
+    contribute to the stale-threshold map.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_plan_310b_indexes(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        # Both NULLs — degenerate but possible if someone POSTs a
+        # malformed sync request that bypasses validation.
+        unscoped = DataIngestionJob(
+            entity_type=EntityType.MODULE_PER_YEAR,
+            module_type_id=None,
+            data_entry_type_id=None,
+            year=2025,
+            target_type=TargetType.FACTORS,
+            ingestion_method=IngestionMethod.csv,
+            provider=UserProvider.DEFAULT,
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            is_current=True,
+        )
+        session.add(unscoped)
+        await session.commit()
+
+        repo = FactorRepository(session)
+        latest = await repo._latest_factor_job_per_det(2025)
+        assert latest == {}
+
+    await engine.dispose()
