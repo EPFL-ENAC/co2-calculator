@@ -51,9 +51,28 @@ except ImportError:  # minimal fallback parser
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DOCS_SRC = REPO_ROOT / "docs" / "src"
 PLANS_DIR = REPO_ROOT / "docs" / "src" / "implementation-plans"
-PLANS_GH_URL = (
-    "https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans"
-)
+
+# Filename for generated section/plan indexes. Differs from `index.md` by more
+# than case so it does not collide with hand-authored `index.md` files on
+# case-insensitive filesystems (macOS/Windows).
+GENERATED_INDEX_NAME = "_index.md"
+
+
+def _plans_gh_url() -> str:
+    """Derive the GitHub blob URL for implementation-plans from MkDocs config.
+
+    Reads `repo_url` from the active MkDocs config (via `mkdocs_gen_files`),
+    so fork builds and renamed remotes link correctly. Falls back to the
+    upstream repo if config isn't available (e.g. running outside a build).
+    """
+    fallback = "https://github.com/epfl-enac/co2-calculator"
+    try:
+        repo_url = str(
+            mkdocs_gen_files.FilesEditor.current().config.repo_url or fallback
+        )
+    except Exception:  # pragma: no cover - non-build invocation
+        repo_url = fallback
+    return f"{repo_url.rstrip('/')}/blob/main/docs/src/implementation-plans"
 
 STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
 STATUS_LABEL = {
@@ -79,15 +98,16 @@ def _section_index(section: str) -> None:
     if not section_dir.is_dir():
         return
     rows = []
+    skip_names = {"index.md", "index_.md", GENERATED_INDEX_NAME.lower()}
     for md in sorted(section_dir.glob("*.md")):
-        if md.name.lower() in {"index.md", "index_.md"}:
+        if md.name.lower() in skip_names:
             continue
         meta, body = _parse_frontmatter(md.read_text(encoding="utf-8"))
         title = _title_from(meta, body, md.stem)
         rows.append(f"- [{title}]({md.name})")
     lines = [f"# {section.replace('-', ' ').title()} index", ""]
     lines.extend(rows or ["_No pages yet._"])
-    with mkdocs_gen_files.open(f"{section}/INDEX.md", "w") as f:
+    with mkdocs_gen_files.open(f"{section}/{GENERATED_INDEX_NAME}", "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -111,6 +131,7 @@ def _plans_index() -> None:
             }
         )
 
+    plans_gh_url = _plans_gh_url()
     lines = [
         "# Implementation plans",
         "",
@@ -126,14 +147,16 @@ def _plans_index() -> None:
         lines.append("| Title | Issue | Last updated | Summary |")
         lines.append("| --- | --- | --- | --- |")
         for e in entries:
-            link = f"[{e['title']}]({PLANS_GH_URL}/{e['filename']})"
+            link = f"[{e['title']}]({plans_gh_url}/{e['filename']})"
             summary = str(e["summary"]).replace("|", "\\|")
             lines.append(
                 f"| {link} | {e['issue']} | {e['last_updated']} | {summary} |"
             )
         lines.append("")
 
-    with mkdocs_gen_files.open("implementation-plans/INDEX.md", "w") as f:
+    with mkdocs_gen_files.open(
+        f"implementation-plans/{GENERATED_INDEX_NAME}", "w"
+    ) as f:
         f.write("\n".join(lines) + "\n")
 
 

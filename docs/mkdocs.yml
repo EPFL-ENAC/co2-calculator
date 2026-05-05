@@ -143,11 +143,13 @@ plugins:
 
 # Auto-generated section indexes are intentionally excluded from `nav:`;
 # whitelist them so `mkdocs build --strict` keeps passing.
+# Filename `_index.md` (not `INDEX.md`) avoids case-insensitive collisions
+# with hand-authored `index.md` pages on macOS/Windows filesystems.
 not_in_nav: |
-  /architecture/INDEX.md
-  /backend/INDEX.md
-  /frontend/INDEX.md
-  /implementation-plans/INDEX.md
+  /architecture/_index.md
+  /backend/_index.md
+  /frontend/_index.md
+  /implementation-plans/_index.md
   /contributing/auto-index.md
 
 copyright: >
