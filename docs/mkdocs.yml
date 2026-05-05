@@ -87,6 +87,8 @@ nav:
 
   - Frontend:
       - Overview: frontend/01-overview.md
+      - Component Tree: frontend/01-overview/components.md
+      - Persona Flows: frontend/01-overview/personas.md
       - Design Tokens: frontend/02-design-tokens.md
       - Data Management:
           - Overview: frontend/data-management/index.md
