@@ -18,10 +18,25 @@ from app.tasks.registry import (
 
 @pytest.fixture(autouse=True)
 def _clean_registry():
-    """Ensure each test starts and ends with an empty registry."""
+    """Snapshot the registry, run the test on an empty one, and restore.
+
+    Once Tier 2 wires real handlers via import-time ``@register(...)``,
+    those registrations live in the same module-level dict.  An
+    unconditional reset in teardown would clobber them and make any
+    later test relying on ``get_handler("csv_ingest")`` fail with
+    ``No handler registered`` — silently order-dependent.
+
+    Snapshot pattern: capture current state, blank for the test,
+    restore unconditionally on teardown so siblings see whatever was
+    registered before this test started.
+    """
+    snapshot = dict(_REGISTRY)
     _reset_registry()
-    yield
-    _reset_registry()
+    try:
+        yield
+    finally:
+        _reset_registry()
+        _REGISTRY.update(snapshot)
 
 
 async def _noop_handler(job, job_session, data_session) -> dict:
