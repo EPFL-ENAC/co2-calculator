@@ -260,6 +260,22 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         description="Timestamp of the most recent successful claim",
     )
 
+    # Observability (Plan 310C)
+    started_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(SADateTime(timezone=True)),
+        description=(
+            "Timestamp of the FIRST successful claim — stays put across retries "
+            "(unlike locked_at, which updates every claim).  Combined with "
+            "finished_at gives true total wall-clock duration."
+        ),
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(SADateTime(timezone=True)),
+        description="Timestamp the job reached state=FINISHED",
+    )
+
     # Retry scaffolding (Plan 310A)
     attempts: int = Field(
         default=0,

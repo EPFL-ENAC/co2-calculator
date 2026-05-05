@@ -1,6 +1,13 @@
-"""Unit tests for DataIngestionRepository.get_recalculation_status_by_year."""
+"""Unit tests for DataIngestionRepository.
+
+Covers:
+- ``get_recalculation_status_by_year`` (Plan 310B)
+- ``set_started_at`` and ``update_ingestion_job(finished_at=True)``
+  (Plan 310C observability columns)
+"""
 
 import pytest
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_ingestion import (
@@ -375,3 +382,155 @@ async def test_get_recalculation_status_wrong_year_excluded(
     rows = await repo.get_recalculation_status_by_year(2025)
 
     assert rows == []
+
+
+# ======================================================================
+# Plan 310C observability columns: set_started_at + finished_at flag
+# ======================================================================
+
+
+def _make_pending_job() -> DataIngestionJob:
+    """Minimal NOT_STARTED job — observability columns default to NULL.
+
+    Distinct from ``_make_job`` above: that helper's required arguments
+    (``state``, ``result``, ``target_type``, ...) are tuned for the
+    recalculation-status query, where every test row is FINISHED.  Here we
+    need NOT_STARTED rows with sensible defaults for everything else, so a
+    parameter-free constructor is clearer than defaulting six args of
+    ``_make_job``.
+    """
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_PER_YEAR,
+        module_type_id=1,
+        data_entry_type_id=10,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        provider=UserProvider.DEFAULT,
+        state=IngestionState.NOT_STARTED,
+        is_current=False,
+        meta={},
+    )
+
+
+async def _reload_job(db_session: AsyncSession, job_id: int) -> DataIngestionJob:
+    """Re-SELECT the job after expiring the identity map.
+
+    ``set_started_at`` and the ``finished_at=True`` branch issue raw
+    UPDATEs that bypass the ORM, so any session-attached instance keeps
+    stale attribute values until we expire and re-fetch.
+    """
+    db_session.expire_all()
+    return (
+        await db_session.execute(
+            select(DataIngestionJob).where(DataIngestionJob.id == job_id)
+        )
+    ).scalar_one()
+
+
+@pytest.mark.asyncio
+async def test_set_started_at_first_call_populates_column(
+    db_session: AsyncSession,
+):
+    """First ``set_started_at`` flips the column from NULL to a timestamp."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+    assert job.started_at is None
+
+    await repo.set_started_at(job.id)
+    await db_session.commit()
+
+    refreshed = await _reload_job(db_session, job.id)
+    assert refreshed.started_at is not None
+
+
+@pytest.mark.asyncio
+async def test_set_started_at_second_call_is_noop(
+    db_session: AsyncSession,
+):
+    """Second ``set_started_at`` leaves the original timestamp byte-equal.
+
+    Verifies the ``started_at IS NULL`` guard — the property we rely on
+    when retries call this method again, since ``finished_at - started_at``
+    is supposed to span ALL attempts, not just the most recent one.
+    """
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    await repo.set_started_at(job.id)
+    await db_session.commit()
+    first_value = (await _reload_job(db_session, job.id)).started_at
+    assert first_value is not None
+
+    await repo.set_started_at(job.id)
+    await db_session.commit()
+    second_value = (await _reload_job(db_session, job.id)).started_at
+
+    # Byte-equal, not "earlier-or-equal": SQLite's second-precision clock
+    # can make back-to-back UPDATEs produce identical timestamps, which
+    # would silently pass an inequality assertion for the wrong reason.
+    assert second_value == first_value
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_finished_at_flag_sets_column(
+    db_session: AsyncSession,
+):
+    """``finished_at=True`` stamps the top-level column on the FINISHED transition."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+    assert job.finished_at is None
+
+    await repo.update_ingestion_job(
+        job.id,
+        status_message="ok",
+        metadata={},
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        finished_at=True,
+    )
+    await db_session.commit()
+
+    refreshed = await _reload_job(db_session, job.id)
+    assert refreshed.finished_at is not None
+    assert refreshed.state == IngestionState.FINISHED
+    assert refreshed.result == IngestionResult.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_without_flag_leaves_finished_at_null(
+    db_session: AsyncSession,
+):
+    """Without the flag, ``finished_at`` stays NULL even on FINISHED transitions.
+
+    Backward-compat guarantee for existing callers that drive only the
+    legacy ``meta["completed_at"]`` JSON field — they continue to work
+    unchanged and the new column stays opt-in.
+    """
+    repo = DataIngestionRepository(db_session)
+    job = _make_pending_job()
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    await repo.update_ingestion_job(
+        job.id,
+        status_message="ok",
+        metadata={},
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+    )
+    await db_session.commit()
+
+    refreshed = await _reload_job(db_session, job.id)
+    assert refreshed.finished_at is None
+    assert refreshed.state == IngestionState.FINISHED

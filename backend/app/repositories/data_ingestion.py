@@ -69,6 +69,7 @@ class DataIngestionRepository:
         completed_at: Optional[datetime] = None,
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
+        finished_at: bool = False,
     ) -> Optional[DataIngestionJob]:
         """Update ingestion job with legacy status_code and new state/result.
 
@@ -77,9 +78,14 @@ class DataIngestionRepository:
             status_message: Status message
             status_code: Legacy status code (for backward compatibility)
             metadata: Metadata to merge
-            completed_at: Optional completed timestamp
+            completed_at: Optional completed timestamp written into ``meta``
+                (legacy JSON field; pre-dates the ``finished_at`` column).
             state: New state value (optional, for new code)
             result: New result value (optional, for new code)
+            finished_at: When True, also stamp the top-level ``finished_at``
+                column with ``func.now()`` (Plan 310C observability).  Kept
+                opt-in so existing callers that drove only ``meta`` JSON
+                aren't forced to migrate in lockstep.
         """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
         exec_result = await self.session.execute(stmt)
@@ -95,6 +101,11 @@ class DataIngestionRepository:
                 result_job.state = state
             if result is not None:
                 result_job.result = result
+            if finished_at:
+                # ORM-level assignment of a SQL function expression so the
+                # value is rendered server-side (matches set_started_at and
+                # claim_job's locked_at).
+                result_job.finished_at = func.now()
 
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
@@ -113,6 +124,29 @@ class DataIngestionRepository:
             await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
+
+    async def set_started_at(self, job_id: int) -> None:
+        """Stamp ``started_at`` on the FIRST successful claim only.
+
+        Idempotent via the ``started_at IS NULL`` guard — retries (every
+        subsequent claim_job after the original pod crashed and the safety
+        sweep recovered the row) call this again but the UPDATE matches no
+        row, leaving the original timestamp intact.  This is the property
+        that lets ``finished_at - started_at`` measure total wall-clock
+        duration across retries; ``locked_at`` (refreshed on every claim)
+        answers a different question.
+
+        Does not commit — leaves transaction control to the caller (the
+        ``run_job`` runner in Plan 310C), matching ``update_ingestion_job``.
+        """
+        await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.started_at).is_(None),
+            )
+            .values(started_at=func.now())
+        )
 
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
