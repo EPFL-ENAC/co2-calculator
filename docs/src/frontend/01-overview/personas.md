@@ -100,8 +100,9 @@ stateDiagram-v2
 
 Key gates:
 
-- Every back-office route uses `requirePermission('backoffice.users', …)`.
-- `LogsPage` requires `system.users:edit` (superadmin).
+- Most back-office routes use `requirePermission('backoffice.users', …)`;
+  the audit logs route is the exception (`LogsPage` uses
+  `system.users:edit`, see `frontend/src/router/routes.ts:265-278`).
 - The audit drawer (`AuditDetailDrawer.vue`) reads from
   `components/audit/*` and the `backofficeDataManagement` store.
 - `UITextsEditingPage` and `DocumentationEditingPage` write changes by

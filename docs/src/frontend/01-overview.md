@@ -21,7 +21,7 @@ the landing point: jump to the detail page that matches your task.
 cd frontend
 npm install
 cp .env.example .env       # set VITE_API_BASE_URL
-npm run dev                # http://localhost:5173
+npm run dev                # http://localhost:9000
 npm run build              # output in dist/spa/
 ```
 
@@ -55,8 +55,9 @@ npm run storybook:test     # Storybook test-runner
 npm run lint               # ESLint
 ```
 
-CI runs `test-ct`, `test:e2e`, and `storybook:test-ci` (boots Storybook, then
-runs the test-runner against it).
+CI runs `test-ct` and `test:e2e` (see `.github/workflows/test.yml`). The
+Storybook test-runner is not yet wired into CI; run `npm run storybook:test`
+locally to exercise it.
 
 ## Authentication & Authorization
 
