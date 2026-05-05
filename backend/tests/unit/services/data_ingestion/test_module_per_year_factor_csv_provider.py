@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionState
 from app.services.data_ingestion import csv_providers as csv_providers_module
 from app.services.data_ingestion.csv_providers.factors import (
     ModulePerYearFactorCSVProvider,
@@ -136,4 +137,8 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
     assert kwargs.get("current_job_id") == 42
     assert stats["factors_upserted"] == 3
     assert stats["factors_deleted"] == 0
-    assert result["state"].value == 3  # IngestionState.FINISHED
+    # Compare against the enum directly, not its int value — the int is
+    # part of the persisted ABI (we just had a Copilot incident over an
+    # EntityType renumber), so referring to it by name keeps the test
+    # readable AND avoids re-pinning ABI in two places.
+    assert result["state"] == IngestionState.FINISHED

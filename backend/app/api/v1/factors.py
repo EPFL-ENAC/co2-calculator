@@ -33,24 +33,37 @@ async def list_stale_factors(
 ) -> list[StaleFactorResponse]:
     """Return factors not present in the latest successful FACTORS ingest.
 
-    Plan 310B Part 3 — operators can detect rows that exist in the DB but
-    were not in the most recent CSV upload.  These rows are intentionally
-    not deleted (deletion would re-introduce dangling FKs from
-    ``DataEntry.primary_factor_id``); this endpoint surfaces them so the
-    UI can warn that the linked data entries are using outdated factors.
+    Plan 310B Part 3 — operators can detect rows that exist in the DB
+    but were not in the most recent CSV upload.  These rows are
+    intentionally not deleted because existing data entries may still
+    reference their ids in the ``DataEntry.data`` JSON payload under
+    ``primary_factor_id`` (this is a JSON value, not a real FK column);
+    this endpoint surfaces them so the UI can warn that linked data
+    entries are using outdated factors.
     """
     rows = await FactorRepository(db).list_stale_for_year(year)
-    return [
-        StaleFactorResponse(
-            id=f.id or 0,
-            data_entry_type_id=f.data_entry_type_id,
-            emission_type_id=f.emission_type_id,
-            year=f.year,
-            classification=f.classification or {},
-            last_seen_job_id=f.last_seen_job_id,
+    responses: list[StaleFactorResponse] = []
+    for f in rows:
+        # DB-loaded rows always have an id.  A NULL id here would mean
+        # the row was constructed but never flushed — surface as a 500
+        # rather than mask with a sentinel 0 (which would be an invalid
+        # client-side identifier).
+        if f.id is None:
+            raise ValueError(
+                "FactorRepository.list_stale_for_year returned a row "
+                "with no id; this should not happen for persisted factors."
+            )
+        responses.append(
+            StaleFactorResponse(
+                id=f.id,
+                data_entry_type_id=f.data_entry_type_id,
+                emission_type_id=f.emission_type_id,
+                year=f.year,
+                classification=f.classification or {},
+                last_seen_job_id=f.last_seen_job_id,
+            )
         )
-        for f in rows
-    ]
+    return responses
 
 
 @router.get(

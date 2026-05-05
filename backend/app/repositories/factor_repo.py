@@ -11,6 +11,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.models.data_ingestion import (
     DataIngestionJob,
+    IngestionMethod,
     IngestionResult,
     IngestionState,
     TargetType,
@@ -88,10 +89,11 @@ class FactorRepository:
         unique index expression — so the input must be split by year-presence
         and one ON CONFLICT inference issued per partition.
 
-        Preserves ``factor.id`` for existing rows so downstream FKs
-        (``DataEntry.primary_factor_id``) stay valid across reuploads.
-        Stamps ``last_seen_job_id`` so callers can later detect rows not
-        present in the current batch.
+        Preserves ``factor.id`` for existing rows so downstream
+        references — including ``primary_factor_id`` values stored in
+        ``DataEntry.data`` (a JSON value, not a real FK column) — stay
+        valid across reuploads.  Stamps ``last_seen_job_id`` so callers
+        can later detect rows not present in the current batch.
 
         Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
 
@@ -181,6 +183,10 @@ class FactorRepository:
             Map from ``data_entry_type_id`` to the highest job id that
             wrote factors for that det in this year.
         """
+        # Restrict to ingestion_method=csv: ``last_seen_job_id`` is only
+        # stamped by the CSV upsert path.  If a ``computed`` FACTORS job
+        # ever becomes is_current its higher id would shadow the latest
+        # CSV upload and make every csv-stamped factor look stale.
         stmt = select(
             DataIngestionJob.id,
             DataIngestionJob.module_type_id,
@@ -191,6 +197,7 @@ class FactorRepository:
             col(DataIngestionJob.state) == IngestionState.FINISHED,
             col(DataIngestionJob.result) != IngestionResult.ERROR,
             col(DataIngestionJob.is_current).is_(True),
+            col(DataIngestionJob.ingestion_method) == IngestionMethod.csv,
         )
         rows = (await self.session.execute(stmt)).all()
 

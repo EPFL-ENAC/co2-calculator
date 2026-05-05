@@ -92,6 +92,29 @@ async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
             year=yr,
             job_id=jid,
         )
+    elif job_type == "unit_sync":
+        # Plan 310B Part 5 — pod-crash recovery for unit sync.  The
+        # endpoint creates a NOT_STARTED job and fires
+        # ``run_sync_task_accred`` in-process; if this pod dies before
+        # the task claims the job, the poller picks up the NOT_STARTED
+        # row and re-runs the task here.  ``run_sync_task_accred`` itself
+        # calls ``claim_job`` so it's safe to invoke from both the
+        # endpoint and the poller.
+        from app.tasks.unit_sync_tasks import (
+            SyncUnitRequest,
+        )
+        from app.tasks.unit_sync_tasks import (
+            run_sync_task_accred as _run_unit_sync,
+        )
+
+        target_year = (meta.get("config") or {}).get("target_year") or job.year
+        if target_year is None:
+            logger.warning(f"Missing target_year for unit_sync job {jid} — skipping")
+            return
+        await _run_unit_sync(
+            SyncUnitRequest(target_year=target_year),
+            job_id=jid,
+        )
     else:
         logger.warning(f"Unknown job_type '{job_type}' for job {jid} — skipping")
 

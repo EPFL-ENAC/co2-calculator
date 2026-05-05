@@ -96,14 +96,23 @@ async def run_sync_task(
                 job.target_type == TargetType.FACTORS
                 and ingestion_result != IngestionResult.ERROR
             ):
-                pipeline_id = job.pipeline_id or uuid4()
+                # Persist a fresh pipeline_id on the parent if it had
+                # none, so children genuinely inherit the same id.  The
+                # alternative — generating a new UUID locally only for
+                # the children — leaves the parent with NULL pipeline_id
+                # and an orphan group of children with a UUID nobody can
+                # correlate back.
+                if job.pipeline_id is None:
+                    job.pipeline_id = uuid4()
+                    job_session.add(job)
+                    await job_session.commit()
                 await _enqueue_stale_recalculations(
                     job_session,
                     parent_job_id=job.id,
                     module_type_id=job.module_type_id,
                     data_entry_type_id=job.data_entry_type_id,
                     year=job.year,
-                    pipeline_id=pipeline_id,
+                    pipeline_id=job.pipeline_id,
                 )
 
             # Update final job status with the computed result
@@ -167,13 +176,30 @@ async def _enqueue_stale_recalculations(
 
     repo = DataIngestionRepository(session)
 
-    if data_entry_type_id is None and module_type_id is not None:
+    if module_type_id is not None and data_entry_type_id is not None:
+        # Single-type factor upload — the parent job tells us exactly
+        # which (module, det) just changed.  We do NOT consult
+        # ``get_recalculation_status_by_year`` here because that helper
+        # filters on ``state=FINISHED`` and the parent job is still
+        # RUNNING at this point in the pipeline (the FINISHED stamp
+        # happens *after* fan-out, deliberately, so the fan-out commit
+        # gets included in the parent's atomic data_session).  Without
+        # this short-circuit, single-type uploads silently skipped
+        # recalc — the status query found no matching factor row.
+        targets: list[Any] = [
+            {
+                "module_type_id": module_type_id,
+                "data_entry_type_id": data_entry_type_id,
+                "year": year,
+            }
+        ]
+    elif data_entry_type_id is None and module_type_id is not None:
         # Multi-type factor upload (e.g. equipments_factors.csv covers
         # scientific + it + other under module=equipment_electric_consumption).
-        # The parent job has data_entry_type_id=NULL, which
-        # get_recalculation_status_by_year filters out — so we'd silently
-        # skip the recalc.  Expand to one target per det in the module
-        # instead.  We don't gate on needs_recalculation here: a fresh
+        # Same hazard as single-type — the status query would filter the
+        # parent out — but the resolution is different: expand to one
+        # target per det in the module via MODULE_TYPE_TO_DATA_ENTRY_TYPES.
+        # We don't gate on needs_recalculation here either: a fresh
         # successful factor ingest just landed, every linked det is by
         # definition stale.
         try:
@@ -184,9 +210,7 @@ async def _enqueue_stale_recalculations(
             )
             return
         dets = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module, [])
-        # Same key shape as RecalculationStatusRow so the downstream loop
-        # can treat both branches uniformly.
-        targets: list[Any] = [
+        targets = [
             {
                 "module_type_id": module_type_id,
                 "data_entry_type_id": d.value,
@@ -195,17 +219,13 @@ async def _enqueue_stale_recalculations(
             for d in dets
         ]
     else:
+        # Both NULL — operator wants "anything stale this year".  This
+        # is the only branch that reads from
+        # ``get_recalculation_status_by_year`` (which filters on
+        # state=FINISHED).  Reachable only via admin-style triggers,
+        # not via a normal factor CSV upload.
         rows = await repo.get_recalculation_status_by_year(year)
-        targets = [
-            r
-            for r in rows
-            if r["needs_recalculation"]
-            and (module_type_id is None or r["module_type_id"] == module_type_id)
-            and (
-                data_entry_type_id is None
-                or r["data_entry_type_id"] == data_entry_type_id
-            )
-        ]
+        targets = [r for r in rows if r["needs_recalculation"]]
 
     if not targets:
         logger.info(f"No stale (module, det) combos to recalculate for year={year}")

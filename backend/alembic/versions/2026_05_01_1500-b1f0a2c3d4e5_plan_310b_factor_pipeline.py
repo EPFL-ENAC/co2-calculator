@@ -24,10 +24,17 @@ Changes:
          WHERE year IS NULL
      Two indexes because NULL ≠ NULL in a unique index expression.
   4. factors.last_seen_job_id INT FK to data_ingestion_jobs(id) so operators
-     can detect factors not present in the latest CSV upload.
+     can detect factors not present in the latest CSV upload.  Backfilled
+     from the latest is_current FACTORS job per (det, year) so
+     ``/factors/stale`` doesn't flag every pre-existing factor as outdated
+     immediately after deploy.
   5. ALTER TYPE entity_type_enum ADD VALUE 'GLOBAL_PER_YEAR' for unit-sync jobs.
-     Postgres ≥ 12 supports ADD VALUE in any transaction. Cannot be reversed
-     (no DROP VALUE), so downgrade leaves the enum value in place.
+     APPENDED to the label list (not inserted before MODULE_PER_YEAR) so the
+     Python ``EntityType`` int values stay stable: persisted
+     ``meta["config"]["entity_type"]`` integers round-trip via
+     ``EntityType(value)`` without drifting.  Postgres ≥ 12 supports ADD
+     VALUE in any transaction. Cannot be reversed (no DROP VALUE), so
+     downgrade leaves the enum value in place.
 """
 
 from typing import Sequence, Union
@@ -88,7 +95,7 @@ def upgrade() -> None:
         "WHERE year IS NULL"
     )
 
-    # 3. last_seen_job_id column + supporting index
+    # 4. last_seen_job_id column + supporting index
     op.add_column(
         "factors",
         sa.Column("last_seen_job_id", sa.Integer(), nullable=True),
@@ -108,12 +115,47 @@ def upgrade() -> None:
         unique=False,
     )
 
-    # 4. EntityType.GLOBAL_PER_YEAR for unit-sync jobs.
-    # Wrapped in a DO block so re-runs don't error on existing values.
+    # 4b. Backfill last_seen_job_id from the latest is_current FACTORS job
+    # that covers each factor's (data_entry_type_id, year).  Without this
+    # step ``list_stale_for_year`` (which treats NULL as "older than the
+    # latest job") would flag every pre-existing factor as outdated on
+    # day one.  Per-det jobs match directly on (det, year); multi-type
+    # jobs (det IS NULL) are skipped here because the runtime resolver
+    # in ``FactorRepository._latest_factor_job_per_det`` re-evaluates
+    # them via MODULE_TYPE_TO_DATA_ENTRY_TYPES at query time anyway.
+    op.execute(
+        """
+        UPDATE factors f
+        SET last_seen_job_id = sub.job_id
+        FROM (
+            SELECT
+                f2.id  AS factor_id,
+                MAX(j.id) AS job_id
+            FROM factors f2
+            JOIN data_ingestion_jobs j
+              ON j.data_entry_type_id = f2.data_entry_type_id
+             AND j.year               = f2.year
+             AND j.target_type        = 'FACTORS'
+             AND j.state              = 'FINISHED'
+             AND j.result            != 'ERROR'
+             AND j.is_current         = TRUE
+            WHERE f2.last_seen_job_id IS NULL
+            GROUP BY f2.id
+        ) AS sub
+        WHERE f.id = sub.factor_id;
+        """
+    )
+
+    # 5. EntityType.GLOBAL_PER_YEAR for unit-sync jobs — APPENDED to the
+    # label list, not inserted before MODULE_PER_YEAR.  The Python
+    # EntityType IntEnum keeps explicit int values
+    # (MODULE_PER_YEAR=1, MODULE_UNIT_SPECIFIC=2, GLOBAL_PER_YEAR=3) so
+    # historical jobs whose meta["config"]["entity_type"] is `1` stay
+    # interpretable as MODULE_PER_YEAR.  Wrapped in a DO block so re-runs
+    # don't error on existing values.
     op.execute(
         "DO $$ BEGIN "
-        "ALTER TYPE entity_type_enum ADD VALUE 'GLOBAL_PER_YEAR' "
-        "BEFORE 'MODULE_PER_YEAR'; "
+        "ALTER TYPE entity_type_enum ADD VALUE 'GLOBAL_PER_YEAR'; "
         "EXCEPTION WHEN duplicate_object THEN null; "
         "END $$;"
     )

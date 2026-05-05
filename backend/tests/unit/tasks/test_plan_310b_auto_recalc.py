@@ -208,3 +208,55 @@ async def test_enqueue_stale_recalculations_skips_unknown_module_type():
 
     repo.create_ingestion_job.assert_not_awaited()
     mock_create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_enqueue_stale_recalculations_single_type_uses_parent_scope():
+    """Plan 310B fix (Copilot follow-up): single-type factor uploads
+    (parent has both module_type_id and data_entry_type_id set) MUST
+    NOT consult ``get_recalculation_status_by_year`` — that helper
+    filters on ``state=FINISHED`` but the parent factor job is still
+    RUNNING when the fan-out fires, so the query returns no row and
+    the recalc would silently skip.
+
+    Instead, the helper builds a single target directly from the
+    parent's (module, det) scope.  Pin that contract here.
+    """
+    session = MagicMock()
+    session.commit = AsyncMock()
+
+    repo = MagicMock()
+    # If the helper consults this, the test fails — proves the
+    # short-circuit is in place.
+    repo.get_recalculation_status_by_year = AsyncMock(
+        side_effect=AssertionError(
+            "single-type fan-out must not consult get_recalculation_status_by_year"
+        )
+    )
+    repo.create_ingestion_job = AsyncMock(return_value=MagicMock(id=200))
+
+    pipeline = uuid4()
+
+    with (
+        patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
+        patch("app.tasks._background.fire_and_forget") as mock_create_task,
+        patch("app.tasks.emission_recalculation_tasks.run_recalculation_task"),
+    ):
+        await _enqueue_stale_recalculations(
+            session,
+            parent_job_id=42,
+            module_type_id=5,  # single-type: both fields set
+            data_entry_type_id=11,
+            year=2025,
+            pipeline_id=pipeline,
+        )
+
+    # Exactly one child job — for the parent's (module, det) — fired.
+    assert repo.create_ingestion_job.await_count == 1
+    new_job = repo.create_ingestion_job.await_args.args[0]
+    assert new_job.module_type_id == 5
+    assert new_job.data_entry_type_id == 11
+    assert new_job.year == 2025
+    assert new_job.pipeline_id == pipeline
+    assert new_job.meta["config"]["parent_job_id"] == 42
+    assert mock_create_task.call_count == 1

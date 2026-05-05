@@ -499,3 +499,66 @@ async def test_latest_factor_job_per_det_skips_both_nulls(pg_dsn):
         assert latest == {}
 
     await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_list_stale_filters_to_csv_ingestion_method(pg_dsn):
+    """Plan 310B fix (Copilot follow-up): ``list_stale_for_year`` must
+    only consider FACTORS jobs whose ``ingestion_method == csv``.
+
+    The bug it guards against: ``last_seen_job_id`` is ONLY stamped by
+    the CSV upsert path.  If a ``computed`` FACTORS job (factor recompute,
+    distinct from a CSV upload) becomes is_current later, its higher id
+    would shadow the latest CSV upload's id and make every CSV-stamped
+    factor look stale on ``/factors/stale``.
+
+    This test seeds a CSV factor job (id=N) plus a later computed factor
+    job (id=N+1) for the same (det, year) and verifies a factor stamped
+    by the CSV job is NOT reported as stale (because the computed job
+    is filtered out of the threshold map).
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_plan_310b_indexes(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as session:
+        # CSV factor job — stamps last_seen_job_id on factors it writes.
+        csv_job = _seed_factor_job()
+        csv_job.is_current = False  # to allow second is_current row
+        # Later computed factor job — different ingestion_method, NOT a
+        # CSV upload, so it never stamps last_seen_job_id.
+        computed_job = _seed_factor_job()
+        computed_job.ingestion_method = IngestionMethod.computed
+        # Plan A's partial unique index on is_current allows only one
+        # is_current per (module, det, target, ingestion_method, year),
+        # so distinct ingestion_methods can both be is_current — that's
+        # exactly the production scenario this test guards.
+        session.add_all([csv_job, computed_job])
+        await session.commit()
+        assert csv_job.id is not None and computed_job.id is not None
+        csv_id: int = csv_job.id
+        computed_id: int = computed_job.id
+
+        # Sanity: computed job has a strictly greater id (would shadow
+        # the CSV job under a naive max(id) join).
+        assert computed_id > csv_id
+
+        repo = FactorRepository(session)
+        # Stamp the factor with the CSV job's id — production path.
+        await repo.upsert_factors(
+            [_make_factor({"kind": "food", "subkind": None})],
+            current_job_id=csv_id,
+        )
+        await session.commit()
+
+        # Without the ingestion_method filter, the latest threshold
+        # would be max(csv_id, computed_id) = computed_id, and the
+        # factor (last_seen=csv_id < computed_id) would appear stale.
+        # WITH the filter, only csv_id is considered → factor NOT stale.
+        stale = await repo.list_stale_for_year(2025)
+        assert stale == [], (
+            "computed FACTORS jobs must be excluded from the stale-"
+            "threshold; only csv jobs stamp last_seen_job_id"
+        )
+
+    await engine.dispose()

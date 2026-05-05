@@ -151,4 +151,9 @@ async def run_sync_task_accred(
                 result=IngestionResult.ERROR,
             )
             await job_session.commit()
-            raise
+            # Do not re-raise: the endpoint schedules this task via
+            # ``fire_and_forget`` (no awaiter), so a re-raise would
+            # surface as "Task exception was never retrieved" warnings
+            # on every failure.  The job state + status_message already
+            # carry the error for operators / SSE consumers.
+            return

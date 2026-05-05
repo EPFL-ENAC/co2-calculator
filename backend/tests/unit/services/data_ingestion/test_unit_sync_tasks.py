@@ -170,8 +170,14 @@ async def test_run_sync_task_accred_marks_job_error_when_provider_fails(
     mock_accred_principal_users_raw,
 ):
     """Service raises mid-sync → except block runs: data_session rolled back,
-    job stamped FINISHED+ERROR with the exception message, exception
-    re-raised so the task's caller sees the failure."""
+    job stamped FINISHED+ERROR with the exception message.
+
+    The task does NOT re-raise: the endpoint schedules it via
+    ``fire_and_forget`` (no awaiter), so re-raising would surface as
+    "Task exception was never retrieved" warnings.  Operators see the
+    error via the persisted job state + status_message; that's what
+    this test asserts.
+    """
     unit_provider, role_provider = _common_provider_patches(
         mock_accred_units_raw, mock_accred_principal_users_raw
     )
@@ -193,8 +199,10 @@ async def test_run_sync_task_accred_marks_job_error_when_provider_fails(
             "app.tasks.unit_sync_tasks.get_role_provider", return_value=role_provider
         ),
     ):
-        with pytest.raises(RuntimeError, match="Accred down"):
-            await run_sync_task_accred(SyncUnitRequest(target_year=2024), job_id=99)
+        # Must NOT raise — the task swallows the exception by design so
+        # fire_and_forget callers don't see "Task exception was never
+        # retrieved" warnings.
+        await run_sync_task_accred(SyncUnitRequest(target_year=2024), job_id=99)
 
     # The error path's final update should mark the job FINISHED+ERROR with
     # the exception message in status_message — operators need to see why
