@@ -484,4 +484,8 @@ export default {
     en: 'FTE',
     fr: 'EPT',
   },
+  http_error_occurred: {
+    en: 'An error occurred: {status} {text}',
+    fr: 'Une erreur est survenue : {status} {text}',
+  },
 };
