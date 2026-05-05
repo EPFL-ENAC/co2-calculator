@@ -21,14 +21,26 @@ class EntityType(int, Enum):
     """
     Docstring for EntityType
 
+    Enum integer values are part of the persisted ABI: jobs serialise
+    ``entity_type.value`` into ``DataIngestionJob.meta["config"]`` and
+    we round-trip via ``EntityType(value)``.  Existing rows have
+    ``MODULE_PER_YEAR=1`` and ``MODULE_UNIT_SPECIFIC=2`` baked in, so
+    new members MUST be appended (don't insert at the front and shift
+    the existing ones — every historical row would silently deserialise
+    to the wrong member).
+
     :var MODULE_PER_YEAR: Description
-    :vartype MODULE_PER_YEAR: Literal[2]
+    :vartype MODULE_PER_YEAR: Literal[1]
     :var MODULE_UNIT_SPECIFIC: Description
-    :vartype MODULE_UNIT_SPECIFIC: Literal[3]
+    :vartype MODULE_UNIT_SPECIFIC: Literal[2]
+    :var GLOBAL_PER_YEAR: Job not scoped to a module
+        (e.g. unit sync, role sync).
+    :vartype GLOBAL_PER_YEAR: Literal[3]
     """
 
-    MODULE_PER_YEAR = 2
-    MODULE_UNIT_SPECIFIC = 3
+    MODULE_PER_YEAR = 1
+    MODULE_UNIT_SPECIFIC = 2
+    GLOBAL_PER_YEAR = 3
 
 
 class FactorType(int, Enum):

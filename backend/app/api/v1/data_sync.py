@@ -24,12 +24,13 @@ from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEn
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks._background import fire_and_forget
 from app.tasks.emission_recalculation_tasks import (
-    run_module_recalculation,
-    run_recalculation,
+    run_module_recalculation_task,
+    run_recalculation_task,
 )
-from app.tasks.ingestion_tasks import run_ingestion
-from app.tasks.unit_sync_tasks import SyncUnitRequest, sync_units_from_accred_task
+from app.tasks.ingestion_tasks import run_sync_task
+from app.tasks.unit_sync_tasks import SyncUnitRequest, run_sync_task_accred
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 router = APIRouter()
@@ -212,13 +213,19 @@ async def sync_module_data_entries(
     # Commit job creation to database
     await db.commit()
 
-    # Schedule the ingestion task in the background
+    # Schedule the ingestion task in the background.  Hand the *async*
+    # ``run_sync_task`` to ``add_task`` (NOT the sync ``run_ingestion``
+    # wrapper) so FastAPI awaits it on the main event loop.  The sync
+    # wrapper used ``asyncio.run`` which builds a throwaway loop in a
+    # worker thread; any ``fire_and_forget`` Task created inside that
+    # throwaway loop is cancelled the instant the loop closes — that's
+    # exactly the bug that left recalc jobs stuck in RUNNING.
     # NOTE: file_path validation happens in provider.__init__()
     #   via _validate_file_path()
     # to prevent directory traversal attacks (e.g., /../../../etc/passwd)
     background_tasks.add_task(
-        run_ingestion,
-        provider_name=provider.__class__.__name__,
+        run_sync_task,
+        provider_class_name=provider.__class__.__name__,
         job_id=job_id,
         filters=syncRequest.filters or {},
     )
@@ -315,8 +322,8 @@ async def sync_module_factors(
     await db.commit()
 
     background_tasks.add_task(
-        run_ingestion,
-        provider_name=provider.__class__.__name__,
+        run_sync_task,
+        provider_class_name=provider.__class__.__name__,
         job_id=job_id,
         filters=syncRequest.filters or {},
     )
@@ -639,7 +646,7 @@ async def recalculate_emissions_for_type(
         )
 
     background_tasks.add_task(
-        run_recalculation,
+        run_recalculation_task,
         module_type_id=module_type_id.value,
         data_entry_type_id=data_entry_type_id.value,
         year=year,
@@ -729,7 +736,7 @@ async def recalculate_emissions_for_module(
         )
 
     background_tasks.add_task(
-        run_module_recalculation,
+        run_module_recalculation_task,
         module_type_id=module_type_id.value,
         data_entry_type_ids=det_ids,
         year=year,
@@ -756,21 +763,46 @@ async def sync_units_from_accred(
     """
     Sync units from Accred API.
 
-    Triggers background task to fetch and upsert all units and principal users
-    from the Accred API. Uses hardcoded UserProvider.ACCRED for now.
+    Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
+    unit_sync, entity_type=GLOBAL_PER_YEAR) so progress is observable via
+    the SSE stream and the job is recoverable on pod crash via the safety
+    poller.
 
     **Required Permission**: `backoffice.data_management.sync`
 
     Returns:
-        SyncStatusResponse with job status (note: job_id is 0 as this is a
-        simple background task without persistent job tracking)
+        SyncStatusResponse with the persistent job_id and initial state.
     """
+    job = DataIngestionJob(
+        job_type="unit_sync",
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=syncRequest.target_year,
+        ingestion_method=IngestionMethod.api,
+        target_type=TargetType.REFERENCE_DATA,
+        entity_type=EntityType.GLOBAL_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        meta={"config": {"target_year": syncRequest.target_year}},
+    )
+    created = await DataIngestionRepository(db).create_ingestion_job(job)
+    await db.commit()
+    if created.id is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create unit sync job",
+        )
 
-    # Schedule background task
-    background_tasks.add_task(sync_units_from_accred_task, syncRequest)
+    # Fire-and-forget; the safety poller (Plan 310A) recovers the job if
+    # this pod crashes before run_sync_task_accred claims it.  Use
+    # fire_and_forget (not bare asyncio.create_task) so the task isn't
+    # garbage-collected before the loop schedules its first step.
+    fire_and_forget(
+        run_sync_task_accred(syncRequest, created.id),
+        name=f"unit-sync-{created.id}",
+    )
 
     return SyncStatusResponse(
-        job_id=0,  # No persistent job tracking for now
+        job_id=created.id,
         state=IngestionState.NOT_STARTED,
         message="Unit sync from Accred API scheduled",
     )

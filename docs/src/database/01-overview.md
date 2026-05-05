@@ -1,5 +1,7 @@
 # Database Overview
 
+> 📘 **See also:** [Current ER diagram](./erd.md) — the canonical schema reference.
+
 The application connects to PostgreSQL using the `DB_URL` environment variable, supporting any accessible PostgreSQL instance (local, remote, DSI-hosted, pgbouncer, Kubernetes, etc.). This ensures modularity and scalability—just update `DB_URL` as needed.
 
 ## Local Development
@@ -63,7 +65,7 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
   make db-migrate
   ```
 - Migrations are applied automatically in Helm deployments via a cron job via helm hook on post-install, post-upgrade
-- See [erd.md](erd.md) and [draft-erd.dbml](draft-erd.dbml) for schema diagrams.
+- See [erd.md](erd.md) for the schema diagram.
 
 ## ORM Integration
 
@@ -77,7 +79,7 @@ The application connects to PostgreSQL using the `DB_URL` environment variable, 
 ## Notes
 
 - Connection pooling (e.g., pgbouncer) is not yet implemented, but the app is compatible via `DB_URL`.
-- For table/index details, see [erd.md](erd.md) and [draft-erd.dbml](draft-erd.dbml).
+- For table/index details, see [erd.md](erd.md).
 
 ---
 
