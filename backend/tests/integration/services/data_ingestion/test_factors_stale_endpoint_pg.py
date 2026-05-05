@@ -148,6 +148,70 @@ async def test_get_stale_factors_returns_only_outdated_rows(pg_app):
 
 
 @pytest.mark.asyncio
+async def test_stale_endpoint_returns_403_for_user_without_permission(
+    pg_dsn, monkeypatch
+):
+    """Plan 310C Unit 2 — ``GET /v1/factors/stale`` is gated behind
+    ``backoffice.data_management.view``.  Users without that permission
+    get HTTP 403, not the stale-factor list.
+
+    This test deliberately bypasses ``pg_app`` (which monkeypatches
+    ``is_permitted`` to always return True) so the real permission
+    check fires.  We still need to override ``get_db`` and the
+    auth dependencies so the route reaches the permission gate."""
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def override_get_db():
+        async with Sf() as session:
+            yield session
+
+    fake_user = MagicMock()
+    fake_user.id = 1
+    fake_user.email = "test@example.com"
+    fake_user.institutional_id = "TEST-USER"
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+    app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
+    app.dependency_overrides[security_module.get_current_active_user] = lambda: (
+        fake_user
+    )
+
+    async def _deny(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr("app.core.security.is_permitted", _deny)
+
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.get("/v1/factors/stale", params={"year": 2025})
+    finally:
+        app.dependency_overrides.clear()
+        await engine.dispose()
+
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_stale_endpoint_returns_200_for_permitted_user(pg_app):
+    """Plan 310C Unit 2 — happy path of the permission gate.  When
+    ``is_permitted`` returns True (via ``pg_app``'s monkeypatch), the
+    endpoint reaches the repository and returns the StaleFactorResponse
+    list shape — even when there's nothing to report."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        resp = await client.get("/v1/factors/stale", params={"year": 2025})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == []
+
+
+@pytest.mark.asyncio
 async def test_get_stale_factors_returns_empty_list_with_no_factor_jobs(pg_app):
     """No FACTORS jobs for the queried year → endpoint returns ``[]``,
     not an error and not the full factor table.  Confirms the empty-map
