@@ -1,16 +1,12 @@
-# Awesome-pages skeleton (issue #860 / B0).
-# B3 owns the explicit `nav:` block in mkdocs.yml — keep this file
-# metadata-only until that lands. Once `nav:` is removed, replace this
-# stub with the section ordering below to drive layout from `.pages`:
-#
-# nav:
-#   - index.md
-#   - architecture
-#   - architecture-decision-records
-#   - backend
-#   - frontend
-#   - database
-#   - infra
-#   - implementation-plans
-#   - user-docs
+nav:
+  - index.md
+  - architecture/spec.md
+  - architecture
+  - architecture-decision-records
+  - backend
+  - frontend
+  - database
+  - infra
+  - implementation-plans
+  - user-docs
 title: EPFL Project Technical Docs

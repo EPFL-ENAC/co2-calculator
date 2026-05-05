@@ -55,6 +55,7 @@ markdown_extensions:
 docs_dir: src
 nav:
   - Home: index.md
+  - CRD: architecture/spec.md
   - LLM Agent Guide: llm-agent-guide.md
   - Glossary: glossary.md
   - Architecture:
@@ -96,18 +97,6 @@ nav:
       - ADR-017 /me Async Role Sync: architecture-decision-records/017-me-endpoint-async-role-sync.md
       - ADR-018 Factor CSV Idempotency: architecture-decision-records/018-factor-csv-delete-before-insert.md
 
-  - Frontend:
-      - Overview: frontend/01-overview.md
-      - Component Tree: frontend/01-overview/components.md
-      - Persona Flows: frontend/01-overview/personas.md
-      - Design Tokens: frontend/02-design-tokens.md
-      - Data Management:
-          - Overview: frontend/data-management/index.md
-          - Architecture: frontend/data-management/architecture.md
-          - Data Flows: frontend/data-management/data-flows.md
-          - Modules & Configuration: frontend/data-management/modules-and-config.md
-          - API & Troubleshooting: frontend/data-management/api-and-troubleshooting.md
-
   - Backend:
       - Overview: backend/01-overview.md
       - Architecture: backend/02-ARCHITECTURE.md
@@ -124,16 +113,29 @@ nav:
       - Location Search: backend/09-LOCATION-SEARCH.md
       - CSV seed formats: backend/csv-seed-formats.md
 
+  - Frontend:
+      - Overview: frontend/01-overview.md
+      - Component Tree: frontend/01-overview/components.md
+      - Persona Flows: frontend/01-overview/personas.md
+      - Design Tokens: frontend/02-design-tokens.md
+      - Data Management:
+          - Overview: frontend/data-management/index.md
+          - Architecture: frontend/data-management/architecture.md
+          - Data Flows: frontend/data-management/data-flows.md
+          - Modules & Configuration: frontend/data-management/modules-and-config.md
+          - API & Troubleshooting: frontend/data-management/api-and-troubleshooting.md
+
   - Database:
       - Overview: database/01-overview.md
 
   - Infrastructure:
       - Overview: infra/01-overview.md
 
+  - Implementation Plans: implementation-plans/INDEX.md
+
   - User Documentation:
       - Overview: user-docs/01-overview.md
 
-  - Implementation Plans: implementation-plans/INDEX.md
 extra:
   version: "1.0.0"
 extra_css:
