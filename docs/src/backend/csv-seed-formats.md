@@ -16,6 +16,12 @@ or LLM agent extending ingestion knows what to produce, parse, or assert against
 
 For the database entities these CSVs feed, see [Database ERD](../database/erd.md).
 
+## Where to get the seed CSVs
+
+The `backend/seed_data/` directory is **not tracked in git**. It is a local mirror of a private SharePoint folder maintained by the team. A fresh clone will not have it. To populate it, ask a team member for access to the SharePoint source.
+
+For a self-contained example of the CSV shapes documented below, see `backend/tests/integration/data_ingestion/fixtures/` — the canonical in-repo reference for these formats.
+
 ## Provider overview
 
 ```mermaid
