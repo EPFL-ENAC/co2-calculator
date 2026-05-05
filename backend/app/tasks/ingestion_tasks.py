@@ -1,6 +1,5 @@
 """Background tasks for data ingestion."""
 
-import asyncio
 from typing import Any, Optional
 from uuid import UUID, uuid4
 
@@ -129,18 +128,6 @@ async def run_sync_task(
             raise  # propagate exception
 
 
-# @celery_app.task(bind=True, max_retries=3, default_retry_delay=60)
-# add self to make it celery compatible
-def run_ingestion(provider_name: str, job_id: int, filters: dict):
-    """almost celery compatible sync wrapper for run_sync_task"""
-    try:
-        asyncio.run(run_sync_task(provider_name, job_id, filters))
-    except Exception as e:
-        logger.error(f"Sync failed for job ID {job_id}: {str(e)}")
-        # Error already logged and job status updated in run_sync_task
-        raise  # propagate exception for Celery retry
-
-
 async def _enqueue_stale_recalculations(
     session: AsyncSession,
     *,
@@ -157,9 +144,10 @@ async def _enqueue_stale_recalculations(
     (module/det if set; otherwise all combos that need recalc).  Each child
     inherits ``pipeline_id`` from the parent so dashboards can group runs.
 
-    Children are fired in-process via ``asyncio.create_task``.  If the pod
-    crashes between enqueue and dispatch, the safety poller (Plan 310A)
-    picks them up via ``state=NOT_STARTED AND run_after<=now()``.
+    Children are fired in-process via ``fire_and_forget`` so the Task is
+    held in a strong-ref set and isn't reaped by GC mid-execution.  If
+    the pod crashes between enqueue and dispatch, the safety poller
+    (Plan 310A) picks them up via ``state=NOT_STARTED AND run_after<=now()``.
 
     This helper is intentionally local to ingestion_tasks.py — Plan C
     generalises it as ``chain_job(parent, child)`` once the handler

@@ -45,7 +45,7 @@ async def test_enqueue_stale_recalculations_creates_one_job_per_target():
 
     with (
         patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
-        patch("app.tasks.ingestion_tasks.asyncio.create_task") as mock_create_task,
+        patch("app.tasks._background.fire_and_forget") as mock_create_task,
         patch(
             "app.tasks.emission_recalculation_tasks.run_recalculation_task"
         ) as mock_runner,
@@ -68,7 +68,7 @@ async def test_enqueue_stale_recalculations_creates_one_job_per_target():
         assert new_job.pipeline_id == pipeline
         assert new_job.year == 2025
         assert new_job.meta["config"]["parent_job_id"] == 42
-    # Sanity: the runner reference is what asyncio.create_task wraps.
+    # Sanity: the runner reference is what fire_and_forget wraps.
     assert mock_runner is not None
 
 
@@ -94,7 +94,7 @@ async def test_enqueue_stale_recalculations_multitype_fans_out_per_module_det():
 
     with (
         patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
-        patch("app.tasks.ingestion_tasks.asyncio.create_task"),
+        patch("app.tasks._background.fire_and_forget"),
         patch("app.tasks.emission_recalculation_tasks.run_recalculation_task"),
     ):
         await _enqueue_stale_recalculations(
@@ -131,7 +131,7 @@ async def test_enqueue_stale_recalculations_noop_when_no_stale():
 
     with (
         patch("app.tasks.ingestion_tasks.DataIngestionRepository", return_value=repo),
-        patch("app.tasks.ingestion_tasks.asyncio.create_task") as mock_create_task,
+        patch("app.tasks._background.fire_and_forget") as mock_create_task,
     ):
         await _enqueue_stale_recalculations(
             session,

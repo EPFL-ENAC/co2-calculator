@@ -26,10 +26,10 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._background import fire_and_forget
 from app.tasks.emission_recalculation_tasks import (
-    run_module_recalculation,
-    run_recalculation,
+    run_module_recalculation_task,
+    run_recalculation_task,
 )
-from app.tasks.ingestion_tasks import run_ingestion
+from app.tasks.ingestion_tasks import run_sync_task
 from app.tasks.unit_sync_tasks import SyncUnitRequest, run_sync_task_accred
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
@@ -254,13 +254,19 @@ async def sync_module_data_entries(
     # Commit job creation to database
     await db.commit()
 
-    # Schedule the ingestion task in the background
+    # Schedule the ingestion task in the background.  Hand the *async*
+    # ``run_sync_task`` to ``add_task`` (NOT the sync ``run_ingestion``
+    # wrapper) so FastAPI awaits it on the main event loop.  The sync
+    # wrapper used ``asyncio.run`` which builds a throwaway loop in a
+    # worker thread; any ``fire_and_forget`` Task created inside that
+    # throwaway loop is cancelled the instant the loop closes — that's
+    # exactly the bug that left recalc jobs stuck in RUNNING.
     # NOTE: file_path validation happens in provider.__init__()
     #   via _validate_file_path()
     # to prevent directory traversal attacks (e.g., /../../../etc/passwd)
     background_tasks.add_task(
-        run_ingestion,
-        provider_name=provider.__class__.__name__,
+        run_sync_task,
+        provider_class_name=provider.__class__.__name__,
         job_id=job_id,
         filters=syncRequest.filters or {},
     )
@@ -357,8 +363,8 @@ async def sync_module_factors(
     await db.commit()
 
     background_tasks.add_task(
-        run_ingestion,
-        provider_name=provider.__class__.__name__,
+        run_sync_task,
+        provider_class_name=provider.__class__.__name__,
         job_id=job_id,
         filters=syncRequest.filters or {},
     )
@@ -681,7 +687,7 @@ async def recalculate_emissions_for_type(
         )
 
     background_tasks.add_task(
-        run_recalculation,
+        run_recalculation_task,
         module_type_id=module_type_id.value,
         data_entry_type_id=data_entry_type_id.value,
         year=year,
@@ -771,7 +777,7 @@ async def recalculate_emissions_for_module(
         )
 
     background_tasks.add_task(
-        run_module_recalculation,
+        run_module_recalculation_task,
         module_type_id=module_type_id.value,
         data_entry_type_ids=det_ids,
         year=year,
