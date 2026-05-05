@@ -59,6 +59,7 @@ nav:
       - Tech Stack: architecture/08-tech-stack.md
       - Component Breakdown: architecture/09-component-breakdown.md
       - Data Flow: architecture/10-data-flow.md
+      - Data Pipeline (Two-Path): architecture/pipeline.md
       - Deployment Topology: architecture/11-deployment-topology.md
       - Scalability: architecture/12-scalability.md
       - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
