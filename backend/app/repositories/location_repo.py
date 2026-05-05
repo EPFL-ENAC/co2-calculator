@@ -65,10 +65,16 @@ class LocationRepository:
         # Use PostgreSQL trigram similarity for efficient searching
         # This works with our GIN indexes using gin_trgm_ops
         search_condition = or_(
-            text("name % :query").bindparams(bindparam("query", query)),
-            text("iata_code % :query").bindparams(bindparam("query", query)),
-            text("municipality % :query").bindparams(bindparam("query", query)),
-            text("keywords % :query").bindparams(bindparam("query", query)),
+            text("LOWER(name) % LOWER(:query)").bindparams(bindparam("query", query)),
+            text("LOWER(iata_code) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
+            text("LOWER(municipality) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
+            text("LOWER(keywords) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
         )
 
         statement = statement.where(search_condition)
@@ -77,18 +83,19 @@ class LocationRepository:
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
-        # Calculate relevance score using trigram similarity
-        # The % operator returns a similarity score between 0 and 1
+        # Calculate numeric relevance score using trigram similarity.
+        # The % operator above is only a boolean threshold match filter; similarity()
+        # returns the 0..1 score used here for ordering.
         relevance_score = case(
             # Exact matches get highest score (1.0)
             (text("LOWER(name) = LOWER(:exact_query)"), 1.0),
             # Similarity scores for partial matches
             else_=text("""
                 GREATEST(
-                    similarity(name, :query),
-                    similarity(iata_code, :query),
-                    similarity(municipality, :query),
-                    similarity(keywords, :query)
+                    COALESCE(similarity(LOWER(name), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(iata_code), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(municipality), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(keywords), LOWER(:query)), 0)
                 )
             """),
         ).label("relevance")
@@ -106,7 +113,7 @@ class LocationRepository:
         )
 
         # For airport searches, prioritize large_airport first
-        if transport_mode == TransportModeEnum.plane.value:
+        if transport_mode == TransportModeEnum.plane:
             airport_priority = case(
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,

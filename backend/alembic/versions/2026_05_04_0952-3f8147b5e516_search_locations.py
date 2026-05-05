@@ -51,6 +51,13 @@ def upgrade() -> None:
         f"CREATE INDEX {op.f('ix_locations_municipality')} ON locations "
         f"USING gin (municipality gin_trgm_ops)"
     )
+    # Remove obsolete collation-based indexes from the previous search strategy.
+    op.execute("DROP INDEX IF EXISTS idx_locations_name_fr")
+    op.execute("DROP INDEX IF EXISTS idx_locations_name_de")
+    op.execute("DROP INDEX IF EXISTS idx_locations_name_it")
+    op.execute("DROP INDEX IF EXISTS idx_locations_keywords_fr")
+    op.execute("DROP INDEX IF EXISTS idx_locations_keywords_de")
+    op.execute("DROP INDEX IF EXISTS idx_locations_keywords_it")
     # Reindex
     op.execute("REINDEX TABLE locations")
     # ### end Alembic commands ###
