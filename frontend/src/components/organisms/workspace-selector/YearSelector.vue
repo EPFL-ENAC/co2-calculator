@@ -55,6 +55,8 @@ const columns = computed<QTableColumn[]>(() => [
     :columns="columns"
     row-key="year"
     :rows-per-page-options="[ROWS_PER_PAGE]"
+    :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
   >
     <template #body="props">
       <q-tr

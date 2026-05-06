@@ -58,6 +58,7 @@
     :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -89,6 +90,13 @@
       </q-tr>
     </template>
     <template #pagination="scope">
+      <span v-if="scope.pagesNumber > 1" class="q-pa-sm">
+        {{
+          $t('pagination_info', {
+            count: scope.pagesNumber,
+          })
+        }}
+      </span>
       <q-btn
         icon="chevron_left"
         color="grey-8"
@@ -98,7 +106,6 @@
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-
       <q-btn
         icon="chevron_right"
         color="grey-8"

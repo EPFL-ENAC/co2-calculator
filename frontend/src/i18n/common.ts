@@ -488,4 +488,12 @@ export default {
     en: 'An error occurred: {status} {text}',
     fr: 'Une erreur est survenue : {status} {text}',
   },
+  rows_per_page: {
+    en: 'Records per page',
+    fr: 'Entrées par page',
+  },
+  pagination_info: {
+    en: '{count} pages',
+    fr: '{count} pages',
+  },
 };
