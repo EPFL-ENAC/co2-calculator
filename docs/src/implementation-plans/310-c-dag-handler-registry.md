@@ -93,67 +93,148 @@ that calls `chain_job(...)` per stale type (see below).
 
 ## Unified `run_job(job_id)` runner (`backend/app/tasks/runner.py`)
 
+> **Delivered: PR #1044.** Notes inline below mark where the shipped
+> shape diverges from the original sketch (driven by Copilot review on
+> #1044 and prior-PR contracts that landed in the meantime: #1026's
+> `started_at` atomic stamping inside `claim_job` and FINISHED-state
+> auto-stamp of `finished_at`).
+
 ```python
-import asyncio, logging
+import asyncio
 from app.db import SessionLocal
+from app.core.logging import get_logger
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._pod_id import POD_ID
 from app.tasks.registry import get_handler
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 async def run_job(job_id: int) -> None:
     """
     Single dispatch path for every job_type. Used by:
-      - endpoints (asyncio.create_task(run_job(id)) after creating a job)
-      - chain_job (asyncio.create_task(run_job(child_id)) after a parent finishes)
+      - endpoints (fire_and_forget(run_job(id)) after creating a job)
+      - chain_job (fire_and_forget(run_job(child_id)) after a parent commits)
       - the safety poller (Plan A)
     """
     async with SessionLocal() as job_session, SessionLocal() as data_session:
         repo = DataIngestionRepository(job_session)
         job = await repo.get_job_by_id(job_id)
         if job is None:
-            logger.error(f"Job {job_id} not found")
+            logger.error(f"run_job: job {job_id} not found")
             return
         if job.job_type is None:
-            logger.error(f"Job {job_id} has no job_type — refusing to dispatch")
+            logger.error(f"run_job: job {job_id} has no job_type — refusing to dispatch")
             return
+
+        # Capture job_type while it's narrowed to ``str`` by the check above;
+        # the post-claim re-fetch widens it back to Optional[str].
+        job_type: str = job.job_type
 
         if not await repo.claim_job(job_id, POD_ID):
             return  # another pod claimed it, or attempts exhausted, or finished
 
-        # claim_job already set state=RUNNING and is_current=TRUE; record started_at if new
-        if job.started_at is None:
-            await repo.set_started_at(job_id)
-            await job_session.commit()
+        # claim_job ran a raw SQL UPDATE (state=RUNNING, attempts++,
+        # locked_by, locked_at, AND started_at via func.coalesce — atomic
+        # with the RUNNING transition, see PR #1026).  The in-memory `job`
+        # still reflects the pre-claim row; re-fetch so handlers see the
+        # authoritative post-claim state.  A vanished row here = preempted
+        # in the gap (treat as such).
+        job = await repo.get_job_by_id(job_id)
+        if job is None:
+            logger.warning(f"run_job: job {job_id} disappeared after claim — exiting")
+            return
+
+        # Plain asyncio.create_task (NOT fire_and_forget): cancellation in
+        # the finally block is the expected shutdown path, and
+        # fire_and_forget's deliberate cancellation-WARNING (kept loud
+        # for diagnosing the 310-B incident) would fire on every successful
+        # run, drowning out genuine cancellations elsewhere.
+        heartbeat_task = asyncio.create_task(
+            _heartbeat_loop(job_id), name=f"heartbeat-{job_id}"
+        )
 
         try:
-            handler = get_handler(job.job_type)
-            meta = await handler(job, job_session, data_session)
-            await data_session.commit()
+            try:
+                handler = get_handler(job_type)
+                meta = await handler(job, job_session, data_session)
+                status_message = str(meta.get("status_message", "Success"))
+                metadata = dict(meta)
+                result = meta.get("result", IngestionResult.SUCCESS)
+                handler_succeeded = True
+            except Exception as exc:
+                logger.exception(
+                    f"run_job: handler for job_type={job_type!r} failed (job {job_id})"
+                )
+                status_message = str(exc)
+                metadata = {}
+                result = IngestionResult.ERROR
+                handler_succeeded = False
+
+            # Preemption check covers BOTH success AND error paths.  If a
+            # stale-lock sweep recovered this row mid-handler, a different
+            # pod may now own it; our writes — successful or error — must
+            # NOT race with the new owner.  Roll back data and skip the
+            # state update; the new owner closes out.
+            current = await repo.get_job_by_id(job_id)
+            if current is None or current.locked_by != POD_ID:
+                logger.warning(
+                    f"run_job: job {job_id} preempted "
+                    f"(locked_by={current and current.locked_by!r}); "
+                    "rolling back data writes and exiting without updating job state"
+                )
+                await data_session.rollback()
+                return
+
+            if handler_succeeded:
+                await data_session.commit()
+            else:
+                await data_session.rollback()
             await repo.update_ingestion_job(
                 job_id,
-                status_message=meta.get("status_message", "Success"),
-                metadata=meta,
+                status_message=status_message,
+                metadata=metadata,
                 state=IngestionState.FINISHED,
-                result=meta.get("result", IngestionResult.SUCCESS),
-                finished_at=True,
+                result=result,
+                # NOTE: no finished_at parameter — PR #1026 dropped that
+                # opt-in flag and made FINISHED auto-stamp the column.
             )
             await job_session.commit()
-        except Exception as exc:
-            logger.exception(f"Handler for {job.job_type} failed (job {job_id})")
-            await data_session.rollback()
-            await repo.update_ingestion_job(
-                job_id,
-                status_message=str(exc),
-                metadata={},
-                state=IngestionState.FINISHED,
-                result=IngestionResult.ERROR,
-                finished_at=True,
-            )
-            await job_session.commit()
+        finally:
+            heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                pass
 ```
+
+### Divergences from the original sketch
+
+These changes landed in PR #1044; future Tier-2 PRs build on the
+delivered shape, not the original code block above:
+
+1. **Single preempt-check + state-write site** for both branches. The
+   original sketch had separate FINISHED+SUCCESS and FINISHED+ERROR
+   blocks with no preempt-check on the error path; that would race a
+   new owner if the handler raised AFTER preemption.
+2. **Re-fetch `job` after `claim_job`.** `claim_job` runs as a raw
+   SQL `UPDATE` (not an ORM mutation), so the in-memory `job`
+   instance still shows the pre-claim row state. Handlers that
+   introspect `job.attempts` or `job.state` would see lies without
+   the refresh.
+3. **`set_started_at` is no longer called from the runner.** PR
+   #1026 moved `started_at` stamping inside `claim_job` itself
+   (atomic with the RUNNING transition via `func.coalesce`). The
+   `set_started_at` repo helper remains as a primitive but is
+   redundant in this path.
+4. **`finished_at` stamping is automatic.** PR #1026 dropped the
+   opt-in `finished_at: bool = False` flag from
+   `update_ingestion_job`; transition to `state=FINISHED`
+   auto-stamps the column.
+5. **Heartbeat uses plain `asyncio.create_task`** (not
+   `fire_and_forget`) so the deterministic `cancel()` + `await` in
+   `finally` doesn't trip the loud cancellation WARNING that
+   `fire_and_forget` emits.
 
 All endpoints switch from per-task functions to:
 
@@ -221,7 +302,9 @@ to bound recovery latency on real crashes.
 
 ## DAG chaining via `chain_job` helper
 
-Plan B's `_enqueue_stale_recalculations` becomes a special case of:
+> **Delivered: PR #1044.** Plan B's `_enqueue_stale_recalculations`
+> will fold into a `chain_job` call when its `factor_ingest` handler
+> is registered (Tier-2 PR #2).
 
 ```python
 # backend/app/tasks/runner.py
@@ -230,6 +313,7 @@ async def chain_job(
     parent: DataIngestionJob,
     *,
     job_type: str,
+    session: AsyncSession,
     module_type_id: Optional[int] = None,
     data_entry_type_id: Optional[int] = None,
     year: Optional[int] = None,
@@ -237,32 +321,52 @@ async def chain_job(
     target_type: TargetType = TargetType.DATA_ENTRIES,
     ingestion_method: IngestionMethod = IngestionMethod.computed,
     entity_type: EntityType = EntityType.MODULE_PER_YEAR,
-    session: AsyncSession,
 ) -> int:
     """
     Create a child job that inherits parent's pipeline_id and fire it via
-    asyncio.create_task. Safety poller picks up if pod crashes between commit
-    and create_task.
+    fire_and_forget. Safety poller picks up if pod crashes between commit
+    and fire_and_forget.
 
-    Returns child job_id.
+    ``module_type_id`` and ``year`` inherit from the parent when the
+    caller passes None.  ``data_entry_type_id`` is intentionally NOT
+    inherited: a multi-det parent (e.g. a FACTORS ingest spanning
+    several dets) fans out to one child per det, so the caller MUST
+    pass the specific det per call.
+
+    Returns child job_id.  If ``parent.pipeline_id`` is None, generates
+    a fresh UUID and persists it on the parent BEFORE creating the
+    child — so a pod-crash-then-recovery of the parent doesn't
+    generate a different UUID and orphan the child.
     """
+    repo = DataIngestionRepository(session)
+
+    pipeline_id = parent.pipeline_id
+    if pipeline_id is None:
+        pipeline_id = uuid4()
+        parent.pipeline_id = pipeline_id
+        session.add(parent)
+        await session.commit()
+
     child = DataIngestionJob(
         job_type           = job_type,
-        module_type_id     = module_type_id   if module_type_id   is not None else parent.module_type_id,
-        data_entry_type_id = data_entry_type_id,
-        year               = year             if year             is not None else parent.year,
+        module_type_id     = module_type_id if module_type_id is not None else parent.module_type_id,
+        data_entry_type_id = data_entry_type_id,  # NO inheritance — see docstring
+        year               = year if year is not None else parent.year,
         target_type        = target_type,
         ingestion_method   = ingestion_method,
         entity_type        = entity_type,
         state              = IngestionState.NOT_STARTED,
-        pipeline_id        = parent.pipeline_id,    # inherit grouping
-        run_after          = func.now(),
+        is_current         = False,
+        pipeline_id        = pipeline_id,
+        # NULL means "runnable immediately" — claim_job's WHERE treats
+        # NULL run_after as eligible.  Matches the existing
+        # ingestion_tasks.py recalc-job creation pattern.
+        run_after          = None,
         meta               = {"config": config or {}, "parent_job_id": parent.id},
     )
-    repo = DataIngestionRepository(session)
     created = await repo.create_ingestion_job(child)
     await session.commit()
-    asyncio.create_task(run_job(created.id))
+    fire_and_forget(run_job(created.id), name=f"run_job-{created.id}")
     return created.id
 ```
 
