@@ -192,10 +192,6 @@ export default {
     en: 'View Full Table',
     fr: 'Voir tout',
   },
-  common_no_results: {
-    en: 'No results',
-    fr: 'Aucun résultat',
-  },
   common_export_as_pdf: {
     en: 'Export as PDF',
     fr: 'Exporter en PDF',

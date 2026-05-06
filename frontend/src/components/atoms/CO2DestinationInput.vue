@@ -32,17 +32,6 @@
             @filter="(val, update) => filterFrom(val, update)"
             @update:model-value="handleFromSelection"
           >
-            <template #no-option>
-              <q-item>
-                <q-item-section class="text-grey">
-                  {{
-                    loadingFrom
-                      ? $t('common_searching') || 'Searching...'
-                      : $t('common_no_results') || 'No results'
-                  }}
-                </q-item-section>
-              </q-item>
-            </template>
             <template #option="scope">
               <q-item v-bind="scope.itemProps">
                 <q-item-section>
@@ -103,17 +92,6 @@
             @filter="(val, update) => filterTo(val, update)"
             @update:model-value="handleToSelection"
           >
-            <template #no-option>
-              <q-item>
-                <q-item-section class="text-grey">
-                  {{
-                    loadingTo
-                      ? $t('common_searching') || 'Searching...'
-                      : $t('common_no_results') || 'No results'
-                  }}
-                </q-item-section>
-              </q-item>
-            </template>
             <template #option="scope">
               <q-item v-bind="scope.itemProps">
                 <q-item-section>
