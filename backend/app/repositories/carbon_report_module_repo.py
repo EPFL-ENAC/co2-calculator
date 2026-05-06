@@ -137,6 +137,29 @@ class CarbonReportModuleRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_by_module_type_and_year(
+        self, module_type_id: int, year: int
+    ) -> List[CarbonReportModule]:
+        """List all modules for a given (module_type_id, year) slice.
+
+        ``module_type_id`` lives on ``CarbonReportModule``; ``year`` lives on
+        the parent ``CarbonReport``, so the filter joins through it.  Mirrors
+        ``get_by_year_and_unit`` minus the unit filter.
+        """
+        statement = (
+            select(CarbonReportModule)
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReportModule.module_type_id == module_type_id,
+                CarbonReport.year == year,
+            )
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
     ) -> Optional[CarbonReportModule]:
