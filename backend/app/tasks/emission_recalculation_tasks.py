@@ -25,6 +25,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._chain import chain_job
 from app.tasks.registry import register
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
@@ -85,10 +86,47 @@ async def emission_recalc_handler(
     result = (
         IngestionResult.SUCCESS if stats["errors"] == 0 else IngestionResult.WARNING
     )
+
+    # Plan 310-D — chain the aggregation handler instead of calling
+    # ``recompute_stats`` inline (the workflow no longer does it
+    # either).  ``dedup_active=True`` collapses N concurrent
+    # aggregation jobs for the same (module, year) into one — when
+    # ``factor_ingest`` fans out N ``emission_recalc`` children, each
+    # would otherwise queue its own follow-up aggregation.  The
+    # partial unique index ``uq_aggregation_active`` covers
+    # NOT_STARTED/QUEUED/RUNNING rows so the first child wins and the
+    # rest skip; the aggregation runs once after the fan-out (or
+    # while later siblings are still finishing — it reads the current
+    # snapshot of ``data_entry_emissions`` and produces correct stats
+    # for that snapshot, with the dedup window reopening on
+    # FINISHED).
+    #
+    # Skip when ``module_type_id`` is missing — every endpoint pins
+    # it for emission_recalc, but a defensive log + skip is safer
+    # than crashing the parent's FINISHED write.  The recalc itself
+    # already succeeded; the operator sees the missing aggregation
+    # via the dashboard's "stats stale" badge if they need it.
+    chained_aggregation_id = None
+    if job.module_type_id is not None and result == IngestionResult.SUCCESS:
+        chained_aggregation_id = await chain_job(
+            job,
+            job_type="aggregation",
+            module_type_id=job.module_type_id,
+            year=job.year,
+            session=job_session,
+            dedup_active=True,
+        )
+    elif job.module_type_id is None:
+        logger.warning(
+            f"emission_recalc job {job.id}: no module_type_id — "
+            "skipping aggregation chain"
+        )
+
     return {
         "status_message": "Emission recalculation completed",
         "result": result,
         "recalculation": stats,
+        "aggregation_job_id": chained_aggregation_id,
     }
 
 
@@ -194,10 +232,29 @@ async def module_emission_recalc_handler(
     else:
         final_result = IngestionResult.SUCCESS
 
+    # Plan 310-D — chain a single deduplicated aggregation child for
+    # the module + year scope.  Module-level recalc covers N data
+    # entry types in sequence; we want one aggregation pass at the
+    # end, not one per type.  ``dedup_active=True`` would also
+    # collapse concurrent fan-outs to the same scope, but in this
+    # handler we only ever issue one chain so it's primarily a
+    # safety net.
+    chained_aggregation_id = None
+    if final_result != IngestionResult.ERROR:
+        chained_aggregation_id = await chain_job(
+            job,
+            job_type="aggregation",
+            module_type_id=job.module_type_id,
+            year=job.year,
+            session=job_session,
+            dedup_active=True,
+        )
+
     return {
         "status_message": "Module emission recalculation completed",
         "result": final_result,
         "recalculation": per_type_stats,
         "total_recalculated": total_recalculated,
         "total_errors": total_errors,
+        "aggregation_job_id": chained_aggregation_id,
     }

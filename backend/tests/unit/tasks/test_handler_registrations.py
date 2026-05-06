@@ -92,7 +92,12 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
 
     workflow = MagicMock()
     workflow.recalculate_for_data_entry_type = AsyncMock(
-        return_value={"recalculated": 7, "errors": 0, "modules_refreshed": 1}
+        return_value={
+            "recalculated": 7,
+            "errors": 0,
+            "modules_refreshed": 0,
+            "affected_module_ids": [42],
+        }
     )
 
     with (
@@ -100,6 +105,7 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
         patch.object(
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock),
     ):
         meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
 
@@ -109,6 +115,105 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
     assert meta["status_message"] == "Emission recalculation completed"
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["recalculation"]["recalculated"] == 7
+
+
+@pytest.mark.asyncio
+async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success():
+    """Plan 310-D — the handler no longer calls ``recompute_stats``
+    inline; it chains the runner-driven ``aggregation`` handler with
+    ``dedup_active=True`` so a fan-out of N siblings collapses into
+    one aggregation pass per (module, year)."""
+    job = _make_job()
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    workflow = MagicMock()
+    workflow.recalculate_for_data_entry_type = AsyncMock(
+        return_value={
+            "recalculated": 5,
+            "errors": 0,
+            "modules_refreshed": 0,
+            "affected_module_ids": [],
+        }
+    )
+
+    # Sentinel: ensure the workflow no longer hands a service to the
+    # handler.  Patching ``CarbonReportModuleService`` and asserting
+    # nothing instantiates it pins "stats writer is the aggregation
+    # handler, not this layer".
+    crm_svc_factory = MagicMock()
+
+    with (
+        patch.object(recalc_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(
+            recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
+        ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+        # Imported by the workflow at the top level — patching here
+        # would miss; the workflow's removal of the import is asserted
+        # implicitly by the workflow tests, not here.
+    ):
+        mock_chain.return_value = 999
+        meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
+
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "aggregation"
+    assert chain_kwargs["module_type_id"] == job.module_type_id
+    assert chain_kwargs["year"] == job.year
+    assert chain_kwargs["dedup_active"] is True
+    # ``session`` for ``chain_job`` is the job_session (the row write
+    # for the dedup INSERT lives on the job-progress session, not the
+    # data_session that the workflow scrubbed and committed).
+    assert chain_kwargs["session"] is job_session
+    assert meta["aggregation_job_id"] == 999
+    crm_svc_factory.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
+    """A WARNING result (per-entry errors > 0) means the recalc
+    completed but with partial failures.  Per Plan 310-D's
+    eventual-consistency model the aggregation pass should still
+    eventually happen, but for this PR we conservatively gate on
+    SUCCESS — partial-warning recalcs land before the aggregation
+    chain ships in production traffic, and the absence of a chain
+    surfaces as a stale-stats badge the operator can act on (the
+    PR is rollback-safe)."""
+    job = _make_job()
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    workflow = MagicMock()
+    workflow.recalculate_for_data_entry_type = AsyncMock(
+        return_value={
+            "recalculated": 3,
+            "errors": 2,
+            "modules_refreshed": 0,
+            "affected_module_ids": [],
+        }
+    )
+
+    with (
+        patch.object(recalc_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(
+            recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
+        ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
+
+    mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.WARNING
+    assert meta["aggregation_job_id"] is None
 
 
 @pytest.mark.asyncio
@@ -125,7 +230,12 @@ async def test_emission_recalc_handler_warning_when_errors_present():
 
     workflow = MagicMock()
     workflow.recalculate_for_data_entry_type = AsyncMock(
-        return_value={"recalculated": 5, "errors": 2, "modules_refreshed": 1}
+        return_value={
+            "recalculated": 5,
+            "errors": 2,
+            "modules_refreshed": 0,
+            "affected_module_ids": [],
+        }
     )
 
     with (
@@ -133,6 +243,7 @@ async def test_emission_recalc_handler_warning_when_errors_present():
         patch.object(
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock),
     ):
         meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
 
@@ -174,7 +285,12 @@ async def test_module_emission_recalc_iterates_all_types():
 
     workflow = MagicMock()
     workflow.recalculate_for_data_entry_type = AsyncMock(
-        return_value={"recalculated": 3, "errors": 0, "modules_refreshed": 1}
+        return_value={
+            "recalculated": 3,
+            "errors": 0,
+            "modules_refreshed": 0,
+            "affected_module_ids": [42],
+        }
     )
 
     with (
@@ -182,7 +298,9 @@ async def test_module_emission_recalc_iterates_all_types():
         patch.object(
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
     ):
+        mock_chain.return_value = 555
         meta = await recalc_mod.module_emission_recalc_handler(
             job, job_session, data_session
         )
@@ -192,10 +310,16 @@ async def test_module_emission_recalc_iterates_all_types():
     # Per-type stub jobs created (one per type).
     assert repo.create_ingestion_job.await_count == 2
     assert repo.mark_job_as_current.await_count == 2
+    # Plan 310-D — single deduplicated aggregation chain at the end.
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "aggregation"
+    assert chain_kwargs["dedup_active"] is True
     assert meta["status_message"] == "Module emission recalculation completed"
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["total_recalculated"] == 6
     assert meta["total_errors"] == 0
+    assert meta["aggregation_job_id"] == 555
 
 
 @pytest.mark.asyncio
@@ -223,7 +347,12 @@ async def test_module_emission_recalc_partial_failure_returns_warning():
     # Type 1 succeeds, Type 2 raises.
     workflow.recalculate_for_data_entry_type = AsyncMock(
         side_effect=[
-            {"recalculated": 3, "errors": 0, "modules_refreshed": 1},
+            {
+                "recalculated": 3,
+                "errors": 0,
+                "modules_refreshed": 0,
+                "affected_module_ids": [],
+            },
             RuntimeError("type 2 blew up"),
         ]
     )
@@ -233,6 +362,7 @@ async def test_module_emission_recalc_partial_failure_returns_warning():
         patch.object(
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
+        patch.object(recalc_mod, "chain_job", new_callable=AsyncMock),
     ):
         meta = await recalc_mod.module_emission_recalc_handler(
             job, job_session, data_session

@@ -43,9 +43,6 @@ async def test_recalculate_all_success():
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
-        patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
         patch(
@@ -60,7 +57,6 @@ async def test_recalculate_all_success():
             return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         mock_response_cls.model_validate.return_value = mock_entry_response
 
         result = await svc.recalculate_for_data_entry_type(
@@ -70,7 +66,12 @@ async def test_recalculate_all_success():
     assert result["recalculated"] == 2
     assert result["errors"] == 0
     assert result["error_details"] == []
-    assert result["modules_refreshed"] == 1  # both entries in module 10
+    # Plan 310-D: stats writer moved to the runner-driven aggregation
+    # handler.  The workflow now reports the affected module ids so
+    # the runner can chain aggregation; ``modules_refreshed`` is
+    # retained for back-compat but always 0 from this layer.
+    assert result["modules_refreshed"] == 0
+    assert result["affected_module_ids"] == [10]
 
 
 @pytest.mark.asyncio
@@ -94,9 +95,6 @@ async def test_recalculate_partial_error():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
@@ -125,7 +123,6 @@ async def test_recalculate_partial_error():
                 raise ValueError("factor not found")
 
         mock_emission_cls.return_value.upsert_by_data_entry = _upsert
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
 
         result = await svc.recalculate_for_data_entry_type(
             DataEntryTypeEnum.plane, 2025
@@ -136,8 +133,11 @@ async def test_recalculate_partial_error():
     assert len(result["error_details"]) == 1
     assert result["error_details"][0]["data_entry_id"] == 2
     assert "factor not found" in result["error_details"][0]["error"]
-    # Only module 10 was successfully processed
-    assert result["modules_refreshed"] == 1
+    # Only module 10's entry succeeded — the failed entry's module is
+    # absent from ``affected_module_ids`` (the rollback drops it).
+    # ``modules_refreshed`` is always 0 now (handler chains aggregation).
+    assert result["modules_refreshed"] == 0
+    assert result["affected_module_ids"] == [10]
 
 
 @pytest.mark.asyncio
@@ -151,7 +151,6 @@ async def test_recalculate_empty_result():
             "app.workflows.emission_recalculation.DataEntryRepository"
         ) as mock_repo_cls,
         patch("app.workflows.emission_recalculation.DataEntryEmissionService"),
-        patch("app.workflows.emission_recalculation.CarbonReportModuleService"),
         patch("app.workflows.emission_recalculation.BaseModuleHandler"),
     ):
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
@@ -165,6 +164,7 @@ async def test_recalculate_empty_result():
     assert result["recalculated"] == 0
     assert result["errors"] == 0
     assert result["modules_refreshed"] == 0
+    assert result["affected_module_ids"] == []
     assert result["error_details"] == []
 
 
@@ -193,9 +193,6 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -212,7 +209,6 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
             return_value=[new_factor]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         # Strategy A handler: kind_field maps to a key in entry.data so
         # the gate ``handler.kind_field in entry.data`` evaluates True.
         strategy_a_handler = MagicMock()
@@ -248,9 +244,6 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -263,7 +256,6 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
             return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         # Handler with no kind_field (MagicMock attr is not in entry.data
         # so the rematch gate fails) — entry.data stays untouched.
         mock_handler_cls.get_by_type.return_value = MagicMock()
@@ -274,8 +266,12 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_recalculate_module_stats_called_once_per_module():
-    """recompute_stats is called exactly once per distinct CarbonReportModule."""
+async def test_recalculate_reports_affected_module_ids_for_chain():
+    """Plan 310-D — workflow no longer calls ``recompute_stats``;
+    instead it reports ``affected_module_ids`` so the calling handler
+    can chain a single deduplicated aggregation pass for the slice.
+    Distinct module ids in ``affected_module_ids`` == "modules whose
+    stats need refreshing once the recalc commits"."""
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 
@@ -298,9 +294,6 @@ async def test_recalculate_module_stats_called_once_per_module():
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
         patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
-        patch(
             "app.workflows.emission_recalculation.DataEntryResponse"
         ) as mock_response_cls,
         patch(
@@ -315,7 +308,6 @@ async def test_recalculate_module_stats_called_once_per_module():
             return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         mock_response_cls.model_validate.return_value = mock_entry_response
 
         result = await svc.recalculate_for_data_entry_type(
@@ -323,8 +315,11 @@ async def test_recalculate_module_stats_called_once_per_module():
         )
 
     assert result["recalculated"] == 3
-    assert result["modules_refreshed"] == 2
-    assert mock_module_cls.return_value.recompute_stats.await_count == 2
+    # Plan 310-D: workflow doesn't call recompute_stats anymore; the
+    # affected modules are reported up the chain so the handler can
+    # fire a single aggregation pass per (module, year) slice.
+    assert result["modules_refreshed"] == 0
+    assert sorted(result["affected_module_ids"]) == [10, 11]
 
 
 @pytest.mark.asyncio
@@ -357,9 +352,6 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -372,7 +364,6 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
             return_value=[]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         # Strategy B handler shape: kind_field set, but its value isn't
         # present in entry.data (would be derived via pre_compute).
         strategy_b_handler = MagicMock()
@@ -421,9 +412,6 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -446,7 +434,6 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock(
             side_effect=RuntimeError("compute blew up")
         )
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
@@ -508,9 +495,6 @@ async def test_recalculate_uses_single_factor_bulk_fetch():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -523,7 +507,6 @@ async def test_recalculate_uses_single_factor_bulk_fetch():
             return_value=[laptop_factor]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
@@ -578,9 +561,6 @@ async def test_recalculate_kind_only_fallback_in_dict():
         patch(
             "app.workflows.emission_recalculation.DataEntryEmissionService"
         ) as mock_emission_cls,
-        patch(
-            "app.workflows.emission_recalculation.CarbonReportModuleService"
-        ) as mock_module_cls,
         patch("app.workflows.emission_recalculation.DataEntryResponse"),
         patch(
             "app.workflows.emission_recalculation.BaseModuleHandler"
@@ -593,7 +573,6 @@ async def test_recalculate_kind_only_fallback_in_dict():
             return_value=[kind_only_factor]
         )
         mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
-        mock_module_cls.return_value.recompute_stats = AsyncMock()
         handler = MagicMock()
         handler.kind_field = "equipment_class"
         handler.subkind_field = "sub_class"
