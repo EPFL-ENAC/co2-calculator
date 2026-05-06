@@ -420,6 +420,10 @@ export default {
     en: 'Required',
     fr: 'Requis',
   },
+  validation_invalid_date_format: {
+    en: 'Invalid date format, expected YYYY/MM/DD or YYYY.MM.DD',
+    fr: 'Format de date invalide, attendu AAAA/MM/JJ ou AAAA.MM.JJ',
+  },
   validation_number_required: {
     en: 'Number required',
     fr: 'Nombre requis',
@@ -429,8 +433,8 @@ export default {
     fr: 'Doit être >= 0',
   },
   validation_max_hours_per_week: {
-    en: 'Max 168 hrs/wk',
-    fr: 'Max 168 h/sem',
+    en: 'Max usages 168 hrs/wk',
+    fr: 'Utilisations maximum 168 h/sem',
   },
   validation_must_be_at_least_one: {
     en: 'Must be at least 1',

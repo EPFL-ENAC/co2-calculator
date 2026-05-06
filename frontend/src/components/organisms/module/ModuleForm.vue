@@ -484,8 +484,11 @@ function getFilteredOptions(
 
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
-    if (!val || val === '') return required ? 'Required' : true;
-    return /^\d{4}[/.]\d{2}[/.]\d{2}$/.test(val) || 'Invalid date format';
+    if (!val || val === '') return required ? $t('validation_required') : true;
+    return (
+      /^\d{4}([/.])\d{2}\1\d{2}$/.test(val) ||
+      $t('validation_invalid_date_format')
+    );
   };
   return [dateFormatRule];
 }
@@ -549,16 +552,26 @@ function getTravelMode(): 'plane' | 'train' | undefined {
   return undefined;
 }
 
-function validateUsage(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
-  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
-  return { valid: true, parsed: n, error: null };
+function validateUsageHoursWeek(value: number) {
+  if (!Number.isFinite(value))
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (value < 0)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_non_negative'),
+    };
+  if (value > 168)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_max_hours_per_week'),
+    };
+  return { valid: true, parsed: value, error: null };
 }
 
 function init() {
@@ -696,6 +709,26 @@ watch(
   },
 );
 
+// Clear errors reactively when field values change
+watch(
+  () => ({ ...form }),
+  (newForm, oldForm) => {
+    Object.keys(newForm).forEach((key) => {
+      if (newForm[key] !== oldForm[key]) {
+        if (
+          key === 'active_usage_hours_per_week' ||
+          key === 'standby_usage_hours_per_week'
+        ) {
+          errors['active_usage_hours_per_week'] = null;
+          errors['standby_usage_hours_per_week'] = null;
+        } else {
+          errors[key] = null;
+        }
+      }
+    });
+  },
+);
+
 function fieldComponent(type: string): Component {
   switch (type) {
     case 'select':
@@ -713,22 +746,33 @@ function fieldComponent(type: string): Component {
 
 function validateField(i: ModuleField) {
   const v = form[i.id];
-  const effectiveType = i.type;
   errors[i.id] = null;
 
   if (
     i.id === 'active_usage_hours_per_week' ||
     i.id === 'standby_usage_hours_per_week'
   ) {
-    const validation = validateUsage(v);
+    const v_active = Number(form['active_usage_hours_per_week']) || 0;
+    const v_standby = Number(form['standby_usage_hours_per_week']) || 0;
+    const validation = validateUsageHoursWeek(v_active + v_standby);
     if (!validation.valid) {
-      errors[i.id] = validation.error;
+      errors['active_usage_hours_per_week'] = validation.error;
+      errors['standby_usage_hours_per_week'] = validation.error;
       return false;
     }
-    form[i.id] = validation.parsed as FieldValue;
+    if (v === null || v === undefined || v === '') {
+      form[i.id] = null;
+      if (i.required) {
+        errors[i.id] = $t('validation_required');
+        return false;
+      }
+      return true;
+    }
+    form[i.id] = Number(v) as FieldValue;
     return true;
   }
 
+  const effectiveType = i.type;
   // Handle direction-input validation (check origin and destination)
   if (effectiveType === 'direction-input') {
     // Clear previous errors
@@ -747,18 +791,25 @@ function validateField(i: ModuleField) {
     }
 
     // Check if origin and destination are the same
-    const originValue = String(form.origin || '').trim();
-    const destinationValue = String(form.destination || '').trim();
-    if (originValue && destinationValue && originValue === destinationValue) {
-      const errorMessage = $t(
-        `${MODULES.ProfessionalTravel}-error-same-destination`,
-      );
-      errors.origin = errorMessage;
-      errors.destination = errorMessage;
-      return false;
+    if (
+      Object.keys(form).includes('origin') &&
+      Object.keys(form).includes('destination')
+    ) {
+      const originValue = String(form.origin || '').trim();
+      const destinationValue = String(form.destination || '').trim();
+      if (originValue && destinationValue && originValue === destinationValue) {
+        const errorMessage = $t(
+          `${MODULES.ProfessionalTravel}-error-same-destination`,
+        );
+        errors.origin = errorMessage;
+        errors.destination = errorMessage;
+        return false;
+      }
+
+      return !errors.origin && !errors.destination;
     }
 
-    return !errors.origin && !errors.destination;
+    return true;
   }
 
   // Skip validation for subkind fields with no available options (class has no sub-classes)
