@@ -191,7 +191,7 @@ async def _wait_for_child_recalc_job(
     Sf, parent_job_id: int, *, timeout: float = POLL_TIMEOUT_SECONDS
 ) -> DataIngestionJob:
     """Find the recalc child job spawned by the factor_ingest handler's
-    fan-out (Plan 310-C: ``runner.chain_job`` stamps ``parent_job_id``
+    fan-out (Plan 310-C: ``_chain.chain_job`` stamps ``parent_job_id``
     at ``meta.parent_job_id``).  Falls back to the legacy
     ``meta.config.parent_job_id`` location for backward-compatibility
     with rows pre-310C."""

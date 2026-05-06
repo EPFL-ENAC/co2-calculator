@@ -3,7 +3,7 @@
 Plan 310-B's ``_enqueue_stale_recalculations`` was folded into the
 ``factor_ingest_handler``'s post-success block (Plan 310-C runner
 cutover); the helper is now ``_chain_recalc_for_stale``, which calls
-``runner.chain_job`` once per stale ``(module, det)``.  These tests
+``_chain.chain_job`` once per stale ``(module, det)``.  These tests
 exercise that helper directly against a real Postgres engine —
 mirroring the original 310-B fan-out tests but against the new
 shape.
@@ -76,9 +76,11 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
         session.add(parent)
         await session.commit()
 
-    # The handler module re-exports chain_job; patch it on the runner
-    # to suppress the post-create fire_and_forget(run_job(child_id))
-    # — we only assert that the child rows landed correctly.
+    # ``chain_job`` lives in ``app.tasks._chain`` (extracted from runner
+    # to break the static import cycle CodeQL flagged on PR #1050).
+    # Patch ``fire_and_forget`` there to suppress the post-create
+    # ``run_job(child_id)`` dispatch — we only assert that the child
+    # rows landed correctly.
     def _noop_fire(coro, *, name=None):
         coro.close()
         return AsyncMock()
@@ -99,7 +101,7 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
             )
         ).scalar_one()
 
-        with patch("app.tasks.runner.fire_and_forget", side_effect=_noop_fire):
+        with patch("app.tasks._chain.fire_and_forget", side_effect=_noop_fire):
             chained = await _chain_recalc_for_stale(parent_row, session)
 
     expected_dets = {
@@ -166,7 +168,7 @@ async def test_fanout_creates_single_child_for_single_type_parent(pg_dsn):
             )
         ).scalar_one()
 
-        with patch("app.tasks.runner.fire_and_forget", side_effect=_noop_fire):
+        with patch("app.tasks._chain.fire_and_forget", side_effect=_noop_fire):
             chained = await _chain_recalc_for_stale(parent_row, session)
 
     assert chained == 1
