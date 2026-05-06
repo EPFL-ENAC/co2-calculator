@@ -91,9 +91,9 @@ class EmissionRecalculationWorkflow:
         # ``kind_field`` OR when no entry actually carries that key in
         # ``entry.data``.  Strategy B handlers (e.g.
         # professional_travel/plane) declare ``kind_field`` but derive
-        # the value in ``pre_compute`` — every entry would fail
-        # ``should_refresh`` below, so prefetching factors here would be
-        # a wasted SELECT per recalc slice.
+        # the value in ``pre_compute`` — every entry would fail the
+        # per-entry refresh gate below, so prefetching factors here
+        # would be a wasted SELECT per recalc slice.
         if handler.kind_field is not None and any(
             handler.kind_field in e.data for e in entries
         ):
@@ -146,19 +146,18 @@ class EmissionRecalculationWorkflow:
             # a fallback for dict misses (kind value the bulk query
             # didn't see, e.g. a stale entry whose classification no
             # longer appears in the current factor set).
-            should_refresh = (
-                handler.kind_field is not None and handler.kind_field in entry.data
-            )
+            # Bind ``kind_field`` to a local up-front so the type-narrowing
+            # ``is not None`` check below directly proves it to mypy at the
+            # ``_lookup_factor_id`` call site (signature requires ``str``).
+            # Avoids an ``assert`` in production, which bandit B101 flags
+            # because asserts are stripped under ``python -O``.
+            kind_field = handler.kind_field
             old_data = entry.data
             try:
-                if should_refresh:
-                    # ``should_refresh`` is True iff ``handler.kind_field is not
-                    # None``; bind to a local non-Optional so ``_lookup_factor_id``
-                    # type-checks against its ``kind_field: str`` signature.
-                    assert handler.kind_field is not None
+                if kind_field is not None and kind_field in entry.data:
                     new_factor_id = self._lookup_factor_id(
                         entry_data=entry.data,
-                        kind_field=handler.kind_field,
+                        kind_field=kind_field,
                         subkind_field=handler.subkind_field,
                         factor_lookup=factor_lookup,
                     )
