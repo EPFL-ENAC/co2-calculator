@@ -114,6 +114,7 @@ export interface Submodule {
   hasTableAction?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
+  notifyInfoOnAddKey?: string;
   requiredFieldIds?: string[];
   csvTemplateHeaders?: string[];
 }

@@ -110,6 +110,7 @@ import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { Notify } from 'quasar';
 interface Option {
   label: string;
   value: string;
@@ -268,6 +269,12 @@ async function submitForm(payload: Record<string, FieldValue>) {
         props.submoduleType,
         payload,
       );
+      if (props.submodule.notifyInfoOnAddKey) {
+        Notify.create({
+          type: 'info',
+          message: t(props.submodule.notifyInfoOnAddKey),
+        });
+      }
     } catch (err: unknown) {
       // Replace generic "user institutional id" in server error messages with
       // the institution-specific label (SCIPER for EPFL).
