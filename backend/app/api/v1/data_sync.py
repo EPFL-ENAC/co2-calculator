@@ -1,6 +1,7 @@
 import asyncio
 import json
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -94,6 +95,37 @@ class ModuleRecalculationStatus(BaseModel):
     year: int
     needs_recalculation: bool
     data_entry_types: list[RecalculationStatus]
+
+
+class PipelineJobResponse(BaseModel):
+    """Single ``DataIngestionJob`` row inside a multi-step pipeline run.
+
+    Plan 310C — surfaces the columns dashboards need to render the chain
+    parent + fan-out children produced by ``_enqueue_stale_recalculations``.
+
+    TODO(#1026): once ``started_at`` / ``finished_at`` columns land on
+    ``data_ingestion_jobs``, extend this schema and the endpoint mapping
+    below to return them so the UI can show per-step durations.  Leaving
+    them out here keeps this PR mergeable on top of ``dev`` before #1026.
+    """
+
+    job_id: int
+    job_type: Optional[str] = None
+    state: Optional[IngestionState] = None
+    result: Optional[IngestionResult] = None
+    target_type: Optional[TargetType] = None
+    status_message: Optional[str] = None
+    module_type_id: Optional[int] = None
+    data_entry_type_id: Optional[int] = None
+    year: Optional[int] = None
+
+
+class PipelineResponse(BaseModel):
+    """Wrapper for ``GET /sync/pipelines/{pipeline_id}`` — pipeline UUID
+    plus the ordered job list (parent first, then fan-out children)."""
+
+    pipeline_id: UUID
+    jobs: list[PipelineJobResponse]
 
 
 @router.post("/dispatch", response_model=SyncStatusResponse)
@@ -599,6 +631,54 @@ async def get_recalculation_status(
         )
         for module_id, dets in modules.items()
     ]
+
+
+@router.get("/pipelines/{pipeline_id}", response_model=PipelineResponse)
+async def get_pipeline_jobs(
+    pipeline_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> PipelineResponse:
+    """Return every job in a multi-step pipeline run, ordered by id.
+
+    **Required Permission**: ``backoffice.data_management.view``
+
+    Plan 310C — ``_enqueue_stale_recalculations`` (310B) stamps the same
+    ``pipeline_id`` on the parent FACTORS job and every fan-out
+    DATA_ENTRIES child it seeds.  The dashboard uses this endpoint to
+    render the whole chain, not just the parent.
+
+    Returns 404 when no jobs share the given ``pipeline_id`` — matches
+    the convention of other lookup endpoints in this module
+    (``cancel_job``, ``recover_job``).
+    """
+    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
+    if not jobs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No jobs found for pipeline_id {pipeline_id}",
+        )
+
+    return PipelineResponse(
+        pipeline_id=pipeline_id,
+        jobs=[
+            PipelineJobResponse(
+                job_id=job.id,
+                job_type=job.job_type,
+                state=job.state,
+                result=job.result,
+                target_type=job.target_type,
+                status_message=job.status_message,
+                module_type_id=job.module_type_id,
+                data_entry_type_id=job.data_entry_type_id,
+                year=job.year,
+            )
+            for job in jobs
+            if job.id is not None
+        ],
+    )
 
 
 @router.post(

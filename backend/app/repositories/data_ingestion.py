@@ -1,6 +1,7 @@
 import enum
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, TypedDict
+from uuid import UUID
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -124,6 +125,23 @@ class DataIngestionRepository:
     async def get_jobs_by_year(self, year: int) -> List[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.year == year)
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
+
+    async def list_jobs_by_pipeline_id(
+        self, pipeline_id: UUID
+    ) -> List[DataIngestionJob]:
+        """Return every job that shares the given ``pipeline_id``.
+
+        Plan 310C — backs the ``GET /sync/pipelines/{pipeline_id}`` endpoint
+        so dashboards can render the whole multi-step run (parent + fan-out
+        children seeded by ``_enqueue_stale_recalculations``) in id order.
+        """
+        stmt = (
+            select(DataIngestionJob)
+            .where(DataIngestionJob.pipeline_id == pipeline_id)
+            .order_by(col(DataIngestionJob.id).asc())
+        )
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
 
