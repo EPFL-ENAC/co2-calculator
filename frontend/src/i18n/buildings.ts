@@ -35,6 +35,10 @@ export default {
     en: 'Add a room',
     fr: 'Ajouter un local',
   },
+  [`${MODULES.Buildings}-rooms-form-add-info`]: {
+    en: 'Please notify the Archibus administrator of any changes so that the data in Archibus can be updated and permanently reflected in the system.',
+    fr: "Veuillez informer le gestionnaire d'Archibus de toute modification afin d'adapter les données dans Archibus pour qu'elles soient mises à jour de manière définitive dans le système.",
+  },
   [`${MODULES.Buildings}-building-form-title`]: {
     en: 'Add a room',
     fr: 'Ajouter un local',
@@ -42,7 +46,7 @@ export default {
 
   [`${MODULES.Buildings}-building-table-title-info-tooltip`]: {
     en: 'Rooms surfaces are extracted from Archibus and energy consumption data per type of surface are provided by the VPO based on building-specific measurements.',
-    fr: 'Les surfaces des locaux sont extraites d’Archibus et les données de consommation énergétique par type de surface sont fournies par la VPO sur la base de mesures spécifiques aux bâtiments EPFL.',
+    fr: "Les surfaces des locaux sont extraites d'Archibus et les données de consommation énergétique par type de surface sont fournies par la VPO sur la base de mesures spécifiques aux bâtiments EPFL.",
   },
   [`${MODULES.Buildings}-energy_combustion-form-title`]: {
     en: 'Add a heating type',

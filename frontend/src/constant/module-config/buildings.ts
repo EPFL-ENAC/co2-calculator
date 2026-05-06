@@ -228,6 +228,8 @@ export const buildings: ModuleConfig = {
       tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
       moduleFields: roomFields,
       hasTableAction: true,
+      hasFormTooltip: false,
+      notifyInfoOnAddKey: `${MODULES.Buildings}-rooms-form-add-info`,
       addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
     },
   ],
