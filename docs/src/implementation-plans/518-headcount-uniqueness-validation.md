@@ -5,6 +5,7 @@ last_updated: 2026-03-10
 title: "Plan: Headcount `user_institutional_id` — Uniqueness Validation + Institution Label"
 summary: "The headcount module stores a userinstitutionalid (SCIPER at EPFL) per member entry."
 ---
+
 # Plan: Headcount `user_institutional_id` — Uniqueness Validation + Institution Label
 
 ## Context

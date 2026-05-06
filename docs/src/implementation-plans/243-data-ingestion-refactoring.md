@@ -5,6 +5,7 @@ last_updated: 2026-03-18
 title: "CSV Data Entry Type Resolution Refactoring"
 summary: "Refactored CSV data ingestion to use module-specific category columns instead of the generic dataentrytype column. This makes the CSV ingestion more explicit and type-safe per module."
 ---
+
 # CSV Data Entry Type Resolution Refactoring
 
 ## Summary

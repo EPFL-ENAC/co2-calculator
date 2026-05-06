@@ -5,6 +5,7 @@ last_updated: 2026-03-24
 title: "Source Tracking Implementation Summary"
 summary: "Both columns are indexed for query performance."
 ---
+
 # Source Tracking Implementation Summary
 
 ## Overview

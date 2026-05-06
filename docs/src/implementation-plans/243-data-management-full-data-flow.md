@@ -5,6 +5,7 @@ last_updated: 2026-03-25
 title: "Implementation Complete: Delete-Before-Insert Pattern for Factors"
 summary: "Successfully implemented the delete-before-insert pattern for CSV factor uploads to ensure idempotency and prevent duplicate factors."
 ---
+
 todo-for-dataentry
 
 1. [x] replace factors on upload (basic)

@@ -60,7 +60,7 @@ Scopes determine which **data records** a user can see:
 
 ## Resources
 
-A *resource* is a single data record (a specific headcount entry, a single
+A _resource_ is a single data record (a specific headcount entry, a single
 travel record, etc.). Resource-level policy can enforce business rules that
 generic permission checks cannot, e.g. "API trips are read-only" — see
 [audit](./audit.md) and [matrix](./matrix.md).
@@ -75,11 +75,11 @@ The backend returns a **flat** dictionary keyed by dot-notation path, with a
 ```json
 {
   "permissions": {
-    "backoffice.reporting":       ["view", "export"],
-    "backoffice.users":           ["view", "edit", "export"],
+    "backoffice.reporting": ["view", "export"],
+    "backoffice.users": ["view", "edit", "export"],
     "backoffice.data_management": ["view", "edit", "export", "sync"],
-    "backoffice.documentation":   ["view", "edit"],
-    "modules.headcount/0184":     ["view", "edit", "sync"],
+    "backoffice.documentation": ["view", "edit"],
+    "modules.headcount/0184": ["view", "edit", "sync"],
     "modules.professional_travel/0184": ["view", "edit", "sync"]
   }
 }

@@ -5,6 +5,7 @@ last_updated: 2026-02-04
 title: "Implementation Plan: Unify CSV Upload Ingestion"
 summary: "Unify CSV upload + API sync under one job-creation pipeline that stores file paths in job meta, dispatches providers via the factory, and exposes job status via SSE."
 ---
+
 # Implementation Plan: Unify CSV Upload Ingestion
 
 ## Goal

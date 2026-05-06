@@ -111,7 +111,7 @@ and `docs/src/implementation-plans/310-b-factor-pipeline.md`.
   stale-factor query and the recommended cadence.
 - Seed-only behavior: factors omitted from a re-seeded CSV are
   gone. Seed scripts must remain authoritative for the `(type,
-  year)` they touch.
+year)` they touch.
 
 **Future direction**: surface the stale-factor list in the
 operator UI (badges, bulk-archive action) so production cleanup

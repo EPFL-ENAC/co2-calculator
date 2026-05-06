@@ -2,8 +2,9 @@
 status: delivered
 last_updated: 2026-03-12
 title: "Fix: sub_class field disabled state in ModuleForm"
-summary: "When an equipmentclass (e.g. \"3D printer\") has an empty subclass array from /api/v1/factors/{id}/class-subclass-map, the subclass field should be hidden/disabled. This worked in ModuleTable (via..."
+summary: 'When an equipmentclass (e.g. "3D printer") has an empty subclass array from /api/v1/factors/{id}/class-subclass-map, the subclass field should be hidden/disabled. This worked in ModuleTable (via...'
 ---
+
 # Fix: sub_class field disabled state in ModuleForm
 
 ## Bug

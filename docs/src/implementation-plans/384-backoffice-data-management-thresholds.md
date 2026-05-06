@@ -5,6 +5,7 @@ last_updated: 2026-04-02
 title: "Feature Overview (Why?)"
 summary: "In the calculator a carbon footprint appears in red if crossing a certain threshold, as defined in Data mgt."
 ---
+
 ## 🎯 Feature Overview (Why?)
 
 In the calculator a carbon footprint appears in red if crossing a certain threshold, as defined in Data mgt.

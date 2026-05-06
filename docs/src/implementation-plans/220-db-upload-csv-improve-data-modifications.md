@@ -5,6 +5,7 @@ last_updated: 2026-04-01
 title: "PRD — CSV Upload Feature"
 summary: "The CSV Upload feature allows users to load machine-generated data (emission factors, synthetic data, and other module inputs) into the database from any module table. The backend implementation, UI, permissions,..."
 ---
+
 # PRD — CSV Upload Feature
 
 **CO2 Calculator · Data Ingestion Module**

@@ -40,25 +40,25 @@ understand why certain choices were made.
 
 ### Infrastructure & Operations
 
-| ADR                                           | Decision                                     | Status      | Key Rationale                            |
-| --------------------------------------------- | -------------------------------------------- | ----------- | ---------------------------------------- |
-| [ADR-010](./010-background-job-processing.md) | In-process asyncio + 10s safety-net poller   | ✅ Accepted | No new infra; Celery deferred            |
-| [ADR-013](./013-object-storage-strategy.md)   | Local filesystem, S3 optional                | 📋 Planned  | Zero-config dev, scalable prod           |
-| [ADR-015](./015-claim-job-atomic-state-is-current.md) | Atomic claim_job on (state, is_current)      | ✅ Accepted | Closes pod-collision race                |
-| [ADR-016](./016-pipeline-two-path-principle.md)       | Two-path principle (interactive vs bulk)     | ✅ Accepted (principle); ownership split partially delivered | Single-writer-per-path is the target; stats today still inline in legacy paths |
+| ADR                                                   | Decision                                   | Status                                                       | Key Rationale                                                                  |
+| ----------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| [ADR-010](./010-background-job-processing.md)         | In-process asyncio + 10s safety-net poller | ✅ Accepted                                                  | No new infra; Celery deferred                                                  |
+| [ADR-013](./013-object-storage-strategy.md)           | Local filesystem, S3 optional              | 📋 Planned                                                   | Zero-config dev, scalable prod                                                 |
+| [ADR-015](./015-claim-job-atomic-state-is-current.md) | Atomic claim_job on (state, is_current)    | ✅ Accepted                                                  | Closes pod-collision race                                                      |
+| [ADR-016](./016-pipeline-two-path-principle.md)       | Two-path principle (interactive vs bulk)   | ✅ Accepted (principle); ownership split partially delivered | Single-writer-per-path is the target; stats today still inline in legacy paths |
 
 ### Data Pipeline
 
-| ADR                                                       | Decision                                | Status      | Key Rationale                          |
-| --------------------------------------------------------- | --------------------------------------- | ----------- | -------------------------------------- |
-| [ADR-011](./011-factor-classification-jsonb.md)           | factors.classification → JSONB          | ✅ Accepted | Deterministic key order, real uniqueness |
-| [ADR-018](./018-factor-csv-delete-before-insert.md)       | Factor CSV idempotency (upsert in prod, delete-before-insert in seeds) | ✅ Accepted | Production: upsert + last_seen_job_id; seeds: scoped delete-before-insert |
+| ADR                                                 | Decision                                                               | Status      | Key Rationale                                                             |
+| --------------------------------------------------- | ---------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------- |
+| [ADR-011](./011-factor-classification-jsonb.md)     | factors.classification → JSONB                                         | ✅ Accepted | Deterministic key order, real uniqueness                                  |
+| [ADR-018](./018-factor-csv-delete-before-insert.md) | Factor CSV idempotency (upsert in prod, delete-before-insert in seeds) | ✅ Accepted | Production: upsert + last_seen_job_id; seeds: scoped delete-before-insert |
 
 ### Auth & Identity
 
-| ADR                                                   | Decision                              | Status      | Key Rationale                          |
-| ----------------------------------------------------- | ------------------------------------- | ----------- | -------------------------------------- |
-| [ADR-017](./017-me-endpoint-async-role-sync.md)       | /me pure DB read; /refresh async sync | ✅ Accepted | ~8ms /me; eventual 15-min consistency  |
+| ADR                                             | Decision                              | Status      | Key Rationale                         |
+| ----------------------------------------------- | ------------------------------------- | ----------- | ------------------------------------- |
+| [ADR-017](./017-me-endpoint-async-role-sync.md) | /me pure DB read; /refresh async sync | ✅ Accepted | ~8ms /me; eventual 15-min consistency |
 
 ## Planned Decisions
 

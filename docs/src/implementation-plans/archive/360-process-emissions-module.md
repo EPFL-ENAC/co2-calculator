@@ -3,7 +3,7 @@ status: abandoned
 issue: 360
 last_updated: 2026-02-19
 title: "Process Emissions Module — Implementation Plan"
-summary: "Per issue #31 and the committee decision on 19-01-2026, the Infrastructure module is being split. The existing Infrastructure module (ID=3) continues to handle buildings. A new \"Process Emissions\" module (ID=8) is..."
+summary: 'Per issue #31 and the committee decision on 19-01-2026, the Infrastructure module is being split. The existing Infrastructure module (ID=3) continues to handle buildings. A new "Process Emissions" module (ID=8) is...'
 ---
 
 > **ARCHIVED:** This plan was not delivered. Preserved for context.

@@ -121,11 +121,11 @@ flowchart TD
 
    ```javascript
    const yearConfig = useYearConfigStore();
-   console.log('Config:', yearConfig.config);
-   console.log('Not found:', yearConfig.notFound);
+   console.log("Config:", yearConfig.config);
+   console.log("Not found:", yearConfig.notFound);
 
    const dataManagement = useBackofficeDataManagement();
-   console.log('Sync jobs:', dataManagement.syncJobs);
+   console.log("Sync jobs:", dataManagement.syncJobs);
    ```
 
 2. **Verify API responses:** open the Network tab and filter by
@@ -135,7 +135,7 @@ flowchart TD
 
    ```javascript
    const store = useBackofficeDataManagement();
-   console.log('SSE Connection:', store.sseConnection);
+   console.log("SSE Connection:", store.sseConnection);
    ```
 
 ## i18n Keys

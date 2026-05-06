@@ -5,6 +5,7 @@ last_updated: 2026-03-10
 title: "Plan: Travel — Link Traveler Selection to Headcount (Issue #372)"
 summary: "Travel entries currently store travelername as a free-text string and travelerid."
 ---
+
 # Plan: Travel — Link Traveler Selection to Headcount (Issue #372)
 
 ## Context

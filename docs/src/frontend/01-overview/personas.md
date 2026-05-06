@@ -111,15 +111,15 @@ Key gates:
 
 ## Where Things Live
 
-| Concern                 | Code path                                                |
-| ----------------------- | -------------------------------------------------------- |
-| Login                   | `pages/app/LoginPage.vue`, `stores/auth.ts`              |
-| Workspace selection     | `pages/app/WorkspaceSetupPage.vue`, `stores/workspace.ts`|
-| Module data entry       | `pages/app/ModulePage.vue`, `components/organisms/module`|
-| Results                 | `pages/app/ResultsPage.vue` (consolidated)               |
-| Back-office data        | `pages/back-office/DataManagementPage.vue`               |
-| Audit                   | `pages/system/LogsPage.vue`, `components/audit/`         |
-| Route guards            | `frontend/src/router/guards/`                            |
+| Concern             | Code path                                                 |
+| ------------------- | --------------------------------------------------------- |
+| Login               | `pages/app/LoginPage.vue`, `stores/auth.ts`               |
+| Workspace selection | `pages/app/WorkspaceSetupPage.vue`, `stores/workspace.ts` |
+| Module data entry   | `pages/app/ModulePage.vue`, `components/organisms/module` |
+| Results             | `pages/app/ResultsPage.vue` (consolidated)                |
+| Back-office data    | `pages/back-office/DataManagementPage.vue`                |
+| Audit               | `pages/system/LogsPage.vue`, `components/audit/`          |
+| Route guards        | `frontend/src/router/guards/`                             |
 
 For the underlying request/response model, see
 [Auth Flow Across Layers](../../architecture/04-auth-flow.md) and

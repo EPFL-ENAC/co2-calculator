@@ -5,6 +5,7 @@ last_updated: 2026-03-09
 title: "Plan: Job History Panel + Per-Row Sync Progress"
 summary: "4. Add clearJobHistory() action: jobHistory.value = []."
 ---
+
 # Plan: Job History Panel + Per-Row Sync Progress
 
 **TL;DR:** Extend the Pinia store to record all SSE updates per job in-memory. Show a collapsible "Job History" panel below the import table with full per-job detail (stats, row errors, raw JSON). Add an inline indeterminate progress bar per table row while that row's sync is active.

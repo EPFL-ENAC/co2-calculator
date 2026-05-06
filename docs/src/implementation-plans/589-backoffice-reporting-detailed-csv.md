@@ -5,6 +5,7 @@ last_updated: 2026-03-31
 title: "PRD 3 — Detailed CSVs (`*_data.csv`)"
 summary: "Provide raw, traceable, and schema-specific data for each data entry type."
 ---
+
 # 📄 PRD 3 — Detailed CSVs (`*_data.csv`)
 
 ## 1. Objective

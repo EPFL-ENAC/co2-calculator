@@ -5,6 +5,7 @@ last_updated: 2026-03-02
 title: "Emission Type Migration — Implementation Plan"
 summary: "We are replacing the old EmissionTypeEnum (int-based, flat) with a new."
 ---
+
 # Emission Type Migration — Implementation Plan
 
 # Spec-Driven Development

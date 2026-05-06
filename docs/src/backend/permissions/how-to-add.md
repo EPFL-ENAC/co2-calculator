@@ -94,7 +94,9 @@ if resource_type == "your_new_resource":
 
 ```typescript
 const canEdit = hasPermission(
-  permissions, "backoffice.your_new_resource", "edit",
+  permissions,
+  "backoffice.your_new_resource",
+  "edit",
 );
 ```
 
@@ -106,7 +108,7 @@ only.
 
 - Unit: assert 403 for unauthorised callers, 200 for authorised ones.
 - Integration: verify scope filtering with `standard / principal /
-  superadmin` fixtures.
+superadmin` fixtures.
 - Update the [matrix](./matrix.md) row for the new permission.
 
 ## 7. Document and ship

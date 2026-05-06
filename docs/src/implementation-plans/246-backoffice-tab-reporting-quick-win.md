@@ -5,6 +5,7 @@ last_updated: 2026-03-09
 title: "Filters"
 summary: "(see plan content)"
 ---
+
 ## 🔍 Filters
 
 ### General behavior

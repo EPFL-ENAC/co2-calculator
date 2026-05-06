@@ -5,6 +5,7 @@ last_updated: 2026-04-02
 title: "Lighthouse CI: Frontend Route Coverage"
 summary: "Lighthouse CI previously only audited the login page because all."
 ---
+
 # Lighthouse CI: Frontend Route Coverage
 
 Lighthouse CI previously only audited the login page because all

@@ -2,8 +2,9 @@
 status: delivered
 last_updated: 2026-03-20
 title: "Authentication Hardening Implementation Summary"
-summary: "This document summarizes the implementation of the \"Harden Authentication Identity Resolution\" PRD to fix a security incident where test users could collide with real user IDs."
+summary: 'This document summarizes the implementation of the "Harden Authentication Identity Resolution" PRD to fix a security incident where test users could collide with real user IDs.'
 ---
+
 # Authentication Hardening Implementation Summary
 
 ## Overview

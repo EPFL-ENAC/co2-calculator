@@ -133,27 +133,27 @@ $breakpoint-xl-min: 1920px !default;
 
 ```scss
 $spaces: (
-  'none': $space-none,
-  'xs': $space-xs,
-  'sm': $space-sm,
-  'md': $space-md,
-  'lg': $space-lg,
-  'xl': $space-xl,
+  "none": $space-none,
+  "xs": $space-xs,
+  "sm": $space-sm,
+  "md": $space-md,
+  "lg": $space-lg,
+  "xl": $space-xl,
 ) !default;
 $flex-gutter: (
-  'none': 0,
-  'xs': $flex-gutter-xs,
-  'sm': $flex-gutter-sm,
-  'md': $flex-gutter-md,
-  'lg': $flex-gutter-lg,
-  'xl': $flex-gutter-xl,
+  "none": 0,
+  "xs": $flex-gutter-xs,
+  "sm": $flex-gutter-sm,
+  "md": $flex-gutter-md,
+  "lg": $flex-gutter-lg,
+  "xl": $flex-gutter-xl,
 ) !default;
 $sizes: (
-  'xs': 0,
-  'sm': 600px,
-  'md': 1024px,
-  'lg': 1440px,
-  'xl': 1920px,
+  "xs": 0,
+  "sm": 600px,
+  "md": 1024px,
+  "lg": 1440px,
+  "xl": 1920px,
 ) !default;
 ```
 
@@ -576,27 +576,27 @@ $animate-repeat: 1 !default;
 
 ```scss
 $spaces: (
-  'none': $space-none,
-  'xs': $space-xs,
-  'sm': $space-sm,
-  'md': $space-md,
-  'lg': $space-lg,
-  'xl': $space-xl,
+  "none": $space-none,
+  "xs": $space-xs,
+  "sm": $space-sm,
+  "md": $space-md,
+  "lg": $space-lg,
+  "xl": $space-xl,
 ) !default;
 $flex-gutter: (
-  'none': 0,
-  'xs': $flex-gutter-xs,
-  'sm': $flex-gutter-sm,
-  'md': $flex-gutter-md,
-  'lg': $flex-gutter-lg,
-  'xl': $flex-gutter-xl,
+  "none": 0,
+  "xs": $flex-gutter-xs,
+  "sm": $flex-gutter-sm,
+  "md": $flex-gutter-md,
+  "lg": $flex-gutter-lg,
+  "xl": $flex-gutter-xl,
 ) !default;
 $sizes: (
-  'xs': 0,
-  'sm': 600px,
-  'md': 1024px,
-  'lg': 1440px,
-  'xl': 1920px,
+  "xs": 0,
+  "sm": 600px,
+  "md": 1024px,
+  "lg": 1440px,
+  "xl": 1920px,
 ) !default;
 ```
 

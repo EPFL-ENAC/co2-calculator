@@ -3,8 +3,9 @@ status: delivered
 issue: 252
 last_updated: 2026-02-20
 title: "Results Page — Single Summary Endpoint"
-summary: "Currently the page hardcodes most values (\"37'250\", \"8.2\", \"-11.3%\"). The existing GET /unit/{unitid}/{year}/totals endpoint is incomplete — it only sums equipment and doesn't return FTE or per-module breakdown. We..."
+summary: 'Currently the page hardcodes most values ("37''250", "8.2", "-11.3%"). The existing GET /unit/{unitid}/{year}/totals endpoint is incomplete — it only sums equipment and doesn''t return FTE or per-module breakdown. We...'
 ---
+
 # Results Page — Single Summary Endpoint
 
 ## Context

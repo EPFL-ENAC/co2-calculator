@@ -3,7 +3,7 @@ status: abandoned
 issue: 772
 last_updated: 2026-04-07
 title: "Toggle Research Facilities"
-summary: "Add a \"Show Research Facilities\" checkbox to the results page header (below \"View Uncertainties\") that shows/hides research facilities data in the carbon footprint charts and summary totals."
+summary: 'Add a "Show Research Facilities" checkbox to the results page header (below "View Uncertainties") that shows/hides research facilities data in the carbon footprint charts and summary totals.'
 ---
 
 > **ARCHIVED:** This plan was not delivered. Preserved for context.
