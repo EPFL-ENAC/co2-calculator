@@ -44,8 +44,30 @@ async def csv_ingest_handler(
     job_session: AsyncSession,
     data_session: AsyncSession,
 ) -> dict:
-    """CSV data-entry ingest.  Delegates to the shared ``_run_ingest``."""
-    return await _run_ingest(job, job_session, data_session)
+    """CSV data-entry ingest with post-success ``emission_recalc`` fan-out.
+
+    Plan 310-D — once the provider commits its data_entries, chain
+    one ``emission_recalc`` child per affected (module, det) so the
+    runner-driven aggregation handler can pick up the new rows.
+    The provider itself no longer writes data_entry_emissions when
+    ``BULK_PATH_PURE_ASYNC`` is set (the runner-driven recalc owns
+    that table); skipping the fan-out here would leave the new
+    data_entries un-aggregated.
+
+    Mirrors ``factor_ingest_handler``'s scope-resolution shape: a
+    job with ``data_entry_type_id`` pinned chains a single child for
+    that pair; a multi-det module upload (det NULL) fans out one
+    child per det in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.
+    """
+    meta = await _run_ingest(job, job_session, data_session)
+    if meta.get("result") == IngestionResult.ERROR:
+        # No data_entries committed (or partial state we don't trust)
+        # — nothing to recalc against.  Runner will mark FINISHED+ERROR.
+        return meta
+
+    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
+    meta["recalc_jobs_chained"] = chained
+    return meta
 
 
 @register("api_ingest")
@@ -54,9 +76,21 @@ async def api_ingest_handler(
     job_session: AsyncSession,
     data_session: AsyncSession,
 ) -> dict:
-    """API data-entry ingest (e.g. travel).  Same body as CSV — provider
-    class differs, but that's resolved from ``meta.provider_name``."""
-    return await _run_ingest(job, job_session, data_session)
+    """API data-entry ingest (e.g. travel) with post-success
+    ``emission_recalc`` fan-out.
+
+    Same body as ``csv_ingest_handler`` — provider class differs,
+    fan-out shape is identical (the recalc workflow operates on the
+    same (det, year) slice regardless of how the data_entries
+    arrived).
+    """
+    meta = await _run_ingest(job, job_session, data_session)
+    if meta.get("result") == IngestionResult.ERROR:
+        return meta
+
+    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
+    meta["recalc_jobs_chained"] = chained
+    return meta
 
 
 @register("factor_ingest")
@@ -277,6 +311,116 @@ async def _chain_recalc_for_stale(
     logger.info(
         f"factor_ingest job {job.id}: chained {len(targets)} emission_recalc "
         f"child(ren) for year={year}"
+    )
+    return len(targets)
+
+
+# ---------------------------------------------------------------------------
+# csv_ingest / api_ingest post-success fan-out
+# ---------------------------------------------------------------------------
+
+
+async def _chain_emission_recalc_for_data_ingest(
+    job: DataIngestionJob,
+    session: AsyncSession,
+) -> int:
+    """Fan out ``emission_recalc`` children for a successful data-entry ingest.
+
+    Plan 310-D — replaces the inline emission write the providers
+    used to do.  Scope-resolution mirrors ``_chain_recalc_for_stale``
+    but without the "anything stale" admin branch; data ingests
+    always know which module they wrote against:
+
+    - ``module_type_id`` + ``data_entry_type_id`` set → one child for
+      that exact pair.
+    - ``module_type_id`` set, ``data_entry_type_id`` NULL → one child
+      per det in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES`` (a CSV upload that
+      mixes dets within one module — the workflow processes each det
+      independently anyway, so fanning out matches its grain).
+    - ``module_type_id`` NULL → defensive log + skip; a data-entry
+      ingest without a module isn't a shape we expect (every endpoint
+      pins module_type_id).  Leaving the data un-recalculated is
+      preferable to crashing the parent's FINISHED write.
+
+    Returns the number of children chained (0 on the defensive
+    skip).  Year is mandatory for ``emission_recalc`` (the workflow
+    queries by ``(data_entry_type_id, year)``); raise rather than
+    skip so the misconfigured job surfaces as FINISHED+ERROR.
+    """
+    if job.id is None:
+        raise ValueError(
+            "_chain_emission_recalc_for_data_ingest: job has no id"
+        )
+    if job.year is None:
+        raise ValueError(
+            f"_chain_emission_recalc_for_data_ingest: job {job.id} has no year — "
+            "endpoint must pin year for csv_ingest / api_ingest"
+        )
+    year: int = job.year
+
+    if job.module_type_id is None:
+        logger.warning(
+            f"data ingest job {job.id}: no module_type_id on parent — "
+            "skipping emission_recalc fan-out"
+        )
+        return 0
+
+    targets: list[dict[str, Any]]
+    if job.data_entry_type_id is not None:
+        targets = [
+            {
+                "module_type_id": job.module_type_id,
+                "data_entry_type_id": job.data_entry_type_id,
+                "year": year,
+            }
+        ]
+    else:
+        # Multi-det data ingest (e.g. headcount.csv covers member +
+        # student in one upload).  Late import avoids the
+        # data_ingestion → tasks → module_type cycle.
+        from app.models.module_type import (
+            MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+            ModuleTypeEnum,
+        )
+
+        try:
+            module = ModuleTypeEnum(job.module_type_id)
+        except ValueError:
+            logger.warning(
+                f"data ingest job {job.id}: unknown module_type_id="
+                f"{job.module_type_id}; skipping emission_recalc fan-out"
+            )
+            return 0
+        dets = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module, [])
+        targets = [
+            {
+                "module_type_id": job.module_type_id,
+                "data_entry_type_id": d.value,
+                "year": year,
+            }
+            for d in dets
+        ]
+
+    if not targets:
+        logger.info(
+            f"data ingest job {job.id}: no (module, det) targets for "
+            f"module_type_id={job.module_type_id}/year={year}; "
+            "skipping emission_recalc fan-out"
+        )
+        return 0
+
+    for row in targets:
+        await chain_job(
+            job,
+            job_type="emission_recalc",
+            module_type_id=row["module_type_id"],
+            data_entry_type_id=row["data_entry_type_id"],
+            year=year,
+            session=session,
+        )
+    logger.info(
+        f"data ingest job {job.id}: chained {len(targets)} emission_recalc "
+        f"child(ren) for module_type_id={job.module_type_id}/year={year}"
     )
     return len(targets)
 

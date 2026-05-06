@@ -81,7 +81,9 @@ def test_factor_ingest_registered():
 async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
     """Happy path: provider resolved from ``meta.provider_name``,
     ``provider.ingest`` called once, handler returns the meta dict
-    with status_message + result + ingest summary."""
+    with status_message + result + ingest summary.  Plan 310-D adds
+    a single ``emission_recalc`` chain on the success arm — patched
+    out here since the assertions focus on the run_ingest contract."""
     job = _make_job(meta={"provider_name": "FakeCSV", "config": {"foo": "bar"}})
     job_session = MagicMock()
     data_session = MagicMock()
@@ -99,10 +101,13 @@ async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
         def __new__(cls, *args, **kwargs):
             return fake_provider
 
-    with patch.object(
-        ingest_mod.ProviderFactory,
-        "get_provider_class",
-        return_value=FakeProviderClass,
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
     ):
         meta = await ingest_mod.csv_ingest_handler(job, job_session, data_session)
 
@@ -130,10 +135,13 @@ async def test_api_ingest_handler_uses_same_path():
         def __new__(cls, *args, **kwargs):
             return fake_provider
 
-    with patch.object(
-        ingest_mod.ProviderFactory,
-        "get_provider_class",
-        return_value=FakeProviderClass,
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
     ):
         meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
 
@@ -439,4 +447,212 @@ async def test_factor_ingest_handler_skips_unknown_module_type_in_multitype():
         meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
 
     mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Plan 310-D — csv_ingest / api_ingest post-success emission_recalc fan-out
+# ---------------------------------------------------------------------------
+
+
+def _patch_provider(success: bool = True, *, extra_data: dict | None = None):
+    """Build a provider mock + patcher pair returning SUCCESS or ERROR."""
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    data: dict = {
+        "result": IngestionResult.SUCCESS if success else IngestionResult.ERROR
+    }
+    if extra_data:
+        data.update(extra_data)
+    fake_provider.ingest = AsyncMock(
+        return_value={"status_message": "ok", "data": data}
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    return fake_provider, FakeProviderClass
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_chains_recalc_for_single_det():
+    """CSV ingest with both module + det pinned → exactly one
+    ``emission_recalc`` chain for that pair, mirroring
+    ``factor_ingest_handler``'s single-det shape."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True, extra_data={"inserted": 4})
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "emission_recalc"
+    assert chain_kwargs["module_type_id"] == 5
+    assert chain_kwargs["data_entry_type_id"] == 11
+    assert chain_kwargs["year"] == 2025
+    assert meta["recalc_jobs_chained"] == 1
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_chains_per_det_for_multitype_upload():
+    """CSV upload that mixes dets within one module (det NULL) → one
+    ``emission_recalc`` chain per det in
+    ``MODULE_TYPE_TO_DATA_ENTRY_TYPES`` for the parent's module."""
+    from app.models.module_type import (
+        MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+        ModuleTypeEnum,
+    )
+
+    module = ModuleTypeEnum.headcount
+    expected_dets = [d.value for d in MODULE_TYPE_TO_DATA_ENTRY_TYPES[module]]
+
+    job = _make_job(
+        module_type_id=module.value,
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    assert mock_chain.await_count == len(expected_dets)
+    chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
+    assert chained_dets == set(expected_dets)
+    assert meta["recalc_jobs_chained"] == len(expected_dets)
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_skips_fan_out_on_error():
+    """ERROR result → no recalc fan-out, parent goes FINISHED+ERROR."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=False)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.ERROR
+    assert "recalc_jobs_chained" not in meta
+
+
+@pytest.mark.asyncio
+async def test_api_ingest_handler_chains_recalc_on_success():
+    """``api_ingest`` (e.g. travel) — single-det shape; one chain."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeAPI"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_awaited_once()
+    assert meta["recalc_jobs_chained"] == 1
+
+
+@pytest.mark.asyncio
+async def test_api_ingest_handler_skips_fan_out_on_error():
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeAPI"},
+    )
+    _, fake_class = _patch_provider(success=False)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert "recalc_jobs_chained" not in meta
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_raises_when_year_missing():
+    """``emission_recalc`` is keyed on ``(data_entry_type_id, year)``
+    — a job without ``year`` can't choose a recalc scope.  The
+    misconfiguration must surface so the runner records FINISHED+ERROR."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=None,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+    ):
+        with pytest.raises(ValueError, match="has no year"):
+            await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_skips_fan_out_when_module_type_id_missing():
+    """A data ingest without module_type_id is unexpected (every
+    endpoint pins it); log + skip rather than crash the parent's
+    FINISHED write.  Parent still finishes SUCCESS."""
+    job = _make_job(
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert meta["recalc_jobs_chained"] == 0
     assert meta["result"] == IngestionResult.SUCCESS
