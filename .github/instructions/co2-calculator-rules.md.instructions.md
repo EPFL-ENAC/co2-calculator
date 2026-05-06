@@ -42,12 +42,27 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 
 # IMPLEMENTATION PLANS
 
-- All implementation plans (whether produced by Claude, Copilot, or any other agent) MUST be saved under `docs/implementation-plans/` at the repository root.
+- All implementation plans (whether produced by Claude, Copilot, or any other agent) MUST be saved under `docs/src/implementation-plans/` so they render into the MkDocs site under the **Implementation Plans** nav section.
 - File naming convention: `[issue-id]-[short-kebab-description].md` where `[issue-id]` is the integer GitHub issue id (regex: `^[0-9]+-[a-z0-9-]+\.md$`).
   - Examples: `840-root-level-rollup-emission-rows.md`, `252-chart-results-endpoint.md`.
+- All plans MUST include YAML frontmatter so the auto-index (`docs/gen_indexes.py` → `_plans_index()`) groups them correctly:
+  - `status`: `delivered` | `in-progress` | `abandoned`
+  - `issue`: GitHub issue id (string or number)
+  - `last_updated`: ISO date (e.g., `2026-05-06`)
+  - `summary`: one-line description
+  - `title` (optional): human-readable title; falls back to first `# H1` then filename
+- Abandoned plans live under `docs/src/implementation-plans/archive/`.
 - One plan file per issue scope; if an issue spawns multiple sub-plans, suffix with a discriminator (e.g., `859-seed-1-factors-ingestion.md`, `859-seed-2-data-entries-ingestion.md`).
-- Do not write plans into the working directory, `backend/`, `frontend/`, or scratch locations — always under `docs/implementation-plans/`.
+- Do not write plans into the working directory, `backend/`, `frontend/`, or scratch locations — always under `docs/src/implementation-plans/`.
 - If no GitHub issue exists for the work, create one first or ask the user for the id before writing the plan.
+
+## Do NOT propose moving plans back to the repo root
+
+Plans previously lived at `docs/implementation-plans/` (raw, repo-only, not rendered). Issue #860 (PR #1014, B4) moved them into `docs/src/implementation-plans/` so they render into the MkDocs site, gain Material full-text search, are auto-grouped by status, and cross-link with ADRs. **This was reconsidered in May 2026 (PR #1032 follow-up) and confirmed: the rendered location is strictly better for human contributors and equally accessible to LLM agents (which read raw `.md` regardless of location).** Do not propose a "B4 reversal" — the rule above describes the intended end state, not a transitional one.
+
+## Review artifacts (separate from plans)
+
+Bot/Copilot review feedback files (`<issue>-copilot-feedback-<slug>.md`) and manual code-review notes live in `docs/code-review/`, NOT in `docs/src/implementation-plans/`. They have a different lifecycle (transient, overwritten on each `review-copilot-comments` skill re-run) and are not implementation plans.
 
 # DATA AND UI CONSISTENCY RULES
 
