@@ -147,18 +147,22 @@ class EmissionRecalculationWorkflow:
             # downstream upsert recompute ``kg_co2eq`` as None, which the
             # dashboard surfaces as a missing-factor signal to operators.
             #
-            # Bind ``kind_field`` to a local up-front so the
-            # type-narrowing ``is not None`` check below proves it to
-            # mypy at the ``_lookup_factor_id`` call site.  Avoids an
-            # ``assert`` (bandit B101) because asserts are stripped under
-            # ``python -O``.
-            kind_field = handler.kind_field
+            # Bind to a local with an explicit ``Optional[str]`` annotation
+            # so the ``is not None`` check below narrows it to ``str`` at
+            # the ``_lookup_factor_id`` call site.  The name differs from
+            # ``kind_field`` used in the prefetch block above to avoid a
+            # mypy scope-collision (the prefetch binding lives inside an
+            # ``if handler.kind_field is not None`` block, so mypy infers
+            # the narrower ``str`` and then refuses the wider re-bind here).
+            # Also avoids an ``assert`` (bandit B101 — asserts are stripped
+            # under ``python -O``).
+            entry_kind_field: str | None = handler.kind_field
             old_data = entry.data
             try:
-                if kind_field is not None and kind_field in entry.data:
+                if entry_kind_field is not None and entry_kind_field in entry.data:
                     new_factor_id = self._lookup_factor_id(
                         entry_data=entry.data,
-                        kind_field=kind_field,
+                        kind_field=entry_kind_field,
                         subkind_field=handler.subkind_field,
                         factor_lookup=factor_lookup,
                     )
