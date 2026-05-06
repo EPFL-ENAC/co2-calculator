@@ -22,14 +22,14 @@ if [ -z "$ISSUE_ID" ]; then
   ISSUE_ID="$PR_NUMBER"
 fi
 
-# 3. Define the path according to your Implementation Plan rules
+# 3. Write to the code-review directory (transient review artifacts, not plans).
 REPO_ROOT=$(git rev-parse --show-toplevel)
-PLAN_DIR="$REPO_ROOT/docs/implementation-plans"
-mkdir -p "$PLAN_DIR"
+REVIEW_DIR="$REPO_ROOT/docs/code-review"
+mkdir -p "$REVIEW_DIR"
 
 # Create a kebab-case description from the PR title
 DESC=$(echo "$PR_JSON" | jq -r '.title' | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]/-/g' | sed 's/--*/-/g' | sed 's/^-//;s/-$//')
-OUTPUT_FILE="$PLAN_DIR/$ISSUE_ID-copilot-feedback-$DESC.md"
+OUTPUT_FILE="$REVIEW_DIR/$ISSUE_ID-copilot-feedback-$DESC.md"
 
 echo "Targeting PR #$PR_NUMBER for Issue #$ISSUE_ID"
 echo "Saving to: $OUTPUT_FILE"
