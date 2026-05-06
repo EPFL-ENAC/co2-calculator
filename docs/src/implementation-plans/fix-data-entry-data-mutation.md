@@ -1,3 +1,10 @@
+---
+status: delivered
+last_updated: 2026-05-04
+title: "Stop persisting computed fields to DataEntry.data"
+summary: "Stop persisting computed fields back into DataEntry.data; recompute on read instead. Single-PR refactor delivered during sprint 10; no tracking issue."
+---
+
 # Implementation Plan: Stop persisting computed fields to `DataEntry.data`
 
 > **Scope decision**: single PR combining all changes below.
