@@ -13,7 +13,6 @@ from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.services.module_handler_service import ModuleHandlerService
 
 logger = get_logger(__name__)
 
@@ -70,7 +69,6 @@ class EmissionRecalculationWorkflow:
 
         emission_svc = DataEntryEmissionService(self.session)
         module_svc = CarbonReportModuleService(self.session)
-        handler_svc = ModuleHandlerService(self.session)
         factor_repo = FactorRepository(self.session)
         handler = BaseModuleHandler.get_by_type(data_entry_type_id)
 
@@ -140,17 +138,20 @@ class EmissionRecalculationWorkflow:
             # ``MultipleResultsFound``, neither of which is right for
             # those handlers.
             #
-            # Plan 310D — bulk-prefetched ``factor_lookup`` collapses
-            # the per-entry SELECT into a Python dict lookup; the
-            # per-entry ``resolve_primary_factor_id`` path remains as
-            # a fallback for dict misses (kind value the bulk query
-            # didn't see, e.g. a stale entry whose classification no
-            # longer appears in the current factor set).
-            # Bind ``kind_field`` to a local up-front so the type-narrowing
-            # ``is not None`` check below directly proves it to mypy at the
-            # ``_lookup_factor_id`` call site (signature requires ``str``).
-            # Avoids an ``assert`` in production, which bandit B101 flags
-            # because asserts are stripped under ``python -O``.
+            # Plan 310D — bulk-prefetched ``factor_lookup`` is the
+            # single source of truth for the rematch.  ``_lookup_factor_id``
+            # mirrors the full kind→subkind→kind-only fallback chain
+            # in-memory, so a miss here means "factor truly dropped from
+            # the current CSV" — no DB fallback.  Per the strict-drop
+            # contract, we clear ``primary_factor_id`` and let the
+            # downstream upsert recompute ``kg_co2eq`` as None, which the
+            # dashboard surfaces as a missing-factor signal to operators.
+            #
+            # Bind ``kind_field`` to a local up-front so the
+            # type-narrowing ``is not None`` check below proves it to
+            # mypy at the ``_lookup_factor_id`` call site.  Avoids an
+            # ``assert`` (bandit B101) because asserts are stripped under
+            # ``python -O``.
             kind_field = handler.kind_field
             old_data = entry.data
             try:
@@ -161,25 +162,14 @@ class EmissionRecalculationWorkflow:
                         subkind_field=handler.subkind_field,
                         factor_lookup=factor_lookup,
                     )
-                    if new_factor_id is None:
-                        # Dict miss — fall back to the per-entry resolver
-                        # (which can fall through kind-only when subkind
-                        # doesn't match an exact factor row).
-                        refreshed = await handler_svc.resolve_primary_factor_id(
-                            handler=handler,
-                            payload=dict(entry.data),
-                            data_entry_type_id=data_entry_type_id,
-                            year=year,
-                            existing_data=None,
-                        )
-                        new_factor_id = refreshed.get("primary_factor_id")
                     if new_factor_id != entry.data.get("primary_factor_id"):
                         # Tentative swap so DataEntryResponse + upsert
-                        # see the refreshed factor.  Rolled back below
-                        # if the upsert fails, so partial-failure runs
-                        # don't leave entry.data pointing at the new
-                        # factor while data_entry_emissions is still
-                        # computed against the old one.
+                        # see the refreshed factor (or ``None`` on a
+                        # drop).  Rolled back below if the upsert fails,
+                        # so partial-failure runs don't leave entry.data
+                        # pointing at the new factor while
+                        # data_entry_emissions is still computed against
+                        # the old one.
                         entry.data = {
                             **entry.data,
                             "primary_factor_id": new_factor_id,
@@ -242,9 +232,19 @@ class EmissionRecalculationWorkflow:
     ) -> int | None:
         """Resolve ``primary_factor_id`` from the bulk-prefetched lookup.
 
-        Returns ``None`` on miss so the caller can fall back to the
-        per-entry resolver (which itself does kind-only fallback when
-        the exact ``(kind, subkind)`` row is absent).
+        Mirrors the kind→subkind→kind-only fallback chain that
+        ``ModuleHandlerService.resolve_primary_factor_id`` runs in DB,
+        but entirely in-memory:
+
+        1. Exact ``(kind, subkind)`` match.
+        2. Kind-only ``(kind, None)`` fallback — only succeeds if a
+           factor with no subkind was prefetched (subkind=NULL row).
+
+        Returns ``None`` on overall miss.  Per Plan 310-D's strict
+        rematch contract, the caller treats a None as "factor dropped"
+        and clears the entry's ``primary_factor_id`` so the recomputed
+        emission is ``None`` (operator surfaces it as missing-factor
+        rather than silently substituting via a per-entry DB roundtrip).
 
         Mirrors the key-derivation done in
         ``ModuleHandlerService.resolve_primary_factor_id``: subkind
@@ -257,4 +257,12 @@ class EmissionRecalculationWorkflow:
         if subkind_field:
             raw = entry_data.get(subkind_field)
             subkind = raw if raw else None
-        return factor_lookup.get((kind, subkind))
+        # Exact match first.
+        factor_id = factor_lookup.get((kind, subkind))
+        if factor_id is not None:
+            return factor_id
+        # Kind-only fallback — only worth trying when subkind was set;
+        # otherwise the lookup above already tried (kind, None).
+        if subkind is not None:
+            return factor_lookup.get((kind, None))
+        return None
