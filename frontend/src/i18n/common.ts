@@ -434,7 +434,7 @@ export default {
   },
   validation_max_hours_per_week: {
     en: 'Max usages 168 hrs/wk',
-    fr: 'Utilisations maximale 168 h/sem',
+    fr: 'Utilisations maximum 168 h/sem',
   },
   validation_must_be_at_least_one: {
     en: 'Must be at least 1',

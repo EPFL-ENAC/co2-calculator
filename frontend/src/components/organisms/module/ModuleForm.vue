@@ -486,7 +486,7 @@ function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
     return (
-      /^\d{4}[/.]\d{2}[/.]\d{2}$/.test(val) ||
+      /^\d{4}([/.])\d{2}\1\d{2}$/.test(val) ||
       $t('validation_invalid_date_format')
     );
   };
