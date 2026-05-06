@@ -47,10 +47,13 @@ except ImportError:  # minimal fallback parser
         return meta, match.group(2)
 
 
-# Repo root resolves from this script's location: docs/gen_indexes.py -> repo
-REPO_ROOT = Path(__file__).resolve().parent.parent
-DOCS_SRC = REPO_ROOT / "docs" / "src"
-PLANS_DIR = REPO_ROOT / "docs" / "src" / "implementation-plans"
+# Anchor paths to this script's directory so the script works in both layouts:
+#   - local repo: <repo>/docs/gen_indexes.py with src/ as sibling
+#   - Docker:     /app/gen_indexes.py with src/ as sibling (Dockerfile flattens docs/)
+# The mkdocs.yml docs_dir: src declares the same sibling relationship.
+DOCS_DIR = Path(__file__).resolve().parent
+DOCS_SRC = DOCS_DIR / "src"
+PLANS_DIR = DOCS_SRC / "implementation-plans"
 
 # Filename for generated section/plan indexes. Differs from `index.md` by more
 # than case so it does not collide with hand-authored `index.md` files on

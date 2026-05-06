@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 # Copy documentation source
 COPY src/ ./src/
-COPY mkdocs.yml ./
+COPY mkdocs.yml gen_indexes.py ./
 
 # Initialize git repo for mkdocs-git-authors-plugin (required even if not using real git history)
 RUN git init . && git config user.email "build@localhost" && git config user.name "Build" && git add . && git commit -m "Build commit"
