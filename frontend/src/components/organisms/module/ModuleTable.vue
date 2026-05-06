@@ -90,13 +90,6 @@
       </q-tr>
     </template>
     <template #pagination="scope">
-      <span v-if="scope.pagesNumber > 1" class="q-pa-sm">
-        {{
-          $t('pagination_info', {
-            count: scope.pagesNumber,
-          })
-        }}
-      </span>
       <q-btn
         icon="chevron_left"
         color="grey-8"
@@ -106,6 +99,9 @@
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
       <q-btn
         icon="chevron_right"
         color="grey-8"

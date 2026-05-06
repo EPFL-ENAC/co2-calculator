@@ -496,8 +496,4 @@ export default {
     en: 'Records per page',
     fr: 'Entrées par page',
   },
-  pagination_info: {
-    en: '{count} pages',
-    fr: '{count} pages',
-  },
 };

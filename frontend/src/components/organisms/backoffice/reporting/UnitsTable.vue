@@ -205,13 +205,6 @@ const columns = computed<QTableColumn[]>(() => [
     @request="onRequest"
   >
     <template #pagination="scope">
-      <span v-if="scope.pagesNumber > 1" class="q-pa-sm">
-        {{
-          $t('pagination_info', {
-            count: scope.pagesNumber,
-          })
-        }}
-      </span>
       <q-btn
         icon="chevron_left"
         color="grey-8"
@@ -221,7 +214,7 @@ const columns = computed<QTableColumn[]>(() => [
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-      <div class="q-px-sm">
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn
