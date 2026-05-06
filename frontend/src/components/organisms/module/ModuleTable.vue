@@ -958,30 +958,26 @@ function getError(row: ModuleRow, col: { name: string }) {
   return inlineErrors.value[errorKey(row, col)] ?? '';
 }
 
-function validateUsage(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: $t('validation_required') };
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n))
+function validateUsageHoursWeek(value: number) {
+  if (!Number.isFinite(value))
     return {
       valid: false,
       parsed: null,
       error: $t('validation_number_required'),
     };
-  if (n < 0)
+  if (value < 0)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_must_be_non_negative'),
     };
-  if (n > 168)
+  if (value > 168)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_max_hours_per_week'),
     };
-  return { valid: true, parsed: n, error: null };
+  return { valid: true, parsed: value, error: null };
 }
 
 function validateNumberOfTrips(value: unknown) {
@@ -1025,13 +1021,17 @@ async function commitInline(
 
   const valueToSave = (() => {
     if (isUsageField) {
-      const validation = validateUsage(rawVal);
+      const activeVal = Number(row['active_usage_hours_per_week']) || 0;
+      const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
+      const validation = validateUsageHoursWeek(activeVal + standbyVal);
       if (!validation.valid) {
         setError(row, col, validation.error);
         return null;
       }
       setError(row, col, null);
-      return validation.parsed;
+      // parse raw value to number to ensure consistent type (could be string from input)
+      const parsedVal = Number(rawVal);
+      return Number.isFinite(parsedVal) ? parsedVal : rawVal;
     }
     if (isNumberOfTrips) {
       const validation = validateNumberOfTrips(rawVal);
