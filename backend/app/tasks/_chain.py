@@ -26,6 +26,8 @@ contract narrow (parent + child shape + dispatch).
 from typing import Optional
 from uuid import uuid4
 
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -54,7 +56,8 @@ async def chain_job(
     target_type: TargetType = TargetType.DATA_ENTRIES,
     ingestion_method: IngestionMethod = IngestionMethod.computed,
     entity_type: EntityType = EntityType.MODULE_PER_YEAR,
-) -> int:
+    dedup_active: bool = False,
+) -> Optional[int]:
     """Create a child job and fire it through ``run_job``.
 
     Inherits the parent's ``pipeline_id`` (or generates a fresh UUID
@@ -79,6 +82,18 @@ async def chain_job(
     pod-crash-then-recovery-claim of the parent would generate a
     different UUID and the child would be orphaned from the parent's
     run.
+
+    ``dedup_active=True`` (Plan 310-D): create the child via
+    ``INSERT ... ON CONFLICT DO NOTHING`` against the
+    ``uq_aggregation_active`` partial unique index (module_type_id,
+    year) — the index covers only NOT_STARTED/QUEUED/RUNNING rows,
+    so the first child to chain wins and subsequent siblings see the
+    existing pending row and skip.  Returns ``None`` on dedup so the
+    caller knows it's a no-op and skips its own follow-up fan-out;
+    returns the new child id otherwise.  Aggregation is the only
+    job type currently using this path, but the contract is generic
+    so future dedupable handlers (e.g. progress-bar refresh) can
+    opt in by adding a matching partial unique index.
     """
     repo = DataIngestionRepository(session)
 
@@ -89,29 +104,58 @@ async def chain_job(
         session.add(parent)
         await session.commit()
 
-    child = DataIngestionJob(
-        job_type=job_type,
-        module_type_id=(
-            module_type_id if module_type_id is not None else parent.module_type_id
-        ),
-        data_entry_type_id=data_entry_type_id,
-        year=year if year is not None else parent.year,
-        target_type=target_type,
-        ingestion_method=ingestion_method,
-        entity_type=entity_type,
-        state=IngestionState.NOT_STARTED,
-        is_current=False,
-        pipeline_id=pipeline_id,
-        # ``None`` means "runnable immediately" — claim_job's WHERE
-        # treats NULL run_after as eligible.  Matches the existing
-        # ingestion_tasks.py recalc-job creation pattern.
-        run_after=None,
-        meta={"config": config or {}, "parent_job_id": parent.id},
+    resolved_module_type_id = (
+        module_type_id if module_type_id is not None else parent.module_type_id
     )
-    created = await repo.create_ingestion_job(child)
-    await session.commit()
+    resolved_year = year if year is not None else parent.year
 
-    if created.id is None:
+    if dedup_active:
+        child_id = await _insert_child_with_dedup(
+            session=session,
+            parent=parent,
+            pipeline_id=pipeline_id,
+            job_type=job_type,
+            module_type_id=resolved_module_type_id,
+            data_entry_type_id=data_entry_type_id,
+            year=resolved_year,
+            target_type=target_type,
+            ingestion_method=ingestion_method,
+            entity_type=entity_type,
+            config=config,
+        )
+        if child_id is None:
+            # Dedup hit — an active child already exists for this
+            # scope.  Caller must treat None as "no-op, do not
+            # fan out further" so we don't double-dispatch the
+            # work the existing pending row will do.
+            logger.info(
+                f"chain_job(dedup): {job_type!r} for module={resolved_module_type_id}/"
+                f"year={resolved_year} already pending — skipped"
+            )
+            return None
+    else:
+        child = DataIngestionJob(
+            job_type=job_type,
+            module_type_id=resolved_module_type_id,
+            data_entry_type_id=data_entry_type_id,
+            year=resolved_year,
+            target_type=target_type,
+            ingestion_method=ingestion_method,
+            entity_type=entity_type,
+            state=IngestionState.NOT_STARTED,
+            is_current=False,
+            pipeline_id=pipeline_id,
+            # ``None`` means "runnable immediately" — claim_job's WHERE
+            # treats NULL run_after as eligible.  Matches the existing
+            # ingestion_tasks.py recalc-job creation pattern.
+            run_after=None,
+            meta={"config": config or {}, "parent_job_id": parent.id},
+        )
+        created = await repo.create_ingestion_job(child)
+        await session.commit()
+        child_id = created.id
+
+    if child_id is None:
         # Defensive: create_ingestion_job should always return a
         # row with id set after commit.  If it ever doesn't, the
         # safety poller will pick up the row anyway via run_after.
@@ -128,5 +172,96 @@ async def chain_job(
     # construction.
     from app.tasks.runner import run_job
 
-    fire_and_forget(run_job(created.id), name=f"run_job-{created.id}")
-    return created.id
+    fire_and_forget(run_job(child_id), name=f"run_job-{child_id}")
+    return child_id
+
+
+async def _insert_child_with_dedup(
+    *,
+    session: AsyncSession,
+    parent: DataIngestionJob,
+    pipeline_id,
+    job_type: str,
+    module_type_id: Optional[int],
+    data_entry_type_id: Optional[int],
+    year: Optional[int],
+    target_type: TargetType,
+    ingestion_method: IngestionMethod,
+    entity_type: EntityType,
+    config: Optional[dict],
+) -> Optional[int]:
+    """INSERT ... ON CONFLICT DO NOTHING against uq_aggregation_active.
+
+    Returns the new child id on success, or None if the partial
+    unique index already covers an active (NOT_STARTED/QUEUED/RUNNING)
+    row for the same (module_type_id, year, job_type='aggregation')
+    scope.
+
+    Implemented as raw SQL because SQLModel's ORM-level insert path
+    doesn't expose the ON CONFLICT clause cleanly for partial indexes.
+    The raw INSERT bypasses the model_validate hook in
+    ``DataIngestionRepository.create_ingestion_job`` — that's fine
+    here because the columns we set are the only ones the model
+    requires for a NOT_STARTED row (state has a server default but
+    we always pass it explicitly to keep the SQL self-documenting).
+    """
+    import json
+
+    # asyncpg accepts UUID objects directly via type adapters, but
+    # raw text SQL coerces best when stringified.
+    pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
+    meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
+
+    # The partial unique index is keyed on (module_type_id, year)
+    # and filtered by job_type='aggregation' AND state IN (active).
+    # We bind to the index by name via ``ON CONFLICT ON CONSTRAINT``.
+    # Using ``ON CONFLICT DO NOTHING`` without specifying the index
+    # would be ambiguous if a future migration adds another partial
+    # index that also covers (module_type_id, year).
+    sql = text(
+        """
+        INSERT INTO data_ingestion_jobs (
+            job_type, module_type_id, data_entry_type_id, year,
+            target_type, ingestion_method, entity_type, state,
+            is_current, pipeline_id, run_after, meta
+        )
+        VALUES (
+            :job_type, :module_type_id, :data_entry_type_id, :year,
+            :target_type, :ingestion_method, :entity_type,
+            'NOT_STARTED'::ingestion_state_enum,
+            FALSE, CAST(:pipeline_id AS UUID), NULL,
+            CAST(:meta AS JSONB)
+        )
+        ON CONFLICT ON CONSTRAINT uq_aggregation_active
+        DO NOTHING
+        RETURNING id
+        """
+    )
+    try:
+        result = await session.execute(
+            sql,
+            {
+                "job_type": job_type,
+                "module_type_id": module_type_id,
+                "data_entry_type_id": data_entry_type_id,
+                "year": year,
+                "target_type": target_type.value,
+                "ingestion_method": ingestion_method.value,
+                "entity_type": entity_type.value,
+                "pipeline_id": pipeline_id_str,
+                "meta": meta_json,
+            },
+        )
+    except IntegrityError:
+        # A concurrent INSERT-then-COMMIT can race past the ON CONFLICT
+        # check inside our own transaction; surface as a clean dedup
+        # signal rather than letting the IntegrityError bubble.
+        await session.rollback()
+        return None
+
+    row = result.first()
+    await session.commit()
+    if row is None:
+        # ON CONFLICT DO NOTHING — RETURNING yields no row.
+        return None
+    return int(row[0])

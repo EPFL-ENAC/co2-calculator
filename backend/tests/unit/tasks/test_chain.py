@@ -5,6 +5,13 @@ Extracted from ``test_runner.py`` when ``chain_job`` moved out of
 (alerts #644/#645/#646).  Coverage is unchanged: pipeline_id
 inheritance, pipeline_id generation when parent has none, and explicit
 keyword overrides winning over parent inheritance.
+
+Plan 310-D extends ``chain_job`` with ``dedup_active=True``: the
+helper performs ``INSERT ... ON CONFLICT DO NOTHING`` against the
+``uq_aggregation_active`` partial unique index and returns ``None``
+on dedup so the caller skips its own follow-up fan-out.  Tests in
+the ``dedup_active`` section pin both the success path (returns the
+new id) and the dedup path (returns None, does not fire run_job).
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -178,3 +185,135 @@ async def test_chain_job_overrides_apply():
     assert created.meta["config"] == {"foo": "bar"}
     # Defaults still applied for kwargs we didn't override.
     assert created.entity_type == EntityType.MODULE_PER_YEAR
+
+
+# ---------------------------------------------------------------------------
+# Plan 310-D — dedup_active=True path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chain_job_dedup_active_returns_new_id_on_success():
+    """``dedup_active=True`` and the partial unique index does not
+    block: ``_insert_child_with_dedup`` returns the new id, chain_job
+    fires run_job, and the function returns the same id."""
+    parent = _make_parent(job_id=100)
+    parent.pipeline_id = uuid4()
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    fired = []
+
+    def _fake_fire_and_forget(coro, *, name=None):
+        coro.close()
+        fired.append(name)
+        return MagicMock()
+
+    with (
+        patch.object(
+            chain_mod,
+            "_insert_child_with_dedup",
+            new_callable=AsyncMock,
+            return_value=777,
+        ) as mock_insert,
+        patch.object(chain_mod, "fire_and_forget", side_effect=_fake_fire_and_forget),
+    ):
+        child_id = await chain_mod.chain_job(
+            parent,
+            job_type="aggregation",
+            session=session,
+            module_type_id=11,
+            year=2025,
+            dedup_active=True,
+        )
+
+    assert child_id == 777
+    mock_insert.assert_awaited_once()
+    assert fired == ["run_job-777"]
+
+
+@pytest.mark.asyncio
+async def test_chain_job_dedup_active_returns_none_on_collision():
+    """``dedup_active=True`` and the index already covers an active
+    row: ``_insert_child_with_dedup`` returns None.  chain_job must
+    return None too AND must NOT fire run_job (no new work to dispatch)."""
+    parent = _make_parent(job_id=100)
+    parent.pipeline_id = uuid4()
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    fired = []
+
+    def _fake_fire_and_forget(coro, *, name=None):
+        coro.close()
+        fired.append(name)
+        return MagicMock()
+
+    with (
+        patch.object(
+            chain_mod,
+            "_insert_child_with_dedup",
+            new_callable=AsyncMock,
+            return_value=None,
+        ) as mock_insert,
+        patch.object(chain_mod, "fire_and_forget", side_effect=_fake_fire_and_forget),
+    ):
+        child_id = await chain_mod.chain_job(
+            parent,
+            job_type="aggregation",
+            session=session,
+            module_type_id=11,
+            year=2025,
+            dedup_active=True,
+        )
+
+    assert child_id is None
+    mock_insert.assert_awaited_once()
+    # No run_job dispatched — the existing pending row will run.
+    assert fired == []
+
+
+@pytest.mark.asyncio
+async def test_chain_job_dedup_active_false_uses_orm_path():
+    """The default ``dedup_active=False`` path is unchanged: it goes
+    through ``DataIngestionRepository.create_ingestion_job``, not the
+    raw INSERT helper.  Pinned so a future refactor of the dedup path
+    can't silently swap the legacy callers onto it."""
+    parent = _make_parent(job_id=100)
+    parent.pipeline_id = uuid4()
+
+    repo = _make_repo_for_chain(parent)
+
+    async def _create(child):
+        child.id = 200
+        return child
+
+    repo.create_ingestion_job = AsyncMock(side_effect=_create)
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    with (
+        patch.object(chain_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(
+            chain_mod,
+            "_insert_child_with_dedup",
+            new_callable=AsyncMock,
+        ) as mock_insert,
+        patch.object(
+            chain_mod,
+            "fire_and_forget",
+            side_effect=lambda coro, *, name=None: (coro.close(), MagicMock())[1],
+        ),
+    ):
+        child_id = await chain_mod.chain_job(
+            parent, job_type="emission_recalc", session=session
+        )
+
+    assert child_id == 200
+    mock_insert.assert_not_awaited()
+    repo.create_ingestion_job.assert_awaited_once()
