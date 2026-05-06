@@ -611,52 +611,25 @@ async def test_cancel_job_stamps_finished_at(db_session: AsyncSession):
 
 
 # ======================================================================
-# get_current_pipeline_id_for_module Tests (Plan 310D)
+# get_current_pipeline_id_for_module Tests (Plan 310-D)
 # ======================================================================
+#
+# Resolved during dev-rebase of PR #1053 (PR5) on top of #1052: PR5's
+# tests pass ``year=`` to match the superset signature in
+# ``DataIngestionRepository.get_current_pipeline_id_for_module``.  HEAD
+# (#1052) did NOT have the year filter and its tests omit the kwarg.
+# Kept PR5's six tests (they pass year=2025 throughout) and folded in
+# HEAD's unique ``skips_jobs_without_pipeline_id`` case so the
+# ``pipeline_id IS NOT NULL`` guard coverage isn't lost.
 
 
 @pytest.mark.asyncio
 async def test_get_current_pipeline_id_returns_none_when_no_active_pipeline(
     db_session: AsyncSession,
 ):
-    """No jobs exist for the module → returns None.
-
-    Steady state once every chain has finished; the carbon-report
-    response should NOT carry a current_pipeline_id then.
-    """
+    """No matching jobs → ``None``."""
     repo = DataIngestionRepository(db_session)
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_get_current_pipeline_id_ignores_finished_only_pipeline(
-    db_session: AsyncSession,
-):
-    """Pipeline whose only job is FINISHED is not "active" → returns None.
-
-    The plan calls active = state in (NOT_STARTED, QUEUED, RUNNING); a
-    completed pipeline must not keep showing the "Recalculating…" badge
-    forever.
-    """
-    repo = DataIngestionRepository(db_session)
-
-    finished_pipeline = uuid4()
-    job = _make_job(
-        module_type_id=1,
-        data_entry_type_id=20,
-        year=2025,
-        target_type=TargetType.FACTORS,
-        ingestion_method=IngestionMethod.csv,
-        state=IngestionState.FINISHED,
-        result=IngestionResult.SUCCESS,
-        is_current=True,
-    )
-    job.pipeline_id = finished_pipeline
-    db_session.add(job)
-    await db_session.flush()
-
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
     assert result is None
 
 
@@ -664,59 +637,100 @@ async def test_get_current_pipeline_id_ignores_finished_only_pipeline(
 async def test_get_current_pipeline_id_returns_active_pipeline(
     db_session: AsyncSession,
 ):
-    """Single RUNNING job for the module → returns its pipeline_id.
-
-    The minimum positive case: backend has one in-flight pipeline and
-    the helper surfaces it for the carbon-report response.
-    """
-    repo = DataIngestionRepository(db_session)
-
-    active_pipeline = uuid4()
+    """A NOT_STARTED job with a pipeline_id → its pipeline_id."""
+    pipeline_id = uuid4()
     job = _make_job(
-        module_type_id=1,
-        data_entry_type_id=20,
+        module_type_id=5,
+        data_entry_type_id=11,
         year=2025,
-        target_type=TargetType.FACTORS,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    job.pipeline_id = pipeline_id
+    db_session.add(job)
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
+    assert result == pipeline_id
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_skips_finished_jobs(
+    db_session: AsyncSession,
+):
+    """A FINISHED job with a pipeline_id → does NOT match (terminal state).
+    Without this filter, the badge would never clear after a chain
+    completes."""
+    pipeline_id = uuid4()
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    job.pipeline_id = pipeline_id
+    db_session.add(job)
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_filters_by_module_type(
+    db_session: AsyncSession,
+):
+    """A pipeline for a different module_type_id → no match for ours."""
+    other_pipeline_id = uuid4()
+    other_job = _make_job(
+        module_type_id=99,  # different module
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
         ingestion_method=IngestionMethod.csv,
         state=IngestionState.RUNNING,
         result=None,
         is_current=True,
     )
-    job.pipeline_id = active_pipeline
-    db_session.add(job)
-    await db_session.flush()
+    other_job.pipeline_id = other_pipeline_id
+    db_session.add(other_job)
+    await db_session.commit()
 
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
-    assert result == active_pipeline
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
+    assert result is None
 
 
 @pytest.mark.asyncio
 async def test_get_current_pipeline_id_picks_most_recent_when_multiple_active(
     db_session: AsyncSession,
 ):
-    """Two active pipelines for the module → returns the most-recent one
-    (highest job id).
-
-    Without a ``created_at`` column the serial PK is the only universal
-    monotonic ordering — the helper relies on ``ORDER BY id DESC LIMIT 1``
-    so adding a newer pipeline supersedes the older one immediately.
-    """
-    repo = DataIngestionRepository(db_session)
-
+    """When multiple active pipelines match, pick the most recent by id.
+    Frontend subscribes to a single pipeline so we must pick deterministically;
+    most-recent-first matches what the operator just triggered."""
     older_pipeline = uuid4()
     newer_pipeline = uuid4()
 
+    # Two different dets so the (module, det, target, method, year)
+    # unique index allows both rows; both still match the
+    # module-level pipeline lookup.
     older = _make_job(
-        module_type_id=1,
-        data_entry_type_id=20,
+        module_type_id=5,
+        data_entry_type_id=11,
         year=2025,
-        target_type=TargetType.FACTORS,
+        target_type=TargetType.DATA_ENTRIES,
         ingestion_method=IngestionMethod.csv,
-        state=IngestionState.RUNNING,
+        state=IngestionState.NOT_STARTED,
         result=None,
-        # Avoid tripping the partial unique index on (module, det,
-        # target, method, year) by toggling is_current off for the
-        # older row — both rows are active but only one can be current.
         is_current=False,
     )
     older.pipeline_id = older_pipeline
@@ -724,55 +738,46 @@ async def test_get_current_pipeline_id_picks_most_recent_when_multiple_active(
     await db_session.flush()
 
     newer = _make_job(
-        module_type_id=1,
-        data_entry_type_id=21,
+        module_type_id=5,
+        data_entry_type_id=12,
         year=2025,
-        target_type=TargetType.FACTORS,
-        ingestion_method=IngestionMethod.csv,
-        state=IngestionState.NOT_STARTED,
-        result=None,
-        is_current=True,
-    )
-    newer.pipeline_id = newer_pipeline
-    db_session.add(newer)
-    await db_session.flush()
-
-    assert older.id is not None
-    assert newer.id is not None
-    assert newer.id > older.id
-
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
-    assert result == newer_pipeline
-
-
-@pytest.mark.asyncio
-async def test_get_current_pipeline_id_ignores_other_modules(
-    db_session: AsyncSession,
-):
-    """Active pipeline for a different module → returns None.
-
-    Module-scoped lookup — the dashboard should only badge the module
-    whose data is being recalculated, never bleed to siblings.
-    """
-    repo = DataIngestionRepository(db_session)
-
-    pipeline_for_module_2 = uuid4()
-    job = _make_job(
-        module_type_id=2,
-        data_entry_type_id=20,
-        year=2025,
-        target_type=TargetType.FACTORS,
+        target_type=TargetType.DATA_ENTRIES,
         ingestion_method=IngestionMethod.csv,
         state=IngestionState.RUNNING,
         result=None,
         is_current=True,
     )
-    job.pipeline_id = pipeline_for_module_2
-    db_session.add(job)
-    await db_session.flush()
+    newer.pipeline_id = newer_pipeline
+    db_session.add(newer)
+    await db_session.commit()
 
-    # Asking about module 1 must not pick up module 2's pipeline.
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
+    assert result == newer_pipeline
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_filters_by_year(
+    db_session: AsyncSession,
+):
+    """An active pipeline for the same module but a different year → no match."""
+    other_year_pipeline = uuid4()
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2024,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job.pipeline_id = other_year_pipeline
+    db_session.add(job)
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
     assert result is None
 
 
@@ -784,12 +789,12 @@ async def test_get_current_pipeline_id_skips_jobs_without_pipeline_id(
 
     Single-step jobs (e.g. unit_sync, manual recalcs) are not part of a
     multi-step chain; they shouldn't trigger the stale-stats badge.
+    Carried forward from #1052's test suite — guards the
+    ``pipeline_id IS NOT NULL`` clause that PR5 inherited unchanged.
     """
-    repo = DataIngestionRepository(db_session)
-
     job = _make_job(
-        module_type_id=1,
-        data_entry_type_id=20,
+        module_type_id=5,
+        data_entry_type_id=11,
         year=2025,
         target_type=TargetType.DATA_ENTRIES,
         ingestion_method=IngestionMethod.computed,
@@ -797,10 +802,10 @@ async def test_get_current_pipeline_id_skips_jobs_without_pipeline_id(
         result=None,
         is_current=True,
     )
-    # Explicit None — single-step job, not chain-attached.
     job.pipeline_id = None
     db_session.add(job)
-    await db_session.flush()
+    await db_session.commit()
 
-    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
     assert result is None

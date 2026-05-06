@@ -187,12 +187,41 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def list_modules(self, carbon_report_id: int) -> List[CarbonReportModuleRead]:
-        """List all modules for a carbon report."""
+    async def list_modules(
+        self,
+        carbon_report_id: int,
+        *,
+        year: Optional[int] = None,
+    ) -> List[CarbonReportModuleRead]:
+        """List all modules for a carbon report.
+
+        Plan 310-D — when ``year`` is supplied, populates each module's
+        ``current_pipeline_id`` from the most recent active bulk
+        pipeline whose any-job touches that ``(module_type_id, year)``
+        scope (frontend "Recalculating..." badge).  ``year`` is
+        optional so legacy callers (and direct tests) still work; the
+        carbon-report API endpoint passes the parent report's year.
+        """
         carbon_report_modules = await self.repo.list_by_report(carbon_report_id)
-        return [
+        reads = [
             CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
         ]
+        if year is None or not reads:
+            return reads
+
+        # Late import: data_ingestion repo lives in the same layer but
+        # carrying it at the top level would create a service →
+        # data_ingestion dependency that's only justified for this
+        # specific Plan 310-D feature.
+        from app.repositories.data_ingestion import DataIngestionRepository
+
+        di_repo = DataIngestionRepository(self.session)
+        for read in reads:
+            read.current_pipeline_id = await di_repo.get_current_pipeline_id_for_module(
+                module_type_id=read.module_type_id,
+                year=year,
+            )
+        return reads
 
     async def list_modules_for(
         self, module_type_id: int, year: int
