@@ -85,21 +85,51 @@ await chain_job(
 
 ### 3. New `aggregation` handler
 
+> **Delivered: PR #310d (this PR).** The handler ships in
+> `backend/app/tasks/aggregation_tasks.py`; `CarbonReportModuleService.list_modules_for`
+> is added in the same PR. Two divergences from the sketch below were applied
+> at delivery and are reflected in the snippet:
+>
+> 1. `recompute_stats` takes `module.id: int`, not the module instance — that
+>    matches the existing service signature, which the sketch had wrong.
+> 2. The handler validates scope (`module_type_id`, `year`, `job.id`) up
+>    front and raises `ValueError` so the runner records FINISHED+ERROR,
+>    matching the contract pinned by the other 310-C handlers.
+> 3. The returned meta dict carries `status_message` and `result` (not just
+>    `modules_refreshed`) so the runner has the keys it needs for the
+>    FINISHED-state write.
+>
+> The handler is **strictly additive** in this PR — no caller invokes it
+> yet. The cutover (`emission_recalc_handler` chains to `aggregation`,
+> providers stop calling `recompute_stats` directly) is a follow-up
+> Plan-D PR.
+
 ```python
 @register("aggregation")
-async def aggregation_handler(job, job_session, data_session):
+async def aggregation_handler(job, job_session, data_session) -> dict:
     """
     Sole writer of carbon_reports.stats for the bulk path.
     Reads data_entry_emissions for (module_type_id, year), recomputes stats per
     affected CarbonReportModule, writes carbon_reports.stats with ON CONFLICT.
     """
+    if job.id is None:
+        raise ValueError("aggregation: job has no id")
+    if job.module_type_id is None or job.year is None:
+        raise ValueError(
+            f"aggregation job {job.id} missing module_type_id or year"
+        )
+
     svc = CarbonReportModuleService(data_session)
     affected = await svc.list_modules_for(
         module_type_id=job.module_type_id, year=job.year
     )
     for module in affected:
-        await svc.recompute_stats(module)   # existing method, unchanged internals
-    return {"modules_refreshed": len(affected)}
+        await svc.recompute_stats(module.id)   # int signature, unchanged internals
+    return {
+        "status_message": "Aggregation completed",
+        "result": IngestionResult.SUCCESS,
+        "modules_refreshed": len(affected),
+    }
 ```
 
 ### 4. Aggregation dedup (the N-jobs problem)
@@ -108,14 +138,25 @@ When `factor_ingest` fans out to N `emission_recalc` (one per stale det), each c
 `aggregation` for the same `(module_type_id, year)` — that is N redundant aggregation jobs
 per module.
 
-**Dedup mechanism**: a partial unique index on **active** (NOT_STARTED or RUNNING)
+> **Delivered: PR #310d (this PR) — index only.** The partial unique index
+> ships now via Alembic revision `e7f1a2b3c4d5_aggregation_dedup_index`.
+> The `chain_job(dedup_active=True)` helper extension is a separate
+> follow-up PR; this PR ships only the index that makes dedup possible.
+> The DDL uses native PG enum labels (the column is `SAEnum(..., native_enum=True)`),
+> not the int values the sketch shows.
+
+**Dedup mechanism**: a partial unique index on **active** (NOT_STARTED, QUEUED, or RUNNING)
 aggregation jobs:
 
 ```sql
 CREATE UNIQUE INDEX uq_aggregation_active
     ON data_ingestion_jobs (module_type_id, year)
     WHERE job_type = 'aggregation'
-      AND state IN (0, 1, 2);    -- NOT_STARTED, QUEUED, RUNNING
+      AND state IN (
+          'NOT_STARTED'::ingestion_state_enum,
+          'QUEUED'::ingestion_state_enum,
+          'RUNNING'::ingestion_state_enum
+      );
 ```
 
 `chain_job(job_type="aggregation", ...)` uses `INSERT ... ON CONFLICT DO NOTHING` against

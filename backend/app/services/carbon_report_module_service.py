@@ -194,6 +194,19 @@ class CarbonReportModuleService:
             CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
         ]
 
+    async def list_modules_for(
+        self, module_type_id: int, year: int
+    ) -> List[CarbonReportModule]:
+        """Return all CarbonReportModule rows for a (module_type_id, year) slice.
+
+        Used by the Plan 310-D ``aggregation`` handler to identify which
+        modules need their stats recomputed after a bulk recalc / ingest
+        pipeline writes new emissions for that scope.
+        """
+        return await self.repo.list_by_module_type_and_year(
+            module_type_id=module_type_id, year=year
+        )
+
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int
     ) -> Optional[CarbonReportModuleRead]:
