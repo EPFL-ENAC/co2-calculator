@@ -1,5 +1,5 @@
 ---
-status: planned
+status: delivered
 last_updated: 2026-05-06
 title: "Plan 310-D Follow-up — Strategy B Rematch + Per-Module ITs"
 summary: "Rematch the FK-link modules (travel, headcount, building rooms / embodied) by walking data_entry_emissions, plus per-module integration coverage."
@@ -182,4 +182,96 @@ After implementation:
 **Related PRs**
 
 - #1027 — Plan 310-D batch rematch (JSON-link modules), strict-drop semantics. This follow-up rides on top.
+- #1042 — Delivered: per-module IT matrix + plan-doc realignment (see below).
 - (future) — `aggregation` handler + dedup index migration (separate Plan-D Tier-2 PR).
+
+---
+
+## Delivered: PR #1042
+
+The investigation phase of this PR turned up a key empirical finding
+that simplified the deliverable substantially. Documented here so the
+next reader can build on the right architecture.
+
+### What actually shipped
+
+- **No workflow code change.** `EmissionRecalculationWorkflow` is
+  unchanged from PR #1027.
+- **16 PG-backed integration tests** covering Plan 310-D's 14-row matrix:
+  - `backend/tests/integration/services/data_ingestion/test_strategy_b_rematch_pg.py` —
+    7 tests for the FK-link path (plane values, plane drop, train,
+    member, student, embodied energy, building rooms 1:N).
+  - `backend/tests/integration/services/data_ingestion/test_strategy_a_rematch_pg.py` —
+    9 tests for the JSON-link path (equipment × 3, purchase × 2,
+    external cloud, external AI, process emissions, energy combustion).
+- **Plan-doc realignment** (this section).
+
+### Why the plan's "walk data_entry_emissions" branch was not needed
+
+The plan assumed FK-link entries (travel, headcount, embodied energy)
+were skipped entirely by the rematch path. Empirically:
+
+1. `EmissionRecalculationWorkflow` walks **every** `DataEntry` for
+   `(det, year)` and calls `upsert_by_data_entry` on each. The
+   gate at `handler.kind_field in entry.data` only short-circuits
+   the `entry.data['primary_factor_id']` rewrite — a JSON-link
+   concern. The per-entry `upsert_by_data_entry` runs unconditionally.
+2. `upsert_by_data_entry` → `prepare_create` runs the handler's
+   `pre_compute` (re-resolving `haul_category` from Locations,
+   `country_code` from train stations, etc.) and then `_fetch_factors`
+   on each `EmissionComputation`.
+3. `_fetch_factors` in `data_entry_emission_service.py:343-415`
+   **already** runs the live Strategy B classification query — same
+   factor lookup the initial compute used. A factor whose `values`
+   changed is picked up automatically; a factor whose row was deleted
+   produces an empty list and the per-entry strict-drop kicks in.
+
+The only thing missing was test coverage to make this contract durable.
+
+### Strict-drop contract clarification
+
+The plan's "preserve row with primary_factor_id=None, kg_co2eq=None"
+language is imprecise. The actual behaviour shared by both Strategy A
+and Strategy B is **delete the entry's emission rows**:
+
+- Strategy A: bulk lookup miss → `entry.data['primary_factor_id']`
+  set to `None` → `resolve_computations` returns `[]` → `upsert_by_data_entry`
+  hits the `if not prepared_emissions` branch → `delete_by_data_entry_id`.
+- Strategy B: `_fetch_factors` returns `[]` (classification miss
+  or factor row deleted) → no `DataEntryEmission` rows produced →
+  same `delete_by_data_entry_id` branch.
+
+The dashboards surface this as "no emission for this entry", which
+matches the plan's intended operator-visible signal.
+
+### Module reclassification
+
+The plan listed `buildings__rooms` (`DataEntryTypeEnum.building`)
+under FK-link. In fact `BuildingRoomModuleHandler` declares
+`kind_field='building_name'` and `subkind_field='room_type'`, both
+on `entry.data` — so the existing Strategy A bulk-prefetch covers it.
+The `test_building_room_factor_values_change_propagates_all_5_emissions`
+test in the Strategy B file lives there because rooms emits 1:N (5
+emission rows per entry, one per energy type), which is the only
+genuinely new shape the FK-link conversation introduced. Verifying all
+5 rows scale linearly with the factor's `ef_kg_co2eq_per_kwh` belongs
+to this PR even though the lookup path itself is JSON-link.
+
+### Files touched
+
+| File                                                                              | Change                                                      |
+| --------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `backend/app/workflows/emission_recalculation.py`                                 | No change. Plan's Strategy B branch turned out unnecessary. |
+| `backend/tests/integration/services/data_ingestion/test_strategy_b_rematch_pg.py` | New file — 7 FK-link ITs incl. 1:N rooms regression.        |
+| `backend/tests/integration/services/data_ingestion/test_strategy_a_rematch_pg.py` | New file — 9 JSON-link ITs (regression net for #1027).      |
+| `docs/src/implementation-plans/310-d-strategy-b-rematch.md`                       | This "Delivered: PR #1042" section.                         |
+
+### What's still on the follow-up list
+
+The plan's "Open question 1" (old-classification lookup vs. re-derive
+via `pre_compute`) collapses to "re-derive" because that's what the
+existing per-entry path already does. If a future "rematch on entry
+edit" workflow wants to skip the LocationService roundtrip on travel,
+it could read `meta['distance_km']` from the existing
+`DataEntryEmission` row — but that's a perf optimisation, not a
+correctness gap.
