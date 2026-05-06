@@ -27,8 +27,8 @@ from app.models.data_ingestion import (
 )
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks._chain import chain_job
 from app.tasks.registry import register
-from app.tasks.runner import chain_job
 
 logger = get_logger(__name__)
 
@@ -142,15 +142,20 @@ async def _run_ingest(
         job_session=job_session,
         data_session=data_session,
     )
+    # The runner is the single FINISHED authority — defer the
+    # provider's own state=FINISHED writes (success and error branches
+    # both go through ``_update_job`` in the base class).  Without this,
+    # ``finished_at`` would stamp at provider-return time (skipping
+    # handler-side post-processing), ``factor_ingest``'s chain children
+    # would get created AFTER the parent appears FINISHED on the
+    # dashboard, and the runner's preempt-check could be bypassed.
+    provider.defer_finalize = True
     if hasattr(provider, "set_job_id"):
         await provider.set_job_id(job.id)
 
-    # ``provider.ingest`` already drives ``_update_job(state=RUNNING …)``
-    # for SSE progress.  It also writes FINISHED at the end of its own
-    # try-block; the runner overrides that with its authoritative
-    # state-write so the duplicate is harmless (just a small extra row
-    # update).  Keeping the call as-is is the smallest possible cutover —
-    # provider plumbing is Plan-D scope.
+    # ``provider.ingest`` still drives ``_update_job(state=RUNNING …)``
+    # for SSE progress; only the FINISHED transition is deferred to the
+    # runner (see ``defer_finalize`` above).
     filters = job_meta.get("filters") or {}
     result = await provider.ingest(filters)
 
