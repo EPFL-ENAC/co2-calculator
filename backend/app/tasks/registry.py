@@ -17,6 +17,7 @@ This module is greenfield in this PR: no handlers are registered yet. The
 registry has no callers until Tier 2 wires up the runner and existing tasks.
 """
 
+import inspect
 from typing import Awaitable, Callable
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,18 +33,61 @@ HandlerFn = Callable[
 
 _REGISTRY: dict[str, HandlerFn] = {}
 
+# Required positional parameter count for the handler contract:
+#   (job, job_session, data_session) -> Awaitable[dict]
+_HANDLER_REQUIRED_ARITY = 3
+
 
 def register(job_type: str):
     """Decorator to register a handler for a ``job_type``.
 
-    Raises :class:`ValueError` if ``job_type`` is already registered, so an
-    accidental double-import or naming collision fails loudly at import time
-    rather than silently shadowing an earlier registration.
+    Raises :class:`ValueError` if:
+
+    - ``job_type`` is already registered (accidental double-import or naming
+      collision fails loudly at import time rather than silently shadowing).
+    - The decorated function is not a coroutine function (the runner does
+      ``await handler(...)``; a sync function would only fail at first
+      dispatch, far from where the bug was introduced).
+    - The signature does not accept the required ``(job, job_session,
+      data_session)`` arity. We accept ``*args``-style handlers as long as
+      the callable can take 3 positional arguments.
     """
 
     def decorator(fn: HandlerFn) -> HandlerFn:
         if job_type in _REGISTRY:
             raise ValueError(f"job_type {job_type!r} already registered")
+        if not inspect.iscoroutinefunction(fn):
+            raise ValueError(
+                f"handler for job_type {job_type!r} must be `async def`; got {fn!r}"
+            )
+        sig = inspect.signature(fn)
+        params = list(sig.parameters.values())
+        positional = [
+            p
+            for p in params
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.VAR_POSITIONAL,
+            )
+        ]
+        has_var = any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in positional)
+        # Required positionals are those without defaults (excluding *args).
+        required = [
+            p
+            for p in positional
+            if p.kind != inspect.Parameter.VAR_POSITIONAL
+            and p.default is inspect.Parameter.empty
+        ]
+        accepts_arity = (has_var or len(positional) >= _HANDLER_REQUIRED_ARITY) and len(
+            required
+        ) <= _HANDLER_REQUIRED_ARITY
+        if not accepts_arity:
+            raise ValueError(
+                f"handler for job_type {job_type!r} must accept "
+                f"(job, job_session, data_session); got signature {sig}"
+            )
         _REGISTRY[job_type] = fn
         return fn
 

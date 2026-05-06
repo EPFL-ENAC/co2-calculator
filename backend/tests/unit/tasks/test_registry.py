@@ -90,3 +90,46 @@ def test_reset_registry_clears():
         get_handler("foo")
     with pytest.raises(ValueError):
         get_handler("bar")
+
+
+def test_register_rejects_sync_function():
+    """Sync handlers would only fail at first dispatch (`await sync_fn()` is
+    a TypeError).  Catching at registration moves the error from "mystery
+    runtime job failure" to "import-time loud crash"."""
+
+    def sync_handler(job, job_session, data_session) -> dict:
+        return {}
+
+    with pytest.raises(ValueError, match="must be `async def`"):
+        # type-ignore: intentionally feeding a sync handler to verify
+        # the runtime guard fires; the static type rejects it for the
+        # same reason, which is the contract we want.
+        register("foo")(sync_handler)  # type: ignore[arg-type]
+
+
+def test_register_rejects_wrong_arity():
+    """Handler signature must accept (job, job_session, data_session).
+    Anything taking fewer required positionals would TypeError at dispatch."""
+
+    async def too_few(job) -> dict:
+        return {}
+
+    async def too_many(job, job_session, data_session, extra) -> dict:
+        return {}
+
+    with pytest.raises(ValueError, match="must accept"):
+        register("foo")(too_few)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="must accept"):
+        register("bar")(too_many)  # type: ignore[arg-type]
+
+
+def test_register_accepts_var_positional_handler():
+    """``*args``-style handlers are valid — they trivially accept the 3-arg
+    contract.  Some test mocks use this shape."""
+
+    async def varargs_handler(*args, **kwargs) -> dict:
+        return {}
+
+    decorated = register("foo")(varargs_handler)
+    assert decorated is varargs_handler
+    assert get_handler("foo") is varargs_handler
