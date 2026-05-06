@@ -102,8 +102,13 @@ class FactorRepository:
         if not factors:
             return 0
 
-        with_year = [f for f in factors if f.year is not None]
-        no_year = [f for f in factors if f.year is None]
+        with_year: List[Factor] = []
+        no_year: List[Factor] = []
+        for f in factors:
+            if f.year is not None:
+                with_year.append(f)
+            else:
+                no_year.append(f)
 
         affected = 0
         if with_year:
