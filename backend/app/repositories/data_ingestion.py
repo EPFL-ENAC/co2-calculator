@@ -126,6 +126,45 @@ class DataIngestionRepository:
             await self.session.refresh(result_job)
         return result_job
 
+    async def heartbeat(self, job_id: int, pod_id: str) -> int:
+        """Refresh ``locked_at`` on a RUNNING job we still own.
+
+        The Plan 310-C runner spawns a heartbeat task per active job that
+        wakes every ``STALE_JOB_TIMEOUT_MINUTES / 4`` and calls this
+        method.  Without it, the safety poller's stale-lock sweep would
+        falsely classify any legitimately long-running job as a crashed
+        pod once its runtime exceeds the timeout window — leading to the
+        same row being claimed by a second pod.
+
+        The WHERE clause guards against three failure modes:
+
+        - ``locked_by == pod_id`` — refuse to refresh someone else's
+          lock if a sweep already preempted us; the next preemption
+          check in the runner will then exit cleanly.
+        - ``state == RUNNING`` — refuse to revive a row that the runner
+          (or an admin) already moved out of RUNNING (cancelled,
+          finished, recovered).
+
+        Returns the rowcount actually updated (0 or 1) so the caller
+        can detect preemption and stop the heartbeat loop.
+        """
+        result = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(locked_at=func.now())
+        )
+        await self.session.commit()
+        # ``rowcount`` is a SQLAlchemy ``Result`` attribute populated by
+        # the UPDATE driver — Pyright's stubs don't expose it, so guard
+        # via ``hasattr`` (matches the pattern in ``mark_job_as_current``).
+        if result is not None and hasattr(result, "rowcount"):
+            return int(result.rowcount or 0)
+        return 0
+
     async def set_started_at(self, job_id: int) -> None:
         """Stamp ``started_at`` on the FIRST successful claim only.
 
