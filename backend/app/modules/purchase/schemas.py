@@ -270,9 +270,13 @@ class PurchaseModuleHandler(BaseModuleHandler):
             if year is None:
                 return None
 
-            total_spent_amount = ctx.get("total_spent_amount", 0)
+            total_spent_amount = ctx.get("total_spent_amount")
+            if total_spent_amount is None:
+                return None
             entry_currency = (ctx.get("currency", "chf") or "chf").lower()
-            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
+            ef = factor_values.get("ef_kg_co2eq_per_currency")
+            if ef is None:
+                return None
             ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
             if total_spent_amount is None or ef is None:
                 return None
@@ -359,10 +363,14 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             return []
 
         def _additional_purchase_formula(ctx: dict, factor_values: dict):
-            annual_consumption = ctx.get("annual_consumption", 0)
-            coef_to_kg = ctx.get("coef_to_kg", 0)
-            ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
-            if annual_consumption is None or coef_to_kg is None or ef is None:
+            annual_consumption = ctx.get("annual_consumption")
+            if annual_consumption is None:
+                return None
+            coef_to_kg = ctx.get("coef_to_kg")
+            if coef_to_kg is None:
+                return None
+            ef = factor_values.get("ef_kg_co2eq_per_kg")
+            if ef is None:
                 return None
             return annual_consumption * coef_to_kg * ef
 
