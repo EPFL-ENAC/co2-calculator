@@ -84,16 +84,17 @@ async def test_post_sync_units_creates_tracked_job(pg_app):
     # its own anyio portal, which would conflict with asyncpg connections
     # bound to the test loop.
     #
-    # Replace run_sync_task_accred with a noop coroutine so asyncio.create_task
-    # gets a real awaitable but the Accred fetch is skipped.  Patching
-    # asyncio.create_task directly would clobber it module-wide because
-    # ``data_sync.asyncio`` is the same module object as global asyncio.
-    accred_calls: list[tuple] = []
+    # Plan 310-C cutover: the endpoint now fires ``run_job(job_id)``
+    # via ``fire_and_forget``.  Patch ``run_job`` to a noop coroutine
+    # so the request returns synchronously (no Accred fetch, no DB
+    # writes from the runner), while still asserting the dispatch
+    # site fired with the right job id.
+    runner_calls: list[int] = []
 
-    async def _noop_accred(sync_request, job_id):
-        accred_calls.append((sync_request.target_year, job_id))
+    async def _noop_run_job(job_id: int):
+        runner_calls.append(job_id)
 
-    with patch("app.api.v1.data_sync.run_sync_task_accred", _noop_accred):
+    with patch("app.api.v1.data_sync.run_job", _noop_run_job):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://test",
@@ -109,10 +110,9 @@ async def test_post_sync_units_creates_tracked_job(pg_app):
         f"got {body!r}"
     )
 
-    # The endpoint should have scheduled the noop Accred coroutine with the
-    # job_id it just created.
-    assert len(accred_calls) == 1
-    assert accred_calls[0] == (2025, job_id)
+    # The endpoint should have scheduled the noop runner with the job_id
+    # it just created.
+    assert runner_calls == [job_id]
 
     # Verify on a fresh engine — proves cross-connection commit visibility.
     verify_engine = create_async_engine(pg_dsn, future=True)

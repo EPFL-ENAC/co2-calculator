@@ -32,8 +32,12 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.tasks.emission_recalculation_tasks import run_recalculation_task
-from app.tasks.ingestion_tasks import run_sync_task
+
+# Plan 310-C cutover: legacy ``run_sync_task`` / ``run_recalculation_task``
+# are gone — every job_type funnels through ``app.tasks.runner.run_job``.
+# Claim-guard semantics are now covered by ``test_runner.py``
+# (test_run_job_claim_fails_returns_silently); the pod-safety claim
+# tests below remain because they assert repository-level behaviour.
 
 
 def _make_job(
@@ -449,129 +453,6 @@ async def test_sweep_handles_mixed_population(db_session: AsyncSession):
 
 
 # ======================================================================
-# run_sync_task claim guard tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_run_sync_task_claim_fails_skips_provider(db_session: AsyncSession):
-    job = _make_job(
-        state=IngestionState.NOT_STARTED,
-        locked_by="other-pod",
-    )
-    db_session.add(job)
-    await db_session.flush()
-
-    fake_provider = MagicMock()
-    fake_provider.ingest = AsyncMock()
-    fake_provider._update_job = AsyncMock()
-    fake_provider.set_job_id = AsyncMock()
-
-    class FakeProviderClass:
-        def __new__(cls, *args, **kwargs):
-            return fake_provider
-
-    with (
-        patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local,
-        patch(
-            "app.tasks.ingestion_tasks.ProviderFactory.get_provider_class",
-            return_value=FakeProviderClass,
-        ),
-    ):
-        mock_job_session = db_session
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
-
-        mock_session_local.return_value.__aenter__ = AsyncMock(
-            side_effect=[mock_job_session, mock_data_session]
-        )
-        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        await run_sync_task(
-            "FakeProviderClass", job_id=job.id, filters={"key": "value"}
-        )
-
-    fake_provider.ingest.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_run_sync_task_invalid_provider_does_not_claim(
-    db_session: AsyncSession,
-):
-    """If the provider class doesn't resolve, ``run_sync_task`` must
-    return BEFORE acquiring the claim — otherwise the job ends up stuck
-    in RUNNING and only the 30-min stale-recovery window can release it.
-    """
-    job = _make_job(state=IngestionState.NOT_STARTED)
-    db_session.add(job)
-    await db_session.flush()
-    assert job.id is not None
-
-    with patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local:
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
-        mock_session_local.return_value.__aenter__ = AsyncMock(
-            side_effect=[db_session, mock_data_session]
-        )
-        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        # No patch on ProviderFactory: the real factory returns None for
-        # this bogus name, which is exactly what we want to exercise.
-        await run_sync_task(
-            "DefinitelyNotAProviderClass",
-            job_id=job.id,
-            filters={},
-        )
-
-    # Job must be untouched — no claim occurred.
-    repo = DataIngestionRepository(db_session)
-    refreshed = await repo.get_job_by_id(job.id)
-    assert refreshed is not None
-    assert refreshed.state == IngestionState.NOT_STARTED
-    assert refreshed.is_current is False
-    assert refreshed.locked_by is None
-    assert refreshed.attempts == 0
-
-
-# ======================================================================
-# run_recalculation_task claim guard tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_run_recalculation_task_claim_fails(db_session: AsyncSession):
-    job = _make_job(
-        state=IngestionState.NOT_STARTED,
-        locked_by="other-pod",
-    )
-    db_session.add(job)
-    await db_session.flush()
-
-    with patch("app.tasks.emission_recalculation_tasks.SessionLocal") as mock_sl:
-        mock_job_session = db_session
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
-
-        mock_sl.return_value.__aenter__ = AsyncMock(
-            side_effect=[mock_job_session, mock_data_session]
-        )
-        mock_sl.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        await run_recalculation_task(
-            module_type_id=1,
-            data_entry_type_id=1,
-            year=2025,
-            job_id=job.id,
-        )
-
-    refreshed = await DataIngestionRepository(db_session).get_job_by_id(job.id)
-    assert refreshed.state == IngestionState.NOT_STARTED
-
-
-# ======================================================================
 # recover endpoint tests
 # ======================================================================
 
@@ -713,17 +594,48 @@ async def test_pending_jobs_query(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_job_unknown_type(db_session: AsyncSession):
+async def test_dispatch_job_routes_through_runner():
+    """Plan 310-C cutover: ``dispatch_job`` is now a thin pass-through
+    to ``run_job`` — the registry lookup happens INSIDE the runner.
+    Unit-level: assert the call delegates with the right id."""
     from app.tasks._poller import dispatch_job
 
-    job = _make_job(
+    job = MagicMock(spec=DataIngestionJob)
+    job.id = 42
+    job.job_type = "anything"
+
+    with patch("app.tasks._poller.run_job", new_callable=AsyncMock) as mock_run:
+        await dispatch_job(job, "pod-test")
+    mock_run.assert_awaited_once_with(42)
+
+
+@pytest.mark.asyncio
+async def test_pending_runner_jobs_query_excludes_null_job_type(
+    db_session: AsyncSession,
+):
+    """Plan 310-C poller cutover: the dispatch sweep filters out rows
+    with ``job_type IS NULL`` so legacy in-flight jobs (created
+    pre-Plan-C) don't get funneled through a runner that has no handler
+    for them.  The runner itself defends in depth (refuses to dispatch
+    a NULL row), but filtering at SELECT time avoids per-iteration
+    noise in the logs."""
+    from app.tasks._poller import _pending_runner_jobs_query
+
+    legacy = _make_job(
         state=IngestionState.NOT_STARTED,
-        job_type="unknown_type",
+        job_type=None,  # legacy in-flight row
+        data_entry_type_id=1,
     )
-    db_session.add(job)
+    typed = _make_job(
+        state=IngestionState.NOT_STARTED,
+        job_type="csv_ingest",
+        data_entry_type_id=2,
+    )
+    db_session.add_all([legacy, typed])
     await db_session.flush()
 
-    with patch("app.tasks._poller.logger.warning") as mock_warning:
-        await dispatch_job(job, "pod-test")
-        mock_warning.assert_called_once()
-        assert "unknown_type" in mock_warning.call_args[0][0]
+    stmt = _pending_runner_jobs_query(limit=10)
+    jobs = (await db_session.execute(stmt)).scalars().all()
+    job_ids = {j.id for j in jobs}
+    assert legacy.id not in job_ids
+    assert typed.id in job_ids

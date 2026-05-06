@@ -1,13 +1,26 @@
-"""In-process safety poller for orphaned jobs (Plan 310A)."""
+"""In-process safety poller for orphaned jobs (Plan 310A + 310C cutover).
+
+Plan 310-C cutover: dispatch goes through the unified
+``app.tasks.runner.run_job``.  The poller's role is unchanged —
+detect orphaned NOT_STARTED jobs (typically created by an HTTP endpoint
+that fired ``run_job`` and then crashed before the runner claimed) and
+re-fire them.  Jobs without a ``job_type`` (legacy in-flight rows
+created pre-Plan-C) are excluded from the SELECT so they don't get
+funneled through a runner that has no handler for them.
+"""
 
 import asyncio
+
+from sqlalchemy import func, or_
+from sqlmodel import col, select
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.data_ingestion import DataIngestionJob
+from app.models.data_ingestion import DataIngestionJob, IngestionState
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._pod_id import POD_ID
+from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
 
@@ -19,9 +32,9 @@ def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
 
     Routes through ``fire_and_forget`` so the Task is held in a strong-ref
     set and survives GC (Python 3.11+ asyncio holds only weak references
-    to running tasks).  The earlier bare ``asyncio.create_task`` here had
-    the same hazard that bit recalc enqueuing — orphaned-job recovery
-    would silently fail to dispatch.
+    to running tasks).  Bare ``asyncio.create_task`` here had the same
+    hazard that bit recalc enqueuing in 310-B — orphan recovery would
+    silently fail to dispatch.
     """
     if job.id is None:
         return
@@ -31,92 +44,46 @@ def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
 
 
 async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
-    """Dispatch a single job to the appropriate handler.
+    """Dispatch a single job through the unified runner.
 
-    The poller predates the unified runner (Plan C).  It re-enters the
-    existing task functions that already call ``claim_job``.  Plan C will
-    consolidate this into a generic ``run_job(job_id)`` dispatcher.
+    Plan 310-C cutover: every job_type funnels through ``run_job(job_id)``
+    which handles claim / heartbeat / preempt-check / state-write
+    uniformly.  ``pod_id`` is no longer needed at this layer (the runner
+    reads ``POD_ID`` itself), but the parameter is kept for compatibility
+    with the existing ``schedule_job`` signature and tests.
     """
     jid = job.id
     if jid is None:
         logger.warning("Job has no ID — skipping")
         return
+    await run_job(jid)
 
-    job_type = job.job_type
-    meta = job.meta or {}
 
-    if job_type in ("csv_ingest", "api_ingest", None):
-        # Legacy ingestion jobs — determine provider from stored meta
-        provider_name = meta.get("provider_name")
-        if not provider_name:
-            logger.warning(f"No provider_name in meta for job {jid} — skipping")
-            return
-        from app.tasks.ingestion_tasks import run_sync_task as _run_sync_task
+def _pending_runner_jobs_query(limit: int = 10):
+    """Pending-jobs query for the runner cutover.
 
-        await _run_sync_task(
-            provider_class_name=provider_name,
-            job_id=jid,
-            filters=meta.get("filters") or {},
+    Same predicates as ``DataIngestionRepository._pending_jobs_query``,
+    plus a ``job_type IS NOT NULL`` filter so legacy in-flight jobs
+    (created pre-Plan-C with a NULL ``job_type``) don't get dispatched
+    through a runner that has no registered handler for them.  The
+    runner itself defends in depth (refuses to dispatch a NULL row),
+    but filtering at SELECT time avoids per-iteration noise in the logs.
+    """
+    return (
+        select(DataIngestionJob)
+        .where(
+            col(DataIngestionJob.state) == IngestionState.NOT_STARTED,
+            col(DataIngestionJob.job_type).is_not(None),
+            or_(
+                col(DataIngestionJob.run_after).is_(None),
+                col(DataIngestionJob.run_after) <= func.now(),
+            ),
+            col(DataIngestionJob.locked_by).is_(None),
+            col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
         )
-    elif job_type == "emission_recalc":
-        from app.tasks.emission_recalculation_tasks import (
-            run_recalculation_task as _run_recalc,
-        )
-
-        mid = job.module_type_id
-        det_id = job.data_entry_type_id
-        yr = job.year
-        if mid is None or det_id is None or yr is None:
-            logger.warning(f"Missing fields for recalc job {jid} — skipping")
-            return
-        await _run_recalc(
-            module_type_id=mid,
-            data_entry_type_id=det_id,
-            year=yr,
-            job_id=jid,
-        )
-    elif job_type == "module_emission_recalc":
-        from app.tasks.emission_recalculation_tasks import (
-            run_module_recalculation_task as _run_module_recalc,
-        )
-
-        mid = job.module_type_id
-        yr = job.year
-        det_ids = (meta.get("config") or {}).get("data_entry_type_ids")
-        if mid is None or yr is None or not det_ids:
-            logger.warning(f"Missing fields for module recalc job {jid} — skipping")
-            return
-        await _run_module_recalc(
-            module_type_id=mid,
-            data_entry_type_ids=det_ids,
-            year=yr,
-            job_id=jid,
-        )
-    elif job_type == "unit_sync":
-        # Plan 310B Part 5 — pod-crash recovery for unit sync.  The
-        # endpoint creates a NOT_STARTED job and fires
-        # ``run_sync_task_accred`` in-process; if this pod dies before
-        # the task claims the job, the poller picks up the NOT_STARTED
-        # row and re-runs the task here.  ``run_sync_task_accred`` itself
-        # calls ``claim_job`` so it's safe to invoke from both the
-        # endpoint and the poller.
-        from app.tasks.unit_sync_tasks import (
-            SyncUnitRequest,
-        )
-        from app.tasks.unit_sync_tasks import (
-            run_sync_task_accred as _run_unit_sync,
-        )
-
-        target_year = (meta.get("config") or {}).get("target_year") or job.year
-        if target_year is None:
-            logger.warning(f"Missing target_year for unit_sync job {jid} — skipping")
-            return
-        await _run_unit_sync(
-            SyncUnitRequest(target_year=target_year),
-            job_id=jid,
-        )
-    else:
-        logger.warning(f"Unknown job_type '{job_type}' for job {jid} — skipping")
+        .with_for_update(skip_locked=True)
+        .limit(limit)
+    )
 
 
 async def poll_pending_jobs() -> None:
@@ -127,12 +94,12 @@ async def poll_pending_jobs() -> None:
     1. ``sweep_stuck_running_jobs`` — auto-recovery for jobs stuck in
        RUNNING past the stale-timeout window (a pod crashed mid-execution).
        Recoverable rows go back to NOT_STARTED; rows out of retries are
-       moved to FINISHED+ERROR so operators see them.  Without this, the
-       only way to recover from a pod crash was the manual
-       ``POST /sync/jobs/{id}/recover`` endpoint and the 30-min stale
-       window.
+       moved to FINISHED+ERROR so operators see them.
 
-    2. The original NOT_STARTED dispatch sweep.
+    2. NOT_STARTED dispatch sweep — pick up rows the endpoint fired but
+       the in-process Task never reached (pod crashed in the gap between
+       commit and ``fire_and_forget``).  Filtered to ``job_type IS NOT
+       NULL`` so legacy rows don't trip on the missing handler path.
     """
     settings = get_settings()
     while True:
@@ -155,8 +122,8 @@ async def poll_pending_jobs() -> None:
                         "exhausted max_attempts retries, marked FINISHED+ERROR"
                     )
 
-                # Sweep 2: dispatch NOT_STARTED jobs (existing Plan 310A behaviour).
-                stmt = repo._pending_jobs_query(10)
+                # Sweep 2: dispatch NOT_STARTED jobs through the unified runner.
+                stmt = _pending_runner_jobs_query(10)
                 jobs = (await session.execute(stmt)).scalars().all()
                 for job in jobs:
                     logger.info(f"Poller: scheduling orphaned job {job.id}")

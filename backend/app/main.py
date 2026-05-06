@@ -50,6 +50,14 @@ async def lifespan(app: FastAPI):
 
         await init_db()
 
+    # Plan 310-C: prime the runner's handler registry.  Bootstrap is
+    # idempotent and lazy-imports the handler modules so audit_service's
+    # early ``audit_sync_tasks`` import doesn't form a cycle through
+    # ingestion provider factory + audit_service.
+    from app.tasks.bootstrap import bootstrap_handlers
+
+    bootstrap_handlers()
+
     # Start the safety poller (Plan 310A)
     if settings.RUN_BACKGROUND_POLLER:
         from app.tasks._pod_id import POD_ID

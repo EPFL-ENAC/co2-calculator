@@ -146,9 +146,12 @@ async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_KEY", "")
     monkeypatch.setattr(settings, "FILES_ENCRYPTION_SALT", "")
 
-    # Point the background-task SessionLocal references at the test PG.
-    monkeypatch.setattr("app.tasks.ingestion_tasks.SessionLocal", Sf)
-    monkeypatch.setattr("app.tasks.emission_recalculation_tasks.SessionLocal", Sf)
+    # Point the runner's SessionLocal at the test PG.  Plan 310-C
+    # cutover: every job_type now funnels through ``app.tasks.runner``,
+    # which opens its own sessions via the bare ``SessionLocal`` name.
+    # Patching here covers both the parent factor_ingest run AND the
+    # chained emission_recalc child (same runner, same module).
+    monkeypatch.setattr("app.tasks.runner.SessionLocal", Sf)
 
     yield {"factory": Sf, "dsn": pg_dsn_with_310b, "tmp_path": tmp_path}
 
@@ -187,9 +190,11 @@ async def _wait_for_job(
 async def _wait_for_child_recalc_job(
     Sf, parent_job_id: int, *, timeout: float = POLL_TIMEOUT_SECONDS
 ) -> DataIngestionJob:
-    """Find the recalc child job spawned by ``_enqueue_stale_recalculations``
-    (matched by ``meta.config.parent_job_id``) and wait for it to reach
-    FINISHED."""
+    """Find the recalc child job spawned by the factor_ingest handler's
+    fan-out (Plan 310-C: ``_chain.chain_job`` stamps ``parent_job_id``
+    at ``meta.parent_job_id``).  Falls back to the legacy
+    ``meta.config.parent_job_id`` location for backward-compatibility
+    with rows pre-310C."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         async with Sf() as s:
@@ -205,9 +210,11 @@ async def _wait_for_child_recalc_job(
                 .all()
             )
             for row in rows:
-                if (row.meta or {}).get("config", {}).get(
-                    "parent_job_id"
-                ) == parent_job_id:
+                meta = row.meta or {}
+                if (
+                    meta.get("parent_job_id") == parent_job_id
+                    or meta.get("config", {}).get("parent_job_id") == parent_job_id
+                ):
                     if row.state == IngestionState.FINISHED:
                         return row
                     break  # found the row but not done yet
