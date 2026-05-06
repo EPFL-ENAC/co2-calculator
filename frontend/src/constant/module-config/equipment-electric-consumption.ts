@@ -49,6 +49,7 @@ const baseModuleFields: ModuleField[] = [
     id: 'equipment_class',
     optionsId: 'kind',
     label: 'Class',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.class`,
     type: 'select',
     required: true,
     sortable: true,
@@ -64,6 +65,7 @@ const baseModuleFields: ModuleField[] = [
     id: 'sub_class',
     optionsId: 'subkind',
     label: 'Sub-class',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.subclass`,
     type: 'select',
     required: true,
     min: 0,
@@ -78,6 +80,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'active_usage_hours_per_week',
     label: 'Active usage',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.active_usage`,
     type: 'number',
     required: true,
     min: 0,
@@ -92,6 +95,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'standby_usage_hours_per_week',
     label: 'Standby usage',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.standby_usage`,
     type: 'number',
     required: true,
     min: 0,
@@ -106,6 +110,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'active_power_w',
     label: 'Active power',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.active_power`,
     type: 'number',
     required: true,
     min: 0,
@@ -124,6 +129,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'standby_power_w',
     label: 'Standby Power',
+    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.standby_power`,
     type: 'number',
     required: true,
     min: 0,
