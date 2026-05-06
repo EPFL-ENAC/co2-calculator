@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.security import require_permission
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.user import User
 from app.repositories.factor_repo import FactorRepository
@@ -29,7 +30,9 @@ class StaleFactorResponse(BaseModel):
 async def list_stale_factors(
     year: int = Query(..., description="Report year to scope the query"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
 ) -> list[StaleFactorResponse]:
     """Return factors not present in the latest successful FACTORS ingest.
 
@@ -40,6 +43,8 @@ async def list_stale_factors(
     ``primary_factor_id`` (this is a JSON value, not a real FK column);
     this endpoint surfaces them so the UI can warn that linked data
     entries are using outdated factors.
+
+    **Required Permission**: ``backoffice.data_management.view``
     """
     rows = await FactorRepository(db).list_stale_for_year(year)
     responses: list[StaleFactorResponse] = []
