@@ -334,6 +334,25 @@ class Settings(BaseSettings):
         description="Whether to run the in-process safety poller",
     )
 
+    # Plan 310-D — bulk-path pure async cutover
+    BULK_PATH_PURE_ASYNC: bool = Field(
+        default=True,
+        description=(
+            "Plan 310-D: when True (default), bulk-path data-entry "
+            "providers (CSV, API) commit ``data_entries`` only and do "
+            "NOT write ``data_entry_emissions`` or call "
+            "``recompute_stats`` inline; the runner-driven "
+            "``emission_recalc`` → ``aggregation`` chain owns those "
+            "writes.  When False, the providers fall back to the "
+            "legacy inline-write behavior (kept for emergency "
+            "rollback if a chain step regresses in production).  "
+            "Path 1 (interactive UI edits via "
+            "``CarbonReportModuleWorkflow``) is unaffected by this "
+            "flag — its synchronous emission + stats writes remain "
+            "the deliberate UX choice for single-row edits."
+        ),
+    )
+
 
 @lru_cache()
 def get_settings() -> Settings:
