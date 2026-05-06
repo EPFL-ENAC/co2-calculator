@@ -17,7 +17,7 @@ bash "$(git rev-parse --show-toplevel)/.claude/skills/review-copilot-comments/re
 
 The script writes raw feedback to `docs/code-review/<issue>-copilot-feedback-<desc>.md` and prints `OUTPUT_FILE=<path>` as its final stdout line. Capture that path.
 
-These review artifacts live in `docs/code-review/` (not `docs/implementation-plans/`) because they have a different lifecycle: implementation plans are canonical and append-only (one per issue, governed by `.github/instructions/co2-calculator-rules.md.instructions.md`), while bot-feedback files are transient and get overwritten on every re-run (see "Re-runs" below).
+These review artifacts live in `docs/code-review/` (not `docs/src/implementation-plans/`) because they have a different lifecycle: implementation plans are canonical and append-only (one per issue, governed by `.github/instructions/co2-calculator-rules.md.instructions.md`), while bot-feedback files are transient and get overwritten on every re-run (see "Re-runs" below).
 
 If the script exits non-zero (no PR for branch, no issue ID in branch name), surface its error to the user and stop — don't try to recover.
 

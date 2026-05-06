@@ -128,7 +128,7 @@ user_institutional_id, fte, note` (verified against
 Delete-then-insert per affected module: rows previously inserted with
 `source = CSV_MODULE_PER_YEAR` are removed before the new batch is loaded
 (`base_csv_provider.py::_delete_existing_entries_for_module_per_year`,
-implementation plan `docs/implementation-plans/220-csv-upload-implementation-summary.md`).
+implementation plan `docs/src/implementation-plans/220-csv-upload-implementation-summary.md`).
 Manual user entries (`source = USER_MANUAL`) are never touched.
 
 ### Example
@@ -173,7 +173,7 @@ standby_usage_hours_per_week, note` (verified against
 `if self.entity_type == EntityType.MODULE_PER_YEAR` guard
 (`base_csv_provider.py:568`), so `MODULE_UNIT_SPECIFIC` never enters the
 `_delete_existing_entries_for_module_per_year` branch. Confirmed in
-`docs/implementation-plans/220-csv-upload-implementation-summary.md`.
+`docs/src/implementation-plans/220-csv-upload-implementation-summary.md`.
 
 ### Example
 
