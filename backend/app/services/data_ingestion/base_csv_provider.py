@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import (
     DataEntry,
@@ -1170,9 +1171,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             created_by_id=self.job_id,
         )
 
-        # Build {data_entry.id: kg_co2eq} override map. bulk_create preserves
-        # input order (see DataEntryRepository.bulk_create), so zipping the
-        # responses with the parallel overrides list is safe.
+        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` the runner-driven
+        # ``emission_recalc`` chain (fired by ``csv_ingest_handler`` /
+        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
+        # writes for the bulk path.  Skipping steps 2-3 here doesn't lose
+        # data: the chain reads the freshly-committed data_entries and
+        # writes emissions against the latest factors.  Inline writes
+        # would race the chain's writes for the same primary key.
+        #
+        # When the flag is False (emergency rollback) we keep the legacy
+        # inline write so the chain's emissions become a redundant
+        # overwrite rather than a missing one.
+        if get_settings().BULK_PATH_PURE_ASYNC:
+            return
+
+        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
         overrides_by_id: dict[int, float] = {
             resp.id: ov
             for resp, ov in zip(data_entries_response, batch_kg_co2eq_overrides)
@@ -1209,7 +1222,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         then recomputes stats for each affected carbon report.
         For MODULE_UNIT_SPECIFIC: recomputes stats for self.carbon_report_module_id,
         then recomputes stats for the parent carbon report.
+
+        Plan 310-D — when ``BULK_PATH_PURE_ASYNC`` is set, the runner-driven
+        ``aggregation`` handler (chained by ``emission_recalc`` after the
+        data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
+        for the bulk path.  Skipping inline here avoids racing the chain's
+        eventual write for the same module row; the dashboard's stale-stats
+        UX surfaces the gap until the chain completes.
         """
+        if get_settings().BULK_PATH_PURE_ASYNC:
+            logger.debug(
+                "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
+                "aggregation handler will own the stats writes"
+            )
+            return
+
         from app.services.carbon_report_service import CarbonReportService
 
         crm_service = CarbonReportModuleService(self.data_session)
