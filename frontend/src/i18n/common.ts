@@ -480,6 +480,10 @@ export default {
     en: 'Carbon footprint from the use of research infrastructures',
     fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
+  'carbon_footprint_subtitle_research-facilities': {
+    en: 'The use of a research infrastructure makes it possible to share equipment, space, and energy consumption. This avoids duplicating the same facilities in each laboratory and therefore helps reduce emissions.',
+    fr: "L'utilisation d'une infrastructure de recherche permet de partager les équipements, les espaces et la consommation d'énergie. Cela évite de reproduire les mêmes installations dans chaque laboratoire et contribue ainsi à réduire les émissions.",
+  },
   headcount_fte: {
     en: 'FTE',
     fr: 'EPT',
