@@ -26,13 +26,65 @@ from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._background import fire_and_forget
-from app.tasks.emission_recalculation_tasks import (
-    run_module_recalculation_task,
-    run_recalculation_task,
-)
-from app.tasks.ingestion_tasks import run_sync_task
-from app.tasks.unit_sync_tasks import SyncUnitRequest, run_sync_task_accred
+from app.tasks.runner import run_job
+from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.request_context import extract_ip_address, extract_route_payload
+
+
+def _job_type_for(target_type: TargetType, ingestion_method: IngestionMethod) -> str:
+    """Map (target_type, ingestion_method) → ``DataIngestionJob.job_type``.
+
+    Plan 310-C runner uses ``job_type`` as the registry key; the endpoint
+    must stamp it on the row before firing ``run_job``.  Mapping mirrors
+    the registered handlers in ``app/tasks/ingestion_tasks.py``:
+
+    - ``FACTORS``        → ``factor_ingest`` (any ingestion method —
+                           CSV upload, API pull, computed recompute)
+    - ``DATA_ENTRIES`` + ``csv``      → ``csv_ingest``
+    - ``DATA_ENTRIES`` + ``api``      → ``api_ingest``
+    - ``DATA_ENTRIES`` + ``manual`` / ``computed`` — same handler shape
+       as ``api_ingest`` (provider-driven), so route there.
+    """
+    if target_type == TargetType.FACTORS:
+        return "factor_ingest"
+    if ingestion_method == IngestionMethod.csv:
+        return "csv_ingest"
+    return "api_ingest"
+
+
+async def _stamp_job_type_and_meta(
+    db: AsyncSession,
+    job_id: int,
+    *,
+    job_type: str,
+    provider_name: Optional[str] = None,
+    extra_meta: Optional[dict] = None,
+) -> None:
+    """After ``provider.create_job`` returns, stamp ``job_type`` and
+    extend ``meta`` so the runner's registry lookup hits the right
+    handler and so the handler can resolve its provider class.
+
+    The provider's ``create_job`` already wrote ``meta = {"factor_type_id":
+    …, "config": job_config}``; we keep those keys and merge in
+    ``provider_name`` plus any caller-supplied extras.  Commit is the
+    caller's responsibility.
+    """
+    repo = DataIngestionRepository(db)
+    row = await repo.get_job_by_id(job_id)
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Job {job_id} disappeared after creation",
+        )
+    row.job_type = job_type
+    merged_meta: dict = {**(row.meta or {})}
+    if provider_name is not None:
+        merged_meta["provider_name"] = provider_name
+    if extra_meta:
+        merged_meta.update(extra_meta)
+    row.meta = merged_meta
+    db.add(row)
+
 
 router = APIRouter()
 
@@ -242,25 +294,19 @@ async def sync_module_data_entries(
             "route_payload": await extract_route_payload(request),
         },
     )
-    # Commit job creation to database
+    # NOTE: file_path validation happens in provider.__init__() via
+    # _validate_file_path() to prevent directory traversal attacks
+    # (e.g., /../../../etc/passwd).
+    await _stamp_job_type_and_meta(
+        db,
+        job_id,
+        job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
+        provider_name=provider.__class__.__name__,
+        extra_meta={"filters": syncRequest.filters or {}},
+    )
     await db.commit()
 
-    # Schedule the ingestion task in the background.  Hand the *async*
-    # ``run_sync_task`` to ``add_task`` (NOT the sync ``run_ingestion``
-    # wrapper) so FastAPI awaits it on the main event loop.  The sync
-    # wrapper used ``asyncio.run`` which builds a throwaway loop in a
-    # worker thread; any ``fire_and_forget`` Task created inside that
-    # throwaway loop is cancelled the instant the loop closes — that's
-    # exactly the bug that left recalc jobs stuck in RUNNING.
-    # NOTE: file_path validation happens in provider.__init__()
-    #   via _validate_file_path()
-    # to prevent directory traversal attacks (e.g., /../../../etc/passwd)
-    background_tasks.add_task(
-        run_sync_task,
-        provider_class_name=provider.__class__.__name__,
-        job_id=job_id,
-        filters=syncRequest.filters or {},
-    )
+    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -351,14 +397,16 @@ async def sync_module_factors(
             "route_payload": await extract_route_payload(request),
         },
     )
+    await _stamp_job_type_and_meta(
+        db,
+        job_id,
+        job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
+        provider_name=provider.__class__.__name__,
+        extra_meta={"filters": syncRequest.filters or {}},
+    )
     await db.commit()
 
-    background_tasks.add_task(
-        run_sync_task,
-        provider_class_name=provider.__class__.__name__,
-        job_id=job_id,
-        filters=syncRequest.filters or {},
-    )
+    fire_and_forget(run_job(job_id), name=f"run_job-{job_id}")
 
     return {
         "job_id": job_id,
@@ -708,6 +756,7 @@ async def recalculate_emissions_for_type(
         year: The report year (required).
     """
     job = DataIngestionJob(
+        job_type="emission_recalc",
         module_type_id=module_type_id.value,
         data_entry_type_id=data_entry_type_id.value,
         year=year,
@@ -725,13 +774,7 @@ async def recalculate_emissions_for_type(
             detail="Failed to create recalculation job",
         )
 
-    background_tasks.add_task(
-        run_recalculation_task,
-        module_type_id=module_type_id.value,
-        data_entry_type_id=data_entry_type_id.value,
-        year=year,
-        job_id=created_job.id,
-    )
+    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
     return SyncStatusResponse(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
@@ -792,6 +835,7 @@ async def recalculate_emissions_for_module(
         det_ids = all_det_ids
 
     job = DataIngestionJob(
+        job_type="module_emission_recalc",
         module_type_id=module_type_id.value,
         data_entry_type_id=None,
         year=year,
@@ -815,13 +859,7 @@ async def recalculate_emissions_for_module(
             detail="Failed to create recalculation job",
         )
 
-    background_tasks.add_task(
-        run_module_recalculation_task,
-        module_type_id=module_type_id.value,
-        data_entry_type_ids=det_ids,
-        year=year,
-        job_id=created_job.id,
-    )
+    fire_and_forget(run_job(created_job.id), name=f"run_job-{created_job.id}")
     n = len(det_ids)
     return SyncStatusResponse(
         job_id=created_job.id,
@@ -872,13 +910,14 @@ async def sync_units_from_accred(
             detail="Failed to create unit sync job",
         )
 
-    # Fire-and-forget; the safety poller (Plan 310A) recovers the job if
-    # this pod crashes before run_sync_task_accred claims it.  Use
-    # fire_and_forget (not bare asyncio.create_task) so the task isn't
-    # garbage-collected before the loop schedules its first step.
+    # Fire-and-forget; the safety poller (Plan 310A) recovers the job
+    # if this pod crashes before the runner claims it.  Plan 310-C
+    # cutover: dispatch goes through the unified ``run_job`` runner —
+    # the registered ``unit_sync_handler`` reads ``meta.config.target_year``
+    # (set above) so the legacy ``SyncUnitRequest``-passing call is gone.
     fire_and_forget(
-        run_sync_task_accred(syncRequest, created.id),
-        name=f"unit-sync-{created.id}",
+        run_job(created.id),
+        name=f"run_job-{created.id}",
     )
 
     return SyncStatusResponse(

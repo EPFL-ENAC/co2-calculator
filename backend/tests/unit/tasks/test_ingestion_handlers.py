@@ -1,0 +1,442 @@
+"""Unit tests for the Plan 310-C ingestion handlers.
+
+Pins the contract for ``csv_ingest_handler`` / ``api_ingest_handler``
+/ ``factor_ingest_handler``:
+
+- Registration via the @register decorator (registry smoke).
+- Provider class resolved from ``meta.provider_name``; ValueError if
+  missing or unknown so the runner records FINISHED+ERROR.
+- ``provider.ingest()`` is awaited with ``meta.filters``; the handler
+  returns the meta dict the runner persists alongside the
+  FINISHED-state write (status_message + result + the ingest summary).
+- ``factor_ingest_handler``'s post-success block fans out one
+  ``chain_job`` call per stale (module, det) — replaces 310-B's
+  ``_enqueue_stale_recalculations`` in-process.
+"""
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from app.models.data_ingestion import IngestionResult
+from app.tasks import ingestion_tasks as ingest_mod
+from app.tasks.registry import _REGISTRY, get_handler
+
+
+@pytest.fixture(autouse=True)
+def _registry_snapshot():
+    """Snapshot+restore the registry so tests don't bleed across files."""
+    snapshot = dict(_REGISTRY)
+    yield
+    _REGISTRY.clear()
+    _REGISTRY.update(snapshot)
+
+
+def _make_job(
+    *,
+    job_id: int = 1,
+    module_type_id: int | None = 11,
+    data_entry_type_id: int | None = 22,
+    year: int | None = 2025,
+    target_type=None,
+    meta: dict | None = None,
+) -> MagicMock:
+    job = MagicMock()
+    job.id = job_id
+    job.module_type_id = module_type_id
+    job.data_entry_type_id = data_entry_type_id
+    job.year = year
+    job.target_type = target_type
+    job.meta = meta or {}
+    job.user = None
+    # ``job.__dict__`` is read by ``_run_ingest`` to build the
+    # provider config; MagicMock's __dict__ is fine — providers index
+    # specific keys via dict.get/[] with their own defaults.
+    return job
+
+
+# ---------------------------------------------------------------------------
+# Registration smoke
+# ---------------------------------------------------------------------------
+
+
+def test_csv_ingest_registered():
+    assert get_handler("csv_ingest") is ingest_mod.csv_ingest_handler
+
+
+def test_api_ingest_registered():
+    assert get_handler("api_ingest") is ingest_mod.api_ingest_handler
+
+
+def test_factor_ingest_registered():
+    assert get_handler("factor_ingest") is ingest_mod.factor_ingest_handler
+
+
+# ---------------------------------------------------------------------------
+# Shared _run_ingest contract — exercised through csv_ingest_handler
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
+    """Happy path: provider resolved from ``meta.provider_name``,
+    ``provider.ingest`` called once, handler returns the meta dict
+    with status_message + result + ingest summary."""
+    job = _make_job(meta={"provider_name": "FakeCSV", "config": {"foo": "bar"}})
+    job_session = MagicMock()
+    data_session = MagicMock()
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "Success",
+            "data": {"result": IngestionResult.SUCCESS, "inserted": 7},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with patch.object(
+        ingest_mod.ProviderFactory,
+        "get_provider_class",
+        return_value=FakeProviderClass,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, job_session, data_session)
+
+    fake_provider.set_job_id.assert_awaited_once_with(1)
+    fake_provider.ingest.assert_awaited_once()
+    assert meta["status_message"] == "Success"
+    assert meta["result"] == IngestionResult.SUCCESS
+    assert meta["inserted"] == 7
+
+
+@pytest.mark.asyncio
+async def test_api_ingest_handler_uses_same_path():
+    """``api_ingest_handler`` shares ``_run_ingest`` — same contract."""
+    job = _make_job(meta={"provider_name": "FakeAPI"})
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "ok",
+            "data": {"result": IngestionResult.SUCCESS},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with patch.object(
+        ingest_mod.ProviderFactory,
+        "get_provider_class",
+        return_value=FakeProviderClass,
+    ):
+        meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
+
+    assert meta["result"] == IngestionResult.SUCCESS
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_raises_when_provider_name_missing():
+    """No ``meta.provider_name`` → ValueError so the runner stamps
+    FINISHED+ERROR with a clear message."""
+    job = _make_job(meta={})
+    with pytest.raises(ValueError, match="missing meta.provider_name"):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_handler_raises_when_provider_class_unknown():
+    """ProviderFactory returns None → ValueError; runner marks ERROR."""
+    job = _make_job(meta={"provider_name": "UnknownProvider"})
+    with patch.object(
+        ingest_mod.ProviderFactory, "get_provider_class", return_value=None
+    ):
+        with pytest.raises(ValueError, match="provider class .* not found"):
+            await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+
+# ---------------------------------------------------------------------------
+# factor_ingest post-success fan-out
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_chains_recalc_for_single_type():
+    """Parent has both module + det set → exactly one chain_job for
+    that pair (single-type factor upload — bypasses
+    ``get_recalculation_status_by_year``)."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "Factors upserted",
+            "data": {"result": IngestionResult.SUCCESS, "upsert_count": 3},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "emission_recalc"
+    assert chain_kwargs["module_type_id"] == 5
+    assert chain_kwargs["data_entry_type_id"] == 11
+    assert chain_kwargs["year"] == 2025
+    assert meta["recalc_jobs_chained"] == 1
+    assert meta["upsert_count"] == 3
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_chains_per_det_for_multitype_upload():
+    """Parent has module set, det=NULL → expand via
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES (multi-type factor file).  The repo's
+    recalc-status query MUST NOT be consulted here (it filters on
+    state=FINISHED, would silently drop a still-RUNNING parent)."""
+    from app.models.module_type import (
+        MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+        ModuleTypeEnum,
+    )
+
+    # Pick a module type with multiple dets.  ``headcount`` → [member, student].
+    module = ModuleTypeEnum.headcount
+    expected_dets = [d.value for d in MODULE_TYPE_TO_DATA_ENTRY_TYPES[module]]
+
+    job = _make_job(
+        module_type_id=module.value,
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "ok",
+            "data": {"result": IngestionResult.SUCCESS},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    assert mock_chain.await_count == len(expected_dets)
+    chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
+    assert chained_dets == set(expected_dets)
+    assert meta["recalc_jobs_chained"] == len(expected_dets)
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_skips_fan_out_on_error():
+    """If the ingest itself errored, no recalc fan-out — there's
+    nothing to recompute against, and the parent will be marked
+    FINISHED+ERROR by the runner."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "validation failed",
+            "data": {"result": IngestionResult.ERROR},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.ERROR
+    assert "recalc_jobs_chained" not in meta
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_skips_fan_out_when_year_missing():
+    """A factor job with no year can't choose a recalc scope; log and
+    skip rather than raise (the parent ingest itself succeeded)."""
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=None,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "ok",
+            "data": {"result": IngestionResult.SUCCESS},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.SUCCESS
+    assert "recalc_jobs_chained" not in meta
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_consults_repo_when_module_and_det_both_null():
+    """Both NULL — admin-style "anything stale" trigger.  Reads from
+    ``get_recalculation_status_by_year`` (filters to needs_recalculation
+    only)."""
+    job = _make_job(
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "ok",
+            "data": {"result": IngestionResult.SUCCESS},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    repo = MagicMock()
+    repo.get_recalculation_status_by_year = AsyncMock(
+        return_value=[
+            {
+                "module_type_id": 1,
+                "data_entry_type_id": 10,
+                "year": 2025,
+                "needs_recalculation": True,
+            },
+            {
+                "module_type_id": 2,
+                "data_entry_type_id": 20,
+                "year": 2025,
+                "needs_recalculation": False,
+            },
+        ]
+    )
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    # Only the needs_recalculation=True row was chained.
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["module_type_id"] == 1
+    assert chain_kwargs["data_entry_type_id"] == 10
+    assert meta["recalc_jobs_chained"] == 1
+
+
+@pytest.mark.asyncio
+async def test_factor_ingest_handler_skips_unknown_module_type_in_multitype():
+    """Multi-type fan-out with an unknown ``module_type_id`` (e.g. an
+    enum value that no longer exists after a deletion) MUST skip rather
+    than raise — the parent factor job already finished; we don't want
+    to take the calling code down with a ValueError."""
+    job = _make_job(
+        module_type_id=99999,  # not a valid ModuleTypeEnum value
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeFactor"},
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "ok",
+            "data": {"result": IngestionResult.SUCCESS},
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        meta = await ingest_mod.factor_ingest_handler(job, MagicMock(), MagicMock())
+
+    mock_chain.assert_not_awaited()
+    assert meta["result"] == IngestionResult.SUCCESS

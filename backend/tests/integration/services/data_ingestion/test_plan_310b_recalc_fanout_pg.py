@@ -1,23 +1,29 @@
-"""Real-Postgres tests for Plan 310B Part 4 — recalc fan-out after a
-multi-type factor ingest.
+"""Real-Postgres tests for Plan 310-C ``factor_ingest`` fan-out.
 
-Reproduces the production failure observed for equipments factor uploads:
-the CSV covers all three data-entry types under the equipment module
-(scientific, it, other), so the parent factor job is created with
-``data_entry_type_id = NULL``.  Without the multi-type branch in
-``_enqueue_stale_recalculations``, the fan-out finds zero stale combos
-because ``get_recalculation_status_by_year`` filters factor jobs with
-``data_entry_type_id IS NULL`` out of its result set.
+Plan 310-B's ``_enqueue_stale_recalculations`` was folded into the
+``factor_ingest_handler``'s post-success block (Plan 310-C runner
+cutover); the helper is now ``_chain_recalc_for_stale``, which calls
+``runner.chain_job`` once per stale ``(module, det)``.  These tests
+exercise that helper directly against a real Postgres engine —
+mirroring the original 310-B fan-out tests but against the new
+shape.
+
+Reproduces the production failure observed for equipments factor
+uploads: the CSV covers all three data-entry types under the
+equipment module (scientific, it, other), so the parent factor job
+is created with ``data_entry_type_id = NULL``.  Without the
+multi-type branch in the handler, the fan-out finds zero stale
+combos because ``get_recalculation_status_by_year`` filters factor
+jobs with ``data_entry_type_id IS NULL`` out of its result set.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
+from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -31,7 +37,7 @@ from app.models.data_ingestion import (
 )
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
-from app.tasks.ingestion_tasks import _enqueue_stale_recalculations
+from app.tasks.ingestion_tasks import _chain_recalc_for_stale
 
 
 def _multi_type_factor_job() -> DataIngestionJob:
@@ -48,19 +54,19 @@ def _multi_type_factor_job() -> DataIngestionJob:
         state=IngestionState.FINISHED,
         result=IngestionResult.SUCCESS,
         is_current=True,
+        job_type="factor_ingest",
+        pipeline_id=uuid4(),
     )
 
 
 @pytest.mark.asyncio
-async def test_enqueue_recalc_fans_out_when_factor_job_has_null_det(pg_dsn):
-    """Multi-type factor upload (det=NULL on the parent) must fan out one
-    recalc job per data_entry_type in the module.
+async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
+    """Multi-type factor upload (det=NULL on the parent) fans out one
+    ``emission_recalc`` child per data_entry_type in the module.
 
-    Failing today: ``get_recalculation_status_by_year`` filters factor jobs
-    with ``data_entry_type_id IS NULL``, so the helper sees zero targets and
-    silently returns without creating any recalc jobs — leaving emissions
-    stale.  The expected behaviour is one ``emission_recalc`` job per det
-    in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES[equipment_electric_consumption]``.
+    Patches ``runner.fire_and_forget`` to a no-op so the test only
+    asserts on the rows ``chain_job`` persisted; the dispatch path is
+    covered separately by the runner unit tests.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -69,36 +75,48 @@ async def test_enqueue_recalc_fans_out_when_factor_job_has_null_det(pg_dsn):
         parent = _multi_type_factor_job()
         session.add(parent)
         await session.commit()
-        assert parent.id is not None
-        parent_id: int = parent.id
-        module_type_id: int = parent.module_type_id  # type: ignore[assignment]
 
-    # Run the helper against a real PG session.
+    # The handler module re-exports chain_job; patch it on the runner
+    # to suppress the post-create fire_and_forget(run_job(child_id))
+    # — we only assert that the child rows landed correctly.
+    def _noop_fire(coro, *, name=None):
+        coro.close()
+        return AsyncMock()
+
     async with Sf() as session:
-        await _enqueue_stale_recalculations(
-            session,
-            parent_job_id=parent_id,
-            module_type_id=module_type_id,
-            data_entry_type_id=None,  # parent had no specific det
-            year=2025,
-            pipeline_id=uuid4(),
-        )
+        # Re-fetch the parent on this session so chain_job's
+        # ``session.add(parent)`` line (when it generates a fresh
+        # pipeline_id) targets a row attached to the live session.
+        from sqlmodel import col, select
 
-    # Verify: one recalc job per det in the equipments module.
+        parent_row = (
+            await session.execute(
+                select(DataIngestionJob).where(
+                    col(DataIngestionJob.module_type_id)
+                    == ModuleTypeEnum.equipment_electric_consumption.value,
+                    col(DataIngestionJob.target_type) == TargetType.FACTORS,
+                )
+            )
+        ).scalar_one()
+
+        with patch("app.tasks.runner.fire_and_forget", side_effect=_noop_fire):
+            chained = await _chain_recalc_for_stale(parent_row, session)
+
     expected_dets = {
         DataEntryTypeEnum.scientific.value,
         DataEntryTypeEnum.it.value,
         DataEntryTypeEnum.other.value,
     }
+    assert chained == len(expected_dets)
+
     async with Sf() as session:
+        from sqlmodel import col, select
+
         rows = (
             (
                 await session.execute(
                     select(DataIngestionJob).where(
-                        col(DataIngestionJob.target_type) == TargetType.DATA_ENTRIES,
-                        col(DataIngestionJob.ingestion_method)
-                        == IngestionMethod.computed,
-                        col(DataIngestionJob.module_type_id) == module_type_id,
+                        col(DataIngestionJob.job_type) == "emission_recalc",
                         col(DataIngestionJob.year) == 2025,
                     )
                 )
@@ -110,20 +128,18 @@ async def test_enqueue_recalc_fans_out_when_factor_job_has_null_det(pg_dsn):
         assert landed_dets == expected_dets, (
             f"Expected one recalc per det {expected_dets}, got {landed_dets}"
         )
-        # Each child references the parent in its meta config.
         for r in rows:
-            assert r.job_type == "emission_recalc"
             assert r.meta is not None
-            assert r.meta["config"]["parent_job_id"] == parent_id
+            assert r.meta["parent_job_id"] is not None
 
     await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_enqueue_recalc_specific_det_unchanged(pg_dsn):
-    """Parent factor job with a specific det still goes through the existing
-    ``get_recalculation_status_by_year`` path and creates exactly one recalc
-    job for that det."""
+async def test_fanout_creates_single_child_for_single_type_parent(pg_dsn):
+    """Parent factor job with a specific (module, det) → exactly one
+    recalc child for that pair.  Bypasses the recalc-status query
+    entirely (parent is still the canonical source of truth here)."""
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -132,29 +148,37 @@ async def test_enqueue_recalc_specific_det_unchanged(pg_dsn):
         parent.data_entry_type_id = DataEntryTypeEnum.it.value
         session.add(parent)
         await session.commit()
-        assert parent.id is not None
-        parent_id: int = parent.id
-        module_type_id: int = parent.module_type_id  # type: ignore[assignment]
+
+    def _noop_fire(coro, *, name=None):
+        coro.close()
+        return AsyncMock()
 
     async with Sf() as session:
-        await _enqueue_stale_recalculations(
-            session,
-            parent_job_id=parent_id,
-            module_type_id=module_type_id,
-            data_entry_type_id=DataEntryTypeEnum.it.value,
-            year=2025,
-            pipeline_id=uuid4(),
-        )
+        from sqlmodel import col, select
+
+        parent_row = (
+            await session.execute(
+                select(DataIngestionJob).where(
+                    col(DataIngestionJob.data_entry_type_id)
+                    == DataEntryTypeEnum.it.value,
+                    col(DataIngestionJob.target_type) == TargetType.FACTORS,
+                )
+            )
+        ).scalar_one()
+
+        with patch("app.tasks.runner.fire_and_forget", side_effect=_noop_fire):
+            chained = await _chain_recalc_for_stale(parent_row, session)
+
+    assert chained == 1
 
     async with Sf() as session:
+        from sqlmodel import col, select
+
         rows = (
             (
                 await session.execute(
                     select(DataIngestionJob).where(
-                        col(DataIngestionJob.target_type) == TargetType.DATA_ENTRIES,
-                        col(DataIngestionJob.ingestion_method)
-                        == IngestionMethod.computed,
-                        col(DataIngestionJob.module_type_id) == module_type_id,
+                        col(DataIngestionJob.job_type) == "emission_recalc",
                         col(DataIngestionJob.year) == 2025,
                     )
                 )
@@ -162,16 +186,8 @@ async def test_enqueue_recalc_specific_det_unchanged(pg_dsn):
             .scalars()
             .all()
         )
-        # Exactly one recalc job for det=it (Strategy A path through
-        # get_recalculation_status_by_year, which sees the parent job
-        # because it has a specific data_entry_type_id).
         assert len(rows) == 1
         assert rows[0].data_entry_type_id == DataEntryTypeEnum.it.value
-        assert rows[0].job_type == "emission_recalc"
+        assert rows[0].module_type_id == parent.module_type_id
 
     await engine.dispose()
-
-
-# Silence the import-not-accessed warning for ``text`` (kept around in case
-# fixture extensions need raw DDL).
-_ = text

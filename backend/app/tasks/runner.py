@@ -89,6 +89,16 @@ async def run_job(job_id: int) -> None:
     contention, preemption) are logged and the job state is left for
     the next claimer.
     """
+    # Plan 310-C: ensure every handler module has been imported so the
+    # registry is populated before lookup.  Idempotent — first call
+    # imports, subsequent calls are a no-op.  Lazy import (here, not at
+    # module top) avoids the circular import via audit_service →
+    # audit_sync_tasks → app.tasks.__init__ → ingestion_tasks → providers
+    # → audit_service.
+    from app.tasks.bootstrap import bootstrap_handlers
+
+    bootstrap_handlers()
+
     async with SessionLocal() as job_session, SessionLocal() as data_session:
         repo = DataIngestionRepository(job_session)
 

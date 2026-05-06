@@ -424,44 +424,60 @@ No backfill migration needed.
 
 ### Poller cutover (resolves Plan A's broken `dispatch_job`)
 
+> **Delivered: Tier-2 PR #3.** Shipped slightly larger than the
+> original sketch — the legacy `dispatch_job` and `schedule_job`
+> helpers are kept as thin pass-throughs to `run_job`, not deleted.
+> Reasoning: the existing `schedule_job` ↔ `fire_and_forget` plumbing
+> (with its strong-ref Task-set + per-task name) is still useful, and
+> keeping `dispatch_job` as a 3-line shim makes the cutover diff
+> trivial to review. The shape below matches what's actually in
+> `app/tasks/_poller.py`.
+
 Plan A's `_poller.dispatch_job` reads `meta["provider_name"]` to choose a handler. Real
-ingestion jobs don't persist that field, so the poller silently skips them. Plan C replaces
-the poller's body with a single call:
+ingestion jobs don't persist that field, so the poller silently skips them. Plan C
+replaces the poller's body with a single call:
 
 ```python
 # backend/app/tasks/_poller.py — after Plan C
 from app.tasks.runner import run_job
 
-async def poll_pending_jobs() -> None:
-    while True:
-        try:
-            async with SessionLocal() as session:
-                stmt = (
-                    select(DataIngestionJob)
-                    .where(
-                        DataIngestionJob.state == IngestionState.NOT_STARTED,
-                        DataIngestionJob.job_type.is_not(None),  # NEW
-                        or_(
-                            DataIngestionJob.run_after.is_(None),
-                            DataIngestionJob.run_after <= func.now(),
-                        ),
-                        DataIngestionJob.locked_by.is_(None),
-                        DataIngestionJob.attempts < DataIngestionJob.max_attempts,
-                    )
-                    .with_for_update(skip_locked=True)
-                    .limit(10)
-                )
-                jobs = (await session.execute(stmt)).scalars().all()
-                for job in jobs:
-                    asyncio.create_task(run_job(job.id))
-        except Exception as exc:
-            logger.warning(f"Poller iteration failed: {exc}", exc_info=True)
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+
+async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:
+    """Plan 310-C cutover: every job_type funnels through ``run_job`` —
+    the registry resolves the handler from the row's job_type."""
+    jid = job.id
+    if jid is None:
+        logger.warning("Job has no ID — skipping")
+        return
+    await run_job(jid)
+
+
+def _pending_runner_jobs_query(limit: int = 10):
+    """Same predicates as Plan-A's ``_pending_jobs_query`` plus a
+    ``job_type IS NOT NULL`` filter so legacy in-flight jobs (created
+    pre-Plan-C with a NULL job_type) don't get dispatched through a
+    runner that has no registered handler for them."""
+    return (
+        select(DataIngestionJob)
+        .where(
+            col(DataIngestionJob.state) == IngestionState.NOT_STARTED,
+            col(DataIngestionJob.job_type).is_not(None),  # NEW
+            or_(
+                col(DataIngestionJob.run_after).is_(None),
+                col(DataIngestionJob.run_after) <= func.now(),
+            ),
+            col(DataIngestionJob.locked_by).is_(None),
+            col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+        )
+        .with_for_update(skip_locked=True)
+        .limit(limit)
+    )
 ```
 
-The old `dispatch_job` / `schedule_job` helpers are deleted. The `run_job` runner reads
-`job_type` from the row itself, looks up the registered handler, and invokes it — no
-`meta["provider_name"]` plumbing needed.
+The runner reads `job_type` from the row itself, looks up the registered handler, and
+invokes it — no `meta["provider_name"]` plumbing needed (the FACTOR/CSV/API ingestion
+handlers DO read `meta["provider_name"]` to pick the provider class, but that's an
+internal detail of those three handlers, not a runner concern).
 
 Until Plan C lands, document the gap explicitly: orphan recovery for ingestion jobs is
 **manual** via `POST /sync/jobs/{id}/recover` and the 30-min stale window. Operators should

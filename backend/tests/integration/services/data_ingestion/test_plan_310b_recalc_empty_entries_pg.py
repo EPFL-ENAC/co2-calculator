@@ -36,7 +36,12 @@ from app.models.data_ingestion import (
 )
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
-from app.tasks.emission_recalculation_tasks import run_recalculation_task
+
+# Plan 310-C cutover: legacy ``run_recalculation_task`` is gone — every
+# job_type funnels through ``app.tasks.runner.run_job``.  The test still
+# exercises the same path (claim → workflow → FINISHED state-write); it
+# just enters via the unified runner instead of the type-specific task.
+from app.tasks.runner import run_job
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 
@@ -97,11 +102,12 @@ async def test_run_recalculation_task_finishes_when_no_entries(pg_dsn, monkeypat
     data_entries left the recalc job in RUNNING with no result, blocking
     the next reupload from claiming.
     """
-    # The task uses ``app.db.SessionLocal`` for both job and data sessions.
-    # Point it at the test container.
+    # The runner uses ``app.db.SessionLocal`` for both job and data
+    # sessions (Plan 310-C cutover).  Point its bound name at the test
+    # container so the in-process call below talks to the right DB.
     test_engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
-    monkeypatch.setattr("app.tasks.emission_recalculation_tasks.SessionLocal", Sf)
+    monkeypatch.setattr("app.tasks.runner.SessionLocal", Sf)
 
     # Seed the recalc job in NOT_STARTED so the task can claim it.
     seed_engine = create_async_engine(pg_dsn, future=True)
@@ -116,12 +122,11 @@ async def test_run_recalculation_task_finishes_when_no_entries(pg_dsn, monkeypat
         job_id: int = job.id
     await seed_engine.dispose()
 
-    await run_recalculation_task(
-        module_type_id=ModuleTypeEnum.external_cloud_and_ai.value,
-        data_entry_type_id=DataEntryTypeEnum.external_clouds.value,
-        year=2025,
-        job_id=job_id,
-    )
+    # Dispatch through the unified runner.  ``job_type="emission_recalc"``
+    # was set on the seed row, so the registry lookup hits
+    # ``emission_recalc_handler`` which reads the (det, year) scope from
+    # the row itself — no additional kwargs needed.
+    await run_job(job_id)
 
     # Verify on a separate engine — the row must be visible cross-
     # connection in the terminal state.
