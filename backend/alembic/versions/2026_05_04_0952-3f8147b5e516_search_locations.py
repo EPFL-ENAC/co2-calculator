@@ -2,7 +2,7 @@
 """search locations
 
 Revision ID: 3f8147b5e516
-Revises: e528e0d649cd
+Revises: c2d4e6f8a012
 Create Date: 2026-05-04 09:52:21.768618
 
 """
@@ -21,7 +21,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "3f8147b5e516"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "e528e0d649cd"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "c2d4e6f8a012"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 
