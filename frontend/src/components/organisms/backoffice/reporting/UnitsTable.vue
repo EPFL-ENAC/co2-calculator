@@ -198,6 +198,8 @@ const columns = computed<QTableColumn[]>(() => [
     row-key="id"
     :loading="props.loading"
     class="co2-table border shadow-0"
+    :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     flat
     bordered
     @request="onRequest"
@@ -212,7 +214,7 @@ const columns = computed<QTableColumn[]>(() => [
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-      <div class="q-px-sm">
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn

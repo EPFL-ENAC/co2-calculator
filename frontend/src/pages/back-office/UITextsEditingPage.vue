@@ -195,6 +195,8 @@ const columns: QTableColumn[] = [
           :columns="columns"
           hide-pagination
           :pagination="{ rowsPerPage: 0 }"
+          :no-data-label="$t('common_no_items')"
+          :rows-per-page-label="$t('rows_per_page')"
         >
           <template #body="props">
             <q-tr :props="props" class="q-tr--no-hover">

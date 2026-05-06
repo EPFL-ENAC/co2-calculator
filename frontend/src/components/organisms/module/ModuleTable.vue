@@ -58,6 +58,7 @@
     :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -98,7 +99,9 @@
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
       <q-btn
         icon="chevron_right"
         color="grey-8"

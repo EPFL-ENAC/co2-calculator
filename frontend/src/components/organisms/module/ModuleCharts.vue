@@ -60,6 +60,12 @@
           </div>
         </div>
       </div>
+      <div
+        v-if="carbonFootprintSubtitle"
+        class="text-body2 text-secondary q-px-lg q-mx-sm q-mt-xs"
+      >
+        {{ carbonFootprintSubtitle }}
+      </div>
       <q-separator class="q-my-lg" />
       <div class="q-mx-lg">
         <template v-if="moduleChartView === 'breakdown'">
@@ -130,6 +136,12 @@ const carbonFootprintTitle = computed(() => {
   const moduleKey = `carbon_footprint_title_${props.type}`;
   if (te(moduleKey)) return t(moduleKey);
   return t('carbon_footprint_title', { module: t(props.type) });
+});
+
+const carbonFootprintSubtitle = computed(() => {
+  const moduleKey = `carbon_footprint_subtitle_${props.type}`;
+  if (te(moduleKey)) return t(moduleKey);
+  return '';
 });
 
 const activeColor = computed(() => {
