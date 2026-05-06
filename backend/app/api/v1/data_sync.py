@@ -115,6 +115,7 @@ class PipelineJobResponse(BaseModel):
     job_type: Optional[str] = None
     state: Optional[IngestionState] = None
     result: Optional[IngestionResult] = None
+    target_type: Optional[TargetType] = None
     status_message: Optional[str] = None
     module_type_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
@@ -670,6 +671,7 @@ async def get_pipeline_jobs(
                 job_type=job.job_type,
                 state=job.state,
                 result=job.result,
+                target_type=job.target_type,
                 status_message=job.status_message,
                 module_type_id=job.module_type_id,
                 data_entry_type_id=job.data_entry_type_id,

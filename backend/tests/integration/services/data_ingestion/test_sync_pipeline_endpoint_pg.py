@@ -164,14 +164,17 @@ async def test_get_pipeline_returns_ordered_jobs(pg_app):
     assert parent_row["job_type"] == "factor_ingest"
     assert parent_row["state"] == IngestionState.FINISHED.value
     assert parent_row["result"] == IngestionResult.SUCCESS.value
+    assert parent_row["target_type"] == TargetType.FACTORS.value
     assert parent_row["module_type_id"] == 1
     assert parent_row["data_entry_type_id"] == 1
     assert parent_row["year"] == 2025
 
-    # And one child — different job_type, different data_entry_type_id.
+    # And one child — different job_type, different data_entry_type_id,
+    # different target_type (DATA_ENTRIES rather than parent's FACTORS).
     child_row = jobs[1]
     assert child_row["job_type"] == "data_entry_recalc"
     assert child_row["data_entry_type_id"] == 2
+    assert child_row["target_type"] == TargetType.DATA_ENTRIES.value
 
 
 @pytest.mark.asyncio
