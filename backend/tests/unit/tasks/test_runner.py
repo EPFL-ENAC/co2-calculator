@@ -83,6 +83,20 @@ def _patch_session_local():
     return patch.object(runner_mod, "SessionLocal", _mock_session_ctx)
 
 
+async def _noop_heartbeat(_job_id: int) -> None:
+    """Drop-in for ``_heartbeat_loop`` that returns immediately so
+    tests don't await real sleeps.  ``asyncio.create_task(noop())``
+    produces a task that completes; the runner's cancel + await in
+    ``finally`` is then a no-op."""
+    return None
+
+
+def _patch_heartbeat():
+    """Patch ``_heartbeat_loop`` to a no-op so the runner's heartbeat
+    spawn doesn't sleep through STALE_JOB_TIMEOUT_MINUTES/4 minutes."""
+    return patch.object(runner_mod, "_heartbeat_loop", _noop_heartbeat)
+
+
 # ---------------------------------------------------------------------------
 # run_job — guard rails
 # ---------------------------------------------------------------------------
@@ -160,12 +174,8 @@ async def test_run_job_success_commits_and_marks_finished_success():
 
     with (
         _patch_session_local(),
+        _patch_heartbeat(),
         patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
-        patch.object(
-            runner_mod,
-            "fire_and_forget",
-            side_effect=lambda coro, *, name=None: (coro.close(), MagicMock())[1],
-        ),
     ):
         await runner_mod.run_job(1)
 
@@ -202,12 +212,8 @@ async def test_run_job_handler_raises_marks_finished_error_and_rolls_back():
 
     with (
         patch.object(runner_mod, "SessionLocal", _capture_session),
+        _patch_heartbeat(),
         patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
-        patch.object(
-            runner_mod,
-            "fire_and_forget",
-            side_effect=lambda coro, *, name=None: (coro.close(), MagicMock())[1],
-        ),
     ):
         await runner_mod.run_job(1)
 
@@ -239,12 +245,14 @@ async def test_run_job_preempted_rolls_back_and_skips_state_update():
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
 
-    # On the second get_job_by_id call (the preemption check), return a
-    # row owned by a different pod.
+    # ``get_job_by_id`` is called THREE times now: initial fetch (pre-
+    # claim), post-claim re-fetch (so the handler sees the authoritative
+    # post-claim row), and the preemption check (post-handler).  Only
+    # the third call returns the preempted row.
     preempted = _make_job()
     preempted.locked_by = "some-other-pod"
     repo = _make_repo_returning(job)
-    repo.get_job_by_id = AsyncMock(side_effect=[job, preempted])
+    repo.get_job_by_id = AsyncMock(side_effect=[job, job, preempted])
 
     @register("test_job")
     async def _handler(j, js, ds) -> dict:
@@ -263,12 +271,8 @@ async def test_run_job_preempted_rolls_back_and_skips_state_update():
 
     with (
         patch.object(runner_mod, "SessionLocal", _capture_session),
+        _patch_heartbeat(),
         patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
-        patch.object(
-            runner_mod,
-            "fire_and_forget",
-            side_effect=lambda coro, *, name=None: (coro.close(), MagicMock())[1],
-        ),
     ):
         await runner_mod.run_job(1)
 
@@ -284,7 +288,8 @@ async def test_run_job_preempted_to_deleted_rolls_back():
     job = _make_job()
     job.locked_by = runner_mod.POD_ID
     repo = _make_repo_returning(job)
-    repo.get_job_by_id = AsyncMock(side_effect=[job, None])
+    # initial fetch, post-claim refetch, then preempt-check sees None.
+    repo.get_job_by_id = AsyncMock(side_effect=[job, job, None])
 
     @register("test_job")
     async def _handler(j, js, ds) -> dict:
@@ -292,15 +297,61 @@ async def test_run_job_preempted_to_deleted_rolls_back():
 
     with (
         _patch_session_local(),
+        _patch_heartbeat(),
         patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
-        patch.object(
-            runner_mod,
-            "fire_and_forget",
-            side_effect=lambda coro, *, name=None: (coro.close(), MagicMock())[1],
-        ),
     ):
         await runner_mod.run_job(1)
 
+    repo.update_ingestion_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_job_handler_raise_with_preemption_skips_state_update():
+    """Plan 310-C runner contract: the preemption check guards BOTH
+    the success and the error paths.
+
+    If the handler raises AND the row was preempted mid-handler, the
+    runner must NOT write FINISHED+ERROR — that would race with the
+    new owner's own FINISHED write.  Instead: roll back data_session
+    and exit; the new owner closes out the job.
+    """
+    job = _make_job()
+    job.locked_by = runner_mod.POD_ID
+
+    preempted = _make_job()
+    preempted.locked_by = "another-pod"
+    repo = _make_repo_returning(job)
+    # Same shape as the success-path preemption test: initial fetch,
+    # post-claim refetch, then the preempt-check (after the handler
+    # raised) returns the preempted row.
+    repo.get_job_by_id = AsyncMock(side_effect=[job, job, preempted])
+
+    @register("test_job")
+    async def _handler(j, js, ds) -> dict:
+        raise RuntimeError("handler exploded mid-preempt")
+
+    captured_sessions = []
+
+    @asynccontextmanager
+    async def _capture_session():
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.rollback = AsyncMock()
+        session.add = MagicMock()
+        captured_sessions.append(session)
+        yield session
+
+    with (
+        patch.object(runner_mod, "SessionLocal", _capture_session),
+        _patch_heartbeat(),
+        patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
+    ):
+        await runner_mod.run_job(1)
+
+    _, data_session = captured_sessions
+    data_session.rollback.assert_awaited()
+    # Critical: the FINISHED+ERROR write must NOT fire when we no
+    # longer own the row, even though the handler raised.
     repo.update_ingestion_job.assert_not_called()
 
 

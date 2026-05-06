@@ -102,63 +102,96 @@ async def run_job(job_id: int) -> None:
             )
             return
 
+        # Capture job_type while it's narrowed to ``str`` by the
+        # check above; the post-claim re-fetch widens it back to
+        # ``Optional[str]`` (claim_job never touches job_type, so this
+        # is a type-narrowing convenience, not a behavior change).
+        job_type: str = job.job_type
+
         if not await repo.claim_job(job_id, POD_ID):
             # Another pod beat us, attempts exhausted, or the row is
             # already FINISHED.  Either way: not ours to run.
             return
 
-        # ``claim_job`` already set state=RUNNING, attempts++, locked_by,
-        # locked_at, and (via the func.coalesce in PR #1026) started_at
-        # atomically with the RUNNING transition.
+        # ``claim_job`` ran a raw SQL UPDATE (state=RUNNING, attempts++,
+        # locked_by, locked_at, and — via the func.coalesce from PR #1026
+        # — started_at).  The in-memory ``job`` instance from the pre-claim
+        # ``get_job_by_id`` still reflects the OLD row, so re-fetch to
+        # hand handlers the authoritative post-claim state (state, attempts,
+        # locked_by, started_at).  ``get_job_by_id`` already calls refresh.
+        job = await repo.get_job_by_id(job_id)
+        if job is None:
+            # Race: claimed but row vanished before the re-read.  Treat
+            # as preempted and exit; no state to write since there's no
+            # row to write to.
+            logger.warning(f"run_job: job {job_id} disappeared after claim — exiting")
+            return
 
-        heartbeat_task = fire_and_forget(
+        # Plain ``asyncio.create_task`` (not ``fire_and_forget``): the
+        # local ``heartbeat_task`` ref keeps the task alive for the
+        # lifetime of this function, and we cancel + await it in the
+        # ``finally`` block so the cancellation is observed cleanly.
+        # Routing through ``fire_and_forget`` would trip its deliberate
+        # cancellation-WARNING (kept loud for diagnosing the 310-B
+        # incident) on every successful run, drowning out genuine
+        # cancellations.
+        heartbeat_task = asyncio.create_task(
             _heartbeat_loop(job_id),
             name=f"heartbeat-{job_id}",
         )
 
         try:
-            handler = get_handler(job.job_type)
-            meta = await handler(job, job_session, data_session)
+            try:
+                handler = get_handler(job_type)
+                meta = await handler(job, job_session, data_session)
+                status_message = str(meta.get("status_message", "Success"))
+                metadata = dict(meta)
+                result = meta.get("result", IngestionResult.SUCCESS)
+                handler_succeeded = True
+            except Exception as exc:
+                logger.exception(
+                    f"run_job: handler for job_type={job_type!r} failed (job {job_id})"
+                )
+                status_message = str(exc)
+                metadata = {}
+                result = IngestionResult.ERROR
+                handler_succeeded = False
 
-            # Preemption check: did a stale-lock sweep recover this row
-            # to NOT_STARTED while our handler was running?  If so, a
-            # second pod has likely claimed it; abandon our work rather
-            # than racing with the new owner's commit.
+            # Preemption check covers BOTH success and error paths: if a
+            # stale-lock sweep recovered this row mid-handler, a different
+            # pod may now own it.  Either way, our writes — successful or
+            # error — must NOT race with the new owner's run.  Roll back
+            # data and skip the state update; the new owner will close out.
             current = await repo.get_job_by_id(job_id)
             if current is None or current.locked_by != POD_ID:
                 logger.warning(
                     f"run_job: job {job_id} preempted "
                     f"(locked_by={current and current.locked_by!r}); "
-                    "rolling back our data writes and exiting without "
+                    "rolling back data writes and exiting without "
                     "updating job state"
                 )
                 await data_session.rollback()
                 return
 
-            await data_session.commit()
+            if handler_succeeded:
+                await data_session.commit()
+            else:
+                await data_session.rollback()
             await repo.update_ingestion_job(
                 job_id,
-                status_message=str(meta.get("status_message", "Success")),
-                metadata=dict(meta),
+                status_message=status_message,
+                metadata=metadata,
                 state=IngestionState.FINISHED,
-                result=meta.get("result", IngestionResult.SUCCESS),
-            )
-            await job_session.commit()
-        except Exception as exc:
-            logger.exception(
-                f"run_job: handler for job_type={job.job_type!r} failed (job {job_id})"
-            )
-            await data_session.rollback()
-            await repo.update_ingestion_job(
-                job_id,
-                status_message=str(exc),
-                metadata={},
-                state=IngestionState.FINISHED,
-                result=IngestionResult.ERROR,
+                result=result,
             )
             await job_session.commit()
         finally:
             heartbeat_task.cancel()
+            try:
+                await heartbeat_task
+            except asyncio.CancelledError:
+                # Expected — we cancelled it ourselves.
+                pass
 
 
 async def chain_job(
@@ -179,13 +212,19 @@ async def chain_job(
     Inherits the parent's ``pipeline_id`` (or generates a fresh UUID
     if the parent has none yet — the first chain on an ad-hoc run
     starts the pipeline).  The child is created NOT_STARTED with
-    ``run_after=now()`` so the safety poller can pick it up if this
-    pod crashes between the commit and the ``fire_and_forget``.
+    ``run_after=None`` (NULL means "runnable immediately"; the
+    safety poller's claim WHERE treats NULL as eligible, so it can
+    pick the row up if this pod crashes between the commit and the
+    ``fire_and_forget``).
 
     Defaults match the most common case (an ``emission_recalc``
     child of an ingest parent: same module, scoped to a single det,
-    DATA_ENTRIES target, computed source).  Callers override what
-    they need.
+    DATA_ENTRIES target, computed source).  ``module_type_id`` and
+    ``year`` inherit from the parent when the caller passes ``None``.
+    ``data_entry_type_id`` does NOT inherit by design: a multi-det
+    parent (e.g. a FACTORS ingest spanning several dets) fans out to
+    one child per det, so the caller must always pass the specific
+    child det.  Callers override the rest as they need.
 
     Returns the child's ``id``.  Persists the parent's
     ``pipeline_id`` if it had to generate one — without that, a
