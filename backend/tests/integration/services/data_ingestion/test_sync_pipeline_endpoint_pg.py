@@ -155,8 +155,7 @@ async def test_get_pipeline_returns_ordered_jobs(pg_app):
     jobs = body["jobs"]
     assert isinstance(jobs, list)
     assert [j["id"] for j in jobs] == expected_order, (
-        f"Expected ASC-id ordering {expected_order}, got "
-        f"{[j['id'] for j in jobs]!r}"
+        f"Expected ASC-id ordering {expected_order}, got {[j['id'] for j in jobs]!r}"
     )
 
     # Verify the parent shape — proves enum and Optional columns serialise.
