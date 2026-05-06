@@ -21,7 +21,6 @@ import {
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -34,7 +33,9 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 const props = defineProps<{
   breakdownData?: EmissionBreakdownResponse | null;
@@ -43,6 +44,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -162,7 +164,7 @@ function recalculateScopeRects() {
             id: 'sr1',
             left: s1.left,
             top: '15px',
-            shape: { width: s1.width, height: 300 },
+            shape: { width: s1.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(248,248,248,0.9)' },
@@ -192,7 +194,7 @@ function recalculateScopeRects() {
             id: 'sr2',
             left: s2.left,
             top: '15px',
-            shape: { width: s2.width, height: 300 },
+            shape: { width: s2.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(240,240,240,0.9)' },
@@ -222,7 +224,7 @@ function recalculateScopeRects() {
             id: 'sr3',
             left: s3.left,
             top: '15px',
-            shape: { width: s3.width, height: 300 },
+            shape: { width: s3.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(229,229,229,0.9)' },
@@ -264,7 +266,10 @@ function recalculateScopeRects() {
             id: 'sadd',
             left: dividerX,
             top: '15px',
-            shape: { width: additionalRect?.width ?? 200, height: 300 },
+            shape: {
+              width: additionalRect?.width ?? 200,
+              height: isPrintMode ? 200 : 300,
+            },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(215,215,215,0.9)' },
@@ -290,7 +295,7 @@ function recalculateScopeRects() {
             id: 'sdiv',
             left: dividerX,
             top: '0px',
-            shape: { width: 1, height: 420 },
+            shape: { width: 1, height: isPrintMode ? 200 : 420 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(0,0,0,1)' },
@@ -1066,83 +1071,87 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'shadow',
+          },
 
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) {
-          emitTooltip(null);
-          return '';
-        }
-        const first = arr[0] as {
-          data?: Record<string, unknown>;
-          axisValue?: string;
-          name?: string;
-        };
-        const data = first.data;
-        const name = String(first.axisValue || first.name || '');
-        const isValidated = validatedLabels.value.has(name);
+          formatter: (params: unknown) => {
+            const arr = Array.isArray(params) ? params : params ? [params] : [];
+            if (!arr.length) {
+              emitTooltip(null);
+              return '';
+            }
 
-        if (!isValidated) {
-          const moduleName = additionalHeadcountLabels.value.has(name)
-            ? t('headcount')
-            : additionalBuildingsLabels.value.has(name)
-              ? t('buildings')
-              : name;
-          emitTooltip({
-            title: name,
-            rows: [],
-            tone: 'muted',
-            footer: t('results_validate_module_title', { module: moduleName }),
-          });
-          return '';
-        }
+            const firstParam = arr[0] as {
+              data?: Record<string, unknown>;
+              axisValue?: string;
+              name?: string;
+            };
+            const data = firstParam.data;
+            const name = firstParam.axisValue || firstParam.name || '';
+            const isValidated = validatedLabels.value.has(name);
 
-        const rows: TooltipRow[] = [];
-        let total = 0;
+            if (!isValidated) {
+              const moduleName = additionalHeadcountLabels.value.has(name)
+                ? t('headcount')
+                : additionalBuildingsLabels.value.has(name)
+                  ? t('buildings')
+                  : name;
+              emitTooltip({
+                title: name,
+                rows: [],
+                footer: t('results_validate_module_title', {
+                  module: moduleName,
+                }),
+                tone: 'muted',
+              });
+              return '';
+            }
 
-        for (const param of [...arr].reverse()) {
-          const p = param as {
-            seriesName?: string;
-            seriesIndex?: number;
-          };
-          const series =
-            typeof p.seriesIndex === 'number'
-              ? seriesArray[p.seriesIndex]
-              : seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
-          if (!data || !key) continue;
-          const dataValue = Number(data[key]) || 0;
-          if (dataValue > 0) {
-            rows.push({
-              label: series?.name ?? String(p.seriesName ?? ''),
-              value: formatTonnesForChart(dataValue),
-              color: (series?.itemStyle?.color as string) ?? '#888',
-            });
-            total += dataValue;
-          }
-        }
+            const rows: TooltipRow[] = [];
+            let total = 0;
 
-        const state: TooltipState = {
-          title: name,
-          rows,
-          ...(rows.length > 1
-            ? {
-                separatorRow: {
-                  label: t('results_objectives_total'),
-                  value: formatTonnesForChart(total),
-                },
+            for (const param of [...arr].reverse()) {
+              const p = param as {
+                seriesName?: string;
+                seriesIndex?: number;
+                color?: string;
+                data?: Record<string, unknown>;
+              };
+              const series =
+                typeof p.seriesIndex === 'number'
+                  ? seriesArray[p.seriesIndex]
+                  : seriesArray.find((s) => s.name === p.seriesName);
+              const key = series?.encode.y;
+
+              if (!data || !key) continue;
+              const dataValue = Number(data[key]) || 0;
+              if (dataValue > 0) {
+                rows.push({
+                  label: series?.name ?? p.seriesName ?? '',
+                  value: formatTonnesForChart(dataValue),
+                  color:
+                    (series?.itemStyle?.color as string) ?? p.color ?? '#888',
+                });
+                total += dataValue;
               }
-            : {}),
-        };
-        emitTooltip(state);
-        return '';
-      },
-    },
+            }
+
+            emitTooltip({
+              title: name,
+              rows,
+              separatorRow: {
+                label: t('total'),
+                value: formatTonnesForChart(total),
+              },
+            });
+            return '';
+          },
+        },
 
     grid: {
       left: '5%',
@@ -1317,6 +1326,7 @@ const downloadCSV = () => {
     <q-card-section class="flex justify-between items-center">
       <div class="flex items-center no-wrap">
         <q-icon
+          v-if="!isPrintMode"
           name="o_info"
           size="xs"
           color="primary"
@@ -1366,7 +1376,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div class="flex items-center no-wrap q-gutter-sm">
+      <div v-if="!isPrintMode" class="flex items-center no-wrap q-gutter-sm">
         <q-btn
           unelevated
           no-caps
@@ -1404,7 +1414,7 @@ const downloadCSV = () => {
     >
       <v-chart
         ref="chartRef"
-        class="chart"
+        :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
         @rendered="recalculateScopeRects"
@@ -1434,12 +1444,16 @@ const downloadCSV = () => {
 
 .chart {
   width: 100%;
-  min-height: 500px;
+  min-height: 320px;
+}
+
+.chart--print {
+  min-height: 320px;
 }
 
 @media (max-width: 1320px) {
-  .chart {
-    width: 95%;
+  .chart:not(.chart--print) {
+    width: 100%;
   }
 }
 </style>

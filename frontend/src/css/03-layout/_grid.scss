@@ -28,7 +28,7 @@ $breakpoint-desktop: 1320px;
   grid-template-columns: repeat(1, 1fr);
   gap: 16px;
 
-  @media (min-width: $breakpoint-tablet) {
+  @media (min-width: $breakpoint-tablet), print {
     grid-template-columns: repeat(2, 1fr);
   }
 }
@@ -38,7 +38,7 @@ $breakpoint-desktop: 1320px;
   grid-template-columns: repeat(1, 1fr);
   gap: 16px;
 
-  @media (min-width: $breakpoint-desktop) {
+  @media (min-width: $breakpoint-desktop), print {
     grid-template-columns: repeat(3, 1fr);
   }
 }

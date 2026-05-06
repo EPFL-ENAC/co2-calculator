@@ -38,6 +38,23 @@ export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Print preview — own layout so no header/sidebar appears
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/results/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'results-print',
+        component: () => import('pages/app/ResultsPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Results – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+        },
+      },
+    ],
+  },
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),

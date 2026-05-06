@@ -16,6 +16,7 @@ import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
@@ -23,6 +24,7 @@ import { formatTonnesForChart } from 'src/utils/number';
 const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+const isPrintMode = usePrintMode();
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
@@ -163,31 +165,33 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          color?: string;
-          data?: { value: number; originalValue: number };
-        };
-        const val = p.data?.originalValue ?? 0;
-        if (val <= 0) {
-          emitTooltip(null);
-          return '';
-        }
-        emitTooltip({
-          rows: [
-            {
-              label: p.seriesName ?? '',
-              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-              color: p.color ?? '#888',
-            },
-          ],
-        });
-        return '';
-      },
-    },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'item',
+          formatter: (params: unknown) => {
+            const p = params as {
+              seriesName?: string;
+              color?: string;
+              data?: { value: number; originalValue: number };
+            };
+            const val = p.data?.originalValue ?? 0;
+            if (val <= 0) {
+              emitTooltip(null);
+              return '';
+            }
+            emitTooltip({
+              rows: [
+                {
+                  label: p.seriesName ?? '',
+                  value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+                  color: p.color ?? '#888',
+                },
+              ],
+            });
+            return '';
+          },
+        },
     legend: { show: false },
     grid: {
       left: 0,
@@ -277,7 +281,7 @@ const babyBlueScheme = computed(() => {
 <template>
   <div class="flex justify-between items-center q-mb-xs">
     <q-card-section
-      v-if="legendData.length > 0"
+      v-if="!isPrintMode && legendData.length > 0"
       class="legend-container q-pa-none"
     >
       <div class="flex flex-wrap" style="gap: 15px">
@@ -296,7 +300,7 @@ const babyBlueScheme = computed(() => {
     </q-card-section>
 
     <q-btn
-      v-if="showEvolutionDialog"
+      v-if="!isPrintMode && showEvolutionDialog"
       color="primary"
       unelevated
       no-caps
@@ -322,7 +326,9 @@ const babyBlueScheme = computed(() => {
       class="chart"
       autoresize
       :option="chartOption"
-      :style="{ height: height ?? '200px' }"
+      :style="{
+        height: isPrintMode ? (height ?? '80px') : (height ?? '200px'),
+      }"
       @vue:mounted="onChartReady"
     />
     <Teleport to="body">

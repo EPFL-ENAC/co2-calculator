@@ -7,6 +7,22 @@ export default {
     en: 'Download as PDF',
     fr: 'Télécharger en PDF',
   },
+  results_print: {
+    en: 'Print',
+    fr: 'Imprimer',
+  },
+  results_loading: {
+    en: 'Loading…',
+    fr: 'Chargement…',
+  },
+  results_module_chart_emission_types: {
+    en: '{module} — Emission types',
+    fr: "{module} — Types d'émissions",
+  },
+  results_module_chart_breakdown: {
+    en: '{module} — Breakdown',
+    fr: '{module} — Répartition',
+  },
   results_colorblind_mode: {
     en: 'Colorblind mode',
     fr: 'Mode daltonien',
@@ -66,6 +82,10 @@ export default {
   results_title: {
     en: 'Results',
     fr: 'Résultats',
+  },
+  results_print_title: {
+    en: 'Total results',
+    fr: 'Résultats totaux',
   },
   results_subtitle: {
     en: 'Annual carbon footprint {year}',
