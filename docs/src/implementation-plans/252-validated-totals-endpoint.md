@@ -3,8 +3,9 @@ status: delivered
 issue: 252
 last_updated: 2026-02-20
 title: "Validated Modules Totals & Results Summary"
-summary: "The existing aggregation endpoints only handle equipment and don't filter by validation status. Headcount has no DataEntryEmission records — FTE is stored in DataEntry.data[\"fte\"] and must be queried separately via..."
+summary: 'The existing aggregation endpoints only handle equipment and don''t filter by validation status. Headcount has no DataEntryEmission records — FTE is stored in DataEntry.data["fte"] and must be queried separately via...'
 ---
+
 # Validated Modules Totals & Results Summary
 
 ## Context

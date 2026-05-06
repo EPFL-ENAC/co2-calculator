@@ -34,10 +34,10 @@ pipelines for different modules raced on the same tables.
 Codify a **two-path principle** with distinct write strategies per
 path:
 
-| Path                  | Trigger                          | Write strategy        |
-| --------------------- | -------------------------------- | --------------------- |
-| 1 — Interactive UI    | UI module edit endpoints         | Inline, synchronous   |
-| 2 — Bulk operator     | `/sync/dispatch`, `/sync/...`    | Async chained jobs    |
+| Path               | Trigger                       | Write strategy      |
+| ------------------ | ----------------------------- | ------------------- |
+| 1 — Interactive UI | UI module edit endpoints      | Inline, synchronous |
+| 2 — Bulk operator  | `/sync/dispatch`, `/sync/...` | Async chained jobs  |
 
 Each table should have **exactly one writer per path**. The target
 ownership map:

@@ -3,7 +3,7 @@ status: abandoned
 issue: 698
 last_updated: 2026-04-08
 title: "Fix: Permission Conflict in Professional Travel (Issue #698)"
-summary: "A \"User Standard\" with professionaltravel.edit permission is redirected to the."
+summary: 'A "User Standard" with professionaltravel.edit permission is redirected to the.'
 ---
 
 > **ARCHIVED:** This plan was not delivered. Preserved for context.

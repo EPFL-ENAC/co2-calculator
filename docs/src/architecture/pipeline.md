@@ -130,7 +130,7 @@ chain for one row is pure overhead.
   the original sync vs. async background-job evaluation (Celery + Redis vs.
   in-process). See ADR-015 / ADR-016 (when landed) for the two-path principle
   and the atomic `claim_job` transition that ship today.
-- Implementation plan — [310-overview](https://github.com/epfl-enac/co2-calculator/blob/main/docs/implementation-plans/310-overview.md):
+- Implementation plan — [310-overview](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-overview.md):
   the canonical statement of the two-path principle, plus Plans A–D that codify
   it for the bulk path (pod safety, factor pipeline, DAG handler registry, and
   the responsibility split that makes Path 2 pure async).

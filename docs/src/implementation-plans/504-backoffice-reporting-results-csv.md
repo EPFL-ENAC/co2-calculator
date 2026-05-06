@@ -5,6 +5,7 @@ last_updated: 2026-03-31
 title: "PRD 2 — Results CSV (`results.csv`)"
 summary: "👉 If byemissiontype is missing → STOP (data issue)."
 ---
+
 This is already solid — let’s turn it into something a dev can **execute step-by-step without ambiguity**, and make a few key improvements (performance, correctness, extensibility).
 
 ---

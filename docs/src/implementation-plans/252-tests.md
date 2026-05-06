@@ -5,6 +5,7 @@ last_updated: 2026-02-20
 title: "Test Plan: 252 Endpoints"
 summary: "Business logic calculations are inline in the getresultssummary and getvalidatedtotals routes. They cannot be unit tested. They must first be extracted into pure functions."
 ---
+
 # Test Plan: 252 Endpoints
 
 ## Problem

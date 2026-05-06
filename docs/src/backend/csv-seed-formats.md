@@ -45,7 +45,7 @@ For the runtime computation path see `data_entry_emission_service.py`; for the o
 ## kg_co2eq override semantics
 
 !!! warning "Override behavior"
-    The `kg_co2eq` column on `*_data.csv` is an **override**, not an input. When the column is present and non-empty, the backend skips the factor-based computation and uses the CSV value verbatim.
+The `kg_co2eq` column on `*_data.csv` is an **override**, not an input. When the column is present and non-empty, the backend skips the factor-based computation and uses the CSV value verbatim.
 
 The two relevant code points:
 
@@ -92,9 +92,9 @@ into truly-shared behaviour and per-provider differences.
 
 ### Per-provider differences
 
-| Aspect | `BaseCSVProvider` (data entries) | `BaseFactorCSVProvider` (factors, reference data) | `BaseReductionObjectiveCSVProvider` |
-|---|---|---|---|
-| Encoding | `utf-8-sig` (BOM tolerated) — `base_csv_provider.py:746` | plain `utf-8` (no BOM tolerance) — `base_factor_csv_provider.py:272` | `utf-8-sig` (BOM tolerated) — `base_reduction_objective_csv_provider.py:279` |
+| Aspect                           | `BaseCSVProvider` (data entries)                                       | `BaseFactorCSVProvider` (factors, reference data)                        | `BaseReductionObjectiveCSVProvider`                                                   |
+| -------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Encoding                         | `utf-8-sig` (BOM tolerated) — `base_csv_provider.py:746`               | plain `utf-8` (no BOM tolerance) — `base_factor_csv_provider.py:272`     | `utf-8-sig` (BOM tolerated) — `base_reduction_objective_csv_provider.py:279`          |
 | Header-validation error wrapping | `Wrong CSV format or encoding: <message>` (`base_csv_provider.py:768`) | bare `ValueError` (`base_factor_csv_provider.py::_validate_csv_headers`) | bare `ValueError` (`base_reduction_objective_csv_provider.py::_validate_csv_headers`) |
 
 ## Module-per-year CSV (data entries)
@@ -112,11 +112,11 @@ The only column required by the provider for every row is
 derived from the active `BaseModuleHandler` subclasses' `create_dto.model_fields`
 (see `_get_expected_columns_from_handlers` in `base_csv_provider.py:79`).
 
-| Column | Type | Required | Description |
-|---|---|---|---|
-| `unit_institutional_id` | string | yes | Unit code; resolves to `units.institutional_id`. |
-| handler-specific fields | varies | varies | Defined by the matching `BaseModuleHandler.create_dto`. |
-| `note` | string | no | Free-form annotation kept on the data entry. |
+| Column                  | Type   | Required | Description                                             |
+| ----------------------- | ------ | -------- | ------------------------------------------------------- |
+| `unit_institutional_id` | string | yes      | Unit code; resolves to `units.institutional_id`.        |
+| handler-specific fields | varies | varies   | Defined by the matching `BaseModuleHandler.create_dto`. |
+| `note`                  | string | no       | Free-form annotation kept on the data entry.            |
 
 For the headcount-member handler the columns are
 `unit_institutional_id, name, position_title, position_category,
@@ -128,7 +128,7 @@ user_institutional_id, fte, note` (verified against
 Delete-then-insert per affected module: rows previously inserted with
 `source = CSV_MODULE_PER_YEAR` are removed before the new batch is loaded
 (`base_csv_provider.py::_delete_existing_entries_for_module_per_year`,
-implementation plan `docs/implementation-plans/220-csv-upload-implementation-summary.md`).
+implementation plan `docs/src/implementation-plans/220-csv-upload-implementation-summary.md`).
 Manual user entries (`source = USER_MANUAL`) are never touched.
 
 ### Example
@@ -173,7 +173,7 @@ standby_usage_hours_per_week, note` (verified against
 `if self.entity_type == EntityType.MODULE_PER_YEAR` guard
 (`base_csv_provider.py:568`), so `MODULE_UNIT_SPECIFIC` never enters the
 `_delete_existing_entries_for_module_per_year` branch. Confirmed in
-`docs/implementation-plans/220-csv-upload-implementation-summary.md`.
+`docs/src/implementation-plans/220-csv-upload-implementation-summary.md`.
 
 ### Example
 
@@ -202,14 +202,14 @@ columns for a given factor type, read its `*FactorCreate` class in
 Example — `TravelPlaneFactorHandler` (verified at
 `backend/app/modules/professional_travel/schemas.py:412`):
 
-| Column | Type | Required | Description |
-|---|---|---|---|
-| `category` | enum | yes | `very_short_haul`, `short_haul`, `medium_haul`, or `long_haul`. |
-| `ef_kg_co2eq_per_km` | float | yes | Emission factor; must be `>= 0`. |
-| `rfi_adjustment` | float | yes | Radiative-forcing index multiplier. |
-| `class_adjustement` | float | yes | Cabin-class multiplier (note: legacy spelling). |
-| `min_distance` | float | yes | Lower bound of the distance band (km). |
-| `max_distance` | float | yes | Upper bound of the distance band (km). |
+| Column               | Type  | Required | Description                                                     |
+| -------------------- | ----- | -------- | --------------------------------------------------------------- |
+| `category`           | enum  | yes      | `very_short_haul`, `short_haul`, `medium_haul`, or `long_haul`. |
+| `ef_kg_co2eq_per_km` | float | yes      | Emission factor; must be `>= 0`.                                |
+| `rfi_adjustment`     | float | yes      | Radiative-forcing index multiplier.                             |
+| `class_adjustement`  | float | yes      | Cabin-class multiplier (note: legacy spelling).                 |
+| `min_distance`       | float | yes      | Lower bound of the distance band (km).                          |
+| `max_distance`       | float | yes      | Upper bound of the distance band (km).                          |
 
 ### Idempotency
 
@@ -244,11 +244,11 @@ long_haul,0.151,2.0,1.4,3500,20000
 
 ### Sub-formats
 
-| `reduction_objective_type_id` | `config_key` | Required columns |
-|---|---|---|
-| `0` (FOOTPRINT) | `institutional_footprint` | `year, category, co2` |
-| `1` (POPULATION) | `population_projections` | `year, pop` |
-| `2` (SCENARIOS) | `unit_scenarios` | `scenario, year, reduction_percentage` |
+| `reduction_objective_type_id` | `config_key`              | Required columns                       |
+| ----------------------------- | ------------------------- | -------------------------------------- |
+| `0` (FOOTPRINT)               | `institutional_footprint` | `year, category, co2`                  |
+| `1` (POPULATION)              | `population_projections`  | `year, pop`                            |
+| `2` (SCENARIOS)               | `unit_scenarios`          | `scenario, year, reduction_percentage` |
 
 Validation rules (`backend/app/schemas/year_configuration.py:43-94`):
 

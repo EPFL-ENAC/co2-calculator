@@ -5,6 +5,7 @@ last_updated: 2026-02-16
 title: "Service Manager — Audit Logs UI & API"
 summary: "This plan covers AUDIT logs only. The system/logs route will expose the auditdocuments table to service managers."
 ---
+
 # Service Manager — Audit Logs UI & API
 
 > Unified Implementation Plan · `system/logs` · Vue 3 + Quasar + FastAPI

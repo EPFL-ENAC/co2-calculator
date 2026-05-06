@@ -4,6 +4,7 @@ last_updated: 2026-03-12
 title: "Emission Pipeline Flow"
 summary: "resolveemissiontypes(dataentrytype, data) returns the list of."
 ---
+
 # Emission Pipeline Flow
 
 > Reference documentation for the emission calculation pipeline.

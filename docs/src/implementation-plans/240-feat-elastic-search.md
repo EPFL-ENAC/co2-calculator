@@ -5,6 +5,7 @@ last_updated: 2026-02-19
 title: "detail mapping"
 summary: "We've implemented pattern 7 as requested, which involves adding a syncstatus column to track the synchronization state of audit records with Elasticsearch. This approach provides reliability by tracking the sync..."
 ---
+
 ## Implementation Plan: Elasticsearch Integration for Audit Table
 
 ### Overview

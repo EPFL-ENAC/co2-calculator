@@ -5,6 +5,7 @@ last_updated: 2026-03-18
 title: "Implementation Plan: Headcount Data Validation V2 (Issue #518)"
 summary: "This plan covers five distinct changes to the Headcount module, derived from the updated."
 ---
+
 # Implementation Plan: Headcount Data Validation V2 (Issue #518)
 
 This plan covers five distinct changes to the Headcount module, derived from the updated

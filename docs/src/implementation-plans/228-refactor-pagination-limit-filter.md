@@ -5,6 +5,7 @@ last_updated: 2025-12-16
 title: "Implementation Plan: Refactor Pagination & Lazy Loading for Equipment Module"
 summary: "Implement lazy loading with per-submodule pagination and sorting. Load only summary totals on initial page load, then fetch individual submodule data when users expand collapsible sections."
 ---
+
 # Implementation Plan: Refactor Pagination & Lazy Loading for Equipment Module
 
 ## Overview

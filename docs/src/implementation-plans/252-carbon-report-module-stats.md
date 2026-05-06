@@ -5,6 +5,7 @@ last_updated: 2026-03-03
 title: "Carbon Report Module — Stats Column Population"
 summary: "The carbonreportmodules table has a stats JSON column that was never populated. Every time the frontend needs emission breakdowns or scope totals for a module, it triggers live aggregation queries across..."
 ---
+
 # Carbon Report Module — Stats Column Population
 
 ## Context

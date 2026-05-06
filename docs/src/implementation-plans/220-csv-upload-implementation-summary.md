@@ -5,13 +5,14 @@ last_updated: 2026-04-02
 title: "CSV Upload Feature Implementation Summary"
 summary: "This document summarizes the implementation of the CSV upload feature verification and test suite for issue #220 (DB Upload CSV - Improve Data Modifications)."
 ---
+
 # 220 - CSV Upload Feature Implementation Summary
 
 ## Overview
 
 This document summarizes the implementation of the CSV upload feature verification and test suite for issue #220 (DB Upload CSV - Improve Data Modifications).
 
-**Related PRD**: `docs/implementation-plans/220-db-upload-csv-improve-data-modifications.md`
+**Related PRD**: `docs/src/implementation-plans/220-db-upload-csv-improve-data-modifications.md`
 
 **Implementation Date**: April 2026
 
@@ -209,7 +210,7 @@ uv run pytest tests/integration/data_ingestion/ -v
 ### Documentation
 
 10. `backend/tests/integration/data_ingestion/fixtures/README.md` - CSV format reference
-11. `docs/implementation-plans/220-csv-upload-implementation-summary.md` - This summary
+11. `docs/src/implementation-plans/220-csv-upload-implementation-summary.md` - This summary
 
 ## Acceptance Criteria Status
 

@@ -169,14 +169,14 @@ that flow.
 
 ## Required Secrets
 
-| Secret | Used by | Notes |
-| --- | --- | --- |
-| `GITHUB_TOKEN` | all | auto-provided |
-| `MY_RELEASE_PLEASE_TOKEN` | `release-please.yml` | PAT with `contents: write` to push tags + create releases |
-| `CD_TOKEN` | `deploy.yml` | EPFL-ENAC build-push-deploy action token |
-| `QUAY_TOKEN` | `deploy.yml` | passed as `registry_token` for `quay-its.epfl.ch` push |
-| `token` | `deploy-storybook.yml` | bearer token for the `repository_dispatch` POST to `EPFL-ENAC/enack8s-app-config`; the workflow references `secrets.token` literally — the secret name is generic and currently undocumented |
-| `CODECOV_TOKEN` | `test.yml`, `integration-tests.yml` | optional, required for private forks |
+| Secret                    | Used by                             | Notes                                                                                                                                                                                        |
+| ------------------------- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`            | all                                 | auto-provided                                                                                                                                                                                |
+| `MY_RELEASE_PLEASE_TOKEN` | `release-please.yml`                | PAT with `contents: write` to push tags + create releases                                                                                                                                    |
+| `CD_TOKEN`                | `deploy.yml`                        | EPFL-ENAC build-push-deploy action token                                                                                                                                                     |
+| `QUAY_TOKEN`              | `deploy.yml`                        | passed as `registry_token` for `quay-its.epfl.ch` push                                                                                                                                       |
+| `token`                   | `deploy-storybook.yml`              | bearer token for the `repository_dispatch` POST to `EPFL-ENAC/enack8s-app-config`; the workflow references `secrets.token` literally — the secret name is generic and currently undocumented |
+| `CODECOV_TOKEN`           | `test.yml`, `integration-tests.yml` | optional, required for private forks                                                                                                                                                         |
 
 ## Status Badges
 

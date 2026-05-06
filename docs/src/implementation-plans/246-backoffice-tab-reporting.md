@@ -5,6 +5,7 @@ last_updated: 2026-02-26
 title: "Optimization"
 summary: "Now I have a much better understanding of the existing seed data infrastructure! Looking at the existing seed files in backend/app/seed/, I can see there's already a well-structured approach for generating test data..."
 ---
+
 ## Implementation Plan — Back-office Reporting
 
 ### data generation first

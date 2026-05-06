@@ -78,19 +78,19 @@ graph LR
 
 State lives in `frontend/src/stores/`. The active stores are:
 
-| Store                       | Purpose                                              |
-| --------------------------- | ---------------------------------------------------- |
-| `auth`                      | Current user, `roles_raw`, `permissions`, login/out  |
-| `workspace`                 | Selected unit + year; drives most of the app shell   |
-| `modules`                   | Module config and per-module activity data           |
-| `factors`                   | Emission factors loaded from the backend             |
-| `unitFilters`               | Unit picker filtering and search                     |
-| `yearConfig`                | Year-scoped configuration (open/closed years, etc.)  |
-| `building_rooms`            | Room metadata for equipment module                   |
-| `files`                     | Upload state for CSV imports                         |
-| `backoffice`                | Back-office shell state                              |
-| `backofficeDataManagement`  | Factor / unit / activity admin                       |
-| `colorblind`                | Accessibility palette toggle                         |
+| Store                      | Purpose                                             |
+| -------------------------- | --------------------------------------------------- |
+| `auth`                     | Current user, `roles_raw`, `permissions`, login/out |
+| `workspace`                | Selected unit + year; drives most of the app shell  |
+| `modules`                  | Module config and per-module activity data          |
+| `factors`                  | Emission factors loaded from the backend            |
+| `unitFilters`              | Unit picker filtering and search                    |
+| `yearConfig`               | Year-scoped configuration (open/closed years, etc.) |
+| `building_rooms`           | Room metadata for equipment module                  |
+| `files`                    | Upload state for CSV imports                        |
+| `backoffice`               | Back-office shell state                             |
+| `backofficeDataManagement` | Factor / unit / activity admin                      |
+| `colorblind`               | Accessibility palette toggle                        |
 
 ## Routing & Guards
 

@@ -133,7 +133,7 @@ nav:
   - Infrastructure:
       - Overview: infra/01-overview.md
 
-  - Implementation Plans: implementation-plans/INDEX.md
+  - Implementation Plans: implementation-plans/_index.md
 
   - User Documentation:
       - Overview: user-docs/01-overview.md
@@ -184,7 +184,6 @@ not_in_nav: |
   /architecture/_index.md
   /backend/_index.md
   /frontend/_index.md
-  /implementation-plans/_index.md
   /contributing/auto-index.md
 
 copyright: >

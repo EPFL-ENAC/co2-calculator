@@ -28,12 +28,12 @@ transaction with two statements**:
 
 1. `UPDATE` to unset `is_current` on any previous current row for the
    same `(module_type_id, data_entry_type_id, target_type,
-   ingestion_method, year)` combo.
+ingestion_method, year)` combo.
 2. `UPDATE` the target row to
    `state=RUNNING, is_current=TRUE, locked_by=POD_ID,
-   locked_at=NOW(), attempts=attempts+1`,
+locked_at=NOW(), attempts=attempts+1`,
    gated by `WHERE id=:id AND state=NOT_STARTED AND
-   attempts<max_attempts`.
+attempts<max_attempts`.
 
 Two pods racing this transaction both attempt step 2. Step 1 in pod
 B's transaction tries to flip the same `is_current=TRUE` row that
@@ -42,7 +42,7 @@ Pod B's transaction rolls back; `claim_job` returns `False`.
 
 Returns:
 
-- `True`  — caller owns the job, must run it.
+- `True` — caller owns the job, must run it.
 - `False` — another pod won, or the job is no longer eligible
   (`state != NOT_STARTED`, `attempts >= max_attempts`).
 

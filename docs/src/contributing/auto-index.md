@@ -9,7 +9,7 @@ appears in the right group with rich metadata.
 
 ```yaml
 ---
-status: delivered  # delivered | in-progress | abandoned
+status: delivered # delivered | in-progress | abandoned
 issue: 310-b
 last_updated: 2026-05-05
 summary: One-line description.

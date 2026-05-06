@@ -5,6 +5,7 @@ last_updated: 2026-02-18
 title: "Chart Data Endpoints — Implementation Plan"
 summary: "The results page charts (ModuleCarbonFootprintChart and CarbonFootPrintPerPersonChart) previously used hardcoded mock data. A backend endpoint now returns real aggregated emission data so both charts display actual..."
 ---
+
 # Chart Data Endpoints — Implementation Plan
 
 ## Context

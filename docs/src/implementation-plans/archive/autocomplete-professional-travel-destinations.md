@@ -2,7 +2,7 @@
 status: abandoned
 last_updated: 2026-01-07
 title: "Autocomplete/Calculation for Professional Travel Destinations"
-summary: "Add autocomplete functionality to the \"from\" and \"to\" fields in the professional travel form. The autocomplete shows airports when transportmode is \"flight\" and railway stations when transportmode is \"train\". Only..."
+summary: 'Add autocomplete functionality to the "from" and "to" fields in the professional travel form. The autocomplete shows airports when transportmode is "flight" and railway stations when transportmode is "train". Only...'
 ---
 
 > **ARCHIVED:** This plan was not delivered. Preserved for context.

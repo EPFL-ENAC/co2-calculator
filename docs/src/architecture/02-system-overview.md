@@ -7,8 +7,8 @@ summary: System-context and container view of co2-calculator.
 # System Overview
 
 This page gives a C4-style **context** and **container** view of the
-co2-calculator. It answers: *who uses it, what it depends on, and which
-deployable units make it up.*
+co2-calculator. It answers: _who uses it, what it depends on, and which
+deployable units make it up._
 
 For deeper detail, jump to:
 
@@ -93,12 +93,12 @@ flowchart TB
 
 ### Container responsibilities
 
-| Container           | Role                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| **Frontend**        | Static SPA bundle, Quasar UI, calls Backend over REST with HTTP-only auth cookies.                                  |
-| **Backend API**     | Auth, business logic, persistence, file uploads via `/files/temp-upload`.                                           |
-| **Background tasks**| In-process FastAPI `BackgroundTasks` chained via `asyncio.create_task`; 10s safety-net poller. See ADR-010.         |
-| **PostgreSQL**      | System of record (also holds the background-job queue table), accessed via PgBouncer.                               |
+| Container            | Role                                                                                                        |
+| -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Frontend**         | Static SPA bundle, Quasar UI, calls Backend over REST with HTTP-only auth cookies.                          |
+| **Backend API**      | Auth, business logic, persistence, file uploads via `/files/temp-upload`.                                   |
+| **Background tasks** | In-process FastAPI `BackgroundTasks` chained via `asyncio.create_task`; 10s safety-net poller. See ADR-010. |
+| **PostgreSQL**       | System of record (also holds the background-job queue table), accessed via PgBouncer.                       |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md).
 

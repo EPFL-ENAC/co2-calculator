@@ -5,6 +5,7 @@ last_updated: 2026-03-02
 title: "Emission Computation — Data Reference"
 summary: "Some formula inputs are not in dataentry.data and must be derived before."
 ---
+
 # Emission Computation — Data Reference
 
 ## Factor Retrieval Strategies
