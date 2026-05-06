@@ -1194,7 +1194,7 @@ function isCompleteExternalAI(row: ModuleRow) {
     'provider',
     'usage_type',
     'requests_per_user_per_day',
-    'user_count',
+    'fte_count',
   ];
   return hasRequiredValues(row, required);
 }

@@ -771,7 +771,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,  # 10 queries per day
-#         "user_count": 100,  # 100 users
+#         "fte_count": 100,  # 100 full-time employees
 #     }
 
 #     factor = Factor(
@@ -797,7 +797,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,
-#         "user_count": 0,
+#         "fte_count": 0,
 #     }
 
 #     factor = Factor(
@@ -822,7 +822,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,
-#         "user_count": 100,
+#         "fte_count": 100,
 #     }
 
 #     result = await compute_external_ai(service, data_entry, [])
@@ -838,7 +838,7 @@ class TestDelegationMethods:
 
 #     data_entry = MagicMock()
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
-#     data_entry.data = {}  # Missing frequency and user_count
+#     data_entry.data = {}  # Missing frequency and fte_count
 
 #     factor = Factor(
 #         id=1,
@@ -1384,7 +1384,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 1,
-#         "user_count": 1,
+#         "fte_count": 1,
 #     }
 
 #     # factor_gCO2eq is in grams, result should be in kg
