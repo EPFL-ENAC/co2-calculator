@@ -70,7 +70,10 @@ class DataIngestionRepository:
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
-        """Update ingestion job with legacy status_code and new state/result.
+        """Update ingestion job's status_message, state, result, and metadata.
+
+        ``state == FINISHED`` also auto-stamps the top-level ``finished_at``
+        column when it is still NULL (see the ``state`` arg below).
 
         Args:
             job_id: Job ID to update
