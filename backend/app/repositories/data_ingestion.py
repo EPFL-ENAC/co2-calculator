@@ -70,15 +70,21 @@ class DataIngestionRepository:
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
-        """Update ingestion job with legacy status_code and new state/result.
+        """Update ingestion job's status_message, state, result, and metadata.
+
+        ``state == FINISHED`` also auto-stamps the top-level ``finished_at``
+        column when it is still NULL (see the ``state`` arg below).
 
         Args:
             job_id: Job ID to update
             status_message: Status message
-            status_code: Legacy status code (for backward compatibility)
             metadata: Metadata to merge
-            completed_at: Optional completed timestamp
-            state: New state value (optional, for new code)
+            completed_at: Optional completed timestamp written into ``meta``
+                (legacy JSON field; pre-dates the ``finished_at`` column).
+            state: New state value (optional, for new code).  When this
+                transitions the row to ``FINISHED`` and ``finished_at`` is
+                still NULL, the column is auto-stamped (idempotent — a
+                later update keeps the original timestamp).
             result: New result value (optional, for new code)
         """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
@@ -95,6 +101,12 @@ class DataIngestionRepository:
                 result_job.state = state
             if result is not None:
                 result_job.result = result
+            if state == IngestionState.FINISHED and result_job.finished_at is None:
+                # Auto-stamp on the FIRST transition to FINISHED.  IS NULL
+                # guard makes it idempotent — re-running update on an
+                # already-FINISHED row leaves the original timestamp intact.
+                # Server-side ``func.now()`` matches claim_job's locked_at.
+                result_job.finished_at = func.now()
 
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
@@ -113,6 +125,29 @@ class DataIngestionRepository:
             await self.session.flush()
             await self.session.refresh(result_job)
         return result_job
+
+    async def set_started_at(self, job_id: int) -> None:
+        """Stamp ``started_at`` on the FIRST successful claim only.
+
+        Idempotent via the ``started_at IS NULL`` guard — retries (every
+        subsequent claim_job after the original pod crashed and the safety
+        sweep recovered the row) call this again but the UPDATE matches no
+        row, leaving the original timestamp intact.  This is the property
+        that lets ``finished_at - started_at`` measure total wall-clock
+        duration across retries; ``locked_at`` (refreshed on every claim)
+        answers a different question.
+
+        Does not commit — leaves transaction control to the caller (the
+        ``run_job`` runner in Plan 310C), matching ``update_ingestion_job``.
+        """
+        await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.started_at).is_(None),
+            )
+            .values(started_at=func.now())
+        )
 
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
@@ -225,6 +260,15 @@ class DataIngestionRepository:
                     .values(
                         locked_by=pod_id,
                         locked_at=func.now(),
+                        # Stamp ``started_at`` atomically with the RUNNING
+                        # transition so a crash between this commit and the
+                        # runner doing work cannot leave the column NULL.
+                        # ``coalesce`` preserves the original timestamp on
+                        # retry-claim — ``finished_at - started_at`` then
+                        # measures total wall-clock duration across retries.
+                        started_at=func.coalesce(
+                            col(DataIngestionJob.started_at), func.now()
+                        ),
                         state=IngestionState.RUNNING,
                         is_current=True,
                         attempts=col(DataIngestionJob.attempts) + 1,
@@ -316,6 +360,9 @@ class DataIngestionRepository:
             .values(
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
+                # Terminal transition — stamp finished_at so the dashboard
+                # query sees auto-abandoned rows alongside normal completions.
+                finished_at=func.now(),
                 status_message=(
                     "Auto-recovery: pod-crash sweep found this job RUNNING past "
                     "the stale-timeout window with attempts >= max_attempts.  "
@@ -507,6 +554,10 @@ class DataIngestionRepository:
         job.state = IngestionState.FINISHED
         job.result = IngestionResult.ERROR
         job.status_message = "Cancelled by user"
+        # Terminal transition — stamp finished_at so observability queries
+        # see cancelled rows alongside success/error completions.
+        if job.finished_at is None:
+            job.finished_at = func.now()
         job.is_current = False
         merged_meta = {
             **self.sanitize_for_json(job.meta or {}),
