@@ -185,9 +185,18 @@ async def _chain_recalc_for_stale(
         ModuleTypeEnum,
     )
 
+    # The caller (factor_ingest_handler) only invokes this helper after
+    # validating job.year is set.  Re-narrow with an explicit raise
+    # rather than ``assert`` — bandit B101 strips assertions under
+    # ``python -O``, so a defensive narrowing assert can't be relied on
+    # at runtime.  Same pattern as #1027's emission_recalc narrowing fix.
+    if job.year is None:
+        raise ValueError(
+            f"_chain_recalc_for_stale: job {job.id} has no year — "
+            "caller must validate before invoking"
+        )
+    year: int = job.year
     repo = DataIngestionRepository(session)
-    year = job.year
-    assert year is not None  # caller guards this
 
     # ``targets`` is a heterogeneous list — the synthetic single-type and
     # multi-type rows are plain dicts; the all-stale branch yields
