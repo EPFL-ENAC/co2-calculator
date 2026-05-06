@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 859
+last_updated: 2026-05-06
+title: "Refactor Seed Factors to Use Ingestion Machinery"
+summary: "Replace duplicated factor-seed parsing with a LocalFactorCSVProvider that reuses the ingestion pipeline."
+---
+
 ## Plan: Refactor Seed Factors to Use Ingestion Machinery
 
 **TL;DR**: `seed_generic_factors.py` manually duplicates CSV parsing, handler resolution, and factor creation logic that already exists in `ModulePerYearFactorCSVProvider`. The refactoring introduces a thin `LocalFactorCSVProvider` subclass that bypasses file-store/job-tracking (API-only concerns) and rewrites `seed_factors()` to delegate to it.

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 243
 last_updated: 2026-03-09
 title: "Plan: Job History Panel + Per-Row Sync Progress"

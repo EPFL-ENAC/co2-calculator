@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310-c
+last_updated: 2026-05-06
+title: "310-c — DAG + Handler Registry + Observability"
+summary: "DAG-driven handler registry with observability columns replacing ad-hoc safety and auto-trigger code."
+---
+
 # 310-c — DAG + Handler Registry + Observability
 
 ## Context

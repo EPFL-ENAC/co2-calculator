@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 220
 last_updated: 2026-04-02
 title: "CSV Upload Feature Implementation Summary"

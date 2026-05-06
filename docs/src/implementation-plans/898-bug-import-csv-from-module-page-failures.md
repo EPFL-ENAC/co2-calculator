@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 898
+last_updated: 2026-05-06
+title: "Fix ModuleUnitSpecificCSVProvider KeyError + Add CSV Fixture Tests"
+summary: "Resolve KeyError on factor_id_to_factor in ModuleUnitSpecificCSVProvider; add fixture-based tests."
+---
+
 # Fix ModuleUnitSpecificCSVProvider KeyError + Add CSV Fixture Tests
 
 ## Bug Analysis

@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310
+last_updated: 2026-05-06
+title: "310 — Backoffice recalculation upon factor updates"
+summary: "Recalculate downstream emission data when operators update factors via the backoffice."
+---
+
 # 310 — Backoffice recalculation upon factor updates
 
 ## Context

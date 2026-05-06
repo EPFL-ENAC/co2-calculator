@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310-a
+last_updated: 2026-05-06
+title: "310-a — Pod Safety + Atomic Claim"
+summary: "Pod-safe atomic claim mechanics for FastAPI background tasks under multi-pod deployment."
+---
+
 # 310-a — Pod Safety + Atomic Claim
 
 ## Context

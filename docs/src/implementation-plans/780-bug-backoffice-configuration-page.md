@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 780
+last_updated: 2026-05-06
+title: "Refactoring: Data Management Upload Components"
+summary: "Deduplicate ~200 lines of upload card UI between ModuleConfig.vue and SubmoduleConfig.vue."
+---
+
 # Refactoring: Data Management Upload Components
 
 ## Problem

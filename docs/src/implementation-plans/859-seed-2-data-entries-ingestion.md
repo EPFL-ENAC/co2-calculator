@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 859
+last_updated: 2026-05-06
+title: "Refactor seed_generic_data_entries to Use Ingestion Machinery"
+summary: "Replace duplicated data-entries seed logic with LocalDataEntryCSVProvider on process_csv_in_batches."
+---
+
 # Plan: Refactor `seed_generic_data_entries` to Use Ingestion Machinery
 
 ## TL;DR

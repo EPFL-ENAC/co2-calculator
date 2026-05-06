@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310-b
+last_updated: 2026-05-06
+title: "310-b — Factor Pipeline + Unit Sync Tracking"
+summary: "Bulk-path fixes: factor ingest semantics, recalc enqueue, and unit-sync tracking on Path 2."
+---
+
 # 310-b — Factor Pipeline + Unit Sync Tracking
 
 ## Context

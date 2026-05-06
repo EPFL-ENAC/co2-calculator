@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 840
+last_updated: 2026-05-06
+title: "Root-Level Rollup DataEntryEmission Rows"
+summary: "Add root-level rollup rows on DataEntryEmission to support aggregate views."
+---
+
 # Plan: Root-Level Rollup `DataEntryEmission` Rows
 
 PR: [#648](https://github.com/.../pull/648) — related issue: #841

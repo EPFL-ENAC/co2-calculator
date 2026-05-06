@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 840
+last_updated: 2026-05-06
+title: "Replace distance_km / weight_kg with polymorphic additional_value on data_entry_emission"
+summary: "Replace the two typed columns with a polymorphic additional_value field on data_entry_emission."
+---
+
 # Plan: Replace `distance_km` / `weight_kg` with a polymorphic `additional_value` on `data_entry_emission`
 
 ## Context

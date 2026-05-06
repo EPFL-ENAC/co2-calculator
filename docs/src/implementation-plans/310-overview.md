@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310
+last_updated: 2026-05-06
+title: "310 — Background Pipeline Architecture: Overview"
+summary: "Umbrella plan: redesign FastAPI background workflows for multi-pod safety, retry, and observability."
+---
+
 # 310 — Background Pipeline Architecture: Overview
 
 ## Why we are doing this

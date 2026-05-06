@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 334
+last_updated: 2026-05-06
+title: "/me Performance Optimization: Decoupling Role Sync and Frontend Refresh Strategy"
+summary: "Drop /me latency from ~1s to ~8ms by moving role sync trigger from /me to /refresh."
+---
+
 # /me Performance Optimization: Decoupling Role Sync & Frontend Refresh Strategy
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 246
 last_updated: 2026-03-09
 title: "Filters"

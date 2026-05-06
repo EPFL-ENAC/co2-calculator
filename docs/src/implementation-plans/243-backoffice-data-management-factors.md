@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 243
 last_updated: 2026-03-11
 title: "243-backoffice-data-management-factors"

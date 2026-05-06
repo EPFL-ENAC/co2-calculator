@@ -1,3 +1,11 @@
+---
+status: delivered
+issue: 840
+last_updated: 2026-05-06
+title: "Remove emit_per_factor — always emit one emission per factor"
+summary: "Eliminate the emit_per_factor branch in prepare_create(); always emit one DataEntryEmission per factor."
+---
+
 # Plan: Remove `emit_per_factor` — Always Emit One Emission per Factor
 
 ## Context

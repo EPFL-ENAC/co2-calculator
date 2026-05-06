@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310
+last_updated: 2026-05-06
+title: "310 — Plan Review"
+summary: "Code-grounded verification of the 310-* plan series against the actual repository state."
+---
+
 # 310 — Plan Review
 
 Verified plans against actual code in `backend/app/models/data_ingestion.py`,

@@ -1,3 +1,11 @@
+---
+status: in-progress
+issue: 310-d
+last_updated: 2026-05-06
+title: "310-d — Bulk Path Pure Async (Path 2 only)"
+summary: "Make the bulk pipeline (Path 2) pure async to match its latency profile; Path 1 untouched."
+---
+
 # 310-d — Bulk Path Pure Async (Path 2 only)
 
 ## Context

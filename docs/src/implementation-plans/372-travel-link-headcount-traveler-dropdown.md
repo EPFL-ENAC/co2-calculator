@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 372
 last_updated: 2026-03-10
 title: "Plan: Travel — Link Traveler Selection to Headcount (Issue #372)"

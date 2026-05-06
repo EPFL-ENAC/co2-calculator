@@ -61,12 +61,12 @@ PLANS_DIR = DOCS_SRC / "implementation-plans"
 GENERATED_INDEX_NAME = "_index.md"
 
 
-def _plans_gh_url() -> str:
-    """Derive the GitHub blob URL for implementation-plans from MkDocs config.
+def _repo_url() -> str:
+    """Return the configured GitHub repo URL (no trailing slash).
 
-    Reads `repo_url` from the active MkDocs config (via `mkdocs_gen_files`),
-    so fork builds and renamed remotes link correctly. Falls back to the
-    upstream repo if config isn't available (e.g. running outside a build).
+    Reads `repo_url` from the active MkDocs config so fork builds and
+    renamed remotes produce correct issue links. Falls back to upstream
+    when run outside a build (e.g. ad-hoc invocation).
     """
     fallback = "https://github.com/epfl-enac/co2-calculator"
     try:
@@ -75,7 +75,27 @@ def _plans_gh_url() -> str:
         )
     except Exception:  # pragma: no cover - non-build invocation
         repo_url = fallback
-    return f"{repo_url.rstrip('/')}/blob/main/docs/src/implementation-plans"
+    return repo_url.rstrip("/")
+
+
+_ISSUE_PREFIX_RE = re.compile(r"^\s*#?\s*(\d+)")
+
+
+def _issue_cell(issue: Any, repo_url: str) -> str:
+    """Render `issue` as a GitHub link when it has a numeric prefix.
+
+    Display preserves the frontmatter value (e.g. ``310-b``) so sub-issue
+    identifiers stay legible; the link target uses only the numeric prefix
+    because GitHub issue URLs are integer-keyed.
+    """
+    text = str(issue or "").strip().lstrip("#")
+    if not text:
+        return ""
+    match = _ISSUE_PREFIX_RE.match(text)
+    if not match:
+        return text
+    return f"[#{text}]({repo_url}/issues/{match.group(1)})"
+
 
 STATUS_ORDER = ("delivered", "in-progress", "abandoned", "uncategorized")
 STATUS_LABEL = {
@@ -134,11 +154,11 @@ def _plans_index() -> None:
             }
         )
 
-    plans_gh_url = _plans_gh_url()
+    repo_url = _repo_url()
     lines = [
         "# Implementation plans",
         "",
-        f"Plans live in `docs/src/implementation-plans/`; links point to GitHub. {sum(len(v) for v in groups.values())} total.",
+        f"Plans live in `docs/src/implementation-plans/`. {sum(len(v) for v in groups.values())} total.",
         "",
     ]
     for key in STATUS_ORDER:
@@ -150,10 +170,11 @@ def _plans_index() -> None:
         lines.append("| Title | Issue | Last updated | Summary |")
         lines.append("| --- | --- | --- | --- |")
         for e in entries:
-            link = f"[{e['title']}]({plans_gh_url}/{e['filename']})"
+            link = f"[{e['title']}]({e['filename']})"
+            issue_link = _issue_cell(e["issue"], repo_url)
             summary = str(e["summary"]).replace("|", "\\|")
             lines.append(
-                f"| {link} | {e['issue']} | {e['last_updated']} | {summary} |"
+                f"| {link} | {issue_link} | {e['last_updated']} | {summary} |"
             )
         lines.append("")
 
