@@ -9,10 +9,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
+from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.services.module_handler_service import ModuleHandlerService
 
 logger = get_logger(__name__)
 
@@ -69,8 +69,52 @@ class EmissionRecalculationWorkflow:
 
         emission_svc = DataEntryEmissionService(self.session)
         module_svc = CarbonReportModuleService(self.session)
-        handler_svc = ModuleHandlerService(self.session)
+        factor_repo = FactorRepository(self.session)
         handler = BaseModuleHandler.get_by_type(data_entry_type_id)
+
+        # Plan 310D — batch the rematch.  Pre-load all factors for
+        # (data_entry_type_id, year) once into a dict keyed by
+        # (kind, subkind), turning what was N+1 SQL roundtrips into one
+        # bulk SELECT plus Python lookups.  Skipped when the handler has
+        # no ``kind_field`` because there is nothing to rematch on.
+        #
+        # Lookup-key matches ``ModuleHandlerService.resolve_primary_factor_id``:
+        # both read ``classification[kind_field]`` and (when defined)
+        # ``classification[subkind_field]``, normalising "" → None for
+        # subkind.  Dict misses fall back to the per-entry resolver,
+        # which itself does a kind-only fallback when the exact
+        # (kind, subkind) row is absent.
+        factor_lookup: dict[tuple[str, str | None], int] = {}
+        # Skip the bulk SELECT entirely when the handler has no
+        # ``kind_field`` OR when no entry actually carries that key in
+        # ``entry.data``.  Strategy B handlers (e.g.
+        # professional_travel/plane) declare ``kind_field`` but derive
+        # the value in ``pre_compute`` — every entry would fail the
+        # per-entry refresh gate below, so prefetching factors here
+        # would be a wasted SELECT per recalc slice.
+        if handler.kind_field is not None and any(
+            handler.kind_field in e.data for e in entries
+        ):
+            kind_field = handler.kind_field
+            subkind_field = handler.subkind_field
+            factors = await factor_repo.list_by_data_entry_type(
+                data_entry_type_id, year
+            )
+            for factor in factors:
+                if factor.id is None:
+                    continue
+                classification = factor.classification or {}
+                kind_value = classification.get(kind_field)
+                if kind_value is None or kind_value == "":
+                    continue
+                subkind_value: str | None = None
+                if subkind_field:
+                    raw = classification.get(subkind_field)
+                    subkind_value = raw if raw else None
+                # First writer wins on duplicate keys; ``get_by_classification``
+                # uses ``one_or_none`` which raises on duplicates anyway, so
+                # callers don't depend on ordering when the index is consistent.
+                factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
         recalculated = 0
         errors = 0
@@ -94,29 +138,42 @@ class EmissionRecalculationWorkflow:
             # ``MultipleResultsFound``, neither of which is right for
             # those handlers.
             #
-            # N+1 query per entry — acceptable for now; batched matching
-            # is on the Plan D follow-up list.
-            should_refresh = (
-                handler.kind_field is not None and handler.kind_field in entry.data
-            )
+            # Plan 310D — bulk-prefetched ``factor_lookup`` is the
+            # single source of truth for the rematch.  ``_lookup_factor_id``
+            # mirrors the full kind→subkind→kind-only fallback chain
+            # in-memory, so a miss here means "factor truly dropped from
+            # the current CSV" — no DB fallback.  Per the strict-drop
+            # contract, we clear ``primary_factor_id`` and let the
+            # downstream upsert recompute ``kg_co2eq`` as None, which the
+            # dashboard surfaces as a missing-factor signal to operators.
+            #
+            # Bind to a local with an explicit ``Optional[str]`` annotation
+            # so the ``is not None`` check below narrows it to ``str`` at
+            # the ``_lookup_factor_id`` call site.  The name differs from
+            # ``kind_field`` used in the prefetch block above to avoid a
+            # mypy scope-collision (the prefetch binding lives inside an
+            # ``if handler.kind_field is not None`` block, so mypy infers
+            # the narrower ``str`` and then refuses the wider re-bind here).
+            # Also avoids an ``assert`` (bandit B101 — asserts are stripped
+            # under ``python -O``).
+            entry_kind_field: str | None = handler.kind_field
             old_data = entry.data
             try:
-                if should_refresh:
-                    refreshed = await handler_svc.resolve_primary_factor_id(
-                        handler=handler,
-                        payload=dict(entry.data),
-                        data_entry_type_id=data_entry_type_id,
-                        year=year,
-                        existing_data=None,
+                if entry_kind_field is not None and entry_kind_field in entry.data:
+                    new_factor_id = self._lookup_factor_id(
+                        entry_data=entry.data,
+                        kind_field=entry_kind_field,
+                        subkind_field=handler.subkind_field,
+                        factor_lookup=factor_lookup,
                     )
-                    new_factor_id = refreshed.get("primary_factor_id")
                     if new_factor_id != entry.data.get("primary_factor_id"):
                         # Tentative swap so DataEntryResponse + upsert
-                        # see the refreshed factor.  Rolled back below
-                        # if the upsert fails, so partial-failure runs
-                        # don't leave entry.data pointing at the new
-                        # factor while data_entry_emissions is still
-                        # computed against the old one.
+                        # see the refreshed factor (or ``None`` on a
+                        # drop).  Rolled back below if the upsert fails,
+                        # so partial-failure runs don't leave entry.data
+                        # pointing at the new factor while
+                        # data_entry_emissions is still computed against
+                        # the old one.
                         entry.data = {
                             **entry.data,
                             "primary_factor_id": new_factor_id,
@@ -169,3 +226,47 @@ class EmissionRecalculationWorkflow:
             "errors": errors,
             "error_details": error_details,
         }
+
+    @staticmethod
+    def _lookup_factor_id(
+        entry_data: dict,
+        kind_field: str,
+        subkind_field: str | None,
+        factor_lookup: dict[tuple[str, str | None], int],
+    ) -> int | None:
+        """Resolve ``primary_factor_id`` from the bulk-prefetched lookup.
+
+        Mirrors the kind→subkind→kind-only fallback chain that
+        ``ModuleHandlerService.resolve_primary_factor_id`` runs in DB,
+        but entirely in-memory:
+
+        1. Exact ``(kind, subkind)`` match.
+        2. Kind-only ``(kind, None)`` fallback — only succeeds if a
+           factor with no subkind was prefetched (subkind=NULL row).
+
+        Returns ``None`` on overall miss.  Per Plan 310-D's strict
+        rematch contract, the caller treats a None as "factor dropped"
+        and clears the entry's ``primary_factor_id`` so the recomputed
+        emission is ``None`` (operator surfaces it as missing-factor
+        rather than silently substituting via a per-entry DB roundtrip).
+
+        Mirrors the key-derivation done in
+        ``ModuleHandlerService.resolve_primary_factor_id``: subkind
+        normalises empty string → None, kind reads as-is.
+        """
+        kind = entry_data.get(kind_field)
+        if kind is None or kind == "":
+            return None
+        subkind: str | None = None
+        if subkind_field:
+            raw = entry_data.get(subkind_field)
+            subkind = raw if raw else None
+        # Exact match first.
+        factor_id = factor_lookup.get((kind, subkind))
+        if factor_id is not None:
+            return factor_id
+        # Kind-only fallback — only worth trying when subkind was set;
+        # otherwise the lookup above already tried (kind, None).
+        if subkind is not None:
+            return factor_lookup.get((kind, None))
+        return None
