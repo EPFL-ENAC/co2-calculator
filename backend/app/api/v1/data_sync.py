@@ -103,15 +103,13 @@ class PipelineJobResponse(BaseModel):
     Plan 310C — surfaces the columns dashboards need to render the chain
     parent + fan-out children produced by ``_enqueue_stale_recalculations``.
 
-    TODO(310C Unit 1): once ``started_at`` / ``finished_at`` columns land
-    on ``data_ingestion_jobs`` (and a ``created_at`` if Unit 1 adds one),
-    extend this schema and the endpoint mapping below to return them so
-    the UI can show per-step durations.  Same for any other Unit-1-owned
-    timestamp columns — leaving them out here keeps this PR mergeable on
-    top of ``dev`` before Unit 1.
+    TODO(#1026): once ``started_at`` / ``finished_at`` columns land on
+    ``data_ingestion_jobs``, extend this schema and the endpoint mapping
+    below to return them so the UI can show per-step durations.  Leaving
+    them out here keeps this PR mergeable on top of ``dev`` before #1026.
     """
 
-    id: int
+    job_id: int
     job_type: Optional[str] = None
     state: Optional[IngestionState] = None
     result: Optional[IngestionResult] = None
@@ -667,7 +665,7 @@ async def get_pipeline_jobs(
         pipeline_id=pipeline_id,
         jobs=[
             PipelineJobResponse(
-                id=job.id,
+                job_id=job.id,
                 job_type=job.job_type,
                 state=job.state,
                 result=job.result,
