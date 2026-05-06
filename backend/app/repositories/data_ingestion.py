@@ -219,6 +219,47 @@ class DataIngestionRepository:
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
 
+    async def get_current_pipeline_id_for_module(
+        self, module_type_id: int
+    ) -> Optional[UUID]:
+        """Return the pipeline_id of the most recent **active** pipeline
+        that includes any job for the given ``module_type_id``.
+
+        Plan 310D — powers the carbon-report stale-stats UX: when a module
+        has an in-flight recalculation pipeline, the report response carries
+        this id so the frontend can subscribe to
+        ``GET /sync/pipelines/{id}/stream`` and de-emphasise stale stats
+        until the chain finishes.
+
+        Active = state in (NOT_STARTED, QUEUED, RUNNING).  We pick the
+        highest ``id`` (monotonic serial PK) among active jobs for the
+        module — equivalent to "most recent" since ``DataIngestionJob`` has
+        no ``created_at`` column today and ``started_at`` is NULL for
+        not-yet-claimed rows, making ``id`` the only universally usable
+        ordering key.
+
+        Returns ``None`` when no active pipeline includes the module — the
+        common steady-state case after the last chain finished.
+        """
+        stmt = (
+            select(col(DataIngestionJob.pipeline_id))
+            .where(
+                col(DataIngestionJob.module_type_id) == module_type_id,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+            .limit(1)
+        )
+        exec_result = await self.session.execute(stmt)
+        return exec_result.scalar_one_or_none()
+
     # ---- Plan 310A: atomic claim, recovery, poller helpers ----
 
     def _build_combo_where(self, job: DataIngestionJob):

@@ -729,6 +729,130 @@ async def get_pipeline_jobs(
     )
 
 
+@router.get("/pipelines/{pipeline_id}/stream")
+async def pipeline_stream_by_id(
+    pipeline_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+):
+    """Server-Sent Events stream for every job sharing a ``pipeline_id``.
+
+    **Required Permission**: ``backoffice.data_management.view`` — same gate
+    as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
+
+    Plan 310D — the frontend stale-stats UX subscribes here when a module's
+    carbon-report response surfaces a ``current_pipeline_id``.  Each tick
+    re-reads every job in the pipeline and emits an ``event:
+    pipeline-update`` SSE message *only when* a job's
+    ``(state, status_message, result, finished_at)`` tuple changed — so an
+    idle pipeline doesn't spam the wire.  A separate ``event: ping`` heartbeat
+    fires every ~15s to keep proxies (nginx, AWS ALB) from idling the
+    connection out.  The stream closes once **every** job in the pipeline is
+    ``FINISHED``; a final ``stream_closed`` flag is sent so the client can
+    react before the EventSource reconnect-on-close kicks in.
+
+    Returns ``404`` when no rows share the given ``pipeline_id`` — fired on
+    the first poll *before* the stream opens, so SSE clients see a clean
+    HTTP error rather than a 200-with-empty-body that they'd interpret as
+    an aborted connection.
+    """
+    # Up-front 404: the existing job-stream endpoint emits a "not found"
+    # event in-stream, but for pipeline streams the SSE client cannot
+    # tell "pipeline does not exist" from "pipeline exists, no events
+    # yet" once the 200 lands.  Surfacing the 404 before opening the
+    # stream makes the contract symmetric with
+    # ``GET /sync/pipelines/{pipeline_id}``.
+    repo = DataIngestionRepository(db)
+    initial_jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+    if not initial_jobs:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No jobs found for pipeline_id {pipeline_id}",
+        )
+
+    # Tunables — keep the polling cadence tight enough that UI updates
+    # feel real-time, but spread the heartbeat across many polls so the
+    # ping packet is rare.  Defaults match the existing job-stream poll.
+    poll_interval_seconds = 2
+    heartbeat_interval_seconds = 15
+
+    async def event_generator():
+        last_snapshot: Optional[list[dict]] = None
+        polls_after_completion = 0
+        seconds_since_heartbeat = 0
+        # First-iteration optimisation: the 404 guard above already issued
+        # the query, so reuse those rows on the opening tick instead of
+        # double-querying.  Subsequent ticks always re-fetch.
+        jobs = initial_jobs
+
+        while True:
+            # Snapshot the columns the spec calls out for the dashboard:
+            # only these fields trigger a re-emit, so meta-only mutations
+            # (e.g. progress dicts) don't flood the stream.
+            snapshot = [
+                {
+                    "id": job.id,
+                    "job_type": job.job_type,
+                    "state": (job.state.value if job.state is not None else None),
+                    "result": (job.result.value if job.result is not None else None),
+                    "status_message": job.status_message,
+                    "started_at": (
+                        job.started_at.isoformat() if job.started_at else None
+                    ),
+                    "finished_at": (
+                        job.finished_at.isoformat() if job.finished_at else None
+                    ),
+                }
+                for job in jobs
+                if job.id is not None
+            ]
+
+            if snapshot != last_snapshot:
+                payload = {
+                    "pipeline_id": str(pipeline_id),
+                    "jobs": snapshot,
+                }
+                yield f"event: pipeline-update\ndata: {json.dumps(payload)}\n\n"
+                last_snapshot = snapshot
+                # Snapshot change counts as keep-alive — reset the heartbeat
+                # clock so we don't double-emit on the next tick.
+                seconds_since_heartbeat = 0
+
+            all_finished = bool(jobs) and all(
+                job.state == IngestionState.FINISHED for job in jobs
+            )
+            if all_finished:
+                polls_after_completion += 1
+                # Mirror the job-stream endpoint's "send a final marker
+                # then close" handshake so clients can flip UI state
+                # before the EventSource reconnect logic fires.
+                if polls_after_completion >= 2:
+                    final_payload = {
+                        "pipeline_id": str(pipeline_id),
+                        "jobs": last_snapshot or snapshot,
+                        "stream_closed": True,
+                    }
+                    yield (
+                        f"event: pipeline-update\ndata: {json.dumps(final_payload)}\n\n"
+                    )
+                    break
+
+            await asyncio.sleep(poll_interval_seconds)
+            seconds_since_heartbeat += poll_interval_seconds
+            if seconds_since_heartbeat >= heartbeat_interval_seconds:
+                yield "event: ping\ndata: {}\n\n"
+                seconds_since_heartbeat = 0
+
+            # Re-fetch for the next iteration.  Done at the bottom of the
+            # loop (rather than the top) so the first tick reuses the
+            # ``initial_jobs`` already fetched for the 404 guard.
+            jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.post(
     "/recalculate-emissions/{module_type_id}/{data_entry_type_id}",
     response_model=SyncStatusResponse,

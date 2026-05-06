@@ -4,7 +4,10 @@ Covers:
 - ``get_recalculation_status_by_year`` (Plan 310B)
 - ``set_started_at`` plus state-driven ``finished_at`` auto-stamping in
   ``update_ingestion_job``, ``cancel_job`` (Plan 310C observability columns)
+- ``get_current_pipeline_id_for_module`` (Plan 310D stale-stats UX)
 """
+
+from uuid import uuid4
 
 import pytest
 from sqlmodel import select
@@ -605,3 +608,199 @@ async def test_cancel_job_stamps_finished_at(db_session: AsyncSession):
     assert refreshed.state == IngestionState.FINISHED
     assert refreshed.result == IngestionResult.ERROR
     assert refreshed.finished_at is not None
+
+
+# ======================================================================
+# get_current_pipeline_id_for_module Tests (Plan 310D)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_returns_none_when_no_active_pipeline(
+    db_session: AsyncSession,
+):
+    """No jobs exist for the module → returns None.
+
+    Steady state once every chain has finished; the carbon-report
+    response should NOT carry a current_pipeline_id then.
+    """
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_ignores_finished_only_pipeline(
+    db_session: AsyncSession,
+):
+    """Pipeline whose only job is FINISHED is not "active" → returns None.
+
+    The plan calls active = state in (NOT_STARTED, QUEUED, RUNNING); a
+    completed pipeline must not keep showing the "Recalculating…" badge
+    forever.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    finished_pipeline = uuid4()
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    job.pipeline_id = finished_pipeline
+    db_session.add(job)
+    await db_session.flush()
+
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_returns_active_pipeline(
+    db_session: AsyncSession,
+):
+    """Single RUNNING job for the module → returns its pipeline_id.
+
+    The minimum positive case: backend has one in-flight pipeline and
+    the helper surfaces it for the carbon-report response.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    active_pipeline = uuid4()
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job.pipeline_id = active_pipeline
+    db_session.add(job)
+    await db_session.flush()
+
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result == active_pipeline
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_picks_most_recent_when_multiple_active(
+    db_session: AsyncSession,
+):
+    """Two active pipelines for the module → returns the most-recent one
+    (highest job id).
+
+    Without a ``created_at`` column the serial PK is the only universal
+    monotonic ordering — the helper relies on ``ORDER BY id DESC LIMIT 1``
+    so adding a newer pipeline supersedes the older one immediately.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    older_pipeline = uuid4()
+    newer_pipeline = uuid4()
+
+    older = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        # Avoid tripping the partial unique index on (module, det,
+        # target, method, year) by toggling is_current off for the
+        # older row — both rows are active but only one can be current.
+        is_current=False,
+    )
+    older.pipeline_id = older_pipeline
+    db_session.add(older)
+    await db_session.flush()
+
+    newer = _make_job(
+        module_type_id=1,
+        data_entry_type_id=21,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=True,
+    )
+    newer.pipeline_id = newer_pipeline
+    db_session.add(newer)
+    await db_session.flush()
+
+    assert older.id is not None
+    assert newer.id is not None
+    assert newer.id > older.id
+
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result == newer_pipeline
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_ignores_other_modules(
+    db_session: AsyncSession,
+):
+    """Active pipeline for a different module → returns None.
+
+    Module-scoped lookup — the dashboard should only badge the module
+    whose data is being recalculated, never bleed to siblings.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    pipeline_for_module_2 = uuid4()
+    job = _make_job(
+        module_type_id=2,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job.pipeline_id = pipeline_for_module_2
+    db_session.add(job)
+    await db_session.flush()
+
+    # Asking about module 1 must not pick up module 2's pipeline.
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_id_skips_jobs_without_pipeline_id(
+    db_session: AsyncSession,
+):
+    """Active job without a ``pipeline_id`` (NULL) → returns None.
+
+    Single-step jobs (e.g. unit_sync, manual recalcs) are not part of a
+    multi-step chain; they shouldn't trigger the stale-stats badge.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.computed,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    # Explicit None — single-step job, not chain-attached.
+    job.pipeline_id = None
+    db_session.add(job)
+    await db_session.flush()
+
+    result = await repo.get_current_pipeline_id_for_module(module_type_id=1)
+    assert result is None
