@@ -457,15 +457,31 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             created_by_id=self.job_id,
         )
 
-        # Build {data_entry.id: kg_co2eq} override map. bulk_create preserves
-        # input order, so we can zip responses with the parallel overrides list.
+        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` (default True) the
+        # runner-driven ``emission_recalc`` chain (fired by
+        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
+        # writes for the bulk path.  Skip the inline path here — the
+        # chain reads the freshly-committed ``data_entries`` and writes
+        # emissions against the latest factors.  Inline writes would
+        # race the chain's writes for the same primary key.
+        #
+        # Note: travel data carries a per-row ``kg_co2eq`` override
+        # (Tableau's ``OUT_CO2_CORRECTED``) that the legacy path
+        # threaded through ``prepare_create``.  The async path reads
+        # the same field from ``DataEntry.data`` (carrier preserved by
+        # the upstream loader); the recalc workflow's
+        # ``upsert_by_data_entry`` honors it via the same code path.
+        if get_settings().BULK_PATH_PURE_ASYNC:
+            await self.data_session.flush()
+            return {"inserted": len(data_entries_response)}
+
+        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
         overrides_by_id: dict[int, float] = {
             resp.id: ov
             for resp, ov in zip(data_entries_response, kg_co2eq_overrides)
             if ov is not None and resp.id is not None
         }
 
-        # Prepare and create emissions using preserved CO2 values
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:

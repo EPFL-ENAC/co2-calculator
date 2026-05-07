@@ -187,12 +187,49 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def list_modules(self, carbon_report_id: int) -> List[CarbonReportModuleRead]:
-        """List all modules for a carbon report."""
+    async def list_modules(
+        self,
+        carbon_report_id: int,
+        *,
+        year: Optional[int] = None,
+    ) -> List[CarbonReportModuleRead]:
+        """List all modules for a carbon report.
+
+        Plan 310-D — when ``year`` is supplied, populates each module's
+        ``current_pipeline_id`` from the most recent active bulk
+        pipeline whose any-job touches that ``(module_type_id, year)``
+        scope (frontend "Recalculating..." badge).  ``year`` is
+        optional so legacy callers (and direct tests) still work; the
+        carbon-report API endpoint passes the parent report's year.
+        """
         carbon_report_modules = await self.repo.list_by_report(carbon_report_id)
-        return [
+        reads = [
             CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
         ]
+        if year is None or not reads:
+            return reads
+
+        # Late import: data_ingestion repo lives in the same layer but
+        # carrying it at the top level would create a service →
+        # data_ingestion dependency that's only justified for this
+        # specific Plan 310-D feature.
+        from app.repositories.data_ingestion import DataIngestionRepository
+
+        # One round-trip for the whole module set instead of one per
+        # module.  Bot review on PR #1053 caught the N+1; the bulk
+        # repo helper uses ``DISTINCT ON (module_type_id)`` to fold
+        # the per-module-most-recent semantics into a single scan.
+        di_repo = DataIngestionRepository(self.session)
+        module_type_ids = [
+            read.module_type_id for read in reads if read.module_type_id is not None
+        ]
+        pipeline_by_module = await di_repo.get_current_pipeline_ids_for_modules(
+            module_type_ids, year=year
+        )
+        for read in reads:
+            if read.module_type_id is not None:
+                read.current_pipeline_id = pipeline_by_module.get(read.module_type_id)
+        return reads
 
     async def list_modules_for(
         self, module_type_id: int, year: int

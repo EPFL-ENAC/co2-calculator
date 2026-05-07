@@ -231,29 +231,41 @@ class DataIngestionRepository:
         return list(exec_result.scalars().all())
 
     async def get_current_pipeline_id_for_module(
-        self, module_type_id: int
+        self,
+        module_type_id: int,
+        year: Optional[int] = None,
     ) -> Optional[UUID]:
-        """Return the pipeline_id of the most recent **active** pipeline
-        that includes any job for the given ``module_type_id``.
+        """Return the most recent active pipeline whose any-job touches
+        the given ``module_type_id`` (and optionally ``year``).
 
-        Plan 310D — powers the carbon-report stale-stats UX: when a module
-        has an in-flight recalculation pipeline, the report response carries
-        this id so the frontend can subscribe to
-        ``GET /sync/pipelines/{id}/stream`` and de-emphasise stale stats
-        until the chain finishes.
+        Plan 310-D — backs the ``CarbonReportModuleRead.current_pipeline_id``
+        field so the frontend can show a "Recalculating..." badge while
+        a bulk pipeline is in flight.  "Active" means a non-terminal
+        state: ``NOT_STARTED``, ``QUEUED``, or ``RUNNING``.  ``FINISHED``
+        and any ``CANCELLED``/error states are excluded — once the
+        terminal write lands, the badge clears.
 
-        Active = state in (NOT_STARTED, QUEUED, RUNNING).  We pick the
-        highest ``id`` (monotonic serial PK) among active jobs for the
-        module — equivalent to "most recent" since ``DataIngestionJob`` has
-        no ``created_at`` column today and ``started_at`` is NULL for
-        not-yet-claimed rows, making ``id`` the only universally usable
-        ordering key.
+        We scope by ``module_type_id`` (and year, for the read endpoint
+        that's already keyed by year) and pick the **most recent** one
+        by job id when multiple active pipelines exist (rare but possible
+        — e.g. if a follow-up factor sync chains while an earlier ingest
+        chain is still aggregating).  The frontend subscribes to a
+        single pipeline, so returning more than one would force the
+        caller to pick anyway.
 
-        Returns ``None`` when no active pipeline includes the module — the
-        common steady-state case after the last chain finished.
+        ``pipeline_id`` is allowed to be NULL on legacy rows; the
+        ``isnot(None)`` guard ensures we only consider chained jobs.
+
+        Returns ``None`` when no active pipeline matches.
+
+        Resolved during the dev-rebase of PR #1053 (PR5) on top of #1052:
+        PR5 needs the optional ``year`` filter for the carbon-report
+        service caller, which is keyed by year.  Strict superset of #1052's
+        signature — when ``year=None`` the filter is omitted, matching
+        the original behavior.
         """
         stmt = (
-            select(col(DataIngestionJob.pipeline_id))
+            select(DataIngestionJob.pipeline_id)
             .where(
                 col(DataIngestionJob.module_type_id) == module_type_id,
                 col(DataIngestionJob.pipeline_id).isnot(None),
@@ -268,8 +280,81 @@ class DataIngestionRepository:
             .order_by(col(DataIngestionJob.id).desc())
             .limit(1)
         )
+        if year is not None:
+            stmt = stmt.where(col(DataIngestionJob.year) == year)
+
         exec_result = await self.session.execute(stmt)
-        return exec_result.scalar_one_or_none()
+        row = exec_result.first()
+        if row is None:
+            return None
+        return row[0]
+
+    async def get_current_pipeline_ids_for_modules(
+        self,
+        module_type_ids: List[int],
+        year: int,
+    ) -> dict[int, UUID]:
+        """Bulk-fetch sibling of ``get_current_pipeline_id_for_module``.
+
+        Plan 310-D — backs ``CarbonReportModuleService.list_modules``
+        which previously did one query per module (an N+1 on a
+        frontend-facing endpoint).  A typical carbon report has ~10
+        modules → this collapses 10 round-trips into one.
+
+        Returns ``{module_type_id: pipeline_id}`` for every module
+        in ``module_type_ids`` that has at least one active
+        (NOT_STARTED/QUEUED/RUNNING) pipeline-attached job for the
+        given ``year``.  Modules without an active pipeline are
+        absent from the dict — callers use ``.get(...)`` and treat
+        missing keys as "no badge".
+
+        Implementation: single ``WHERE module_type_id IN (...) AND
+        year = :year AND ...`` query returns every active pipeline
+        row for the requested modules; per-module "most recent"
+        picking happens in Python.  ``DISTINCT ON (module_type_id)``
+        would let PG do it server-side but isn't portable to the
+        SQLite-backed unit-test fixture, and at the realistic input
+        size (≤20 modules × ≤few active rows each) the in-memory
+        pick is free.
+
+        Empty input → empty dict (no query fired).
+        """
+        if not module_type_ids:
+            return {}
+
+        stmt = (
+            select(
+                DataIngestionJob.module_type_id,
+                DataIngestionJob.pipeline_id,
+                DataIngestionJob.id,
+            )
+            .where(
+                col(DataIngestionJob.module_type_id).in_(module_type_ids),
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+        )
+        exec_result = await self.session.execute(stmt)
+
+        # The ORDER BY id DESC means the first row we see for a given
+        # module_type_id is the most recent — keep it, ignore later
+        # (older) entries.  ``setdefault`` on a dict gives us that
+        # "first wins" semantics in one pass.
+        picked: dict[int, UUID] = {}
+        for row in exec_result.all():
+            module_id, pipeline_id, _job_id = row
+            if module_id is None or pipeline_id is None:
+                continue
+            picked.setdefault(module_id, pipeline_id)
+        return picked
 
     # ---- Plan 310A: atomic claim, recovery, poller helpers ----
 

@@ -405,10 +405,38 @@ class TestLoadDataKgCo2eqHandling:
         assert "not-a-number" in warnings[0].message
 
     @pytest.mark.asyncio
-    async def test_load_data_strips_kg_co2eq_from_persisted_data(self):
+    async def test_load_data_strips_kg_co2eq_from_persisted_data(self, monkeypatch):
         """Whether kg_co2eq is parseable or not, it must be popped from the
         data_payload before DataEntry construction so it never lands in the
-        DB JSON column. This is the API mirror of the CSV regression."""
+        DB JSON column. This is the API mirror of the CSV regression.
+
+        Pinned against the legacy inline-write path
+        (``BULK_PATH_PURE_ASYNC=False``) — the override-routing
+        assertions read ``prepare_create`` await args, which the
+        pure-async path skips entirely.  The kg_co2eq stripping
+        itself is path-independent and would also pass under the
+        async path; this test specifically pins the override carrier.
+        """
+        from app.services.data_ingestion.api_providers import (
+            professional_travel_api_provider as travel_mod,
+        )
+
+        # Patch ``get_settings`` on the provider module so the gate
+        # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
+        # needing to clear the lru_cache.  The other settings reads
+        # in this module (Tableau creds) need the real values, so we
+        # delegate every other attribute to the cached Settings.
+        fake_settings = MagicMock()
+        fake_settings.BULK_PATH_PURE_ASYNC = False
+        real = travel_mod.get_settings()
+        fake_settings.configure_mock(
+            **{
+                attr: getattr(real, attr)
+                for attr in dir(real)
+                if not attr.startswith("_") and attr != "BULK_PATH_PURE_ASYNC"
+            }
+        )
+        monkeypatch.setattr(travel_mod, "get_settings", lambda: fake_settings)
         provider = _make_provider()
         provider.user = None  # bypass UserRead.model_validate on MagicMock
 
@@ -470,3 +498,50 @@ class TestLoadDataKgCo2eqHandling:
             for call in prepare_calls
         }
         assert overrides_by_id == {1: 152.685, 2: None}
+
+    @pytest.mark.asyncio
+    async def test_load_data_skips_emissions_under_pure_async(self):
+        """Plan 310-D — under ``BULK_PATH_PURE_ASYNC=True`` (the default),
+        ``_load_data`` writes ``data_entries`` but does NOT call
+        ``emission_service.prepare_create`` /
+        ``emission_service.bulk_create``.  The runner-driven recalc
+        chain (fired by ``api_ingest_handler`` post-success) owns
+        emission writes for the bulk path.
+        """
+        provider = _make_provider()
+        provider.user = None
+
+        mock_service = MagicMock()
+        mock_service.bulk_create = AsyncMock(return_value=[MagicMock(id=1)])
+        mock_emission_service = MagicMock()
+        mock_emission_service.prepare_create = AsyncMock()
+        mock_emission_service.bulk_create = AsyncMock()
+
+        with (
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryService",
+                return_value=mock_service,
+            ),
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryEmissionService",
+                return_value=mock_emission_service,
+            ),
+        ):
+            await provider._load_data(
+                [
+                    {
+                        "carbon_report_module_id": 99,
+                        "origin_iata": "GVA",
+                        "destination_iata": "ZRH",
+                        "kg_co2eq": 152.685,
+                    }
+                ]
+            )
+
+        # data_entries STILL written.
+        mock_service.bulk_create.assert_awaited_once()
+        # Emissions writes are skipped — chain handles them.
+        mock_emission_service.prepare_create.assert_not_awaited()
+        mock_emission_service.bulk_create.assert_not_awaited()

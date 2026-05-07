@@ -1,12 +1,47 @@
 ---
-status: in-progress
+status: delivered
 issue: 310-d
-last_updated: 2026-05-06
+last_updated: 2026-05-07
 title: "310-d — Bulk Path Pure Async (Path 2 only)"
 summary: "Make the bulk pipeline (Path 2) pure async to match its latency profile; Path 1 untouched."
 ---
 
 # 310-d — Bulk Path Pure Async (Path 2 only)
+
+> **Delivered: PR #1053** — backend half. The frontend half (stale-stats
+> badge + per-pipeline SSE consumer) is tracked separately in
+> [310-d-frontend-stale-stats](310-d-frontend-stale-stats.md).
+>
+> What shipped:
+>
+> - `chain_job(dedup_active=True)` extension via pre-check + INSERT +
+>   IntegrityError fallback (NOT `ON CONFLICT DO NOTHING` as the original
+>   sketch said — Postgres's partial-index inference doesn't tolerate
+>   nullable scope columns).  NULL scope keys raise `ValueError` at
+>   chain entry to refuse silent dedup bypass.
+> - `csv_ingest` / `api_ingest` handlers chain `emission_recalc` post-success.
+> - `emission_recalc_handler` chains `aggregation` with `dedup_active=True`;
+>   `EmissionRecalculationWorkflow` stops calling `recompute_stats` inline.
+> - `BULK_PATH_PURE_ASYNC` feature flag (default `True`); both
+>   `BaseCSVProvider` and `ProfessionalTravelApiProvider` gate their
+>   inline emission-write paths behind it.  Restart-required to flip
+>   (single paradigm with the rest of `Settings`).
+> - `current_pipeline_id` on `CarbonReportModuleRead`, populated by a new
+>   bulk repo helper `get_current_pipeline_ids_for_modules` that folds
+>   per-module-most-recent picking into one query (Python-side picking,
+>   not PG-only `DISTINCT ON`).
+>
+> Notable divergences from the original sketch (later in the doc):
+>
+> - The dedup mechanism is pre-check + IntegrityError, not
+>   `INSERT ... ON CONFLICT DO NOTHING`. See `_chain.py` docstrings for why.
+> - `chain_job` no longer returns `-1` defensively — collapsed to `None`
+>   to give callers a binary "dispatched / not-dispatched" contract.
+> - `provider` column inheritance from parent on dedup-INSERT (the table
+>   has `provider NOT NULL`; the original sketch missed this).
+> - The `aggregation` handler doesn't yet take a `defer_finalize` flag —
+>   the runner is the FINISHED authority via PR #1050's mechanism, no
+>   per-handler opt-in needed.
 
 ## Context
 

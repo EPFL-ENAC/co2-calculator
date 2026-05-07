@@ -11,7 +11,6 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
-from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
@@ -63,12 +62,12 @@ class EmissionRecalculationWorkflow:
             return {
                 "recalculated": 0,
                 "modules_refreshed": 0,
+                "affected_module_ids": [],
                 "errors": 0,
                 "error_details": [],
             }
 
         emission_svc = DataEntryEmissionService(self.session)
-        module_svc = CarbonReportModuleService(self.session)
         factor_repo = FactorRepository(self.session)
         handler = BaseModuleHandler.get_by_type(data_entry_type_id)
 
@@ -200,29 +199,18 @@ class EmissionRecalculationWorkflow:
                     f"Error recalculating emissions for data_entry_id={entry.id}: {exc}"
                 )
 
-        # Recompute module stats once per distinct module (batched at end)
-        modules_refreshed = 0
-        for module_id in affected_module_ids:
-            try:
-                await module_svc.recompute_stats(module_id)
-                modules_refreshed += 1
-            except Exception as exc:
-                errors += 1
-                error_details.append(
-                    {
-                        "carbon_report_module_id": module_id,
-                        "error": str(exc),
-                        "stage": "recompute_module_stats",
-                    }
-                )
-                logger.error(
-                    f"Error recomputing stats for carbon_report_module_id="
-                    f"{module_id}: {exc}"
-                )
-
+        # Plan 310-D — stats recompute moves out of this workflow and
+        # into the runner-driven ``aggregation`` handler that the
+        # ``emission_recalc`` task chains on success.  Keeping the
+        # ``modules_refreshed`` and ``affected_module_ids`` keys in the
+        # return shape so callers (and the runner-persisted meta) keep
+        # the same field set; ``modules_refreshed`` is now always 0
+        # from this layer because the writer is the aggregation
+        # handler, not us.
         return {
             "recalculated": recalculated,
-            "modules_refreshed": modules_refreshed,
+            "modules_refreshed": 0,
+            "affected_module_ids": sorted(affected_module_ids),
             "errors": errors,
             "error_details": error_details,
         }

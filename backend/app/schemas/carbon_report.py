@@ -1,6 +1,7 @@
 """Carbon report schemas for API request/response validation."""
 
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +63,19 @@ class CarbonReportModuleRead(BaseModel):
     module_type_id: int
     status: int
     stats: Optional[dict] = None
+    current_pipeline_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Plan 310-D — pipeline_id of the most recent active "
+            "(NOT_STARTED/QUEUED/RUNNING) bulk pipeline whose any-job "
+            "touches this module's module_type_id (and the parent "
+            "report's year).  ``None`` when no active pipeline "
+            "matches.  Frontend uses this to show a "
+            '"Recalculating..." badge and to subscribe to '
+            "``GET /sync/pipelines/{id}/stream`` for live updates "
+            "until the chain finishes and the stats refresh."
+        ),
+    )
 
     class Config:
         from_attributes = True

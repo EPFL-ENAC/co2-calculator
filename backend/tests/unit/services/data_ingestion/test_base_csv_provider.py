@@ -1,7 +1,7 @@
 """Unit tests for BaseCSVProvider."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -948,9 +948,33 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
 # ======================================================================
 
 
+@pytest.fixture
+def legacy_inline_emissions(monkeypatch):
+    """Force ``BULK_PATH_PURE_ASYNC=False`` so the legacy inline-write path
+    in ``_process_batch`` / ``_recompute_module_stats`` runs (used by the
+    pre-310D batch tests).
+
+    Patches ``get_settings`` on the provider module directly because
+    the runtime gate reads through ``get_settings()``'s ``lru_cache``
+    — a ``setenv`` after first settings load wouldn't take effect.
+    Bypassing the cache via the monkeypatch keeps the fixture
+    self-contained.
+    """
+    from app.services.data_ingestion import base_csv_provider
+
+    fake = MagicMock()
+    fake.BULK_PATH_PURE_ASYNC = False
+    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake)
+
+
 @pytest.mark.asyncio
-async def test_process_batch_creates_emissions():
-    """Test _process_batch creates emissions from prepared objects."""
+async def test_process_batch_creates_emissions(legacy_inline_emissions):
+    """Test _process_batch creates emissions from prepared objects.
+
+    Pinned against the legacy path (``BULK_PATH_PURE_ASYNC=False``); the
+    pure-async path is covered by
+    ``test_process_batch_skips_emissions_when_pure_async``.
+    """
     config = {"file_path": "tmp/test.csv"}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -991,13 +1015,78 @@ async def test_process_batch_creates_emissions():
 
 
 @pytest.mark.asyncio
-async def test_process_batch_routes_kg_co2eq_overrides_by_id():
+async def test_process_batch_skips_emissions_when_pure_async():
+    """Plan 310-D — under ``BULK_PATH_PURE_ASYNC=True`` (the default),
+    ``_process_batch`` writes data_entries but does NOT write
+    data_entry_emissions; the runner-driven ``emission_recalc`` chain
+    owns those writes via the ``csv_ingest_handler`` post-success
+    fan-out."""
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._year_cache = {999: 2025}
+
+    data_entry_service = MagicMock()
+    emission_service = AsyncMock()
+
+    created_entry = SimpleNamespace(id=1, carbon_report_module_id=999)
+    data_entry_service.bulk_create = AsyncMock(return_value=[created_entry])
+    emission_service.prepare_create = AsyncMock()
+    emission_service.bulk_create = AsyncMock()
+
+    batch_entry = MagicMock()
+    batch_entry.carbon_report_module_id = 999
+    user = SimpleNamespace(
+        id=1,
+        email="test@example.com",
+        display_name="Test User",
+        provider=UserProvider.DEFAULT,
+        institutional_id="default-1441",
+    )
+
+    await provider._process_batch(
+        [batch_entry], data_entry_service, emission_service, user, [None]
+    )
+
+    # data_entries STILL written.
+    data_entry_service.bulk_create.assert_awaited_once()
+    # Emissions writes are skipped — chain handles them.
+    emission_service.prepare_create.assert_not_awaited()
+    emission_service.bulk_create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_recompute_module_stats_skips_when_pure_async():
+    """Plan 310-D — ``_recompute_module_stats`` is a no-op under
+    ``BULK_PATH_PURE_ASYNC=True``; the runner-driven ``aggregation``
+    handler owns the stats write."""
+    from app.services.carbon_report_module_service import CarbonReportModuleService
+
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._unit_to_module_map = {1: 100, 2: 200}
+
+    with patch.object(
+        CarbonReportModuleService, "recompute_stats", new_callable=AsyncMock
+    ) as mock_recompute:
+        await provider._recompute_module_stats()
+
+    mock_recompute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_batch_routes_kg_co2eq_overrides_by_id(
+    legacy_inline_emissions,
+):
     """Carrier flow regression: a batch with kg_co2eq overrides aligned to
     its inputs must produce a {data_entry.id: kg_co2eq} dict and forward
     each override per-call to ``prepare_create``.
 
     This covers the end-to-end carrier path that the unit-level _process_row
     and prepare_create tests cover only in isolation.
+
+    Pinned against the legacy inline-write path (Plan 310-D's pure-async
+    path skips emissions entirely; carrier routing still matters for
+    rollback semantics).
     """
     config = {"file_path": "tmp/test.csv"}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())

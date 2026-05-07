@@ -88,6 +88,7 @@ async def test_workflow_returns_zeros_with_no_entries(pg_dsn):
     assert stats == {
         "recalculated": 0,
         "modules_refreshed": 0,
+        "affected_module_ids": [],
         "errors": 0,
         "error_details": [],
     }
