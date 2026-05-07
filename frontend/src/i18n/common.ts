@@ -208,6 +208,18 @@ export default {
     en: 'CSV',
     fr: 'CSV',
   },
+  csv_header_category: {
+    en: 'category',
+    fr: 'catégorie',
+  },
+  csv_header_subcategory: {
+    en: 'subcategory',
+    fr: 'sous-catégorie',
+  },
+  csv_header_co2: {
+    en: 'co2 (kg CO₂-eq)',
+    fr: 'co2 (kg CO₂-eq)',
+  },
   common_download_csv_template: {
     en: 'Download CSV Template',
     fr: 'Télécharger le modèle CSV',

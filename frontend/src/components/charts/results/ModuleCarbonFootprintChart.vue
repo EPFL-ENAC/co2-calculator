@@ -1287,26 +1287,38 @@ const downloadCSV = () => {
     return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  const headers = [
-    ...new Set(
-      datasetSource.value.flatMap((item) =>
-        Object.entries(item)
-          .filter(([key, value]) => {
-            if (key.startsWith('__')) return false;
-            if (typeof value === 'object' && value !== null) return false;
-            return true;
-          })
-          .map(([key]) => key),
-      ),
-    ),
-  ].sort((a, b) =>
-    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+  // Pivot: one row per category × subcategory pair where the value is non-zero.
+  // This avoids the sparse wide-table format where each category gets all
+  // possible subcategory columns, 90% of which are empty.
+  const SKIP_KEYS = new Set(['category', 'category_key']);
+
+  const rows: Array<[string, string, number]> = datasetSource.value.flatMap(
+    (item) => {
+      const category = String(item.category ?? '');
+      return Object.entries(item)
+        .filter(([key, value]) => {
+          if (SKIP_KEYS.has(key) || key.startsWith('__')) return false;
+          if (typeof value === 'object' && value !== null) return false;
+          const n = Number(value);
+          // Only emit rows where the subcategory actually has a value
+          return Number.isFinite(n) && n !== 0;
+        })
+        .map(
+          ([key, value]) =>
+            [category, key, Number(value)] as [string, string, number],
+        );
+    },
   );
 
+  const headers = [
+    t('csv_header_category'),
+    t('csv_header_subcategory'),
+    t('csv_header_co2'),
+  ];
   const csv = [
     headers.map(escape).join(','),
-    ...datasetSource.value.map((item) =>
-      headers.map((key) => escape(item[key])).join(','),
+    ...rows.map(([category, subcategory, co2]) =>
+      [escape(category), escape(subcategory), escape(co2)].join(','),
     ),
   ].join('\n');
 
