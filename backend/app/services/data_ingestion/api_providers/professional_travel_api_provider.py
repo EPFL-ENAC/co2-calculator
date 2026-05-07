@@ -423,8 +423,15 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             if not carbon_report_module_id:
                 continue
 
-            kg_co2eq = item.get("kg_co2eq") or item.get("OUT_CO2_CORRECTED")
-            distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
+            # Use ``is not None`` rather than ``or`` so a valid 0/0.0 isn't
+            # silently replaced by the OUT_*-corrected fallback.  Walking
+            # legs and fully-electric trips on green grids land here.
+            kg_raw = item.get("kg_co2eq")
+            kg_co2eq = kg_raw if kg_raw is not None else item.get("OUT_CO2_CORRECTED")
+            dist_raw = item.get("distance_km")
+            distance_km = (
+                dist_raw if dist_raw is not None else item.get("OUT_DISTANCE_CORRECTED")
+            )
 
             data_payload = dict(item)
             data_payload.pop("kg_co2eq", None)
