@@ -493,3 +493,57 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
     job = _make_job(job_type="unit_sync", meta={}, year=None)
     with pytest.raises(ValueError, match="missing config.target_year"):
         await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
+
+
+# ---------------------------------------------------------------------------
+# bootstrap.py — every shipped handler MUST be registered after bootstrap
+# ---------------------------------------------------------------------------
+
+
+def test_bootstrap_imports_every_handler_module():
+    """Regression for the production bug where ``aggregation`` jobs
+    fired by ``chain_job(dedup_active=True)`` raised
+    ``ValueError: No handler registered for job_type='aggregation'``
+    because ``bootstrap.py`` never imported ``aggregation_tasks``.
+
+    Why this test reads ``bootstrap.py``'s source rather than calling
+    ``bootstrap_handlers()`` and inspecting the registry: Python
+    caches modules in ``sys.modules`` once imported anywhere, so
+    re-running ``bootstrap_handlers()`` in a test session that has
+    already imported handler modules (via ``test_ingestion_handlers.py``,
+    ``test_runner.py``, etc.) does NOT re-fire the ``@register``
+    decorators — the decorators only run on the first ``import``,
+    after which the module body is cached.  A registry-inspection
+    test would silently pass even if bootstrap forgot the import,
+    as long as some other test path triggered the import.
+
+    Reading the source proves the import is in the bootstrap module
+    regardless of test-order accidents.  The list below must include
+    every handler module shipped to date.
+
+    Add an entry here whenever you add a new ``app/tasks/*_tasks.py``
+    module that registers a handler.  Failing this test loudly is
+    much better than the silent "the chain stops at the unregistered
+    link" production failure mode.
+    """
+    from pathlib import Path
+
+    bootstrap_src = (
+        Path(__file__).parent.parent.parent.parent / "app" / "tasks" / "bootstrap.py"
+    ).read_text()
+
+    expected_handler_modules = {
+        "aggregation_tasks",
+        "emission_recalculation_tasks",
+        "ingestion_tasks",
+        "unit_sync_tasks",
+    }
+    missing = {name for name in expected_handler_modules if name not in bootstrap_src}
+    assert not missing, (
+        f"bootstrap.py is missing imports for: {sorted(missing)}.  "
+        f"The handler module exists and uses ``@register('…')``, but "
+        f"without an import in ``bootstrap_handlers``, the decorator "
+        f"never fires at app startup and ``run_job`` raises "
+        f"``ValueError: No handler registered for job_type='…'`` the "
+        f"first time the chain dispatches one."
+    )
