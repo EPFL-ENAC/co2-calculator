@@ -85,11 +85,10 @@ async def list_carbon_report_modules(
 ):
     """List all modules for a carbon report with their statuses.
 
-    Plan 310-D — each module includes ``current_pipeline_id``: the
-    pipeline_id of the most recent active bulk pipeline whose any-job
-    touches that module's (module_type_id, year), or ``None`` when
-    no active pipeline matches.  Frontend uses this to render a
-    "Recalculating..." badge while the bulk chain is in flight.
+    Plan 310-D / Issue #1062 — pipeline state lives in the unified
+    frontend ``pipelineStateStore`` driven by
+    ``GET /v1/sync/active-pipelines``.  This endpoint returns the
+    pure module-status read.
     """
     # First verify carbon report exists
     report_service = CarbonReportService(db)
@@ -98,7 +97,7 @@ async def list_carbon_report_modules(
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
     module_service = CarbonReportModuleService(db)
-    return await module_service.list_modules(carbon_report_id, year=report.year)
+    return await module_service.list_modules(carbon_report_id)
 
 
 @router.patch(
