@@ -780,12 +780,15 @@ function validateField(i: ModuleField) {
     errors.destination = null;
 
     if (i.required) {
+      const requiredMsg = i.requiredMessageKey
+        ? $t(i.requiredMessageKey)
+        : $t('validation_required');
       if (!form.origin || form.origin === '') {
-        errors.origin = 'Required';
+        errors.origin = requiredMsg;
         return false;
       }
       if (!form.destination || form.destination === '') {
-        errors.destination = 'Required';
+        errors.destination = requiredMsg;
         return false;
       }
     }
