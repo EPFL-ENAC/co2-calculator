@@ -23,6 +23,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult
 from app.tasks import emission_recalculation_tasks as recalc_mod
 from app.tasks import unit_sync_tasks as unit_sync_mod
+from app.tasks._chain import AGGREGATION_DEDUP
 from app.tasks.registry import _REGISTRY, get_handler
 
 
@@ -121,8 +122,8 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
 async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success():
     """Plan 310-D — the handler no longer calls ``recompute_stats``
     inline; it chains the runner-driven ``aggregation`` handler with
-    ``dedup_active=True`` so a fan-out of N siblings collapses into
-    one aggregation pass per (module, year)."""
+    ``dedup_config=AGGREGATION_DEDUP`` so a fan-out of N siblings
+    collapses into one aggregation pass per (module, year)."""
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -165,7 +166,7 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
     assert chain_kwargs["job_type"] == "aggregation"
     assert chain_kwargs["module_type_id"] == job.module_type_id
     assert chain_kwargs["year"] == job.year
-    assert chain_kwargs["dedup_active"] is True
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     # ``session`` for ``chain_job`` is the job_session (the row write
     # for the dedup INSERT lives on the job-progress session, not the
     # data_session that the workflow scrubbed and committed).
@@ -318,7 +319,7 @@ async def test_module_emission_recalc_iterates_all_types():
     mock_chain.assert_awaited_once()
     chain_kwargs = mock_chain.await_args.kwargs
     assert chain_kwargs["job_type"] == "aggregation"
-    assert chain_kwargs["dedup_active"] is True
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["status_message"] == "Module emission recalculation completed"
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["total_recalculated"] == 6
