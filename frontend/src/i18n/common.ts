@@ -418,7 +418,7 @@ export default {
   },
   validation_required: {
     en: 'Required',
-    fr: 'Requis',
+    fr: 'Obligatoire',
   },
   validation_invalid_date_format: {
     en: 'Invalid date format, expected YYYY/MM/DD or YYYY.MM.DD',
