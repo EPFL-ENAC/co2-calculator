@@ -1,9 +1,18 @@
 import asyncio
 import json
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -23,7 +32,7 @@ from app.models.data_ingestion import (
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
-from app.repositories.data_ingestion import DataIngestionRepository
+from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
@@ -178,6 +187,18 @@ class PipelineResponse(BaseModel):
 
     pipeline_id: UUID
     jobs: list[PipelineJobResponse]
+
+
+class StaleStatsEntry(BaseModel):
+    """One ``(module_type_id, year)`` scope whose aggregation is missing,
+    failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
+    for Datadog/Prometheus scrape — Plan 310-D Follow-up 1 (#1063)."""
+
+    module_type_id: int
+    year: int
+    last_finished_aggregation_at: Optional[datetime] = None
+    why_stale: WhyStaleLiteral
+    last_aggregation_job_id: Optional[int] = None
 
 
 @router.post("/dispatch", response_model=SyncStatusResponse)
@@ -1100,3 +1121,43 @@ async def recover_job(
         locked_by=recovered.locked_by,
         is_current=recovered.is_current,
     )
+
+
+@router.get("/health/stale-stats", response_model=list[StaleStatsEntry])
+async def get_stale_stats(
+    older_than_minutes: int = Query(
+        60,
+        ge=1,
+        description=(
+            "Threshold (minutes) — successful aggregations whose ``finished_at`` "
+            "is younger than this are considered fresh and excluded.  Pending and "
+            "failed rows surface regardless of age."
+        ),
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list[StaleStatsEntry]:
+    """Read-only backstop for the aggregation pipeline (Plan 310-D Follow-up 1
+    / #1063).
+
+    The interactive runner-driven chain surfaces failures via the recalc
+    badge and pipeline diagnostic tooltip, but background failures with
+    nobody watching (stuck NOT_STARTED rows, last-run errors, slow-burn
+    drift) had no single owner.  This endpoint walks ``carbon_report_modules``
+    × ``carbon_reports.year`` (the source-of-truth for "what should have an
+    aggregation") and joins the latest ``job_type='aggregation'`` row per
+    scope, returning one entry per stale or missing aggregation.
+
+    Intended for Datadog / Prometheus scrape — emits a count per
+    ``why_stale`` bucket and lets operator dashboards alert on
+    non-zero values.  No auto-retry: the operator decides what to do
+    based on which bucket lit up.
+
+    **Required Permission**: ``backoffice.data_management.view``
+    """
+    rows = await DataIngestionRepository(db).find_stale_aggregations(
+        older_than_minutes
+    )
+    return [StaleStatsEntry(**row) for row in rows]
