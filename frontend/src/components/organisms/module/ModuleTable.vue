@@ -675,6 +675,7 @@ type CommonProps = {
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
   disable: boolean;
+  isSimulator?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -703,9 +704,10 @@ const canEdit = computed(() => {
 // Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
 const isDisabled = computed(
   () =>
-    props.disable ||
-    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-    !canEdit.value,
+    !props.isSimulator &&
+    (props.disable ||
+      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
 );
 
 const filterTerm = ref('');

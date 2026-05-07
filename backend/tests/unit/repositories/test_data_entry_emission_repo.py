@@ -4,7 +4,8 @@ import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
@@ -691,8 +692,13 @@ async def test_get_travel_evolution_over_time(db_session: AsyncSession):
     await db_session.flush()
 
     # Create carbon reports for multiple years
-    report_2023 = CarbonReport(unit_id=unit.id, year=2023)
-    report_2024 = CarbonReport(unit_id=unit.id, year=2024)
+    project = CarbonProject(
+        unit_id=unit.id, carbon_report_type=CarbonReportType.CALCULATOR
+    )
+    db_session.add(project)
+    await db_session.flush()
+    report_2023 = CarbonReport(unit_id=unit.id, year=2023, carbon_project_id=project.id)
+    report_2024 = CarbonReport(unit_id=unit.id, year=2024, carbon_project_id=project.id)
     db_session.add_all([report_2023, report_2024])
     await db_session.flush()
 
@@ -891,8 +897,23 @@ async def test_validated_totals_by_unit(
     if unit_objs:
         await db_session.flush()
 
+    projects_by_unit_id: dict[int, CarbonProject] = {}
     for unit_idx, year, module_specs in year_modules:
-        report = CarbonReport(unit_id=unit_objs[unit_idx].id, year=year)
+        unit_id = unit_objs[unit_idx].id
+        project = projects_by_unit_id.get(unit_id)
+        if project is None:
+            project = CarbonProject(
+                unit_id=unit_id,
+                carbon_report_type=CarbonReportType.CALCULATOR,
+            )
+            db_session.add(project)
+            await db_session.flush()
+            projects_by_unit_id[unit_id] = project
+        report = CarbonReport(
+            unit_id=unit_id,
+            year=year,
+            carbon_project_id=project.id,
+        )
         db_session.add(report)
         await db_session.flush()
         for mod_type, status, name, kg in module_specs:

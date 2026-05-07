@@ -79,4 +79,16 @@ export default {
     en: 'Download Report',
     fr: 'Télécharger le rapport',
   },
+  simulation_explore_page_convert_to_plan_title: {
+    en: 'Convert to a Plan',
+    fr: 'Convertir en planification',
+  },
+  simulation_explore_page_convert_to_plan_description: {
+    en: 'Pin this simulation as a permanent plan scenario to track and compare over time.',
+    fr: 'Épinglez cette simulation comme scénario de planification permanent pour le suivre et le comparer dans le temps.',
+  },
+  simulation_explore_page_convert_to_plan_button: {
+    en: 'Convert to Plan',
+    fr: 'Convertir en planification',
+  },
 };

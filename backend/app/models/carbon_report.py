@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Index, UniqueConstraint
@@ -6,15 +7,41 @@ from sqlmodel import JSON, Column, Field, SQLModel
 from app.core.constants import ModuleStatus
 
 
+class CarbonReportType(str, Enum):
+    CALCULATOR = "Calculator"
+    SIMULATOR_EXPLORE = "Simulator_Explore"
+    SIMULATOR_PLAN = "Simulator_Plan"
+
+
 class CarbonReportBase(SQLModel):
     """Base carbon report model."""
 
-    year: int
+    year: int = Field(
+        nullable=False,
+        description=(
+            "Report year (always set; for Simulator Explore, equals the reference year)"
+        ),
+    )
+    reference_year: Optional[int] = Field(
+        default=None,
+        nullable=True,
+        description=(
+            "Optional reference year"
+            " (reserved for Simulator Plan to track baseline year)"
+        ),
+    )
     unit_id: int = Field(
         foreign_key="units.id",
         nullable=False,
         index=True,
         description="FK to units.id (integer)",
+    )
+    carbon_project_id: Optional[int] = Field(
+        default=None,
+        foreign_key="carbon_projects.id",
+        nullable=True,
+        index=True,
+        description="FK to carbon_projects.id — every report may belong to a project",
     )
     last_updated: Optional[int] = Field(
         default=None,
@@ -67,12 +94,14 @@ class CarbonReport(CarbonReportBase, table=True):
     """
 
     __tablename__ = "carbon_reports"
-    id: Optional[int] = Field(default=None, primary_key=True)
-
-    # Unique constraint for (year, unit_id)
     __table_args__ = (
-        UniqueConstraint("unit_id", "year", name="uq_carbon_reports_unit_year"),
+        UniqueConstraint(
+            "carbon_project_id",
+            "year",
+            name="uq_carbon_reports_project_year",
+        ),
     )
+    id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class CarbonReportModuleBase(SQLModel):

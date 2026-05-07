@@ -46,8 +46,7 @@ const props = defineProps({
     type: String as PropType<string | undefined>,
     default: undefined,
   },
-  // Explicit default=undefined so "not provided" stays undefined
-  // (avoids boolean-casting to false which would hide the checkbox).
+
   viewAdditionalData: {
     type: Boolean as PropType<boolean | undefined>,
     default: undefined,

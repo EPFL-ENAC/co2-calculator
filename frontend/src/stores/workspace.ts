@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { HTTPError } from 'ky';
 import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
@@ -37,8 +38,10 @@ interface SelectedParams {
 }
 export interface CarbonReport {
   id: number;
-  unit_id: string;
+  unit_id: number;
   year: number;
+  reference_year?: number | null;
+  carbon_project_id: number;
 }
 
 export const useWorkspaceStore = defineStore(
@@ -105,10 +108,8 @@ export const useWorkspaceStore = defineStore(
     const availableCarbonReportYears = computed(() => {
       const currentYear = new Date().getFullYear();
       const yearsInDb = carbonReports.value.map((inv) => inv.year);
-      // Find the minimum year in DB, but never less than WORKSPACE_DEFAULT_YEAR
       const minDbYear =
         yearsInDb.length > 0 ? Math.min(...yearsInDb) : WORKSPACE_DEFAULT_YEAR;
-      // const minYear = Math.min(minDbYear, WORKSPACE_DEFAULT_YEAR); // unused
       const startYear =
         minDbYear < WORKSPACE_DEFAULT_YEAR ? minDbYear : WORKSPACE_DEFAULT_YEAR;
       const maxYear = currentYear - 1;
@@ -154,6 +155,26 @@ export const useWorkspaceStore = defineStore(
       );
       if (!inv) {
         inv = await createCarbonReport(unitId, year);
+      }
+      selectedCarbonReport.value = inv;
+      return inv;
+    }
+
+    async function selectSimulatorExploreCarbonReport(
+      unitId: number,
+      referenceYear: number,
+    ) {
+      const url = `carbon-reports/simulator/explore/unit/${unitId}/reference-year/${referenceYear}/`;
+      let inv: CarbonReport;
+      try {
+        inv = await api.get(url).json();
+      } catch (err) {
+        if (err instanceof HTTPError && err.response.status === 404) {
+          // No explore report exists yet — seed one from the Calculator report.
+          inv = await api.post(url).json();
+        } else {
+          throw err;
+        }
       }
       selectedCarbonReport.value = inv;
       return inv;
@@ -306,6 +327,7 @@ export const useWorkspaceStore = defineStore(
       createCarbonReport,
       selectCarbonReportForYear,
       selectWithoutFetchingCarbonReportForYear,
+      selectSimulatorExploreCarbonReport,
     };
   },
   {

@@ -45,6 +45,7 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="isTableDisabled"
+          :is-simulator="isSimulator"
         />
       </div>
       <q-separator />
@@ -130,6 +131,7 @@
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="disable"
+          :is-simulator="isSimulator"
         />
       </div>
       <q-separator />
@@ -177,7 +179,7 @@ import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
   Threshold,
-  ConditionalSubmoduleProps,
+  AllSubmoduleTypes,
   EnumSubmoduleType,
   Module,
 } from 'src/constant/modules';
@@ -231,9 +233,15 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   disable: boolean;
+  isSimulator?: boolean;
 };
 
-type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
+type ModuleTypeProps = {
+  moduleType: Module;
+  submoduleType?: AllSubmoduleTypes;
+};
+
+type SubModuleSectionProps = ModuleTypeProps & CommonProps;
 
 const yearConfigStore = useYearConfigStore();
 const props = withDefaults(
@@ -256,7 +264,7 @@ const isInputDeactivated = computed(() => {
 });
 
 const isTableDisabled = computed(
-  () => props.disable || isInputDeactivated.value,
+  () => !props.isSimulator && (props.disable || isInputDeactivated.value),
 );
 
 const backendThreshold = computed<Threshold | null>(() => {
@@ -288,12 +296,30 @@ const canEdit = computed(() => {
 
 const isFormDisabled = computed(() => props.disable);
 
-const submoduleCount = computed(
-  () =>
-    moduleStore.state.data?.data_entry_types_total_items?.[
-      enumSubmodule[props.submodule.id as EnumSubmoduleType]
-    ] || 0,
-);
+const submoduleCount = computed(() => {
+  const submoduleEnumId =
+    enumSubmodule[props.submodule.id as EnumSubmoduleType];
+
+  // Preferred: lightweight per-module counts map (populated by prefetchAllModuleCounts).
+  const fromTotalsMap =
+    moduleStore.state.moduleTotalsMap[props.moduleType]?.[submoduleEnumId];
+  if (typeof fromTotalsMap === 'number') return fromTotalsMap;
+
+  // Fallback: shared module data slot (may belong to any currently-loaded module).
+  const fromModuleTotals =
+    moduleStore.state.data?.data_entry_types_total_items?.[submoduleEnumId];
+  if (typeof fromModuleTotals === 'number') return fromModuleTotals;
+
+  const fromSubmodule =
+    moduleStore.state.dataSubmodule?.[props.submodule.id]?.summary?.total_items;
+  if (typeof fromSubmodule === 'number') return fromSubmodule;
+
+  const fromPagination =
+    moduleStore.state.paginationSubmodule?.[props.submodule.id]?.rowsNumber;
+  if (typeof fromPagination === 'number') return fromPagination;
+
+  return 0;
+});
 
 const item = computed(() => {
   if (props.moduleType === 'headcount' && props.submoduleType === 'student') {

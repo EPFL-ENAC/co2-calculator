@@ -155,6 +155,7 @@
               </template>
               <template v-else-if="inp.type === 'headcount-member-select'">
                 <HeadcountMemberSelect
+                  :key="headcountMemberCount"
                   :model-value="form[inp.id] ?? null"
                   :unit-id="props.unitId"
                   :year="props.year"
@@ -303,6 +304,10 @@ import { useModuleStore } from 'src/stores/modules';
 const { t: $t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const moduleStore = useModuleStore();
+
+const headcountMemberCount = computed(
+  () => moduleStore.state.dataSubmodule['member']?.summary?.total_items ?? 0,
+);
 
 const addNoteDialogOpen = ref(false);
 

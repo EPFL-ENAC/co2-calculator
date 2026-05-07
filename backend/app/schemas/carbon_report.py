@@ -11,7 +11,9 @@ class CarbonReportBase(BaseModel):
     """Base carbon report schema."""
 
     year: int
+    reference_year: Optional[int] = None
     unit_id: int
+    carbon_project_id: Optional[int] = None
 
 
 class CarbonReportCreate(CarbonReportBase):
@@ -25,6 +27,7 @@ class CarbonReportRead(CarbonReportBase):
 
     id: int
     stats: Optional[dict] = None
+    last_updated: Optional[int] = None
     completion_progress: Optional[str] = None
     overall_status: int = ModuleStatus.NOT_STARTED
 
@@ -36,7 +39,9 @@ class CarbonReportUpdate(BaseModel):
     """Schema for updating a carbon report."""
 
     year: Optional[int] = None
+    reference_year: Optional[int] = None
     unit_id: Optional[int] = None
+    carbon_project_id: Optional[int] = None
 
 
 # CarbonReportModule schemas

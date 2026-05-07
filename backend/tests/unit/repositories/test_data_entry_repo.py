@@ -5,7 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
@@ -969,7 +970,12 @@ async def test_list_by_data_entry_type_and_year_matching_year(
     """Entries from a CarbonReport with the matching year are returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 
@@ -1004,7 +1010,12 @@ async def test_list_by_data_entry_type_and_year_non_matching_year(
     """Entries from a CarbonReport with a different year are not returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 
@@ -1050,7 +1061,12 @@ async def test_list_by_data_entry_type_and_year_filters_by_type(
     """Only entries of the requested data_entry_type are returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 

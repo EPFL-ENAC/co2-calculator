@@ -5,12 +5,13 @@ from math import ceil
 from typing import Any, List, Optional
 
 from sqlalchemy import Integer, case, cast
-from sqlmodel import col, desc, func, or_, select
+from sqlmodel import col, delete, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
@@ -82,7 +83,12 @@ class CarbonReportModuleRepository:
         return db_objects
 
     async def get_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
+        self,
+        year: int,
+        unit_id: int,
+        module_type_id: ModuleTypeEnum,
+        *,
+        report_type: CarbonReportType = CarbonReportType.CALCULATOR,
     ) -> Optional[CarbonReportModule]:
         statement = (
             select(CarbonReportModule)
@@ -90,7 +96,12 @@ class CarbonReportModuleRepository:
                 CarbonReport,
                 col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
             )
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
             .where(
+                col(CarbonProject.carbon_report_type) == report_type,
                 CarbonReport.year == year,
                 CarbonReport.unit_id == unit_id,
                 CarbonReportModule.module_type_id == module_type_id,
@@ -205,16 +216,27 @@ class CarbonReportModuleRepository:
 
     async def delete_by_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a given carbon report. Returns count deleted."""
-        statement = select(CarbonReportModule).where(
-            CarbonReportModule.carbon_report_id == carbon_report_id
+        id_result = await self.session.execute(
+            select(CarbonReportModule.id).where(
+                CarbonReportModule.carbon_report_id == carbon_report_id
+            )
         )
-        result = await self.session.execute(statement)
-        db_objects = list(result.scalars().all())
-        count = len(db_objects)
-        for obj in db_objects:
-            await self.session.delete(obj)
+        module_ids = [row[0] for row in id_result.all()]
+        if not module_ids:
+            return 0
+
+        # Delete data_entries first (no DB-level cascade on this FK).
+        await self.session.execute(
+            delete(DataEntry).where(
+                col(DataEntry.carbon_report_module_id).in_(module_ids)
+            )
+        )
+
+        await self.session.execute(
+            delete(CarbonReportModule).where(col(CarbonReportModule.id).in_(module_ids))
+        )
         await self.session.flush()
-        return count
+        return len(module_ids)
 
     @staticmethod
     def _split_filter_values(

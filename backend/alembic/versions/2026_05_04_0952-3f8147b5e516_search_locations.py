@@ -21,7 +21,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "3f8147b5e516"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "c2d4e6f8a012"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "05d68c9a6054"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 

@@ -1,7 +1,7 @@
 """Module stats API endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -10,7 +10,8 @@ from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
@@ -57,12 +58,24 @@ async def get_validated_totals(
     """
     logger.info(f"GET validated totals: carbon_report_id={sanitize(carbon_report_id)}")
 
+    report_type_row = await db.execute(
+        select(CarbonProject.carbon_report_type)
+        .join(
+            CarbonReport, col(CarbonReport.carbon_project_id) == col(CarbonProject.id)
+        )
+        .where(col(CarbonReport.id) == carbon_report_id)
+    )
+    report_type = report_type_row.scalar_one_or_none()
+    validated_only = report_type != CarbonReportType.SIMULATOR_EXPLORE
+
     emission_stats = await DataEntryEmissionService(db).get_stats_by_carbon_report_id(
-        carbon_report_id=carbon_report_id
+        carbon_report_id=carbon_report_id,
+        validated_only=validated_only,
     )
     fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
         carbon_report_id=carbon_report_id,
         aggregate_by="module_type_id",
+        validated_only=validated_only,
     )
 
     return compute_validated_totals(
@@ -201,17 +214,38 @@ async def get_emission_breakdown(
         )
     )
     module_statuses = {row[0]: row[1] for row in result.all()}
-    headcount_validated = (
-        module_statuses.get(ModuleTypeEnum.headcount.value) == ModuleStatus.VALIDATED
+
+    # Determine server-side whether this is a Simulator Explore report so that
+    # all modules are treated as validated (the Explore flow has no validation
+    # step). Never rely on the client-controlled X-Co2-Simulation header here.
+    report_type_row = await db.execute(
+        select(CarbonProject.carbon_report_type)
+        .join(
+            CarbonReport, col(CarbonReport.carbon_project_id) == col(CarbonProject.id)
+        )
+        .where(col(CarbonReport.id) == carbon_report_id)
     )
-    buildings_validated = (
-        module_statuses.get(ModuleTypeEnum.buildings.value) == ModuleStatus.VALIDATED
-    )
-    validated_module_type_ids = {
-        mid
-        for mid, status in module_statuses.items()
-        if status == ModuleStatus.VALIDATED
-    }
+    report_type = report_type_row.scalar_one_or_none()
+    is_simulator = report_type == CarbonReportType.SIMULATOR_EXPLORE
+
+    if is_simulator:
+        headcount_validated = True
+        buildings_validated = True
+        validated_module_type_ids = set(module_statuses.keys())
+    else:
+        headcount_validated = (
+            module_statuses.get(ModuleTypeEnum.headcount.value)
+            == ModuleStatus.VALIDATED
+        )
+        buildings_validated = (
+            module_statuses.get(ModuleTypeEnum.buildings.value)
+            == ModuleStatus.VALIDATED
+        )
+        validated_module_type_ids = {
+            mid
+            for mid, status in module_statuses.items()
+            if status == ModuleStatus.VALIDATED
+        }
 
     breakdown = build_chart_breakdown(
         rows=emission_rows,
