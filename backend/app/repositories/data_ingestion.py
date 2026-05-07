@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_
@@ -9,6 +9,7 @@ from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -1015,6 +1016,179 @@ class DataIngestionRepository:
             )
         return status_rows
 
+    async def find_stale_aggregations(
+        self, threshold_minutes: int
+    ) -> list["StaleStatsRow"]:
+        """Return one row per ``(module_type_id, year)`` whose aggregation is
+        stale or missing.
+
+        Plan 310-D Follow-up 1 (#1063) — backstop for passive monitoring of
+        the aggregation pipeline.  The runner-driven chain surfaces failures
+        interactively (badge + logs); this query catches the cases nobody is
+        watching: stuck NOT_STARTED rows, last-run errors, slow-burn drift.
+
+        Source-of-truth for "what should have an aggregation" is
+        ``carbon_report_modules`` × ``carbon_reports.year`` (the modules
+        themselves declare their own scope).  We LEFT JOIN to the latest
+        ``job_type='aggregation'`` row per scope (``MAX(id)`` — within a
+        scope, id ordering tracks chronological insertion since serial PKs
+        are monotonically allocated).
+
+        Classification (``why_stale``):
+
+        - ``no_aggregation_ever`` — module exists but no aggregation row
+          was ever inserted for that ``(module_type_id, year)``.
+        - ``pending_aggregation_stuck`` — latest row is in a non-terminal
+          state (NOT_STARTED / QUEUED / RUNNING).  The stuck-state runner
+          sweeper handles RUNNING leases separately, but a NOT_STARTED row
+          that never got picked up surfaces here.
+        - ``last_aggregation_failed`` — latest row is FINISHED with
+          ``result=ERROR``.
+        - ``last_aggregation_too_old`` — latest row is FINISHED with
+          ``result != ERROR`` but ``finished_at`` is older than the cutoff
+          (or NULL).
+
+        Successful, fresh aggregations (FINISHED, non-ERROR, finished_at
+        within the window) are filtered out — they aren't stale.
+
+        Args:
+            threshold_minutes: How long since ``finished_at`` qualifies as
+                "too old".  Caller is responsible for range-checking
+                (``>= 1``).
+
+        Returns:
+            Unsorted list of stale entries.  The endpoint stamps the HTTP
+            response shape; the repo stays Pydantic-free.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+
+        # Latest aggregation row per (module_type_id, year), regardless of
+        # state — pending rows must be visible alongside finished ones.
+        latest_agg_sub = (
+            select(
+                col(DataIngestionJob.module_type_id).label("module_type_id"),
+                col(DataIngestionJob.year).label("year"),
+                func.max(col(DataIngestionJob.id)).label("latest_job_id"),
+            )
+            .where(
+                col(DataIngestionJob.job_type) == "aggregation",
+                col(DataIngestionJob.module_type_id).isnot(None),
+                col(DataIngestionJob.year).isnot(None),
+            )
+            .group_by(
+                col(DataIngestionJob.module_type_id),
+                col(DataIngestionJob.year),
+            )
+            .subquery()
+        )
+
+        # Seed: distinct (module_type_id, carbon_reports.year) the modules
+        # themselves declare.  DISTINCT keeps the seed one row per scope
+        # even when many units share the same (module_type_id, year).
+        scopes_sub = (
+            select(
+                col(CarbonReportModule.module_type_id).label("module_type_id"),
+                col(CarbonReport.year).label("year"),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .distinct()
+            .subquery()
+        )
+
+        # LEFT JOIN scopes → latest aggregation; rows with NULL latest_job_id
+        # are the "no_aggregation_ever" bucket.
+        stmt = select(
+            scopes_sub.c.module_type_id,
+            scopes_sub.c.year,
+            latest_agg_sub.c.latest_job_id,
+        ).join(
+            latest_agg_sub,
+            and_(
+                scopes_sub.c.module_type_id == latest_agg_sub.c.module_type_id,
+                scopes_sub.c.year == latest_agg_sub.c.year,
+            ),
+            isouter=True,
+        )
+        scope_rows = (await self.session.execute(stmt)).all()
+
+        # Hydrate the latest job rows in one extra round-trip — only the
+        # state/result/finished_at columns are needed for classification.
+        latest_ids = [
+            r.latest_job_id for r in scope_rows if r.latest_job_id is not None
+        ]
+        latest_jobs: dict[int, DataIngestionJob] = {}
+        if latest_ids:
+            jobs_stmt = select(DataIngestionJob).where(
+                col(DataIngestionJob.id).in_(latest_ids)
+            )
+            jobs_result = await self.session.execute(jobs_stmt)
+            for job in jobs_result.scalars().all():
+                if job.id is not None:
+                    latest_jobs[job.id] = job
+
+        out: list[StaleStatsRow] = []
+        for r in scope_rows:
+            job = (
+                latest_jobs.get(r.latest_job_id)
+                if r.latest_job_id is not None
+                else None
+            )
+            if job is None:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=None,
+                        why_stale="no_aggregation_ever",
+                        last_aggregation_job_id=None,
+                    )
+                )
+                continue
+
+            if job.state != IngestionState.FINISHED:
+                # NOT_STARTED / QUEUED / RUNNING — runner hasn't terminally
+                # resolved this row yet.
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=None,
+                        why_stale="pending_aggregation_stuck",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+                continue
+
+            if job.result == IngestionResult.ERROR:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=job.finished_at,
+                        why_stale="last_aggregation_failed",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+                continue
+
+            # FINISHED, non-ERROR — only stale if finished_at is missing or
+            # older than the cutoff.  Fresh successes don't surface.
+            if job.finished_at is None or job.finished_at < cutoff:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=job.finished_at,
+                        why_stale="last_aggregation_too_old",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+
+        return out
+
 
 class RecalculationStatusRow(TypedDict):
     """Lightweight status row returned by get_recalculation_status_by_year."""
@@ -1027,3 +1201,25 @@ class RecalculationStatusRow(TypedDict):
     last_factor_job_result: Optional[IngestionResult]
     last_recalculation_job_id: Optional[int]
     last_recalculation_job_result: Optional[IngestionResult]
+
+
+WhyStaleLiteral = Literal[
+    "no_aggregation_ever",
+    "last_aggregation_failed",
+    "last_aggregation_too_old",
+    "pending_aggregation_stuck",
+]
+
+
+class StaleStatsRow(TypedDict):
+    """Lightweight stale-aggregation row returned by ``find_stale_aggregations``.
+
+    Mirrors the ``StaleStatsEntry`` Pydantic schema in ``api/v1/data_sync.py``;
+    the repo stays Pydantic-free so unit tests don't need the FastAPI stack.
+    """
+
+    module_type_id: int
+    year: int
+    last_finished_aggregation_at: Optional[datetime]
+    why_stale: WhyStaleLiteral
+    last_aggregation_job_id: Optional[int]
