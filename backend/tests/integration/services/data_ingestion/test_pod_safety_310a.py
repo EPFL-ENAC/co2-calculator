@@ -487,7 +487,15 @@ async def test_recover_endpoint_stale(
     async def fake_get_db():
         yield db_session
 
+    async def fake_check_module(*args, **kwargs):
+        return None
+
     monkeypatch.setattr("app.core.security.is_permitted", fake_permitted)
+    # ``recover_job`` now layers a per-job ``check_module_permission`` on
+    # top of the global gate; bypass it in this repo-level test.
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.check_module_permission", fake_check_module
+    )
 
     app.dependency_overrides[get_current_user] = fake_user
     app.dependency_overrides[get_db] = fake_get_db
@@ -530,7 +538,13 @@ async def test_recover_endpoint_not_stale(
     async def fake_get_db():
         yield db_session
 
+    async def fake_check_module(*args, **kwargs):
+        return None
+
     monkeypatch.setattr("app.core.security.is_permitted", fake_permitted)
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.check_module_permission", fake_check_module
+    )
 
     app.dependency_overrides[get_current_user] = fake_user
     app.dependency_overrides[get_db] = fake_get_db
