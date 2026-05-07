@@ -348,9 +348,7 @@ async def _chain_emission_recalc_for_data_ingest(
     skip so the misconfigured job surfaces as FINISHED+ERROR.
     """
     if job.id is None:
-        raise ValueError(
-            "_chain_emission_recalc_for_data_ingest: job has no id"
-        )
+        raise ValueError("_chain_emission_recalc_for_data_ingest: job has no id")
     if job.year is None:
         raise ValueError(
             f"_chain_emission_recalc_for_data_ingest: job {job.id} has no year — "
