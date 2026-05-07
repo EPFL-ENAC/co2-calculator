@@ -653,3 +653,96 @@ async def test_pending_runner_jobs_query_excludes_null_job_type(
     job_ids = {j.id for j in jobs}
     assert legacy.id not in job_ids
     assert typed.id in job_ids
+
+
+# ======================================================================
+# _check_job_scope tests — regression gate for the #1078 tenant-scope fallout
+# ======================================================================
+#
+# Background: PR #1078 added a per-job permission gate layered on the
+# global ``backoffice.data_management.*`` permission.  The original
+# implementation called ``check_module_permission(institutional_id=None)``
+# for MODULE_PER_YEAR jobs (cross-unit aggregation/recalc), which 403'd
+# every unit-scoped backoffice user (their permissions are stored as
+# ``modules.X/<institutional_id>``, never as bare ``modules.X``).  The
+# fix skips the per-module check when no institutional_id can be derived;
+# the tests below pin that behaviour.
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_skips_module_check_for_module_per_year_jobs(
+    db_session: AsyncSession,
+):
+    """MODULE_PER_YEAR jobs (cross-unit aggregation/recalc) must NOT
+    trigger the per-module ``check_module_permission`` call.  The job has
+    no resolvable institutional_id, so the check would deny every
+    unit-scoped backoffice user.  Regression gate for the 403 the user
+    hit on ``GET /api/v1/sync/jobs/{id}/stream`` post-#1078."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job(module_type_id=1)  # MODULE_PER_YEAR (the factory default)
+    db_session.add(job)
+    await db_session.flush()
+
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+
+    with patch("app.api.v1.data_sync.check_module_permission", check_mock):
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_skips_when_module_type_id_is_none(
+    db_session: AsyncSession,
+):
+    """Jobs with no ``module_type_id`` (unit_sync, raw factor_ingest)
+    have no module path to gate on — the global permission alone is
+    sufficient."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job()
+    job.module_type_id = None
+    db_session.add(job)
+    await db_session.flush()
+
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+
+    with patch("app.api.v1.data_sync.check_module_permission", check_mock):
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_enforces_module_check_for_unit_specific_jobs(
+    db_session: AsyncSession,
+):
+    """MODULE_UNIT_SPECIFIC jobs DO trigger the per-module check, with
+    the resolved ``institutional_id`` passed through.  This confirms the
+    fix doesn't accidentally drop the unit-scoped guard."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job(module_type_id=1)
+    db_session.add(job)
+    await db_session.flush()
+
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+    inst_resolver = AsyncMock(return_value="0184")
+
+    with (
+        patch("app.api.v1.data_sync.check_module_permission", check_mock),
+        patch("app.api.v1.data_sync._institutional_id_for_job", inst_resolver),
+    ):
+        # Even though the factory default is MODULE_PER_YEAR, mocking the
+        # resolver to return a non-None institutional_id is the cleanest
+        # way to drive the unit-specific code path here without seeding
+        # the full Unit/CarbonReport/CarbonReportModule chain.
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_awaited_once()
+    kwargs = check_mock.await_args.kwargs
+    assert kwargs["institutional_id"] == "0184"

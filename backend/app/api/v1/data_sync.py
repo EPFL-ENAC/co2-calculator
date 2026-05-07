@@ -136,17 +136,31 @@ async def _check_job_scope(
     *,
     action: str = "view",
 ) -> None:
-    """Per-job permission gate.
+    """Per-job permission gate (unit-scoped jobs only).
 
     Layered on top of the existing ``backoffice.data_management.*`` global
     gate so a user with backoffice access still has to clear the per-module
-    scope when a job is pinned to one.  Jobs with no ``module_type_id``
-    (``unit_sync``, raw ``factor_ingest`` not pinned to a module) are gated
-    by the global permission alone — there is no module path to check.
+    scope when a job is pinned to a specific unit (``MODULE_UNIT_SPECIFIC``).
+
+    Jobs that are cross-unit (``MODULE_PER_YEAR`` aggregation/recalc) or
+    unscoped (``unit_sync``, factor ingests not pinned to a module) are
+    gated by the global permission alone — the per-module path doesn't
+    apply.  Unit-scoped backoffice users only hold
+    ``modules.X/<institutional_id>`` permissions, so calling
+    ``check_module_permission(institutional_id=None)`` for a cross-unit
+    job would deny everyone except the (rare) operator with an unscoped
+    ``modules.X`` permission.
     """
     if job.module_type_id is None:
         return
     institutional_id = await _institutional_id_for_job(job, db)
+    if institutional_id is None:
+        # MODULE_PER_YEAR or unresolvable scope — the global
+        # backoffice.data_management gate already ran upstream via
+        # require_permission(...) and is the right granularity here.
+        # TODO(#459): once sub-perimeter scoping ships, derive a
+        # broader scope set from the job's module + year and tighten.
+        return
     await check_module_permission(
         current_user,
         job.module_type_id,
