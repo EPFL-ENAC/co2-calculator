@@ -33,6 +33,7 @@ Asserts the two invariants from the PR's manual test plan:
 import csv
 from pathlib import Path
 from typing import Any
+
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession

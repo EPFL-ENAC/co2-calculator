@@ -215,12 +215,20 @@ class CarbonReportModuleService:
         # specific Plan 310-D feature.
         from app.repositories.data_ingestion import DataIngestionRepository
 
+        # One round-trip for the whole module set instead of one per
+        # module.  Bot review on PR #1053 caught the N+1; the bulk
+        # repo helper uses ``DISTINCT ON (module_type_id)`` to fold
+        # the per-module-most-recent semantics into a single scan.
         di_repo = DataIngestionRepository(self.session)
+        module_type_ids = [
+            read.module_type_id for read in reads if read.module_type_id is not None
+        ]
+        pipeline_by_module = await di_repo.get_current_pipeline_ids_for_modules(
+            module_type_ids, year=year
+        )
         for read in reads:
-            read.current_pipeline_id = await di_repo.get_current_pipeline_id_for_module(
-                module_type_id=read.module_type_id,
-                year=year,
-            )
+            if read.module_type_id is not None:
+                read.current_pipeline_id = pipeline_by_module.get(read.module_type_id)
         return reads
 
     async def list_modules_for(

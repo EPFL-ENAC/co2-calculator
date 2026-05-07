@@ -289,6 +289,73 @@ class DataIngestionRepository:
             return None
         return row[0]
 
+    async def get_current_pipeline_ids_for_modules(
+        self,
+        module_type_ids: List[int],
+        year: int,
+    ) -> dict[int, UUID]:
+        """Bulk-fetch sibling of ``get_current_pipeline_id_for_module``.
+
+        Plan 310-D — backs ``CarbonReportModuleService.list_modules``
+        which previously did one query per module (an N+1 on a
+        frontend-facing endpoint).  A typical carbon report has ~10
+        modules → this collapses 10 round-trips into one.
+
+        Returns ``{module_type_id: pipeline_id}`` for every module
+        in ``module_type_ids`` that has at least one active
+        (NOT_STARTED/QUEUED/RUNNING) pipeline-attached job for the
+        given ``year``.  Modules without an active pipeline are
+        absent from the dict — callers use ``.get(...)`` and treat
+        missing keys as "no badge".
+
+        Implementation: single ``WHERE module_type_id IN (...) AND
+        year = :year AND ...`` query returns every active pipeline
+        row for the requested modules; per-module "most recent"
+        picking happens in Python.  ``DISTINCT ON (module_type_id)``
+        would let PG do it server-side but isn't portable to the
+        SQLite-backed unit-test fixture, and at the realistic input
+        size (≤20 modules × ≤few active rows each) the in-memory
+        pick is free.
+
+        Empty input → empty dict (no query fired).
+        """
+        if not module_type_ids:
+            return {}
+
+        stmt = (
+            select(
+                DataIngestionJob.module_type_id,
+                DataIngestionJob.pipeline_id,
+                DataIngestionJob.id,
+            )
+            .where(
+                col(DataIngestionJob.module_type_id).in_(module_type_ids),
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+        )
+        exec_result = await self.session.execute(stmt)
+
+        # The ORDER BY id DESC means the first row we see for a given
+        # module_type_id is the most recent — keep it, ignore later
+        # (older) entries.  ``setdefault`` on a dict gives us that
+        # "first wins" semantics in one pass.
+        picked: dict[int, UUID] = {}
+        for row in exec_result.all():
+            module_id, pipeline_id, _job_id = row
+            if module_id is None or pipeline_id is None:
+                continue
+            picked.setdefault(module_id, pipeline_id)
+        return picked
+
     # ---- Plan 310A: atomic claim, recovery, poller helpers ----
 
     def _build_combo_where(self, job: DataIngestionJob):

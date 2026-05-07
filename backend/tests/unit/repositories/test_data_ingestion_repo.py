@@ -809,3 +809,174 @@ async def test_get_current_pipeline_id_skips_jobs_without_pipeline_id(
     repo = DataIngestionRepository(db_session)
     result = await repo.get_current_pipeline_id_for_module(module_type_id=5, year=2025)
     assert result is None
+
+
+# ======================================================================
+# get_current_pipeline_ids_for_modules Tests (Plan 310-D bulk N+1 fix)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_ids_for_modules_returns_empty_for_empty_input(
+    db_session: AsyncSession,
+):
+    """Empty ``module_type_ids`` short-circuits without firing a query.
+
+    The carbon-report endpoint can hit this when a report has no
+    modules (rare but possible during onboarding); the helper should
+    return an empty dict cheaply rather than executing a useless
+    ``WHERE module_type_id IN ()`` query."""
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_ids_for_modules([], year=2025)
+    assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_ids_for_modules_one_per_module(
+    db_session: AsyncSession,
+):
+    """Two modules, each with one active pipeline → returns both
+    keyed by module_type_id."""
+    pipeline_a = uuid4()
+    pipeline_b = uuid4()
+
+    job_a = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job_a.pipeline_id = pipeline_a
+    job_b = _make_job(
+        module_type_id=6,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=True,
+    )
+    job_b.pipeline_id = pipeline_b
+    db_session.add_all([job_a, job_b])
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_ids_for_modules([5, 6], year=2025)
+    assert result == {5: pipeline_a, 6: pipeline_b}
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_ids_for_modules_picks_most_recent_per_module(
+    db_session: AsyncSession,
+):
+    """Single module with two active pipelines → returns the most
+    recent (highest id) only.  Mirrors the per-module helper's
+    ``ORDER BY id DESC`` semantics folded into a single
+    ``DISTINCT ON (module_type_id) ... ORDER BY module_type_id, id DESC``
+    scan."""
+    older_pipeline = uuid4()
+    newer_pipeline = uuid4()
+
+    older = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    older.pipeline_id = older_pipeline
+    db_session.add(older)
+    await db_session.flush()
+
+    newer = _make_job(
+        module_type_id=5,
+        data_entry_type_id=12,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    newer.pipeline_id = newer_pipeline
+    db_session.add(newer)
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_ids_for_modules([5], year=2025)
+    assert result == {5: newer_pipeline}
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_ids_for_modules_omits_modules_with_no_active(
+    db_session: AsyncSession,
+):
+    """Module without an active pipeline is absent from the dict —
+    callers use ``.get(...)`` and treat missing as "no badge"."""
+    pipeline_a = uuid4()
+    finished_pipeline = uuid4()
+
+    job_a = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job_a.pipeline_id = pipeline_a
+    job_b_finished = _make_job(
+        module_type_id=6,
+        data_entry_type_id=11,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    job_b_finished.pipeline_id = finished_pipeline
+    db_session.add_all([job_a, job_b_finished])
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_ids_for_modules([5, 6, 7], year=2025)
+    # Only module 5 has an active pipeline; 6 is FINISHED, 7 has nothing.
+    assert result == {5: pipeline_a}
+
+
+@pytest.mark.asyncio
+async def test_get_current_pipeline_ids_for_modules_filters_by_year(
+    db_session: AsyncSession,
+):
+    """Active pipeline for a different year must not appear — the
+    bulk query is keyed by ``(module_type_id, year)`` and a 2024
+    pipeline must not bleed into the 2025 dashboard."""
+    pipeline_2024 = uuid4()
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2024,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.RUNNING,
+        result=None,
+        is_current=True,
+    )
+    job.pipeline_id = pipeline_2024
+    db_session.add(job)
+    await db_session.commit()
+
+    repo = DataIngestionRepository(db_session)
+    result = await repo.get_current_pipeline_ids_for_modules([5], year=2025)
+    assert result == {}

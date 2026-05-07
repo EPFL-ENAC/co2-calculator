@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col
 
-from app.core.config import bulk_path_pure_async, get_settings
+from app.core.config import bulk_path_pure_async
 from app.core.logging import get_logger
 from app.models.data_entry import (
     DataEntry,
