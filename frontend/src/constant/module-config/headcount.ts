@@ -34,6 +34,8 @@ const memberFields: ModuleField[] = [
     labelKey: 'headcount-member-form-field-position-category-label',
     type: 'select',
     sortable: true,
+    required: true,
+    requiredMessageKey: 'headcount-member-position-category-required',
     editableInline: true,
     ratio: '1/4',
     icon: 'o_assignment_ind',

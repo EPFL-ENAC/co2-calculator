@@ -50,6 +50,7 @@ export interface ModuleField {
   labelKey?: string | string[];
   type: FieldType;
   required?: boolean;
+  requiredMessageKey?: string;
   placeholder?: string;
   hint?: string;
   min?: number;

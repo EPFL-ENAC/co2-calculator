@@ -129,6 +129,10 @@ export default {
     en: 'lorem ipsum',
     fr: 'Texte d’exemple',
   },
+  'headcount-member-position-category-required': {
+    en: 'Position is required',
+    fr: 'La position est obligatoire',
+  },
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",
     fr: 'Le {label} de cet utilisateur existe déjà.',
