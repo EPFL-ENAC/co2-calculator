@@ -1,0 +1,250 @@
+"""Integration test for ``GET /v1/sync/pipelines/{pipeline_id}/stream`` (PG).
+
+Plan 310D — backend half of the stale-stats UX.  Mirrors the read endpoint
+test in ``test_sync_pipeline_endpoint_pg.py``: same auth fixture pattern,
+same pipeline-id seeding, same Postgres rationale (native ``UUID`` column,
+enum types, asyncpg round-trip).
+
+Coverage scope: the *contract* assertions (404 short-circuit before the
+stream opens, 403 permission gate) — not the streaming body.
+
+**Streaming-body coverage is deferred.**  The pre-existing
+``GET /sync/jobs/{job_id}/stream`` endpoint (which this one mirrors) also
+ships without integration coverage — running ``StreamingResponse`` through
+``httpx.ASGITransport`` against an asyncpg-backed test engine triggers
+``InterfaceError: connection is closed`` when the FastAPI dep teardown
+races with the generator's queries on the same engine, regardless of pool
+class.  Producing a stable streaming-body test would require either
+extracting the snapshot/poll logic for direct unit-testing or moving the
+session lifetime out of ``Depends(get_db)`` for SSE endpoints — a
+codebase-wide refactor not in this PR's scope.  The repo-level unit tests
+in ``tests/unit/repositories/test_data_ingestion_repo.py`` cover the data
+shape; the contract tests below cover gating and not-found.
+"""
+
+from unittest.mock import MagicMock
+from uuid import uuid4
+
+import httpx
+import pytest
+import pytest_asyncio
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+import app.api.deps as deps_module
+import app.core.security as security_module
+from app.main import app
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionState,
+    TargetType,
+)
+from app.models.user import UserProvider
+
+
+@pytest_asyncio.fixture
+async def pg_app(pg_dsn, monkeypatch):
+    """Wire the FastAPI app to the test Postgres + bypass auth.
+
+    Same shape as ``test_sync_pipeline_endpoint_pg.py``: the 403 test
+    bypasses this fixture so the real permission gate fires.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async def override_get_db():
+        async with Sf() as session:
+            yield session
+
+    fake_user = MagicMock()
+    fake_user.id = 1
+    fake_user.email = "test@example.com"
+    fake_user.institutional_id = "TEST-USER"
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+    app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
+    app.dependency_overrides[security_module.get_current_active_user] = lambda: (
+        fake_user
+    )
+
+    async def _allow(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr("app.core.security.is_permitted", _allow)
+
+    yield {"factory": Sf, "engine": engine}
+
+    app.dependency_overrides.clear()
+    await engine.dispose()
+
+
+def _make_pending_factor_job(pipeline_id) -> DataIngestionJob:
+    """Active (NOT_STARTED) parent — the chain head, not yet picked up."""
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_PER_YEAR,
+        module_type_id=1,
+        data_entry_type_id=1,
+        year=2025,
+        target_type=TargetType.FACTORS,
+        ingestion_method=IngestionMethod.csv,
+        provider=UserProvider.DEFAULT,
+        state=IngestionState.NOT_STARTED,
+        is_current=True,
+        pipeline_id=pipeline_id,
+        job_type="factor_ingest",
+    )
+
+
+@pytest.mark.asyncio
+async def test_pipeline_stream_unknown_pipeline_returns_404(pg_app):
+    """Unknown pipeline_id → 404 *before* the stream opens.
+
+    The endpoint short-circuits with ``HTTPException`` so SSE clients see
+    a proper HTTP error, not a 200-with-empty-body that they would
+    interpret as an aborted connection.  Symmetric with the
+    not-found contract on the read endpoint.
+    """
+    unknown = uuid4()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        resp = await client.get(f"/v1/sync/pipelines/{unknown}/stream")
+
+    assert resp.status_code == 404, resp.text
+
+
+@pytest.mark.asyncio
+async def test_pipeline_stream_returns_403_for_user_without_permission(
+    pg_dsn, monkeypatch
+):
+    """Permission gate matches the read endpoint's
+    ``backoffice.data_management.view``.
+
+    Bypasses ``pg_app`` (which monkeypatches ``is_permitted`` to True)
+    so the real ``require_permission`` dependency fires.  We still seed
+    a job so a permitted user *would* have hit a 200 — proves the 403
+    stems from the gate, not from the not-found short-circuit running
+    first.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    pipeline_id = uuid4()
+    async with Sf() as session:
+        session.add(_make_pending_factor_job(pipeline_id))
+        await session.commit()
+
+    async def override_get_db():
+        async with Sf() as session:
+            yield session
+
+    fake_user = MagicMock()
+    fake_user.id = 1
+    fake_user.email = "test@example.com"
+    fake_user.institutional_id = "TEST-USER"
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+    app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
+    app.dependency_overrides[security_module.get_current_active_user] = lambda: (
+        fake_user
+    )
+
+    async def _deny(*_args, **_kwargs):
+        return False
+
+    monkeypatch.setattr("app.core.security.is_permitted", _deny)
+
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}/stream")
+    finally:
+        app.dependency_overrides.clear()
+        await engine.dispose()
+
+    assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_by_pipeline_id_reflects_cross_session_updates(pg_dsn):
+    """The SSE poll loop reuses one long-lived session and re-calls
+    ``list_jobs_by_pipeline_id`` per tick.  In production the runner
+    writes job state changes (claim, FINISHED, status_message,
+    started_at) on its OWN ``SessionLocal()`` connection — a different
+    session from the SSE handler's.  Without ``populate_existing=True``
+    on the repo's select, SQLAlchemy's identity map would serve the SSE
+    session a stale cached row on every poll, the change-detection
+    (``snapshot != last_snapshot``) would never fire, and the stream
+    would emit nothing until the connection finally drops.
+
+    This test pins the contract directly at the repo level (no httpx,
+    no SSE) — bot review on PR #1052 caught that the streaming-body
+    integration coverage was deferred and the staleness bug slipped
+    through.  Two real PG sessions on the same engine reproduce the
+    exact mismatch the runner+SSE handler experience.
+    """
+    from app.repositories.data_ingestion import DataIngestionRepository
+
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    pipeline_id = uuid4()
+
+    # Seed: a NOT_STARTED parent job — the kind the SSE consumer sees
+    # before the runner picks it up.
+    async with Sf() as seed_session:
+        seed_session.add(_make_pending_factor_job(pipeline_id))
+        await seed_session.commit()
+
+    try:
+        # SSE-side session: long-lived, polls repeatedly.
+        async with Sf() as sse_session:
+            repo = DataIngestionRepository(sse_session)
+
+            # First poll — populates the identity map with the
+            # NOT_STARTED row.
+            first_snapshot = await repo.list_jobs_by_pipeline_id(pipeline_id)
+            assert len(first_snapshot) == 1
+            assert first_snapshot[0].state == IngestionState.RUNNING or (
+                first_snapshot[0].state == IngestionState.NOT_STARTED
+            )
+            initial_state = first_snapshot[0].state
+
+            # Out-of-band: simulate the runner claiming the job from a
+            # SEPARATE session/connection — exactly what
+            # ``run_job → claim_job`` does in production.
+            async with Sf() as runner_session:
+                runner_repo = DataIngestionRepository(runner_session)
+                target = (await runner_repo.list_jobs_by_pipeline_id(pipeline_id))[0]
+                assert target.id is not None
+                await runner_repo.update_ingestion_job(
+                    target.id,
+                    status_message="claimed by pod-test",
+                    metadata={"phase": "claimed"},
+                    state=IngestionState.RUNNING,
+                )
+                await runner_session.commit()
+
+            # Second poll on the SSE session.  Without
+            # ``populate_existing=True`` on the select, SQLAlchemy's
+            # identity map would short-circuit the row reload and we'd
+            # see the original NOT_STARTED state cached from the first
+            # poll — the SSE stream would emit nothing.
+            second_snapshot = await repo.list_jobs_by_pipeline_id(pipeline_id)
+            assert len(second_snapshot) == 1
+            assert second_snapshot[0].state == IngestionState.RUNNING, (
+                f"Expected RUNNING after out-of-band claim, got "
+                f"{second_snapshot[0].state}.  Identity-map staleness "
+                f"regression — populate_existing=True missing on the "
+                f"select in DataIngestionRepository.list_jobs_by_pipeline_id."
+            )
+            assert second_snapshot[0].state != initial_state
+            assert second_snapshot[0].status_message == "claimed by pod-test"
+    finally:
+        await engine.dispose()
