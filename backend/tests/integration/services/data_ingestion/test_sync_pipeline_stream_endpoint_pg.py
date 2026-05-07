@@ -169,3 +169,82 @@ async def test_pipeline_stream_returns_403_for_user_without_permission(
         await engine.dispose()
 
     assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_by_pipeline_id_reflects_cross_session_updates(pg_dsn):
+    """The SSE poll loop reuses one long-lived session and re-calls
+    ``list_jobs_by_pipeline_id`` per tick.  In production the runner
+    writes job state changes (claim, FINISHED, status_message,
+    started_at) on its OWN ``SessionLocal()`` connection — a different
+    session from the SSE handler's.  Without ``populate_existing=True``
+    on the repo's select, SQLAlchemy's identity map would serve the SSE
+    session a stale cached row on every poll, the change-detection
+    (``snapshot != last_snapshot``) would never fire, and the stream
+    would emit nothing until the connection finally drops.
+
+    This test pins the contract directly at the repo level (no httpx,
+    no SSE) — bot review on PR #1052 caught that the streaming-body
+    integration coverage was deferred and the staleness bug slipped
+    through.  Two real PG sessions on the same engine reproduce the
+    exact mismatch the runner+SSE handler experience.
+    """
+    from app.repositories.data_ingestion import DataIngestionRepository
+
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    pipeline_id = uuid4()
+
+    # Seed: a NOT_STARTED parent job — the kind the SSE consumer sees
+    # before the runner picks it up.
+    async with Sf() as seed_session:
+        seed_session.add(_make_pending_factor_job(pipeline_id))
+        await seed_session.commit()
+
+    try:
+        # SSE-side session: long-lived, polls repeatedly.
+        async with Sf() as sse_session:
+            repo = DataIngestionRepository(sse_session)
+
+            # First poll — populates the identity map with the
+            # NOT_STARTED row.
+            first_snapshot = await repo.list_jobs_by_pipeline_id(pipeline_id)
+            assert len(first_snapshot) == 1
+            assert first_snapshot[0].state == IngestionState.RUNNING or (
+                first_snapshot[0].state == IngestionState.NOT_STARTED
+            )
+            initial_state = first_snapshot[0].state
+
+            # Out-of-band: simulate the runner claiming the job from a
+            # SEPARATE session/connection — exactly what
+            # ``run_job → claim_job`` does in production.
+            async with Sf() as runner_session:
+                runner_repo = DataIngestionRepository(runner_session)
+                target = (await runner_repo.list_jobs_by_pipeline_id(pipeline_id))[0]
+                assert target.id is not None
+                await runner_repo.update_ingestion_job(
+                    target.id,
+                    status_message="claimed by pod-test",
+                    metadata={"phase": "claimed"},
+                    state=IngestionState.RUNNING,
+                )
+                await runner_session.commit()
+
+            # Second poll on the SSE session.  Without
+            # ``populate_existing=True`` on the select, SQLAlchemy's
+            # identity map would short-circuit the row reload and we'd
+            # see the original NOT_STARTED state cached from the first
+            # poll — the SSE stream would emit nothing.
+            second_snapshot = await repo.list_jobs_by_pipeline_id(pipeline_id)
+            assert len(second_snapshot) == 1
+            assert second_snapshot[0].state == IngestionState.RUNNING, (
+                f"Expected RUNNING after out-of-band claim, got "
+                f"{second_snapshot[0].state}.  Identity-map staleness "
+                f"regression — populate_existing=True missing on the "
+                f"select in DataIngestionRepository.list_jobs_by_pipeline_id."
+            )
+            assert second_snapshot[0].state != initial_state
+            assert second_snapshot[0].status_message == "claimed by pod-test"
+    finally:
+        await engine.dispose()

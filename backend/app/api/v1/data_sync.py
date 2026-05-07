@@ -746,8 +746,11 @@ async def pipeline_stream_by_id(
     carbon-report response surfaces a ``current_pipeline_id``.  Each tick
     re-reads every job in the pipeline and emits an ``event:
     pipeline-update`` SSE message *only when* a job's
-    ``(state, status_message, result, finished_at)`` tuple changed — so an
-    idle pipeline doesn't spam the wire.  A separate ``event: ping`` heartbeat
+    ``(state, status_message, result, started_at, finished_at)`` tuple
+    changed — so an idle pipeline doesn't spam the wire.  ``started_at``
+    is included because PR #1026 made it transition NOT_STARTED → claim
+    via ``func.coalesce``, and the dashboard wants to surface that flip.
+    A separate ``event: ping`` heartbeat
     fires every ~15s to keep proxies (nginx, AWS ALB) from idling the
     connection out.  The stream closes once **every** job in the pipeline is
     ``FINISHED``; a final ``stream_closed`` flag is sent so the client can
