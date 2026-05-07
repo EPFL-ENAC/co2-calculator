@@ -1,5 +1,5 @@
 ---
-status: planned
+status: delivered
 issue: 310-d
 last_updated: 2026-05-07
 title: "310-d Frontend — Stale-Stats UX + Pipeline SSE"
@@ -8,14 +8,124 @@ summary: "Render the in-flight bulk-pipeline state on carbon-report module cards
 
 # 310-d Frontend — Stale-Stats UX + Pipeline SSE
 
+> **Delivered: PR #1054** (foundation + back-office badge integration)
+> and a follow-up PR (button transformation + popover; this section
+> is being updated as that PR lands).
+
+## Decision: contextual recalculation button
+
+### Status
+
+**Delivered in PR #1059.**
+
+### Context
+
+The "Recalculate Emissions" button predates the auto-pipeline. After
+the runner-driven chain shipped (PR #1053 + #1054), the button
+became redundant in the common case (chain auto-fires on upload),
+but the question of whether to remove it surfaced these two scenarios
+where it remains the only operator-facing recovery path:
+
+| Scenario                                                                                           | Auto-pipeline behavior            | Recovery                          |
+| -------------------------------------------------------------------------------------------------- | --------------------------------- | --------------------------------- |
+| Chain finished with FINISHED+ERROR                                                                 | No auto-retry                     | Button is the only manual retry   |
+| `needs_recalculation` detected without an active chain (race, missed dispatch, manual Path 1 edit) | Nothing happens until next upload | Button is the only manual trigger |
+
+Removing both the badge AND the button would leave the operator no
+way out of either state. The "Last recalc failed" red badge would
+sit there forever.
+
+### Decision
+
+**Transform, don't remove.** Keep the button code but tighten its
+visibility condition to only show when there's something for the
+operator to do:
+
+| State                                                                | Old visibility                            | New visibility                                                  |
+| -------------------------------------------------------------------- | ----------------------------------------- | --------------------------------------------------------------- |
+| Active pipeline running (badge fires)                                | Visible if `needs_recalculation` was true | **Hidden** — badge says it all                                  |
+| Chain finished with ERROR (badge: "Last recalc failed")              | Visible if `needs_recalculation` was true | **Visible as "Retry recalculation"** (new label, same endpoint) |
+| `needs_recalculation = true`, no active pipeline, no failed pipeline | Visible                                   | **Visible** (unchanged — the legitimate manual trigger)         |
+| All clean                                                            | Hidden                                    | Hidden (unchanged)                                              |
+
+### Implementation notes
+
+- No backend change. Same recalc-trigger endpoint
+  (`POST /v1/sync/recalculate-emissions/{module_type_id}/{data_entry_type_id}`).
+- Button label switches between `data_management_recalculate_emissions`
+  (existing) and `data_management_recalculate_retry` (new) based on
+  `hasRecalcFailure`.
+- `useRecalculation` composable is **not** removed — it's the click
+  handler for both label variants.
+- The "Last recalc failed" badge stays AS-IS; the button becomes its
+  recovery affordance.
+
+### What this means for the consumer
+
+A back-office operator who lands on a clean module sees no clutter.
+A module mid-recalc shows "Recalculating…". A failed recalc shows
+"Last recalc failed" + "Retry recalculation" together. A
+needs-recalc with no active chain shows the existing manual trigger.
+
+## Decision: pipeline-state popover/tooltip
+
+### Status
+
+**Delivered in PR #1059.**
+
+### Context
+
+The badge tells the operator _that_ the pipeline is running or
+failed, but not _what's happening inside_. This is a back-office
+page; operators expect to see the diagnostic detail without
+opening devtools.
+
+### Decision
+
+Add a Quasar `<q-tooltip>` on hover of the badge. Renders:
+
+- **Pipeline UUID** (with copy-on-click)
+- **Per-job rows**: `{job_type} · {state} · {result}` with the
+  `status_message` underneath
+- **Timestamps**: `started_at` / `finished_at`, formatted relative
+  ("3s ago", "just now")
+- **Failure cases**: error `status_message` highlighted in red
+
+All this data is already in the `pipelineStream` store (`jobsFor(id)`
+returns the array; `failedStatusMessagesFor(id)` returns just the
+error messages). Pure rendering work; no new API, no new store
+plumbing.
+
+### Implementation notes
+
+- Single new component `PipelineDiagnosticTooltip.vue` — reusable for
+  any module card (today: only `ModuleConfig.vue`; tomorrow:
+  potentially results-page and module-detail badges).
+- i18n keys for the static labels ("Pipeline ID", "Started",
+  "Finished", "No active jobs", etc.).
+- Relative timestamp via a small inline `formatRelative()` helper —
+  no project-wide time utility was available; bespoke helper kept
+  inside the component to avoid premature abstraction.
+
+### Future enhancements (out of scope for this PR)
+
+- **Click-to-stick on mobile / no-mouse devices.** Quasar's
+  `<q-tooltip>` is hover-only by spec; switching to
+  `<q-popup-proxy>` (which supports both hover and click) is more
+  invasive (different anchor model, different escape semantics) and
+  was deferred to keep this PR scoped. Tracked as a separate UX
+  follow-up if mobile support becomes a requirement.
+
+---
+
 ## Context
 
 Backend half shipped in PR #1052 (SSE endpoint + `current_pipeline_id`
 repo helper) and PR #1053 (provider gating + `current_pipeline_id`
-field on the carbon-report response).  After a bulk CSV upload or
+field on the carbon-report response). After a bulk CSV upload or
 factor sync, `carbon_reports.stats` is stale (reflects pre-chain
 data) until the runner-driven `emission_recalc → aggregation` chain
-finishes.  Today the UI shows the stale numbers as if they were
+finishes. Today the UI shows the stale numbers as if they were
 fresh — operators have no signal that recalculation is in flight.
 
 This plan ships the frontend half: a "Recalculating..." badge on
@@ -50,7 +160,7 @@ When `current_pipeline_id != null` on a module card:
   the `finished_at` of the most recent FINISHED `aggregation` job
   in the pipeline (or the previous successful aggregation if none).
 - Stats numbers themselves are visually de-emphasized — gray text,
-  reduced opacity (e.g. `opacity: 0.6`), maybe italic.  The numbers
+  reduced opacity (e.g. `opacity: 0.6`), maybe italic. The numbers
   are still readable; the de-emphasis just signals "not fresh".
 
 ### 2. Pipeline SSE subscription
@@ -99,16 +209,16 @@ The operator needs:
 
 This is the meta-pinpoint: chain-dispatch failures already surface
 through the existing job-state metric layer (`status_message` +
-structured logs).  Surfacing them in the UX is the missing piece.
+structured logs). Surfacing them in the UX is the missing piece.
 
 ### 5. Multiple modules sharing one pipeline
 
 A `factor_ingest` fans out to N `emission_recalc` children, each
 of which chains to one `aggregation` (deduplicated per `(module,
-year)`).  Different modules may share a `pipeline_id`.  Implication:
+year)`). Different modules may share a `pipeline_id`. Implication:
 
 - Subscribe ONCE per unique `pipeline_id` (Pinia store keyed by id),
-  not once per module card mount.  Multiple cards share the same
+  not once per module card mount. Multiple cards share the same
   store entry and re-render on the same SSE update.
 - The badge clears on each module independently as the
   per-module aggregation tail finishes.
@@ -150,7 +260,7 @@ backend's `get_current_pipeline_ids_for_modules` semantics
   right URL, parses `pipeline-update` events into store state,
   closes on `stream_closed: true`, reopens on `onerror`.
 - Vitest component test on the module card — `current_pipeline_id =
-  null` → no badge; `=  uuid` → "Recalculating..." badge; FINISHED
+null` → no badge; `=  uuid` → "Recalculating..." badge; FINISHED
   pipeline with `has_error` → "Last recalc failed" badge + retry
   button.
 - E2E (Playwright) — full happy-path: trigger a CSV upload, observe
@@ -169,15 +279,15 @@ backend's `get_current_pipeline_ids_for_modules` semantics
 
 ## Risks
 
-- **EventSource pooling on report-load**.  A report with N modules
-  sharing M unique pipelines opens M streams.  M is small in practice
+- **EventSource pooling on report-load**. A report with N modules
+  sharing M unique pipelines opens M streams. M is small in practice
   (one factor upload → one pipeline → potentially every module on
   the report); shouldn't strain the browser's per-origin connection
-  limit (usually 6).  Watch for it on stress test.
-- **Stale `current_pipeline_id` on initial load**.  The SSE stream
+  limit (usually 6). Watch for it on stress test.
+- **Stale `current_pipeline_id` on initial load**. The SSE stream
   picks up updates from the moment we subscribe; if the pipeline
   finished between the carbon-report request and our subscription,
-  the badge would show forever.  Mitigation: also call the one-shot
+  the badge would show forever. Mitigation: also call the one-shot
   `GET /v1/sync/pipelines/{id}` once on subscribe and apply that
   state before the stream takes over.
 - **EventSource doesn't honor cookies cross-origin in some browsers**.
@@ -187,10 +297,10 @@ backend's `get_current_pipeline_ids_for_modules` semantics
 ## Recovery contract pin-down
 
 For Karpathy guideline alignment: "defensive mechanisms are copium for
-bad strategies".  The failure-state UX above (section 4) is NOT
-defensive — it's a real product requirement.  The chain CAN fail
+bad strategies". The failure-state UX above (section 4) is NOT
+defensive — it's a real product requirement. The chain CAN fail
 (DB hiccup, exception in workflow, etc.) and the user needs visible
-recovery.  Backend already pinpoints failures via
+recovery. Backend already pinpoints failures via
 `update_ingestion_job(state=FINISHED, result=ERROR, status_message=str(exc))`;
-the frontend just renders that pinpoint.  This is the right place
+the frontend just renders that pinpoint. This is the right place
 for the failure-state UX to live, not in defensive backend code.

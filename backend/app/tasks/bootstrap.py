@@ -34,6 +34,7 @@ def bootstrap_handlers() -> None:
     if _BOOTSTRAPPED:
         return
     from app.tasks import (
+        aggregation_tasks,  # noqa: F401
         emission_recalculation_tasks,  # noqa: F401
         ingestion_tasks,  # noqa: F401
         unit_sync_tasks,  # noqa: F401
