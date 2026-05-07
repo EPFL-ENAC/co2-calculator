@@ -966,8 +966,9 @@ def legacy_inline_emissions(monkeypatch):
 async def test_process_batch_creates_emissions(legacy_inline_emissions):
     """Test _process_batch creates emissions from prepared objects.
 
-    Pinned against the legacy path (``BULK_PATH_PURE_ASYNC=False``) — the
-    pure-async path is covered by ``test_process_batch_skips_emissions_when_pure_async``.
+    Pinned against the legacy path (``BULK_PATH_PURE_ASYNC=False``); the
+    pure-async path is covered by
+    ``test_process_batch_skips_emissions_when_pure_async``.
     """
     config = {"file_path": "tmp/test.csv"}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())

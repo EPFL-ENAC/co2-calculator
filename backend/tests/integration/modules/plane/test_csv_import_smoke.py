@@ -33,6 +33,7 @@ Asserts the two invariants from the PR's manual test plan:
 import csv
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from sqlmodel import select
@@ -87,11 +88,27 @@ def _make_provider(data_session: AsyncSession) -> _MinimalPlaneCSVProvider:
 @pytest.mark.asyncio
 async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     db_session: AsyncSession,
+    monkeypatch,
 ):
     """End-to-end through the carrier half of the pipeline: feed the real
     services a 3-entry batch matching the plane fixture
     (GVA→ZRH/CDG→JFK/GVA→LHR), with overrides carried on a parallel list,
-    and verify the final DB state."""
+    and verify the final DB state.
+
+    Plan 310-D — pinned against the legacy inline-write path
+    (``BULK_PATH_PURE_ASYNC=False``).  The pure-async path skips
+    inline emissions entirely, leaving the chain to write them; the
+    carrier flow this test pins is identical across the gate but the
+    "emissions row exists right after _process_batch" assertion only
+    holds inline.  Override-routing into the chain's recalc path is
+    covered separately by the unit tests in
+    ``test_base_csv_provider.py`` (``test_process_batch_skips_emissions_when_pure_async``).
+    """
+    from app.services.data_ingestion import base_csv_provider
+
+    fake_settings = MagicMock()
+    fake_settings.BULK_PATH_PURE_ASYNC = False
+    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake_settings)
     # ---------- arrange: factor + module --------------------------------
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)

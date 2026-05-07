@@ -212,31 +212,77 @@ async def _insert_child_with_dedup(
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
     meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
 
-    # The partial unique index is keyed on (module_type_id, year)
-    # and filtered by job_type='aggregation' AND state IN (active).
-    # We bind to the index by name via ``ON CONFLICT ON CONSTRAINT``.
-    # Using ``ON CONFLICT DO NOTHING`` without specifying the index
-    # would be ambiguous if a future migration adds another partial
-    # index that also covers (module_type_id, year).
+    # Plan 310-D dedup mechanism — pre-check for an active aggregation
+    # row in the same scope, INSERT only if none exists.  We avoid
+    # ``ON CONFLICT (cols) WHERE ...`` partial-index inference because
+    # Postgres's inference rules depend on the index's WHERE predicate
+    # being IMPLIED by ours, and the implied-by check stumbles on
+    # nullable columns (``module_type_id`` and ``year`` are both
+    # ``NULL``-able even though the index covers only NOT-NULL rows
+    # via the partial WHERE).  The check-then-insert here is racy in
+    # principle, but catches the ``IntegrityError`` from the partial
+    # unique index downstream, so the first writer wins regardless of
+    # interleaving.  The pre-check covers the common case (sequential
+    # chains within the same fan-out batch on the same connection)
+    # and the IntegrityError catch covers the concurrent race.
+    pre_check = text(
+        """
+        SELECT 1
+        FROM data_ingestion_jobs
+        WHERE job_type = 'aggregation'
+          AND module_type_id = :module_type_id
+          AND (year = :year OR (:year IS NULL AND year IS NULL))
+          AND state IN (
+              'NOT_STARTED'::ingestion_state_enum,
+              'QUEUED'::ingestion_state_enum,
+              'RUNNING'::ingestion_state_enum
+          )
+        LIMIT 1
+        """
+    )
+    existing = await session.execute(
+        pre_check,
+        {"module_type_id": module_type_id, "year": year},
+    )
+    if existing.first() is not None:
+        # Active row already pending — caller treats None as "no-op".
+        return None
+
+    # No active row found in the pre-check; INSERT and let the partial
+    # unique index trip ``IntegrityError`` if a concurrent writer beat
+    # us.  We catch it below and surface as the same dedup signal.
+    # ``provider`` is NOT NULL on the table; inherit from the parent
+    # to keep the audit shape consistent (the chain represents work
+    # spawned by the same actor as the parent ingest job).
     sql = text(
         """
         INSERT INTO data_ingestion_jobs (
             job_type, module_type_id, data_entry_type_id, year,
-            target_type, ingestion_method, entity_type, state,
+            target_type, ingestion_method, entity_type, provider, state,
             is_current, pipeline_id, run_after, meta
         )
         VALUES (
             :job_type, :module_type_id, :data_entry_type_id, :year,
-            :target_type, :ingestion_method, :entity_type,
+            :target_type, :ingestion_method, :entity_type, :provider,
             'NOT_STARTED'::ingestion_state_enum,
             FALSE, CAST(:pipeline_id AS UUID), NULL,
             CAST(:meta AS JSONB)
         )
-        ON CONFLICT ON CONSTRAINT uq_aggregation_active
-        DO NOTHING
         RETURNING id
         """
     )
+    # Native PG enum columns store the enum *name*, not the int value
+    # — the SAEnum spec passes ``name=...`` and ``native_enum=True`` so
+    # the on-disk representation is the label.  ``IngestionState`` is
+    # written via the literal ``'NOT_STARTED'::ingestion_state_enum``
+    # cast in the SQL above; the other three need ``.name`` here.
+    parent_provider = getattr(parent, "provider", None)
+    provider_value = (
+        parent_provider.name
+        if parent_provider is not None and hasattr(parent_provider, "name")
+        else parent_provider
+    )
+
     try:
         result = await session.execute(
             sql,
@@ -245,17 +291,21 @@ async def _insert_child_with_dedup(
                 "module_type_id": module_type_id,
                 "data_entry_type_id": data_entry_type_id,
                 "year": year,
-                "target_type": target_type.value,
-                "ingestion_method": ingestion_method.value,
-                "entity_type": entity_type.value,
+                "target_type": target_type.name,
+                "ingestion_method": ingestion_method.name,
+                "entity_type": entity_type.name,
+                "provider": provider_value,
                 "pipeline_id": pipeline_id_str,
                 "meta": meta_json,
             },
         )
     except IntegrityError:
-        # A concurrent INSERT-then-COMMIT can race past the ON CONFLICT
-        # check inside our own transaction; surface as a clean dedup
-        # signal rather than letting the IntegrityError bubble.
+        # A concurrent INSERT-then-COMMIT can race past the pre-check
+        # above (two pods chaining the same scope at the same time);
+        # the partial unique index ``uq_aggregation_active`` trips and
+        # raises IntegrityError.  Surface as a clean dedup signal
+        # rather than letting it bubble — the existing pending row
+        # will run, our caller treats None as "no-op".
         await session.rollback()
         return None
 
