@@ -744,6 +744,12 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     assert len(captured_validation_payload) == 1
     assert "kg_co2eq" not in captured_validation_payload[0]
 
+    # 4. B-H1 — the override is also persisted under the reserved
+    #    ``__kg_co2eq_override__`` carrier so the async recalc path
+    #    (``upsert_by_data_entry`` → ``prepare_create``) still honors it
+    #    when ``BULK_PATH_PURE_ASYNC`` skips the inline-write path.
+    assert data_entry.data.get("__kg_co2eq_override__") == pytest.approx(152.685)
+
 
 @pytest.mark.asyncio
 async def test_process_row_with_no_kg_co2eq_returns_none_override():
@@ -938,6 +944,11 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
         assert "kg_co2eq" not in data_entry.data, (
             f"row {row_idx}: kg_co2eq leaked into DataEntry.data: {data_entry.data!r}"
         )
+        # B-H1 — the parsed override IS persisted under the reserved
+        # ``__kg_co2eq_override__`` carrier so the async recalc honors it.
+        assert data_entry.data.get("__kg_co2eq_override__") == pytest.approx(
+            float(row["kg_co2eq"])
+        ), f"row {row_idx}: missing __kg_co2eq_override__ carrier"
         actual_overrides.append(kg_co2eq_override)
 
     assert actual_overrides == pytest.approx(expected_overrides)

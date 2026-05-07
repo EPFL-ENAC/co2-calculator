@@ -489,15 +489,23 @@ class TestLoadDataKgCo2eqHandling:
                 f"kg_co2eq leaked into DataEntry.data: {entry.data!r}"
             )
 
-        # The valid float reaches prepare_create as the override; the garbage
-        # one resolves to None (no override) — verified through the {id: ov}
-        # routing built inside _load_data.
+        # B-H1 — the valid float reaches prepare_create as the override; the
+        # garbage one resolves to None (no override) — verified through the
+        # {id: ov} routing built inside ``_load_data``.
         prepare_calls = mock_emission_service.prepare_create.await_args_list
         overrides_by_id = {
             call.args[0].id: call.kwargs.get("kg_co2eq_override")
             for call in prepare_calls
         }
         assert overrides_by_id == {1: 152.685, 2: None}
+
+        # B-H1 — the parseable override is also persisted under the reserved
+        # ``__kg_co2eq_override__`` carrier so the async recalc path picks
+        # it up via ``prepare_create``'s data-keyed fallback.  Garbage
+        # values are dropped (no carrier set) — operators see the WARNING
+        # logged above and the row falls back to formula-based emissions.
+        assert captured_entries[0].data.get("__kg_co2eq_override__") == 152.685
+        assert "__kg_co2eq_override__" not in captured_entries[1].data
 
     @pytest.mark.asyncio
     async def test_load_data_skips_emissions_under_pure_async(self):
