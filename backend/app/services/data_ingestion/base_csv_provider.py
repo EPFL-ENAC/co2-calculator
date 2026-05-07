@@ -29,7 +29,10 @@ from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
@@ -989,6 +992,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                         f"Row {row_idx}: Populated "
                                         f"{field_name}={default_value} from factor"
                                     )
+
+            # B-H1 — under ``BULK_PATH_PURE_ASYNC`` the inline path skips
+            # ``prepare_create``, so the parallel ``kg_co2eq_override`` list
+            # is built and discarded.  Persist the override on the data
+            # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
+            # the async recalc path (``upsert_by_data_entry`` →
+            # ``prepare_create``) still honors it.  The parallel list is
+            # kept for the legacy inline path's existing flow.
+            if kg_co2eq_override is not None:
+                data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
 
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
