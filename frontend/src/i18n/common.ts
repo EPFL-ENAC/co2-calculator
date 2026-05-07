@@ -324,6 +324,14 @@ export default {
     en: 'Save',
     fr: 'Enregistrer',
   },
+  common_add: {
+    en: 'Add',
+    fr: 'Ajouter',
+  },
+  common_edit: {
+    en: 'Edit',
+    fr: 'Modifier',
+  },
   common_view_only: {
     en: 'View Only',
     fr: 'Lecture seule',
