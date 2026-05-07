@@ -5,7 +5,6 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
-import { graphic } from 'echarts';
 import {
   colors,
   getChartSubcategoryColor,
@@ -166,28 +165,45 @@ function recalculateScopeRects() {
   }
   lastScopeState = newState;
 
+  // Use the grid's actual bottom edge so dividers and the dashed outline
+  // always reach the full plotting area, regardless of axis type or domain.
+  const gridModel = (
+    chart as unknown as {
+      getModel(): {
+        getComponent(type: string): {
+          coordinateSystem: {
+            getRect(): { x: number; y: number; width: number; height: number };
+          };
+        };
+      };
+    }
+  )
+    .getModel()
+    .getComponent('grid');
+  const gridRect = gridModel?.coordinateSystem?.getRect();
+  const yAxisBase = gridRect ? gridRect.y + gridRect.height : NaN;
+  if (!Number.isFinite(yAxisBase)) {
+    chart.setOption({ graphic: [] });
+    return;
+  }
+
+  const boxTop = 55;
+  const labelTop = boxTop;
+  const rectTop = labelTop - 6;
+  // Narrow once so downstream shape/style expressions use a plain number
+  // without repeated casts. The showAdditional guard already ensures
+  // dividerX !== null, but TypeScript can't see through that indirection.
+  const dividerXNum = Number(dividerX);
+
   const elements: object[] = [
+    // Scope 1 label
     ...(s1
       ? [
           {
-            type: 'rect',
-            id: 'sr1',
-            left: s1.left,
-            top: '15px',
-            shape: { width: s1.width, height: isPrintMode.value ? 200 : 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(248,248,248,0.9)' },
-                { offset: 1, color: 'rgba(248,248,248,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st1',
-            left: s1.left + 10,
-            top: '30px',
+            left: s1.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 1',
@@ -197,27 +213,14 @@ function recalculateScopeRects() {
           },
         ]
       : []),
+    // Scope 2 label
     ...(s2
       ? [
           {
-            type: 'rect',
-            id: 'sr2',
-            left: s2.left,
-            top: '15px',
-            shape: { width: s2.width, height: isPrintMode.value ? 200 : 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(240,240,240,0.9)' },
-                { offset: 1, color: 'rgba(240,240,240,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st2',
-            left: s2.left + 10,
-            top: '30px',
+            left: s2.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 2',
@@ -227,27 +230,14 @@ function recalculateScopeRects() {
           },
         ]
       : []),
+    // Scope 3 label
     ...(s3
       ? [
           {
-            type: 'rect',
-            id: 'sr3',
-            left: s3.left,
-            top: '15px',
-            shape: { width: s3.width, height: isPrintMode.value ? 200 : 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(229,229,229,0.9)' },
-                { offset: 1, color: 'rgba(229,229,229,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st3',
-            left: s3.left + 10,
-            top: '30px',
+            left: s3.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 3',
@@ -257,62 +247,77 @@ function recalculateScopeRects() {
           },
         ]
       : []),
-    {
-      type: 'text',
-      id: 'smain',
-      left: s1 ? s1.left + 10 : 56,
-      top: '0px',
-      style: {
-        fill: '#000000',
-        text: t('charts-main-category'),
-        font: '11px SuisseIntl',
-      },
-      silent: true,
-    },
-    ...(showAdditional
+    // Dotted divider line between Scope 1 and Scope 2
+    ...(s1 && s2
+      ? [
+          {
+            type: 'line',
+            id: 'sdiv12',
+            shape: { x1: s2.left, y1: boxTop, x2: s2.left, y2: yAxisBase },
+            style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'line',
+            id: 'sdiv12',
+            shape: { x1: 0, y1: 0, x2: 0, y2: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+    // Dotted divider line between Scope 2 and Scope 3
+    ...(s2 && s3
+      ? [
+          {
+            type: 'line',
+            id: 'sdiv23',
+            shape: { x1: s3.left, y1: boxTop, x2: s3.left, y2: yAxisBase },
+            style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'line',
+            id: 'sdiv23',
+            shape: { x1: 0, y1: 0, x2: 0, y2: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+    // Additional categories: dashed rectangle outline + label
+    ...(showAdditional && additionalRect
       ? [
           {
             type: 'rect',
             id: 'sadd',
-            left: dividerX,
-            top: '15px',
             shape: {
-              width: additionalRect?.width ?? 200,
-              height: isPrintMode ? 200 : 300,
+              x: dividerXNum + 2,
+              y: rectTop,
+              width: Math.max(0, additionalRect.width - 4),
+              height: Math.max(0, yAxisBase - rectTop),
+              r: 3,
             },
             style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(215,215,215,0.9)' },
-                { offset: 1, color: 'rgba(215,215,215,0.1)' },
-              ]),
+              fill: 'transparent',
+              stroke: '#888888',
+              lineWidth: 1,
+              lineDash: [2, 2],
             },
             silent: true,
           },
           {
             type: 'text',
             id: 'stadd',
-            left: dividerX + 10,
-            top: '0px',
+            left: dividerXNum + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-additional-category'),
               font: '11px SuisseIntl',
             },
-            silent: true,
-          },
-          {
-            type: 'rect',
-            id: 'sdiv',
-            left: dividerX,
-            top: '0px',
-            shape: { width: 1, height: isPrintMode ? 200 : 420 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(0,0,0,1)' },
-                { offset: 1, color: 'rgba(240,240,240,0.1)' },
-              ]),
-            },
-            z: 100,
             silent: true,
           },
         ]
@@ -334,16 +339,52 @@ function recalculateScopeRects() {
             style: { opacity: 0, text: '' },
             silent: true,
           },
-          {
-            type: 'rect',
-            id: 'sdiv',
-            left: 0,
-            top: 0,
-            shape: { width: 0, height: 0 },
-            style: { opacity: 0 },
-            silent: true,
-          },
         ]),
+    // Previously used elements — now cleared
+    {
+      type: 'rect',
+      id: 'sr1',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sr2',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sr3',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sdiv',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'text',
+      id: 'smain',
+      left: 0,
+      top: 0,
+      style: { opacity: 0, text: '' },
+      silent: true,
+    },
   ];
 
   requestAnimationFrame(() => {
@@ -1469,7 +1510,7 @@ const downloadCSV = () => {
 
 .chart {
   width: 100%;
-  min-height: 320px;
+  min-height: 420px;
 }
 
 .chart--print {
