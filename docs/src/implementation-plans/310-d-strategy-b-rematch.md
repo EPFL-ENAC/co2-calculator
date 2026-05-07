@@ -96,10 +96,10 @@ The `update_factor_and_recompute` step is an open question — see
    start storing on travel/headcount/rooms entries.
 
 3. **Building Embodied Energy verification.** Inspect
-   `app/workflows/embodied_energy.py` and confirm 1:N emission shape
-   before assuming it lands in this PR. If it's actually 1:1 with the
-   FK on `data_entry_emissions` only (no JSON link), it still belongs
-   to this Strategy B path.
+   `backend/app/workflows/embodied_energy.py` and confirm 1:N emission
+   shape before assuming it lands in this PR. If it's actually 1:1 with
+   the FK on `data_entry_emissions` only (no JSON link), it still
+   belongs to this Strategy B path.
 
 ## Per-module integration tests
 
@@ -121,27 +121,35 @@ One PG-backed IT per (module, data_entry_type). Each test:
 
 **Coverage matrix** (one IT per row):
 
-| Module                         | data_entry_type            | Link kind | Notes                                  |
-| ------------------------------ | -------------------------- | --------- | -------------------------------------- |
-| equipment_electric_consumption | it                         | JSON      | Already covered by Plan 310-B PG tests |
-| equipment_electric_consumption | scientific                 | JSON      | new IT                                 |
-| equipment_electric_consumption | other                      | JSON      | new IT                                 |
-| purchase                       | purchase_common            | JSON      | new IT                                 |
-| purchase                       | purchase_additional        | JSON      | new IT                                 |
-| external_cloud_and_ai          | external_cloud             | JSON      | new IT                                 |
-| external_cloud_and_ai          | external_ai                | JSON      | new IT                                 |
-| process_emissions              | process_emission           | JSON      | new IT                                 |
-| buildings (energy_combustion)  | building_energy_combustion | JSON      | new IT                                 |
-| buildings (rooms)              | building_room              | **FK**    | new IT, strategy-B path                |
-| buildings (embodied)           | building_embodied_energy   | **FK**    | new IT, strategy-B path                |
-| professional_travel            | plane                      | **FK**    | new IT, strategy-B path                |
-| professional_travel            | train                      | **FK**    | new IT, strategy-B path                |
-| headcount                      | member                     | **FK**    | new IT, strategy-B path                |
-| headcount                      | student                    | **FK**    | new IT, strategy-B path                |
+| Module                         | data_entry_type            | Link kind | Notes                                                                            |
+| ------------------------------ | -------------------------- | --------- | -------------------------------------------------------------------------------- |
+| equipment_electric_consumption | it                         | JSON      | Already covered by Plan 310-B PG tests                                           |
+| equipment_electric_consumption | scientific                 | JSON      | new IT                                                                           |
+| equipment_electric_consumption | other                      | JSON      | new IT                                                                           |
+| purchase                       | purchase_common            | JSON      | new IT                                                                           |
+| purchase                       | purchase_additional        | JSON      | new IT                                                                           |
+| external_cloud_and_ai          | external_cloud             | JSON      | new IT                                                                           |
+| external_cloud_and_ai          | external_ai                | JSON      | new IT                                                                           |
+| process_emissions              | process_emission           | JSON      | new IT                                                                           |
+| buildings (energy_combustion)  | building_energy_combustion | JSON      | new IT                                                                           |
+| buildings (rooms)              | building_room              | **JSON**  | 1:N emissions (1 per `room_type`); link is JSON, fan-out shape was the novel bit |
+| buildings (embodied)           | building_embodied_energy   | **FK**    | new IT, strategy-B path                                                          |
+| professional_travel            | plane                      | **FK**    | new IT, strategy-B path                                                          |
+| professional_travel            | train                      | **FK**    | new IT, strategy-B path                                                          |
+| headcount                      | member                     | **FK**    | new IT, strategy-B path                                                          |
+| headcount                      | student                    | **FK**    | new IT, strategy-B path                                                          |
 
-Promote the seed-and-recompute helper into a shared fixture in
-`tests/integration/services/data_ingestion/conftest.py` to avoid
-duplication across the 14 test bodies.
+PR #1042 shipped 16 ITs total (split into two files for module-family
+locality): 9 in `test_strategy_a_rematch_pg.py` (the JSON-link rows
+above plus a strict-drop variant that lives next to its sibling tests
+in the same file) and 7 in `test_strategy_b_rematch_pg.py` (the FK-link
+rows plus a strict-drop variant for travel). The `building_room` row
+moved into the Strategy B file even though the link is JSON — the 1:N
+fan-out shape was the novel coverage and lives next to embodied energy
+for that reason. Inline `_seed_unit_and_module` / `_initial_compute`
+helpers were left duplicated rather than promoted to a `conftest.py`
+shared fixture; ~30 lines of duplication across the two files was
+judged not worth a dedicated commit cycle.
 
 ## Out of scope
 

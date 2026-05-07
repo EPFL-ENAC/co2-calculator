@@ -134,18 +134,23 @@ When a factor is updated (CSV reupload, manual edit), existing
 governs the rematch path** — and it's a different axis from the
 factor-retrieval Strategy A/B above.
 
-| Link location                                 | Rematch shape | Modules                                                                                                                  | Status        |
-| --------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------- |
-| `data_entries.data->primary_factor_id` (JSON) | 1:1 per entry | Equipment, Purchase (common + additional), Process Emissions, External Cloud, External AI, Buildings — Energy Combustion | ✅ Plan 310-D |
-| `data_entry_emissions.primary_factor_id` (FK) | 1:N per entry | Travel (plane / train), Headcount (member / student), Buildings — Rooms, Buildings — Embodied Energy                     | 🚧 Follow-up  |
+| Link location                                 | Rematch shape        | Modules                                                                                                                                           | Status        |
+| --------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `data_entries.data->primary_factor_id` (JSON) | 1:1 or 1:N per entry | Equipment, Purchase (common + additional), Process Emissions, External Cloud, External AI, Buildings — Energy Combustion, Buildings — Rooms (1:N) | ✅ Plan 310-D |
+| `data_entry_emissions.primary_factor_id` (FK) | 1:N per entry        | Travel (plane / train), Headcount (member / student), Buildings — Embodied Energy                                                                 | ✅ PR #1042   |
 
-**Why two paths**: the JSON-link modules carry one factor per entry —
-the rematch updates the JSON column on the entry. The FK-link modules
-either generate multiple emission rows per entry (one per emission_type
-or per sub-factor — Headcount, Buildings Rooms) OR resolve their
-factor via `FactorQuery` so the link only ever lived on the emission
-row (Travel). For these, the rematch must walk
-`data_entry_emissions` directly, not `data_entries`.
+**Why two paths**: the JSON-link modules carry the factor on the entry
+itself — the rematch updates the JSON column on the entry, and any
+fan-out to multiple emission rows (Buildings Rooms emits one row per
+`room_type`) follows from the same canonical entry-side link. The
+FK-link modules either generate multiple emission rows per entry from
+sub-factors (Headcount) OR resolve their factor via `FactorQuery` at
+compute time so the link only ever lived on the emission row (Travel).
+For FK-link, the rematch walks `data_entry_emissions` directly via
+`upsert_by_data_entry` — `pre_compute` + `_fetch_factors` re-runs the
+live Strategy B query, which is empirically what propagates new factor
+values into the existing chain (PR #1042 finding — no workflow code
+change was required for FK-link rematch; only test coverage was missing).
 
 ### Plan 310-D Rematch Contract (JSON-link modules)
 
@@ -160,10 +165,16 @@ year)` in one query, indexed in a Python dict keyed by
    to `(kind, None)` (only succeeds if a `subkind=NULL` row was
    prefetched).
 3. **Strict-drop on overall miss** — a factor not in the current CSV
-   is treated as deleted. The entry's `primary_factor_id` is set to
-   `None` and the recomputed `kg_co2eq` is `None`. Operators see the
-   missing-factor signal on the dashboard rather than silent
-   substitution via a per-entry resolver lookup.
+   is treated as deleted. The entry's `primary_factor_id` is cleared
+   on the in-memory `entry.data`, then `upsert_by_data_entry` is called
+   with the now-unmatched payload — `prepare_create` returns no
+   computations and the no-emissions branch invokes
+   `delete_by_data_entry_id`, so **the entry's existing emission rows
+   are removed**. The entry itself stays around (so operators see the
+   missing-factor signal on the dashboard) but no `kg_co2eq` row
+   persists. (Earlier wording said "set `kg_co2eq` to None"; the
+   actual code deletes the row entirely — see PR #1042's
+   strict-drop clarification in `310-d-strategy-b-rematch.md`.)
 4. **Year-strict** — `(year IS NULL)` factors do not satisfy a
    year-scoped query. No fallback; if no year-matched factor exists,
    the entry's link is dropped per rule 3.
