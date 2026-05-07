@@ -18,7 +18,6 @@ import pytest
 
 from app.models.data_ingestion import (
     IngestionResult,
-    IngestionState,
 )
 from app.tasks import runner as runner_mod
 from app.tasks.registry import _REGISTRY, register
@@ -58,6 +57,10 @@ def _make_repo_returning(job: MagicMock | None) -> MagicMock:
     repo.get_job_by_id = AsyncMock(return_value=job)
     repo.claim_job = AsyncMock(return_value=True)
     repo.update_ingestion_job = AsyncMock(return_value=job)
+    # B-C1: terminal write goes through ``finish_job`` (CAS on locked_by +
+    # state=RUNNING).  Returns True on rowcount==1, False if the row was
+    # preempted between the runner's pre-write check and the UPDATE.
+    repo.finish_job = AsyncMock(return_value=True)
     repo.create_ingestion_job = AsyncMock(side_effect=lambda j: j)
     repo.heartbeat = AsyncMock(return_value=1)
     return repo
@@ -152,6 +155,7 @@ async def test_run_job_claim_fails_returns_silently():
         await runner_mod.run_job(1)
 
     handler.assert_not_called()
+    repo.finish_job.assert_not_called()
     repo.update_ingestion_job.assert_not_called()
 
 
@@ -180,9 +184,11 @@ async def test_run_job_success_commits_and_marks_finished_success():
         await runner_mod.run_job(1)
 
     repo.claim_job.assert_awaited_once()
-    repo.update_ingestion_job.assert_awaited_once()
-    args, kwargs = repo.update_ingestion_job.call_args
-    assert kwargs["state"] == IngestionState.FINISHED
+    repo.finish_job.assert_awaited_once()
+    args, kwargs = repo.finish_job.call_args
+    # finish_job(job_id, pod_id, result=..., status_message=..., metadata=...)
+    assert args[0] == 1  # job_id
+    assert args[1] == runner_mod.POD_ID
     assert kwargs["result"] == IngestionResult.SUCCESS
     assert kwargs["status_message"] == "all good"
 
@@ -224,9 +230,9 @@ async def test_run_job_handler_raises_marks_finished_error_and_rolls_back():
     job_session, data_session = captured_sessions
     data_session.rollback.assert_awaited()
 
-    repo.update_ingestion_job.assert_awaited_once()
-    _, kwargs = repo.update_ingestion_job.call_args
-    assert kwargs["state"] == IngestionState.FINISHED
+    repo.finish_job.assert_awaited_once()
+    args, kwargs = repo.finish_job.call_args
+    assert args[1] == runner_mod.POD_ID
     assert kwargs["result"] == IngestionResult.ERROR
     assert "boom" in kwargs["status_message"]
 
@@ -279,6 +285,7 @@ async def test_run_job_preempted_rolls_back_and_skips_state_update():
     _, data_session = captured_sessions
     data_session.rollback.assert_awaited()
     repo.update_ingestion_job.assert_not_called()
+    repo.finish_job.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -303,6 +310,7 @@ async def test_run_job_preempted_to_deleted_rolls_back():
         await runner_mod.run_job(1)
 
     repo.update_ingestion_job.assert_not_called()
+    repo.finish_job.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -353,6 +361,7 @@ async def test_run_job_handler_raise_with_preemption_skips_state_update():
     # Critical: the FINISHED+ERROR write must NOT fire when we no
     # longer own the row, even though the handler raised.
     repo.update_ingestion_job.assert_not_called()
+    repo.finish_job.assert_not_called()
 
 
 # chain_job tests live in ``test_chain.py``.

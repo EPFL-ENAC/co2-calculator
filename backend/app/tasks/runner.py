@@ -11,7 +11,7 @@ Why a single dispatcher:
   pod-safety guarantees from Plan 310-A (atomic state→RUNNING +
   attempts++ + locked_by + ``started_at`` stamping) apply uniformly.
 - **One observability path** — every job ends with the same
-  ``update_ingestion_job(state=FINISHED, …)`` call, which auto-stamps
+  ``finish_job(...)`` CAS call (B-C1), which auto-stamps
   ``finished_at`` (Plan 310-C observability columns).  Dashboard
   queries that rely on ``finished_at IS NOT NULL`` see every job.
 - **One preemption-safety story** — the heartbeat + worker-side
@@ -38,7 +38,6 @@ from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_ingestion import (
     IngestionResult,
-    IngestionState,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._pod_id import POD_ID
@@ -68,11 +67,14 @@ async def run_job(job_id: int) -> None:
          ``locked_by`` no longer equals our pod, roll back the
          data_session and exit without state-changing the job (the
          new owner will).
-      7. Commit data_session, update_ingestion_job to
-         FINISHED+SUCCESS (or FINISHED+ERROR on handler raise).
-      8. ``update_ingestion_job`` with state=FINISHED auto-stamps
-         ``finished_at`` (Plan 310-C observability), so the dashboard
-         duration query (finished_at - started_at) closes cleanly.
+      7. Commit data_session, ``finish_job`` (atomic CAS on
+         ``locked_by`` + ``state=RUNNING``) to FINISHED+SUCCESS
+         (or FINISHED+ERROR on handler raise).  CAS no-op return
+         means a stale-lock sweep preempted us between step 6 and
+         step 7 — log+exit, the new owner will close the row.
+      8. ``finish_job`` stamps ``finished_at`` via ``coalesce``
+         (Plan 310-C observability), so the dashboard duration
+         query (finished_at - started_at) closes cleanly.
       9. Cancel heartbeat task in ``finally``.
 
     Errors raised by the handler are caught and persisted as
@@ -178,14 +180,26 @@ async def run_job(job_id: int) -> None:
                 await data_session.commit()
             else:
                 await data_session.rollback()
-            await repo.update_ingestion_job(
+            # Plan 310 review finding B-C1: the FINISHED write must be a
+            # compare-and-set on ``(locked_by=POD_ID AND state=RUNNING)``,
+            # not a blind UPDATE.  The pre-handler preempt-check at line
+            # 166 catches the common case, but a stale-lock sweep between
+            # that check and the UPDATE below would otherwise let this
+            # pod clobber the new owner's RUNNING row with our FINISHED
+            # write.  ``finish_job`` returns False in that race; we log
+            # and exit cleanly so the new owner can close the row.
+            wrote = await repo.finish_job(
                 job_id,
+                POD_ID,
+                result=result,
                 status_message=status_message,
                 metadata=metadata,
-                state=IngestionState.FINISHED,
-                result=result,
             )
-            await job_session.commit()
+            if not wrote:
+                logger.warning(
+                    "preempted before FINISHED write: job_id=%s", job_id
+                )
+                return
         finally:
             heartbeat_task.cancel()
             try:

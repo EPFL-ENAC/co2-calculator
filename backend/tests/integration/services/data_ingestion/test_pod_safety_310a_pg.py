@@ -22,6 +22,7 @@ from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
     IngestionMethod,
+    IngestionResult,
     IngestionState,
     TargetType,
 )
@@ -216,3 +217,143 @@ async def test_claim_demotes_finished_sibling(pg_dsn):
         assert candidate_after.locked_by == "pod-B"
         assert candidate_after.attempts == 1
     await verify_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_finish_job_no_op_after_preemption(pg_dsn):
+    """Plan 310 review **B-C1** regression — ``finish_job`` must be a CAS
+    on ``(locked_by, state=RUNNING)`` so a pod whose heartbeat failed
+    cannot clobber the new owner's RUNNING row after the safety sweep
+    recovered it.
+
+    Sequence simulated:
+      1. Pod-A claims the job (state=RUNNING, locked_by=pod-A, attempts=1).
+      2. DB hiccup: pod-A's lock goes stale (we backdate ``locked_at``).
+      3. Sweep on the safety poller calls ``recover_job`` → resets to
+         NOT_STARTED, clears ``locked_by``.
+      4. Pod-B claims (state=RUNNING, locked_by=pod-B, attempts=2).
+      5. Pod-A's handler finally returns and calls ``finish_job(pod-A)``
+         → must return False, must NOT touch the row.
+      6. Verify pod-B's RUNNING state, ``locked_by``, and ``attempts`` are
+         intact, and the row's ``result`` / ``finished_at`` are still NULL.
+    """
+    # Seed one pending job.
+    seed_engine = create_async_engine(pg_dsn, future=True)
+    Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sseed() as s:
+        job = _make_pending_job()
+        s.add(job)
+        await s.commit()
+        assert job.id is not None
+        job_id: int = job.id
+    await seed_engine.dispose()
+
+    # Pod-A claims the row.
+    engine_a = create_async_engine(pg_dsn, future=True)
+    Sa = async_sessionmaker(engine_a, class_=AsyncSession, expire_on_commit=False)
+    async with Sa() as session_a:
+        claimed_by_a = await DataIngestionRepository(session_a).claim_job(
+            job_id, "pod-A"
+        )
+    assert claimed_by_a is True
+
+    # Simulate: pod-A's heartbeat fails for long enough that the safety
+    # sweep classifies the row as stale.  Backdate ``locked_at`` past the
+    # ``stale_timeout_minutes`` cutoff used by ``recover_job``.
+    from sqlalchemy import text
+
+    stale_engine = create_async_engine(pg_dsn, future=True)
+    async with stale_engine.begin() as conn:
+        await conn.execute(
+            text(
+                "UPDATE data_ingestion_jobs "
+                "SET locked_at = now() - interval '2 hours' "
+                "WHERE id = :id"
+            ),
+            {"id": job_id},
+        )
+    await stale_engine.dispose()
+
+    # Sweep recovers the row.  ``recover_job`` resets to NOT_STARTED and
+    # clears ``locked_by``.  ``stale_timeout_minutes=1`` makes our 2h
+    # backdate stale by a wide margin.
+    sweep_engine = create_async_engine(pg_dsn, future=True)
+    Ss = async_sessionmaker(sweep_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Ss() as session_s:
+        recovered = await DataIngestionRepository(session_s).recover_job(
+            job_id, stale_timeout_minutes=1
+        )
+    await sweep_engine.dispose()
+    assert recovered is not None
+
+    # Pod-B claims the recovered row.
+    engine_b = create_async_engine(pg_dsn, future=True)
+    Sb = async_sessionmaker(engine_b, class_=AsyncSession, expire_on_commit=False)
+    async with Sb() as session_b:
+        claimed_by_b = await DataIngestionRepository(session_b).claim_job(
+            job_id, "pod-B"
+        )
+    assert claimed_by_b is True
+
+    # Pod-A's handler returns LATE — its FINISHED write must be a no-op.
+    async with Sa() as session_a:
+        wrote_a = await DataIngestionRepository(session_a).finish_job(
+            job_id,
+            "pod-A",
+            result=IngestionResult.SUCCESS,
+            status_message="pod-A finished (should be ignored)",
+            metadata={"pod_a_marker": True},
+        )
+    await engine_a.dispose()
+    assert wrote_a is False, (
+        "finish_job from preempted pod-A must return False (CAS no-op)"
+    )
+
+    # Verify pod-B still owns the RUNNING row.
+    verify_engine = create_async_engine(pg_dsn, future=True)
+    Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Vf() as session_v:
+        repo = DataIngestionRepository(session_v)
+        after = await repo.get_job_by_id(job_id)
+        assert after is not None
+        # Pod-B is the owner; pod-A's late write did not touch the row.
+        assert after.state == IngestionState.RUNNING
+        assert after.locked_by == "pod-B"
+        # ``recover_job`` resets attempts to 0 (manual-recovery contract,
+        # distinct from the safety-sweep path which preserves attempts).
+        # Pod-B's subsequent claim then increments by 1 → attempts == 1.
+        # The point of the assertion is "this is pod-B's lifecycle, not
+        # pod-A's stale lifecycle" — pod-A's late finish_job did not
+        # touch this row.
+        assert after.attempts == 1
+        # No terminal fields written — pod-A's clobber was rejected.
+        assert after.result is None
+        assert after.finished_at is None
+        # Pod-A's metadata marker did not land.
+        assert "pod_a_marker" not in (after.meta or {})
+    await verify_engine.dispose()
+    await engine_b.dispose()
+
+    # Pod-B's own finish_job still works and writes the terminal row.
+    finalize_engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(
+        finalize_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with Sf() as session_f:
+        wrote_b = await DataIngestionRepository(session_f).finish_job(
+            job_id,
+            "pod-B",
+            result=IngestionResult.SUCCESS,
+            status_message="pod-B finished",
+            metadata={"pod_b_marker": True},
+        )
+    assert wrote_b is True
+
+    async with Sf() as session_f:
+        final = await DataIngestionRepository(session_f).get_job_by_id(job_id)
+        assert final is not None
+        assert final.state == IngestionState.FINISHED
+        assert final.result == IngestionResult.SUCCESS
+        assert final.finished_at is not None
+        assert (final.meta or {}).get("pod_b_marker") is True
+    await finalize_engine.dispose()
