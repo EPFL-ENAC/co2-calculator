@@ -96,6 +96,16 @@ export interface ModuleRecalculationStatusEntry {
   year: number;
   needs_recalculation: boolean;
   data_entry_types: RecalculationStatusEntry[];
+  /**
+   * Plan 310-D — pipeline_id of the most recent active
+   * (NOT_STARTED/QUEUED/RUNNING) bulk pipeline whose any-job touches
+   * this module's (module_type_id, year). ``null`` when no active
+   * pipeline matches. Back-office uses this to render a
+   * "Recalculating..." badge and subscribe to
+   * ``GET /v1/sync/pipelines/{id}/stream`` for live updates while
+   * the chain is in flight.
+   */
+  current_pipeline_id?: string | null;
 }
 
 interface YearConfig {

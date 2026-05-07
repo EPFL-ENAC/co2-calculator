@@ -83,6 +83,14 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
   /**
    * Apply a parsed ``pipeline-update`` payload to the store.  Creates
    * the entry on first event for an unknown pipeline_id.
+   *
+   * NB: ``entry.jobs = payload.jobs`` REPLACES the array reference
+   * rather than mutating in place.  Vue 3's reactivity handles this
+   * fine via Proxy on ``entries`` — but a future refactor that
+   * destructures ``const jobs = entries[id].jobs`` once and reads
+   * from the cached ref would silently lose updates.  Always re-read
+   * from the store on each access (or use the ``jobsFor(id)``
+   * accessor below) to avoid that footgun.
    */
   function applyUpdate(payload: PipelineUpdate): void {
     const entry = entries[payload.pipeline_id] ?? {

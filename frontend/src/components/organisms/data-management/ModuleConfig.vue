@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, provide } from 'vue';
+import { computed, ref, provide, watch } from 'vue';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineStream } from 'src/composables/usePipelineStream';
 import {
   TargetType,
   type ImportRow,
@@ -28,6 +29,68 @@ const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
     module: props.module,
     selectedYear: props.selectedYear,
   });
+
+// Plan 310-D — pipeline-scoped SSE consumer drives the
+// "Recalculating..." badge.  ``current_pipeline_id`` rides on the
+// per-module ``recalculationStatus`` entry (extended in PR #1054
+// backend half) — null when no active pipeline, set to the
+// pipeline_id while a bulk chain is in flight.
+const { subscribe, unsubscribe, isFinishedFor, hasErrorFor } =
+  usePipelineStream();
+
+const currentPipelineId = computed<string | null>(() => {
+  const moduleTypeId = getModuleTypeIdFromName(props.module);
+  return (
+    yearConfigStore.recalculationStatus[moduleTypeId]?.current_pipeline_id ??
+    null
+  );
+});
+
+const isRecalculating = computed<boolean>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return false;
+  // Active until the SSE stream signals finish — even if a previous
+  // entry on this id is finished, the badge clears via the watch
+  // below which refetches the year config.
+  return !isFinishedFor(id).value;
+});
+
+const hasRecalcFailure = computed<boolean>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return false;
+  return hasErrorFor(id).value;
+});
+
+// Wire the SSE subscription to the reactive pipeline_id.  When it
+// transitions ``null → uuid`` we subscribe; ``uuid → null`` (badge
+// cleared by the year-config refetch) → unsubscribe; ``uuidA →
+// uuidB`` (rare — new pipeline started while old finished) → switch.
+let lastSubscribedId: string | null = null;
+watch(
+  currentPipelineId,
+  async (next) => {
+    if (lastSubscribedId === next) return;
+    if (lastSubscribedId) unsubscribe(lastSubscribedId);
+    lastSubscribedId = next;
+    if (next) await subscribe(next);
+  },
+  { immediate: true },
+);
+
+// When the pipeline reports finished, refetch the year config so
+// ``current_pipeline_id`` clears (or, on error, stays set with the
+// failure-state metadata for the future retry button).
+watch(
+  () =>
+    currentPipelineId.value
+      ? isFinishedFor(currentPipelineId.value).value
+      : false,
+  async (finished, wasFinished) => {
+    if (finished && !wasFinished && !hasRecalcFailure.value) {
+      await yearConfigStore.fetchConfig(props.selectedYear);
+    }
+  },
+);
 
 const {
   recalcRunning,
@@ -112,6 +175,30 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               color="warning"
               class="text-weight-medium"
               :label="$t('data_management_recalculation_needed')"
+            />
+            <!--
+              Plan 310-D — "Recalculating..." badge for in-flight bulk
+              pipelines.  Drives off ``current_pipeline_id`` on the
+              per-module recalc-status entry (set when an active
+              NOT_STARTED/QUEUED/RUNNING aggregation pipeline touches
+              this module's year), with the SSE composable controlling
+              the live state.
+            -->
+            <q-badge
+              v-if="isRecalculating"
+              outline
+              rounded
+              color="info"
+              class="text-weight-medium"
+              :label="$t('data_management_pipeline_recalculating')"
+            />
+            <q-badge
+              v-else-if="hasRecalcFailure"
+              outline
+              rounded
+              color="negative"
+              class="text-weight-medium"
+              :label="$t('data_management_pipeline_failed')"
             />
           </div>
         </q-item-section>

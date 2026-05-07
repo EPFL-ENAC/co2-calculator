@@ -40,6 +40,15 @@ import {
  */
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30_000;
+/**
+ * ``EventSource.CLOSED`` resolves to ``2`` per the WHATWG spec
+ * (CONNECTING=0, OPEN=1, CLOSED=2).  Using a named constant rather
+ * than ``EventSource.CLOSED`` avoids the static-vs-instance-property
+ * confusion the bot review on PR #1054 flagged — readers don't have
+ * to remember that the static class property and the instance's
+ * ``.readyState`` value match.
+ */
+const EVENT_SOURCE_CLOSED = 2;
 
 interface ActiveStream {
   source: EventSource;
@@ -224,7 +233,7 @@ function openStream(pipelineId: string): void {
     // close.  Schedule a reconnect with exponential backoff;
     // ``closeStream`` clears the timer if the consumer fully
     // unsubscribes before reconnect time.
-    if (active.source.readyState === EventSource.CLOSED) {
+    if (active.source.readyState === EVENT_SOURCE_CLOSED) {
       scheduleReconnect(pipelineId);
     }
   };
