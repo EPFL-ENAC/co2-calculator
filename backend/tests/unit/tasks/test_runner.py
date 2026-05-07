@@ -83,11 +83,14 @@ def _patch_session_local():
     return patch.object(runner_mod, "SessionLocal", _mock_session_ctx)
 
 
-async def _noop_heartbeat(_job_id: int) -> None:
+async def _noop_heartbeat(_job_id: int, _abort_event=None) -> None:
     """Drop-in for ``_heartbeat_loop`` that returns immediately so
     tests don't await real sleeps.  ``asyncio.create_task(noop())``
     produces a task that completes; the runner's cancel + await in
-    ``finally`` is then a no-op."""
+    ``finally`` is then a no-op.
+
+    ``_abort_event`` is the second arg the production loop accepts
+    (B-H3); the noop ignores it."""
     return None
 
 
