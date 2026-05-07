@@ -216,7 +216,7 @@ async def test_emission_recalc_handler_chains_aggregation_on_warning():
     assert chain_kwargs["job_type"] == "aggregation"
     assert chain_kwargs["module_type_id"] == job.module_type_id
     assert chain_kwargs["year"] == job.year
-    assert chain_kwargs["dedup_active"] is True
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["result"] == IngestionResult.WARNING
     assert meta["aggregation_job_id"] == 777
 

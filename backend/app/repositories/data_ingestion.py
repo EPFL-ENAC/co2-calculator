@@ -181,9 +181,7 @@ class DataIngestionRepository:
         values: dict = {
             "state": IngestionState.FINISHED,
             "result": result,
-            "finished_at": func.coalesce(
-                col(DataIngestionJob.finished_at), func.now()
-            ),
+            "finished_at": func.coalesce(col(DataIngestionJob.finished_at), func.now()),
         }
         if status_message is not None:
             values["status_message"] = status_message

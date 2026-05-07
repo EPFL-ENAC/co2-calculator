@@ -271,9 +271,7 @@ async def test_stale_stats_classifies_each_why_stale_bucket(pg_app):
 
 
 @pytest.mark.asyncio
-async def test_stale_stats_returns_403_for_user_without_permission(
-    pg_dsn, monkeypatch
-):
+async def test_stale_stats_returns_403_for_user_without_permission(pg_dsn, monkeypatch):
     """Permission gate — ``GET /v1/sync/health/stale-stats`` is behind
     ``backoffice.data_management.view``.  Users without that permission
     get HTTP 403, not the stale list.

@@ -112,9 +112,7 @@ async def test_heartbeat_loop_sets_abort_event_after_threshold_failures(
 
     failing_repo = MagicMock()
     failing_repo.heartbeat = AsyncMock(side_effect=RuntimeError("db down"))
-    monkeypatch.setattr(
-        runner_mod, "DataIngestionRepository", lambda _s: failing_repo
-    )
+    monkeypatch.setattr(runner_mod, "DataIngestionRepository", lambda _s: failing_repo)
     monkeypatch.setattr(runner_mod, "SessionLocal", _mock_session_ctx)
 
     abort_event = asyncio.Event()
@@ -162,9 +160,7 @@ async def test_heartbeat_loop_resets_counter_on_success(monkeypatch):
     ]
     repo_mock = MagicMock()
     repo_mock.heartbeat = AsyncMock(side_effect=side_effects)
-    monkeypatch.setattr(
-        runner_mod, "DataIngestionRepository", lambda _s: repo_mock
-    )
+    monkeypatch.setattr(runner_mod, "DataIngestionRepository", lambda _s: repo_mock)
     monkeypatch.setattr(runner_mod, "SessionLocal", _mock_session_ctx)
 
     abort_event = asyncio.Event()

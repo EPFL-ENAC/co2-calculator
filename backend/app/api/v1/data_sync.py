@@ -111,17 +111,17 @@ async def _institutional_id_for_job(
     aggregation/recalc case) is global and has no unit; the caller falls back
     to the bare ``modules.{name}`` permission path.
     """
-    if (
-        job.entity_type != EntityType.MODULE_UNIT_SPECIFIC
-        or job.entity_id is None
-    ):
+    if job.entity_type != EntityType.MODULE_UNIT_SPECIFIC or job.entity_id is None:
         return None
     stmt = (
         select(Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+        # mypy: SQLAlchemy ``==`` between Column attrs returns a
+        # ``BinaryExpression`` at runtime, but mypy without the SQLAlchemy
+        # plugin sees ``bool``.  Standard project workaround.
+        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,
+            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
         )
         .where(CarbonReportModule.id == job.entity_id)
     )
@@ -980,9 +980,9 @@ async def pipeline_stream_by_id(
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
             # one slot per subscriber for the whole stream (minutes).
             async with db_module.SessionLocal() as session:
-                jobs = await DataIngestionRepository(
-                    session
-                ).list_jobs_by_pipeline_id(pipeline_id)
+                jobs = await DataIngestionRepository(session).list_jobs_by_pipeline_id(
+                    pipeline_id
+                )
 
             # Snapshot the columns the spec calls out for the dashboard:
             # only these fields trigger a re-emit, so meta-only mutations
@@ -1345,7 +1345,5 @@ async def get_stale_stats(
 
     **Required Permission**: ``backoffice.data_management.view``
     """
-    rows = await DataIngestionRepository(db).find_stale_aggregations(
-        older_than_minutes
-    )
+    rows = await DataIngestionRepository(db).find_stale_aggregations(older_than_minutes)
     return [StaleStatsEntry(**row) for row in rows]

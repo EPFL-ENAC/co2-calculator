@@ -202,9 +202,7 @@ async def test_claim_integrity_error_emits_warning(pg_dsn, caplog):
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
-        with caplog.at_level(
-            logging.WARNING, logger="app.repositories.data_ingestion"
-        ):
+        with caplog.at_level(logging.WARNING, logger="app.repositories.data_ingestion"):
             async with Sf() as session:
                 claimed = await DataIngestionRepository(session).claim_job(
                     candidate_id, "pod-B"

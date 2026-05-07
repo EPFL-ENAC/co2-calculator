@@ -26,7 +26,7 @@ contract narrow (parent + child shape + dispatch).
 import json
 import warnings
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -334,11 +334,16 @@ async def _insert_child_with_dedup(
     scope_predicate = " AND ".join(
         f"{col} = :{col}" for col in dedup_config.scope_columns
     )
-    pre_check_params = {
+    pre_check_params: dict[str, Any] = {
         col: scope_param_map[col] for col in dedup_config.scope_columns
     }
     pre_check_params["job_type"] = dedup_config.job_type
 
+    # ``scope_predicate`` is built from ``dedup_config.scope_columns``,
+    # which are compile-time constants defined in ``DedupConfig`` instances
+    # (e.g., ``AGGREGATION_DEDUP``).  No user input crosses this boundary —
+    # ``:job_type`` and the per-column ``:{col}`` values are properly
+    # bound parameters above.  Bandit B608 is a false positive here.
     pre_check = text(
         f"""
         SELECT 1
@@ -351,7 +356,7 @@ async def _insert_child_with_dedup(
               'RUNNING'::ingestion_state_enum
           )
         LIMIT 1
-        """
+        """  # nosec B608
     )
     existing = await session.execute(pre_check, pre_check_params)
     if existing.first() is not None:

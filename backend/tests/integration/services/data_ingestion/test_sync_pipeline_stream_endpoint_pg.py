@@ -413,9 +413,7 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
             transport=httpx.ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            stream_resp = await client.get(
-                f"/v1/sync/pipelines/{pipeline_id}/stream"
-            )
+            stream_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}/stream")
             read_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}")
     finally:
         app.dependency_overrides.clear()
