@@ -170,6 +170,18 @@ async def chain_job(
     # downstream handler would then choke on the missing scope.
     # Refuse at chain_job entry instead.
     if dedup_config is not None:
+        # Misconfiguration guard: a caller that passes ``job_type='X'``
+        # alongside ``dedup_config=Y_DEDUP`` would have the pre-check
+        # query Y while the INSERT writes X — silently disabling dedup
+        # and confusing future readers of the partial unique index.
+        # Refuse loudly at the entry instead.
+        if job_type != dedup_config.job_type:
+            raise ValueError(
+                f"chain_job: job_type={job_type!r} does not match "
+                f"dedup_config.job_type={dedup_config.job_type!r}.  "
+                "Use the matching DedupConfig (or pass dedup_config=None)."
+            )
+
         scope_values = {
             "module_type_id": resolved_module_type_id,
             "data_entry_type_id": data_entry_type_id,
@@ -397,15 +409,16 @@ async def _insert_child_with_dedup(
                 "meta": meta_json,
             },
         )
-    except IntegrityError:
-        # A concurrent INSERT-then-COMMIT can race past the pre-check
-        # above (two pods chaining the same scope at the same time);
-        # the partial unique index trips and raises IntegrityError.
-        # Surface as a clean dedup signal rather than letting it
-        # bubble — the existing pending row will run, our caller
-        # treats None as "no-op".  Log at INFO so prod can distinguish
-        # race-loss from pre-check-loss (the pre-check path also logs
-        # at INFO with a different phrasing in ``chain_job`` itself).
+    except IntegrityError as exc:
+        # Narrow the catch to the configured partial unique index.
+        # A blanket catch would swallow unrelated NOT NULL / FK / enum
+        # violations and silently skip dispatching the chained child —
+        # treat anything other than the expected dedup constraint as a
+        # real bug worth bubbling up.
+        msg = str(getattr(exc.orig, "diag", None) or exc).lower()
+        if dedup_config.constraint_name.lower() not in msg:
+            await session.rollback()
+            raise
         logger.info(
             f"chain_job(dedup): {job_type!r} for "
             f"module={module_type_id}/det={data_entry_type_id}/year={year} "
