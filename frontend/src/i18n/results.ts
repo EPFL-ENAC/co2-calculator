@@ -645,22 +645,6 @@ export default {
     en: 'AI',
     fr: 'IA',
   },
-  'charts-co2-subcategory': {
-    en: 'CO₂',
-    fr: 'CO₂',
-  },
-  'charts-ch4-subcategory': {
-    en: 'CH4',
-    fr: 'CH4',
-  },
-  'charts-n2o-subcategory': {
-    en: 'N2O',
-    fr: 'N2O',
-  },
-  'charts-refrigerants-subcategory': {
-    en: 'Refrigerants',
-    fr: 'Réfrigérants',
-  },
   'charts-heating-subcategory': {
     en: 'Heating',
     fr: 'Chauffage',

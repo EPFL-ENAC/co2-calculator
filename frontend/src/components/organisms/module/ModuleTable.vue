@@ -139,6 +139,7 @@
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
+              :option-label-key="col.optionLabelKey"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -738,6 +739,7 @@ type TableViewColumn = {
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string;
+  optionLabelKey?: string;
   tooltip?: string;
   type: ModuleField['type'];
   minColumnWidth?: number;
@@ -823,6 +825,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           editableInline,
           options,
           optionsId: f.optionsId,
+          optionLabelKey: f.optionLabelKey,
           tooltip,
           type: f.type,
           minColumnWidth: f.minColumnWidth,
