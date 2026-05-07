@@ -6,16 +6,19 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import {
+  buildChartDecal,
   colors,
   getChartSubcategoryColor,
   RESULTS_CATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
+import { useColorblindStore } from 'src/stores/colorblind';
 import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
@@ -29,6 +32,7 @@ use([
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  AriaComponent,
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
@@ -54,6 +58,8 @@ const props = defineProps({
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
+
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -1250,6 +1256,11 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     graphic: [],
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
+    },
+
     dataset: {
       dimensions: [
         'category',
@@ -1455,6 +1466,7 @@ const downloadCSV = () => {
     >
       <v-chart
         ref="chartRef"
+        :key="colorblindStore.enabled ? 'cb' : 'default'"
         :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
