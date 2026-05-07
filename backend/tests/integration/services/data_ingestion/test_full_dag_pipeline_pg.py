@@ -243,3 +243,117 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
     assert aggregation.year == 2025
 
     await engine.dispose()
+
+
+def _emission_recalc_parent() -> DataIngestionJob:
+    """An ``emission_recalc`` parent already claimed by the runner —
+    the handler body is what we drive directly in the WARNING test
+    below.  Mirrors the rows endpoints+poller actually persist."""
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_PER_YEAR,
+        module_type_id=5,
+        data_entry_type_id=DataEntryTypeEnum.it.value,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.computed,
+        provider=UserProvider.DEFAULT,
+        state=IngestionState.RUNNING,
+        is_current=True,
+        job_type="emission_recalc",
+        pipeline_id=uuid4(),
+        meta={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
+    """Regression for B-C2: a per-entry failure during recalc must not
+    skip the aggregation chain.
+
+    Before the fix, ``emission_recalc`` only chained aggregation when
+    ``result == SUCCESS``.  A 10k-row reupload that failed on a single
+    entry flipped the result to WARNING, the chain was skipped, and
+    ``carbon_reports.stats`` stayed stale forever even though 9999
+    entries were correctly recomputed.
+
+    This test stubs ``EmissionRecalculationWorkflow`` to surface a
+    partial failure (``errors=1``) — equivalent to ``upsert_by_data_entry``
+    raising once on a single row — and asserts the aggregation child
+    is persisted with the parent's pipeline_id.
+    """
+    from app.tasks import _chain as chain_mod
+    from app.tasks import emission_recalculation_tasks as recalc_mod
+
+    engine = create_async_engine(pg_dsn, future=True)
+    await _install_dedup_index(engine)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    # 1. Persist the emission_recalc parent (state=RUNNING — the
+    #    runner has claimed it and the handler body is what we run
+    #    here).
+    async with Sf() as session:
+        parent = _emission_recalc_parent()
+        session.add(parent)
+        await session.commit()
+        await session.refresh(parent)
+        parent_pipeline_id = parent.pipeline_id
+        parent_id = parent.id
+
+    # 2. Workflow stub: partial-failure shape — recalculated>0 with
+    #    errors=1 makes the handler compute ``result=WARNING``, which
+    #    is the exact branch the bug skipped.
+    workflow = MagicMock()
+    workflow.recalculate_for_data_entry_type = AsyncMock(
+        return_value={
+            "recalculated": 9999,
+            "errors": 1,
+            "modules_refreshed": 0,
+            "affected_module_ids": [5],
+            "error_details": [{"data_entry_id": 42, "error": "boom"}],
+        }
+    )
+
+    # 3. ``fire_and_forget`` shim — we only care that the aggregation
+    #    row was persisted by ``chain_job``; we don't need to drive
+    #    the aggregation handler itself.  Closing the run_job coroutine
+    #    keeps it from running against the runner's (sqlite) engine.
+    def _drop_fire_and_forget(coro, *, name=None):
+        coro.close()
+        return MagicMock()
+
+    with (
+        patch.object(
+            recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
+        ),
+        patch.object(chain_mod, "fire_and_forget", side_effect=_drop_fire_and_forget),
+    ):
+        async with Sf() as session:
+            row = await session.get(DataIngestionJob, parent_id)
+            from app.tasks.registry import get_handler
+
+            handler = get_handler("emission_recalc")
+            async with Sf() as data_session:
+                meta = await handler(row, session, data_session)
+
+    # Sanity: the handler reported WARNING (the branch the bug skipped).
+    assert meta["result"] == IngestionResult.WARNING
+    assert meta["aggregation_job_id"] is not None
+
+    # The aggregation child exists in the DB, carries the parent's
+    # pipeline_id, and is module-scoped to (module=5, year=2025).
+    async with Sf() as session:
+        result = await session.execute(
+            select(DataIngestionJob)
+            .where(DataIngestionJob.pipeline_id == parent_pipeline_id)
+            .where(DataIngestionJob.job_type == "aggregation")
+        )
+        aggregation_rows = list(result.scalars().all())
+
+    assert len(aggregation_rows) == 1
+    aggregation = aggregation_rows[0]
+    assert aggregation.id == meta["aggregation_job_id"]
+    assert aggregation.module_type_id == 5
+    assert aggregation.data_entry_type_id is None
+    assert aggregation.year == 2025
+
+    await engine.dispose()

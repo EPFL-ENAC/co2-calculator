@@ -175,15 +175,13 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
 
 
 @pytest.mark.asyncio
-async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
-    """A WARNING result (per-entry errors > 0) means the recalc
-    completed but with partial failures.  Per Plan 310-D's
-    eventual-consistency model the aggregation pass should still
-    eventually happen, but for this PR we conservatively gate on
-    SUCCESS — partial-warning recalcs land before the aggregation
-    chain ships in production traffic, and the absence of a chain
-    surfaces as a stale-stats badge the operator can act on (the
-    PR is rollback-safe)."""
+async def test_emission_recalc_handler_chains_aggregation_on_warning():
+    """Regression for B-C2: a WARNING result (per-entry errors > 0)
+    must still chain aggregation.  A 10k-row reupload that fails on
+    one entry flips ``result`` to WARNING; if we skipped the chain
+    here ``carbon_reports.stats`` would stay stale forever even
+    though 9999 entries were recomputed.  Aligns with the
+    ``module_emission_recalc_handler`` gate (``!= ERROR``)."""
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -195,8 +193,8 @@ async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
     workflow = MagicMock()
     workflow.recalculate_for_data_entry_type = AsyncMock(
         return_value={
-            "recalculated": 3,
-            "errors": 2,
+            "recalculated": 9999,
+            "errors": 1,
             "modules_refreshed": 0,
             "affected_module_ids": [],
         }
@@ -209,11 +207,17 @@ async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
         ),
         patch.object(recalc_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
     ):
+        mock_chain.return_value = 777
         meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
 
-    mock_chain.assert_not_awaited()
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "aggregation"
+    assert chain_kwargs["module_type_id"] == job.module_type_id
+    assert chain_kwargs["year"] == job.year
+    assert chain_kwargs["dedup_active"] is True
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] is None
+    assert meta["aggregation_job_id"] == 777
 
 
 @pytest.mark.asyncio

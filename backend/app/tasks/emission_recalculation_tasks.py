@@ -101,13 +101,20 @@ async def emission_recalc_handler(
     # for that snapshot, with the dedup window reopening on
     # FINISHED).
     #
+    # Chain on WARNING as well as SUCCESS — a 10k-row reupload that
+    # fails on a single entry flips ``result`` to WARNING, but the
+    # other 9999 rows have already been recomputed and
+    # ``carbon_reports.stats`` would stay stale forever if we skipped
+    # aggregation here.  Aligns with ``module_emission_recalc_handler``
+    # below which uses the same ``!= ERROR`` gate.
+    #
     # Skip when ``module_type_id`` is missing — every endpoint pins
     # it for emission_recalc, but a defensive log + skip is safer
     # than crashing the parent's FINISHED write.  The recalc itself
     # already succeeded; the operator sees the missing aggregation
     # via the dashboard's "stats stale" badge if they need it.
     chained_aggregation_id = None
-    if job.module_type_id is not None and result == IngestionResult.SUCCESS:
+    if job.module_type_id is not None and result != IngestionResult.ERROR:
         chained_aggregation_id = await chain_job(
             job,
             job_type="aggregation",
