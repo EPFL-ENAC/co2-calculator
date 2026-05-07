@@ -13,6 +13,7 @@ import DataEntryDialog from 'src/components/organisms/data-management/DataEntryD
 import ModuleRecalculationDialog from 'src/components/molecules/data-management/ModuleRecalculationDialog.vue';
 import ModuleConfigSection from 'src/components/molecules/data-management/ModuleConfigSection.vue';
 import ModuleUploadsSection from 'src/components/molecules/data-management/ModuleUploadsSection.vue';
+import PipelineDiagnosticTooltip from 'src/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
 import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleConfig.vue';
 
 interface Props {
@@ -60,6 +61,34 @@ const hasRecalcFailure = computed<boolean>(() => {
   if (!id) return false;
   return hasErrorFor(id).value;
 });
+
+// Plan 310-D — contextual recalculation button.
+//
+// Old behavior: always visible when ``needs_recalculation`` was true,
+// even while a chain was in flight (redundant — the chain auto-fires
+// on upload and the badge shows progress).
+//
+// New behavior: visible only when there's something for the operator
+// to act on — either (a) the chain failed and they want to retry, or
+// (b) staleness was detected and no chain is running to clear it.
+// Hidden during active recalc (the badge says it all) and on a clean
+// module (nothing to do).
+const moduleNeedsRecalculation = computed<boolean>(
+  () =>
+    !!yearConfigStore.recalculationStatus[getModuleTypeIdFromName(props.module)]
+      ?.needs_recalculation,
+);
+
+const showRecalcButton = computed<boolean>(() => {
+  if (isRecalculating.value) return false;
+  return hasRecalcFailure.value || moduleNeedsRecalculation.value;
+});
+
+const recalcButtonLabel = computed<string>(() =>
+  hasRecalcFailure.value
+    ? 'data_management_recalculate_retry'
+    : 'data_management_recalculate_emissions',
+);
 
 // Wire the SSE subscription to the reactive pipeline_id.  When it
 // transitions ``null → uuid`` we subscribe; ``uuid → null`` (badge
@@ -189,17 +218,27 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               outline
               rounded
               color="info"
-              class="text-weight-medium"
+              class="text-weight-medium cursor-help"
               :label="$t('data_management_pipeline_recalculating')"
-            />
+            >
+              <PipelineDiagnosticTooltip
+                v-if="currentPipelineId"
+                :pipeline-id="currentPipelineId"
+              />
+            </q-badge>
             <q-badge
               v-else-if="hasRecalcFailure"
               outline
               rounded
               color="negative"
-              class="text-weight-medium"
+              class="text-weight-medium cursor-help"
               :label="$t('data_management_pipeline_failed')"
-            />
+            >
+              <PipelineDiagnosticTooltip
+                v-if="currentPipelineId"
+                :pipeline-id="currentPipelineId"
+              />
+            </q-badge>
           </div>
         </q-item-section>
         <q-item-section side>
@@ -209,18 +248,20 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               color="grey"
               size="sm"
             />
+            <!--
+              Plan 310-D — contextual recalc button.  Hidden during
+              active recalc (badge handles it), visible as "Retry"
+              when the last chain failed, visible as "Recalculate"
+              when staleness exists without an in-flight chain.
+            -->
             <q-btn
-              v-if="
-                yearConfigStore.recalculationStatus[
-                  getModuleTypeIdFromName(module)
-                ]?.needs_recalculation
-              "
+              v-if="showRecalcButton"
               flat
               dense
               size="sm"
               icon="refresh"
-              color="accent"
-              :label="$t('data_management_recalculate_emissions')"
+              :color="hasRecalcFailure ? 'negative' : 'accent'"
+              :label="$t(recalcButtonLabel)"
               @click.stop="openRecalcDialog(getModuleTypeIdFromName(module))"
             />
           </div>

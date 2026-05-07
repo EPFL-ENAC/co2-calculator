@@ -612,6 +612,30 @@ export default {
     en: 'Last recalc failed',
     fr: 'Échec du dernier recalcul',
   },
+  data_management_recalculate_retry: {
+    en: 'Retry recalculation',
+    fr: 'Relancer le recalcul',
+  },
+  data_management_pipeline_id_label: {
+    en: 'Pipeline:',
+    fr: 'Pipeline :',
+  },
+  data_management_pipeline_id_copy: {
+    en: 'Copy ID',
+    fr: 'Copier l’ID',
+  },
+  data_management_pipeline_id_copied: {
+    en: 'Pipeline ID copied',
+    fr: 'ID du pipeline copié',
+  },
+  data_management_pipeline_id_copy_failed: {
+    en: 'Failed to copy pipeline ID',
+    fr: 'Échec de la copie de l’ID',
+  },
+  data_management_pipeline_no_jobs_yet: {
+    en: 'Waiting for first update from the pipeline…',
+    fr: 'En attente de la première mise à jour du pipeline…',
+  },
   data_management_recalculate_emissions: {
     en: 'Recalculate Emissions',
     fr: 'Recalculer les émissions',
