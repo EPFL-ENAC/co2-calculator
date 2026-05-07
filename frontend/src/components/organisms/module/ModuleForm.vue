@@ -821,10 +821,13 @@ function validateField(i: ModuleField) {
   }
 
   if (i.required) {
+    const requiredMsg = i.requiredMessageKey
+      ? $t(i.requiredMessageKey)
+      : $t('validation_required');
     if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
-      if (!v) errors[i.id] = 'Required';
+      if (!v) errors[i.id] = requiredMsg;
     } else if (v === '' || v === null || v === undefined) {
-      errors[i.id] = 'Required';
+      errors[i.id] = requiredMsg;
     }
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
