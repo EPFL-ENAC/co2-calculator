@@ -23,6 +23,7 @@ the ingest provider machinery; living in its own module keeps the
 contract narrow (parent + child shape + dispatch).
 """
 
+import json
 from typing import Optional
 from uuid import uuid4
 
@@ -83,17 +84,24 @@ async def chain_job(
     different UUID and the child would be orphaned from the parent's
     run.
 
-    ``dedup_active=True`` (Plan 310-D): create the child via
-    ``INSERT ... ON CONFLICT DO NOTHING`` against the
-    ``uq_aggregation_active`` partial unique index (module_type_id,
-    year) — the index covers only NOT_STARTED/QUEUED/RUNNING rows,
-    so the first child to chain wins and subsequent siblings see the
-    existing pending row and skip.  Returns ``None`` on dedup so the
+    ``dedup_active=True`` (Plan 310-D): pre-check for an active
+    aggregation row in the ``(module_type_id, year)`` scope and INSERT
+    only when none exists — caller must pass non-NULL scope keys
+    (``ValueError`` is raised otherwise; see the guard above).  The
+    pre-check covers the common case (sequential chains within the
+    same fan-out batch on the same connection); a concurrent writer
+    that wins the race trips the partial unique index
+    ``uq_aggregation_active`` (which covers only NOT_STARTED/QUEUED/
+    RUNNING rows) and the ``IntegrityError`` is caught and surfaced
+    as the same dedup signal.  Returns ``None`` on dedup so the
     caller knows it's a no-op and skips its own follow-up fan-out;
-    returns the new child id otherwise.  Aggregation is the only
-    job type currently using this path, but the contract is generic
-    so future dedupable handlers (e.g. progress-bar refresh) can
-    opt in by adding a matching partial unique index.
+    returns the new child id otherwise.
+
+    Currently aggregation-specific: the SQL hard-codes
+    ``job_type='aggregation'`` and the dedup index is named for it.
+    Generalising to other dedupable handlers (e.g. progress-bar
+    refresh) would require both a per-type partial unique index and
+    parameterising the pre-check's job_type filter — out of scope here.
     """
     repo = DataIngestionRepository(session)
 
@@ -208,12 +216,23 @@ async def _insert_child_with_dedup(
     entity_type: EntityType,
     config: Optional[dict],
 ) -> Optional[int]:
-    """INSERT ... ON CONFLICT DO NOTHING against uq_aggregation_active.
+    """Pre-check + INSERT, falling back to IntegrityError on race.
 
-    Returns the new child id on success, or None if the partial
-    unique index already covers an active (NOT_STARTED/QUEUED/RUNNING)
-    row for the same (module_type_id, year, job_type='aggregation')
-    scope.
+    Returns the new child id on success, or ``None`` when the partial
+    unique index ``uq_aggregation_active`` already covers an active
+    (NOT_STARTED/QUEUED/RUNNING) row for the same ``(module_type_id,
+    year, job_type='aggregation')`` scope.
+
+    Why pre-check + INSERT rather than ``INSERT ... ON CONFLICT DO
+    NOTHING``: PG's ON CONFLICT inference for partial indexes
+    requires the inferred predicate to imply the index's WHERE
+    clause, and the implied-by check stumbles on nullable columns
+    (``module_type_id``/``year`` are nullable on the table even
+    though our partial WHERE filters NOT NULL only).  The pre-check
+    handles the common case (sequential chains within the same
+    fan-out batch on the same connection); the ``IntegrityError``
+    catch covers the genuine concurrent race so the first writer
+    wins regardless of interleaving.
 
     Implemented as raw SQL because SQLModel's ORM-level insert path
     doesn't expose the ON CONFLICT clause cleanly for partial indexes.
@@ -223,26 +242,12 @@ async def _insert_child_with_dedup(
     requires for a NOT_STARTED row (state has a server default but
     we always pass it explicitly to keep the SQL self-documenting).
     """
-    import json
 
     # asyncpg accepts UUID objects directly via type adapters, but
     # raw text SQL coerces best when stringified.
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
     meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
 
-    # Plan 310-D dedup mechanism — pre-check for an active aggregation
-    # row in the same scope, INSERT only if none exists.  We avoid
-    # ``ON CONFLICT (cols) WHERE ...`` partial-index inference because
-    # Postgres's inference rules depend on the index's WHERE predicate
-    # being IMPLIED by ours, and the implied-by check stumbles on
-    # nullable columns (``module_type_id`` and ``year`` are both
-    # ``NULL``-able even though the index covers only NOT-NULL rows
-    # via the partial WHERE).  The check-then-insert here is racy in
-    # principle, but catches the ``IntegrityError`` from the partial
-    # unique index downstream, so the first writer wins regardless of
-    # interleaving.  The pre-check covers the common case (sequential
-    # chains within the same fan-out batch on the same connection)
-    # and the IntegrityError catch covers the concurrent race.
     pre_check = text(
         """
         SELECT 1

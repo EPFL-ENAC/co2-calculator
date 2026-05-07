@@ -7,11 +7,16 @@ inheritance, pipeline_id generation when parent has none, and explicit
 keyword overrides winning over parent inheritance.
 
 Plan 310-D extends ``chain_job`` with ``dedup_active=True``: the
-helper performs ``INSERT ... ON CONFLICT DO NOTHING`` against the
-``uq_aggregation_active`` partial unique index and returns ``None``
-on dedup so the caller skips its own follow-up fan-out.  Tests in
-the ``dedup_active`` section pin both the success path (returns the
-new id) and the dedup path (returns None, does not fire run_job).
+helper pre-checks for an active aggregation row in the
+``(module_type_id, year)`` scope and INSERTs only when none exists,
+falling back to catching ``IntegrityError`` from the partial unique
+index ``uq_aggregation_active`` if a concurrent writer wins the race.
+Returns ``None`` on dedup so the caller skips its own follow-up
+fan-out.  Tests in the ``dedup_active`` section pin: (1) the success
+path returns the new id, (2) the pre-check dedup path returns None
+without firing run_job, (3) NULL scope keys raise ``ValueError``
+(silent-bypass guard), and (4) the legacy non-dedup path still
+tolerates NULL keys.
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch
