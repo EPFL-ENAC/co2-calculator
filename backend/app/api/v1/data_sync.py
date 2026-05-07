@@ -21,7 +21,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.core.policy import check_module_permission
+from app.core.policy import check_module_permission, get_module_permission_decision
 from app.core.security import is_permitted, require_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
@@ -155,22 +155,25 @@ async def _check_job_scope(
     )
 
 
-async def _check_pipeline_scope(
-    pipeline_id: UUID,
+async def _check_pipeline_scope_from_jobs(
+    jobs: list[DataIngestionJob],
     current_user: User,
     db: AsyncSession,
     *,
     action: str = "view",
 ) -> None:
-    """Per-pipeline permission gate.
+    """Per-pipeline permission gate, given an already-fetched job list.
+
+    Use this from endpoints that have already loaded the pipeline's jobs
+    (the read endpoint and the SSE stream both do — sharing the result
+    avoids a redundant ``list_jobs_by_pipeline_id`` round-trip on every
+    poll iteration).
 
     Picks the parent job to derive ``(module_type_id, institutional_id)``:
-    prefer the latest ``aggregation`` job (the chain terminator that pins the
-    module + year scope), otherwise fall back to any job in the pipeline so
-    factor-only chains still resolve.
+    prefer the latest ``aggregation`` job (the chain terminator that pins
+    the module + year scope), otherwise fall back to any job in the
+    pipeline so factor-only chains still resolve.
     """
-    repo = DataIngestionRepository(db)
-    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
     if not jobs:
         return
     parent = next(
@@ -178,6 +181,22 @@ async def _check_pipeline_scope(
         jobs[0],
     )
     await _check_job_scope(parent, current_user, db, action=action)
+
+
+async def _check_pipeline_scope(
+    pipeline_id: UUID,
+    current_user: User,
+    db: AsyncSession,
+    *,
+    action: str = "view",
+) -> None:
+    """Per-pipeline permission gate (fetches the job list itself).
+
+    Prefer ``_check_pipeline_scope_from_jobs`` when the caller has
+    already loaded the pipeline's jobs.
+    """
+    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
+    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action=action)
 
 
 router = APIRouter()
@@ -805,9 +824,27 @@ async def get_active_pipelines(
             detail="modules must be a comma-separated list of integers",
         ) from exc
 
+    # Per-module scope filter: drop entries the caller can't view rather than
+    # 403-ing the whole batch.  The global ``backoffice.data_management.view``
+    # gate above proves the user is a backoffice user; this loop additionally
+    # verifies they have view access to each specific module.  Without it, a
+    # backoffice user scoped to a sub-perimeter could enumerate active
+    # pipeline UUIDs across modules they otherwise can't read.
+    # TODO(#459): once sub-perimeter scoping ships, also pass institutional_id.
+    allowed_module_ids: list[int] = []
+    for module_type_id in module_type_ids:
+        decision = await get_module_permission_decision(
+            current_user, module_type_id, "view"
+        )
+        if decision.get("allow"):
+            allowed_module_ids.append(module_type_id)
+
+    if not allowed_module_ids:
+        return {}
+
     pipeline_by_module = await DataIngestionRepository(
         db
-    ).get_current_pipeline_ids_for_modules(module_type_ids, year=year)
+    ).get_current_pipeline_ids_for_modules(allowed_module_ids, year=year)
     return {module_id: str(pid) for module_id, pid in pipeline_by_module.items()}
 
 
@@ -888,7 +925,7 @@ async def get_pipeline_jobs(
             detail=f"No jobs found for pipeline_id {pipeline_id}",
         )
     # TODO(#459): tighten when sub-perimeter scoping ships
-    await _check_pipeline_scope(pipeline_id, current_user, db, action="view")
+    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="view")
 
     return PipelineResponse(
         pipeline_id=pipeline_id,
@@ -958,7 +995,9 @@ async def pipeline_stream_by_id(
                 detail=f"No jobs found for pipeline_id {pipeline_id}",
             )
         # TODO(#459): tighten when sub-perimeter scoping ships
-        await _check_pipeline_scope(pipeline_id, current_user, session, action="view")
+        await _check_pipeline_scope_from_jobs(
+            initial_jobs, current_user, session, action="view"
+        )
 
     # Tunables — keep the polling cadence tight enough that UI updates
     # feel real-time, but spread the heartbeat across many polls so the

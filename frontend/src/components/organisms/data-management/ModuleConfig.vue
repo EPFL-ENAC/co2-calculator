@@ -50,6 +50,11 @@ const currentPipelineId = computed<string | null>(() =>
 
 async function refreshPipelineState() {
   const moduleTypeId = getModuleTypeIdFromName(props.module);
+  // ``getModuleTypeIdFromName`` returns 0 for unknown module names — bail
+  // before issuing ``GET /v1/sync/active-pipelines?modules=0`` and polluting
+  // the store with a ``0:<year>`` cache key.  Mirrors the falsy-id guard
+  // pattern in other useModuleConfig helpers.
+  if (!moduleTypeId) return;
   await pipelineStateStore.loadFor(props.selectedYear, [moduleTypeId]);
 }
 

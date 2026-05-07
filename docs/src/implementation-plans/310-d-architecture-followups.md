@@ -23,7 +23,7 @@ below tracking its delivery state.
 
 ### Status
 
-**Delivered in PR #<TBD>** (post-merge fix batch, Unit 10).
+**Delivered in PR #1077** (post-merge fix batch, Unit 10; integrated via #1079).
 
 ### Problem
 
@@ -78,14 +78,16 @@ control.
 
 ---
 
-## Follow-up 2 — `<TBD — owner to fill in>` (#TBD)
+## Follow-up 2 — Generalise `chain_job(dedup_active)` to `DedupConfig` (#1064)
 
 ### Status
 
-**Pending.**
+**Delivered in PR #1074** (post-merge fix batch, Unit 9; integrated via #1079).
+Trigger fired by review finding B-M1 (`_chain_recalc_for_stale` becoming
+the second concrete dedupable handler — back-to-back factor reuploads).
+`DedupConfig` dataclass replaces the boolean shim; `EMISSION_RECALC_DEDUP`
 
-This section is a placeholder for a separately-tracked follow-up. Update
-it as part of the relevant PR.
+- partial unique index `uq_emission_recalc_active` ship in the same PR.
 
 ---
 
@@ -93,9 +95,14 @@ it as part of the relevant PR.
 
 ### Status
 
-**Pending** — scheduled in the post-merge fix batch (Unit 11). The
-worker for that unit will replace this section with the delivery shape
-and PR link.
+**Delivered in PR #1075** (post-merge fix batch, Unit 11; integrated via #1079).
+Frontend `pipelineState.ts` Pinia store keyed by `(module_type_id, year)`
+collapses the prior dual-source-of-truth (`useTimelineStore.currentPipelineIds`
+
+- `yearConfigStore.recalculationStatus[].current_pipeline_id`); backend
+  `GET /v1/sync/active-pipelines` thin-wraps the existing
+  `get_current_pipeline_ids_for_modules` repo helper. Per-module scope filter
+  on the endpoint added in the post-merge bot-triage pass.
 
 ---
 

@@ -420,8 +420,24 @@ async def _insert_child_with_dedup(
         # violations and silently skip dispatching the chained child —
         # treat anything other than the expected dedup constraint as a
         # real bug worth bubbling up.
-        msg = str(getattr(exc.orig, "diag", None) or exc).lower()
-        if dedup_config.constraint_name.lower() not in msg:
+        #
+        # Driver-specific shape:
+        #  - psycopg(2/3) → ``exc.orig.diag.constraint_name`` is a
+        #    structured field; ``str(diag)`` is implementation-defined
+        #    and often does NOT contain the constraint name, so the
+        #    structured read is the load-bearing path.
+        #  - asyncpg → no ``diag`` object; the lowercase substring
+        #    match against ``str(exc)`` is the fallback that catches
+        #    "duplicate key value violates unique constraint
+        #    \"uq_aggregation_active\"" style messages.
+        diag = getattr(exc.orig, "diag", None)
+        constraint = getattr(diag, "constraint_name", None)
+        is_dedup_race = (
+            constraint == dedup_config.constraint_name
+            if constraint is not None
+            else dedup_config.constraint_name.lower() in str(exc).lower()
+        )
+        if not is_dedup_race:
             await session.rollback()
             raise
         logger.info(

@@ -180,6 +180,9 @@ async def run_job(job_id: int) -> None:
                         try:
                             await abort_waiter
                         except asyncio.CancelledError:
+                            # Drain the cancellation we just issued — the
+                            # waiter has no other failure mode worth
+                            # surfacing.
                             pass
 
                 if handler_task in done:
