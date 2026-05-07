@@ -215,6 +215,16 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
     The full ``ModulePerYearCSVProvider`` pipeline is reused: row validation,
     factor lookup, batch inserts, emission computation and stats recomputation.
 
+    Seed runs are NOT subject to ``BULK_PATH_PURE_ASYNC``: the runner-driven
+    ``emission_recalc`` / ``aggregation`` chain is fired post-success by the
+    request-scoped CSV ingest handlers, which seed scripts bypass entirely
+    (their ``_update_job`` is a no-op and no DataIngestionJob exists).
+    Honouring the gate would leave the seeded module with empty
+    ``data_entry_emissions`` and zero stats, breaking dev DB bootstrap.
+    The class therefore sets ``self.is_seed_run = True`` so the gate sites
+    in ``base_csv_provider`` (``_process_batch`` emissions write,
+    ``_recompute_module_stats``) always run inline for seed runs.
+
     Config keys
     -----------
     local_file_path : str
@@ -245,6 +255,9 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             module_type_id=config.get("module_type_id"),
             data_entry_type_id=config.get("data_entry_type_id"),
         )
+        # Seed runs bypass ``BULK_PATH_PURE_ASYNC``: the runner chain that
+        # would normally own emissions/stats writes is never fired here.
+        self.is_seed_run = True
         self._local_file_path: str | None = config.get("local_file_path")
         self._location_fields: dict[str, str] | None = config.get("location_fields")
         transport_mode_value: str | None = config.get("transport_mode_value")

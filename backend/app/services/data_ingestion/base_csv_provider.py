@@ -1182,7 +1182,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # When the flag is False (emergency rollback) we keep the legacy
         # inline write so the chain's emissions become a redundant
         # overwrite rather than a missing one.
-        if get_settings().BULK_PATH_PURE_ASYNC:
+        #
+        # Seed runs (``is_seed_run=True``) bypass the gate: their
+        # ``_update_job`` is a no-op, so the runner-driven chain never
+        # fires.  Without the inline writes the seeded module ends up
+        # with empty ``data_entry_emissions`` and zero stats.
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
             return
 
         # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
@@ -1229,8 +1236,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         for the bulk path.  Skipping inline here avoids racing the chain's
         eventual write for the same module row; the dashboard's stale-stats
         UX surfaces the gap until the chain completes.
+
+        Seed runs (``is_seed_run=True``) bypass the gate: their
+        ``_update_job`` is a no-op so the chain never fires.  Without the
+        inline recompute the seeded module's stats stay at zero.
         """
-        if get_settings().BULK_PATH_PURE_ASYNC:
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
             logger.debug(
                 "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
                 "aggregation handler will own the stats writes"
