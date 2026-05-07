@@ -6,11 +6,15 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
+from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
@@ -22,6 +26,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
@@ -84,6 +89,86 @@ async def _stamp_job_type_and_meta(
         merged_meta.update(extra_meta)
     row.meta = merged_meta
     db.add(row)
+
+
+async def _institutional_id_for_job(
+    job: DataIngestionJob, db: AsyncSession
+) -> Optional[str]:
+    """Resolve a job's institutional scope for permission gating.
+
+    ``MODULE_UNIT_SPECIFIC`` jobs carry ``entity_id`` (FK to
+    ``carbon_report_modules.id``) which chains to ``carbon_reports.unit_id`` →
+    ``units.institutional_id``.  ``MODULE_PER_YEAR`` (the common
+    aggregation/recalc case) is global and has no unit; the caller falls back
+    to the bare ``modules.{name}`` permission path.
+    """
+    if (
+        job.entity_type != EntityType.MODULE_UNIT_SPECIFIC
+        or job.entity_id is None
+    ):
+        return None
+    stmt = (
+        select(Unit.institutional_id)
+        .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+        .join(
+            CarbonReportModule,
+            CarbonReportModule.carbon_report_id == CarbonReport.id,
+        )
+        .where(CarbonReportModule.id == job.entity_id)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _check_job_scope(
+    job: DataIngestionJob,
+    current_user: User,
+    db: AsyncSession,
+    *,
+    action: str = "view",
+) -> None:
+    """Per-job permission gate.
+
+    Layered on top of the existing ``backoffice.data_management.*`` global
+    gate so a user with backoffice access still has to clear the per-module
+    scope when a job is pinned to one.  Jobs with no ``module_type_id``
+    (``unit_sync``, raw ``factor_ingest`` not pinned to a module) are gated
+    by the global permission alone — there is no module path to check.
+    """
+    if job.module_type_id is None:
+        return
+    institutional_id = await _institutional_id_for_job(job, db)
+    await check_module_permission(
+        current_user,
+        job.module_type_id,
+        action,
+        institutional_id=institutional_id,
+    )
+
+
+async def _check_pipeline_scope(
+    pipeline_id: UUID,
+    current_user: User,
+    db: AsyncSession,
+    *,
+    action: str = "view",
+) -> None:
+    """Per-pipeline permission gate.
+
+    Picks the parent job to derive ``(module_type_id, institutional_id)``:
+    prefer the latest ``aggregation`` job (the chain terminator that pins the
+    module + year scope), otherwise fall back to any job in the pipeline so
+    factor-only chains still resolve.
+    """
+    repo = DataIngestionRepository(db)
+    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+    if not jobs:
+        return
+    parent = next(
+        (j for j in reversed(jobs) if j.job_type == "aggregation"),
+        jobs[0],
+    )
+    await _check_job_scope(parent, current_user, db, action=action)
 
 
 router = APIRouter()
@@ -535,6 +620,14 @@ async def cancel_job(
     **Required Permission**: `backoffice.data_management.sync`
     """
     repo = DataIngestionRepository(db)
+    existing = await repo.get_job_by_id(job_id)
+    if existing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Job {job_id} not found or not cancellable",
+        )
+    # TODO(#459): tighten when sub-perimeter scoping ships
+    await _check_job_scope(existing, current_user, db, action="sync")
     job = await repo.cancel_job(job_id)
     if not job or job.id is None:
         raise HTTPException(
@@ -560,7 +653,7 @@ async def cancel_job(
 @router.get("/jobs/{job_id}/stream")
 async def job_stream_by_id(
     job_id: int,
-    db: AsyncSession = Depends(get_db),
+    request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -569,9 +662,15 @@ async def job_stream_by_id(
     **Required Permission**: `backoffice.data_management.view`
 
     Polls the database for status changes and sends updates to the client.
-    Stream ends when the job is completed or failed.
-    // technically we should check permissions on the specific job's module_type_id
-    but for simplicity we check general view permissions here
+    Stream ends when the job is completed, failed, or the client disconnects.
+
+    Session lifetime: a fresh ``SessionLocal()`` is opened per poll iteration
+    and closed before the sleep so we don't pin an asyncpg pool slot for the
+    full stream duration (minutes).  ``request.is_disconnected()`` is checked
+    at the top of each iteration so client aborts surface immediately rather
+    than after the next poll.
+
+    TODO(#459): tighten when sub-perimeter scoping ships
     """
     has_permission = await is_permitted(
         current_user, "backoffice.data_management", "view"
@@ -585,13 +684,26 @@ async def job_stream_by_id(
             ),
         )
 
+    # Up-front per-job scope check — drops a pool slot before the stream opens
+    # so cross-tenant subscriptions never hit the poll loop.
+    async with db_module.SessionLocal() as session:
+        existing = await DataIngestionRepository(session).get_job_by_id(job_id)
+        if existing is not None:
+            # TODO(#459): tighten when sub-perimeter scoping ships
+            await _check_job_scope(existing, current_user, session, action="view")
+
     async def event_generator():
         last_status = None
         last_message = None
         polls_after_completion = 0
 
         while True:
-            job = await DataIngestionRepository(db).get_job_by_id(job_id)
+            if await request.is_disconnected():
+                break
+
+            async with db_module.SessionLocal() as session:
+                job = await DataIngestionRepository(session).get_job_by_id(job_id)
+
             if not job:
                 not_found_status = {
                     "job_id": job_id,
@@ -708,6 +820,8 @@ async def get_pipeline_jobs(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No jobs found for pipeline_id {pipeline_id}",
         )
+    # TODO(#459): tighten when sub-perimeter scoping ships
+    await _check_pipeline_scope(pipeline_id, current_user, db, action="view")
 
     return PipelineResponse(
         pipeline_id=pipeline_id,
@@ -732,7 +846,7 @@ async def get_pipeline_jobs(
 @router.get("/pipelines/{pipeline_id}/stream")
 async def pipeline_stream_by_id(
     pipeline_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    request: Request,
     current_user: User = Depends(
         require_permission("backoffice.data_management", "view")
     ),
@@ -761,19 +875,23 @@ async def pipeline_stream_by_id(
     HTTP error rather than a 200-with-empty-body that they'd interpret as
     an aborted connection.
     """
-    # Up-front 404: the existing job-stream endpoint emits a "not found"
-    # event in-stream, but for pipeline streams the SSE client cannot
-    # tell "pipeline does not exist" from "pipeline exists, no events
-    # yet" once the 200 lands.  Surfacing the 404 before opening the
-    # stream makes the contract symmetric with
-    # ``GET /sync/pipelines/{pipeline_id}``.
-    repo = DataIngestionRepository(db)
-    initial_jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
-    if not initial_jobs:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No jobs found for pipeline_id {pipeline_id}",
-        )
+    # Up-front 404 + scope check: the existing job-stream endpoint emits a
+    # "not found" event in-stream, but for pipeline streams the SSE client
+    # cannot tell "pipeline does not exist" from "pipeline exists, no events
+    # yet" once the 200 lands.  Surfacing the 404 before opening the stream
+    # makes the contract symmetric with ``GET /sync/pipelines/{pipeline_id}``.
+    # The session is closed before the StreamingResponse opens so we don't
+    # pin a pool slot for the whole stream lifetime.
+    async with db_module.SessionLocal() as session:
+        repo = DataIngestionRepository(session)
+        initial_jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+        if not initial_jobs:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No jobs found for pipeline_id {pipeline_id}",
+            )
+        # TODO(#459): tighten when sub-perimeter scoping ships
+        await _check_pipeline_scope(pipeline_id, current_user, session, action="view")
 
     # Tunables — keep the polling cadence tight enough that UI updates
     # feel real-time, but spread the heartbeat across many polls so the
@@ -785,12 +903,20 @@ async def pipeline_stream_by_id(
         last_snapshot: Optional[list[dict]] = None
         polls_after_completion = 0
         seconds_since_heartbeat = 0
-        # First-iteration optimisation: the 404 guard above already issued
-        # the query, so reuse those rows on the opening tick instead of
-        # double-querying.  Subsequent ticks always re-fetch.
-        jobs = initial_jobs
 
         while True:
+            if await request.is_disconnected():
+                break
+
+            # Open a fresh session per poll so the asyncpg pool slot is
+            # released between ticks.  The previous implementation captured
+            # ``Depends(get_db)`` for the entire generator lifetime, pinning
+            # one slot per subscriber for the whole stream (minutes).
+            async with db_module.SessionLocal() as session:
+                jobs = await DataIngestionRepository(
+                    session
+                ).list_jobs_by_pipeline_id(pipeline_id)
+
             # Snapshot the columns the spec calls out for the dashboard:
             # only these fields trigger a re-emit, so meta-only mutations
             # (e.g. progress dicts) don't flood the stream.
@@ -847,11 +973,6 @@ async def pipeline_stream_by_id(
             if seconds_since_heartbeat >= heartbeat_interval_seconds:
                 yield "event: ping\ndata: {}\n\n"
                 seconds_since_heartbeat = 0
-
-            # Re-fetch for the next iteration.  Done at the bottom of the
-            # loop (rather than the top) so the first tick reuses the
-            # ``initial_jobs`` already fetched for the 404 guard.
-            jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -1072,6 +1193,27 @@ async def recover_job(
     """
     settings = get_settings()
     repo = DataIngestionRepository(db)
+    # TODO(#459): tighten when sub-perimeter scoping ships
+    # Pull only the columns the scope check needs so the row is NOT hydrated
+    # into the session's identity map — ``recover_job``'s ``UPDATE`` relies
+    # on ``synchronize_session`` evaluation, which mis-handles a hydrated
+    # tz-aware ``locked_at`` against a tz-naive value on SQLite.
+    scope_row = (
+        await db.execute(
+            select(
+                DataIngestionJob.module_type_id,
+                DataIngestionJob.entity_type,
+                DataIngestionJob.entity_id,
+            ).where(DataIngestionJob.id == job_id)
+        )
+    ).first()
+    if scope_row is not None:
+        scope_job = DataIngestionJob(
+            module_type_id=scope_row.module_type_id,
+            entity_type=scope_row.entity_type,
+            entity_id=scope_row.entity_id,
+        )
+        await _check_job_scope(scope_job, current_user, db, action="sync")
     recovered = await repo.recover_job(job_id, settings.STALE_JOB_TIMEOUT_MINUTES)
     if not recovered:
         raise HTTPException(
