@@ -27,7 +27,7 @@ from app.models.data_ingestion import (
 )
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
-from app.tasks._chain import chain_job
+from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
@@ -217,6 +217,13 @@ async def _chain_recalc_for_stale(
     ``_enqueue_stale_recalculations`` — the same scope-resolution logic,
     but each target now goes through ``chain_job`` (uniform pipeline_id
     inheritance, runner-driven dispatch, no manual fire_and_forget).
+
+    Each chain passes ``dedup_config=EMISSION_RECALC_DEDUP`` (#1064): the
+    partial unique index ``uq_emission_recalc_active`` collapses
+    back-to-back factor reuploads for the same ``(module, det, year)``
+    into a single pending recalc.  Without this, a user re-uploading
+    a corrected factors CSV seconds after the first upload would queue
+    a redundant recalc on top of the already-pending one.
     """
     # Late import to avoid circular: module_type → data_ingestion → tasks.
     from app.models.module_type import (
@@ -307,6 +314,7 @@ async def _chain_recalc_for_stale(
             data_entry_type_id=row["data_entry_type_id"],
             year=year,
             session=session,
+            dedup_config=EMISSION_RECALC_DEDUP,
         )
     logger.info(
         f"factor_ingest job {job.id}: chained {len(targets)} emission_recalc "
