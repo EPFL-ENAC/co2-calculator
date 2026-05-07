@@ -16,7 +16,7 @@ summary: "Render the in-flight bulk-pipeline state on carbon-report module cards
 
 ### Status
 
-**Agreed** — to be implemented in the follow-up PR.
+**Delivered in PR #1059.**
 
 ### Context
 
@@ -71,7 +71,7 @@ needs-recalc with no active chain shows the existing manual trigger.
 
 ### Status
 
-**Agreed** — to be implemented in the same follow-up PR.
+**Delivered in PR #1059.**
 
 ### Context
 
@@ -82,8 +82,7 @@ opening devtools.
 
 ### Decision
 
-Add a Quasar `<q-tooltip>` on hover (and click for sticky-on-mobile)
-of the badge. Renders:
+Add a Quasar `<q-tooltip>` on hover of the badge. Renders:
 
 - **Pipeline UUID** (with copy-on-click)
 - **Per-job rows**: `{job_type} · {state} · {result}` with the
@@ -104,8 +103,18 @@ plumbing.
   potentially results-page and module-detail badges).
 - i18n keys for the static labels ("Pipeline ID", "Started",
   "Finished", "No active jobs", etc.).
-- Relative timestamp via the existing time utility if there is one,
-  or a small inline `formatRelative()` helper.
+- Relative timestamp via a small inline `formatRelative()` helper —
+  no project-wide time utility was available; bespoke helper kept
+  inside the component to avoid premature abstraction.
+
+### Future enhancements (out of scope for this PR)
+
+- **Click-to-stick on mobile / no-mouse devices.** Quasar's
+  `<q-tooltip>` is hover-only by spec; switching to
+  `<q-popup-proxy>` (which supports both hover and click) is more
+  invasive (different anchor model, different escape semantics) and
+  was deferred to keep this PR scoped. Tracked as a separate UX
+  follow-up if mobile support becomes a requirement.
 
 ---
 

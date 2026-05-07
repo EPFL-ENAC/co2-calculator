@@ -59,6 +59,33 @@ function jobColor(state: string | null, result: string | null): string {
   if (state === 'RUNNING') return 'info';
   return 'grey-7';
 }
+
+/**
+ * Format an ISO timestamp as a short relative-time string ("3s ago",
+ * "just now", "5m ago").  Bespoke helper rather than dragging in
+ * dayjs / date-fns just for two timestamps in one tooltip — and the
+ * project doesn't have an existing relative-time utility.
+ *
+ * Returns ``null`` for null/undefined input so the template can
+ * skip the row entirely with ``v-if``.
+ */
+function formatRelative(iso: string | null): string | null {
+  if (!iso) return null;
+  const then = Date.parse(iso);
+  if (Number.isNaN(then)) return null;
+  const diffMs = Date.now() - then;
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 5) return t('data_management_pipeline_time_just_now');
+  if (sec < 60)
+    return t('data_management_pipeline_time_seconds_ago', { n: sec });
+  const min = Math.round(sec / 60);
+  if (min < 60)
+    return t('data_management_pipeline_time_minutes_ago', { n: min });
+  const hr = Math.round(min / 60);
+  if (hr < 24) return t('data_management_pipeline_time_hours_ago', { n: hr });
+  const d = Math.round(hr / 24);
+  return t('data_management_pipeline_time_days_ago', { n: d });
+}
 </script>
 
 <template>
@@ -126,6 +153,28 @@ function jobColor(state: string | null, result: string | null): string {
               style="white-space: pre-wrap; word-break: break-word"
             >
               {{ job.status_message }}
+            </div>
+            <!--
+              Plan 310-D — relative timestamps.  ``started_at`` flips
+              when ``claim_job`` runs (NOT_STARTED → RUNNING via PR
+              #1026's func.coalesce); ``finished_at`` is auto-stamped
+              by the runner on the FINISHED state-write.  Both are
+              null for jobs that haven't reached those phases yet,
+              so each row is conditionally rendered.
+            -->
+            <div
+              v-if="formatRelative(job.started_at)"
+              class="text-caption text-grey-6 q-mt-xs"
+            >
+              {{ $t('data_management_pipeline_started') }}
+              {{ formatRelative(job.started_at) }}
+            </div>
+            <div
+              v-if="formatRelative(job.finished_at)"
+              class="text-caption text-grey-6"
+            >
+              {{ $t('data_management_pipeline_finished') }}
+              {{ formatRelative(job.finished_at) }}
             </div>
           </div>
         </div>

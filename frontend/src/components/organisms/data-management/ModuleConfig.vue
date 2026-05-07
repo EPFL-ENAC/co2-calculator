@@ -222,12 +222,21 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               this module's year), with the SSE composable controlling
               the live state.
             -->
+            <!--
+              Plan 310-D — ``tabindex="0"`` + ``aria-label`` make the
+              badge keyboard-focusable so the diagnostic tooltip
+              opens on focus (and the copy-pipeline-id button inside
+              becomes reachable).  Without these, keyboard-only users
+              can't see what the badge promises to surface.
+            -->
             <q-badge
               v-if="isRecalculating"
               outline
               rounded
               color="info"
               class="text-weight-medium cursor-help"
+              tabindex="0"
+              :aria-label="$t('data_management_pipeline_recalculating')"
               :label="$t('data_management_pipeline_recalculating')"
             >
               <PipelineDiagnosticTooltip
@@ -241,6 +250,8 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               rounded
               color="negative"
               class="text-weight-medium cursor-help"
+              tabindex="0"
+              :aria-label="$t('data_management_pipeline_failed')"
               :label="$t('data_management_pipeline_failed')"
             >
               <PipelineDiagnosticTooltip
