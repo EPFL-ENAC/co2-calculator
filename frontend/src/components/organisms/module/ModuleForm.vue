@@ -472,6 +472,12 @@ function getFilteredOptions(
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
   opts.forEach((opt) => {
+    if (inp.optionLabelKey) {
+      opt.label = $t(
+        inp.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+      );
+      return;
+    }
     const taxoOptNode = taxoNode?.children?.find(
       (node) => node.name === opt.value,
     );

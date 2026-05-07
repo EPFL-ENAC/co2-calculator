@@ -37,6 +37,22 @@ export default {
     en: 'Emitted Gas',
     fr: 'Gaz émis',
   },
+  [`${MODULES.ProcessEmissions}.category.co2`]: {
+    en: 'CO₂',
+    fr: 'CO₂',
+  },
+  [`${MODULES.ProcessEmissions}.category.ch4`]: {
+    en: 'CH₄',
+    fr: 'CH₄',
+  },
+  [`${MODULES.ProcessEmissions}.category.n2o`]: {
+    en: 'N₂O',
+    fr: 'N₂O',
+  },
+  [`${MODULES.ProcessEmissions}.category.refrigerant`]: {
+    en: 'Refrigerants',
+    fr: 'Fluide Frigorigène',
+  },
   [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
     en: 'Sub-category',
     fr: 'Sous-catégorie',

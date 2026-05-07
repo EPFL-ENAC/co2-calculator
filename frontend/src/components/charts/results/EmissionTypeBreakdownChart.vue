@@ -40,10 +40,10 @@ import { usePrintMode } from 'src/composables/print/usePrintMode';
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerant',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',

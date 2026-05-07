@@ -28,10 +28,10 @@ const isPrintMode = usePrintMode();
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerant',
   // buildings
   heating_thermal: 'charts-heating-thermal-subcategory',
   lighting: 'charts-lighting-subcategory',

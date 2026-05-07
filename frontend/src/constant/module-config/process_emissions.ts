@@ -6,6 +6,7 @@ const processEmissionsFields: ModuleField[] = [
   {
     id: 'category',
     optionsId: 'kind',
+    optionLabelKey: `${MODULES.ProcessEmissions}.category.{value}`,
     labelKey: `${MODULES.ProcessEmissions}.inputs.category`,
     type: 'select',
     required: true,
@@ -32,7 +33,7 @@ const processEmissionsFields: ModuleField[] = [
     conditionalVisibility: {
       showWhen: {
         fieldId: 'category',
-        value: 'Refrigerant',
+        value: 'refrigerants',
       },
     },
     icon: 'o_category',
