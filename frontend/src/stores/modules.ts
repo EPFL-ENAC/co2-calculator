@@ -107,21 +107,18 @@ export interface EmissionBreakdownCategoryRow {
 }
 
 /**
- * API response for inventory module
+ * API response for inventory module.
  *
- * ``current_pipeline_id`` (Plan 310-D) — populated by the backend when
- * an active bulk-pipeline is touching this module's
- * ``(module_type_id, year)`` scope.  ``null`` when no pipeline is in
- * flight.  Frontend uses this to render a "Recalculating..." badge
- * and to subscribe to ``GET /v1/sync/pipelines/{id}/stream`` for
- * live updates until the chain finishes and stats refresh.
+ * Plan 310-D / Issue #1062 — ``current_pipeline_id`` no longer rides
+ * here; the unified ``pipelineStateStore`` (driven by
+ * ``GET /v1/sync/active-pipelines``) is the single source of truth
+ * for "is there an active pipeline for this module/year?".
  */
 interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
   status: number;
-  current_pipeline_id: string | null;
 }
 
 export const useTimelineStore = defineStore('timeline', () => {
@@ -140,14 +137,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Waste]: MODULE_STATES.Default,
     [MODULES.EmbodiedEnergy]: MODULE_STATES.Default,
   });
-
-  // Plan 310-D — per-module ``current_pipeline_id`` for the
-  // stale-stats badge.  Populated by ``fetchModuleStates`` from the
-  // carbon-report response.  ``null`` for modules without an active
-  // bulk pipeline (the steady state).
-  const currentPipelineIds = reactive<Partial<Record<Module, string | null>>>(
-    {},
-  );
 
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -179,15 +168,11 @@ export const useTimelineStore = defineStore('timeline', () => {
         .get(`carbon-reports/${carbonReportId}/modules/`)
         .json()) as CarbonReportModuleResponse[];
 
-      // Update itemStates and currentPipelineIds from API response.
-      // Plan 310-D: ``current_pipeline_id`` powers the stale-stats
-      // badge.  ``null`` clears any previous badge state for the
-      // module — important when switching reports / years.
+      // Update itemStates from API response.
       for (const mod of response) {
         const moduleKey = getModuleFromTypeId(mod.module_type_id);
         if (moduleKey) {
           itemStates[moduleKey] = mod.status as ModuleState;
-          currentPipelineIds[moduleKey] = mod.current_pipeline_id ?? null;
         }
       }
     } catch (err: unknown) {
@@ -252,20 +237,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     for (const key of Object.keys(itemStates) as Module[]) {
       itemStates[key] = MODULE_STATES.Default;
     }
-    // Plan 310-D: also clear pipeline badges so stale ids from a
-    // previous report don't bleed across the reset boundary.
-    for (const key of Object.keys(currentPipelineIds) as Module[]) {
-      currentPipelineIds[key] = null;
-    }
-  }
-
-  /**
-   * Plan 310-D — read the active pipeline id for a module, if any.
-   * Returns ``null`` when the module has no in-flight bulk pipeline
-   * (the steady state once every chain has finished).
-   */
-  function getCurrentPipelineId(moduleKey: Module): string | null {
-    return currentPipelineIds[moduleKey] ?? null;
   }
 
   return {
@@ -278,8 +249,6 @@ export const useTimelineStore = defineStore('timeline', () => {
     reset,
     currentState: currentCarbonReportModuleState,
     canEdit: currentCarbonReportModuleEdit,
-    currentPipelineIds,
-    getCurrentPipelineId,
   };
 });
 

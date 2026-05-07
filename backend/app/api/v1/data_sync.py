@@ -632,6 +632,52 @@ async def job_stream_by_id(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+@router.get("/active-pipelines", response_model=dict[int, str])
+async def get_active_pipelines(
+    year: int,
+    modules: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> dict[int, str]:
+    """Return the active pipeline_id (if any) for each requested module.
+
+    **Required Permission**: ``backoffice.data_management.view``
+
+    Plan 310-D / Issue #1062 — bulk read used by the unified frontend
+    ``pipelineStateStore`` to drive the "Recalculating..." badge.  Thin
+    wrapper over ``DataIngestionRepository.get_current_pipeline_ids_for_modules``.
+
+    Args:
+        year: Report year scope — pipelines touching ``(module_type_id, year)``.
+        modules: Comma-separated list of ``module_type_id`` ints (e.g.
+            ``"1,2,3"``).  Empty string returns ``{}``.
+
+    Returns:
+        Mapping ``module_type_id -> pipeline_id`` (string UUID) for every
+        module that has at least one active (NOT_STARTED/QUEUED/RUNNING)
+        pipeline-attached job for the given ``year``.  Modules with no
+        active pipeline are absent from the dict — callers ``.get(...)``
+        and treat missing keys as "no badge" (sparse passthrough matching
+        the underlying repo helper's contract).
+    """
+    if not modules.strip():
+        return {}
+    try:
+        module_type_ids = [int(m) for m in modules.split(",") if m.strip()]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="modules must be a comma-separated list of integers",
+        ) from exc
+
+    pipeline_by_module = await DataIngestionRepository(
+        db
+    ).get_current_pipeline_ids_for_modules(module_type_ids, year=year)
+    return {module_id: str(pid) for module_id, pid in pipeline_by_module.items()}
+
+
 @router.get("/recalculation-status", response_model=list[ModuleRecalculationStatus])
 async def get_recalculation_status(
     year: int,
