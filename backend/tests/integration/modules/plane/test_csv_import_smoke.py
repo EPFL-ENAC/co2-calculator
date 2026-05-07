@@ -102,7 +102,8 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     "emissions row exists right after _process_batch" assertion only
     holds inline.  Override-routing into the chain's recalc path is
     covered separately by the unit tests in
-    ``test_base_csv_provider.py`` (``test_process_batch_skips_emissions_when_pure_async``).
+    ``test_base_csv_provider.py``
+    (``test_process_batch_skips_emissions_when_pure_async``).
     """
     from app.services.data_ingestion import base_csv_provider
 
