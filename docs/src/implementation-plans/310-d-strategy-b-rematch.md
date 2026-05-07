@@ -2,7 +2,7 @@
 status: delivered
 last_updated: 2026-05-06
 title: "Plan 310-D Follow-up — Strategy B Rematch + Per-Module ITs"
-summary: "Rematch the FK-link modules (travel, headcount, building rooms / embodied) by walking data_entry_emissions, plus per-module integration coverage."
+summary: "Rematch the FK-link modules (travel, headcount, building embodied energy) plus regression coverage for JSON-link modules including the 1:N building-rooms fan-out."
 ---
 
 # Plan 310-D Follow-up — Strategy B Rematch + Per-Module ITs
@@ -25,11 +25,17 @@ Modules affected (see the rematch table in
   per entry.
 - **Headcount** (member / student) — `FactorQuery` returns N
   sub-factors per data_entry; one emission row per sub-factor.
-- **Building Rooms** — one emission row per emission_type (lighting,
-  cooling, ventilation, heating_elec, heating_thermal); five rows
-  per entry.
-- **Building Embodied Energy** — verify shape; likely 1:N like
-  rooms based on the `building_name × category` factor key.
+- **Building Embodied Energy** — confirmed FK-link via PR #1042's per-module
+  integration test; the `building_name × category` factor key drives a
+  1:N emission shape.
+
+`building_room` was originally listed here as FK-link but PR #1042's audit
+confirmed it carries `primary_factor_id` on `entry.data` with
+`kind_field='building_name'` / `subkind_field='room_type'` — the existing
+JSON-link bulk-prefetch path covers it. The 1:N emission fan-out (one row
+per `room_type`) was the novel coverage that justified its IT living next
+to the FK-link tests in `test_strategy_b_rematch_pg.py`, but the link
+itself is JSON.
 
 ## Goal
 
