@@ -109,6 +109,24 @@ async def chain_job(
     )
     resolved_year = year if year is not None else parent.year
 
+    # Plan 310-D — fail fast when caller asks for dedup but the scope
+    # keys are NULL.  The pre-check SQL already handles ``year IS NULL``
+    # via ``(:year IS NULL AND year IS NULL)`` but ``module_type_id``
+    # uses straight equality — a NULL there silently bypasses dedup
+    # because ``NULL = NULL`` yields NULL, the SELECT returns nothing,
+    # and the partial unique index can't catch the duplicate either
+    # (PG treats NULLs as distinct in unique indexes by default).  The
+    # downstream aggregation handler raises on NULL scope at execution
+    # time, so prod won't run garbage either way — but bad rows pile
+    # up.  Refuse at chain_job entry instead.
+    if dedup_active and (resolved_module_type_id is None or resolved_year is None):
+        raise ValueError(
+            f"chain_job(dedup_active=True): scope keys must be set — "
+            f"got module_type_id={resolved_module_type_id!r}, "
+            f"year={resolved_year!r}.  Pass them explicitly or ensure "
+            f"the parent job has them populated."
+        )
+
     if dedup_active:
         child_id = await _insert_child_with_dedup(
             session=session,
