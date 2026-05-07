@@ -126,6 +126,97 @@ class DataIngestionRepository:
             await self.session.refresh(result_job)
         return result_job
 
+    async def finish_job(
+        self,
+        job_id: int,
+        pod_id: str,
+        result: IngestionResult,
+        status_message: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> bool:
+        """Atomic compare-and-set transition to ``FINISHED`` for the owning pod.
+
+        Plan 310 review finding **B-C1** — the prior ``update_ingestion_job``
+        FINISHED path did a ``SELECT … WHERE id`` then mutated state without
+        a CAS guard, so a pod whose heartbeat failed during a DB outage could
+        complete its handler AFTER another pod recovered the row and
+        re-claimed it; its FINISHED write then clobbered the new owner's
+        RUNNING state.
+
+        This method enforces the missing CAS:
+
+            UPDATE data_ingestion_jobs
+            SET state=FINISHED, result=:result, finished_at=…, meta=…, …
+            WHERE id=:job_id AND locked_by=:pod_id AND state=RUNNING
+            RETURNING id
+
+        Returns:
+            True  — the row was ours and we wrote FINISHED (rowcount==1).
+            False — we were preempted between handler completion and this
+                    write (rowcount==0).  The caller must NOT retry, must
+                    NOT re-raise, and must let the new owner close the row.
+
+        Atomicity:
+            ``locked_by == pod_id AND state == RUNNING`` makes meta-merge
+            safe: only the lock owner can write meta while it holds the
+            lock, so SELECT-then-merge-then-UPDATE-with-CAS has no TOCTOU
+            window for the same row.
+
+        Idempotent ``finished_at`` (Plan 310-C observability): use
+            ``coalesce(finished_at, now())`` — matches the ``started_at``
+            pattern in ``claim_job`` (the CAS UPDATE has no Python read step
+            we could guard with an ``IS NULL`` check, so the coalesce keeps
+            an already-stamped timestamp intact).
+
+        Optional kwargs (``status_message``, ``metadata``) match the
+        ``update_ingestion_job`` shape so the runner can swap call sites
+        without losing fields.  When omitted, those columns are not
+        touched (we don't NULL them out).
+        """
+        # Pre-read meta so we can merge with any new metadata.  Safe under
+        # the WHERE-CAS: if we're preempted between this read and the
+        # UPDATE, the UPDATE matches no row, the merged dict is dropped,
+        # and the new owner's eventual finish_job writes its own meta.
+        values: dict = {
+            "state": IngestionState.FINISHED,
+            "result": result,
+            "finished_at": func.coalesce(
+                col(DataIngestionJob.finished_at), func.now()
+            ),
+        }
+        if status_message is not None:
+            values["status_message"] = status_message
+
+        if metadata is not None:
+            existing = await self.session.execute(
+                select(DataIngestionJob.meta).where(
+                    col(DataIngestionJob.id) == job_id,
+                    col(DataIngestionJob.locked_by) == pod_id,
+                    col(DataIngestionJob.state) == IngestionState.RUNNING,
+                )
+            )
+            existing_meta = existing.scalar_one_or_none() or {}
+            merged_meta = {
+                **self.sanitize_for_json(existing_meta),
+                **self.sanitize_for_json(metadata),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            values["meta"] = merged_meta
+
+        result_obj = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(**values)
+            .returning(col(DataIngestionJob.id))
+        )
+        updated_id = result_obj.scalar_one_or_none()
+        await self.session.commit()
+        return updated_id is not None
+
     async def heartbeat(self, job_id: int, pod_id: str) -> int:
         """Refresh ``locked_at`` on a RUNNING job we still own.
 
