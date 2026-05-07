@@ -43,7 +43,7 @@ __all__ = [
 
 
 revision: str = "d3e5f7a9b1c4"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "3f8147b5e516"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "05d68c9a6054"
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 

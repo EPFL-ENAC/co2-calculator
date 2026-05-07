@@ -6,7 +6,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -166,10 +167,18 @@ class DataEntryEmissionService:
         if cur_mod is None:
             return None
 
-        # Find the prior-year report for the same unit.
-        stmt_prev_report = select(CarbonReport).where(
-            col(CarbonReport.unit_id) == report.unit_id,
-            col(CarbonReport.year) == base_year,
+        # Find the prior-year Calculator report for the same unit.
+        stmt_prev_report = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                col(CarbonReport.unit_id) == report.unit_id,
+                col(CarbonReport.year) == base_year,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
         )
         prev_report = (await self.session.exec(stmt_prev_report)).one_or_none()
         if prev_report is None:
@@ -314,6 +323,13 @@ class DataEntryEmissionService:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"
             )
+        # Also load the report when the percentage override is requested, since
+        # _get_percentage_override_kg needs reference_year and unit_id.
+        if (
+            report is None
+            and data_entry.data.get("percentage_of_last_year") is not None
+        ):
+            report = await self._get_report_for_data_entry(data_entry)
         # Add factor year to context for year-specific formulas
         ctx["_year"] = year
 

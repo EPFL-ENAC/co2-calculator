@@ -830,14 +830,21 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  // Track which carbon report the cached emission breakdown belongs to
-  const emissionBreakdownCarbonReportId = ref<number | null>(null);
-  const emissionBreakdownInFlightReportId = ref<number | null>(null);
+  // Track which carbon report + exclude list the cached emission breakdown belongs to
+  const emissionBreakdownCacheKey = ref<string | null>(null);
+  const emissionBreakdownInFlightCacheKey = ref<string | null>(null);
   const emissionBreakdownInFlightToken = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
+  function makeBreakdownCacheKey(
+    carbonReportId: number,
+    excludeModules: number[],
+  ): string {
+    return `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+  }
+
   function invalidateEmissionBreakdown() {
-    emissionBreakdownCarbonReportId.value = null;
+    emissionBreakdownCacheKey.value = null;
   }
 
   async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
@@ -855,10 +862,11 @@ export const useModuleStore = defineStore('modules', () => {
     carbonReportId: number,
     excludeModules: number[] = [],
   ) {
-    if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
+    const cacheKey = makeBreakdownCacheKey(carbonReportId, excludeModules);
+    if (emissionBreakdownCacheKey.value === cacheKey) return;
     if (
       emissionBreakdownInFlight &&
-      emissionBreakdownInFlightReportId.value === carbonReportId
+      emissionBreakdownInFlightCacheKey.value === cacheKey
     ) {
       await emissionBreakdownInFlight;
       return;
@@ -866,13 +874,13 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.loadingEmissionBreakdown = true;
     state.errorEmissionBreakdown = null;
-    emissionBreakdownInFlightReportId.value = carbonReportId;
+    emissionBreakdownInFlightCacheKey.value = cacheKey;
     const currentRequestToken = ++emissionBreakdownInFlightToken.value;
     const currentRequest = (async () => {
       // Only the latest in-flight request is allowed to update state.
       const isLatestRequest = () =>
         emissionBreakdownInFlightToken.value === currentRequestToken &&
-        emissionBreakdownInFlightReportId.value === carbonReportId;
+        emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
         const params = new URLSearchParams();
@@ -886,7 +894,7 @@ export const useModuleStore = defineStore('modules', () => {
           return;
         }
         state.emissionBreakdown = data;
-        emissionBreakdownCarbonReportId.value = carbonReportId;
+        emissionBreakdownCacheKey.value = cacheKey;
       } catch (err: unknown) {
         if (!isLatestRequest()) {
           return;
@@ -898,7 +906,7 @@ export const useModuleStore = defineStore('modules', () => {
           state.errorEmissionBreakdown = 'Unknown error';
           state.emissionBreakdown = null;
         }
-        emissionBreakdownCarbonReportId.value = null;
+        emissionBreakdownCacheKey.value = null;
       }
     })();
     emissionBreakdownInFlight = currentRequest;
@@ -909,7 +917,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (emissionBreakdownInFlightToken.value === currentRequestToken) {
         state.loadingEmissionBreakdown = false;
         emissionBreakdownInFlight = null;
-        emissionBreakdownInFlightReportId.value = null;
+        emissionBreakdownInFlightCacheKey.value = null;
       }
     }
   }

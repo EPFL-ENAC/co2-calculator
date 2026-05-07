@@ -93,7 +93,8 @@ async def test_create_carbon_report_commits_and_returns():
     module.CarbonReportService = lambda db: svc
     try:
         payload = MagicMock()
-        result = await module.create_carbon_report(payload, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.create_carbon_report(payload, db, _user())
         assert result == new_report
         db.commit.assert_awaited_once()
     finally:
@@ -113,7 +114,8 @@ async def test_get_carbon_report_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        result = await module.get_carbon_report(42, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(42, db, _user())
         assert result == report
     finally:
         module.CarbonReportService = original

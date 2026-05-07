@@ -81,6 +81,8 @@ async def create_carbon_report(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new carbon report for a given unit and year."""
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
     service = CarbonReportService(db)
     result = await service.create(report)
     await db.commit()
@@ -163,6 +165,8 @@ async def get_carbon_report(
     report = await service.get(carbon_report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
     return report
 
 
