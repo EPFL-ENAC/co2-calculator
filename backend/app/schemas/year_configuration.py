@@ -12,6 +12,7 @@ from typing import (
     Optional,
     Type,
 )
+from uuid import UUID
 
 from pydantic import (
     BaseModel,
@@ -471,6 +472,18 @@ class ModuleRecalculationStatusEntry(BaseModel):
     year: int
     needs_recalculation: bool
     data_entry_types: List[RecalculationStatusEntry]
+    current_pipeline_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Plan 310-D — pipeline_id of the most recent active "
+            "(NOT_STARTED/QUEUED/RUNNING) bulk pipeline whose any-job "
+            "touches this module's (module_type_id, year).  ``None`` "
+            "when no active pipeline matches.  Back-office uses this "
+            "to render a 'Recalculating...' badge and subscribe to "
+            "``GET /v1/sync/pipelines/{id}/stream`` for live updates "
+            "while the chain is in flight."
+        ),
+    )
 
 
 class YearConfigurationResponse(BaseModel):

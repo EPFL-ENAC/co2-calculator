@@ -604,6 +604,14 @@ export default {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',
   },
+  data_management_pipeline_recalculating: {
+    en: 'Recalculating…',
+    fr: 'Recalcul en cours…',
+  },
+  data_management_pipeline_failed: {
+    en: 'Last recalc failed',
+    fr: 'Échec du dernier recalcul',
+  },
   data_management_recalculate_emissions: {
     en: 'Recalculate Emissions',
     fr: 'Recalculer les émissions',

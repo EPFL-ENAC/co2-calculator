@@ -170,13 +170,28 @@ def _pick_latest_job(
     return candidates[0]
 
 
-def _build_recalculation_status(
+async def _build_recalculation_status(
     rows: list,
+    *,
+    repo: DataIngestionRepository,
+    year: int,
 ) -> list[ModuleRecalculationStatusEntry]:
     """Build per-module recalculation status from repository rows.
 
+    Plan 310-D: each module entry carries ``current_pipeline_id`` so
+    the back-office can render a "Recalculating..." badge while a
+    bulk pipeline is in flight.  We fetch all active pipelines for
+    the module set in ONE query via
+    ``repo.get_current_pipeline_ids_for_modules`` (the same helper
+    that backs the carbon-report ``current_pipeline_id`` field) so
+    this stays a constant-roundtrip operation regardless of module
+    count.
+
     Args:
         rows: List of RecalculationStatusRow dicts from the repository.
+        repo: ``DataIngestionRepository`` for the bulk pipeline-id lookup.
+        year: The year scope — ``current_pipeline_id`` is filtered to
+            pipelines touching ``(module_type_id, year)`` only.
 
     Returns:
         List of ModuleRecalculationStatusEntry grouped by module_type_id.
@@ -198,12 +213,17 @@ def _build_recalculation_status(
                 last_recalculation_job_result=row["last_recalculation_job_result"],
             )
         )
+    pipeline_by_module = await repo.get_current_pipeline_ids_for_modules(
+        list(modules.keys()),
+        year=year,
+    )
     return [
         ModuleRecalculationStatusEntry(
             module_type_id=module_id,
             year=dets[0].year if dets else 0,
             needs_recalculation=any(det.needs_recalculation for det in dets),
             data_entry_types=dets,
+            current_pipeline_id=pipeline_by_module.get(module_id),
         )
         for module_id, dets in modules.items()
     ]
@@ -408,7 +428,9 @@ async def get_year_configuration(
     _enrich_config_with_jobs(enriched_config, job_lookup)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
-    recalculation_status = _build_recalculation_status(recalc_rows)
+    recalculation_status = await _build_recalculation_status(
+        recalc_rows, repo=repo, year=year
+    )
 
     return YearConfigurationResponse(
         year=result.year,
@@ -616,7 +638,9 @@ async def update_year_configuration(
     _enrich_config_with_jobs(enriched_config, job_lookup)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
-    recalculation_status = _build_recalculation_status(recalc_rows)
+    recalculation_status = await _build_recalculation_status(
+        recalc_rows, repo=repo, year=year
+    )
 
     return YearConfigurationResponse(
         year=result.year,
