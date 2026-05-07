@@ -217,8 +217,8 @@ export default {
     fr: 'sous-catégorie',
   },
   csv_header_co2: {
-    en: 'co2 (kg CO₂-eq)',
-    fr: 'co2 (kg CO₂-eq)',
+    en: 'co2 (t CO₂-eq)',
+    fr: 'co2 (t CO₂-eq)',
   },
   common_download_csv_template: {
     en: 'Download CSV Template',
