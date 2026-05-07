@@ -16,8 +16,8 @@
  * component owns no fetching or subscription.
  */
 
-import { computed } from 'vue';
-import { copyToClipboard, Notify } from 'quasar';
+import { computed, ref } from 'vue';
+import { copyToClipboard, Notify, type QTooltip } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
 
@@ -30,6 +30,19 @@ const { t } = useI18n();
 const store = usePipelineStreamStore();
 
 const jobs = computed(() => store.jobsFor(props.pipelineId));
+
+/**
+ * Re-expose Quasar's ``show()`` / ``hide()`` so the parent badge can
+ * drive the tooltip from ``@focus`` / ``@blur`` events.  ``<q-tooltip>``
+ * itself only registers ``mouseenter`` / ``mouseleave`` triggers
+ * (verified at ``QTooltip.js:247-266``); without this bridge a
+ * keyboard-focused badge stays mute.
+ */
+const tooltipRef = ref<QTooltip>();
+defineExpose({
+  show: (): void => tooltipRef.value?.show(),
+  hide: (): void => tooltipRef.value?.hide(),
+});
 
 async function copyPipelineId(): Promise<void> {
   try {
@@ -90,6 +103,7 @@ function formatRelative(iso: string | null): string | null {
 
 <template>
   <q-tooltip
+    ref="tooltipRef"
     anchor="bottom middle"
     self="top middle"
     class="bg-grey-10 q-pa-md"
