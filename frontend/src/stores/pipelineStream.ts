@@ -186,9 +186,7 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
       if (!entry) {
         return false;
       }
-      return entry.jobs.some(
-        (j) => j.state === FINISHED && j.result === ERROR,
-      );
+      return entry.jobs.some((j) => j.state === FINISHED && j.result === ERROR);
     });
   }
 

@@ -176,8 +176,7 @@ export function usePipelineStream() {
     // badge state without a separate ``useStore()`` call.
     isFinishedFor: (id: string) => store.isFinishedFor(id),
     hasErrorFor: (id: string) => store.hasErrorFor(id),
-    failedStatusMessagesFor: (id: string) =>
-      store.failedStatusMessagesFor(id),
+    failedStatusMessagesFor: (id: string) => store.failedStatusMessagesFor(id),
     jobsFor: (id: string) => store.jobsFor(id),
   };
 }
