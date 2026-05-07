@@ -360,6 +360,3 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
-    if raw is None:
-        return True
-    return raw.strip().lower() in ("true", "1", "yes")
