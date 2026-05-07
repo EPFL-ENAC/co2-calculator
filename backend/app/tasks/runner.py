@@ -136,19 +136,74 @@ async def run_job(job_id: int) -> None:
         # cancellation-WARNING (kept loud for diagnosing the 310-B
         # incident) on every successful run, drowning out genuine
         # cancellations.
+        #
+        # B-H3: ``abort_event`` is set by the heartbeat loop when
+        # heartbeats have failed for long enough that the auto-recovery
+        # sweep on another pod has almost certainly preempted us
+        # (consecutive failures spanning ``STALE_JOB_TIMEOUT_MINUTES``).
+        # The runner races handler completion against this event and,
+        # if the event wins, cancels the handler so we stop burning
+        # work on a row we no longer own.
+        abort_event = asyncio.Event()
         heartbeat_task = asyncio.create_task(
-            _heartbeat_loop(job_id),
+            _heartbeat_loop(job_id, abort_event),
             name=f"heartbeat-{job_id}",
         )
 
         try:
+            handler_aborted = False
             try:
                 handler = get_handler(job_type)
-                meta = await handler(job, job_session, data_session)
-                status_message = str(meta.get("status_message", "Success"))
-                metadata = dict(meta)
-                result = meta.get("result", IngestionResult.SUCCESS)
-                handler_succeeded = True
+                handler_task = asyncio.create_task(
+                    handler(job, job_session, data_session),
+                    name=f"handler-{job_id}",
+                )
+                abort_waiter = asyncio.create_task(
+                    abort_event.wait(),
+                    name=f"abort-waiter-{job_id}",
+                )
+                try:
+                    done, _pending = await asyncio.wait(
+                        {handler_task, abort_waiter},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                finally:
+                    if not abort_waiter.done():
+                        abort_waiter.cancel()
+                        try:
+                            await abort_waiter
+                        except asyncio.CancelledError:
+                            pass
+
+                if handler_task in done:
+                    meta = handler_task.result()
+                    status_message = str(meta.get("status_message", "Success"))
+                    metadata = dict(meta)
+                    result = meta.get("result", IngestionResult.SUCCESS)
+                    handler_succeeded = True
+                else:
+                    # Heartbeat-driven abort: stop the handler, drop down
+                    # to the rollback-and-return branch.  The new owner —
+                    # the pod that recovered the stale row — will write
+                    # the FINISHED row.
+                    logger.error(
+                        f"run_job: aborting handler for job {job_id} after "
+                        "sustained heartbeat failures — another pod has "
+                        "almost certainly preempted this row"
+                    )
+                    handler_task.cancel()
+                    try:
+                        await handler_task
+                    except (asyncio.CancelledError, Exception):
+                        # Swallow both cancellation and any exception the
+                        # handler raised on the way out: we're already in
+                        # the abort path and won't write its result.
+                        pass
+                    handler_aborted = True
+                    status_message = ""
+                    metadata = {}
+                    result = IngestionResult.ERROR
+                    handler_succeeded = False
             except Exception as exc:
                 logger.exception(
                     f"run_job: handler for job_type={job_type!r} failed (job {job_id})"
@@ -157,6 +212,16 @@ async def run_job(job_id: int) -> None:
                 metadata = {}
                 result = IngestionResult.ERROR
                 handler_succeeded = False
+
+            if handler_aborted:
+                # We no longer own the lock (or are about to lose it):
+                # roll back the half-written data session and exit
+                # without touching the job row.  The preemption check
+                # below would do the same, but skipping it avoids an
+                # extra DB round-trip on a path we already know is
+                # exiting.
+                await data_session.rollback()
+                return
 
             # Preemption check covers BOTH success and error paths: if a
             # stale-lock sweep recovered this row mid-handler, a different
@@ -195,7 +260,7 @@ async def run_job(job_id: int) -> None:
                 pass
 
 
-async def _heartbeat_loop(job_id: int) -> None:
+async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
     """Refresh ``locked_at`` on the active job until cancelled.
 
     Wake every ``STALE_JOB_TIMEOUT_MINUTES / 4`` (default: every
@@ -207,9 +272,24 @@ async def _heartbeat_loop(job_id: int) -> None:
     Each tick uses a fresh session: heartbeats fire concurrently
     with the handler's session, so sharing would deadlock or
     serialize on the underlying connection.
+
+    B-H3: count consecutive heartbeat exceptions.  If they span
+    ``STALE_JOB_TIMEOUT_MINUTES`` (i.e. the auto-recovery sweep's
+    threshold), set ``abort_event`` so the runner cancels the handler
+    — by then another pod's stale-recovery sweep has almost certainly
+    re-claimed this row, and continuing to run the handler would
+    burn duplicate work that Unit 1's CAS will only be able to drop
+    at the very end.  Successful heartbeats reset the counter.
     """
     settings = get_settings()
     interval_seconds = max(1.0, settings.STALE_JOB_TIMEOUT_MINUTES * 60 / 4)
+    # Threshold: enough consecutive failures to span the stale-job
+    # window.  ``max(1, ...)`` so a tiny mis-configured interval still
+    # gives the loop one chance to recover before aborting.
+    failure_threshold = max(
+        1, int(settings.STALE_JOB_TIMEOUT_MINUTES * 60 / interval_seconds)
+    )
+    consecutive_failures = 0
     while True:
         try:
             await asyncio.sleep(interval_seconds)
@@ -223,6 +303,7 @@ async def _heartbeat_loop(job_id: int) -> None:
                         "stopping heartbeat"
                     )
                     return
+            consecutive_failures = 0
         except asyncio.CancelledError:
             # Normal shutdown path — the runner cancels us in its
             # ``finally`` block.  Re-raise so asyncio sees the
@@ -230,5 +311,21 @@ async def _heartbeat_loop(job_id: int) -> None:
             raise
         except Exception as exc:
             # Don't let a transient DB hiccup kill the heartbeat;
-            # log and try again next interval.
-            logger.warning(f"_heartbeat_loop: heartbeat for job {job_id} failed: {exc}")
+            # log and try again next interval.  But if failures span
+            # the stale-job window, signal the runner to abort: the
+            # row is almost certainly owned by another pod now.
+            consecutive_failures += 1
+            logger.warning(
+                f"_heartbeat_loop: heartbeat for job {job_id} failed "
+                f"({consecutive_failures}/{failure_threshold}): {exc}"
+            )
+            if consecutive_failures >= failure_threshold:
+                logger.error(
+                    f"_heartbeat_loop: heartbeat for job {job_id} failed "
+                    f"{consecutive_failures} consecutive times "
+                    f"(>= {failure_threshold}, spanning "
+                    f"STALE_JOB_TIMEOUT_MINUTES={settings.STALE_JOB_TIMEOUT_MINUTES}) "
+                    "— signalling runner to abort handler"
+                )
+                abort_event.set()
+                return
