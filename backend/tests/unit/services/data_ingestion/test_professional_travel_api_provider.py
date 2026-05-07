@@ -417,26 +417,13 @@ class TestLoadDataKgCo2eqHandling:
         itself is path-independent and would also pass under the
         async path; this test specifically pins the override carrier.
         """
-        from app.services.data_ingestion.api_providers import (
-            professional_travel_api_provider as travel_mod,
-        )
-
-        fake_settings = MagicMock()
-        fake_settings.BULK_PATH_PURE_ASYNC = False
-        # Travel provider also reads ``settings`` via the
-        # ``DataIngestionProvider`` base for Tableau credentials —
-        # we only override BULK_PATH_PURE_ASYNC and let the real
-        # settings provide the rest by delegating to the existing
-        # cached instance for unknown attributes.
-        real = travel_mod.get_settings()
-        fake_settings.configure_mock(
-            **{
-                attr: getattr(real, attr)
-                for attr in dir(real)
-                if not attr.startswith("_") and attr != "BULK_PATH_PURE_ASYNC"
-            }
-        )
-        monkeypatch.setattr(travel_mod, "get_settings", lambda: fake_settings)
+        # The runtime gate reads ``BULK_PATH_PURE_ASYNC`` directly
+        # from the env via ``app.core.config.bulk_path_pure_async``
+        # (so ops can flip live without an app restart), so the test
+        # sets the env var rather than monkeypatching ``get_settings``.
+        # The travel provider's other settings reads (Tableau creds)
+        # still go through the cached ``Settings`` instance unchanged.
+        monkeypatch.setenv("BULK_PATH_PURE_ASYNC", "False")
         provider = _make_provider()
         provider.user = None  # bypass UserRead.model_validate on MagicMock
 

@@ -33,8 +33,6 @@ Asserts the two invariants from the PR's manual test plan:
 import csv
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
-
 import pytest
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -104,12 +102,12 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     covered separately by the unit tests in
     ``test_base_csv_provider.py``
     (``test_process_batch_skips_emissions_when_pure_async``).
-    """
-    from app.services.data_ingestion import base_csv_provider
 
-    fake_settings = MagicMock()
-    fake_settings.BULK_PATH_PURE_ASYNC = False
-    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake_settings)
+    The runtime gate reads ``BULK_PATH_PURE_ASYNC`` directly from the
+    env via ``app.core.config.bulk_path_pure_async``, so the test sets
+    the env var rather than monkeypatching ``get_settings``.
+    """
+    monkeypatch.setenv("BULK_PATH_PURE_ASYNC", "False")
     # ---------- arrange: factor + module --------------------------------
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)

@@ -8,7 +8,7 @@ import httpx
 from joserfc import jwt as JWT
 from joserfc.jwk import OctKey
 
-from app.core.config import get_settings
+from app.core.config import bulk_path_pure_async, get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
@@ -471,7 +471,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         # the same field from ``DataEntry.data`` (carrier preserved by
         # the upstream loader); the recalc workflow's
         # ``upsert_by_data_entry`` honors it via the same code path.
-        if get_settings().BULK_PATH_PURE_ASYNC:
+        if bulk_path_pure_async():
             await self.data_session.flush()
             return {"inserted": len(data_entries_response)}
 

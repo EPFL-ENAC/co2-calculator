@@ -349,7 +349,13 @@ class Settings(BaseSettings):
             "Path 1 (interactive UI edits via "
             "``CarbonReportModuleWorkflow``) is unaffected by this "
             "flag — its synchronous emission + stats writes remain "
-            "the deliberate UX choice for single-row edits."
+            "the deliberate UX choice for single-row edits.  "
+            "Note: runtime checks read this value directly from the "
+            "environment via ``bulk_path_pure_async()`` (NOT through "
+            "``get_settings()``'s ``lru_cache``) so ops can flip the "
+            "env var live without an app restart — the cached "
+            "``Settings`` value here documents the default + survives "
+            "Pydantic introspection but is not the gate."
         ),
     )
 
@@ -358,3 +364,34 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
+def bulk_path_pure_async() -> bool:
+    """Plan 310-D bulk-path-pure-async runtime gate.
+
+    Reads ``BULK_PATH_PURE_ASYNC`` directly from the process
+    environment on each call so the rollback story stays honest:
+    flipping the env var live (e.g. via a sidecar config-reload, a
+    deployment env update on a long-lived pod, or a quick ``export``
+    in dev) takes effect immediately without bouncing the worker.
+
+    Going through ``get_settings()`` instead would cache the value on
+    first read and freeze it for the lifetime of the process —
+    technically "rollback-able" only if you also restart, which
+    defeats the "emergency rollback" promise the flag's docstring
+    makes.  The cached ``Settings.BULK_PATH_PURE_ASYNC`` value is
+    still kept (for default loading + Pydantic introspection /
+    /health-style endpoints) but is NOT the runtime gate.
+
+    Default is ``True`` to match ``Settings.BULK_PATH_PURE_ASYNC``.
+    Truthy values: ``true``, ``1``, ``yes`` (case-insensitive).
+    Anything else (including unset env, ``false``, ``0``, ``no``)
+    falls through to ``False`` only when explicitly set; an unset
+    env keeps the True default.
+    """
+    import os
+
+    raw = os.environ.get("BULK_PATH_PURE_ASYNC")
+    if raw is None:
+        return True
+    return raw.strip().lower() in ("true", "1", "yes")

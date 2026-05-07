@@ -952,14 +952,14 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
 def legacy_inline_emissions(monkeypatch):
     """Force ``BULK_PATH_PURE_ASYNC=False`` so the legacy inline-write path
     in ``_process_batch`` / ``_recompute_module_stats`` runs (used by the
-    pre-310D batch tests).  Patches ``get_settings`` directly so we don't
-    have to clear the lru_cache."""
-    from app.services.data_ingestion import base_csv_provider
+    pre-310D batch tests).
 
-    fake = MagicMock()
-    fake.BULK_PATH_PURE_ASYNC = False
-    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake)
-    return fake
+    The runtime gate reads ``BULK_PATH_PURE_ASYNC`` directly from the
+    environment via ``app.core.config.bulk_path_pure_async`` (so ops
+    can flip the flag live without an app restart), so the test sets
+    the env var rather than monkeypatching ``get_settings``.
+    """
+    monkeypatch.setenv("BULK_PATH_PURE_ASYNC", "False")
 
 
 @pytest.mark.asyncio
