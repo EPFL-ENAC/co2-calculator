@@ -218,6 +218,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
 # NO CORS origins configured allowed on this instance
 
 # Add this after creating the FastAPI app

@@ -112,7 +112,6 @@
 </template>
 
 <script setup lang="ts">
-import { storeToRefs } from 'pinia';
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Module, MODULES } from 'src/constant/modules';
@@ -207,7 +206,6 @@ const TOP_CLASS_MODULES: Module[] = [
 
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
-const { emissionBreakdownRefreshSequence } = storeToRefs(moduleStore);
 
 const supportsTopClassBreakdown = computed(() =>
   TOP_CLASS_MODULES.includes(props.type),
@@ -237,19 +235,6 @@ watch(
 watch(
   () => props.type,
   () => fetchTopClassBreakdownIfNeeded(),
-);
-
-watch(
-  emissionBreakdownRefreshSequence,
-  (sequence) => {
-    if (!moduleStore.consumeEmissionBreakdownRefreshRequest(sequence)) return;
-    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
-    if (!carbonReportId) return;
-    moduleStore.invalidateEmissionBreakdown();
-    void moduleStore.getEmissionBreakdown(carbonReportId);
-    fetchTopClassBreakdownIfNeeded();
-  },
-  { immediate: true },
 );
 
 const hasStats = computed(() => {

@@ -169,9 +169,11 @@ class UnitTotalsService:
             raise ValueError(f"CarbonReport {carbon_report_id} not found")
 
         # 2. Look up previous year's CarbonReport
-        prev_report = await report_repo.get_by_unit_and_year(
-            unit_id=report.unit_id, year=report.year - 1
-        )
+        prev_report = None
+        if report.year is not None:
+            prev_report = await report_repo.get_by_unit_and_year(
+                unit_id=report.unit_id, year=report.year - 1
+            )
 
         # 3. Current year: emissions per module + FTE per module
         emission_repo = DataEntryEmissionRepository(self.session)

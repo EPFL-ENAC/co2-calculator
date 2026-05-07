@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, type PropType, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -37,11 +37,21 @@ import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 
-const props = defineProps<{
-  breakdownData?: EmissionBreakdownResponse | null;
-  title?: string;
-  viewAdditionalData?: boolean;
-}>();
+const props = defineProps({
+  breakdownData: {
+    type: Object as PropType<EmissionBreakdownResponse | null | undefined>,
+    default: undefined,
+  },
+  title: {
+    type: String as PropType<string | undefined>,
+    default: undefined,
+  },
+
+  viewAdditionalData: {
+    type: Boolean as PropType<boolean | undefined>,
+    default: undefined,
+  },
+});
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();

@@ -157,6 +157,8 @@ class DataEntryEmissionRepository:
     async def get_validated_totals_by_unit(
         self,
         unit_id: int,
+        *,
+        validated_only: bool = True,
     ) -> List[Dict[str, Any]]:
         """Aggregate validated emission totals by year for a unit.
 
@@ -187,7 +189,11 @@ class DataEntryEmissionRepository:
             )
             .where(
                 CarbonReport.unit_id == unit_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 _is_leaf_emission(),
             )
@@ -209,6 +215,8 @@ class DataEntryEmissionRepository:
     async def get_stats_by_carbon_report_id(
         self,
         carbon_report_id: int,
+        *,
+        validated_only: bool = True,
     ) -> Dict[str, float]:
         """Aggregate validated emission totals per module for a carbon report.
 
@@ -235,7 +243,11 @@ class DataEntryEmissionRepository:
             )
             .where(
                 col(CarbonReportModule.carbon_report_id) == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 _is_leaf_emission(),
             )

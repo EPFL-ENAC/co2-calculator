@@ -4,6 +4,7 @@ from sqlmodel import Relationship
 
 from .audit import AuditDocument
 from .building_room import BuildingRoom
+from .carbon_project import CarbonProject
 from .carbon_report import CarbonReport, CarbonReportModule
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
@@ -22,6 +23,7 @@ User.model_rebuild()
 UnitUser.model_rebuild()
 CarbonReport.model_rebuild()
 CarbonReportModule.model_rebuild()
+CarbonProject.model_rebuild()
 DataEntry.model_rebuild()
 DataEntryEmission.model_rebuild()
 
@@ -53,6 +55,7 @@ __all__ = [
     "UnitUser",
     "DataIngestionJob",
     "Factor",
+    "CarbonProject",
     "CarbonReport",
     "CarbonReportModule",
     "Location",

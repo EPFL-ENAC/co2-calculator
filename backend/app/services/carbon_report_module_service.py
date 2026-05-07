@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
@@ -163,11 +163,31 @@ class CarbonReportModuleService:
         ]
 
     async def get_carbon_report_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
+        self,
+        year: int,
+        unit_id: int,
+        module_type_id: ModuleTypeEnum,
+        *,
+        report_type: CarbonReportType = CarbonReportType.CALCULATOR,
     ) -> CarbonReportModuleRead:
-        """Get a carbon report module by year and unit."""
+        """Get a carbon report module by year and unit.
+
+        Args:
+            year: Report year to look up.
+            unit_id: Unit ID to filter by.
+            module_type_id: Module type to retrieve.
+            report_type: The CarbonReportType to resolve against (CALCULATOR,
+                SIMULATOR_EXPLORE, or SIMULATOR_PLAN). Derived from the
+                ``?carbon_project_type`` query parameter by the caller.
+
+        Returns:
+            The matching CarbonReportModuleRead.
+
+        Raises:
+            ValueError: If no matching module is found.
+        """
         carbon_report_module = await self.repo.get_by_year_and_unit(
-            year, unit_id, module_type_id
+            year, unit_id, module_type_id, report_type=report_type
         )
         if carbon_report_module is None:
             raise ValueError(

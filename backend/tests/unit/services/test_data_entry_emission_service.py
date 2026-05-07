@@ -292,6 +292,11 @@ class TestMetaExtras:
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",
                 return_value=[EmissionType.commuting],
@@ -342,6 +347,11 @@ class TestMetaExtras:
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",
                 return_value=[EmissionType.food],
@@ -391,6 +401,11 @@ class TestMetaExtras:
             ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",

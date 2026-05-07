@@ -7,7 +7,7 @@
           :module-config="currentModuleConfig"
           :module-type="type"
           :disable="disable"
-          :submodule-type="sub.type as any"
+          :submodule-type="sub.type"
           :data="data"
           :loading="loading"
           :error="error"

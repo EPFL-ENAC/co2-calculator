@@ -33,6 +33,15 @@ erDiagram
     FLOAT room_surface_square_meter
     VARCHAR room_type
   }
+  carbon_projects {
+    VARCHAR carbon_report_type
+    INTEGER end_year "indexed"
+    INTEGER id PK
+    BOOLEAN is_viewable_by_unit_members
+    VARCHAR name "indexed"
+    INTEGER start_year "indexed"
+    INTEGER unit_id FK
+  }
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
@@ -42,10 +51,12 @@ erDiagram
     INTEGER status "indexed"
   }
   carbon_reports {
+    INTEGER carbon_project_id FK
     VARCHAR completion_progress
     INTEGER id PK
     INTEGER last_updated
     INTEGER overall_status
+    INTEGER reference_year
     JSON stats
     INTEGER unit_id FK
     INTEGER year
@@ -77,6 +88,7 @@ erDiagram
     INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
+    DATETIME finished_at
     INTEGER id PK
     VARCHAR ingestion_method "indexed"
     BOOLEAN is_current
@@ -90,6 +102,7 @@ erDiagram
     VARCHAR provider
     VARCHAR result
     DATETIME run_after "indexed"
+    DATETIME started_at
     VARCHAR state
     VARCHAR status_message
     VARCHAR target_type "indexed"
@@ -159,11 +172,13 @@ erDiagram
     DATETIME updated_at
     INTEGER year PK
   }
+  carbon_projects ||--}o carbon_reports : "carbon_project_id"
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
+  units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
   users ||--}o unit_users : "user_id"

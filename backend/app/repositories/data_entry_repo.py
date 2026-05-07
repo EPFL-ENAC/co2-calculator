@@ -764,6 +764,8 @@ class DataEntryRepository:
         carbon_report_id: int,
         aggregate_by: str = "module_type_id",
         aggregate_field: str = "fte",
+        *,
+        validated_only: bool = True,
     ) -> Dict[str, float]:
         """Aggregate DataEntry data by module_type_id for a whole carbon report.
 
@@ -799,7 +801,11 @@ class DataEntryRepository:
             )
             .where(
                 CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
             )
             .group_by(group_field)
         )
