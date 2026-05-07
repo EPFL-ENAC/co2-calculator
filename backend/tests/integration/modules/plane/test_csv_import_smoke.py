@@ -104,11 +104,18 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     ``test_base_csv_provider.py``
     (``test_process_batch_skips_emissions_when_pure_async``).
 
-    The runtime gate reads ``BULK_PATH_PURE_ASYNC`` directly from the
-    env via ``app.core.config.bulk_path_pure_async``, so the test sets
-    the env var rather than monkeypatching ``get_settings``.
+    Patches ``get_settings`` on the provider module rather than via
+    env var because the runtime gate reads through ``get_settings()``'s
+    ``lru_cache`` — a ``setenv`` after first settings load wouldn't
+    take effect.
     """
-    monkeypatch.setenv("BULK_PATH_PURE_ASYNC", "False")
+    from unittest.mock import MagicMock
+
+    from app.services.data_ingestion import base_csv_provider
+
+    fake_settings = MagicMock()
+    fake_settings.BULK_PATH_PURE_ASYNC = False
+    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake_settings)
     # ---------- arrange: factor + module --------------------------------
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)

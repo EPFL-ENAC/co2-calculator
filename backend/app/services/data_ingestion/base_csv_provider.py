@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col
 
-from app.core.config import bulk_path_pure_async
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import (
     DataEntry,
@@ -1182,7 +1182,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # When the flag is False (emergency rollback) we keep the legacy
         # inline write so the chain's emissions become a redundant
         # overwrite rather than a missing one.
-        if bulk_path_pure_async():
+        if get_settings().BULK_PATH_PURE_ASYNC:
             return
 
         # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
@@ -1230,7 +1230,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         eventual write for the same module row; the dashboard's stale-stats
         UX surfaces the gap until the chain completes.
         """
-        if bulk_path_pure_async():
+        if get_settings().BULK_PATH_PURE_ASYNC:
             logger.debug(
                 "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
                 "aggregation handler will own the stats writes"
