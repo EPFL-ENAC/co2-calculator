@@ -182,14 +182,23 @@ async def chain_job(
         child_id = created.id
 
     if child_id is None:
-        # Defensive: create_ingestion_job should always return a
-        # row with id set after commit.  If it ever doesn't, the
-        # safety poller will pick up the row anyway via run_after.
+        # Two paths can land here:
+        #   1. ``dedup_active=True`` already returned ``None`` above —
+        #      we never reach this branch in that case (early return).
+        #   2. The ORM insert path got a row back without an id (a
+        #      real driver bug), or the dedup INSERT's RETURNING
+        #      yielded no row despite no IntegrityError.  Either way
+        #      the safety poller will pick the row up via run_after,
+        #      so log loud and return ``None`` — the caller handles
+        #      ``None`` as "no chain dispatched" anyway.  Returning
+        #      ``-1`` here (the previous shape) was a tri-state
+        #      footgun: callers had to distinguish dedup-skip vs
+        #      id-missing-but-row-exists vs success.
         logger.error(
             f"chain_job: child {job_type!r} of parent {parent.id} "
             "was created without an id — relying on poller for dispatch"
         )
-        return -1
+        return None
 
     # Lazy import: runner imports nothing from this module, so a
     # top-level ``from app.tasks.runner import run_job`` would be safe
@@ -328,13 +337,28 @@ async def _insert_child_with_dedup(
         # the partial unique index ``uq_aggregation_active`` trips and
         # raises IntegrityError.  Surface as a clean dedup signal
         # rather than letting it bubble — the existing pending row
-        # will run, our caller treats None as "no-op".
+        # will run, our caller treats None as "no-op".  Log at INFO
+        # so prod can distinguish race-loss from pre-check-loss
+        # (the pre-check path also logs at INFO with a different
+        # phrasing in ``chain_job`` itself).
+        logger.info(
+            f"chain_job(dedup): {job_type!r} for module={module_type_id}/"
+            f"year={year} lost partial-unique-index race — sibling owns "
+            "the aggregation row"
+        )
         await session.rollback()
         return None
 
     row = result.first()
     await session.commit()
+    # ``RETURNING id`` always yields a row when the INSERT succeeds
+    # (the pre-check + IntegrityError catch already cover the dedup
+    # paths), so a None here would be a real driver bug — surface it.
     if row is None:
-        # ON CONFLICT DO NOTHING — RETURNING yields no row.
+        logger.error(
+            f"chain_job(dedup): {job_type!r} for module={module_type_id}/"
+            f"year={year} — INSERT RETURNING yielded no row despite no "
+            "IntegrityError; treating as dedup hit but please investigate"
+        )
         return None
     return int(row[0])
