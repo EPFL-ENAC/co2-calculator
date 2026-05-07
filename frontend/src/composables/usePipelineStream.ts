@@ -27,6 +27,7 @@
  */
 
 import { onUnmounted } from 'vue';
+import { api } from 'src/api/http';
 import {
   usePipelineStreamStore,
   type PipelineSnapshot,
@@ -34,26 +35,26 @@ import {
 } from 'src/stores/pipelineStream';
 
 /**
- * Initial reconnect delay (ms).  Doubled on each consecutive
- * ``onerror`` up to ``MAX_BACKOFF_MS`` — same shape as the plan's
- * Risks section recommends.
+ * Reconnect strategy: trust native ``EventSource`` retry.
+ *
+ * Earlier revisions of this file shipped a custom exponential-backoff
+ * reconnect loop driven by the ``onerror`` handler.  Bot review on
+ * PR #1054 caught the bug: the WHATWG spec says ``onerror`` fires on
+ * transient drops with ``readyState === CONNECTING`` (the browser is
+ * already auto-retrying), and ``CLOSED`` is only reached after WE
+ * call ``.close()``.  So our ``readyState === CLOSED`` guard never
+ * fired and the documented backoff was dead code.
+ *
+ * Removing the dead code rather than fixing the broken state machine:
+ * the browser's native retry already does what we wanted (reconnect
+ * with a server-controlled or default-3s delay).  If the proxy stack
+ * ever proves to mishandle that, switch back to an explicit
+ * ``.close()`` + controlled reconnect — but don't ship the broken
+ * variant in the meantime.
  */
-const INITIAL_BACKOFF_MS = 1000;
-const MAX_BACKOFF_MS = 30_000;
-/**
- * ``EventSource.CLOSED`` resolves to ``2`` per the WHATWG spec
- * (CONNECTING=0, OPEN=1, CLOSED=2).  Using a named constant rather
- * than ``EventSource.CLOSED`` avoids the static-vs-instance-property
- * confusion the bot review on PR #1054 flagged — readers don't have
- * to remember that the static class property and the instance's
- * ``.readyState`` value match.
- */
-const EVENT_SOURCE_CLOSED = 2;
 
 interface ActiveStream {
   source: EventSource;
-  reconnectTimer: ReturnType<typeof setTimeout> | null;
-  backoffMs: number;
 }
 
 /**
@@ -100,15 +101,26 @@ export function __setSnapshotFetcher(fetcher: SnapshotFetcher | null): void {
 async function defaultSnapshotFetcher(
   pipelineId: string,
 ): Promise<PipelineSnapshot | null> {
+  // Use the centralized ``api`` client (ky) rather than raw ``fetch``
+  // so we inherit ``credentials: 'include'``, the 401-refresh-then-retry
+  // hook, the 401/403 redirect-and-toast behavior, and the standardized
+  // error notifications the rest of the app expects.  Bot review on
+  // PR #1054 caught the bypass: a raw ``fetch`` would silently return
+  // null on session expiry and we'd then open an SSE stream that
+  // would also fail to authenticate.
+  //
+  // ``api`` has ``prefixUrl: '/api/v1/'`` configured, so the path
+  // here is the suffix only.  Catch keeps the "non-fatal, fall
+  // through to stream" semantics intact for transient hiccups
+  // (the ``afterResponse`` hook in the api client still handles
+  // 401/403 globally before we see the rejection here).
   try {
-    const resp = await fetch(`/api/v1/sync/pipelines/${pipelineId}`);
-    if (!resp.ok) {
-      return null;
-    }
-    return (await resp.json()) as PipelineSnapshot;
+    return await api
+      .get(`sync/pipelines/${pipelineId}`)
+      .json<PipelineSnapshot>();
   } catch {
-    // Network blip or a 404 race — non-fatal, the stream will catch
-    // up with the next ``pipeline-update`` event.
+    // Network blip, 404 race, or post-redirect rejection — non-fatal,
+    // the stream will catch up with the next ``pipeline-update`` event.
     return null;
   }
 }
@@ -146,6 +158,17 @@ export function usePipelineStream() {
     // takes over — closes the "pipeline finished between
     // carbon-report response and our subscribe" race.
     const snapshot = await getSnapshotFetcher()(pipelineId);
+
+    // Re-check ownership after the await.  If the caller unmounted
+    // during the snapshot fetch, ``onUnmounted`` already ran
+    // ``unsubscribe`` (refcount → 0, but ``closeStream`` was a no-op
+    // because no stream existed yet).  Without this guard we'd
+    // proceed to ``openStream`` and leak an unowned EventSource.
+    // Bot review on PR #1054 caught the leak.
+    if (!ownedSubscriptions.has(pipelineId)) {
+      return;
+    }
+
     if (snapshot) {
       store.seedFromSnapshot(snapshot);
     }
@@ -193,12 +216,7 @@ export function usePipelineStream() {
 function openStream(pipelineId: string): void {
   const Ctor = getEventSourceCtor();
   const source = new Ctor(`/api/v1/sync/pipelines/${pipelineId}/stream`);
-  const active: ActiveStream = {
-    source,
-    reconnectTimer: null,
-    backoffMs: INITIAL_BACKOFF_MS,
-  };
-  activeStreams.set(pipelineId, active);
+  activeStreams.set(pipelineId, { source });
 
   // The backend names the SSE event ``pipeline-update`` (vs the
   // default unnamed ``message``).  Listen specifically for that —
@@ -209,9 +227,6 @@ function openStream(pipelineId: string): void {
       const payload = JSON.parse(event.data) as PipelineUpdate;
       const store = usePipelineStreamStore();
       store.applyUpdate(payload);
-      // Reset backoff on any successful event — connection is
-      // healthy so the next disconnect should retry quickly.
-      active.backoffMs = INITIAL_BACKOFF_MS;
       if (payload.stream_closed) {
         // Backend signaled end-of-stream; close the socket so the
         // browser doesn't try to reconnect via its own logic.
@@ -228,34 +243,12 @@ function openStream(pipelineId: string): void {
     // No-op — the heartbeat just keeps proxies awake.
   });
 
-  source.onerror = () => {
-    // ``onerror`` fires on transient disconnects AND on permanent
-    // close.  Schedule a reconnect with exponential backoff;
-    // ``closeStream`` clears the timer if the consumer fully
-    // unsubscribes before reconnect time.
-    if (active.source.readyState === EVENT_SOURCE_CLOSED) {
-      scheduleReconnect(pipelineId);
-    }
-  };
-}
-
-function scheduleReconnect(pipelineId: string): void {
-  const active = activeStreams.get(pipelineId);
-  if (!active) {
-    return;
-  }
-  if (active.reconnectTimer) {
-    return; // already pending
-  }
-  const delay = active.backoffMs;
-  active.backoffMs = Math.min(active.backoffMs * 2, MAX_BACKOFF_MS);
-  active.reconnectTimer = setTimeout(() => {
-    active.reconnectTimer = null;
-    // Drop the dead source and open a fresh one.
-    active.source.close();
-    activeStreams.delete(pipelineId);
-    openStream(pipelineId);
-  }, delay);
+  // No ``onerror`` handler: native ``EventSource`` already retries
+  // transient disconnects on its own clock (the browser keeps
+  // ``readyState === CONNECTING`` while it does so).  The store's
+  // reactive entry stays in place so the badge doesn't flicker.
+  // See the "Reconnect strategy" header comment for why we
+  // intentionally don't add bespoke retry logic.
 }
 
 function closeStream(pipelineId: string): void {
@@ -263,19 +256,13 @@ function closeStream(pipelineId: string): void {
   if (!active) {
     return;
   }
-  if (active.reconnectTimer) {
-    clearTimeout(active.reconnectTimer);
-  }
   active.source.close();
   activeStreams.delete(pipelineId);
 }
 
-/** Test-only: drop every active stream + cancel pending reconnects. */
+/** Test-only: drop every active stream. */
 export function __resetPipelineStreams(): void {
   for (const [, active] of activeStreams) {
-    if (active.reconnectTimer) {
-      clearTimeout(active.reconnectTimer);
-    }
     active.source.close();
   }
   activeStreams.clear();
