@@ -72,7 +72,7 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
       modules: moduleIds.join(','),
     });
     const response = (await api
-      .get(`v1/sync/active-pipelines?${params.toString()}`)
+      .get(`sync/active-pipelines?${params.toString()}`)
       .json()) as ActivePipelinesResponse;
 
     for (const moduleId of moduleIds) {
