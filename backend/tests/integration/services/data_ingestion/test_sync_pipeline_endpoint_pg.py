@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
+import app.api.v1.data_sync as data_sync_module
 import app.core.security as security_module
 from app.main import app
 from app.models.data_ingestion import (
@@ -74,6 +75,15 @@ async def pg_app(pg_dsn, monkeypatch):
         return True
 
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
+
+    # The pipeline endpoints layer a per-module ``check_module_permission``
+    # check on top of the global gate (see fix/310 SSE pool + scope).
+    # Bypass it here so contract tests reach the body; cross-tenant
+    # behavior is covered by the dedicated test in this directory.
+    async def _allow_module(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(data_sync_module, "check_module_permission", _allow_module)
 
     yield {"factory": Sf}
 

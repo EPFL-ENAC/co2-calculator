@@ -23,6 +23,7 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult
 from app.tasks import emission_recalculation_tasks as recalc_mod
 from app.tasks import unit_sync_tasks as unit_sync_mod
+from app.tasks._chain import AGGREGATION_DEDUP
 from app.tasks.registry import _REGISTRY, get_handler
 
 
@@ -121,8 +122,8 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
 async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success():
     """Plan 310-D — the handler no longer calls ``recompute_stats``
     inline; it chains the runner-driven ``aggregation`` handler with
-    ``dedup_active=True`` so a fan-out of N siblings collapses into
-    one aggregation pass per (module, year)."""
+    ``dedup_config=AGGREGATION_DEDUP`` so a fan-out of N siblings
+    collapses into one aggregation pass per (module, year)."""
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -165,7 +166,7 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
     assert chain_kwargs["job_type"] == "aggregation"
     assert chain_kwargs["module_type_id"] == job.module_type_id
     assert chain_kwargs["year"] == job.year
-    assert chain_kwargs["dedup_active"] is True
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     # ``session`` for ``chain_job`` is the job_session (the row write
     # for the dedup INSERT lives on the job-progress session, not the
     # data_session that the workflow scrubbed and committed).
@@ -175,15 +176,13 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
 
 
 @pytest.mark.asyncio
-async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
-    """A WARNING result (per-entry errors > 0) means the recalc
-    completed but with partial failures.  Per Plan 310-D's
-    eventual-consistency model the aggregation pass should still
-    eventually happen, but for this PR we conservatively gate on
-    SUCCESS — partial-warning recalcs land before the aggregation
-    chain ships in production traffic, and the absence of a chain
-    surfaces as a stale-stats badge the operator can act on (the
-    PR is rollback-safe)."""
+async def test_emission_recalc_handler_chains_aggregation_on_warning():
+    """Regression for B-C2: a WARNING result (per-entry errors > 0)
+    must still chain aggregation.  A 10k-row reupload that fails on
+    one entry flips ``result`` to WARNING; if we skipped the chain
+    here ``carbon_reports.stats`` would stay stale forever even
+    though 9999 entries were recomputed.  Aligns with the
+    ``module_emission_recalc_handler`` gate (``!= ERROR``)."""
     job = _make_job()
     job_session = MagicMock()
     job_session.commit = AsyncMock()
@@ -195,8 +194,8 @@ async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
     workflow = MagicMock()
     workflow.recalculate_for_data_entry_type = AsyncMock(
         return_value={
-            "recalculated": 3,
-            "errors": 2,
+            "recalculated": 9999,
+            "errors": 1,
             "modules_refreshed": 0,
             "affected_module_ids": [],
         }
@@ -209,11 +208,17 @@ async def test_emission_recalc_handler_skips_aggregation_chain_on_warning():
         ),
         patch.object(recalc_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
     ):
+        mock_chain.return_value = 777
         meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
 
-    mock_chain.assert_not_awaited()
+    mock_chain.assert_awaited_once()
+    chain_kwargs = mock_chain.await_args.kwargs
+    assert chain_kwargs["job_type"] == "aggregation"
+    assert chain_kwargs["module_type_id"] == job.module_type_id
+    assert chain_kwargs["year"] == job.year
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] is None
+    assert meta["aggregation_job_id"] == 777
 
 
 @pytest.mark.asyncio
@@ -314,7 +319,7 @@ async def test_module_emission_recalc_iterates_all_types():
     mock_chain.assert_awaited_once()
     chain_kwargs = mock_chain.await_args.kwargs
     assert chain_kwargs["job_type"] == "aggregation"
-    assert chain_kwargs["dedup_active"] is True
+    assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["status_message"] == "Module emission recalculation completed"
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["total_recalculated"] == 6

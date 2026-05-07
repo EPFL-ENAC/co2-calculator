@@ -4,6 +4,7 @@ import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
 import {
   TargetType,
@@ -24,6 +25,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const yearConfigStore = useYearConfigStore();
+const pipelineStateStore = usePipelineStateStore();
 
 const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
   useModuleConfig({
@@ -31,28 +33,48 @@ const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
     selectedYear: props.selectedYear,
   });
 
-// Plan 310-D — pipeline-scoped SSE consumer drives the
-// "Recalculating..." badge.  ``current_pipeline_id`` rides on the
-// per-module ``recalculationStatus`` entry (extended in PR #1054
-// backend half) — null when no active pipeline, set to the
-// pipeline_id while a bulk chain is in flight.
+// Plan 310-D / Issue #1062 — pipeline-scoped SSE consumer drives the
+// "Recalculating..." badge.  The active pipeline_id lives in the
+// unified ``pipelineStateStore`` keyed by ``(module_type_id, year)``
+// — the SSE composable is responsible for the live state of that
+// pipeline once we know its id.
 const { subscribe, unsubscribe, isFinishedFor, hasErrorFor } =
   usePipelineStream();
 
-const currentPipelineId = computed<string | null>(() => {
+const currentPipelineId = computed<string | null>(() =>
+  pipelineStateStore.getPipelineId(
+    getModuleTypeIdFromName(props.module),
+    props.selectedYear,
+  ),
+);
+
+async function refreshPipelineState() {
   const moduleTypeId = getModuleTypeIdFromName(props.module);
-  return (
-    yearConfigStore.recalculationStatus[moduleTypeId]?.current_pipeline_id ??
-    null
-  );
-});
+  // ``getModuleTypeIdFromName`` returns 0 for unknown module names — bail
+  // before issuing ``GET /v1/sync/active-pipelines?modules=0`` and polluting
+  // the store with a ``0:<year>`` cache key.  Mirrors the falsy-id guard
+  // pattern in other useModuleConfig helpers.
+  if (!moduleTypeId) return;
+  await pipelineStateStore.loadFor(props.selectedYear, [moduleTypeId]);
+}
+
+// Initial fetch + re-fetch on year change — the same module can have
+// different pipeline state across years (e.g. operator switching
+// between report years while a chain runs in the background).
+watch(
+  () => props.selectedYear,
+  () => {
+    void refreshPipelineState();
+  },
+  { immediate: true },
+);
 
 const isRecalculating = computed<boolean>(() => {
   const id = currentPipelineId.value;
   if (!id) return false;
-  // Active until the SSE stream signals finish — even if a previous
-  // entry on this id is finished, the badge clears via the watch
-  // below which refetches the year config.
+  // Active until the SSE stream signals finish — the watch below
+  // refetches the active-pipelines store on completion so the id
+  // clears and the badge disappears.
   return !isFinishedFor(id).value;
 });
 
@@ -115,9 +137,10 @@ watch(
   { immediate: true },
 );
 
-// When the pipeline reports finished, refetch the year config so
-// ``current_pipeline_id`` clears (or, on error, stays set with the
-// failure-state metadata for the future retry button).
+// When the pipeline reports finished, refetch the active-pipelines
+// store so the badge clears (or, on error, the entry stays set so the
+// retry-button affordance remains).  Also refetch the year config so
+// ``recalculation_status.needs_recalculation`` updates.
 watch(
   () =>
     currentPipelineId.value
@@ -125,7 +148,10 @@ watch(
       : false,
   async (finished, wasFinished) => {
     if (finished && !wasFinished && !hasRecalcFailure.value) {
-      await yearConfigStore.fetchConfig(props.selectedYear);
+      await Promise.all([
+        refreshPipelineState(),
+        yearConfigStore.fetchConfig(props.selectedYear),
+      ]);
     }
   },
 );
@@ -148,6 +174,23 @@ const showRecalcDialog = ref(false);
 const recalcDialogModuleTypeId = ref<number | null>(null);
 const recalcOnlyStale = ref(true);
 
+// Plan 310-D — fix(F-C1): Quasar's ``<q-tooltip>`` is hover-only by
+// spec (verified at ``QTooltip.js:247-266`` — only ``mouseenter`` /
+// ``mouseleave`` are registered as triggers).  ``tabindex="0"`` alone
+// makes the badge focusable but never opens the tooltip for keyboard
+// users.  ``PipelineDiagnosticTooltip`` re-exposes Quasar's
+// ``show()`` / ``hide()`` via ``defineExpose``; the parent badge
+// drives them from ``@focus`` / ``@blur`` so the diagnostic content
+// (pipeline UUID, per-job state, status messages) is reachable
+// without a mouse.  The copy-pipeline-id button inside the tooltip
+// stays mouse-only because the tooltip portal closes on ``blur`` —
+// honest partial-a11y; full keyboard reachability would require
+// switching primitives (``<q-popup-proxy>`` / ``<q-menu>``) which the
+// plan tracks as a future enhancement.
+type TooltipExposed = { show: () => void; hide: () => void };
+const recalcTooltip = ref<TooltipExposed>();
+const failureTooltip = ref<TooltipExposed>();
+
 function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   dialogCurrentRow.value = row;
   dialogTargetType.value = targetType;
@@ -161,11 +204,17 @@ function openRecalcDialog(moduleTypeId: number) {
 }
 
 async function handleJobCompleted() {
-  await yearConfigStore.fetchConfig(props.selectedYear);
+  await Promise.all([
+    yearConfigStore.fetchConfig(props.selectedYear),
+    refreshPipelineState(),
+  ]);
 }
 
 async function handleJobProgressing() {
-  await yearConfigStore.fetchConfig(props.selectedYear);
+  await Promise.all([
+    yearConfigStore.fetchConfig(props.selectedYear),
+    refreshPipelineState(),
+  ]);
 }
 
 provide('openDataEntryDialog', openDataEntryDialog);
@@ -223,11 +272,14 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               the live state.
             -->
             <!--
-              Plan 310-D — ``tabindex="0"`` + ``aria-label`` make the
-              badge keyboard-focusable so the diagnostic tooltip
-              opens on focus (and the copy-pipeline-id button inside
-              becomes reachable).  Without these, keyboard-only users
-              can't see what the badge promises to surface.
+              Plan 310-D — fix(F-C1): ``tabindex="0"`` + ``aria-label``
+              make the badge keyboard-focusable and named for screen
+              readers, but Quasar's ``<q-tooltip>`` is hover-only.  The
+              child component re-exposes ``show()`` / ``hide()`` via
+              ``defineExpose``; the badge drives them from ``@focus`` /
+              ``@blur`` so the diagnostic content is reachable without
+              a mouse.  See the ref declarations in ``<script setup>``
+              for the full rationale.
             -->
             <q-badge
               v-if="isRecalculating"
@@ -238,9 +290,12 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               tabindex="0"
               :aria-label="$t('data_management_pipeline_recalculating')"
               :label="$t('data_management_pipeline_recalculating')"
+              @focus="recalcTooltip?.show()"
+              @blur="recalcTooltip?.hide()"
             >
               <PipelineDiagnosticTooltip
                 v-if="currentPipelineId"
+                ref="recalcTooltip"
                 :pipeline-id="currentPipelineId"
               />
             </q-badge>
@@ -253,9 +308,12 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               tabindex="0"
               :aria-label="$t('data_management_pipeline_failed')"
               :label="$t('data_management_pipeline_failed')"
+              @focus="failureTooltip?.show()"
+              @blur="failureTooltip?.hide()"
             >
               <PipelineDiagnosticTooltip
                 v-if="currentPipelineId"
+                ref="failureTooltip"
                 :pipeline-id="currentPipelineId"
               />
             </q-badge>

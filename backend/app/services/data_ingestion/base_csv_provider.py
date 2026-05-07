@@ -29,7 +29,10 @@ from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
@@ -990,6 +993,16 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                         f"{field_name}={default_value} from factor"
                                     )
 
+            # B-H1 — under ``BULK_PATH_PURE_ASYNC`` the inline path skips
+            # ``prepare_create``, so the parallel ``kg_co2eq_override`` list
+            # is built and discarded.  Persist the override on the data
+            # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
+            # the async recalc path (``upsert_by_data_entry`` →
+            # ``prepare_create``) still honors it.  The parallel list is
+            # kept for the legacy inline path's existing flow.
+            if kg_co2eq_override is not None:
+                data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
+
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
@@ -1182,7 +1195,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # When the flag is False (emergency rollback) we keep the legacy
         # inline write so the chain's emissions become a redundant
         # overwrite rather than a missing one.
-        if get_settings().BULK_PATH_PURE_ASYNC:
+        #
+        # Seed runs (``is_seed_run=True``) bypass the gate: their
+        # ``_update_job`` is a no-op, so the runner-driven chain never
+        # fires.  Without the inline writes the seeded module ends up
+        # with empty ``data_entry_emissions`` and zero stats.
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
             return
 
         # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
@@ -1229,8 +1249,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         for the bulk path.  Skipping inline here avoids racing the chain's
         eventual write for the same module row; the dashboard's stale-stats
         UX surfaces the gap until the chain completes.
+
+        Seed runs (``is_seed_run=True``) bypass the gate: their
+        ``_update_job`` is a no-op so the chain never fires.  Without the
+        inline recompute the seeded module's stats stay at zero.
         """
-        if get_settings().BULK_PATH_PURE_ASYNC:
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
             logger.debug(
                 "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
                 "aggregation handler will own the stats writes"

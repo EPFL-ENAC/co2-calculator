@@ -106,15 +106,32 @@ plumbing.
 - Relative timestamp via a small inline `formatRelative()` helper —
   no project-wide time utility was available; bespoke helper kept
   inside the component to avoid premature abstraction.
+- **Keyboard a11y on the badge** (fix F-C1, follow-up after PR #1059).
+  Quasar's `<q-tooltip>` only registers `mouseenter` / `mouseleave`
+  on the anchor (verified at
+  `frontend/node_modules/quasar/src/components/tooltip/QTooltip.js:247-266`),
+  so `tabindex="0"` alone never opens it for keyboard users.
+  `PipelineDiagnosticTooltip.vue` re-exposes Quasar's `show()` /
+  `hide()` via `defineExpose`; the parent badge drives them from
+  `@focus` / `@blur`. Tabbing onto the badge now opens the
+  diagnostic; tabbing off closes it. The copy-pipeline-id button
+  inside the tooltip portal is still mouse-only — `blur` fires when
+  focus tries to enter the portal, which collapses the tooltip.
+  Honest partial-a11y; full keyboard reachability requires switching
+  to `<q-popup-proxy>` / `<q-menu>` (see Future enhancements).
 
 ### Future enhancements (out of scope for this PR)
 
-- **Click-to-stick on mobile / no-mouse devices.** Quasar's
-  `<q-tooltip>` is hover-only by spec; switching to
-  `<q-popup-proxy>` (which supports both hover and click) is more
-  invasive (different anchor model, different escape semantics) and
-  was deferred to keep this PR scoped. Tracked as a separate UX
-  follow-up if mobile support becomes a requirement.
+- **Click-to-stick on mobile / no-mouse devices, and full keyboard
+  reachability of the in-tooltip copy button.** Quasar's
+  `<q-tooltip>` is hover-only by spec, and the badge-driven
+  `@focus` / `@blur` bridge added for F-C1 cannot keep the tooltip
+  open while focus moves into its portal. Switching to
+  `<q-popup-proxy>` (supports both hover and click, plus focus
+  retention) is more invasive (different anchor model, different
+  escape semantics) and was deferred to keep this PR scoped.
+  Tracked as a separate UX follow-up if mobile support or full
+  in-tooltip keyboard navigation becomes a requirement.
 
 ---
 

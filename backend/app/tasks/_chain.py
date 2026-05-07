@@ -24,7 +24,9 @@ contract narrow (parent + child shape + dispatch).
 """
 
 import json
-from typing import Optional
+import warnings
+from dataclasses import dataclass
+from typing import Any, Optional
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -45,6 +47,37 @@ from app.tasks._background import fire_and_forget
 logger = get_logger(__name__)
 
 
+@dataclass(frozen=True)
+class DedupConfig:
+    """Per-job-type dedup contract for ``chain_job``.
+
+    ``scope_columns`` are the row columns that define the unique scope
+    (the partial unique index covers exactly these columns); they must
+    all be non-NULL on the child row.  ``constraint_name`` matches the
+    Postgres index name so a race-loss ``IntegrityError`` is logged
+    with the right context.  ``job_type`` filters the pre-check so a
+    different job type for the same scope can coexist with us.
+    """
+
+    job_type: str
+    scope_columns: tuple[str, ...]
+    constraint_name: str
+
+
+AGGREGATION_DEDUP = DedupConfig(
+    job_type="aggregation",
+    scope_columns=("module_type_id", "year"),
+    constraint_name="uq_aggregation_active",
+)
+
+
+EMISSION_RECALC_DEDUP = DedupConfig(
+    job_type="emission_recalc",
+    scope_columns=("module_type_id", "data_entry_type_id", "year"),
+    constraint_name="uq_emission_recalc_active",
+)
+
+
 async def chain_job(
     parent: DataIngestionJob,
     *,
@@ -57,7 +90,8 @@ async def chain_job(
     target_type: TargetType = TargetType.DATA_ENTRIES,
     ingestion_method: IngestionMethod = IngestionMethod.computed,
     entity_type: EntityType = EntityType.MODULE_PER_YEAR,
-    dedup_active: bool = False,
+    dedup_config: Optional[DedupConfig] = None,
+    dedup_active: Optional[bool] = None,
 ) -> Optional[int]:
     """Create a child job and fire it through ``run_job``.
 
@@ -84,25 +118,37 @@ async def chain_job(
     different UUID and the child would be orphaned from the parent's
     run.
 
-    ``dedup_active=True`` (Plan 310-D): pre-check for an active
-    aggregation row in the ``(module_type_id, year)`` scope and INSERT
-    only when none exists — caller must pass non-NULL scope keys
-    (``ValueError`` is raised otherwise; see the guard above).  The
+    ``dedup_config`` (Plan 310-D, generalised by #1064): pre-check
+    for an active row in the configured ``scope_columns`` and INSERT
+    only when none exists — caller must pass non-NULL values for
+    every scope column (``ValueError`` is raised otherwise).  The
     pre-check covers the common case (sequential chains within the
     same fan-out batch on the same connection); a concurrent writer
-    that wins the race trips the partial unique index
-    ``uq_aggregation_active`` (which covers only NOT_STARTED/QUEUED/
+    that wins the race trips the matching partial unique index
+    (``constraint_name``, which covers only NOT_STARTED/QUEUED/
     RUNNING rows) and the ``IntegrityError`` is caught and surfaced
     as the same dedup signal.  Returns ``None`` on dedup so the
     caller knows it's a no-op and skips its own follow-up fan-out;
     returns the new child id otherwise.
 
-    Currently aggregation-specific: the SQL hard-codes
-    ``job_type='aggregation'`` and the dedup index is named for it.
-    Generalising to other dedupable handlers (e.g. progress-bar
-    refresh) would require both a per-type partial unique index and
-    parameterising the pre-check's job_type filter — out of scope here.
+    ``dedup_active=True`` is a deprecated shim mapping to
+    ``AGGREGATION_DEDUP`` for one release cycle; new callers should
+    pass ``dedup_config=AGGREGATION_DEDUP`` directly.
     """
+    if dedup_active is not None:
+        # Deprecation shim — kept for one release cycle so callers
+        # outside this PR's diff (and any unmerged branches) keep
+        # compiling.  Maps boolean True to the original behaviour
+        # (aggregation dedup); False is the no-dedup default.
+        warnings.warn(
+            "chain_job(dedup_active=...) is deprecated; pass "
+            "dedup_config=AGGREGATION_DEDUP (or another DedupConfig) instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if dedup_active and dedup_config is None:
+            dedup_config = AGGREGATION_DEDUP
+
     repo = DataIngestionRepository(session)
 
     pipeline_id = parent.pipeline_id
@@ -117,25 +163,42 @@ async def chain_job(
     )
     resolved_year = year if year is not None else parent.year
 
-    # Plan 310-D — fail fast when caller asks for dedup but the scope
-    # keys are NULL.  The pre-check SQL already handles ``year IS NULL``
-    # via ``(:year IS NULL AND year IS NULL)`` but ``module_type_id``
-    # uses straight equality — a NULL there silently bypasses dedup
-    # because ``NULL = NULL`` yields NULL, the SELECT returns nothing,
-    # and the partial unique index can't catch the duplicate either
-    # (PG treats NULLs as distinct in unique indexes by default).  The
-    # downstream aggregation handler raises on NULL scope at execution
-    # time, so prod won't run garbage either way — but bad rows pile
-    # up.  Refuse at chain_job entry instead.
-    if dedup_active and (resolved_module_type_id is None or resolved_year is None):
-        raise ValueError(
-            f"chain_job(dedup_active=True): scope keys must be set — "
-            f"got module_type_id={resolved_module_type_id!r}, "
-            f"year={resolved_year!r}.  Pass them explicitly or ensure "
-            f"the parent job has them populated."
-        )
+    # Plan 310-D — fail fast when caller asks for dedup but any scope
+    # key is NULL.  PG treats NULLs as distinct in unique indexes by
+    # default (and our partial WHERE filters NOT NULL only), so a NULL
+    # would silently bypass dedup at the index level and the
+    # downstream handler would then choke on the missing scope.
+    # Refuse at chain_job entry instead.
+    if dedup_config is not None:
+        # Misconfiguration guard: a caller that passes ``job_type='X'``
+        # alongside ``dedup_config=Y_DEDUP`` would have the pre-check
+        # query Y while the INSERT writes X — silently disabling dedup
+        # and confusing future readers of the partial unique index.
+        # Refuse loudly at the entry instead.
+        if job_type != dedup_config.job_type:
+            raise ValueError(
+                f"chain_job: job_type={job_type!r} does not match "
+                f"dedup_config.job_type={dedup_config.job_type!r}.  "
+                "Use the matching DedupConfig (or pass dedup_config=None)."
+            )
 
-    if dedup_active:
+        scope_values = {
+            "module_type_id": resolved_module_type_id,
+            "data_entry_type_id": data_entry_type_id,
+            "year": resolved_year,
+        }
+        missing = [
+            col for col in dedup_config.scope_columns if scope_values.get(col) is None
+        ]
+        if missing:
+            raise ValueError(
+                f"chain_job(dedup_config={dedup_config.job_type!r}): "
+                f"scope keys must be set — missing {missing}; "
+                f"got {scope_values}.  Pass them explicitly or ensure "
+                f"the parent job has them populated."
+            )
+
+    if dedup_config is not None:
         child_id = await _insert_child_with_dedup(
             session=session,
             parent=parent,
@@ -148,6 +211,7 @@ async def chain_job(
             ingestion_method=ingestion_method,
             entity_type=entity_type,
             config=config,
+            dedup_config=dedup_config,
         )
         if child_id is None:
             # Dedup hit — an active child already exists for this
@@ -155,7 +219,8 @@ async def chain_job(
             # fan out further" so we don't double-dispatch the
             # work the existing pending row will do.
             logger.info(
-                f"chain_job(dedup): {job_type!r} for module={resolved_module_type_id}/"
+                f"chain_job(dedup): {job_type!r} for "
+                f"module={resolved_module_type_id}/det={data_entry_type_id}/"
                 f"year={resolved_year} already pending — skipped"
             )
             return None
@@ -183,7 +248,7 @@ async def chain_job(
 
     if child_id is None:
         # Two paths can land here:
-        #   1. ``dedup_active=True`` already returned ``None`` above —
+        #   1. ``dedup_config`` already returned ``None`` above —
         #      we never reach this branch in that case (early return).
         #   2. The ORM insert path got a row back without an id (a
         #      real driver bug), or the dedup INSERT's RETURNING
@@ -224,24 +289,25 @@ async def _insert_child_with_dedup(
     ingestion_method: IngestionMethod,
     entity_type: EntityType,
     config: Optional[dict],
+    dedup_config: DedupConfig,
 ) -> Optional[int]:
     """Pre-check + INSERT, falling back to IntegrityError on race.
 
     Returns the new child id on success, or ``None`` when the partial
-    unique index ``uq_aggregation_active`` already covers an active
-    (NOT_STARTED/QUEUED/RUNNING) row for the same ``(module_type_id,
-    year, job_type='aggregation')`` scope.
+    unique index named by ``dedup_config.constraint_name`` already
+    covers an active (NOT_STARTED/QUEUED/RUNNING) row for the same
+    scope.
 
     Why pre-check + INSERT rather than ``INSERT ... ON CONFLICT DO
     NOTHING``: PG's ON CONFLICT inference for partial indexes
     requires the inferred predicate to imply the index's WHERE
     clause, and the implied-by check stumbles on nullable columns
-    (``module_type_id``/``year`` are nullable on the table even
-    though our partial WHERE filters NOT NULL only).  The pre-check
-    handles the common case (sequential chains within the same
-    fan-out batch on the same connection); the ``IntegrityError``
-    catch covers the genuine concurrent race so the first writer
-    wins regardless of interleaving.
+    (the scope columns are nullable on the table even though our
+    partial WHERE filters NOT NULL only).  The pre-check handles
+    the common case (sequential chains within the same fan-out
+    batch on the same connection); the ``IntegrityError`` catch
+    covers the genuine concurrent race so the first writer wins
+    regardless of interleaving.
 
     Implemented as raw SQL because SQLModel's ORM-level insert path
     doesn't expose the ON CONFLICT clause cleanly for partial indexes.
@@ -257,25 +323,42 @@ async def _insert_child_with_dedup(
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
     meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
 
+    # The chain_job entry guard already rejected NULL scope values,
+    # so simple equality is sufficient here — no ``(:col IS NULL AND
+    # col IS NULL)`` branch needed.
+    scope_param_map = {
+        "module_type_id": module_type_id,
+        "data_entry_type_id": data_entry_type_id,
+        "year": year,
+    }
+    scope_predicate = " AND ".join(
+        f"{col} = :{col}" for col in dedup_config.scope_columns
+    )
+    pre_check_params: dict[str, Any] = {
+        col: scope_param_map[col] for col in dedup_config.scope_columns
+    }
+    pre_check_params["job_type"] = dedup_config.job_type
+
+    # ``scope_predicate`` is built from ``dedup_config.scope_columns``,
+    # which are compile-time constants defined in ``DedupConfig`` instances
+    # (e.g., ``AGGREGATION_DEDUP``).  No user input crosses this boundary —
+    # ``:job_type`` and the per-column ``:{col}`` values are properly
+    # bound parameters above.  Bandit B608 is a false positive here.
     pre_check = text(
-        """
+        f"""
         SELECT 1
         FROM data_ingestion_jobs
-        WHERE job_type = 'aggregation'
-          AND module_type_id = :module_type_id
-          AND (year = :year OR (:year IS NULL AND year IS NULL))
+        WHERE job_type = :job_type
+          AND {scope_predicate}
           AND state IN (
               'NOT_STARTED'::ingestion_state_enum,
               'QUEUED'::ingestion_state_enum,
               'RUNNING'::ingestion_state_enum
           )
         LIMIT 1
-        """
+        """  # nosec B608
     )
-    existing = await session.execute(
-        pre_check,
-        {"module_type_id": module_type_id, "year": year},
-    )
+    existing = await session.execute(pre_check, pre_check_params)
     if existing.first() is not None:
         # Active row already pending — caller treats None as "no-op".
         return None
@@ -331,20 +414,37 @@ async def _insert_child_with_dedup(
                 "meta": meta_json,
             },
         )
-    except IntegrityError:
-        # A concurrent INSERT-then-COMMIT can race past the pre-check
-        # above (two pods chaining the same scope at the same time);
-        # the partial unique index ``uq_aggregation_active`` trips and
-        # raises IntegrityError.  Surface as a clean dedup signal
-        # rather than letting it bubble — the existing pending row
-        # will run, our caller treats None as "no-op".  Log at INFO
-        # so prod can distinguish race-loss from pre-check-loss
-        # (the pre-check path also logs at INFO with a different
-        # phrasing in ``chain_job`` itself).
+    except IntegrityError as exc:
+        # Narrow the catch to the configured partial unique index.
+        # A blanket catch would swallow unrelated NOT NULL / FK / enum
+        # violations and silently skip dispatching the chained child —
+        # treat anything other than the expected dedup constraint as a
+        # real bug worth bubbling up.
+        #
+        # Driver-specific shape:
+        #  - psycopg(2/3) → ``exc.orig.diag.constraint_name`` is a
+        #    structured field; ``str(diag)`` is implementation-defined
+        #    and often does NOT contain the constraint name, so the
+        #    structured read is the load-bearing path.
+        #  - asyncpg → no ``diag`` object; the lowercase substring
+        #    match against ``str(exc)`` is the fallback that catches
+        #    "duplicate key value violates unique constraint
+        #    \"uq_aggregation_active\"" style messages.
+        diag = getattr(exc.orig, "diag", None)
+        constraint = getattr(diag, "constraint_name", None)
+        is_dedup_race = (
+            constraint == dedup_config.constraint_name
+            if constraint is not None
+            else dedup_config.constraint_name.lower() in str(exc).lower()
+        )
+        if not is_dedup_race:
+            await session.rollback()
+            raise
         logger.info(
-            f"chain_job(dedup): {job_type!r} for module={module_type_id}/"
-            f"year={year} lost partial-unique-index race — sibling owns "
-            "the aggregation row"
+            f"chain_job(dedup): {job_type!r} for "
+            f"module={module_type_id}/det={data_entry_type_id}/year={year} "
+            f"lost partial-unique-index race ({dedup_config.constraint_name})"
+            " — sibling owns the row"
         )
         await session.rollback()
         return None
@@ -356,8 +456,9 @@ async def _insert_child_with_dedup(
     # paths), so a None here would be a real driver bug — surface it.
     if row is None:
         logger.error(
-            f"chain_job(dedup): {job_type!r} for module={module_type_id}/"
-            f"year={year} — INSERT RETURNING yielded no row despite no "
+            f"chain_job(dedup): {job_type!r} for "
+            f"module={module_type_id}/det={data_entry_type_id}/year={year} "
+            "— INSERT RETURNING yielded no row despite no "
             "IntegrityError; treating as dedup hit but please investigate"
         )
         return None

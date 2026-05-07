@@ -25,7 +25,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.tasks._chain import chain_job
+from app.tasks._chain import AGGREGATION_DEDUP, chain_job
 from app.tasks.registry import register
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
@@ -89,17 +89,24 @@ async def emission_recalc_handler(
 
     # Plan 310-D — chain the aggregation handler instead of calling
     # ``recompute_stats`` inline (the workflow no longer does it
-    # either).  ``dedup_active=True`` collapses N concurrent
-    # aggregation jobs for the same (module, year) into one — when
-    # ``factor_ingest`` fans out N ``emission_recalc`` children, each
-    # would otherwise queue its own follow-up aggregation.  The
-    # partial unique index ``uq_aggregation_active`` covers
-    # NOT_STARTED/QUEUED/RUNNING rows so the first child wins and the
-    # rest skip; the aggregation runs once after the fan-out (or
-    # while later siblings are still finishing — it reads the current
-    # snapshot of ``data_entry_emissions`` and produces correct stats
-    # for that snapshot, with the dedup window reopening on
-    # FINISHED).
+    # either).  ``dedup_config=AGGREGATION_DEDUP`` collapses N
+    # concurrent aggregation jobs for the same (module, year) into
+    # one — when ``factor_ingest`` fans out N ``emission_recalc``
+    # children, each would otherwise queue its own follow-up
+    # aggregation.  The partial unique index ``uq_aggregation_active``
+    # covers NOT_STARTED/QUEUED/RUNNING rows so the first child wins
+    # and the rest skip; the aggregation runs once after the fan-out
+    # (or while later siblings are still finishing — it reads the
+    # current snapshot of ``data_entry_emissions`` and produces
+    # correct stats for that snapshot, with the dedup window reopening
+    # on FINISHED).
+    #
+    # Chain on WARNING as well as SUCCESS — a 10k-row reupload that
+    # fails on a single entry flips ``result`` to WARNING, but the
+    # other 9999 rows have already been recomputed and
+    # ``carbon_reports.stats`` would stay stale forever if we skipped
+    # aggregation here.  Aligns with ``module_emission_recalc_handler``
+    # below which uses the same ``!= ERROR`` gate.
     #
     # Skip when ``module_type_id`` is missing — every endpoint pins
     # it for emission_recalc, but a defensive log + skip is safer
@@ -107,14 +114,14 @@ async def emission_recalc_handler(
     # already succeeded; the operator sees the missing aggregation
     # via the dashboard's "stats stale" badge if they need it.
     chained_aggregation_id = None
-    if job.module_type_id is not None and result == IngestionResult.SUCCESS:
+    if job.module_type_id is not None and result != IngestionResult.ERROR:
         chained_aggregation_id = await chain_job(
             job,
             job_type="aggregation",
             module_type_id=job.module_type_id,
             year=job.year,
             session=job_session,
-            dedup_active=True,
+            dedup_config=AGGREGATION_DEDUP,
         )
     elif job.module_type_id is None:
         logger.warning(
@@ -235,8 +242,8 @@ async def module_emission_recalc_handler(
     # Plan 310-D — chain a single deduplicated aggregation child for
     # the module + year scope.  Module-level recalc covers N data
     # entry types in sequence; we want one aggregation pass at the
-    # end, not one per type.  ``dedup_active=True`` would also
-    # collapse concurrent fan-outs to the same scope, but in this
+    # end, not one per type.  ``dedup_config=AGGREGATION_DEDUP`` would
+    # also collapse concurrent fan-outs to the same scope, but in this
     # handler we only ever issue one chain so it's primarily a
     # safety net.
     chained_aggregation_id = None
@@ -247,7 +254,7 @@ async def module_emission_recalc_handler(
             module_type_id=job.module_type_id,
             year=job.year,
             session=job_session,
-            dedup_active=True,
+            dedup_config=AGGREGATION_DEDUP,
         )
 
     return {
