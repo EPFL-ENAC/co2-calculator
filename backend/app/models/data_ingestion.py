@@ -305,6 +305,46 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         description="Job type identifier (csv_ingest, factor_ingest, etc.)",
     )
 
+    # Partial unique index on (combo, is_current=TRUE) — Plan 310-A's
+    # "exactly one current per combo" invariant.  ``job_type`` is *not*
+    # in the key; the cartesian-walk below shows every Plan A/D
+    # ``job_type`` is already discriminated by the existing columns
+    # (with NULL distinctness covering the residual cases), so adding
+    # ``job_type`` would only widen the key without changing semantics.
+    #
+    # Cartesian walk — every (job_type, target_type, ingestion_method,
+    # module_type_id, data_entry_type_id) shape emitted by the codebase:
+    #
+    # | job_type               | target_type    | method      | module | det     |
+    # | ---------------------- | -------------- | ----------- | ------ | ------- |
+    # | factor_ingest          | FACTORS        | csv/api/cmp | varies | varies  |
+    # | csv_ingest             | DATA_ENTRIES   | csv         | varies | varies  |
+    # | api_ingest             | DATA_ENTRIES   | api/man/cmp | varies | varies  |
+    # | emission_recalc        | DATA_ENTRIES   | computed    | non-NL | non-NL  |
+    # | module_emission_recalc | DATA_ENTRIES   | computed    | non-NL | NULL    |
+    # | aggregation            | DATA_ENTRIES   | computed    | non-NL | NULL    |
+    # | unit_sync              | REFERENCE_DATA | api         | NULL   | NULL    |
+    #
+    # ``factor_ingest`` is alone on FACTORS; ``unit_sync`` is alone on
+    # REFERENCE_DATA; ``csv_ingest`` and ``api_ingest`` separate by
+    # ingestion_method.  ``emission_recalc`` separates from the other
+    # DATA_ENTRIES/computed types by having ``data_entry_type_id``
+    # non-NULL.  Only ``module_emission_recalc`` and ``aggregation``
+    # share the same shape (both DATA_ENTRIES/computed/det=NULL); they
+    # collide only on the *same* ``module_type_id`` and ``year``, and
+    # PG's default ``NULLS DISTINCT`` semantics treat the two NULL
+    # ``data_entry_type_id`` rows as non-conflicting in this partial
+    # unique index — so ``claim_job`` does not trip ``IntegrityError``
+    # from Plan-A/D row-shape overlap.  Adding ``job_type`` to the key
+    # would not change this outcome (NULLS DISTINCT already separates
+    # them).  See ``backend/app/repositories/data_ingestion.py::claim_job``
+    # for the IntegrityError branch's diagnostic log.
+    #
+    # NOTE — a related cross-demote in ``mark_job_as_current`` /
+    # ``_build_combo_where`` matches across these two job_types via
+    # ``IS NULL`` predicates; that's a separate concern (tracked
+    # outside this index) and does not affect the partial unique
+    # index's correctness.
     __table_args__ = (
         Index(
             "ix_data_ingestion_jobs_is_current_unique",

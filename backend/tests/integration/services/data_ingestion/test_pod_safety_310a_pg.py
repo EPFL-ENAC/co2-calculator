@@ -13,6 +13,7 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
 import asyncio
+import logging
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -166,6 +167,66 @@ async def test_claim_blocked_by_running_sibling(pg_dsn):
         assert candidate_after.locked_by is None
         assert candidate_after.attempts == 0
     await verify_engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_claim_integrity_error_emits_warning(pg_dsn, caplog):
+    """``claim_job`` must log a WARNING with ``exc_info`` when the
+    partial unique index trips so operators can spot a job that's
+    permanently stuck on a duplicate-claim path.  Plan 310 review
+    finding M-H2: a silent ``IntegrityError → return False`` makes
+    the row invisible.
+
+    Deterministic trigger: seed a RUNNING + is_current sibling
+    (mirrors ``test_claim_blocked_by_running_sibling``).  The
+    candidate's claim survives Step 1 (the RUNNING-protection guard
+    keeps the existing is_current row in place) and trips the
+    partial unique index in Step 2.
+    """
+    seed_engine = create_async_engine(pg_dsn, future=True)
+    Sseed = async_sessionmaker(seed_engine, class_=AsyncSession, expire_on_commit=False)
+    async with Sseed() as s:
+        running = _make_pending_job()
+        running.state = IngestionState.RUNNING
+        running.is_current = True
+        running.locked_by = "pod-A"
+        running.attempts = 1
+        candidate = _make_pending_job()
+        s.add_all([running, candidate])
+        await s.commit()
+        assert candidate.id is not None
+        candidate_id: int = candidate.id
+    await seed_engine.dispose()
+
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    try:
+        with caplog.at_level(
+            logging.WARNING, logger="app.repositories.data_ingestion"
+        ):
+            async with Sf() as session:
+                claimed = await DataIngestionRepository(session).claim_job(
+                    candidate_id, "pod-B"
+                )
+    finally:
+        await engine.dispose()
+
+    assert claimed is False
+    warning_records = [
+        rec
+        for rec in caplog.records
+        if rec.levelno == logging.WARNING
+        and "claim_job IntegrityError" in rec.getMessage()
+        and f"job_id={candidate_id}" in rec.getMessage()
+    ]
+    assert warning_records, (
+        "claim_job must log a WARNING on IntegrityError so a "
+        "permanently stuck duplicate-claim is visible to operators"
+    )
+    # exc_info present → log aggregation surfaces the underlying
+    # IntegrityError detail instead of an unanchored "something went
+    # wrong".
+    assert warning_records[0].exc_info is not None
 
 
 @pytest.mark.asyncio

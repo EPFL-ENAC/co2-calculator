@@ -454,8 +454,28 @@ class DataIngestionRepository:
                 if result.scalar_one_or_none() is None:
                     raise _ClaimUnavailable
         except _ClaimUnavailable:
+            # Expected non-claim outcome (locked, attempts exhausted,
+            # run_after in the future, …).  Debug-level so the polling
+            # loop doesn't flood production logs but operators can still
+            # opt in when triaging "why didn't this job get picked up".
+            logger.debug(
+                "claim_job: job_id=%s not claimable (locked/attempts/run_after)",
+                job_id,
+            )
             return False
         except IntegrityError:
+            # Step 2 tripped the partial unique index
+            # ``ix_data_ingestion_jobs_is_current_unique`` — another pod
+            # already flipped a sibling for the same combo to
+            # is_current=TRUE.  Expected on rare two-pod races; if it
+            # repeats for the same job_id the row is permanently stuck
+            # and operators need visibility.  WARN with exc_info so
+            # log aggregation surfaces the IntegrityError detail.
+            logger.warning(
+                "claim_job IntegrityError on job_id=%s",
+                job_id,
+                exc_info=True,
+            )
             return False
 
         await self.session.commit()
