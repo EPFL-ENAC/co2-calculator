@@ -35,6 +35,10 @@ export default defineConfigWithVueTs([
       '**/playwright-report/',
       '**/storybook-static/',
       '**/quasar.config.*.temporary.compiled*',
+      // public/ is static assets served as-is (no transpile, no module
+      // resolution). Linting them as TS/Vue source flags browser globals
+      // like `window` as undefined.
+      'public/**',
     ],
   },
 ]);
