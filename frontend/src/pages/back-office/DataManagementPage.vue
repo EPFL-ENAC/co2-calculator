@@ -64,7 +64,9 @@ let lastYearLevelSubscriptions = new Set<string>();
 
 async function rehydrateYearLevelPipelines(year: number): Promise<void> {
   await pipelineStateStore.loadYearLevelFor(year);
-  const next = new Set<string>(pipelineStateStore.getYearLevelPipelineIds(year));
+  const next = new Set<string>(
+    pipelineStateStore.getYearLevelPipelineIds(year),
+  );
 
   for (const id of lastYearLevelSubscriptions) {
     if (!next.has(id)) unsubscribe(id);

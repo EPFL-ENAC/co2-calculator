@@ -314,12 +314,13 @@ test.describe('back-office data-management — happy paths', () => {
     // year-level fetch.  Without this fetch the SSE watcher has no
     // way to discover an in-flight unit-sync after a hard reload.
     await expect
-      .poll(() =>
-        requests.filter(
-          (r) =>
-            r.method === 'GET' &&
-            /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
-        ).length,
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
+          ).length,
       )
       .toBeGreaterThanOrEqual(1);
 
@@ -330,12 +331,13 @@ test.describe('back-office data-management — happy paths', () => {
     await page.getByRole('option', { name: '2025' }).click();
 
     await expect
-      .poll(() =>
-        requests.filter(
-          (r) =>
-            r.method === 'GET' &&
-            /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
-        ).length,
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
+          ).length,
       )
       .toBeGreaterThanOrEqual(1);
   });

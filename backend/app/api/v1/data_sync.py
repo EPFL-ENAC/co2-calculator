@@ -900,9 +900,9 @@ async def get_active_year_level_pipelines(
     yet" surface as the same empty list, which is what the watcher
     needs to safely no-op.
     """
-    pipeline_ids = await DataIngestionRepository(
-        db
-    ).get_active_year_level_pipeline_ids(year)
+    pipeline_ids = await DataIngestionRepository(db).get_active_year_level_pipeline_ids(
+        year
+    )
     return [str(pid) for pid in pipeline_ids]
 
 
