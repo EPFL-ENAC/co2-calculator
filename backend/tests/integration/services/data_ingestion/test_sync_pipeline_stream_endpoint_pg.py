@@ -369,6 +369,17 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
     existing ``backoffice.data_management.view`` global gate.  A user who
     has the global gate but not the per-module scope must see HTTP 403
     instead of receiving the SSE stream.
+
+    Note on setup: ``_check_job_scope`` short-circuits when
+    ``_institutional_id_for_job`` returns None (MODULE_PER_YEAR jobs are
+    cross-unit by design — see the post-PR-#1078 hot fix that restored
+    access for unit-scoped backoffice users).  We therefore monkeypatch
+    the resolver to return a fake institutional_id so the per-module
+    deny path actually runs against this test's seeded MODULE_PER_YEAR
+    job.  The httpx client carries an aggressive timeout so a future
+    regression that reopens the streaming path fails fast instead of
+    hanging the suite (the previous shape would deadlock here for the
+    full test-session timeout).
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -399,6 +410,16 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
     monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", Sf)
 
+    # Force ``_check_job_scope`` to reach ``check_module_permission`` even
+    # though the seeded job is MODULE_PER_YEAR (which would normally
+    # short-circuit at ``institutional_id is None``).
+    async def _resolve_institutional_id(*_args, **_kwargs):
+        return "FAKE-CROSS-TENANT-INST"
+
+    monkeypatch.setattr(
+        data_sync_module, "_institutional_id_for_job", _resolve_institutional_id
+    )
+
     # Per-module check denies — this is the cross-tenant simulation.
     async def _deny_module(*_args, **_kwargs):
         raise HTTPException(
@@ -412,6 +433,10 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://test",
+            # Cap each request at 10s — if the scope check ever regresses
+            # the stream endpoint would block on its 2s polling loop.
+            # Better to fail fast than hang the daily integration CI.
+            timeout=httpx.Timeout(10.0),
         ) as client:
             stream_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}/stream")
             read_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}")
