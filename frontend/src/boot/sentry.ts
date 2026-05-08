@@ -124,8 +124,8 @@ export default boot(({ app, router }) => {
     const message =
       reason instanceof Error
         ? reason.message
-        : (reason?.message as string | undefined) ??
-          String(reason ?? 'Unhandled rejection');
+        : ((reason?.message as string | undefined) ??
+          String(reason ?? 'Unhandled rejection'));
     notifyError(message);
   });
 });
