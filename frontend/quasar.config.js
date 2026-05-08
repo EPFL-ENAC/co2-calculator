@@ -64,7 +64,7 @@ const APP_VERSION = (() => {
 })();
 const APP_BUILD_TIME = new Date().toISOString();
 
-export default defineConfig(function (ctx) {
+export default defineConfig(function () {
   return {
     eslint: {
       // fix: true,
