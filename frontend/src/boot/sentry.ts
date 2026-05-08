@@ -1,7 +1,8 @@
 import { boot } from 'quasar/wrappers';
-import * as Sentry from '@sentry/vue';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
+import type { App } from 'vue';
+import type { Router } from 'vue-router';
 import { runtimeConfig } from 'src/config/runtime';
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
@@ -19,8 +20,7 @@ const ignoreErrors: (string | RegExp)[] = [
   "The fetching process for the media resource was aborted by the user agent at the user's request.",
 ];
 
-// Toast helper. Centralized so the three handlers below stay readable.
-// Uses `color: 'negative'` to match the existing convention in api/http.ts.
+// Toast helper. Uses `color: 'negative'` to match api/http.ts.
 function notifyError(message: string, caption?: string) {
   Notify.create({
     color: 'negative',
@@ -32,39 +32,59 @@ function notifyError(message: string, caption?: string) {
   });
 }
 
+// Sentry init is split out and dynamic-imported so the @sentry/vue chunk
+// (~900 KiB unminified, drags replay+feedback+browser-utils via transitive
+// deps) is NOT in the eager bundle. Without DSN — i.e. dev, CI Lighthouse
+// runs, any unconfigured deploy — the chunk never loads at all. With DSN it
+// loads asynchronously, parallel with app startup, instead of blocking LCP.
+async function initSentry(
+  app: App,
+  router: Router,
+  dsn: string,
+  environment: string,
+  release: string | undefined,
+) {
+  const Sentry = await import('@sentry/vue');
+  Sentry.init({
+    app,
+    dsn,
+    environment,
+    release,
+    ignoreErrors,
+    integrations: [
+      // Auto-instruments vue-router navigations + fetch/XHR as Sentry
+      // transactions. This is what gives GlitchTip "slow route" visibility.
+      Sentry.browserTracingIntegration({ router }),
+    ],
+    // Same bundle hits dev/stage/prod via runtime DSN, so this rate applies
+    // everywhere. 5% balances signal on rare slow routes against GlitchTip
+    // ingestion cost.
+    tracesSampleRate: 0.05,
+    // Only attach trace headers (sentry-trace, baggage) to our own backend.
+    // Never propagate to third-party endpoints (CDNs, analytics) — they'll
+    // reject CORS preflights and pollute their logs.
+    tracePropagationTargets: ['localhost', /^\/api\//],
+  });
+}
+
 export default boot(({ app, router }) => {
   const { sentryDsn, environment, release } = runtimeConfig;
 
+  // Fire-and-forget: don't block app mount on Sentry loading. Worst case is
+  // a sub-second window after first paint where Sentry isn't capturing yet
+  // — acceptable cost for keeping the SDK off the critical path.
   if (sentryDsn) {
-    Sentry.init({
-      app,
-      dsn: sentryDsn,
-      environment,
-      release,
-      ignoreErrors,
-      integrations: [
-        // Auto-instruments vue-router navigations + fetch/XHR as Sentry
-        // transactions. This is what gives GlitchTip "slow route" visibility.
-        Sentry.browserTracingIntegration({ router }),
-      ],
-      // Same bundle hits dev/stage/prod via runtime DSN, so this rate applies
-      // everywhere. 5% balances signal on rare slow routes against GlitchTip
-      // ingestion cost.
-      tracesSampleRate: 0.05,
-      // Only attach trace headers (sentry-trace, baggage) to our own backend.
-      // Never propagate to third-party endpoints (CDNs, analytics) — they'll
-      // reject CORS preflights and pollute their logs.
-      tracePropagationTargets: ['localhost', /^\/api\//],
-    });
+    void initSentry(app, router, sentryDsn, environment, release);
   }
 
   // -------------------------------------------------------------------------
   // Vue-level uncaught errors.
   //
   // Fires for errors thrown inside component lifecycle hooks, watchers,
-  // computeds, etc. @sentry/vue's `app: Vue` option already wires
-  // captureException here; we layer a Notify toast so users see *something*
-  // when a render fails instead of a silent broken UI.
+  // computeds, etc. @sentry/vue wires its own capture via `attachErrorHandler`
+  // when init runs (which preserves any prior handler). We layer a Notify
+  // toast on top so users see *something* when a render fails instead of a
+  // silent broken UI.
   // -------------------------------------------------------------------------
   const previousVueHandler = app.config.errorHandler;
   app.config.errorHandler = (err, instance, info) => {
@@ -85,8 +105,8 @@ export default boot(({ app, router }) => {
   //
   // Catches errors thrown outside Vue (third-party libs, setTimeout callbacks,
   // event handlers attached directly to DOM). Sentry auto-captures these via
-  // its global handler; we add ResizeObserver suppression and a user-facing
-  // toast.
+  // its global handler once init runs; we add ResizeObserver suppression and
+  // a user-facing toast unconditionally.
   // -------------------------------------------------------------------------
   window.addEventListener('error', (event) => {
     if (event.message?.includes('ResizeObserver loop')) {

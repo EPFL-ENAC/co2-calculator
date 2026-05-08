@@ -1,6 +1,5 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
-import * as Sentry from '@sentry/vue';
 import { i18n } from 'src/boot/i18n';
 
 declare module 'ky' {
@@ -156,7 +155,11 @@ export const api = ky.create({
           // Capture 5xx in Sentry. 4xx is usually client/business-logic
           // (validation, "not found", etc.) and not worth exception noise;
           // 5xx means our backend or infra failed and we want to know.
-          // No-op when Sentry isn't initialized (no DSN in dev).
+          //
+          // Dynamic import so the @sentry/vue chunk stays lazy (the boot
+          // file uses dynamic import too — see boot/sentry.ts). On the first
+          // 5xx of a session this incurs one async chunk load; subsequent
+          // captures hit cache. A fast no-op when no DSN is configured.
           if (res.status >= 500) {
             let body: string | undefined;
             try {
@@ -164,9 +167,8 @@ export const api = ky.create({
             } catch {
               // Body already consumed elsewhere; not fatal for the report.
             }
-            Sentry.captureMessage(
-              `HTTP ${res.status} ${req.method} ${req.url}`,
-              {
+            void import('@sentry/vue').then(({ captureMessage }) => {
+              captureMessage(`HTTP ${res.status} ${req.method} ${req.url}`, {
                 level: 'error',
                 extra: {
                   status: res.status,
@@ -178,8 +180,8 @@ export const api = ky.create({
                   // triage.
                   body: body?.slice(0, 2000),
                 },
-              },
-            );
+              });
+            });
           }
 
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
