@@ -12,6 +12,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import {
   DATA_MANAGEMENT_URL,
+  TEST_PIPELINE_ID,
   buildYearConfig,
   installInitScripts,
   mockBackend,
@@ -124,17 +125,129 @@ test.describe('back-office data-management — happy paths', () => {
       .toBeGreaterThan(0);
   });
 
-  test.fixme('3 — sync units from accred refetches after job completion (#1080)', async () => {
-    // FIXME — tracked in https://github.com/EPFL-ENAC/co2-calculator/issues/1080
+  test('3 — create year auto-triggers unit_sync pipeline and refetches on FINISHED (#867)', async ({
+    page,
+  }) => {
+    // Issue #867 — the standalone "Sync units from Accred" button is
+    // gone; year creation now mints a ``pipeline_id`` on the create
+    // response and the page subscribes to its SSE stream.  Verify the
+    // full chain end-to-end:
     //
-    // The current handler in ``DataManagementPage.handleUnitSync``
-    // fires ``POST /sync/units`` then schedules a hard-coded
-    // ``setTimeout(5000)`` success notify — there is no SSE
-    // subscription, no refetch.  Once the side-note-2 fix lands
-    // (subscribe to the returned job_id, refetch year-config on
-    // FINISHED), drop this ``test.fixme`` and verify:
-    //   - POST sync/units fires with target_year=2024
-    //   - SSE pipeline-update FINISHED triggers GET year-configuration/2024
+    //   1. POST /year-configuration/2024 fires once.
+    //   2. The page opens an EventSource against the pipeline_id.
+    //   3. Module config is gated (``inert``) while the pipeline is
+    //      in flight.
+    //   4. A fake ``pipeline-update`` with every job FINISHED un-gates
+    //      the page, surfaces the success toast, and triggers a
+    //      year-configuration GET.
+    const { requests } = await mockBackend(page, {
+      onGetYearConfig: notFoundThen200(),
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const createBtn = page.getByRole('button', { name: /create year/i });
+    await expect(createBtn).toBeVisible();
+    await createBtn.click();
+
+    // (1) POST fires exactly once and returns ``pipeline_id``.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+          ).length,
+      )
+      .toBe(1);
+
+    // (2) Page issues the one-shot snapshot read against
+    // ``GET /sync/pipelines/{id}`` (seed) before opening the SSE.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              r.url.endsWith(`/api/v1/sync/pipelines/${TEST_PIPELINE_ID}`),
+          ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+
+    // (2') The EventSource constructor in ``installInitScripts``
+    // registers itself on ``window.__sse``.  Verify the page opened
+    // the stream for our pipeline_id.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (id) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__sse?.sources.has(id) === true,
+          TEST_PIPELINE_ID,
+        ),
+      )
+      .toBe(true);
+
+    // (3) Modules section should be ``inert`` while in flight.
+    await expect(
+      page.locator('div[inert].relative-position').first(),
+    ).toBeVisible();
+
+    // Track the GET count BEFORE we emit the FINISHED event so we
+    // can assert it grows on completion (not just the count from
+    // the create-then-watch flow).
+    const getsBefore = requests.filter(
+      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+    ).length;
+
+    // (4) Drive the FINISHED event.  Single job, FINISHED+SUCCESS;
+    // ``stream_closed: true`` for symmetry with the backend's
+    // terminal payload.
+    await page.evaluate(
+      ({ id }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__sse.emit(id, {
+          pipeline_id: id,
+          jobs: [
+            {
+              id: 1,
+              job_type: 'unit_sync',
+              state: 'FINISHED',
+              result: 'SUCCESS',
+              status_message: 'ok',
+              started_at: '2024-01-01T00:00:00Z',
+              finished_at: '2024-01-01T00:01:00Z',
+            },
+          ],
+          stream_closed: true,
+        });
+      },
+      { id: TEST_PIPELINE_ID },
+    );
+
+    // (4a) Page un-gates: the ``inert`` wrapper either flips off or
+    // is removed.  Use ``not.toHaveAttribute`` to tolerate either.
+    await expect(async () => {
+      const wrapper = page.locator('div.relative-position').first();
+      const inertAttr = await wrapper.getAttribute('inert');
+      // Vue serializes ``:inert="false"`` by removing the attribute.
+      expect(inertAttr).toBeNull();
+    }).toPass({ timeout: 5000 });
+
+    // (4b) Year-configuration GET fires again to pick up the rows
+    // the unit_sync handler upserted.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+          ).length,
+      )
+      .toBeGreaterThan(getsBefore);
+
+    // (4c) Success toast surfaces.
+    await expect(page.locator('.q-notification').first()).toBeVisible();
   });
 
   test('4 — CSV data upload: POST temp-upload + sync/dispatch with target_type=DATA_ENTRIES', async ({

@@ -110,6 +110,15 @@ export interface YearConfigurationResponse {
   config: YearConfig;
   recalculation_status: ModuleRecalculationStatusEntry[];
   updated_at: string;
+  /**
+   * Issue #867 — populated by ``POST /year-configuration/{year}`` when
+   * the endpoint auto-enqueues the ``unit_sync`` pipeline alongside the
+   * row create.  ``GET`` responses leave it ``null`` (the active
+   * pipeline_id for a running job lives in the unified
+   * ``pipelineState`` store sourced from
+   * ``GET /v1/sync/active-pipelines``).
+   */
+  pipeline_id?: string | null;
 }
 
 interface YearConfigurationCreate {
@@ -176,6 +185,10 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading.value = true;
 
     try {
+      // Issue #867 — the response now carries ``pipeline_id`` (UUID of
+      // the unit_sync pipeline auto-enqueued by the backend).  The
+      // caller subscribes to it via ``usePipelineStream``; no extra
+      // store state is needed.
       const response = (await api
         .post(`year-configuration/${year}`, {
           json: payload ?? {},

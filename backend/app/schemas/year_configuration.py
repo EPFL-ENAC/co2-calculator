@@ -487,6 +487,19 @@ class YearConfigurationResponse(BaseModel):
         ),
     )
     updated_at: datetime
+    # Issue #867 — populated by ``POST /year-configuration/{year}`` when the
+    # endpoint auto-enqueues the unit_sync pipeline alongside the row create.
+    # GET responses leave it ``None`` (the active pipeline_id for a running
+    # job lives in ``GET /sync/active-pipelines`` — this field is the
+    # one-shot id returned at creation time so the page can subscribe
+    # without a follow-up call).
+    pipeline_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "UUID of the unit_sync pipeline kicked off by the create endpoint "
+            "(populated only on POST; None elsewhere)."
+        ),
+    )
 
     class Config:
         from_attributes = True

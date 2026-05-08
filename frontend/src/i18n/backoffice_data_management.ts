@@ -303,33 +303,34 @@ export default {
     en: 'Download last CSV',
     fr: 'Télécharger le dernier CSV',
   },
-  data_management_sync_units_from_accred: {
-    en: 'Sync Units from Accred',
-    fr: 'Synchroniser les unités depuis Accred',
+  // Issue #867 — in-flight progress message shown while the unit_sync
+  // pipeline (kicked off automatically by the create-year endpoint) is
+  // running.  Replaces the legacy ``data_management_unit_sync_*`` keys
+  // and their fake ``setTimeout`` success toast — the success / error
+  // notifications below are now driven by the real SSE stream.
+  data_management_year_sync_in_progress: {
+    en: 'Setting up year {year}: syncing units from Accred…',
+    fr: 'Configuration de l\'année {year} : synchronisation des unités depuis Accred…',
   },
-  data_management_unit_sync_started: {
-    en: 'Unit sync started',
-    fr: 'Synchronisation des unités démarrée',
+  data_management_year_sync_in_progress_caption: {
+    en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
+    fr: 'Cela peut prendre quelques minutes. Les téléversements CSV sont en pause jusqu\'à la fin de la synchronisation.',
   },
-  data_management_unit_sync_started_caption: {
-    en: 'This may take a few minutes...',
-    fr: 'Cela peut prendre quelques minutes...',
+  data_management_year_sync_success: {
+    en: 'Year {year} ready: units synced',
+    fr: 'Année {year} prête : unités synchronisées',
   },
-  data_management_unit_sync_success: {
-    en: 'Units synced successfully!',
-    fr: 'Unités synchronisées avec succès !',
+  data_management_year_sync_success_caption: {
+    en: 'All units and principal users have been imported. You can now upload module data.',
+    fr: 'Toutes les unités et les utilisateurs principaux ont été importés. Vous pouvez maintenant téléverser les données des modules.',
   },
-  data_management_unit_sync_success_caption: {
-    en: 'All units and principal users have been updated',
-    fr: 'Toutes les unités et utilisateurs principaux ont été mis à jour',
+  data_management_year_sync_error: {
+    en: 'Unit sync failed for year {year}',
+    fr: 'La synchronisation des unités a échoué pour l\'année {year}',
   },
-  data_management_unit_sync_error: {
-    en: 'Unit sync failed',
-    fr: 'La synchronisation des unités a échoué',
-  },
-  data_management_unit_sync_error_caption: {
-    en: 'Please try again later',
-    fr: 'Veuillez réessayer plus tard',
+  data_management_year_sync_error_caption: {
+    en: 'The year was created but the unit import did not finish. Check the pipeline logs and retry.',
+    fr: 'L\'année a été créée mais l\'import des unités n\'a pas abouti. Vérifiez les logs du pipeline et réessayez.',
   },
   data_management_last_upload_overwrite: {
     en: 'The last uploaded data will be overwritten',

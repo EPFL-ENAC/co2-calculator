@@ -25,10 +25,19 @@ from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionState,
+    TargetType,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._background import fire_and_forget
+from app.tasks.runner import run_job
 from app.schemas.year_configuration import (
     FileCategory,
     FileMetadata,
@@ -467,11 +476,18 @@ async def create_year_configuration(
     config_data = (
         payload.config if payload and payload.config else generate_default_year_config()
     )
+    # Issue #867 — collapse the old two-click flow ("Create year" then
+    # "Sync units from Accred") into a single observable pipeline.  The
+    # row defaults ``is_started=True`` (override the model default) and
+    # the endpoint auto-enqueues a ``unit_sync`` ``DataIngestionJob`` with
+    # a freshly-minted ``pipeline_id`` so the frontend can subscribe to
+    # the SSE stream immediately.  Callers may still override
+    # ``is_started`` explicitly if needed.
     new_config = YearConfiguration(
         year=year,
         is_started=payload.is_started
         if payload and payload.is_started is not None
-        else False,
+        else True,
         is_reports_synced=payload.is_reports_synced
         if payload and payload.is_reports_synced is not None
         else False,
@@ -492,15 +508,69 @@ async def create_year_configuration(
         snapshot,
     )
 
+    # Issue #867 — enqueue the unit_sync pipeline tied to this year.  The
+    # shape mirrors ``POST /v1/sync/units`` (see
+    # ``data_sync.py:sync_units_from_accred``) so the registered
+    # ``unit_sync_handler`` reads ``meta.config.target_year`` exactly as
+    # it does for the standalone endpoint — the only difference here is
+    # that we mint ``pipeline_id`` up-front so we can return it
+    # synchronously in the response (the lazy mint inside ``chain_job``
+    # would not yield it before the pipeline starts).
+    #
+    # TODO(#867): if a third caller appears, extract these ~10 lines to
+    # ``app/services/`` (or ``app/tasks/_chain.py``) so the endpoint and
+    # ``data_sync.sync_units_from_accred`` share one helper.  Until then
+    # the duplication is intentional — extraction in flight here would
+    # collide with sibling units of issue #867.
+    pipeline_id = uuid4()
+    job = DataIngestionJob(
+        job_type="unit_sync",
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=year,
+        ingestion_method=IngestionMethod.api,
+        target_type=TargetType.REFERENCE_DATA,
+        entity_type=EntityType.GLOBAL_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
+        meta={"config": {"target_year": year}},
+    )
+    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+
     await db.commit()
     await db.refresh(new_config)
 
-    logger.info(
-        f"Year configuration created for year {year}",
-        extra={"user_id": current_user.id, "year": year},
+    if created_job.id is None:
+        # Defense-in-depth — repository contract returns the persisted row
+        # so ``id`` is set after commit.  Surface a 500 rather than firing
+        # ``run_job(None)`` if the invariant is violated.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create unit sync job",
+        )
+
+    # Fire-and-forget; the safety poller (Plan 310A) recovers the job
+    # if this pod crashes before the runner claims it.  Same dispatch
+    # path the Plan 310-C unit_sync_handler expects.
+    fire_and_forget(
+        run_job(created_job.id),
+        name=f"run_job-{created_job.id}",
     )
 
-    return YearConfigurationResponse.model_validate(new_config)
+    logger.info(
+        f"Year configuration created for year {year}, "
+        f"unit_sync pipeline {pipeline_id} enqueued (job_id={created_job.id})",
+        extra={
+            "user_id": current_user.id,
+            "year": year,
+            "pipeline_id": str(pipeline_id),
+            "job_id": created_job.id,
+        },
+    )
+
+    response = YearConfigurationResponse.model_validate(new_config)
+    response.pipeline_id = str(pipeline_id)
+    return response
 
 
 @router.patch(
