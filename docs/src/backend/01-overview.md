@@ -14,6 +14,7 @@ For deeper architectural details, see:
 - [Architecture](02-ARCHITECTURE.md) - Layer patterns
 - [File Structure](03-FILE_STRUCTURE.md) - Code organization
 - [Request Flow](05-REQUEST_FLOW.md) - Request lifecycle
+- [Integration Testing](10-INTEGRATION-TESTING.md) - Test strategy and CI cadence
 
 ## Quick Start
 
