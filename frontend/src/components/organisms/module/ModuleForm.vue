@@ -493,13 +493,25 @@ function getFilteredOptions(
   return opts;
 }
 
+function isValidCalendarDate(val: string): boolean {
+  const parts = val.split(/[/.]/).map(Number);
+  if (parts.length !== 3) return false;
+  const [year, month, day] = parts;
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
-    return (
-      /^\d{4}([/.])\d{2}\1\d{2}$/.test(val) ||
-      $t('validation_invalid_date_format')
-    );
+    if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(val))
+      return $t('validation_invalid_date_format');
+    if (!isValidCalendarDate(val)) return $t('validation_invalid_date');
+    return true;
   };
   return [dateFormatRule];
 }
@@ -784,6 +796,26 @@ function validateField(i: ModuleField) {
   }
 
   const effectiveType = i.type;
+
+  if (effectiveType === 'date') {
+    if (i.required && (v === '' || v === null || v === undefined)) {
+      errors[i.id] = $t('validation_required');
+      return false;
+    }
+    if (v && v !== '') {
+      const dateStr = String(v);
+      if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(dateStr)) {
+        errors[i.id] = $t('validation_invalid_date_format');
+        return false;
+      }
+      if (!isValidCalendarDate(dateStr)) {
+        errors[i.id] = $t('validation_invalid_date');
+        return false;
+      }
+    }
+    return !errors[i.id];
+  }
+
   // Handle direction-input validation (check origin and destination)
   if (effectiveType === 'direction-input') {
     // Clear previous errors
