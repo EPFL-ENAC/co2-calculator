@@ -457,9 +457,7 @@ async def test_csv_ingest_standard_module(
             # formula-derived kg.  Tolerance accommodates float math
             # (process_emissions=150.0 exact; equipment uses
             # WEEKS_PER_YEAR which is float).
-            kg_values = [
-                e.kg_co2eq for e in emissions if e.kg_co2eq is not None
-            ]
+            kg_values = [e.kg_co2eq for e in emissions if e.kg_co2eq is not None]
             assert any(
                 kg == pytest.approx(spec.expected_kg_first_row, rel=1e-2)
                 for kg in kg_values
@@ -498,9 +496,7 @@ async def test_csv_ingest_standard_module(
         # *ran* (chain reported SUCCESS above) and that ``stats`` stays
         # at its pre-chain value (None).  Modules WITH a roots entry
         # MUST have a dict — that's the chain's commit gate.
-        has_emission_roots = (
-            spec.module_type in MODULE_TYPE_TO_EMISSION_ROOTS
-        )
+        has_emission_roots = spec.module_type in MODULE_TYPE_TO_EMISSION_ROOTS
         if has_emission_roots:
             async with Sf() as s:
                 await assert_stats_match(s, target_crm.id, {})
