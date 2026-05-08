@@ -310,11 +310,11 @@ export default {
   // notifications below are now driven by the real SSE stream.
   data_management_year_sync_in_progress: {
     en: 'Setting up year {year}: syncing units from Accred…',
-    fr: 'Configuration de l\'année {year} : synchronisation des unités depuis Accred…',
+    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred…",
   },
   data_management_year_sync_in_progress_caption: {
     en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
-    fr: 'Cela peut prendre quelques minutes. Les téléversements CSV sont en pause jusqu\'à la fin de la synchronisation.',
+    fr: "Cela peut prendre quelques minutes. Les téléversements CSV sont en pause jusqu'à la fin de la synchronisation.",
   },
   data_management_year_sync_success: {
     en: 'Year {year} ready: units synced',
@@ -326,11 +326,11 @@ export default {
   },
   data_management_year_sync_error: {
     en: 'Unit sync failed for year {year}',
-    fr: 'La synchronisation des unités a échoué pour l\'année {year}',
+    fr: "La synchronisation des unités a échoué pour l'année {year}",
   },
   data_management_year_sync_error_caption: {
     en: 'The year was created but the unit import did not finish. Check the pipeline logs and retry.',
-    fr: 'L\'année a été créée mais l\'import des unités n\'a pas abouti. Vérifiez les logs du pipeline et réessayez.',
+    fr: "L'année a été créée mais l'import des unités n'a pas abouti. Vérifiez les logs du pipeline et réessayez.",
   },
   data_management_last_upload_overwrite: {
     en: 'The last uploaded data will be overwritten',
