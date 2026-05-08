@@ -132,8 +132,8 @@ export default {
     fr: 'Empreinte carbone par ETP (total de {FTE})',
   },
   results_carbon_footprint_per_FTE_no_headcount: {
-    en: 'Carbon footprint per FTE',
-    fr: 'Empreinte carbone par ETP',
+    en: 'My unit carbon footprint per FTE',
+    fr: "Empreinte carbone de l'unité par ETP",
   },
   results_unit_carbon_footprint: {
     en: 'Comparison to previous year',
@@ -742,8 +742,8 @@ export default {
     fr: 'Scope',
   },
   'charts-my-unit-tick': {
-    en: 'My Unit',
-    fr: 'Mon unité',
+    en: 'Total',
+    fr: 'Total',
   },
   'charts-epf-tick': {
     en: 'EPFL',
