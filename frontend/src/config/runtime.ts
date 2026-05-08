@@ -25,10 +25,13 @@ declare global {
 const injected: Record<string, string | undefined> =
   (typeof window !== 'undefined' && window.injectedEnvVariable) || {};
 
+// `||` not `??`: empty string from an unset pod env should fall through to the
+// next layer, not be treated as a real value. (e.g. APP_SENTRY_DSN="" should
+// disable Sentry, not set the DSN to an empty string and crash init.)
 export const runtimeConfig = {
-  sentryDsn: injected.APP_SENTRY_DSN ?? process.env.APP_SENTRY_DSN,
+  sentryDsn: injected.APP_SENTRY_DSN || process.env.APP_SENTRY_DSN || undefined,
   environment:
-    injected.APP_ENVIRONMENT ?? process.env.APP_ENVIRONMENT ?? 'development',
+    injected.APP_ENVIRONMENT || process.env.APP_ENVIRONMENT || 'development',
   release: process.env.APP_VERSION,
   buildTime: process.env.APP_BUILD_TIME,
 } as const;

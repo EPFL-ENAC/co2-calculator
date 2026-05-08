@@ -196,8 +196,22 @@ frontend:
     targetPort: 8080
     annotations: {}
 
+  # Forwarded as container env vars; the frontend's docker/entrypoint.sh
+  # picks up APP_*-prefixed entries at startup and writes them to
+  # /usr/share/nginx/html/injectEnv.js, where the bundle reads them as
+  # window.injectedEnvVariable.
+  #
+  # Per-env values (real Sentry DSN, environment label) are overridden in
+  # the ops repo (enack8s-app-config / openshift-app-config). Defaults here
+  # are safe placeholders.
   env:
     API_BASE_URL: "/api"
+    # Sentry/GlitchTip DSN. Empty string → src/boot/sentry.ts skips init,
+    # so unconfigured deploys don't error.
+    APP_SENTRY_DSN: ""
+    # Environment label attached to every Sentry event. Override per-cluster
+    # in the ops repo (e.g. "stage", "production").
+    APP_ENVIRONMENT: "production"
 
   podAnnotations: {}
 
