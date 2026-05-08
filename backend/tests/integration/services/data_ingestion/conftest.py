@@ -444,6 +444,15 @@ _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     ("travel_planes", "unknown_iata"): "travel_planes_unknown_iata.csv",
     ("travel_trains", "data"): "travel_trains_smoke.csv",
     ("travel_trains", "unknown_station"): "travel_trains_unknown_station.csv",
+    # Unit 2 — standard MODULE_PER_YEAR CSV ingest matrix.  Each fixture
+    # is a template: ``{unit_institutional_id}`` placeholders are
+    # rendered at test time via ``str.format`` so the row's unit lookup
+    # binds to the seeded ``Unit.institutional_id``.
+    ("equipments", "data"): "equipments_smoke.csv",
+    ("purchases_common", "data"): "purchases_common_smoke.csv",
+    ("external_clouds", "data"): "external_clouds_smoke.csv",
+    ("processemissions", "data"): "process_emissions_smoke.csv",
+    ("researchfacilities_common", "data"): "researchfacilities_common_smoke.csv",
 }
 
 # Flat-seed fallback map.  Keys mirror the spec's ``(module, kind)``;
