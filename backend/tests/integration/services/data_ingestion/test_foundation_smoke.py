@@ -24,13 +24,16 @@ with no entries" snapshot is itself a meaningful contract.
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 """
 
+import dataclasses
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy import select as sa_select
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     IngestionMethod,
@@ -98,7 +101,7 @@ def test_seeded_year_dataclass_is_frozen() -> None:
     """The helper returns a frozen dataclass — pin that contract so
     Units 2-11 can't accidentally mutate the snapshot."""
     seeded = SeededYear(year=2025)
-    with pytest.raises(Exception):
+    with pytest.raises(dataclasses.FrozenInstanceError):
         seeded.year = 2026  # type: ignore[misc]
 
 
@@ -222,21 +225,26 @@ async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn_with_310b) -> None
 
     # ``assert_stats_match`` against the CRM the recalc/aggregation
     # touched: the headcount module for the seeded unit.  After the
-    # aggregation child runs, the CRM's ``stats`` column should be a
-    # dict (even if all zeros — fresh module, no data_entries).
+    # aggregation child runs, the CRM's ``stats`` column MUST be a
+    # dict — aggregation runs even on empty data and writes a
+    # zero-shape stats payload.  A ``None`` here would mean
+    # ``data_session`` never committed (regression of the
+    # ``_run_one_job`` commit fix).
     unit_id = seeded.units[0].id
     crm = seeded.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.headcount))]
     async with Sf() as s:
-        # Empty subset asserts ``stats`` is at least a dict.  Aggregation
-        # may not run if no data_entries exist — accept None as well by
-        # short-circuiting when the column is unset.
-        from sqlalchemy import select as sa_select
-
-        from app.models.carbon_report import CarbonReportModule as _CRM
-
-        result = await s.execute(sa_select(_CRM).where(_CRM.id == crm.id))
+        result = await s.execute(
+            sa_select(CarbonReportModule).where(CarbonReportModule.id == crm.id)
+        )
         fresh = result.scalar_one()
-        if fresh.stats is not None:
-            await assert_stats_match(s, crm.id, {})
+        assert isinstance(fresh.stats, dict), (
+            f"aggregation should leave stats as a dict; got {fresh.stats!r}. "
+            "Most likely cause: dispatch_csv_and_wait._run_one_job stopped "
+            "committing data_session — handlers' domain writes never "
+            "persisted past their session scope."
+        )
+        # Empty subset asserts the dict shape; Units 2-11 will pin
+        # specific keys + numerics.
+        await assert_stats_match(s, crm.id, {})
 
     await engine.dispose()
