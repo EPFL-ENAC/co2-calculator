@@ -887,11 +887,6 @@ const getUncertainty = (
                 <h2 class="text-h2 text-weight-medium q-mb-none">
                   {{ $t('results_additional_title') }}
                 </h2>
-                <q-icon name="o_info" size="sm" class="text-primary">
-                  <q-tooltip class="text-body2 text-black" max-width="320px">
-                    {{ $t('results_additional_waste_tooltip') }}
-                  </q-tooltip>
-                </q-icon>
               </div>
               <span class="text-body1 text-secondary">{{
                 $t('results_additional_subtitle')
