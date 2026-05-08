@@ -14,15 +14,21 @@
 # no-cache surface, so per-env values must live there or they get pinned to
 # the first deploy.
 #
+# Why /tmp and not /usr/share/nginx/html: in our k8s deployment the pod runs
+# with readOnlyRootFilesystem: true (see helm/values.yaml frontend.securityContext)
+# so the html dir is read-only at runtime. /tmp is mounted as an emptyDir
+# (writable) by the deployment template. nginx.conf has a `location =
+# /injectEnv.js` alias that maps the URL to this file.
+#
 # Why no jq dep: the base nginx-unprivileged image doesn't ship jq, and
 # our values are single-line ASCII (DSNs, env names, git SHAs), so a small
 # bash escape function is sufficient and keeps the image lean.
 
 set -euo pipefail
 
-WWW_DIR="${WWW_DIR:-/usr/share/nginx/html}"
+OUT_DIR="${OUT_DIR:-/tmp}"
 PREFIX="${FRONTEND_ENV_PREFIX:-APP_}"
-INJECT_FILE="${WWW_DIR}/injectEnv.js"
+INJECT_FILE="${OUT_DIR}/injectEnv.js"
 
 # JSON-string escape for value side: backslash, then double-quote. Values are
 # assumed single-line ASCII; if you need to inject multi-line or unicode
@@ -49,7 +55,7 @@ done < <(printenv)
 
 # Atomic write: temp file in the same dir, then mv. Prevents nginx from
 # serving a half-written injectEnv.js if this script is killed mid-execution.
-tmp=$(mktemp "${WWW_DIR}/injectEnv.js.XXXXXX")
+tmp=$(mktemp "${OUT_DIR}/injectEnv.js.XXXXXX")
 {
   printf '%s\n' \
     "// Generated at container startup by /docker-entrypoint.d/40-inject-env.sh." \
