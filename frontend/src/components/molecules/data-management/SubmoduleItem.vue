@@ -226,20 +226,6 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
       :style="{ gap: '1rem' }"
     >
-      <UploadCardData
-        v-if="getImportRow(submodule).hasData"
-        :row="getImportRow(submodule)"
-        :recalc-running="
-          recalcTypeRunning[
-            `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
-          ]
-        "
-        :recalc-status="getRecalcStatus(submodule)"
-        :on-download="downloadLastCsv"
-        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-        @recalculate="() => triggerTypeRecalculation(submodule)"
-        @cancel="handleCancelJob"
-      />
       <UploadCardFactors
         v-if="getImportRow(submodule).hasFactors"
         :row="getImportRow(submodule)"
@@ -257,6 +243,20 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @cancel="handleCancelJob"
       />
 
+      <UploadCardData
+        v-if="getImportRow(submodule).hasData"
+        :row="getImportRow(submodule)"
+        :recalc-running="
+          recalcTypeRunning[
+            `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
+          ]
+        "
+        :recalc-status="getRecalcStatus(submodule)"
+        :on-download="downloadLastCsv"
+        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
+        @recalculate="() => triggerTypeRecalculation(submodule)"
+        @cancel="handleCancelJob"
+      />
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"
         :row="getImportRow(submodule)"
