@@ -441,8 +441,12 @@ export default {
     fr: 'Obligatoire',
   },
   validation_invalid_date_format: {
-    en: 'Invalid date format, expected YYYY/MM/DD or YYYY.MM.DD',
-    fr: 'Format de date invalide, attendu AAAA/MM/JJ ou AAAA.MM.JJ',
+    en: 'Invalid date format, expected YYYY/MM/DD',
+    fr: 'Format de date invalide, attendu AAAA/MM/JJ',
+  },
+  validation_invalid_date: {
+    en: 'Invalid date',
+    fr: 'Date invalide',
   },
   validation_number_required: {
     en: 'Number required',
