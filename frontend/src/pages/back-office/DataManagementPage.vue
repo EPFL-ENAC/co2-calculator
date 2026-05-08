@@ -66,6 +66,21 @@ const handleCreateYear = async () => {
   }
 };
 
+const handleOpenForUsers = async () => {
+  try {
+    await yearConfigStore.openForUsers(selectedYear.value);
+    Notify.create({
+      type: 'positive',
+      message: $t('data_management_year_opened_success', {
+        year: selectedYear.value,
+      }),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    Notify.create({ type: 'negative', message: msg });
+  }
+};
+
 const handleUnitSync = async () => {
   try {
     await backofficeDataManagement.syncUnitsFromAccred(selectedYear.value);
@@ -159,6 +174,25 @@ async function handleDialogCompleted() {
             </template>
           </q-select>
 
+          <!-- Visibility chip: at-a-glance flag for whether the year is open
+               to non-admin users in their workspace year selector. -->
+          <q-chip
+            v-if="yearConfigStore.config"
+            data-test="year-open-status-chip"
+            :color="yearConfigStore.config.is_started ? 'positive' : 'grey-4'"
+            :text-color="yearConfigStore.config.is_started ? 'white' : 'grey-9'"
+            :icon="yearConfigStore.config.is_started ? 'lock_open' : 'lock'"
+            dense
+            square
+            class="q-mb-sm"
+          >
+            {{
+              yearConfigStore.config.is_started
+                ? $t('data_management_year_is_open')
+                : $t('data_management_year_is_not_open')
+            }}
+          </q-chip>
+
           <div class="text-body2 text-secondary">
             {{ $t('data_management_reporting_year_hint') }}
           </div>
@@ -214,9 +248,18 @@ async function handleDialogCompleted() {
         color="accent"
         :label="$t('open_year_for_users')"
         class="text-weight-medium text-capitalize q-mt-md"
-        :disable="yearConfigStore.anyModuleIncomplete"
+        :loading="yearConfigStore.loading"
+        :disable="
+          yearConfigStore.anyModuleIncomplete ||
+          !!yearConfigStore.config?.is_started
+        "
+        data-test="open-year-for-users-btn"
+        @click="handleOpenForUsers"
       >
-        <q-tooltip v-if="yearConfigStore.anyModuleIncomplete">
+        <q-tooltip v-if="yearConfigStore.config?.is_started">
+          {{ $t('data_management_year_already_open') }}
+        </q-tooltip>
+        <q-tooltip v-else-if="yearConfigStore.anyModuleIncomplete">
           {{ $t('data_management_open_year_disabled_tooltip') }}
         </q-tooltip>
       </q-btn>

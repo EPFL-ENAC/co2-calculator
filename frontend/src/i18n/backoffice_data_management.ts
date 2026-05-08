@@ -632,4 +632,20 @@ export default {
     en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
     fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
   },
+  data_management_year_already_open: {
+    en: 'Year is already open to users',
+    fr: "L'année est déjà ouverte aux utilisateurs",
+  },
+  data_management_year_opened_success: {
+    en: 'Year {year} opened to users',
+    fr: 'Année {year} ouverte aux utilisateurs avec succès',
+  },
+  data_management_year_is_open: {
+    en: 'Open to users',
+    fr: 'Ouverte aux utilisateurs',
+  },
+  data_management_year_is_not_open: {
+    en: 'Not yet open',
+    fr: 'Pas encore ouverte',
+  },
 } as const;

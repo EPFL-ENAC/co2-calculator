@@ -167,6 +167,17 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     }
   }
 
+  /**
+   * Flip a year's `is_started` flag to true, making it visible to non-admin
+   * users in their workspace year selector. Thin wrapper over updateConfig
+   * so callers don't need to know the payload shape.
+   */
+  async function openForUsers(
+    year: number,
+  ): Promise<YearConfigurationResponse> {
+    return updateConfig(year, { is_started: true });
+  }
+
   /** All current ingestion jobs for the loaded year. */
   const latestJobs = computed<SyncJobSummary[]>(
     () => config.value?.latest_jobs ?? [],
@@ -281,5 +292,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     fetchConfig,
     createConfig,
     updateConfig,
+    openForUsers,
   };
 });
