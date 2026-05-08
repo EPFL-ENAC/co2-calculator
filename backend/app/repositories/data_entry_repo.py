@@ -17,6 +17,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location, TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
@@ -377,6 +378,10 @@ class DataEntryRepository:
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
         )
+        is_train_entry = data_entry_type_id == DataEntryTypeEnum.train.value
+        is_plane_entry = data_entry_type_id == DataEntryTypeEnum.plane.value
+        OriginLocation: Any = None
+        DestLocation: Any = None
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
@@ -492,6 +497,10 @@ class DataEntryRepository:
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
                 entities.extend([MemberEntry, DataEntryEmission])
+                if is_train_entry or is_plane_entry:
+                    OriginLocation = aliased(Location)
+                    DestLocation = aliased(Location)
+                    entities.extend([OriginLocation, DestLocation])
             statement = (
                 sa_select(*entities)
                 .join(
@@ -527,6 +536,48 @@ class DataEntryRepository:
                     col(DataEntryEmission.data_entry_id) == DataEntry.id,
                     isouter=True,
                 )
+                if is_train_entry:
+                    statement = statement.join(
+                        OriginLocation,
+                        (
+                            OriginLocation.name
+                            == DataEntry.data["origin_name"].as_string()
+                        )
+                        & (
+                            col(OriginLocation.transport_mode)
+                            == TransportModeEnum.train
+                        ),
+                        isouter=True,
+                    ).join(
+                        DestLocation,
+                        (
+                            DestLocation.name
+                            == DataEntry.data["destination_name"].as_string()
+                        )
+                        & (col(DestLocation.transport_mode) == TransportModeEnum.train),
+                        isouter=True,
+                    )
+                elif is_plane_entry:
+                    statement = statement.join(
+                        OriginLocation,
+                        (
+                            OriginLocation.iata_code
+                            == DataEntry.data["origin_iata"].as_string()
+                        )
+                        & (
+                            col(OriginLocation.transport_mode)
+                            == TransportModeEnum.plane
+                        ),
+                        isouter=True,
+                    ).join(
+                        DestLocation,
+                        (
+                            DestLocation.iata_code
+                            == DataEntry.data["destination_iata"].as_string()
+                        )
+                        & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
+                        isouter=True,
+                    )
             kg_sort_expr = emission_agg.c.total_kg_co2eq
 
         statement = statement.where(
@@ -550,6 +601,14 @@ class DataEntryRepository:
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
         sort_map["kg_co2eq"] = kg_sort_expr
+        if is_travel_entry:
+            sort_map["distance_km"] = func.coalesce(
+                DataEntryEmission.additional_value,
+                DataEntry.data["distance_km"].as_float(),
+            )
+        if (is_train_entry or is_plane_entry) and OriginLocation is not None:
+            sort_map["origin_name"] = OriginLocation.name
+            sort_map["destination_name"] = DestLocation.name
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -590,11 +649,28 @@ class DataEntryRepository:
             member_entry: DataEntry | None = None
             _emission: DataEntryEmission | None = None
             building_room: BuildingRoom | None = None
+            _origin_loc: Location | None = None
+            _dest_loc: Location | None = None
             # Unpack based on query shape
             if is_travel_entry:
-                data_entry, total_kg_co2eq, primary_factor, member_entry, _emission = (
-                    row
-                )
+                if is_train_entry or is_plane_entry:
+                    (
+                        data_entry,
+                        total_kg_co2eq,
+                        primary_factor,
+                        member_entry,
+                        _emission,
+                        _origin_loc,
+                        _dest_loc,
+                    ) = row
+                else:
+                    (
+                        data_entry,
+                        total_kg_co2eq,
+                        primary_factor,
+                        member_entry,
+                        _emission,
+                    ) = row
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
             else:
@@ -606,7 +682,7 @@ class DataEntryRepository:
             # field after unpack — no lazy relationships — so expunge is safe.
             self._detach(data_entry, primary_factor)
             if is_travel_entry:
-                self._detach(member_entry, _emission)
+                self._detach(member_entry, _emission, _origin_loc, _dest_loc)
             elif is_buildings_entry:
                 self._detach(building_room)
 
@@ -651,6 +727,11 @@ class DataEntryRepository:
                     enriched_data["traveler_name"] = member_entry.data.get("name")
                 if distance_km is not None:
                     enriched_data["distance_km"] = distance_km
+                if is_train_entry or is_plane_entry:
+                    if _origin_loc is not None:
+                        enriched_data["origin_name"] = _origin_loc.name
+                    if _dest_loc is not None:
+                        enriched_data["destination_name"] = _dest_loc.name
             if is_buildings_entry and building_room:
                 enriched_data["room_surface_square_meter"] = (
                     building_room.room_surface_square_meter

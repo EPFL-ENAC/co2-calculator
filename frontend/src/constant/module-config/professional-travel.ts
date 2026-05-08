@@ -127,9 +127,9 @@ const commonTravelFields: ModuleField[] = [
 
 const planeFields: ModuleField[] = [
   ...buildTravelFields(
-    { id: 'origin_iata', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
     {
-      id: 'destination_iata',
+      id: 'destination_name',
       labelKey: `${MODULES.ProfessionalTravel}-field-to`,
     },
   ),

@@ -104,6 +104,8 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
     number_of_trips: int = 1
     origin: Optional[str] = None
     destination: Optional[str] = None
+    origin_name: Optional[str] = None
+    destination_name: Optional[str] = None
     distance_km: Optional[float] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
@@ -206,6 +208,9 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
         "traveler_name": MemberEntry.data["name"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
+        # Plane destination
+        "origin_iata": DataEntry.data["origin_iata"].as_string(),
+        "destination_iata": DataEntry.data["destination_iata"].as_string(),
     }
 
     def to_response(
