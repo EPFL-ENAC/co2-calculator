@@ -73,6 +73,32 @@ async def pg_app(pg_dsn, monkeypatch):
 
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
 
+    # ``/sync/active-pipelines`` carries TWO permission layers.  The
+    # tests in this file pin RESPONSE-SHAPE behaviour (mapping shape,
+    # sparse passthrough, year filter, etc.) — they are NOT testing
+    # the security filter.  We bypass it here by mocking it to allow.
+    # The security filter itself is asserted in a separate test
+    # (``test_active_pipelines_returns_403_for_user_without_permission``)
+    # that deliberately bypasses this fixture to exercise the real gate.
+    #
+    # Layer 1 (global): ``require_permission("backoffice.data_management",
+    # "view")`` — cleared by mocking ``is_permitted`` above.
+    # Layer 2 (per-module): the endpoint loops the requested modules and
+    # calls ``get_module_permission_decision(user, module_id, "view")``
+    # for each, dropping disallowed entries from the response.  The
+    # default test user (a bare ``MagicMock``) holds zero module-level
+    # permissions, so without this mock every requested module gets
+    # filtered out and the endpoint returns ``{}``.  This is the
+    # security guard added in PR #1079 V1 to stop pipeline UUIDs from
+    # leaking across modules a caller can't read.
+    async def _allow_module_decision(*_args, **_kwargs):
+        return {"allow": True}
+
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.get_module_permission_decision",
+        _allow_module_decision,
+    )
+
     yield {"factory": Sf}
 
     app.dependency_overrides.clear()
@@ -281,3 +307,91 @@ async def test_active_pipelines_returns_403_for_user_without_permission(
         await engine.dispose()
 
     assert resp.status_code == 403, resp.text
+
+
+@pytest.mark.asyncio
+async def test_active_pipelines_filters_per_module_by_decision(pg_dsn, monkeypatch):
+    """Per-module sparse-passthrough deny — the security guard added in
+    PR #1079 V1.
+
+    The global gate (``backoffice.data_management.view``) passes; the
+    per-module ``get_module_permission_decision`` denies module 1 and
+    allows module 2.  The endpoint must drop module 1 from the response
+    while keeping module 2 — proving the per-module filter actually
+    runs and isn't accidentally short-circuited by the global gate.
+
+    Without this test, a regression that inverts the
+    ``decision.get("allow")`` check (e.g. typo, default, refactor) would
+    be invisible to CI: ``pg_app``'s blanket allow-mock hides it, and
+    the global-gate test above only exercises ``is_permitted``.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    pipeline_a = uuid4()
+    pipeline_b = uuid4()
+    async with Sf() as session:
+        session.add(
+            _make_active_pipeline_job(
+                module_type_id=1, year=2025, pipeline_id=pipeline_a
+            )
+        )
+        session.add(
+            _make_active_pipeline_job(
+                module_type_id=2, year=2025, pipeline_id=pipeline_b
+            )
+        )
+        await session.commit()
+
+    async def override_get_db():
+        async with Sf() as session:
+            yield session
+
+    fake_user = MagicMock()
+    fake_user.id = 1
+    fake_user.email = "test@example.com"
+    fake_user.institutional_id = "TEST-USER"
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+    app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user
+    app.dependency_overrides[security_module.get_current_active_user] = lambda: (
+        fake_user
+    )
+
+    # Pass the global gate so the per-module filter is what gates the
+    # response.
+    async def _allow_global(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr("app.core.security.is_permitted", _allow_global)
+
+    # Per-module filter: deny module 1, allow module 2.
+    async def _per_module_decision(_user, module_id, _action):
+        return {"allow": int(module_id) != 1}
+
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.get_module_permission_decision",
+        _per_module_decision,
+    )
+
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            resp = await client.get(
+                "/v1/sync/active-pipelines",
+                params={"year": 2025, "modules": "1,2"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+        await engine.dispose()
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "1" not in body, (
+        f"module 1 was denied per-module but appears in response: {body}"
+    )
+    assert body.get("2") == str(pipeline_b), (
+        f"module 2 was allowed but missing or wrong in response: {body}"
+    )

@@ -362,13 +362,48 @@ async def test_disconnect_releases_pool_slot(pg_dsn, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
-    """User A cannot subscribe to user B's pipeline.
+    """User A cannot subscribe to user B's UNIT-PINNED pipeline.
 
-    The pipeline scope check derives ``(module_type_id, institutional_id)``
-    from the parent job and runs ``check_module_permission`` on top of the
-    existing ``backoffice.data_management.view`` global gate.  A user who
-    has the global gate but not the per-module scope must see HTTP 403
-    instead of receiving the SSE stream.
+    Two-layer scope model on the pipeline-stream endpoint:
+
+    * **Layer 1 (global)** — ``backoffice.data_management.view`` via
+      ``require_permission(...)``.  Every backoffice user has this; if
+      they don't, the endpoint 403s here regardless of the job kind.
+      Tested separately by
+      ``test_pipeline_stream_returns_403_for_user_without_permission``.
+
+    * **Layer 2 (per-job, conditional)** — ``_check_job_scope`` derives
+      ``(module_type_id, institutional_id)`` from the pipeline's parent
+      job and runs ``check_module_permission`` on top of Layer 1.
+
+      Conditional, because ``_institutional_id_for_job`` returns ``None``
+      for ``MODULE_PER_YEAR`` jobs (aggregation, emission_recalc — they
+      span every unit by design and don't carry a single institutional
+      scope).  In that case ``_check_job_scope`` short-circuits and
+      Layer 1 alone is the gate.  This was a hot fix on top of PR #1078:
+      the original implementation called ``check_module_permission(
+      institutional_id=None)`` for MODULE_PER_YEAR jobs and 403'd every
+      unit-scoped backoffice user (their permissions live as
+      ``modules.X/<institutional_id>``, never as bare ``modules.X``) —
+      that broke ``GET /sync/jobs/{id}/stream`` for the only people
+      using the data-management dashboard.
+
+    What THIS test pins: Layer 2's deny path on ``MODULE_UNIT_SPECIFIC``
+    jobs (the half that DOES have an institutional_id and DOES have to
+    pass the per-module scope).  We seed a ``MODULE_PER_YEAR`` job for
+    convenience and monkeypatch ``_institutional_id_for_job`` to return
+    a fake institutional_id — that simulates the MODULE_UNIT_SPECIFIC
+    code path without having to seed the full Unit/CarbonReport/CRM
+    tree just for this assertion.
+
+    Don't drop the ``_institutional_id_for_job`` patch: without it the
+    seeded MODULE_PER_YEAR job triggers the legitimate short-circuit,
+    the deny mock never fires, the endpoint reaches the SSE polling
+    loop, the seeded job stays NOT_STARTED forever, and the generator
+    polls every 2s without an exit condition — the test deadlocks for
+    the full session timeout (this regression cost a 6-hour cron run).
+    The httpx ``timeout=10s`` cap is the safety net for future
+    regressions of the same shape: fail fast, don't hang the suite.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -399,6 +434,16 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
     monkeypatch.setattr(data_sync_module.db_module, "SessionLocal", Sf)
 
+    # Force ``_check_job_scope`` to reach ``check_module_permission`` even
+    # though the seeded job is MODULE_PER_YEAR (which would normally
+    # short-circuit at ``institutional_id is None``).
+    async def _resolve_institutional_id(*_args, **_kwargs):
+        return "FAKE-CROSS-TENANT-INST"
+
+    monkeypatch.setattr(
+        data_sync_module, "_institutional_id_for_job", _resolve_institutional_id
+    )
+
     # Per-module check denies — this is the cross-tenant simulation.
     async def _deny_module(*_args, **_kwargs):
         raise HTTPException(
@@ -412,6 +457,10 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app),
             base_url="http://test",
+            # Cap each request at 10s — if the scope check ever regresses
+            # the stream endpoint would block on its 2s polling loop.
+            # Better to fail fast than hang the daily integration CI.
+            timeout=httpx.Timeout(10.0),
         ) as client:
             stream_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}/stream")
             read_resp = await client.get(f"/v1/sync/pipelines/{pipeline_id}")
