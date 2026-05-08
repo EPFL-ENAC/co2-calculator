@@ -439,6 +439,11 @@ async def assert_stats_match(
 # add new minimal fixtures.
 _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     ("headcount", "data"): "headcount_smoke.csv",
+    # Unit 4 — professional_travel
+    ("travel_planes", "data"): "travel_planes_smoke.csv",
+    ("travel_planes", "unknown_iata"): "travel_planes_unknown_iata.csv",
+    ("travel_trains", "data"): "travel_trains_smoke.csv",
+    ("travel_trains", "unknown_station"): "travel_trains_unknown_station.csv",
 }
 
 # Flat-seed fallback map.  Keys mirror the spec's ``(module, kind)``;
