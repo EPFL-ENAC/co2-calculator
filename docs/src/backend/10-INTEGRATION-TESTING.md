@@ -48,7 +48,7 @@ backend/tests/
 │   ├── es_integration/                  # Elasticsearch container
 │   ├── modules/   providers/            # Provider/module wiring
 │   ├── v1/                              # End-to-end auth + permission
-│   └── services/data_ingestion/         # The hot zone (22 PG-backed files)
+│   └── services/data_ingestion/         # The hot zone (28+ PG-backed files)
 │
 ├── fixtures/csv/                        # Trimmed, committed CSVs (CI-safe)
 └── conftest.py                          # Root model factories
@@ -229,19 +229,23 @@ service-layer entry point and is module-agnostic.
 
 `_check_job_scope` in `backend/app/api/v1/data_sync.py:132` runs
 `check_module_permission` **only** when
-`_institutional_id_for_job` returns a non-`None` value. Job
-entity types fall into two buckets:
+`_institutional_id_for_job` returns a non-`None` value.
+`EntityType` (defined in `backend/app/models/data_ingestion.py:20`)
+has exactly three members:
 
-| Entity type       | `_institutional_id_for_job` | Layer 2 fires? |
-| ----------------- | --------------------------- | -------------- |
-| `UNIT`            | unit's institutional_id     | yes            |
-| `MODULE_PER_UNIT` | unit's institutional_id     | yes            |
-| `MODULE_PER_YEAR` | `None` (cross-unit)         | no -- L1 only  |
-| `GLOBAL_PER_YEAR` | `None` (cross-tenant)       | no -- L1 only  |
+| Entity type            | `_institutional_id_for_job`              | Layer 2 fires? |
+| ---------------------- | ---------------------------------------- | -------------- |
+| `MODULE_UNIT_SPECIFIC` | unit's institutional_id (resolved)       | yes            |
+| `MODULE_PER_YEAR`      | `None` (cross-unit aggregation / recalc) | no -- L1 only  |
+| `GLOBAL_PER_YEAR`      | `None` (no module — unit sync, etc.)     | no -- L1 only  |
 
-This matters: aggregation and recalc jobs are `MODULE_PER_YEAR` and
-gated by Layer 1 alone. Per-unit ingestion jobs are `UNIT`-scoped and
-hit both layers.
+This matters: aggregation and emission_recalc jobs are
+`MODULE_PER_YEAR` and gated by Layer 1 alone. Per-unit ingestion jobs
+(direct CSV uploads on a specific module-and-unit) are
+`MODULE_UNIT_SPECIFIC` and hit both layers. `GLOBAL_PER_YEAR` jobs
+(unit sync) carry no module at all and short-circuit even earlier at
+the `module_type_id is None` guard inside `_check_job_scope`, before
+the institutional_id resolution runs.
 
 ### Test Patterns
 

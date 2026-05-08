@@ -260,12 +260,30 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
     ``surface × kwh_per_m² × ef × conversion × ratio`` produces a
     deterministic ``kg_co2eq`` per energy leaf.
 
-    Pinned values:
+    Pinned values (per leaf):
       surface=10.0, ratio=1.0, ef=0.1, conversion=1.0
       lighting_kwh_per_m²=5     → 5.0
       cooling_kwh_per_m²=20     → 20.0
       ventilation_kwh_per_m²=10 → 10.0
       heating_kwh_per_m²=30     → 30.0 (electric → heating_elec leaf)
+
+    Discovery — buildings__rooms rollup is 95.0 (NOT 65.0)
+    ------------------------------------------------------
+    The rollup assertion at the end of this test sums the four leaves
+    above PLUS an extra 30.0 (heating_thermal), totalling 95.0.  We
+    only seed an electric heating factor; the +30 thermal contribution
+    appears regardless.  Reading the handler reveals
+    ``heating_kwh_per_square_meter`` is fanned out to BOTH the
+    ``heating_elec`` and ``heating_thermal`` leaves with the same
+    ef/ratio, so the rooms rollup double-counts heating energy when
+    only one heating mode actually applies to the room.
+
+    This test PINS the observed contract (rollup = 95.0) — a
+    regression-gate against silent changes to the handler's fan-out
+    logic — but the contract itself looks like a bug worth tracking.
+    Surfaced here so a future reader doesn't conflate "test passes" with
+    "math is correct".  See the rollup assertion comment further down
+    for the per-line breakdown.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

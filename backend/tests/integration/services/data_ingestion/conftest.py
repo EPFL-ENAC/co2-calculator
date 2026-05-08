@@ -282,7 +282,8 @@ async def seeded_year_with_units(
     its own ``CarbonProject`` of type ``CALCULATOR``), one
     ``CarbonReport`` per unit, and one ``CarbonReportModule`` per
     ``(unit, ModuleTypeEnum)`` pair (every member of
-    ``ALL_MODULE_TYPE_IDS``).  Tests that need a "real" carbon-report
+    ``ALL_MODULE_TYPE_IDS`` — which today is every ``ModuleTypeEnum``
+    value with no "active" filter).  Tests that need a "real" carbon-report
     tree to drive aggregation, recalc, or stats writes against should
     use this rather than hand-rolling.
 
@@ -635,6 +636,34 @@ async def dispatch_csv_and_wait(
     )
 
     async with session_factory() as session:
+        # Mirror production ``claim_job`` semantics: demote any prior
+        # ``is_current=True`` row sharing this scope BEFORE inserting the
+        # new parent.  Without this, a second dispatch on the same
+        # ``(module, det, target, method, year)`` trips the partial unique
+        # index ``ix_data_ingestion_jobs_is_current_unique``.  Units 4, 5,
+        # 8 each rolled their own ad-hoc demote — promoted here so callers
+        # don't have to.  Idempotent: rowcount==0 on first dispatch is fine.
+        await session.execute(
+            text(
+                """
+                UPDATE data_ingestion_jobs
+                SET is_current = false
+                WHERE is_current = true
+                  AND module_type_id = :module_type_id
+                  AND data_entry_type_id = :data_entry_type_id
+                  AND target_type = :target_type
+                  AND ingestion_method = :ingestion_method
+                  AND year = :year
+                """
+            ),
+            {
+                "module_type_id": int(module_type_id),
+                "data_entry_type_id": int(data_entry_type_id),
+                "target_type": target_type.name,
+                "ingestion_method": ingestion_method.name,
+                "year": year,
+            },
+        )
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -697,14 +726,15 @@ async def dispatch_csv_and_wait(
                 chain_mod, "fire_and_forget", side_effect=_sync_fire_and_forget
             )
         )
-        if provider_class is not None:
-            stack.enter_context(
-                patch.object(
-                    ingest_mod.ProviderFactory,
-                    "get_provider_class",
-                    return_value=provider_class,
-                )
+        # ``provider_class`` is keyword-only required (see signature) — no
+        # None branch needed.
+        stack.enter_context(
+            patch.object(
+                ingest_mod.ProviderFactory,
+                "get_provider_class",
+                return_value=provider_class,
             )
+        )
 
         # 1. Drive the parent csv_ingest.
         await _run_one_job(parent_id)

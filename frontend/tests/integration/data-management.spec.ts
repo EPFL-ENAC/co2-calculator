@@ -125,7 +125,7 @@ test.describe('back-office data-management — happy paths', () => {
   });
 
   test.fixme('3 — sync units from accred refetches after job completion (#1080)', async () => {
-    // FIXME — tracked in https://github.com/.../issues/1080
+    // FIXME — tracked in https://github.com/EPFL-ENAC/co2-calculator/issues/1080
     //
     // The current handler in ``DataManagementPage.handleUnitSync``
     // fires ``POST /sync/units`` then schedules a hard-coded
