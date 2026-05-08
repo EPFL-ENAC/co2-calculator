@@ -135,7 +135,19 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 raise Exception("Tableau authentication failed")
 
             metadata = await self._vds_read_metadata(session, x_auth)
-            field_captions = self._extract_field_captions(metadata)[: self.max_fields]
+            all_field_captions = self._extract_field_captions(metadata)
+            field_captions = all_field_captions[: self.max_fields]
+            logger.info(
+                "Tableau VDS field captions resolved",
+                extra={
+                    "total_available": len(all_field_captions),
+                    "requested": len(field_captions),
+                    "max_fields": self.max_fields,
+                    "centre_financier_requested": "IN_Centre financier"
+                    in field_captions,
+                    "captions": field_captions,
+                },
+            )
 
             payload = self._build_payload(field_captions)
             payload, _ = normalize_vds_payload(payload)
@@ -193,13 +205,13 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     number_of_trips = 1
                 number_of_trips = max(1, number_of_trips)
                 logger.info(record.get("ROUND_TRIP"))
-                unit_institutional_id = record.get("Centre financier") or "unknown_unit"
+                unit_institutional_id = record.get("IN_Centre financier")
 
                 # Strip leading character only if it's a prefix (e.g., 'F' in 'F0828')
                 # Otherwise use as-is
-                def strip_unit_prefix(unit_id: str) -> str:
+                def strip_unit_prefix(unit_id: str | None) -> str | None:
                     """Strip leading prefix character from unit ID if present."""
-                    if not unit_id or unit_id == "unknown_unit":
+                    if not unit_id:
                         return unit_id
                     # If starts with letter followed by digits, strip the letter
                     if (

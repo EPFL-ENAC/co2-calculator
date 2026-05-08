@@ -270,7 +270,7 @@ class TestTransformData:
             "IN_Segment destination airport code": "CDG",
             "Number of trips": "2",
             "ROUND_TRIP": "YES",
-            "Centre financier": "F0828",
+            "IN_Centre financier": "F0828",
             "IN_Segment class": "AIR ECONOMY CLASS",
             "OUT_CO2_CORRECTED": 150.5,
             "OUT_DISTANCE_CORRECTED": 420.0,
@@ -331,9 +331,27 @@ class TestTransformData:
         assert result[0]["number_of_trips"] == 1
 
     async def test_unit_prefix_not_stripped_for_numeric(self, provider):
-        records = [self._make_record(**{"Centre financier": "1234"})]
+        records = [self._make_record(**{"IN_Centre financier": "1234"})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] == "1234"
+
+    async def test_missing_centre_financier_yields_none(self, provider):
+        # When Tableau drops the IN_Centre financier column (rename or
+        # max_fields cutoff), every record's unit_institutional_id must
+        # be None — not a "unknown_unit" sentinel that masks the
+        # fail-fast guard in _resolve_carbon_report_modules.
+        records = [self._make_record(**{"IN_Centre financier": None})]
+        result = await provider.transform_data(records)
+        assert result[0]["unit_institutional_id"] is None
+
+    async def test_resolve_modules_raises_when_all_units_missing(self, provider):
+        provider.data_session = MagicMock()
+        transformed = [
+            {"unit_institutional_id": None},
+            {"unit_institutional_id": ""},
+        ]
+        with pytest.raises(ValueError, match="Centre financier column is required"):
+            await provider._resolve_carbon_report_modules(transformed)
 
 
 # ---------------------------------------------------------------------------
