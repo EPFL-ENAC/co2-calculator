@@ -73,6 +73,21 @@ async def pg_app(pg_dsn, monkeypatch):
 
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
 
+    # ``/sync/active-pipelines`` filters response entries via
+    # ``get_module_permission_decision`` per-module on top of the global
+    # gate (PR #1079 V1 fix — security: pipeline UUIDs leaked across
+    # modules without it).  The default test user holds no module-level
+    # permissions, so without this mock every entry would be filtered
+    # out and the endpoint returns ``{}``.  Cross-tenant filtering is
+    # asserted in a separate test that bypasses this fixture.
+    async def _allow_module_decision(*_args, **_kwargs):
+        return {"allow": True}
+
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.get_module_permission_decision",
+        _allow_module_decision,
+    )
+
     yield {"factory": Sf}
 
     app.dependency_overrides.clear()
