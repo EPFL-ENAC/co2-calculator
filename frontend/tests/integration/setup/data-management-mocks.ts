@@ -187,6 +187,15 @@ export interface RouteOverrides {
     route: Route,
     moduleIds: number[],
   ) => Promise<void> | void;
+  /**
+   * Override active-pipelines/year/{year} response (Issue #867 —
+   * year-level pipelines).  Default returns ``[]`` (no live year-level
+   * chain) which matches the steady state.
+   */
+  onYearLevelActivePipelines?: (
+    route: Route,
+    year: number,
+  ) => Promise<void> | void;
   /** Override sync/units POST. */
   onSyncUnits?: (route: Route) => Promise<void> | void;
   /** Override files/temp-upload POST. */
@@ -270,6 +279,27 @@ export async function mockBackend(
     }
     await route.fallback();
   });
+
+  // active-pipelines/year/{year} — empty list by default (no live
+  // year-level pipeline).  Issue #867 reload-rehydrate path.
+  // Registered BEFORE the module-scoped catch-all so this more
+  // specific URL pattern wins for ``…/active-pipelines/year/2025``.
+  await page.route(
+    /.*\/api\/v1\/sync\/active-pipelines\/year\/(\d+)$/,
+    async (route) => {
+      const url = new URL(route.request().url());
+      const year = parseInt(url.pathname.split('/').pop() ?? '0', 10);
+      if (overrides.onYearLevelActivePipelines) {
+        await overrides.onYearLevelActivePipelines(route, year);
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '[]',
+      });
+    },
+  );
 
   // active-pipelines — empty by default (no recalculating badge).
   await page.route('**/api/v1/sync/active-pipelines**', async (route) => {

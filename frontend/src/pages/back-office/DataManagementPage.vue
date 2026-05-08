@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, provide } from 'vue';
+import { ref, watch, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
@@ -15,6 +15,8 @@ import {
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineStateStore } from 'src/stores/pipelineState';
+import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -40,7 +42,45 @@ const selectedYear = ref<number>(
 
 const backofficeDataManagement = useBackofficeDataManagement();
 const yearConfigStore = useYearConfigStore();
+const pipelineStateStore = usePipelineStateStore();
 const { t: $t } = useI18n();
+
+// Issue #867 — re-attach the SSE watcher to year-level pipelines on
+// page mount + on year change.  The Pinia stores live in memory and
+// reset on hard reload, so an in-flight unit-sync (or any future
+// ``entity_type=GLOBAL_PER_YEAR`` chain) loses its watcher across the
+// reload boundary.  ``ModuleConfig.vue`` already covers the
+// per-module rehydrate path via the module-scoped active-pipelines
+// endpoint; year-level pipelines carry no ``module_type_id`` and are
+// invisible there, so they need their own channel.
+//
+// ``usePipelineStream`` auto-installs ``onUnmounted`` cleanup for the
+// subscriptions it owns, so we only call ``unsubscribe`` explicitly
+// on the year-change transition (N pipelines may run in parallel —
+// today only ``unit_sync`` uses GLOBAL_PER_YEAR so N is 0 or 1, but
+// the wire shape is ``list[str]`` and the diff loop generalises).
+const { subscribe, unsubscribe } = usePipelineStream();
+let lastYearLevelSubscriptions = new Set<string>();
+
+async function rehydrateYearLevelPipelines(year: number): Promise<void> {
+  await pipelineStateStore.loadYearLevelFor(year);
+  const next = new Set<string>(pipelineStateStore.getYearLevelPipelineIds(year));
+
+  for (const id of lastYearLevelSubscriptions) {
+    if (!next.has(id)) unsubscribe(id);
+  }
+  const subscribePromises: Array<Promise<void>> = [];
+  for (const id of next) {
+    if (!lastYearLevelSubscriptions.has(id)) {
+      subscribePromises.push(subscribe(id));
+    }
+  }
+  lastYearLevelSubscriptions = next;
+  // Each ``subscribe`` does its own one-shot snapshot fetch before
+  // opening the EventSource — parallelise so a slow snapshot for one
+  // id doesn't block the others.
+  await Promise.all(subscribePromises);
+}
 
 const fetchYearConfig = async () => {
   await yearConfigStore.fetchConfig(selectedYear.value);
@@ -63,6 +103,25 @@ watch(
 watch(selectedYear, (year) => {
   void router.replace({ query: { ...route.query, year: String(year) } });
 });
+
+// A failed rehydrate is non-fatal — the page just runs without live
+// progress for year-level pipelines, the same UX as before #867.  We
+// log rather than toast so a transient active-pipelines hiccup doesn't
+// crowd the year-config error notification path.
+watch(
+  selectedYear,
+  async (year) => {
+    try {
+      await rehydrateYearLevelPipelines(year);
+    } catch (err) {
+      console.warn(
+        '[DataManagementPage] failed to rehydrate year-level pipelines',
+        err,
+      );
+    }
+  },
+  { immediate: true },
+);
 
 const handleCreateYear = async () => {
   try {
@@ -113,10 +172,6 @@ watch(
     }
   },
 );
-
-onMounted(() => {
-  // intentionally empty — loading is handled by the yearConfigStore.loading watcher
-});
 
 // ── Data-entry dialog (provided to child components like ReductionObjectivesSection) ──
 const showDataEntryDialog = ref(false);

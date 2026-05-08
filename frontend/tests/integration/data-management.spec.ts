@@ -292,6 +292,53 @@ test.describe('back-office data-management — happy paths', () => {
     // Storybook / component-test coverage for the SubmoduleItem
     // emit chain — see Plan 310 Unit 11.
   });
+
+  test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
+    page,
+  }) => {
+    // The page's empty steady-state response (``[]``) is enough — we
+    // are asserting the REQUEST is fired, not the badge UI (the per-
+    // pipeline UI lives further down the chain in
+    // ``PipelineDiagnosticTooltip`` and is covered by its own spec).
+    const { requests } = await mockBackend(page);
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Wait for the page to finish first-render before asserting
+    // request counts — the ``immediate: true`` watcher fires during
+    // the synchronous setup, but the ``api.get(...).json()`` await
+    // resolves a tick later.
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    // Initial year (2024 — URL query param) must trigger one
+    // year-level fetch.  Without this fetch the SSE watcher has no
+    // way to discover an in-flight unit-sync after a hard reload.
+    await expect
+      .poll(() =>
+        requests.filter(
+          (r) =>
+            r.method === 'GET' &&
+            /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
+        ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+
+    // Change year → second fetch for the new year.  Mirrors the
+    // year-config fetch pattern (test 1) but for the year-level
+    // pipeline channel.
+    await page.locator('.q-select').first().click();
+    await page.getByRole('option', { name: '2025' }).click();
+
+    await expect
+      .poll(() =>
+        requests.filter(
+          (r) =>
+            r.method === 'GET' &&
+            /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
+        ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+  });
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────

@@ -36,6 +36,15 @@ import { api } from 'src/api/http';
 type ActivePipelinesResponse = Record<string, string>;
 
 /**
+ * Wire shape of ``GET /v1/sync/active-pipelines/year/{year}``.
+ *
+ * Flat list of pipeline_id UUIDs (strings) for every active
+ * ``entity_type=GLOBAL_PER_YEAR`` job for the requested year.  Empty
+ * list is the steady state.  Issue #867.
+ */
+type ActiveYearLevelPipelinesResponse = string[];
+
+/**
  * Composite key — pipeline state is scoped to ``(module_type_id, year)``
  * because the same ``module_type_id`` can have different pipeline state
  * across years (e.g. operator looking at 2024 while a 2025 chain runs
@@ -52,6 +61,15 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
    * "not yet loaded".
    */
   const pipelineByModuleYear = reactive<Record<string, string | null>>({});
+
+  /**
+   * Per-``year`` list of active ``GLOBAL_PER_YEAR`` pipeline_ids
+   * (Issue #867).  Year-level pipelines (e.g. unit-sync) are not
+   * module-scoped, so they live in a separate map keyed only on
+   * ``year``.  Absence means "not yet loaded"; an empty array means
+   * "loaded, no active year-level pipeline" — the steady state.
+   */
+  const yearLevelPipelinesByYear = reactive<Record<number, string[]>>({});
 
   /**
    * Bulk-fetch active pipeline_ids for the given modules in one round
@@ -92,6 +110,35 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
   }
 
   /**
+   * Issue #867 — bulk-fetch active year-level pipeline_ids
+   * (``entity_type=GLOBAL_PER_YEAR``) for the given year.  Backs the
+   * ``DataManagementPage.vue`` reload-rehydrate path: on mount + on
+   * year change the page re-attaches to live year-level pipelines
+   * (e.g. an in-flight unit-sync) so the SSE watcher resumes after
+   * a hard reload.
+   *
+   * Idempotent — calling twice for the same year refreshes the list.
+   * The result is the source of truth for ``getYearLevelPipelineIds``;
+   * absence from the map means "not yet loaded".
+   */
+  async function loadYearLevelFor(year: number): Promise<void> {
+    const response = (await api
+      .get(`sync/active-pipelines/year/${year}`)
+      .json()) as ActiveYearLevelPipelinesResponse;
+    yearLevelPipelinesByYear[year] = response;
+  }
+
+  /**
+   * Read the active year-level pipeline_ids for a year.  Returns an
+   * empty array both pre-load and when no year-level pipeline is
+   * active — the watcher in ``DataManagementPage.vue`` treats both as
+   * "nothing to subscribe to" (the steady state).
+   */
+  function getYearLevelPipelineIds(year: number): string[] {
+    return yearLevelPipelinesByYear[year] ?? [];
+  }
+
+  /**
    * Drop every entry — used when switching reports / years to ensure
    * stale ids from a previous context don't bleed through.
    */
@@ -99,12 +146,18 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
     for (const key of Object.keys(pipelineByModuleYear)) {
       delete pipelineByModuleYear[key];
     }
+    for (const key of Object.keys(yearLevelPipelinesByYear)) {
+      delete yearLevelPipelinesByYear[Number(key)];
+    }
   }
 
   return {
     pipelineByModuleYear,
+    yearLevelPipelinesByYear,
     loadFor,
+    loadYearLevelFor,
     getPipelineId,
+    getYearLevelPipelineIds,
     clear,
   };
 });
