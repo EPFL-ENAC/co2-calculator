@@ -10,8 +10,33 @@ import { defineConfig } from '#q-app/wrappers';
 // import { fileURLToPath } from 'node:url'
 
 import path from 'path';
+import { execSync } from 'node:child_process';
 
-export default defineConfig(function (/* ctx */) {
+// Bundle identity. Baked into build.env so Sentry's `release` tag matches the
+// source maps uploaded to GlitchTip — otherwise stack traces stay minified.
+//
+// Resolution order:
+//   1. GIT_SHA env var (set by Docker builder via --build-arg, where .git is
+//      not in the build context). Same value is reused by the
+//      sourcemap-uploader stage's `--release` flag, keeping bundle ↔ upload
+//      in sync.
+//   2. `git rev-parse` for local `quasar build` outside Docker.
+//   3. "dev" as a last resort (CI tarball build, no git).
+const APP_VERSION = (() => {
+  if (process.env.GIT_SHA) return process.env.GIT_SHA;
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return 'dev';
+  }
+})();
+const APP_BUILD_TIME = new Date().toISOString();
+
+export default defineConfig(function (ctx) {
   return {
     eslint: {
       // fix: true,
@@ -28,7 +53,7 @@ export default defineConfig(function (/* ctx */) {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n', 'router', 'icons'],
+    boot: ['sentry', 'i18n', 'router', 'icons'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#css
     css: ['app.scss'],
@@ -58,10 +83,20 @@ export default defineConfig(function (/* ctx */) {
 
       publicPath: '/',
       // analyze: true,
-      env: {},
+      env: {
+        // Surfaced as import.meta.env.APP_VERSION / APP_BUILD_TIME at runtime.
+        // Sentry release tag + GlitchTip source-map upload key off APP_VERSION.
+        APP_VERSION,
+        APP_BUILD_TIME,
+      },
       // rawDefine: {}
       // ignorePublicFolder: true,
       minify: true,
+      // Source maps in production only — needed for readable Sentry stack
+      // traces. nginx.conf 404s `*.map` requests publicly; uploaded to
+      // GlitchTip via `npm run sourcemaps:upload` and shipped inside the
+      // Docker image so the upload step has access to them post-build.
+      sourcemap: ctx.prod,
       // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',

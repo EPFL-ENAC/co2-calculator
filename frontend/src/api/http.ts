@@ -1,5 +1,6 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
+import * as Sentry from '@sentry/vue';
 import { i18n } from 'src/boot/i18n';
 
 declare module 'ky' {
@@ -152,6 +153,35 @@ export const api = ky.create({
             : '/unauthorized';
           location.replace(redirectUrl);
         } else if (!res.ok) {
+          // Capture 5xx in Sentry. 4xx is usually client/business-logic
+          // (validation, "not found", etc.) and not worth exception noise;
+          // 5xx means our backend or infra failed and we want to know.
+          // No-op when Sentry isn't initialized (no DSN in dev).
+          if (res.status >= 500) {
+            let body: string | undefined;
+            try {
+              body = await res.clone().text();
+            } catch {
+              // Body already consumed elsewhere; not fatal for the report.
+            }
+            Sentry.captureMessage(
+              `HTTP ${res.status} ${req.method} ${req.url}`,
+              {
+                level: 'error',
+                extra: {
+                  status: res.status,
+                  statusText: res.statusText,
+                  url: req.url,
+                  method: req.method,
+                  // Truncate to keep events small; full body rarely fits in
+                  // GlitchTip's payload limit and isn't usually needed for
+                  // triage.
+                  body: body?.slice(0, 2000),
+                },
+              },
+            );
+          }
+
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
           if (!skipCodes.includes(res.status)) {
             // For other errors, show a generic error toast

@@ -3,6 +3,12 @@
 # ==============================================================================
 FROM node:24-alpine AS builder
 
+# Git SHA passed by CI via --build-arg. .git is not in the build context, so
+# quasar.config.js can't run `git rev-parse` itself; it reads this env var
+# instead. Defaults to "dev" so local `docker build` without --build-arg works.
+ARG GIT_SHA=dev
+ENV GIT_SHA=${GIT_SHA}
+
 WORKDIR /app
 
 # Copy package files for dependency installation
@@ -19,7 +25,8 @@ COPY . .
 # Manually run the quasar prepare script
 RUN npx quasar prepare
 
-# Build the application (creates ./dist)
+# Build the application (creates ./dist). GIT_SHA from above gets baked into
+# the bundle as APP_VERSION via quasar.config.js build.env.
 RUN npm run build
 
 # ==============================================================================
@@ -33,8 +40,17 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# Copy built static files from build stage
-COPY --from=builder /app/dist/spa /usr/share/nginx/html
+# Runtime env injection. The base image's stock entrypoint runs every
+# /docker-entrypoint.d/*.sh before exec'ing nginx. Numbered 40 to land after
+# the base image's own 10–30 init scripts. See docker/entrypoint.sh for what
+# it writes and why.
+COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
+
+# Copy built static files (includes .map files; nginx 404s them publicly so
+# they're shipped privately for a future GlitchTip sourcemap upload step).
+# --chown=nginx:nginx so the entrypoint script (run as the nginx user) can
+# write injectEnv.js into this directory at startup.
+COPY --from=builder --chown=nginx:nginx /app/dist/spa /usr/share/nginx/html
 
 # Expose non-privileged port
 EXPOSE 8080
