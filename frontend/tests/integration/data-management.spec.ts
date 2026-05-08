@@ -69,6 +69,13 @@ test.describe('back-office data-management — happy paths', () => {
     });
     await expect(createBtn).toBeVisible();
 
+    // Issue #867 — the 404 from year-configuration GET is an expected
+    // empty-state, not a user-facing error. The store opts out via
+    // ``skipErrorCodes: [404]`` so no error toast should appear on landing.
+    // (``bg-negative`` is the Quasar utility class applied by
+    // ``Notify.create({ color: 'negative' })``.)
+    await expect(page.locator('.q-notification.bg-negative')).toHaveCount(0);
+
     await createBtn.click();
 
     // POST must hit the singular-form endpoint.

@@ -149,8 +149,11 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound.value = false;
 
     try {
+      // Suppress the global 404 error toast: a missing year-configuration is
+      // expected on first visit and is rendered as a "Create year" empty-state
+      // by the caller. Non-404 errors still surface via the global handler.
       const response = (await api
-        .get(`year-configuration/${year}`)
+        .get(`year-configuration/${year}`, { skipErrorCodes: [404] })
         .json()) as YearConfigurationResponse;
       config.value = response;
       return response;
