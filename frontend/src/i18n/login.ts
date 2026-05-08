@@ -19,4 +19,8 @@ export default {
     en: 'Test Role',
     fr: 'Rôle de test',
   },
+  session_expired_notice: {
+    en: 'Your session has expired. Please log in again.',
+    fr: 'Votre session a expiré. Veuillez vous reconnecter.',
+  },
 } as const;

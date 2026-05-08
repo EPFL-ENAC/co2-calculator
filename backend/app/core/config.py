@@ -243,8 +243,11 @@ class Settings(BaseSettings):
         description="OAuth2/OIDC cookie path",
     )
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_HOURS: int = 12
+    # Session lifetimes — see issue #949. Tuned for an internal EPFL app
+    # behind Entra SSO + httpOnly+secure+samesite cookies; 8h access / 24h
+    # refresh keeps a working day usable while still capping idle sessions.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    REFRESH_TOKEN_EXPIRE_HOURS: int = 24
     # Frontend URL for redirects
     FRONTEND_URL: str = Field(
         default="http://localhost:9000",
