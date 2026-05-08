@@ -17,7 +17,6 @@
     "dev": "quasar dev",
     "preview": "npx vite preview --outDir dist/spa",
     "build": "quasar build",
-    "sourcemaps:upload": "glitchtip-cli sourcemaps inject ./dist/spa && glitchtip-cli sourcemaps upload ./dist/spa --release \"${GIT_SHA:-$(git rev-parse --short HEAD)}\" --org \"$GLITCHTIP_ORG\" --project \"$GLITCHTIP_PROJECT\"",
     "postinstall": "quasar prepare",
     "mock:auth": "node src/mock/mockauth.js",
     "storybook": "storybook dev -p 6006 --config-dir storybook/.storybook",

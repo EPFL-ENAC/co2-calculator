@@ -127,11 +127,14 @@ export default defineConfig(function (ctx) {
       // rawDefine: {}
       // ignorePublicFolder: true,
       minify: true,
-      // Source maps in production only — needed for readable Sentry stack
-      // traces. nginx.conf 404s `*.map` requests publicly; uploaded to
-      // GlitchTip via `npm run sourcemaps:upload` and shipped inside the
-      // Docker image so the upload step has access to them post-build.
-      sourcemap: ctx.prod,
+      // Source maps disabled in production. Empirically, `sourcemap: true`
+      // here shipped an inline base64 data-URL sourcemap appended to every
+      // .js file (bundles ended in `//# sourceMappingURL=data:...`), which
+      // roughly tripled bundle resource size and tanked the Lighthouse
+      // score. To get readable Sentry/GlitchTip stack traces back without
+      // the bloat, switch to `'hidden'` (external .map next to .js, no
+      // sourceMappingURL comment in the JS) and reinstate the upload step.
+      sourcemap: false,
       // polyfillModulePreload: true,
       // distDir
       sassVariables: 'src/css/quasar.variables.scss',
