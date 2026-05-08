@@ -255,10 +255,11 @@ _SEED_DATA_DIR = _BACKEND_ROOT / "seed_data"
 class SeededYear:
     """Snapshot of the carbon-report tree built by ``seeded_year_with_units``.
 
-    Returned values are detached from any session — re-fetch by id if a
-    test needs an attached instance.  Dictionaries hold the actual model
-    rows so callers can read scalar columns (id, module_type_id) without
-    a round-trip.
+    Instances are attached to the session passed into the factory; once
+    that session closes, accessing lazy-loaded attributes on these rows
+    raises ``DetachedInstanceError``.  Re-fetch by id from a fresh
+    session if a test needs to load relationships.  Already-loaded
+    scalar columns (``id``, ``module_type_id``, etc.) stay readable.
     """
 
     year: int
@@ -529,7 +530,7 @@ async def dispatch_csv_and_wait(
     ingestion_method: IngestionMethod = IngestionMethod.csv,
     timeout_seconds: float = 30.0,
     poll_interval: float = 0.05,
-    provider_class: Optional[type] = None,
+    provider_class: type,
 ) -> tuple[DataIngestionJob, list[DataIngestionJob]]:
     """Drive a CSV ingest end-to-end against the test PG session factory.
 
@@ -566,10 +567,12 @@ async def dispatch_csv_and_wait(
         Time between drain-loop iterations.  Default 50ms — short enough
         to keep the smoke test under a second, long enough not to spin.
     provider_class
-        Optional substitute for ``ProviderFactory.get_provider_class``.
-        Default ``None`` lets the real provider run (full ingest path);
-        callers that only want to assert chain wiring (not actual CSV
-        parsing) can pass a stub.
+        Substitute for ``ProviderFactory.get_provider_class`` — required.
+        ``meta['provider_name']`` is derived from ``provider_class.__name__``
+        so the patched factory and the meta always agree.  Callers that
+        only want to assert chain wiring (not actual CSV parsing) pass a
+        stub like ``_stub_csv_provider()``; callers that want the real
+        provider import + reference it directly.
 
     Returns
     -------
@@ -610,7 +613,7 @@ async def dispatch_csv_and_wait(
                 "data_entry_type_id": int(data_entry_type_id),
                 "year": year,
             },
-            "provider_name": "FakeCSV",
+            "provider_name": provider_class.__name__,
         },
     )
 
@@ -639,7 +642,14 @@ async def dispatch_csv_and_wait(
         """Run one queued job (parent or child) against the test PG.
 
         Mirrors the runner's claim-then-finalize shape: load the row,
-        invoke its handler, then write FINISHED + result + meta back.
+        invoke its handler, **commit the data session** (handlers like
+        ``aggregation`` only ``flush()`` and rely on the runner to
+        commit), then write FINISHED + result + meta back to the job
+        row.  Without the data-session commit, every chained handler
+        would silently drop its domain writes — Units 2-11's
+        ``assert_stats_match`` calls would then read pre-handler state.
+        On exception we roll back the data session and re-raise; the
+        helper's caller is the test, which should fail loudly.
         """
         async with session_factory() as job_session:
             row = await job_session.get(DataIngestionJob, job_id)
@@ -647,7 +657,12 @@ async def dispatch_csv_and_wait(
                 return
             handler = get_handler(row.job_type)
             async with session_factory() as data_session:
-                meta = await handler(row, job_session, data_session)
+                try:
+                    meta = await handler(row, job_session, data_session)
+                except Exception:
+                    await data_session.rollback()
+                    raise
+                await data_session.commit()
             row.state = IngestionState.FINISHED
             row.result = meta.get("result", IngestionResult.SUCCESS)
             row.status_message = meta.get("status_message", "")
