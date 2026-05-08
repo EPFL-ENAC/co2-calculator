@@ -1,0 +1,3 @@
+unit_institutional_id,name,unit,quantity,note,kg_co2eq
+SEED-BC-0,Natural gas,kWh,1000,,
+SEED-BC-0,Heating oil,kWh,500,,

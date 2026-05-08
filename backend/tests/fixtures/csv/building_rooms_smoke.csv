@@ -1,0 +1,3 @@
+unit_institutional_id,building_location,building_name,room_name,room_type,note,kg_co2eq
+SEED-BC-0,ECUBLENS,BC,BC-150,office,,
+SEED-BC-0,ECUBLENS,BC,BC-200,laboratories,,
