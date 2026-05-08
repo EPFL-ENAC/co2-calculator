@@ -46,8 +46,8 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # it writes and why.
 COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
 
-# Copy built static files (includes .map files; nginx 404s them publicly so
-# they're shipped privately for a future GlitchTip sourcemap upload step).
+# Copy built static files. (Source maps are not generated — see
+# `sourcemap: false` in quasar.config.js for the reason.)
 # --chown=nginx:nginx so the entrypoint script (run as the nginx user) can
 # write injectEnv.js into this directory at startup.
 COPY --from=builder --chown=nginx:nginx /app/dist/spa /usr/share/nginx/html
