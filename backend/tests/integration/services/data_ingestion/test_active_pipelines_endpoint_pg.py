@@ -73,13 +73,24 @@ async def pg_app(pg_dsn, monkeypatch):
 
     monkeypatch.setattr("app.core.security.is_permitted", _allow)
 
-    # ``/sync/active-pipelines`` filters response entries via
-    # ``get_module_permission_decision`` per-module on top of the global
-    # gate (PR #1079 V1 fix — security: pipeline UUIDs leaked across
-    # modules without it).  The default test user holds no module-level
-    # permissions, so without this mock every entry would be filtered
-    # out and the endpoint returns ``{}``.  Cross-tenant filtering is
-    # asserted in a separate test that bypasses this fixture.
+    # ``/sync/active-pipelines`` carries TWO permission layers.  The
+    # tests in this file pin RESPONSE-SHAPE behaviour (mapping shape,
+    # sparse passthrough, year filter, etc.) — they are NOT testing
+    # the security filter.  We bypass it here by mocking it to allow.
+    # The security filter itself is asserted in a separate test
+    # (``test_active_pipelines_returns_403_for_user_without_permission``)
+    # that deliberately bypasses this fixture to exercise the real gate.
+    #
+    # Layer 1 (global): ``require_permission("backoffice.data_management",
+    # "view")`` — cleared by mocking ``is_permitted`` above.
+    # Layer 2 (per-module): the endpoint loops the requested modules and
+    # calls ``get_module_permission_decision(user, module_id, "view")``
+    # for each, dropping disallowed entries from the response.  The
+    # default test user (a bare ``MagicMock``) holds zero module-level
+    # permissions, so without this mock every requested module gets
+    # filtered out and the endpoint returns ``{}``.  This is the
+    # security guard added in PR #1079 V1 to stop pipeline UUIDs from
+    # leaking across modules a caller can't read.
     async def _allow_module_decision(*_args, **_kwargs):
         return {"allow": True}
 

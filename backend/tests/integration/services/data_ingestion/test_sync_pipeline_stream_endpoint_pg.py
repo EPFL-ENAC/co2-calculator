@@ -362,24 +362,48 @@ async def test_disconnect_releases_pool_slot(pg_dsn, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
-    """User A cannot subscribe to user B's pipeline.
+    """User A cannot subscribe to user B's UNIT-PINNED pipeline.
 
-    The pipeline scope check derives ``(module_type_id, institutional_id)``
-    from the parent job and runs ``check_module_permission`` on top of the
-    existing ``backoffice.data_management.view`` global gate.  A user who
-    has the global gate but not the per-module scope must see HTTP 403
-    instead of receiving the SSE stream.
+    Two-layer scope model on the pipeline-stream endpoint:
 
-    Note on setup: ``_check_job_scope`` short-circuits when
-    ``_institutional_id_for_job`` returns None (MODULE_PER_YEAR jobs are
-    cross-unit by design — see the post-PR-#1078 hot fix that restored
-    access for unit-scoped backoffice users).  We therefore monkeypatch
-    the resolver to return a fake institutional_id so the per-module
-    deny path actually runs against this test's seeded MODULE_PER_YEAR
-    job.  The httpx client carries an aggressive timeout so a future
-    regression that reopens the streaming path fails fast instead of
-    hanging the suite (the previous shape would deadlock here for the
-    full test-session timeout).
+    * **Layer 1 (global)** — ``backoffice.data_management.view`` via
+      ``require_permission(...)``.  Every backoffice user has this; if
+      they don't, the endpoint 403s here regardless of the job kind.
+      Tested separately by
+      ``test_pipeline_stream_returns_403_for_user_without_permission``.
+
+    * **Layer 2 (per-job, conditional)** — ``_check_job_scope`` derives
+      ``(module_type_id, institutional_id)`` from the pipeline's parent
+      job and runs ``check_module_permission`` on top of Layer 1.
+
+      Conditional, because ``_institutional_id_for_job`` returns ``None``
+      for ``MODULE_PER_YEAR`` jobs (aggregation, emission_recalc — they
+      span every unit by design and don't carry a single institutional
+      scope).  In that case ``_check_job_scope`` short-circuits and
+      Layer 1 alone is the gate.  This was a hot fix on top of PR #1078:
+      the original implementation called ``check_module_permission(
+      institutional_id=None)`` for MODULE_PER_YEAR jobs and 403'd every
+      unit-scoped backoffice user (their permissions live as
+      ``modules.X/<institutional_id>``, never as bare ``modules.X``) —
+      that broke ``GET /sync/jobs/{id}/stream`` for the only people
+      using the data-management dashboard.
+
+    What THIS test pins: Layer 2's deny path on ``MODULE_UNIT_SPECIFIC``
+    jobs (the half that DOES have an institutional_id and DOES have to
+    pass the per-module scope).  We seed a ``MODULE_PER_YEAR`` job for
+    convenience and monkeypatch ``_institutional_id_for_job`` to return
+    a fake institutional_id — that simulates the MODULE_UNIT_SPECIFIC
+    code path without having to seed the full Unit/CarbonReport/CRM
+    tree just for this assertion.
+
+    Don't drop the ``_institutional_id_for_job`` patch: without it the
+    seeded MODULE_PER_YEAR job triggers the legitimate short-circuit,
+    the deny mock never fires, the endpoint reaches the SSE polling
+    loop, the seeded job stays NOT_STARTED forever, and the generator
+    polls every 2s without an exit condition — the test deadlocks for
+    the full session timeout (this regression cost a 6-hour cron run).
+    The httpx ``timeout=10s`` cap is the safety net for future
+    regressions of the same shape: fail fast, don't hang the suite.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
