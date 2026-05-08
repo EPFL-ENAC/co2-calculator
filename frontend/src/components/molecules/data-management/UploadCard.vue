@@ -81,11 +81,7 @@ function handleDownload() {
   }
 }
 
-function handleRecalculate() {
-  if (props.row) {
-    emit('recalculate', props.row);
-  }
-}
+// TODO: remove emit('recalculate', props.row); related code in the frontend and backend
 
 function handleComputeFactors() {
   if (props.row) {
@@ -137,31 +133,6 @@ function handleCancel() {
           :disable="isDisabled || isLoading"
           @click="handleUpload"
         />
-
-        <!-- Recalculation button -->
-        <template v-if="hasRecalcButton">
-          <q-spinner-rings v-if="recalcRunning" color="grey" />
-          <template v-else>
-            <q-btn
-              color="accent"
-              outline
-              icon="refresh"
-              :icon-right="
-                recalcStatus?.needs_recalculation ? 'warning' : undefined
-              "
-              size="sm"
-              :label="$t('data_management_recalculate_emissions')"
-              :title="
-                recalcStatus?.needs_recalculation
-                  ? $t('data_management_recalculation_needed')
-                  : ''
-              "
-              class="text-weight-medium"
-              :disable="isDisabled"
-              @click="handleRecalculate"
-            />
-          </template>
-        </template>
 
         <!-- Computed factor button -->
         <template v-if="hasComputedFactorButton">
