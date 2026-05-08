@@ -489,8 +489,8 @@ export default {
     fr: 'Empreinte carbone des achats',
   },
   carbon_footprint_title_buildings: {
-    en: 'Building and Energy combustion carbon footprint',
-    fr: "Empreinte carbone bâtiment et combustion d'énergie",
+    en: 'Buildings carbon footprint',
+    fr: 'Empreinte carbone des bâtiments',
   },
   'carbon_footprint_title_external-cloud-and-ai': {
     en: 'Carbon footprint from the use of AI services and external cloud services',
