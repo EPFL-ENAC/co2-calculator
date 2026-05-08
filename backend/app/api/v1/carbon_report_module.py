@@ -24,6 +24,7 @@ from app.core.policy import (
     get_module_permission_decision,
 )
 from app.core.role_priority import pick_role_for_institutional_id
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
@@ -59,21 +60,56 @@ router = APIRouter()
 # on batch/create/update/delete
 
 
+_CARBON_PROJECT_TYPE_MAP: dict[int, CarbonReportType] = {
+    0: CarbonReportType.CALCULATOR,
+    1: CarbonReportType.SIMULATOR_EXPLORE,
+    2: CarbonReportType.SIMULATOR_PLAN,
+}
+
+
+def _resolve_carbon_report_type(carbon_project_type: int) -> CarbonReportType:
+    """Map the ?carbon_project_type query param integer to a CarbonReportType."""
+    report_type = _CARBON_PROJECT_TYPE_MAP.get(carbon_project_type)
+    if report_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Invalid carbon_project_type: {carbon_project_type}",
+        )
+    return report_type
+
+
 async def get_carbon_report(
     unit_id: int,
     year: int,
     module_type_id: ModuleTypeEnum,
     db: AsyncSession,
+    *,
+    report_type: CarbonReportType = CarbonReportType.CALCULATOR,
 ) -> CarbonReportModuleRead:
-    """Helper to get carbon report module from unit and year."""
-    # TODO: PLACEHOLDER UNTIL INTEGRATION WITH CARBON REPORT MODULE ID in frontend
-    # find carbon_report_module_id from year/unit_id mapping:
+    """Get carbon report module from unit and year.
+
+    Args:
+        unit_id: Unit ID to look up.
+        year: Report year.
+        module_type_id: Module type to retrieve.
+        db: Database session.
+        report_type: The CarbonReportType to resolve against. Derived from
+            the ``?carbon_project_type`` query parameter via
+            ``_resolve_carbon_report_type``.
+
+    Returns:
+        The matching CarbonReportModuleRead.
+
+    Raises:
+        HTTPException: 404 if no matching module exists.
+    """
     CarbonReportModuleService_instance = CarbonReportModuleService(db)
     carbon_report_module = (
         await CarbonReportModuleService_instance.get_carbon_report_by_year_and_unit(
             unit_id=unit_id,
             year=year,
             module_type_id=ModuleTypeEnum(module_type_id),
+            report_type=report_type,
         )
     )
     if carbon_report_module is None or carbon_report_module.id is None:
@@ -82,6 +118,39 @@ async def get_carbon_report(
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
     return carbon_report_module
+
+
+async def _check_module_permission_for_unit(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    unit_id: int,
+) -> Unit:
+    """Load the Unit and gate access using its ``institutional_id``.
+
+    Module permissions are stored as ``modules.{name}/{institutional_id}`` (see
+    PR #974). Routes that operate on a specific unit must look up the unit's
+    ``institutional_id`` before delegating to the policy — otherwise scoped
+    users (CO2_USER_*) are denied because the bare-path lookup misses.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel filters
+    or principal/global checks) without re-fetching.
+    """
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+    await _check_module_permission(
+        current_user,
+        module_id,
+        action,
+        institutional_id=unit.institutional_id,
+    )
+    return unit
 
 
 async def _get_professional_travel_institutional_id_filter(
@@ -153,13 +222,29 @@ async def get_carbon_report_id(
     year: int,
     module_type_id: ModuleTypeEnum,
     db: AsyncSession,
+    *,
+    report_type: CarbonReportType = CarbonReportType.CALCULATOR,
 ) -> int:
-    """Helper to get carbon report module ID from unit and year."""
+    """Get carbon report module ID from unit and year.
+
+    Args:
+        unit_id: Unit ID to look up.
+        year: Report year.
+        module_type_id: Module type to retrieve.
+        db: Database session.
+        report_type: The CarbonReportType to resolve against. Derived from
+            the ``?carbon_project_type`` query parameter via
+            ``_resolve_carbon_report_type``.
+
+    Returns:
+        The carbon report module ID.
+    """
     carbon_report_module = await get_carbon_report(
         unit_id=unit_id,
         year=year,
         module_type_id=module_type_id,
         db=db,
+        report_type=report_type,
     )
     return carbon_report_module.id
 
@@ -172,6 +257,7 @@ async def get_module(
     preview_limit: int = Query(
         default=20, ge=0, le=100, description="Items per submodule"
     ),
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -193,18 +279,25 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
-    await _check_module_permission(current_user, module_id, "view")
-
     logger.info(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
         f"year={sanitize(year)}, preview_limit={sanitize(preview_limit)}"
     )
     module_key = module_id.replace("-", "_")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    unit = await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
     carbon_report_module_id = await get_carbon_report_id(
         unit_id=unit_id,
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
+        report_type=report_type,
     )
 
     if carbon_report_module_id is None:
@@ -214,7 +307,6 @@ async def get_module(
         )
     travel_institutional_id_filter: Optional[str] = None
     if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
-        unit = await db.get(Unit, unit_id)
         if not _has_global_or_principal_access_for_unit(
             current_user=current_user,
             unit=unit,
@@ -279,6 +371,7 @@ async def get_stats_by_class(
     unit_id: int,
     year: int,
     module_id: str,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List:
@@ -287,7 +380,14 @@ async def get_stats_by_class(
 
     Returns treemap-format data for charts.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     carbon_report_module_id = await get_carbon_report_id(
@@ -295,6 +395,7 @@ async def get_stats_by_class(
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
+        report_type=report_type,
     )
 
     stats = await DataEntryEmissionService(db).get_travel_stats_by_class(
@@ -323,6 +424,7 @@ async def get_top_class_breakdown(
     unit_id: int,
     year: int,
     module_id: str,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List:
@@ -332,7 +434,14 @@ async def get_top_class_breakdown(
     emission) and a "rest" bucket. Works for any module configured in
     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     module_type = ModuleTypeEnum[module_key]
@@ -349,6 +458,7 @@ async def get_top_class_breakdown(
         year=year,
         module_type_id=module_type,
         db=db,
+        report_type=report_type,
     )
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
@@ -376,7 +486,13 @@ async def get_evolution_over_time(
     """
     Get travel emissions aggregated by year and category for a unit.
     """
-    await _check_module_permission(current_user, "professional-travel", "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id="professional-travel",
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     stats = await DataEntryEmissionService(db).get_travel_evolution_over_time(
         unit_id=unit_id,
@@ -391,6 +507,7 @@ async def get_evolution_over_time(
 async def list_headcount_members(
     unit_id: int,
     year: int,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List[HeadcountMemberDropdownItem]:
@@ -407,12 +524,28 @@ async def list_headcount_members(
         Users with headcount access for this unit receive the full list;
         users with only professional_travel access receive only their own record.
     """
-    # Gate: must have headcount.view OR professional_travel.view to call this endpoint
+    # Load the unit up-front so we can scope the permission gate to its
+    # institutional_id. Module permissions are stored as ``modules.X/{iid}``.
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+
+    # Gate: must have headcount.view OR professional_travel.view (scoped to this
+    # unit's institutional_id) to call this endpoint.
     travel_decision = await get_module_permission_decision(
-        current_user, "professional-travel", "view"
+        current_user,
+        "professional-travel",
+        "view",
+        institutional_id=unit.institutional_id,
     )
     headcount_decision = await get_module_permission_decision(
-        current_user, "headcount", "view"
+        current_user,
+        "headcount",
+        "view",
+        institutional_id=unit.institutional_id,
     )
     # Allow global-scope users (superadmin/backoffice) regardless of module permissions.
     # This prevents global roles from being blocked by the module-level gate while
@@ -426,12 +559,6 @@ async def list_headcount_members(
             detail="Permission denied: headcount.view or professional_travel.view "
             "required",
         )
-
-    # Data-level scope: determine the user's effective role FOR THIS SPECIFIC UNIT.
-    # `get_module_permission_decision` uses calculate_user_permissions which is
-    # scope-blind (a principal for unit A would appear to have headcount.view for
-    # unit B too). We instead check the unit's own institutional_code directly.
-    unit = await db.get(Unit, unit_id)
 
     # Full access: global roles or principal of this specific unit.
     # NOTE: having headcount.view permission alone does NOT grant full access —
@@ -447,6 +574,7 @@ async def list_headcount_members(
         year=year,
         module_type_id=ModuleTypeEnum.headcount,
         db=db,
+        report_type=_resolve_carbon_report_type(carbon_project_type),
     )
     data_entry_service = DataEntryService(db)
     if has_full_access:
@@ -486,6 +614,7 @@ async def get_submodule(
     filter: Optional[str] = Query(
         default=None, description="Filter string to search in name or display_name"
     ),
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -507,7 +636,14 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
-    await _check_module_permission(current_user, module_id, "view")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"GET submodule: module_id={sanitize(module_id)}, "
@@ -523,6 +659,7 @@ async def get_submodule(
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
+        report_type=report_type,
     )
 
     # Calculate offset from page number
@@ -588,6 +725,7 @@ async def check_unique(
     exclude_id: Optional[int] = Query(
         default=None, description="Entry ID to exclude (for PATCH pre-validation)"
     ),
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
@@ -609,7 +747,14 @@ async def check_unique(
         ``{"unique": true}`` when the value is available,
         ``{"unique": false}`` when a conflict exists.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     submodule_key = submodule_id.replace("-", "_")
@@ -619,6 +764,7 @@ async def check_unique(
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
+        report_type=report_type,
     )
 
     is_unique = await DataEntryService(db).check_json_field_unique(
@@ -644,6 +790,7 @@ async def create(
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
     background_tasks: BackgroundTasks,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -667,7 +814,14 @@ async def create(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current user ID is required to create item",
         )
-    await _check_module_permission(current_user, module_id, "edit")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     module_type_id = ModuleTypeEnum[module_key].value
@@ -678,6 +832,7 @@ async def create(
         year=year,
         module_type_id=ModuleTypeEnum(module_type_id),
         db=db,
+        report_type=report_type,
     )
     if carbon_report_module is None:
         raise HTTPException(
@@ -702,6 +857,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_create(
         carbon_report_module,
@@ -709,6 +865,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 
@@ -726,10 +883,17 @@ async def get(
     module_id: str,
     submodule_id: str,
     item_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"GET item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
@@ -769,10 +933,18 @@ async def update(
     item_data: dict,  # Accept raw dict instead of Union to avoid ambiguous parsing
     request: Request,
     background_tasks: BackgroundTasks,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "edit")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"PATCH item: unit_id={sanitize(unit_id)}, "
@@ -799,6 +971,7 @@ async def update(
         year=year,
         module_type_id=ModuleTypeEnum[module_key],
         db=db,
+        report_type=report_type,
     )
 
     request_context = await get_request_context(request)
@@ -811,6 +984,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
         carbon_report_module,
@@ -818,6 +992,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 
@@ -834,10 +1009,18 @@ async def delete(
     item_id: int,
     request: Request,
     background_tasks: BackgroundTasks,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "edit")
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     if current_user.id is None:
         raise HTTPException(
@@ -864,6 +1047,7 @@ async def delete(
             year=year,
             module_type_id=ModuleTypeEnum[module_key],
             db=db,
+            report_type=report_type,
         )
         request_context = await get_request_context(request)
 

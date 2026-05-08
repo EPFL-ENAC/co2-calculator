@@ -50,6 +50,7 @@ export interface ModuleField {
   labelKey?: string | string[];
   type: FieldType;
   required?: boolean;
+  requiredMessageKey?: string;
   placeholder?: string;
   hint?: string;
   min?: number;
@@ -59,6 +60,7 @@ export interface ModuleField {
   defaultFrom?: 'total_fte';
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  optionLabelKey?: string; // i18n key template; use {value} as placeholder, e.g. 'process-emissions.category.{value}', where {value} matches the normalized option value used by the translation keys
   appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
   unit?: string;
@@ -72,6 +74,7 @@ export interface ModuleField {
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
+  minColumnWidth?: number;
   maxColumnWidth?: number;
   hideIn?: {
     table?: boolean;
@@ -113,6 +116,7 @@ export interface Submodule {
   hasTableAction?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
+  notifyInfoOnAddKey?: string;
   requiredFieldIds?: string[];
   csvTemplateHeaders?: string[];
 }

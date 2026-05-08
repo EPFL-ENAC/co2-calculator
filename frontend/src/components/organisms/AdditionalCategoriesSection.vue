@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  shallowRef,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -7,6 +15,8 @@ import { PieChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { TooltipComponent, LegendComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
@@ -33,9 +43,20 @@ const props = defineProps<{
   embodiedEnergyByCategory?: EmbodiedEnergyCategoryEntry[];
   headcountValidated?: boolean;
   buildingsValidated?: boolean;
+  printMode?: boolean;
 }>();
 
 const { t, te } = useI18n();
+
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const commutingCO2Ref = ref<InstanceType<typeof VChart>>();
+const commutingPhysicalRef = ref<InstanceType<typeof VChart>>();
+const foodCO2Ref = ref<InstanceType<typeof VChart>>();
+const foodPhysicalRef = ref<InstanceType<typeof VChart>>();
+const wasteCO2Ref = ref<InstanceType<typeof VChart>>();
+const wastePhysicalRef = ref<InstanceType<typeof VChart>>();
+const embodiedEnergyCO2Ref = ref<InstanceType<typeof VChart>>();
 
 /** Defer canvas init until the grid is near the viewport (Lighthouse / main-thread). */
 const additionalGridRef = ref<HTMLElement | null>(null);
@@ -49,6 +70,11 @@ onMounted(() => {
     chartVisibilityObserver?.disconnect();
     chartVisibilityObserver = null;
   };
+
+  if (props.printMode) {
+    activateCharts();
+    return;
+  }
 
   if (!el) {
     activateCharts();
@@ -83,6 +109,23 @@ onMounted(() => {
 onBeforeUnmount(() => {
   chartVisibilityObserver?.disconnect();
   chartVisibilityObserver = null;
+});
+
+watch(chartsInView, async (v) => {
+  if (!v || props.printMode) return;
+  await nextTick();
+  for (const r of [
+    commutingCO2Ref,
+    commutingPhysicalRef,
+    foodCO2Ref,
+    foodPhysicalRef,
+    wasteCO2Ref,
+    wastePhysicalRef,
+    embodiedEnergyCO2Ref,
+  ]) {
+    const chart = r.value?.chart;
+    if (chart) attach(chart);
+  }
 });
 
 function getCategoryAccent(
@@ -153,7 +196,13 @@ const commutingEntries = computed((): DisplayEntry[] => {
 });
 
 const commutingCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'commuting', commutingEntries.value, false),
+  buildDoughnutOption(
+    { t, te },
+    'commuting',
+    commutingEntries.value,
+    false,
+    emitTooltip,
+  ),
 );
 
 const commutingPhysicalOption = computed(() => {
@@ -162,6 +211,7 @@ const commutingPhysicalOption = computed(() => {
     'commuting',
     commutingEntries.value,
     true,
+    emitTooltip,
   );
 });
 
@@ -180,11 +230,17 @@ const foodEntries = computed((): DisplayEntry[] => {
 });
 
 const foodCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'food', foodEntries.value, false),
+  buildDoughnutOption({ t, te }, 'food', foodEntries.value, false, emitTooltip),
 );
 
 const foodPhysicalOption = computed(() => {
-  return buildDoughnutOption({ t, te }, 'food', foodEntries.value, true);
+  return buildDoughnutOption(
+    { t, te },
+    'food',
+    foodEntries.value,
+    true,
+    emitTooltip,
+  );
 });
 
 // ── waste ─────────────────────────────────────────────────────────────────
@@ -230,11 +286,23 @@ const wasteGrouped = computed((): DisplayEntry[] => {
 });
 
 const wasteCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'waste', wasteGrouped.value, false),
+  buildDoughnutOption(
+    { t, te },
+    'waste',
+    wasteGrouped.value,
+    false,
+    emitTooltip,
+  ),
 );
 
 const wastePhysicalOption = computed(() => {
-  return buildDoughnutOption({ t, te }, 'waste', wasteGrouped.value, true);
+  return buildDoughnutOption(
+    { t, te },
+    'waste',
+    wasteGrouped.value,
+    true,
+    emitTooltip,
+  );
 });
 
 const commutingLegend = computed(() =>
@@ -283,7 +351,13 @@ const embodiedEnergyCO2Option = computed((): EChartsOption => {
       quantity_unit: 'kg',
     }),
   );
-  return buildDoughnutOption({ t, te }, 'embodied_energy', entries, false);
+  return buildDoughnutOption(
+    { t, te },
+    'embodied_energy',
+    entries,
+    false,
+    emitTooltip,
+  );
 });
 
 const embodiedEnergyLegend = computed(() =>
@@ -303,11 +377,15 @@ const embodiedEnergyLegend = computed(() =>
   <div>
     <div>
       <q-card flat>
-        <div ref="additionalGridRef" class="additional-grid">
+        <div
+          ref="additionalGridRef"
+          class="additional-grid"
+          :class="{ 'additional-grid--print': printMode }"
+        >
           <!-- ═══ HEADCOUNT SECTION ═══ -->
           <!-- Headcount not validated: full-width placeholder -->
           <div
-            v-if="!headcountValidated"
+            v-if="!headcountValidated && !printMode"
             class="additional-col additional-placeholder additional-placeholder--wide"
           >
             <div class="placeholder-content">
@@ -323,7 +401,7 @@ const embodiedEnergyLegend = computed(() =>
 
           <!-- Headcount validated but no data: placeholder -->
           <div
-            v-else-if="headcountHasNoData"
+            v-else-if="headcountHasNoData && !printMode"
             class="additional-col additional-placeholder additional-placeholder--wide"
           >
             <div class="placeholder-content">
@@ -350,7 +428,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
               </div>
               <q-separator class="q-my-lg" />
-              <div>
+              <div class="total-cell">
                 <div class="total-value items-center">
                   <div
                     class="text-h1 text-weight-medium"
@@ -373,6 +451,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="commutingCO2Ref"
                   :key="`commuting-co2-${commutingEntries.length}`"
                   :option="commutingCO2Option"
                   :autoresize="chartsInView"
@@ -390,6 +469,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="commutingPhysicalRef"
                   :key="`commuting-qty-${commutingEntries.length}`"
                   :option="commutingPhysicalOption"
                   :autoresize="chartsInView"
@@ -430,7 +510,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
               </div>
               <q-separator class="q-my-lg" />
-              <div>
+              <div class="total-cell">
                 <div class="total-value items-center">
                   <div
                     class="text-h1 text-weight-medium"
@@ -450,6 +530,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="foodCO2Ref"
                   :option="foodCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
@@ -464,6 +545,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="foodPhysicalRef"
                   :option="foodPhysicalOption"
                   :autoresize="chartsInView"
                   class="chart"
@@ -497,7 +579,12 @@ const embodiedEnergyLegend = computed(() =>
               <div class="q-pt-xl q-px-lg additional-header">
                 <div class="text-h5 text-weight-medium text-center">
                   {{ $t('charts-waste-category') }}
-                  <q-icon name="o_info" size="xs" class="q-ml-xs text-primary">
+                  <q-icon
+                    v-if="!printMode"
+                    name="o_info"
+                    size="xs"
+                    class="q-ml-xs text-primary"
+                  >
                     <q-tooltip class="text-body2 text-black">
                       {{ $t('results_additional_waste_tooltip') }}
                     </q-tooltip>
@@ -508,7 +595,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
               </div>
               <q-separator class="q-my-lg" />
-              <div>
+              <div class="total-cell">
                 <div class="total-value items-center">
                   <div
                     class="text-h1 text-weight-medium"
@@ -528,6 +615,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="wasteCO2Ref"
                   :option="wasteCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
@@ -542,6 +630,7 @@ const embodiedEnergyLegend = computed(() =>
                 </div>
                 <VChart
                   v-if="chartsInView"
+                  ref="wastePhysicalRef"
                   :option="wastePhysicalOption"
                   :autoresize="chartsInView"
                   class="chart"
@@ -574,7 +663,7 @@ const embodiedEnergyLegend = computed(() =>
           <!-- BUILDINGS SECTION  -->
           <!-- Buildings not validated: placeholder -->
           <div
-            v-if="!buildingsValidated"
+            v-if="!buildingsValidated && !printMode"
             class="additional-col additional-placeholder"
           >
             <div class="placeholder-content">
@@ -590,7 +679,7 @@ const embodiedEnergyLegend = computed(() =>
 
           <!-- Buildings validated but no data: placeholder -->
           <div
-            v-else-if="embodiedEnergyTotal <= 0"
+            v-else-if="embodiedEnergyTotal <= 0 && !printMode"
             class="additional-col additional-placeholder"
           >
             <div class="placeholder-content">
@@ -609,7 +698,12 @@ const embodiedEnergyLegend = computed(() =>
             <div class="q-pt-xl q-px-lg additional-header">
               <div class="text-h5 text-weight-medium text-center">
                 {{ $t('charts-embodied-energy-category') }}
-                <q-icon name="o_info" size="xs" class="q-ml-xs text-primary">
+                <q-icon
+                  v-if="!printMode"
+                  name="o_info"
+                  size="xs"
+                  class="q-ml-xs text-primary"
+                >
                   <q-tooltip class="text-body2 text-black">
                     {{ $t('results_additional_embodied_energy_tooltip') }}
                   </q-tooltip>
@@ -620,7 +714,7 @@ const embodiedEnergyLegend = computed(() =>
               </div>
             </div>
             <q-separator class="q-my-lg" />
-            <div>
+            <div class="total-cell">
               <div class="total-value items-center">
                 <div
                   class="text-h1 text-weight-medium"
@@ -643,6 +737,7 @@ const embodiedEnergyLegend = computed(() =>
               </div>
               <VChart
                 v-if="chartsInView"
+                ref="embodiedEnergyCO2Ref"
                 :option="embodiedEnergyCO2Option"
                 :autoresize="chartsInView"
                 class="chart"
@@ -678,6 +773,13 @@ const embodiedEnergyLegend = computed(() =>
         </div>
       </q-card>
     </div>
+    <Teleport v-if="!printMode" to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>
 
@@ -687,6 +789,100 @@ const embodiedEnergyLegend = computed(() =>
   flex-direction: column;
   overflow: hidden;
   width: 100%;
+}
+
+.additional-grid--print {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+
+  .additional-col {
+    min-height: unset;
+    max-width: unset;
+  }
+
+  .additional-col:not(:last-child) {
+    border-right: 1px solid rgba(0, 0, 0, 0.12);
+    border-bottom: none;
+  }
+
+  .additional-header {
+    height: 120px;
+    overflow: hidden;
+    padding: 6px 8px 0 !important;
+  }
+
+  .total-cell {
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  :deep(.q-separator) {
+    margin: 4px 0 !important;
+  }
+
+  :deep(.q-pt-xl) {
+    padding-top: 6px !important;
+  }
+
+  :deep(.q-pb-xl) {
+    padding-bottom: 6px !important;
+  }
+
+  :deep(.q-my-lg) {
+    margin: 4px 0 !important;
+  }
+
+  :deep(.q-mt-md) {
+    margin-top: 4px !important;
+  }
+
+  :deep(.q-mb-xs) {
+    margin-bottom: 2px !important;
+  }
+
+  :deep(.q-pt-md) {
+    padding-top: 4px !important;
+  }
+
+  :deep(.q-pb-md) {
+    padding-bottom: 4px !important;
+  }
+
+  :deep(.q-px-md) {
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+
+  :deep(.q-px-lg) {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  :deep(.text-caption) {
+    font-size: 0.65rem !important;
+    line-height: 1.25 !important;
+  }
+
+  :deep(.text-overline) {
+    font-size: 0.65rem !important;
+    line-height: 1.25 !important;
+  }
+
+  :deep(.text-h1) {
+    font-size: 1.4rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .chart {
+    height: 140px !important;
+  }
 }
 
 @media (min-width: 1024px) {

@@ -90,23 +90,32 @@ async def get_carbon_report_module_id(
 
 
 async def load_factors_map(
-    session: AsyncSession, data_entry_type: DataEntryTypeEnum
+    session: AsyncSession,
+    data_entry_type: DataEntryTypeEnum,
+    year: Optional[int] = None,
 ) -> Dict[str, Factor]:
-    """Load factors from database into a lookup dictionary."""
+    """Load factors from database into a lookup dictionary.
+
+    If year is provided, only factors matching that year are included.
+    """
     logger.info("Loading factors from database...")
 
     service = FactorService(session)
-    factors: list[Factor] = await service.list_by_data_entry_type(data_entry_type)
+    factors: list[Factor] = await service.list_by_data_entry_type(
+        data_entry_type, year=year
+    )
     factors_map: Dict[str, Factor] = {}
 
     factor_handler = BaseModuleHandler.get_by_type(data_entry_type)
     kind_field = factor_handler.kind_field
     subkind_field = factor_handler.subkind_field
     for pf in factors:
+        pf_year = pf.year if hasattr(pf, "year") and pf.year else 0
         # Strategy 1: Full match with subkind
         if pf.classification:
             key_full = (
                 f"{pf.data_entry_type_id}:"
+                f"{pf_year}:"
                 f"{(pf.classification.get(kind_field, '') or '').lower()}:"
                 f"{(pf.classification.get(subkind_field, '') or '').lower()}"
             )
@@ -114,7 +123,9 @@ async def load_factors_map(
 
         # Strategy 2: Match without subkind (fallback)
         key_kind = (
-            f"{pf.data_entry_type_id}:{pf.classification.get(kind_field, '').lower()}"
+            f"{pf.data_entry_type_id}:"
+            f"{pf_year}:"
+            f"{pf.classification.get(kind_field, '').lower()}"
         )
         if key_kind not in factors_map:
             factors_map[key_kind] = pf

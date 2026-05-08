@@ -1,23 +1,12 @@
 import { defineStore } from 'pinia';
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { api } from 'src/api/http';
+import { applyUnitFiltersToParams } from 'src/api/backoffice';
 import type { ModuleState } from 'src/constant/moduleStates';
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
 
-// interface ModuleCompletion {
-//   status: ModuleState;
-//   outlier_values: number;
-// }
-
-// "id": 1574,
-// "unit_name": "Abbott, Guerrero and Rhodes",
-// "affiliation": "SV",
-// "validation_status": "3/9",
-// "principal_user": "Melissa Paul",
-// "last_update": "2026-02-20T15:19:37.859926",
-// "highest_result_category": "Module infrastructure",
-// "total_carbon_footprint": 231.91,
-// "view_url": "/backoffice/unit/1574"
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE_UNITS = 10;
 
 interface BackofficeUnitData {
   id: string | number;
@@ -51,18 +40,22 @@ interface BackofficeUnitDataPagination {
 }
 
 export interface UnitFilters {
-  path_lvl2?: Array<number | string>;
-  path_lvl3?: Array<number | string>;
+  path_affiliation?: Array<number | string>;
   path_lvl4?: Array<number | string>;
   years?: string[];
   completion_status?: number | string;
-  outlier_values?: boolean | null;
   search?: string;
   modules?: Array<{ module: string; state: ModuleState }>;
 }
 
+export interface PaginationState {
+  page: number;
+  pageSize: number;
+  sortBy?: string;
+  descending?: boolean;
+}
+
 export const useBackofficeStore = defineStore('backoffice', () => {
-  // should be paginated already!
   const units = ref<BackofficeUnitDataPagination | null>(null);
   const unit = ref<BackofficeUnitData | null>(null);
 
@@ -79,109 +72,48 @@ export const useBackofficeStore = defineStore('backoffice', () => {
   const yearsLoading = ref(false);
   const yearsErrors = ref<Error[]>([]);
 
-  // const affiliations = computed(() => {
-  //   const uniqueAffiliations = new Set<string>();
-  //   allUnits.value.forEach((unit) => {
-  //     if (unit.affiliation) {
-  //       uniqueAffiliations.add(unit.affiliation);
-  //     }
-  //   });
-  //   return Array.from(uniqueAffiliations).sort();
-  // });
-
-  // const availableUnits = computed(() => {
-  //   const uniqueUnits = new Set<number>();
-  //   allUnits.value.forEach((unit) => {
-  //     if (unit.unit) {
-  //       uniqueUnits.add(unit.unit);
-  //     }
-  //   });
-  //   return Array.from(uniqueUnits).sort();
-  // });
-
-  // async function getAllUnits() {
-  //   try {
-  //     allUnitsLoading.value = true;
-  //     allUnitsErrors.value = [];
-  //     const data = await api
-  //       .get('backoffice/units')
-  //       .json<BackofficeUnitData[]>();
-  //     allUnits.value = data || [];
-  //   } catch (error) {
-  //     console.error('Error getting all units:', error);
-  //     const errorObj =
-  //       error instanceof Error ? error : new Error('Failed to get all units');
-  //     allUnitsErrors.value = [errorObj];
-  //     allUnits.value = [];
-  //   } finally {
-  //     allUnitsLoading.value = false;
-  //   }
-  // }
+  const unitsPagination = reactive<PaginationState>({
+    page: DEFAULT_PAGE,
+    pageSize: DEFAULT_PAGE_SIZE_UNITS,
+    sortBy: undefined,
+    descending: false,
+  });
 
   async function getUnits(filters?: UnitFilters) {
+    console.log(
+      '📡 [BackofficeStore] getUnits called with pagination:',
+      JSON.stringify(unitsPagination, null, 2),
+    );
+
     try {
       unitsLoading.value = true;
       unitsErrors.value = [];
 
       const searchParams = new URLSearchParams();
+      searchParams.append('page', String(unitsPagination.page));
+      // Send 0 for "all" (no pagination), otherwise send actual page size
+      const apiPageSize =
+        unitsPagination.pageSize >= 5000 ? 0 : unitsPagination.pageSize;
+      searchParams.append('page_size', String(apiPageSize));
 
-      // Add hierarchy filters
-      if (filters?.path_lvl2 && filters.path_lvl2.length > 0) {
-        filters.path_lvl2.forEach((v) =>
-          searchParams.append('path_lvl2', String(v)),
-        );
-      }
-
-      if (filters?.path_lvl3 && filters.path_lvl3.length > 0) {
-        filters.path_lvl3.forEach((v) =>
-          searchParams.append('path_lvl3', String(v)),
-        );
-      }
-
-      if (filters?.path_lvl4 && filters.path_lvl4.length > 0) {
-        filters.path_lvl4.forEach((v) =>
-          searchParams.append('path_lvl4', String(v)),
-        );
-      }
-
-      if (filters?.years && filters.years.length > 0) {
-        filters.years.forEach((v) => searchParams.append('years', String(v)));
-      }
-
-      // Add status/search filters
-      if (
-        filters?.completion_status !== undefined &&
-        filters?.completion_status !== ''
-      ) {
+      // Send sort parameters if sortBy is set
+      if (unitsPagination.sortBy) {
+        searchParams.append('sort_by', unitsPagination.sortBy);
         searchParams.append(
-          'completion_status',
-          String(filters.completion_status),
+          'sort_order',
+          unitsPagination.descending ? 'desc' : 'asc',
         );
+        console.log('🔀 [BackofficeStore] Sort params:', {
+          sort_by: unitsPagination.sortBy,
+          sort_order: unitsPagination.descending ? 'desc' : 'asc',
+        });
       }
 
-      if (filters?.search?.trim()) {
-        searchParams.append('search', filters.search.trim());
-      }
-
-      // Add boolean filter (outlier_values)
-      if (
-        filters?.outlier_values !== null &&
-        filters?.outlier_values !== undefined
-      ) {
-        searchParams.append('outlier_values', String(filters.outlier_values));
-      }
-
-      // Add module filters
-      if (filters?.modules !== undefined) {
-        if (filters.modules.length === 0) {
-          // Empty array means modules are enabled but no states selected
-          // Send empty string to backend - it will return empty results
+      if (filters) {
+        applyUnitFiltersToParams(searchParams, filters);
+        // Empty modules array means filter is active but nothing selected → no results
+        if (filters.modules !== undefined && filters.modules.length === 0) {
           searchParams.append('modules', '');
-        } else {
-          // Send module filters
-          filters.modules.forEach((f) => {
-            searchParams.append('modules', `${f.module}:${f.state}`);
-          });
         }
       }
 
@@ -272,6 +204,7 @@ export const useBackofficeStore = defineStore('backoffice', () => {
     latestYear,
     yearsLoading,
     yearsErrors,
+    unitsPagination,
     // affiliations,
     // availableUnits,
     // getAllUnits,

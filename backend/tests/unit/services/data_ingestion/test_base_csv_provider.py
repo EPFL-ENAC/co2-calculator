@@ -1,7 +1,7 @@
 """Unit tests for BaseCSVProvider."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -445,7 +445,7 @@ def _build_stats() -> StatsDict:
 @pytest.mark.asyncio
 async def test_process_row_success_with_unit_mapping(monkeypatch):
     """Test _process_row builds data entry when mapping is present."""
-    config = {"file_path": "tmp/test.csv"}
+    config = {"file_path": "tmp/test.csv", "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
@@ -480,7 +480,12 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     row = {"unit_institutional_id": "U1", "amount": "10", "label": "x"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=1,
         setup_result=setup_result,
@@ -494,6 +499,71 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     assert data_entry is not None
     assert data_entry.carbon_report_module_id == 123
     assert data_entry.data.get("primary_factor_id") == 77
+
+
+@pytest.mark.asyncio
+async def test_process_row_rejects_falsy_year_after_setup_bypass():
+    """Defense-in-depth row-level guard must reject ``year=0`` the same way
+    ``_setup_handlers_and_factors`` does.
+
+    Regression for the asymmetry caught in the PR review: the row-level
+    check originally used ``if self.year is None`` while the setup-time
+    check uses ``if not self.year``, so a caller that bypassed setup with
+    ``year=0`` would slip past the backstop and rebuild the
+    ``{type}:0:...`` silent-miss key — exactly the bug this PR is meant to
+    close. Both layers now use the same falsy check.
+    """
+    config = {"file_path": "tmp/test.csv", "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    # Simulate a future caller that bypassed setup and left year unset/zero.
+    # The setup-time guard would have raised; the row-level guard must too.
+    provider.year = 0
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.student, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda filtered_row, handlers: (
+        "x",
+        None,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {"unused_key": SimpleNamespace(id=1)},
+        "expected_columns": {"unit_institutional_id"},
+    }
+    row = {"unit_institutional_id": "U1"}
+    stats = _build_stats()
+
+    # The row-level ValueError is caught by `_process_row`'s broad
+    # try/except (same path every row-validation failure takes) and
+    # recorded as a per-row error. The desired outcome is "this row is
+    # rejected" — not "process_csv_in_batches aborts" — so assert the
+    # per-row error path, not a propagated exception.
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map={"U1": 123},
+    )
+
+    assert data_entry is None
+    assert error_msg is not None and "year must be set" in error_msg
+    assert kg_co2eq_override is None
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors_count"] == 1
 
 
 @pytest.mark.asyncio
@@ -512,7 +582,12 @@ async def test_process_row_missing_unit_mapping_records_error():
     row = {"unit_id": "UNKNOWN", "amount": "10"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=2,
         setup_result=setup_result,
@@ -553,7 +628,12 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     row = {"amount": "10"}
     stats = _build_stats()
 
-    data_entry, error_msg, result_factor = await provider._process_row(
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
         row,
         row_idx=3,
         setup_result=setup_result,
@@ -568,13 +648,344 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
 
 # ======================================================================
-# Batch Processing Tests
+# Regression: kg_co2eq must NOT be persisted into DataEntry.data
 # ======================================================================
 
 
 @pytest.mark.asyncio
-async def test_process_batch_creates_emissions():
-    """Test _process_batch creates emissions from prepared objects."""
+async def test_process_row_extracts_kg_co2eq_out_of_band():
+    """A CSV row with a `kg_co2eq` column must produce a `DataEntry` whose
+    persisted ``data`` does NOT contain that key. The value must be returned
+    as the 4th tuple element so the caller can pass it to ``prepare_create``
+    transiently.
+
+    Regression for the bug where the CSV provider stuffed ``kg_co2eq`` into
+    ``filtered_row`` (and hence into ``DataEntry.data``), corrupting the
+    source-of-truth JSON column with a derived/imported value.
+    """
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    # validate_create receives the filtered_row payload — confirm kg_co2eq is
+    # NOT present in what it sees, then return whatever data it likes.
+    captured_validation_payload: list[dict] = []
+
+    def fake_validate_create(payload):
+        captured_validation_payload.append(dict(payload))
+        return SimpleNamespace(
+            data={
+                "origin_iata": "GVA",
+                "destination_iata": "ZRH",
+                "cabin_class": "first",
+                "primary_factor_id": None,
+            }
+        )
+
+    handler.validate_create.side_effect = fake_validate_create
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {
+            "origin_iata",
+            "destination_iata",
+            "cabin_class",
+            "user_institutional_id",
+            "number_of_trips",
+        },
+    }
+    # Note: kg_co2eq is intentionally absent from expected_columns — the
+    # provider must extract it directly from the raw row regardless.
+    row = {
+        "origin_iata": "GVA",
+        "destination_iata": "ZRH",
+        "cabin_class": "first",
+        "user_institutional_id": "150322",
+        "number_of_trips": "1",
+        "kg_co2eq": "152.685",
+    }
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        _factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert error_msg is None
+    assert data_entry is not None
+
+    # 1. The override is returned out-of-band as a float.
+    assert kg_co2eq_override == pytest.approx(152.685)
+
+    # 2. kg_co2eq must NOT have leaked into the persisted DataEntry.data.
+    assert "kg_co2eq" not in data_entry.data, (
+        f"kg_co2eq leaked into DataEntry.data: {data_entry.data!r}"
+    )
+
+    # 3. validate_create must have received the row WITHOUT kg_co2eq.
+    assert len(captured_validation_payload) == 1
+    assert "kg_co2eq" not in captured_validation_payload[0]
+
+    # 4. B-H1 — the override is also persisted under the reserved
+    #    ``__kg_co2eq_override__`` carrier so the async recalc path
+    #    (``upsert_by_data_entry`` → ``prepare_create``) still honors it
+    #    when ``BULK_PATH_PURE_ASYNC`` skips the inline-write path.
+    assert data_entry.data.get("__kg_co2eq_override__") == pytest.approx(152.685)
+
+
+@pytest.mark.asyncio
+async def test_process_row_with_no_kg_co2eq_returns_none_override():
+    """Rows without a kg_co2eq column produce a None override — not an
+    error, not a side effect on DataEntry.data."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "primary_factor_id": None,
+        }
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"origin_iata", "destination_iata"},
+    }
+    row = {"origin_iata": "GVA", "destination_iata": "ZRH"}
+    stats = _build_stats()
+
+    _data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+        row,
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert error_msg is None
+    assert kg_co2eq_override is None
+
+
+@pytest.mark.asyncio
+async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
+    """A non-empty but non-numeric kg_co2eq cell must surface a WARNING-level
+    log (not a silent debug) and still produce a valid DataEntry with no
+    override applied. Locks in the visibility bump from the bot review.
+    """
+    import logging
+
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "primary_factor_id": None,
+        }
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"origin_iata", "destination_iata"},
+    }
+    row = {
+        "origin_iata": "GVA",
+        "destination_iata": "ZRH",
+        "kg_co2eq": "not-a-number",
+    }
+    stats = _build_stats()
+
+    with caplog.at_level(
+        logging.WARNING, logger="app.services.data_ingestion.base_csv_provider"
+    ):
+        data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+            row,
+            row_idx=7,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            unit_to_module_map=None,
+        )
+
+    # The row still processes — only the override is dropped.
+    assert error_msg is None
+    assert data_entry is not None
+    assert kg_co2eq_override is None
+
+    # The parse failure is visible at WARNING level, not debug.
+    warnings = [
+        rec
+        for rec in caplog.records
+        if rec.levelno == logging.WARNING and "kg_co2eq" in rec.message
+    ]
+    assert warnings, (
+        "expected a WARNING-level log mentioning kg_co2eq, "
+        f"got: {[(r.levelname, r.message) for r in caplog.records]}"
+    )
+    assert "not-a-number" in warnings[0].message
+    assert "Row 7" in warnings[0].message
+
+
+@pytest.mark.asyncio
+async def test_process_row_consumes_dumb_csv_fixture_for_plane():
+    """Consume the dumb plane CSV fixture row-by-row via csv.DictReader and
+    verify each row's kg_co2eq is extracted out-of-band — not persisted into
+    DataEntry.data. This is the integration-shape regression for the user's
+    debugging case (GVA→ZRH plane import).
+    """
+    import csv as _csv
+    from pathlib import Path
+
+    fixture_path = (
+        Path(__file__).parent.parent.parent.parent
+        / "integration"
+        / "data_ingestion"
+        / "fixtures"
+        / "regression_kg_co2eq_plane.csv"
+    )
+    assert fixture_path.exists(), f"missing fixture: {fixture_path}"
+
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 42, "year": 2025}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.validate_create.side_effect = lambda payload: SimpleNamespace(
+        data={k: v for k, v in payload.items() if k != "data_entry_type_id"}
+    )
+    handler.kind_field = "category"
+    handler.subkind_field = None
+
+    async def resolve_handler(*_args, **_kwargs):
+        return (DataEntryTypeEnum.plane, handler, None)
+
+    provider._resolve_handler_and_validate = resolve_handler
+    provider._extract_kind_subkind_values = lambda *_a, **_kw: ("very_short_haul", None)
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {
+            "origin_iata",
+            "destination_iata",
+            "cabin_class",
+            "user_institutional_id",
+            "number_of_trips",
+        },
+    }
+
+    with open(fixture_path, encoding="utf-8") as f:
+        rows = list(_csv.DictReader(f))
+
+    # Sanity: fixture really has kg_co2eq column with non-empty values.
+    assert all(r.get("kg_co2eq") for r in rows), rows
+    expected_overrides = [float(r["kg_co2eq"]) for r in rows]
+
+    actual_overrides = []
+    for row_idx, row in enumerate(rows, start=1):
+        stats = _build_stats()
+        (
+            data_entry,
+            error_msg,
+            _factor,
+            kg_co2eq_override,
+        ) = await provider._process_row(
+            row,
+            row_idx=row_idx,
+            setup_result=setup_result,
+            stats=stats,
+            max_row_errors=5,
+            unit_to_module_map=None,
+        )
+
+        assert error_msg is None, f"row {row_idx} errored: {error_msg}"
+        assert data_entry is not None
+        # Per-row invariant: kg_co2eq is NOT in the persisted data dict.
+        assert "kg_co2eq" not in data_entry.data, (
+            f"row {row_idx}: kg_co2eq leaked into DataEntry.data: {data_entry.data!r}"
+        )
+        # B-H1 — the parsed override IS persisted under the reserved
+        # ``__kg_co2eq_override__`` carrier so the async recalc honors it.
+        assert data_entry.data.get("__kg_co2eq_override__") == pytest.approx(
+            float(row["kg_co2eq"])
+        ), f"row {row_idx}: missing __kg_co2eq_override__ carrier"
+        actual_overrides.append(kg_co2eq_override)
+
+    assert actual_overrides == pytest.approx(expected_overrides)
+
+
+# ======================================================================
+# Batch Processing Tests
+# ======================================================================
+
+
+@pytest.fixture
+def legacy_inline_emissions(monkeypatch):
+    """Force ``BULK_PATH_PURE_ASYNC=False`` so the legacy inline-write path
+    in ``_process_batch`` / ``_recompute_module_stats`` runs (used by the
+    pre-310D batch tests).
+
+    Patches ``get_settings`` on the provider module directly because
+    the runtime gate reads through ``get_settings()``'s ``lru_cache``
+    — a ``setenv`` after first settings load wouldn't take effect.
+    Bypassing the cache via the monkeypatch keeps the fixture
+    self-contained.
+    """
+    from app.services.data_ingestion import base_csv_provider
+
+    fake = MagicMock()
+    fake.BULK_PATH_PURE_ASYNC = False
+    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake)
+
+
+@pytest.mark.asyncio
+async def test_process_batch_creates_emissions(legacy_inline_emissions):
+    """Test _process_batch creates emissions from prepared objects.
+
+    Pinned against the legacy path (``BULK_PATH_PURE_ASYNC=False``); the
+    pure-async path is covered by
+    ``test_process_batch_skips_emissions_when_pure_async``.
+    """
     config = {"file_path": "tmp/test.csv"}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
@@ -602,11 +1013,139 @@ async def test_process_batch_creates_emissions():
         institutional_id="default-1441",
     )
 
-    await provider._process_batch(batch, data_entry_service, emission_service, user)
+    # No CSV kg_co2eq overrides for this batch (parallel list of None).
+    await provider._process_batch(
+        batch, data_entry_service, emission_service, user, [None]
+    )
 
     data_entry_service.bulk_create.assert_awaited_once()
-    emission_service.prepare_create.assert_awaited_once_with(created_entry)
+    emission_service.prepare_create.assert_awaited_once_with(
+        created_entry, kg_co2eq_override=None
+    )
     emission_service.bulk_create.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_process_batch_skips_emissions_when_pure_async():
+    """Plan 310-D — under ``BULK_PATH_PURE_ASYNC=True`` (the default),
+    ``_process_batch`` writes data_entries but does NOT write
+    data_entry_emissions; the runner-driven ``emission_recalc`` chain
+    owns those writes via the ``csv_ingest_handler`` post-success
+    fan-out."""
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._year_cache = {999: 2025}
+
+    data_entry_service = MagicMock()
+    emission_service = AsyncMock()
+
+    created_entry = SimpleNamespace(id=1, carbon_report_module_id=999)
+    data_entry_service.bulk_create = AsyncMock(return_value=[created_entry])
+    emission_service.prepare_create = AsyncMock()
+    emission_service.bulk_create = AsyncMock()
+
+    batch_entry = MagicMock()
+    batch_entry.carbon_report_module_id = 999
+    user = SimpleNamespace(
+        id=1,
+        email="test@example.com",
+        display_name="Test User",
+        provider=UserProvider.DEFAULT,
+        institutional_id="default-1441",
+    )
+
+    await provider._process_batch(
+        [batch_entry], data_entry_service, emission_service, user, [None]
+    )
+
+    # data_entries STILL written.
+    data_entry_service.bulk_create.assert_awaited_once()
+    # Emissions writes are skipped — chain handles them.
+    emission_service.prepare_create.assert_not_awaited()
+    emission_service.bulk_create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_recompute_module_stats_skips_when_pure_async():
+    """Plan 310-D — ``_recompute_module_stats`` is a no-op under
+    ``BULK_PATH_PURE_ASYNC=True``; the runner-driven ``aggregation``
+    handler owns the stats write."""
+    from app.services.carbon_report_module_service import CarbonReportModuleService
+
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._unit_to_module_map = {1: 100, 2: 200}
+
+    with patch.object(
+        CarbonReportModuleService, "recompute_stats", new_callable=AsyncMock
+    ) as mock_recompute:
+        await provider._recompute_module_stats()
+
+    mock_recompute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_batch_routes_kg_co2eq_overrides_by_id(
+    legacy_inline_emissions,
+):
+    """Carrier flow regression: a batch with kg_co2eq overrides aligned to
+    its inputs must produce a {data_entry.id: kg_co2eq} dict and forward
+    each override per-call to ``prepare_create``.
+
+    This covers the end-to-end carrier path that the unit-level _process_row
+    and prepare_create tests cover only in isolation.
+
+    Pinned against the legacy inline-write path (Plan 310-D's pure-async
+    path skips emissions entirely; carrier routing still matters for
+    rollback semantics).
+    """
+    config = {"file_path": "tmp/test.csv"}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._year_cache = {999: 2025}
+
+    data_entry_service = MagicMock()
+    emission_service = AsyncMock()
+
+    # bulk_create preserves input order — return three responses with
+    # incrementing IDs aligned to the input batch.
+    created_entries = [
+        SimpleNamespace(id=10, carbon_report_module_id=999),
+        SimpleNamespace(id=11, carbon_report_module_id=999),
+        SimpleNamespace(id=12, carbon_report_module_id=999),
+    ]
+    data_entry_service.bulk_create = AsyncMock(return_value=created_entries)
+    emission_service.prepare_create = AsyncMock(return_value=[SimpleNamespace(id=99)])
+    emission_service.bulk_create = AsyncMock()
+
+    batch = []
+    for _ in range(3):
+        e = MagicMock()
+        e.carbon_report_module_id = 999
+        batch.append(e)
+
+    user = SimpleNamespace(
+        id=1,
+        email="test@example.com",
+        display_name="Test User",
+        provider=UserProvider.DEFAULT,
+        institutional_id="default-1441",
+    )
+
+    # Two of three rows have an override; the middle one does not.
+    overrides = [152.685, None, 380.0]
+
+    await provider._process_batch(
+        batch, data_entry_service, emission_service, user, overrides
+    )
+
+    # prepare_create must be called once per response, with the override
+    # routed by data_entry.id (not by index, not by formula path).
+    assert emission_service.prepare_create.await_count == 3
+    actual_calls = {
+        call.args[0].id: call.kwargs.get("kg_co2eq_override")
+        for call in emission_service.prepare_create.await_args_list
+    }
+    assert actual_calls == {10: 152.685, 11: None, 12: 380.0}
 
 
 # ======================================================================
@@ -640,6 +1179,7 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
         emission_service=MagicMock(),
         stats=stats,
         setup_result=setup_result,
+        batch_kg_co2eq_overrides=[None],
     )
 
     provider._process_batch.assert_awaited_once()
@@ -857,3 +1397,102 @@ class TestResolveDataEntryTypeFromCategory:
         assert result is None
         assert stats["rows_skipped"] == 1
         assert stats["row_errors_count"] == 1
+
+
+# ======================================================================
+# _delete_existing_entries_for_module_per_year – scope isolation tests
+# ======================================================================
+
+
+def _make_provider_with_job(module_type_id: int, data_entry_type_id: int | None):
+    """Return a ConcreteCSVProvider whose self.job is pre-populated."""
+    config = {"file_path": "tmp/test.csv", "module_type_id": module_type_id}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider.job = SimpleNamespace(
+        module_type_id=module_type_id,
+        data_entry_type_id=data_entry_type_id,
+    )
+    provider.user = None
+    return provider
+
+
+def _make_stats() -> dict:
+    return {
+        "rows_processed": 0,
+        "rows_skipped": 0,
+        "rows_with_factors": 0,
+        "rows_without_factors": 0,
+        "batches_processed": 0,
+        "row_errors": [],
+        "row_errors_count": 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_delete_scoped_to_specific_data_entry_type():
+    """When data_entry_type_id is set, only that type is deleted.
+
+    Regression: research_facilities (module 6) has two submodules — 70 and 71.
+    Uploading for type 70 must NOT wipe type 71 entries, and vice-versa.
+    """
+    # module_type_id=6 (research_facilities) has types 70 and 71
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=70)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    # bulk_delete_by_source must be called exactly once — for type 70 only
+    assert data_entry_service.bulk_delete_by_source.call_count == 1
+    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
+    assert call_kwargs["data_entry_type_id"] == DataEntryTypeEnum.research_facilities
+    assert call_kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+
+
+@pytest.mark.asyncio
+async def test_delete_sibling_submodule_not_wiped():
+    """Uploading animal facilities (71) must not delete research facilities (70)."""
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=71)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    assert data_entry_service.bulk_delete_by_source.call_count == 1
+    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
+    assert (
+        call_kwargs["data_entry_type_id"]
+        == DataEntryTypeEnum.mice_and_fish_animal_facilities
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_all_types_when_no_data_entry_type_id():
+    """Without data_entry_type_id on the job, all module types are deleted."""
+    # module_type_id=6 has two types; no specific type given
+    provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=None)
+
+    data_entry_service = MagicMock()
+    data_entry_service.bulk_delete_by_source = AsyncMock()
+
+    unit_to_module_map = {"unit-1": 999}
+    await provider._delete_existing_entries_for_module_per_year(
+        unit_to_module_map, _make_stats(), data_entry_service
+    )
+
+    # Both types (70 and 71) should be deleted
+    assert data_entry_service.bulk_delete_by_source.call_count == 2
+    deleted_types = {
+        call.kwargs["data_entry_type_id"]
+        for call in data_entry_service.bulk_delete_by_source.call_args_list
+    }
+    assert DataEntryTypeEnum.research_facilities in deleted_types
+    assert DataEntryTypeEnum.mice_and_fish_animal_facilities in deleted_types

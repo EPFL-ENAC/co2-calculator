@@ -1,253 +1,195 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, provide } from 'vue';
-
+import { computed, ref, provide, watch } from 'vue';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
-import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
-import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleConfig.vue';
+import { useModuleConfig } from 'src/composables/useModuleConfig';
+import { useRecalculation } from 'src/composables/useRecalculation';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineStateStore } from 'src/stores/pipelineState';
+import { usePipelineStream } from 'src/composables/usePipelineStream';
 import {
-  MODULE_SUBMODULES,
-  MODULE_COMMON_UPLOADS,
-  type SubmoduleConfig as SubmoduleConfigItem,
-} from 'src/constant/backoffice-module-config';
-
-import {
-  useBackofficeDataManagement,
-  IngestionResult,
-  IngestionState,
-  IngestionMethod,
   TargetType,
   type ImportRow,
-  type SyncJobResponse,
-  type JobUpdatePayload,
-  type ModuleRecalculationStatus,
-  type RecalculationStatus,
 } from 'src/stores/backofficeDataManagement';
-import {
-  useYearConfigStore,
-  type SyncJobSummary,
-  type ModuleConfig as ModuleConfigType,
-} from 'src/stores/yearConfig';
-import { Notify } from 'quasar';
-import { useI18n } from 'vue-i18n';
+import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
+import ModuleRecalculationDialog from 'src/components/molecules/data-management/ModuleRecalculationDialog.vue';
+import ModuleConfigSection from 'src/components/molecules/data-management/ModuleConfigSection.vue';
+import ModuleUploadsSection from 'src/components/molecules/data-management/ModuleUploadsSection.vue';
+import PipelineDiagnosticTooltip from 'src/components/molecules/data-management/PipelineDiagnosticTooltip.vue';
+import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleConfig.vue';
 
-type UncertaintyTag = ModuleConfigType['uncertainty_tag'];
-
-const QUASAR_COLOR_MAP: Record<string, string> = {
-  accent: 'var(--q-accent)',
-  positive: 'var(--q-positive)',
-  negative: 'var(--q-negative)',
-  warning: 'var(--q-warning)',
-  'grey-4': '#bdbdbd',
-};
-
-const props = defineProps<{
+interface Props {
   module: string;
   selectedYear: number;
-}>();
+}
 
-const { t: $t } = useI18n();
+const props = defineProps<Props>();
+
 const yearConfigStore = useYearConfigStore();
-const backofficeDataManagement = useBackofficeDataManagement();
+const pipelineStateStore = usePipelineStateStore();
 
-const { isModuleEnabled, isModuleIncomplete } = yearConfigStore;
+const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
+  useModuleConfig({
+    module: props.module,
+    selectedYear: props.selectedYear,
+  });
 
-const expanded = ref(false);
+// Plan 310-D / Issue #1062 — pipeline-scoped SSE consumer drives the
+// "Recalculating..." badge.  The active pipeline_id lives in the
+// unified ``pipelineStateStore`` keyed by ``(module_type_id, year)``
+// — the SSE composable is responsible for the live state of that
+// pipeline once we know its id.
+const { subscribe, unsubscribe, isFinishedFor, hasErrorFor } =
+  usePipelineStream();
 
-// ── Import row helpers ────────────────────────────────────────────────────────
+const currentPipelineId = computed<string | null>(() =>
+  pipelineStateStore.getPipelineId(
+    getModuleTypeIdFromName(props.module),
+    props.selectedYear,
+  ),
+);
 
-function findJob(
-  jobs: SyncJobSummary[],
-  moduleTypeId: number,
-  targetType: number | null,
-  dataEntryTypeId?: number,
-  ingestionMethod?: IngestionMethod,
-): SyncJobSummary | undefined {
-  const candidates = jobs.filter(
-    (j) => j.module_type_id === moduleTypeId && j.target_type === targetType,
-  );
-  if (dataEntryTypeId !== undefined) {
-    return candidates.find(
-      (j) =>
-        j.data_entry_type_id === dataEntryTypeId &&
-        j.ingestion_method === ingestionMethod?.valueOf(),
-    );
-  }
-  return candidates[0];
-}
-
-function toSyncJobResponse(job: SyncJobSummary): SyncJobResponse {
-  return {
-    job_id: job.job_id,
-    module_type_id: job.module_type_id,
-    data_entry_type_id: job.data_entry_type_id,
-    year: job.year,
-    target_type: job.target_type as TargetType,
-    state: job.state as IngestionState,
-    result: job.result as IngestionResult,
-    status_message: job.status_message,
-    meta: job.meta,
-  };
-}
-
-function getImportRow(sub: SubmoduleConfigItem): ImportRow {
-  const jobs = yearConfigStore.latestJobs;
-  const dataJob = findJob(
-    jobs,
-    sub.moduleTypeId,
-    0,
-    sub.dataEntryTypeId,
-    IngestionMethod.CSV,
-  );
-  const apiDataJob = sub.hasApi
-    ? findJob(
-        jobs,
-        sub.moduleTypeId,
-        0,
-        sub.dataEntryTypeId,
-        IngestionMethod.API,
-      )
-    : undefined;
-  const factorJob = findJob(
-    jobs,
-    sub.moduleTypeId,
-    1,
-    sub.dataEntryTypeId,
-    IngestionMethod.CSV,
-  );
-  return {
-    key: sub.key,
-    labelKey: sub.labelKey,
-    moduleTypeId: sub.moduleTypeId,
-    dataEntryTypeId: sub.dataEntryTypeId,
-    hasData: !sub.noData,
-    hasFactors: !sub.noFactors,
-    hasApi: sub.hasApi ?? false,
-    other: sub.other,
-    hasOtherUpload: !!sub.other,
-    isDisabled: sub.isDisabled ?? false,
-    lastDataJob: dataJob ? toSyncJobResponse(dataJob) : undefined,
-    lastFactorJob: factorJob ? toSyncJobResponse(factorJob) : undefined,
-    lastApiDataJob: apiDataJob ? toSyncJobResponse(apiDataJob) : undefined,
-  };
-}
-
-function cardStyle(color: string): string {
-  if (color === 'positive') {
-    const c = QUASAR_COLOR_MAP['positive'];
-    return `border: 1px solid ${c}; background-color: color-mix(in srgb, ${c} 10%, transparent)`;
-  }
-  return 'border: 1px solid rgba(0,0,0,0.12)';
-}
-
-function dataButtonColor(row: ImportRow): string {
-  if (row.isDisabled) return 'grey-4';
-  if (!row.lastDataJob) return 'accent';
-  if (row.lastDataJob.result === 2) return 'negative';
-  if (row.lastDataJob.result === 1) return 'warning';
-  return 'positive';
-}
-
-function factorButtonColor(row: ImportRow): string {
-  if (row.isDisabled) return 'grey-4';
-  if (!row.lastFactorJob) return 'accent';
-  if (row.lastFactorJob.result === 2) return 'negative';
-  if (row.lastFactorJob.result === 1) return 'warning';
-  return 'positive';
-}
-
-function dataButtonLabel(row: ImportRow): string {
-  if (row.isDisabled) return '';
-  return row.lastDataJob
-    ? $t('data_management_reupload_data')
-    : $t('data_management_add_data');
-}
-
-function factorButtonLabel(row: ImportRow): string {
-  if (row.isDisabled) return '';
-  return row.lastFactorJob
-    ? $t('data_management_reupload_factors')
-    : $t('data_management_add_factors');
-}
-
-function downloadLastCsv(row: ImportRow, targetType: TargetType) {
-  const job =
-    targetType === TargetType.DATA_ENTRIES
-      ? row.lastDataJob
-      : row.lastFactorJob;
-  if (!job?.meta) return;
-  const filePath = (job.meta as Record<string, unknown>)
-    .processed_file_path as string;
-  if (!filePath) return;
-  const a = document.createElement('a');
-  a.href = `/api/v1/files/${filePath}`;
-  a.download = filePath.split('/').pop() || filePath;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}
-
-function safeFileName(meta: unknown): string | undefined {
-  const fp = (meta as Record<string, unknown>)?.file_path as string | undefined;
-  if (!fp) return undefined;
-  const parts = fp.split('/');
-  return parts.length ? parts[parts.length - 1] : fp;
-}
-
-// ── Module / submodule config helpers ────────────────────────────────────────
-
-function getModuleTypeIdFromName(module: string): number {
-  const subs =
-    MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
-  return subs.length > 0 ? subs[0].moduleTypeId : 0;
-}
-
-async function updateModuleEnabled(
-  module: string,
-  value: boolean,
-): Promise<void> {
-  const moduleTypeId = getModuleTypeIdFromName(module);
+async function refreshPipelineState() {
+  const moduleTypeId = getModuleTypeIdFromName(props.module);
+  // ``getModuleTypeIdFromName`` returns 0 for unknown module names — bail
+  // before issuing ``GET /v1/sync/active-pipelines?modules=0`` and polluting
+  // the store with a ``0:<year>`` cache key.  Mirrors the falsy-id guard
+  // pattern in other useModuleConfig helpers.
   if (!moduleTypeId) return;
-  try {
-    await yearConfigStore.updateConfig(props.selectedYear, {
-      config: { modules: { [String(moduleTypeId)]: { enabled: value } } },
-    });
-    Notify.create({ type: 'positive', message: $t('year_config_saved') });
-  } catch {
-    Notify.create({ type: 'negative', message: $t('year_config_save_error') });
-  }
+  await pipelineStateStore.loadFor(props.selectedYear, [moduleTypeId]);
 }
 
-function getModuleUncertainty(module: string): UncertaintyTag {
-  const moduleTypeId = getModuleTypeIdFromName(module);
-  if (!moduleTypeId) return 'medium';
-  const moduleConfig =
-    yearConfigStore.config?.config?.modules?.[String(moduleTypeId)];
-  return moduleConfig?.uncertainty_tag ?? 'medium';
-}
+// Initial fetch + re-fetch on year change — the same module can have
+// different pipeline state across years (e.g. operator switching
+// between report years while a chain runs in the background).
+watch(
+  () => props.selectedYear,
+  () => {
+    void refreshPipelineState();
+  },
+  { immediate: true },
+);
 
-async function updateModuleUncertainty(
-  module: string,
-  value: UncertaintyTag,
-): Promise<void> {
-  const moduleTypeId = getModuleTypeIdFromName(module);
-  if (!moduleTypeId) return;
-  try {
-    await yearConfigStore.updateConfig(props.selectedYear, {
-      config: {
-        modules: { [String(moduleTypeId)]: { uncertainty_tag: value } },
-      },
-    });
-    Notify.create({ type: 'positive', message: $t('year_config_saved') });
-  } catch {
-    Notify.create({ type: 'negative', message: $t('year_config_save_error') });
-  }
-}
+const isRecalculating = computed<boolean>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return false;
+  // Active until the SSE stream signals finish — the watch below
+  // refetches the active-pipelines store on completion so the id
+  // clears and the badge disappears.
+  return !isFinishedFor(id).value;
+});
 
-// ── Dialog: data entry ────────────────────────────────────────────────────────
+const hasRecalcFailure = computed<boolean>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return false;
+  return hasErrorFor(id).value;
+});
+
+// Plan 310-D — contextual recalculation button.
+//
+// Old behavior: always visible when ``needs_recalculation`` was true,
+// even while a chain was in flight (redundant — the chain auto-fires
+// on upload and the badge shows progress).
+//
+// New behavior: visible only when there's something for the operator
+// to act on — either (a) the chain failed and they want to retry, or
+// (b) staleness was detected and no chain is running to clear it.
+// Hidden during active recalc (the badge says it all) and on a clean
+// module (nothing to do).
+const moduleNeedsRecalculation = computed<boolean>(
+  () =>
+    !!yearConfigStore.recalculationStatus[getModuleTypeIdFromName(props.module)]
+      ?.needs_recalculation,
+);
+
+const showRecalcButton = computed<boolean>(() => {
+  // Hidden during active recalc — the badge says it all.
+  if (isRecalculating.value) return false;
+  // Hidden in the "start" state where the module is missing
+  // required factors and/or data uploads.  Without those, the
+  // recalc has nothing to compute against — the operator first
+  // needs to upload the missing pieces; the recalc button there
+  // is a misleading affordance.  ``isModuleIncomplete`` already
+  // tracks "any required factor/data job is missing or errored"
+  // for the badge above; reuse it to keep the two consistent.
+  if (isModuleIncomplete(props.module)) return false;
+  return hasRecalcFailure.value || moduleNeedsRecalculation.value;
+});
+
+const recalcButtonLabel = computed<string>(() =>
+  hasRecalcFailure.value
+    ? 'data_management_recalculate_retry'
+    : 'data_management_recalculate_emissions',
+);
+
+// Wire the SSE subscription to the reactive pipeline_id.  When it
+// transitions ``null → uuid`` we subscribe; ``uuid → null`` (badge
+// cleared by the year-config refetch) → unsubscribe; ``uuidA →
+// uuidB`` (rare — new pipeline started while old finished) → switch.
+let lastSubscribedId: string | null = null;
+watch(
+  currentPipelineId,
+  async (next) => {
+    if (lastSubscribedId === next) return;
+    if (lastSubscribedId) unsubscribe(lastSubscribedId);
+    lastSubscribedId = next;
+    if (next) await subscribe(next);
+  },
+  { immediate: true },
+);
+
+// When the pipeline reports finished, refetch the active-pipelines
+// store so the badge clears (or, on error, the entry stays set so the
+// retry-button affordance remains).  Also refetch the year config so
+// ``recalculation_status.needs_recalculation`` updates.
+watch(
+  () =>
+    currentPipelineId.value
+      ? isFinishedFor(currentPipelineId.value).value
+      : false,
+  async (finished, wasFinished) => {
+    if (finished && !wasFinished && !hasRecalcFailure.value) {
+      await Promise.all([
+        refreshPipelineState(),
+        yearConfigStore.fetchConfig(props.selectedYear),
+      ]);
+    }
+  },
+);
+
+const {
+  recalcRunning,
+  recalcTypeRunning,
+  confirmModuleRecalculation,
+  triggerTypeRecalculation,
+  staleTypesForModule,
+} = useRecalculation({
+  selectedYear: props.selectedYear,
+});
 
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
 const dialogTargetType = ref<TargetType | null>(null);
+
+const showRecalcDialog = ref(false);
+const recalcDialogModuleTypeId = ref<number | null>(null);
+const recalcOnlyStale = ref(true);
+
+// Plan 310-D — fix(F-C1): Quasar's ``<q-tooltip>`` is hover-only by
+// spec (verified at ``QTooltip.js:247-266`` — only ``mouseenter`` /
+// ``mouseleave`` are registered as triggers).  ``tabindex="0"`` alone
+// makes the badge focusable but never opens the tooltip for keyboard
+// users.  ``PipelineDiagnosticTooltip`` re-exposes Quasar's
+// ``show()`` / ``hide()`` via ``defineExpose``; the parent badge
+// drives them from ``@focus`` / ``@blur`` so the diagnostic content
+// (pipeline UUID, per-job state, status messages) is reachable
+// without a mouse.  The copy-pipeline-id button inside the tooltip
+// stays mouse-only because the tooltip portal closes on ``blur`` —
+// honest partial-a11y; full keyboard reachability would require
+// switching primitives (``<q-popup-proxy>`` / ``<q-menu>``) which the
+// plan tracks as a future enhancement.
+type TooltipExposed = { show: () => void; hide: () => void };
+const recalcTooltip = ref<TooltipExposed>();
+const failureTooltip = ref<TooltipExposed>();
 
 function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   dialogCurrentRow.value = row;
@@ -255,227 +197,37 @@ function openDataEntryDialog(row: ImportRow, targetType: TargetType | null) {
   showDataEntryDialog.value = true;
 }
 
-// ── Recalculation status ──────────────────────────────────────────────────────
-
-const recalculationStatus = ref<Record<number, ModuleRecalculationStatus>>({});
-const recalcRunning = ref<Record<number, boolean>>({});
-const recalcTypeRunning = ref<Record<string, boolean>>({});
-
-async function refreshRecalculationStatus(): Promise<void> {
-  const statuses = await backofficeDataManagement.fetchRecalculationStatus(
-    props.selectedYear,
-  );
-  const map: Record<number, ModuleRecalculationStatus> = {};
-  for (const s of statuses) {
-    map[s.module_type_id] = s;
-  }
-  recalculationStatus.value = map;
-}
-
-function getRecalcStatus(
-  sub: SubmoduleConfigItem,
-): RecalculationStatus | undefined {
-  if (sub.dataEntryTypeId === undefined) return undefined;
-  return recalculationStatus.value[sub.moduleTypeId]?.data_entry_types.find(
-    (d) => d.data_entry_type_id === sub.dataEntryTypeId,
-  );
-}
-
-// ── Dialog: module recalculation ──────────────────────────────────────────────
-
-const showRecalcDialog = ref(false);
-const recalcDialogModuleTypeId = ref<number | null>(null);
-const recalcOnlyStale = ref(true);
-
-function openRecalcDialog(moduleTypeId: number): void {
+function openRecalcDialog(moduleTypeId: number) {
   recalcDialogModuleTypeId.value = moduleTypeId;
   recalcOnlyStale.value = true;
   showRecalcDialog.value = true;
 }
 
-function staleTypesForModule(moduleTypeId: number): RecalculationStatus[] {
-  return (
-    recalculationStatus.value[moduleTypeId]?.data_entry_types.filter(
-      (d) => d.needs_recalculation,
-    ) ?? []
-  );
-}
-
-async function confirmModuleRecalculation(): Promise<void> {
-  const moduleTypeId = recalcDialogModuleTypeId.value;
-  if (moduleTypeId === null) return;
-  showRecalcDialog.value = false;
-  recalcRunning.value[moduleTypeId] = true;
-  try {
-    const jobId =
-      await backofficeDataManagement.initiateModuleEmissionRecalculation(
-        moduleTypeId,
-        props.selectedYear,
-        recalcOnlyStale.value,
-      );
-    backofficeDataManagement.subscribeToJobUpdates(
-      jobId,
-      (payload?: JobUpdatePayload) => {
-        const result = payload?.result;
-        if (result === IngestionResult.WARNING) {
-          Notify.create({
-            type: 'warning',
-            message: $t('data_management_recalculation_warning'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-        } else if (result === IngestionResult.SUCCESS) {
-          Notify.create({
-            type: 'positive',
-            message: $t('data_management_recalculation_success'),
-            position: 'top',
-            timeout: 5000,
-          });
-        } else {
-          Notify.create({
-            type: 'negative',
-            message: $t('data_management_recalculation_error'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-        }
-        recalcRunning.value[moduleTypeId] = false;
-        void refreshRecalculationStatus();
-      },
-      (payload?: JobUpdatePayload) => {
-        Notify.create({
-          type: 'negative',
-          message: $t('data_management_recalculation_error'),
-          caption: payload?.status_message ?? '',
-          position: 'top',
-          timeout: 5000,
-        });
-        recalcRunning.value[moduleTypeId] = false;
-        void refreshRecalculationStatus();
-      },
-      () => {
-        recalcRunning.value[moduleTypeId] = false;
-      },
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : '';
-    Notify.create({
-      type: 'negative',
-      message: $t('data_management_recalculation_error'),
-      caption: msg,
-      position: 'top',
-    });
-    recalcRunning.value[moduleTypeId] = false;
-  }
-}
-
-async function triggerTypeRecalculation(
-  sub: SubmoduleConfigItem,
-): Promise<void> {
-  if (sub.dataEntryTypeId === undefined) return;
-  const key = `${sub.moduleTypeId}-${sub.dataEntryTypeId}`;
-  recalcTypeRunning.value[key] = true;
-  try {
-    const jobId = await backofficeDataManagement.initiateEmissionRecalculation(
-      sub.moduleTypeId,
-      sub.dataEntryTypeId,
-      props.selectedYear,
-    );
-    backofficeDataManagement.subscribeToJobUpdates(
-      jobId,
-      (payload?: JobUpdatePayload) => {
-        const result = payload?.result;
-        if (result === IngestionResult.WARNING) {
-          Notify.create({
-            type: 'warning',
-            message: $t('data_management_recalculation_warning'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-        } else if (result === IngestionResult.SUCCESS) {
-          Notify.create({
-            type: 'positive',
-            message: $t('data_management_recalculation_success'),
-            position: 'top',
-            timeout: 5000,
-          });
-        } else {
-          Notify.create({
-            type: 'negative',
-            message: $t('data_management_recalculation_error'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-        }
-        recalcTypeRunning.value[key] = false;
-        void refreshRecalculationStatus();
-      },
-      (payload?: JobUpdatePayload) => {
-        Notify.create({
-          type: 'negative',
-          message: $t('data_management_recalculation_error'),
-          caption: payload?.status_message ?? '',
-          position: 'top',
-          timeout: 5000,
-        });
-        recalcTypeRunning.value[key] = false;
-        void refreshRecalculationStatus();
-      },
-      () => {
-        recalcTypeRunning.value[key] = false;
-      },
-    );
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : '';
-    Notify.create({
-      type: 'negative',
-      message: $t('data_management_recalculation_error'),
-      caption: msg,
-      position: 'top',
-    });
-    recalcTypeRunning.value[key] = false;
-  }
-}
-
 async function handleJobCompleted() {
-  await yearConfigStore.fetchConfig(props.selectedYear);
-  await refreshRecalculationStatus();
+  await Promise.all([
+    yearConfigStore.fetchConfig(props.selectedYear),
+    refreshPipelineState(),
+  ]);
 }
 
 async function handleJobProgressing() {
-  await yearConfigStore.fetchConfig(props.selectedYear);
+  await Promise.all([
+    yearConfigStore.fetchConfig(props.selectedYear),
+    refreshPipelineState(),
+  ]);
 }
 
-// ── Provide to SubmoduleConfig ────────────────────────────────────────────────
-
 provide('openDataEntryDialog', openDataEntryDialog);
-provide('getRecalcStatus', getRecalcStatus);
-provide('refreshRecalculationStatus', refreshRecalculationStatus);
+provide('getRecalcStatus', yearConfigStore.getRecalcStatus);
 provide('handleJobCompleted', handleJobCompleted);
 provide('handleJobProgressing', handleJobProgressing);
 provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
-
-// ── Lifecycle ─────────────────────────────────────────────────────────────────
-
-onMounted(() => {
-  void refreshRecalculationStatus();
-});
-
-watch(
-  () => props.selectedYear,
-  () => {
-    void refreshRecalculationStatus();
-  },
-);
 </script>
+
 <template>
   <q-card flat bordered class="q-pa-none q-mb-lg">
-    <q-expansion-item v-model="expanded" expand-separator>
+    <q-expansion-item expand-separator>
       <template #header>
         <q-item-section avatar>
           <ModuleIcon :name="module" size="md" color="accent" />
@@ -501,8 +253,9 @@ watch(
             />
             <q-badge
               v-if="
-                recalculationStatus[getModuleTypeIdFromName(module)]
-                  ?.needs_recalculation
+                yearConfigStore.recalculationStatus[
+                  getModuleTypeIdFromName(module)
+                ]?.needs_recalculation
               "
               outline
               rounded
@@ -510,6 +263,60 @@ watch(
               class="text-weight-medium"
               :label="$t('data_management_recalculation_needed')"
             />
+            <!--
+              Plan 310-D — "Recalculating..." badge for in-flight bulk
+              pipelines.  Drives off ``current_pipeline_id`` on the
+              per-module recalc-status entry (set when an active
+              NOT_STARTED/QUEUED/RUNNING aggregation pipeline touches
+              this module's year), with the SSE composable controlling
+              the live state.
+            -->
+            <!--
+              Plan 310-D — fix(F-C1): ``tabindex="0"`` + ``aria-label``
+              make the badge keyboard-focusable and named for screen
+              readers, but Quasar's ``<q-tooltip>`` is hover-only.  The
+              child component re-exposes ``show()`` / ``hide()`` via
+              ``defineExpose``; the badge drives them from ``@focus`` /
+              ``@blur`` so the diagnostic content is reachable without
+              a mouse.  See the ref declarations in ``<script setup>``
+              for the full rationale.
+            -->
+            <q-badge
+              v-if="isRecalculating"
+              outline
+              rounded
+              color="info"
+              class="text-weight-medium cursor-help"
+              tabindex="0"
+              :aria-label="$t('data_management_pipeline_recalculating')"
+              :label="$t('data_management_pipeline_recalculating')"
+              @focus="recalcTooltip?.show()"
+              @blur="recalcTooltip?.hide()"
+            >
+              <PipelineDiagnosticTooltip
+                v-if="currentPipelineId"
+                ref="recalcTooltip"
+                :pipeline-id="currentPipelineId"
+              />
+            </q-badge>
+            <q-badge
+              v-else-if="hasRecalcFailure"
+              outline
+              rounded
+              color="negative"
+              class="text-weight-medium cursor-help"
+              tabindex="0"
+              :aria-label="$t('data_management_pipeline_failed')"
+              :label="$t('data_management_pipeline_failed')"
+              @focus="failureTooltip?.show()"
+              @blur="failureTooltip?.hide()"
+            >
+              <PipelineDiagnosticTooltip
+                v-if="currentPipelineId"
+                ref="failureTooltip"
+                :pipeline-id="currentPipelineId"
+              />
+            </q-badge>
           </div>
         </q-item-section>
         <q-item-section side>
@@ -519,378 +326,41 @@ watch(
               color="grey"
               size="sm"
             />
+            <!--
+              Plan 310-D — contextual recalc button.  Hidden during
+              active recalc (badge handles it), visible as "Retry"
+              when the last chain failed, visible as "Recalculate"
+              when staleness exists without an in-flight chain.
+            -->
             <q-btn
-              v-if="
-                recalculationStatus[getModuleTypeIdFromName(module)]
-                  ?.needs_recalculation
-              "
+              v-if="showRecalcButton"
               flat
               dense
               size="sm"
               icon="refresh"
-              color="accent"
-              :label="$t('data_management_recalculate_emissions')"
+              :color="hasRecalcFailure ? 'negative' : 'accent'"
+              :label="$t(recalcButtonLabel)"
               @click.stop="openRecalcDialog(getModuleTypeIdFromName(module))"
             />
           </div>
         </q-item-section>
       </template>
-      <q-separator />
-      <q-card flat class="q-pa-none row">
-        <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
-          <div class="row items-center q-mb-xs">
-            <q-icon
-              name="power_settings_new"
-              color="accent"
-              size="xs"
-              class="q-mr-sm"
-            />
-            <div class="text-body1 text-weight-medium">
-              {{ $t('data_management_module_activation_title') }}
-            </div>
-          </div>
-          <div class="text-body2 text-secondary q-mb-sm">
-            {{ $t('data_management_module_activation_description') }}
-          </div>
-          <q-toggle
-            :model-value="isModuleEnabled(module)"
-            color="accent"
-            keep-color
-            size="lg"
-            @update:model-value="
-              (val: boolean) => updateModuleEnabled(module, val)
-            "
-          />
-        </q-card>
-      </q-card>
 
-      <div
-        :style="
-          !isModuleEnabled(module)
-            ? 'opacity: 0.45; pointer-events: none'
-            : undefined
-        "
+      <ModuleConfigSection :module="module" :selected-year="selectedYear" />
+
+      <ModuleUploadsSection
+        :module="module"
+        :selected-year="selectedYear"
+        :is-module-enabled="isModuleEnabled(module)"
       >
-        <q-separator class="q-my-xs" />
-        <q-card flat class="q-pa-none row">
-          <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
-            <div class="row items-center q-mb-xs">
-              <q-icon
-                name="o_help_center"
-                color="accent"
-                size="xs"
-                class="q-mr-sm"
-              />
-              <div class="text-body1 text-weight-medium">
-                {{ $t('data_management_uncertainty_title') }}
-              </div>
-            </div>
-            <div class="text-body2 text-secondary q-mb-sm">
-              {{ $t('data_management_uncertainty_description') }}
-            </div>
-            <q-radio
-              :model-value="getModuleUncertainty(module)"
-              val="none"
-              :label="$t('data_management_uncertainty_none')"
-              color="accent"
-              @update:model-value="updateModuleUncertainty(module, 'none')"
-            />
-            <q-radio
-              :model-value="getModuleUncertainty(module)"
-              val="low"
-              :label="$t('data_management_uncertainty_low')"
-              color="accent"
-              @update:model-value="updateModuleUncertainty(module, 'low')"
-            />
-            <q-radio
-              :model-value="getModuleUncertainty(module)"
-              val="medium"
-              :label="$t('data_management_uncertainty_medium')"
-              color="accent"
-              @update:model-value="updateModuleUncertainty(module, 'medium')"
-            />
-            <q-radio
-              :model-value="getModuleUncertainty(module)"
-              val="high"
-              :label="$t('data_management_uncertainty_high')"
-              color="accent"
-              @update:model-value="updateModuleUncertainty(module, 'high')"
-            />
-          </q-card>
-        </q-card>
-        <q-separator
-          v-if="
-            (MODULE_COMMON_UPLOADS[module]?.length ?? 0) > 0 ||
-            (MODULE_SUBMODULES[module] ?? []).length > 0
-          "
-          class="q-my-xs"
-        />
-        <!-- Common module-level uploads (equipment, purchase, external cloud) -->
-        <template v-if="MODULE_COMMON_UPLOADS[module]?.length">
-          <div
-            v-for="common in MODULE_COMMON_UPLOADS[module]"
-            :key="common.key"
-            class="q-mx-lg q-pt-md"
-          >
-            <div
-              v-if="common.headerIcon || common.descriptionKey"
-              class="q-px-xs"
-            >
-              <div class="row items-center q-mb-xs">
-                <q-icon
-                  v-if="common.headerIcon"
-                  :name="common.headerIcon"
-                  color="accent"
-                  size="xs"
-                  class="q-mr-sm"
-                />
-                <div class="text-body1 text-weight-medium">
-                  {{ $t(common.labelKey) }}
-                </div>
-              </div>
-              <div
-                v-if="common.descriptionKey"
-                class="text-body2 text-secondary q-mb-sm"
-              >
-                {{ $t(common.descriptionKey) }}
-              </div>
-            </div>
-            <div v-else class="text-body2 text-weight-medium q-mb-sm q-px-xs">
-              {{ $t(common.labelKey) }}
-            </div>
-            <div class="row q-pb-md" style="gap: 1rem">
-              <!-- Data -->
-              <q-card
-                v-if="getImportRow(common).hasData"
-                flat
-                class="col q-pa-lg"
-                :style="cardStyle(dataButtonColor(getImportRow(common)))"
-              >
-                <div class="text-body2 text-weight-bold q-mb-xs">
-                  {{ $t('data_management_data') }}
-                </div>
-                <div class="text-caption text-secondary q-mb-md">
-                  {{ $t('data_management_data_description') }}
-                </div>
-                <div class="row items-center" style="gap: 0.5rem">
-                  <q-spinner-rings
-                    v-if="
-                      getImportRow(common).lastDataJob?.state ===
-                      IngestionState.RUNNING
-                    "
-                    color="grey"
-                  />
-                  <q-btn
-                    :color="dataButtonColor(getImportRow(common))"
-                    icon="add"
-                    size="sm"
-                    :label="dataButtonLabel(getImportRow(common))"
-                    class="text-weight-medium"
-                    :disable="getImportRow(common).isDisabled"
-                    @click="
-                      openDataEntryDialog(
-                        getImportRow(common),
-                        TargetType.DATA_ENTRIES,
-                      )
-                    "
-                  />
-                  <!-- Per-type emission recalculation button -->
-                  <template
-                    v-if="
-                      common.dataEntryTypeId !== undefined &&
-                      getImportRow(common).hasFactors
-                    "
-                  >
-                    <q-spinner-rings
-                      v-if="
-                        recalcTypeRunning[
-                          `${common.moduleTypeId}-${common.dataEntryTypeId}`
-                        ]
-                      "
-                      color="grey"
-                    />
-                    <template v-else>
-                      <q-btn
-                        color="accent"
-                        outline
-                        icon="refresh"
-                        :icon-right="
-                          getRecalcStatus(common)?.needs_recalculation
-                            ? 'warning'
-                            : undefined
-                        "
-                        size="sm"
-                        :label="$t('data_management_recalculate_emissions')"
-                        :title="
-                          getRecalcStatus(common)?.needs_recalculation
-                            ? $t('data_management_recalculation_needed')
-                            : ''
-                        "
-                        class="text-weight-medium"
-                        :disable="getImportRow(common).isDisabled"
-                        @click="triggerTypeRecalculation(common)"
-                      />
-                    </template>
-                  </template>
-                </div>
-              </q-card>
-
-              <!-- Factors -->
-              <q-card
-                v-if="getImportRow(common).hasFactors"
-                flat
-                class="col q-pa-lg"
-                :style="cardStyle(factorButtonColor(getImportRow(common)))"
-              >
-                <div class="row items-center q-mb-xs">
-                  <div class="text-body2 text-weight-bold">
-                    {{ $t('data_management_factor') }}
-                  </div>
-                  <q-space />
-                  <span class="text-caption text-grey-5"
-                    ><span class="text-negative">*</span
-                    >{{ $t('common_mandatory') }}</span
-                  >
-                </div>
-                <div class="text-caption text-secondary q-mb-md">
-                  {{ $t('data_management_factor_description') }}
-                </div>
-                <div class="row justify-between items-center full-width">
-                  <div class="row items-center" style="gap: 0.5rem">
-                    <q-spinner-rings
-                      v-if="
-                        getImportRow(common).lastFactorJob?.state ===
-                        IngestionState.RUNNING
-                      "
-                      color="grey"
-                    />
-                    <q-btn
-                      :color="factorButtonColor(getImportRow(common))"
-                      icon="add"
-                      size="sm"
-                      :label="factorButtonLabel(getImportRow(common))"
-                      class="text-weight-medium"
-                      :disable="getImportRow(common).isDisabled"
-                      @click="
-                        openDataEntryDialog(
-                          getImportRow(common),
-                          TargetType.FACTORS,
-                        )
-                      "
-                    />
-                  </div>
-                  <div
-                    v-if="getImportRow(common).lastFactorJob?.meta"
-                    class="row items-center no-wrap"
-                    style="gap: 0.75rem"
-                  >
-                    <div class="column items-end">
-                      <div
-                        class="row items-center text-body2 text-weight-medium"
-                      >
-                        <span class="text-positive q-mr-xs">✓</span>
-                        {{
-                          safeFileName(getImportRow(common).lastFactorJob?.meta)
-                        }}
-                      </div>
-                      <div class="text-caption text-grey-7">
-                        {{
-                          getImportRow(common).lastFactorJob?.meta
-                            ?.rows_processed
-                        }}
-                        {{ $t('data_management_rows_imported') }}
-                        <span
-                          v-if="
-                            getImportRow(common).lastFactorJob?.meta?.timestamp
-                          "
-                        >
-                          •
-                          {{
-                            new Date(
-                              getImportRow(common).lastFactorJob.meta
-                                .timestamp as string,
-                            ).toLocaleDateString()
-                          }}
-                        </span>
-                      </div>
-                    </div>
-                    <q-btn
-                      color="positive"
-                      icon="o_download"
-                      size="sm"
-                      unelevated
-                      dense
-                      @click="
-                        downloadLastCsv(
-                          getImportRow(common),
-                          TargetType.FACTORS,
-                        )
-                      "
-                    >
-                      <q-tooltip>{{
-                        $t('data_management_download_last_csv')
-                      }}</q-tooltip>
-                    </q-btn>
-                  </div>
-                </div>
-                <div
-                  v-if="
-                    getImportRow(common).lastFactorJob?.result ===
-                      IngestionResult.WARNING ||
-                    getImportRow(common).lastFactorJob?.result ===
-                      IngestionResult.ERROR
-                  "
-                  class="q-mt-md q-pa-md bg-grey-2 rounded-borders"
-                >
-                  <div
-                    class="text-body2 text-weight-bold q-mb-sm text-negative"
-                  >
-                    {{ getImportRow(common).lastFactorJob?.status_message }}
-                  </div>
-                  <div
-                    v-if="
-                      getImportRow(common).lastFactorJob?.meta?.error !==
-                      getImportRow(common).lastFactorJob?.status_message
-                    "
-                    class="text-body2 q-mb-md"
-                  >
-                    {{ getImportRow(common).lastFactorJob?.meta?.error }}
-                  </div>
-                </div>
-              </q-card>
-            </div>
-          </div>
-          <q-separator
-            v-if="(MODULE_SUBMODULES[module] ?? []).length > 0"
-            class="q-my-xs"
-          />
+        <template #submodules>
+          <SubmoduleConfig :module="module" :selected-year="selectedYear" />
         </template>
-        <template v-if="(MODULE_SUBMODULES[module] ?? []).length > 0">
-          <div class="q-px-lg q-pt-md q-pb-sm">
-            <div class="row items-center q-mb-xs">
-              <q-icon
-                name="o_view_cozy"
-                color="accent"
-                size="xs"
-                class="q-mr-sm"
-              />
-              <div class="text-body1 text-weight-medium">
-                {{ $t('data_management_submodules_configuration_title') }}
-              </div>
-            </div>
-            <div class="text-body2 text-secondary">
-              {{ $t('data_management_submodules_configuration_description') }}
-            </div>
-          </div>
-          <div class="q-mx-lg q-mb-lg column q-gutter-y-sm">
-            <SubmoduleConfig :module="module" :selected-year="selectedYear" />
-          </div>
-        </template>
-      </div>
+      </ModuleUploadsSection>
     </q-expansion-item>
   </q-card>
 
-  <data-entry-dialog
+  <DataEntryDialog
     v-model="showDataEntryDialog"
     :row="dialogCurrentRow || ({} as ImportRow)"
     :year="selectedYear"
@@ -899,53 +369,14 @@ watch(
     @progressing="handleJobProgressing"
   />
 
-  <!-- Emission recalculation dialog -->
-  <q-dialog v-model="showRecalcDialog" persistent>
-    <q-card style="min-width: 480px">
-      <q-card-section class="row items-center q-pb-none">
-        <q-icon name="refresh" color="accent" size="sm" class="q-mr-sm" />
-        <div class="text-h6">
-          {{ $t('data_management_recalculate_emissions_title') }}
-        </div>
-      </q-card-section>
-      <q-card-section class="text-body2">
-        {{ $t('data_management_recalculate_emissions_description') }}
-      </q-card-section>
-      <q-card-section v-if="recalcDialogModuleTypeId !== null">
-        <q-radio
-          v-model="recalcOnlyStale"
-          :val="true"
-          :label="$t('data_management_recalculate_only_stale')"
-          color="accent"
-        />
-        <div class="text-caption text-grey-7 q-ml-md q-mt-xs">
-          {{
-            $t('data_management_stale_types', {
-              count: staleTypesForModule(recalcDialogModuleTypeId).length,
-            })
-          }}
-        </div>
-        <q-radio
-          v-model="recalcOnlyStale"
-          :val="false"
-          :label="$t('data_management_recalculate_all')"
-          color="accent"
-          class="q-mt-sm"
-        />
-      </q-card-section>
-      <q-card-actions align="right">
-        <q-btn
-          flat
-          :label="$t('common_cancel')"
-          @click="showRecalcDialog = false"
-        />
-        <q-btn
-          color="accent"
-          unelevated
-          :label="$t('common_confirm')"
-          @click="confirmModuleRecalculation()"
-        />
-      </q-card-actions>
-    </q-card>
-  </q-dialog>
+  <ModuleRecalculationDialog
+    v-model="showRecalcDialog"
+    :module-type-id="recalcDialogModuleTypeId"
+    :stale-types="staleTypesForModule(recalcDialogModuleTypeId || 0)"
+    :only-stale="recalcOnlyStale"
+    @confirm="confirmModuleRecalculation(recalcDialogModuleTypeId!)"
+    @cancel="showRecalcDialog = false"
+  />
 </template>
+
+<style scoped></style>

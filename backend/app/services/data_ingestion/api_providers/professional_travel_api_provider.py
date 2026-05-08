@@ -17,7 +17,10 @@ from app.repositories.unit_repo import UnitRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.user import UserRead
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
@@ -405,23 +408,55 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         service = DataEntryService(self.data_session)
         emission_service = DataEntryEmissionService(self.data_session)
 
-        # Create data entries with preserved CO2 values
+        # Create data entries with preserved CO2 values.
+        # The raw ``kg_co2eq`` key is stripped from the persisted payload —
+        # under the reserved ``__kg_co2eq_override__`` carrier instead — so
+        # the formula short-circuit in ``prepare_create`` can still tell the
+        # raw input apart from the override channel, and so a future user
+        # edit clearing the override can trigger a clean recompute (B-H1).
+        # The parallel ``kg_co2eq_overrides`` list is kept index-aligned with
+        # ``entries`` for the legacy inline-write path below.
         entries = []
+        kg_co2eq_overrides: list[float | None] = []
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")
             if not carbon_report_module_id:
                 continue
 
-            # Extract CO2 values from item (preserved from source)
-            kg_co2eq = item.get("kg_co2eq") or item.get("OUT_CO2_CORRECTED")
-            distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
+            # Use ``is not None`` rather than ``or`` so a valid 0/0.0 isn't
+            # silently replaced by the OUT_*-corrected fallback.  Walking
+            # legs and fully-electric trips on green grids land here.
+            kg_raw = item.get("kg_co2eq")
+            kg_co2eq = kg_raw if kg_raw is not None else item.get("OUT_CO2_CORRECTED")
+            dist_raw = item.get("distance_km")
+            distance_km = (
+                dist_raw if dist_raw is not None else item.get("OUT_DISTANCE_CORRECTED")
+            )
 
-            # Store in data payload
             data_payload = dict(item)
-            if kg_co2eq is not None:
-                data_payload["kg_co2eq"] = kg_co2eq
+            data_payload.pop("kg_co2eq", None)
             if distance_km is not None:
                 data_payload["distance_km"] = distance_km
+
+            # Coerce the override value to float; log + skip on garbage values
+            # rather than crashing the whole batch (mirrors base_csv_provider).
+            override: float | None = None
+            if kg_co2eq is not None:
+                try:
+                    override = float(kg_co2eq)
+                except (ValueError, TypeError):
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
+                        f"Invalid kg_co2eq value {kg_co2eq!r} from API source, "
+                        f"ignoring override"
+                    )
+            # Persist the override under the reserved carrier key so the
+            # async recalc path (``upsert_by_data_entry`` →
+            # ``prepare_create``) still honors Tableau's ``OUT_CO2_CORRECTED``
+            # under ``BULK_PATH_PURE_ASYNC``.
+            if override is not None:
+                data_payload[KG_CO2EQ_OVERRIDE_KEY] = override
 
             entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
@@ -429,6 +464,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 data=data_payload,
             )
             entries.append(entry)
+            kg_co2eq_overrides.append(override)
 
         if not entries:
             return {"inserted": 0}
@@ -442,14 +478,38 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             created_by_id=self.job_id,
         )
 
-        # Prepare and create emissions using preserved CO2 values
+        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` (default True) the
+        # runner-driven ``emission_recalc`` chain (fired by
+        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
+        # writes for the bulk path.  Skip the inline path here — the
+        # chain reads the freshly-committed ``data_entries`` and writes
+        # emissions against the latest factors.  Inline writes would
+        # race the chain's writes for the same primary key.
+        #
+        # Travel data carries a per-row ``kg_co2eq`` override (Tableau's
+        # ``OUT_CO2_CORRECTED``) that the legacy path threaded through
+        # ``prepare_create(kg_co2eq_override=...)``.  The async path
+        # persists the same value under ``KG_CO2EQ_OVERRIDE_KEY`` above,
+        # which ``prepare_create`` reads as a fallback when no function-arg
+        # override is passed — so the recalc workflow's
+        # ``upsert_by_data_entry`` preserves it across the async hop.
+        if get_settings().BULK_PATH_PURE_ASYNC:
+            await self.data_session.flush()
+            return {"inserted": len(data_entries_response)}
+
+        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
+        overrides_by_id: dict[int, float] = {
+            resp.id: ov
+            for resp, ov in zip(data_entries_response, kg_co2eq_overrides)
+            if ov is not None and resp.id is not None
+        }
+
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
-                # Use emission service to prepare emissions
-                # This will use the preserved kg_co2eq from data payload
                 emission_objs = await emission_service.prepare_create(
-                    data_entry_response
+                    data_entry_response,
+                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
                 )
                 if emission_objs is not None:
                     emissions_to_create.extend(emission_objs)

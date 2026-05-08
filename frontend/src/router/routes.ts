@@ -8,6 +8,8 @@ import {
   requirePermission,
   requireModuleEditPermission,
 } from './guards/permissionGuard';
+import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
+import { PermissionAction } from 'src/constant/permissions';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -36,6 +38,23 @@ export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Print preview — own layout so no header/sidebar appears
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/results/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'results-print',
+        component: () => import('pages/app/ResultsPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Results – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+        },
+      },
+    ],
+  },
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
@@ -108,20 +127,13 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
-                beforeEnter: requireModuleEditPermission(),
+                beforeEnter: [
+                  requireModuleEditPermission(),
+                  moduleEnabledGuard(),
+                ],
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry (edit permission required)',
-                  breadcrumb: true,
-                },
-              },
-              {
-                path: `:module(${MODULES_PATTERN})-results`,
-                name: 'module-results',
-                component: () => import('pages/app/ModuleResultsPage.vue'),
-                meta: {
-                  requiresAuth: true,
-                  note: 'Results - Module-specific results and analysis',
                   breadcrumb: true,
                 },
               },
@@ -136,33 +148,33 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'simulations',
-                name: 'simulations',
+                path: 'simulation',
+                name: 'simulation',
                 component: () => import('pages/app/SimulationsPage.vue'),
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
-                path: 'simulations/add',
-                name: 'simulation-add',
-                component: () => import('pages/app/AddSimulationPage.vue'),
+                path: `simulation/explore/:explore(${SIMULATION_ID_PATTERN})`,
+                name: 'simulation-explore',
+                component: () => import('pages/app/SimulationExplorePage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Create new simulation',
-                  breadcrumb: true,
+                  note: 'Simulation - Explore a simulation',
+                  breadcrumb: false,
                 },
               },
               {
-                path: `simulations/edit/:simulationId(${SIMULATION_ID_PATTERN})`,
-                name: 'simulation-edit',
-                component: () => import('pages/app/EditSimulationPage.vue'),
+                path: `simulation/plan/:plan(${SIMULATION_ID_PATTERN})`,
+                name: 'simulation-plan',
+                component: () => import('pages/app/SimulationPlanPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Edit existing simulation',
-                  breadcrumb: true,
+                  note: 'Simulation - Plan a simulation',
+                  breadcrumb: false,
                 },
               },
               {
@@ -184,13 +196,19 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.VIEW,
+            ),
           },
           {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'edit'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.EDIT,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (admin only)',
@@ -202,7 +220,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'edit'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.EDIT,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Data management (admin only)',
@@ -215,7 +236,10 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.VIEW,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
@@ -227,7 +251,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.VIEW,
+            ),
             meta: {
               requiresAuth: true,
 
@@ -240,7 +267,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/ui-texts-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
             component: () => import('pages/back-office/UITextsEditingPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.VIEW,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Back Office - UI translation text management via GitHub',
@@ -252,7 +282,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/logs',
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
-            beforeEnter: requirePermission('system.users', 'edit'),
+            beforeEnter: requirePermission(
+              'system.users',
+              PermissionAction.EDIT,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Back Office - Audit logs (superadmin only)',
@@ -264,7 +297,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
-            beforeEnter: requirePermission('backoffice.users', 'view'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.VIEW,
+            ),
             meta: {
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',

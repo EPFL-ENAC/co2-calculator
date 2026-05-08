@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -58,6 +58,19 @@ class PurchaseHandlerCreate(DataEntryCreate):
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_default_currency(cls, data: Any) -> Any:
+        """Ensure default currency is applied when input has null or empty currency."""
+        if isinstance(data, dict):
+            currency = data.get("currency")
+            # Apply default when currency is None, empty string, or whitespace-only
+            if currency is None or (
+                isinstance(currency, str) and currency.strip() == ""
+            ):
+                data["currency"] = "chf"
+        return data
+
     @field_validator("quantity", mode="after")
     @classmethod
     def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
@@ -82,6 +95,17 @@ class PurchaseHandlerCreate(DataEntryCreate):
                 "Purchase institutional code must be at least 1 character long"
             )
         return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> str:
+        if v is None:
+            return "chf"
+        normalized_v = v.strip().lower()
+        valid_currencies = ["chf", "eur", "usd"]
+        if normalized_v not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        return normalized_v
 
 
 class PurchaseAdditionalHandlerCreate(DataEntryCreate):
@@ -112,7 +136,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
 
     @field_validator("quantity", mode="after")
     @classmethod
-    def validate_quantity(cls, v: Optional[int]) -> Optional[int]:
+    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
         if v < 0:
@@ -127,6 +151,17 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         if v < 0:
             raise ValueError("Total spend amount must be non-negative")
         return v
+
+    @field_validator("currency", mode="after")
+    @classmethod
+    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        normalized_v = v.strip().lower()
+        valid_currencies = ["chf", "eur", "usd"]
+        if normalized_v not in valid_currencies:
+            raise ValueError(f"Currency must be one of: {valid_currencies}")
+        return normalized_v
 
 
 class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
@@ -192,24 +227,27 @@ class PurchaseModuleHandler(BaseModuleHandler):
         ].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> PurchaseHandlerResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> PurchaseHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
-                **data_entry.data,
+                **data,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                "name": data_entry.data.get("name"),
-                "supplier": data_entry.data.get("supplier"),
-                "quantity": data_entry.data.get("quantity"),
-                "purchase_institutional_code": data_entry.data.get(
-                    "purchase_institutional_code"
-                ),
-                "purchase_institutional_description": data_entry.data.get(
+                "name": data.get("name"),
+                "supplier": data.get("supplier"),
+                "quantity": data.get("quantity"),
+                "purchase_institutional_code": data.get("purchase_institutional_code"),
+                "purchase_institutional_description": data.get(
                     "purchase_institutional_description"
                 ),
-                "total_spent_amount": data_entry.data.get("total_spent_amount"),
-                "kg_co2eq": data_entry.data.get("kg_co2eq", None),
+                "total_spent_amount": data.get("total_spent_amount"),
+                "kg_co2eq": data.get("kg_co2eq", None),
             }
         )
 
@@ -232,9 +270,13 @@ class PurchaseModuleHandler(BaseModuleHandler):
             if year is None:
                 return None
 
-            total_spent_amount = ctx.get("total_spent_amount", 0)
+            total_spent_amount = ctx.get("total_spent_amount")
+            if total_spent_amount is None:
+                return None
             entry_currency = (ctx.get("currency", "chf") or "chf").lower()
-            ef = factor_values.get("ef_kg_co2eq_per_currency", 0)
+            ef = factor_values.get("ef_kg_co2eq_per_currency")
+            if ef is None:
+                return None
             ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
             if total_spent_amount is None or ef is None:
                 return None
@@ -293,13 +335,18 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         "unit": DataEntry.data["unit"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> PurchaseAdditionalHandlerResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> PurchaseAdditionalHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 
@@ -316,10 +363,14 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             return []
 
         def _additional_purchase_formula(ctx: dict, factor_values: dict):
-            annual_consumption = ctx.get("annual_consumption", 0)
-            coef_to_kg = ctx.get("coef_to_kg", 0)
-            ef = factor_values.get("ef_kg_co2eq_per_kg", 0)
-            if annual_consumption is None or coef_to_kg is None or ef is None:
+            annual_consumption = ctx.get("annual_consumption")
+            if annual_consumption is None:
+                return None
+            coef_to_kg = ctx.get("coef_to_kg")
+            if coef_to_kg is None:
+                return None
+            ef = factor_values.get("ef_kg_co2eq_per_kg")
+            if ef is None:
                 return None
             return annual_consumption * coef_to_kg * ef
 

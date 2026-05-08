@@ -3,8 +3,8 @@ import { computed, ref } from 'vue';
 import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission } from 'src/utils/permission';
 import { ROLES } from 'src/constant/roles';
+import { PermissionAction } from 'src/constant/permissions';
 
 interface Props {
   items: Record<string, NavItem>;
@@ -20,7 +20,7 @@ function navigateToRoute(routeName: string) {
 }
 
 const hasBackOfficeEditPermission = computed(() => {
-  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'edit');
+  return authStore.hasUserPermission('backoffice.users', PermissionAction.EDIT);
 });
 
 const hasSuperAdminRole = computed(() => {

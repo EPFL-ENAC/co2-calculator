@@ -72,7 +72,7 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             handlers = [handler]
 
             type_factors = await load_factors_map(
-                self.data_session, configured_data_entry_type
+                self.data_session, configured_data_entry_type, self.year
             )
             factors_map.update(type_factors)
 
@@ -95,7 +95,9 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
 
             # Load factors for all entry types
             for entry_type in valid_entry_types:
-                type_factors = await load_factors_map(self.data_session, entry_type)
+                type_factors = await load_factors_map(
+                    self.data_session, entry_type, self.year
+                )
                 factors_map.update(type_factors)
 
             logger.info(

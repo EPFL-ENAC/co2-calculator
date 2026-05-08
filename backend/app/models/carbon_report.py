@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Optional
 
 from sqlalchemy import Index, UniqueConstraint
@@ -6,15 +7,41 @@ from sqlmodel import JSON, Column, Field, SQLModel
 from app.core.constants import ModuleStatus
 
 
+class CarbonReportType(str, Enum):
+    CALCULATOR = "Calculator"
+    SIMULATOR_EXPLORE = "Simulator_Explore"
+    SIMULATOR_PLAN = "Simulator_Plan"
+
+
 class CarbonReportBase(SQLModel):
     """Base carbon report model."""
 
-    year: int
+    year: int = Field(
+        nullable=False,
+        description=(
+            "Report year (always set; for Simulator Explore, equals the reference year)"
+        ),
+    )
+    reference_year: Optional[int] = Field(
+        default=None,
+        nullable=True,
+        description=(
+            "Optional reference year"
+            " (reserved for Simulator Plan to track baseline year)"
+        ),
+    )
     unit_id: int = Field(
         foreign_key="units.id",
         nullable=False,
         index=True,
         description="FK to units.id (integer)",
+    )
+    carbon_project_id: Optional[int] = Field(
+        default=None,
+        foreign_key="carbon_projects.id",
+        nullable=True,
+        index=True,
+        description="FK to carbon_projects.id — every report may belong to a project",
     )
     last_updated: Optional[int] = Field(
         default=None,
@@ -48,10 +75,12 @@ class CarbonReportBase(SQLModel):
         description=(
             "Optional JSON field to store pre-calculated statistics for the report"
             " - aggregates stats from all child CarbonReportModule records"
-            " - includes scope totals, by_emission_type, computed_at, and entry_count"
+            " - includes scope totals, by_emission_type, by_additional_value, "
+            "computed_at, and entry_count"
             " - helps optimize frontend performance by avoiding on-the-fly calculations"
             ".e.g: { scope1: kg, scope2: kg, scope3: kg, total: kg, "
             "by_emission_type: { emission_type_id: kg, ... }, "
+            "by_additional_value: { emission_type_id: value, ... }, "
             "computed_at: iso_timestamp, entry_count: int }"
         ),
     )
@@ -65,12 +94,14 @@ class CarbonReport(CarbonReportBase, table=True):
     """
 
     __tablename__ = "carbon_reports"
-    id: Optional[int] = Field(default=None, primary_key=True)
-
-    # Unique constraint for (year, unit_id)
     __table_args__ = (
-        UniqueConstraint("unit_id", "year", name="uq_carbon_reports_unit_year"),
+        UniqueConstraint(
+            "carbon_project_id",
+            "year",
+            name="uq_carbon_reports_project_year",
+        ),
     )
+    id: Optional[int] = Field(default=None, primary_key=True)
 
 
 class CarbonReportModuleBase(SQLModel):
@@ -109,6 +140,7 @@ class CarbonReportModuleBase(SQLModel):
             " - helps optimize frontend performance by avoiding on-the-fly calculations"
             " - should be kg_co2eq totals and for each emission_type_id in the module,"
             "to support frontend breakdowns by emission type"
+            " - may include by_additional_value totals for physical quantities"
             ".e.g: { 1: kg_co2eq, 2: kg_co2eq, 'total': kg_co2eq_total }"
         ),
     )

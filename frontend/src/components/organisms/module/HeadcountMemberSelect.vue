@@ -43,11 +43,11 @@ import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission } from 'src/utils/permission';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
 } from 'src/api/modules';
+import { PermissionAction } from 'src/constant/permissions';
 
 const { t: $t } = useI18n();
 
@@ -73,7 +73,7 @@ const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
 const canEditHeadcount = computed(() =>
-  hasPermission(authStore.user?.permissions, 'modules.headcount', 'edit'),
+  authStore.hasUserModulePermission(MODULES.Headcount, PermissionAction.EDIT),
 );
 const isNotValidated = computed(
   () => members.value.length === 0 && !canEditHeadcount.value,
@@ -87,7 +87,7 @@ function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {
   }));
 }
 
-onMounted(async () => {
+async function fetchMembers() {
   if (!props.unitId || !props.year) return;
   loading.value = true;
   try {
@@ -102,5 +102,7 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+
+onMounted(fetchMembers);
 </script>

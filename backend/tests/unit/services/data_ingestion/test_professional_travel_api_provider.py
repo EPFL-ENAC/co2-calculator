@@ -334,3 +334,222 @@ class TestTransformData:
         records = [self._make_record(**{"Centre financier": "1234"})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] == "1234"
+
+
+# ---------------------------------------------------------------------------
+# _load_data — kg_co2eq override carrier + warning visibility
+# ---------------------------------------------------------------------------
+
+
+class TestLoadDataKgCo2eqHandling:
+    """Regression tests for the kg_co2eq override carrier path in _load_data:
+
+    - Bad values surface at WARNING level (not DEBUG) so operators see them.
+    - The data_payload passed to bulk_create must NOT contain a 'kg_co2eq' key.
+    """
+
+    @pytest.mark.asyncio
+    async def test_load_data_warns_on_unparseable_kg_co2eq(self, caplog):
+        import logging
+
+        provider = _make_provider()
+        provider.user = None  # bypass UserRead.model_validate on MagicMock
+
+        # Mock the services so _load_data runs purely in memory.
+        mock_service = MagicMock()
+        mock_service.bulk_create = AsyncMock(
+            return_value=[MagicMock(id=1)]  # one created entry per input
+        )
+        mock_emission_service = MagicMock()
+        mock_emission_service.prepare_create = AsyncMock(return_value=[])
+        mock_emission_service.bulk_create = AsyncMock()
+
+        with (
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryService",
+                return_value=mock_service,
+            ),
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryEmissionService",
+                return_value=mock_emission_service,
+            ),
+            caplog.at_level(
+                logging.WARNING,
+                logger="app.services.data_ingestion."
+                "api_providers.professional_travel_api_provider",
+            ),
+        ):
+            # One item with a garbage kg_co2eq — should warn but still process.
+            await provider._load_data(
+                [
+                    {
+                        "carbon_report_module_id": 99,
+                        "origin_iata": "GVA",
+                        "destination_iata": "ZRH",
+                        "kg_co2eq": "not-a-number",
+                    }
+                ]
+            )
+
+        warnings = [
+            rec
+            for rec in caplog.records
+            if rec.levelno == logging.WARNING and "kg_co2eq" in rec.message
+        ]
+        assert warnings, (
+            "expected a WARNING-level log mentioning kg_co2eq, "
+            f"got: {[(r.levelname, r.message) for r in caplog.records]}"
+        )
+        assert "not-a-number" in warnings[0].message
+
+    @pytest.mark.asyncio
+    async def test_load_data_strips_kg_co2eq_from_persisted_data(self, monkeypatch):
+        """Whether kg_co2eq is parseable or not, it must be popped from the
+        data_payload before DataEntry construction so it never lands in the
+        DB JSON column. This is the API mirror of the CSV regression.
+
+        Pinned against the legacy inline-write path
+        (``BULK_PATH_PURE_ASYNC=False``) — the override-routing
+        assertions read ``prepare_create`` await args, which the
+        pure-async path skips entirely.  The kg_co2eq stripping
+        itself is path-independent and would also pass under the
+        async path; this test specifically pins the override carrier.
+        """
+        from app.services.data_ingestion.api_providers import (
+            professional_travel_api_provider as travel_mod,
+        )
+
+        # Patch ``get_settings`` on the provider module so the gate
+        # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
+        # needing to clear the lru_cache.  The other settings reads
+        # in this module (Tableau creds) need the real values, so we
+        # delegate every other attribute to the cached Settings.
+        fake_settings = MagicMock()
+        fake_settings.BULK_PATH_PURE_ASYNC = False
+        real = travel_mod.get_settings()
+        fake_settings.configure_mock(
+            **{
+                attr: getattr(real, attr)
+                for attr in dir(real)
+                if not attr.startswith("_") and attr != "BULK_PATH_PURE_ASYNC"
+            }
+        )
+        monkeypatch.setattr(travel_mod, "get_settings", lambda: fake_settings)
+        provider = _make_provider()
+        provider.user = None  # bypass UserRead.model_validate on MagicMock
+
+        captured_entries: list = []
+
+        async def fake_bulk_create(entries, *_args, **_kwargs):
+            captured_entries.extend(entries)
+            # Mimic real bulk_create: order-preserving response with IDs.
+            return [MagicMock(id=i) for i, _ in enumerate(entries, start=1)]
+
+        mock_service = MagicMock()
+        mock_service.bulk_create = AsyncMock(side_effect=fake_bulk_create)
+        mock_emission_service = MagicMock()
+        mock_emission_service.prepare_create = AsyncMock(return_value=[])
+        mock_emission_service.bulk_create = AsyncMock()
+
+        with (
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryService",
+                return_value=mock_service,
+            ),
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryEmissionService",
+                return_value=mock_emission_service,
+            ),
+        ):
+            await provider._load_data(
+                [
+                    {
+                        "carbon_report_module_id": 99,
+                        "origin_iata": "GVA",
+                        "destination_iata": "ZRH",
+                        "kg_co2eq": 152.685,  # valid float
+                    },
+                    {
+                        "carbon_report_module_id": 99,
+                        "origin_iata": "CDG",
+                        "destination_iata": "JFK",
+                        "kg_co2eq": "garbage",  # unparseable
+                    },
+                ]
+            )
+
+        # Two DataEntry instances built; neither has kg_co2eq in its data dict.
+        assert len(captured_entries) == 2
+        for entry in captured_entries:
+            assert "kg_co2eq" not in entry.data, (
+                f"kg_co2eq leaked into DataEntry.data: {entry.data!r}"
+            )
+
+        # B-H1 — the valid float reaches prepare_create as the override; the
+        # garbage one resolves to None (no override) — verified through the
+        # {id: ov} routing built inside ``_load_data``.
+        prepare_calls = mock_emission_service.prepare_create.await_args_list
+        overrides_by_id = {
+            call.args[0].id: call.kwargs.get("kg_co2eq_override")
+            for call in prepare_calls
+        }
+        assert overrides_by_id == {1: 152.685, 2: None}
+
+        # B-H1 — the parseable override is also persisted under the reserved
+        # ``__kg_co2eq_override__`` carrier so the async recalc path picks
+        # it up via ``prepare_create``'s data-keyed fallback.  Garbage
+        # values are dropped (no carrier set) — operators see the WARNING
+        # logged above and the row falls back to formula-based emissions.
+        assert captured_entries[0].data.get("__kg_co2eq_override__") == 152.685
+        assert "__kg_co2eq_override__" not in captured_entries[1].data
+
+    @pytest.mark.asyncio
+    async def test_load_data_skips_emissions_under_pure_async(self):
+        """Plan 310-D — under ``BULK_PATH_PURE_ASYNC=True`` (the default),
+        ``_load_data`` writes ``data_entries`` but does NOT call
+        ``emission_service.prepare_create`` /
+        ``emission_service.bulk_create``.  The runner-driven recalc
+        chain (fired by ``api_ingest_handler`` post-success) owns
+        emission writes for the bulk path.
+        """
+        provider = _make_provider()
+        provider.user = None
+
+        mock_service = MagicMock()
+        mock_service.bulk_create = AsyncMock(return_value=[MagicMock(id=1)])
+        mock_emission_service = MagicMock()
+        mock_emission_service.prepare_create = AsyncMock()
+        mock_emission_service.bulk_create = AsyncMock()
+
+        with (
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryService",
+                return_value=mock_service,
+            ),
+            patch(
+                "app.services.data_ingestion.api_providers."
+                "professional_travel_api_provider.DataEntryEmissionService",
+                return_value=mock_emission_service,
+            ),
+        ):
+            await provider._load_data(
+                [
+                    {
+                        "carbon_report_module_id": 99,
+                        "origin_iata": "GVA",
+                        "destination_iata": "ZRH",
+                        "kg_co2eq": 152.685,
+                    }
+                ]
+            )
+
+        # data_entries STILL written.
+        mock_service.bulk_create.assert_awaited_once()
+        # Emissions writes are skipped — chain handles them.
+        mock_emission_service.prepare_create.assert_not_awaited()
+        mock_emission_service.bulk_create.assert_not_awaited()

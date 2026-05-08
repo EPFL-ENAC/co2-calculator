@@ -5,6 +5,8 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,6 +26,10 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     ModuleHandler,
 )
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    ROLLUP_EMISSION_TYPE_IDS,
+)
 
 logger = get_logger(__name__)
 
@@ -38,6 +44,22 @@ class DataEntryRepository:
         self.session = session
         self.entity_type = DataEntry.__name__
         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
+
+    def _detach(self, *objs: Any) -> None:
+        """Expunge ORM rows from the session so accidental mutations cannot
+        be flushed back to the DB. Use on read-path methods that return rows
+        the caller should treat as read-only.
+
+        Silently ignores rows that are not currently attached.
+        """
+        for obj in objs:
+            if obj is None:
+                continue
+            try:
+                self.session.expunge(obj)
+            except InvalidRequestError:
+                # Already detached or session-state edge case — nothing to do.
+                pass
 
     async def get(self, id: int) -> Optional[DataEntry]:
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -176,6 +198,10 @@ class DataEntryRepository:
         sort_order,
         filter: Optional[str] = None,
     ) -> list[DataEntry]:
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. Some callers (delete flows in
+        # data_entry_service.py) only read; others may mutate. Audit each
+        # caller before adding self._detach.
         statement = select(DataEntry).where(
             DataEntry.carbon_report_module_id == carbon_report_module_id
         )
@@ -201,6 +227,10 @@ class DataEntryRepository:
         Returns:
             List of matching DataEntry rows (may be empty).
         """
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. The recalculation workflow in
+        # workflows/emission_recalculation.py is the primary caller and may
+        # mutate; audit before adding self._detach.
         statement = (
             select(DataEntry)
             .join(
@@ -348,75 +378,156 @@ class DataEntryRepository:
             DataEntryTypeEnum.train.value,
         )
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
+        is_headcount_entry = data_entry_type_id in (
+            DataEntryTypeEnum.member.value,
+            DataEntryTypeEnum.student.value,
+        )
 
-        # Aggregate emissions per data_entry to avoid row duplication
-        # (one data_entry can have multiple emissions for headcount/building)
-        emission_agg = (
-            select(
+        if is_buildings_entry:
+            # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
+            # The rollup row (emission_type_id == buildings__rooms) stores the
+            # pre-aggregated total for each building data_entry, written by
+            # DataEntryEmissionService.prepare_create().
+            rollup_et_id = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[
+                DataEntryTypeEnum.building
+            ].value
+            RollupEmission = aliased(DataEntryEmission)
+            # Fallback for legacy rows created before rollups existed.
+            building_emission_agg_q = select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+            ).group_by(col(DataEntryEmission.data_entry_id))
+            if ROLLUP_EMISSION_TYPE_IDS:
+                building_emission_agg_q = building_emission_agg_q.where(
+                    col(DataEntryEmission.emission_type_id).notin_(
+                        ROLLUP_EMISSION_TYPE_IDS
+                    )
+                )
+            building_emission_agg = building_emission_agg_q.subquery()
+            building_total_kg_expr: Any = func.coalesce(
+                col(RollupEmission.kg_co2eq),
+                building_emission_agg.c.total_kg_co2eq,
+            )
+            entities: list[Any] = [
+                DataEntry,
+                building_total_kg_expr.label("total_kg_co2eq"),
+                Factor,
+                BuildingRoom,
+            ]
+            statement: Select[Any] = (
+                sa_select(*entities)
+                .join(
+                    RollupEmission,
+                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                    & (col(RollupEmission.scope).is_(None)),
+                    isouter=True,
+                )
+                .join(
+                    Factor,
+                    col(RollupEmission.primary_factor_id) == col(Factor.id),
+                    isouter=True,
+                )
+                .join(
+                    BuildingRoom,
+                    DataEntry.data["room_name"].as_string()
+                    == col(BuildingRoom.room_name),
+                    isouter=True,
+                )
+                .join(
+                    building_emission_agg,
+                    col(building_emission_agg.c.data_entry_id) == col(DataEntry.id),
+                    isouter=True,
+                )
+            )
+            kg_sort_expr = building_total_kg_expr
+        elif is_headcount_entry:
+            # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
+            # Headcount entries (member/student) produce multiple leaf emissions
+            # (food, waste, commuting). We persist a single scope=NULL rollup row
+            # per entry so the table can sort by total kg_co2eq via a simple JOIN.
+            rollup_et_id = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[
+                DataEntryTypeEnum(data_entry_type_id)
+            ].value
+            RollupEmission = aliased(DataEntryEmission)
+            entities = [
+                DataEntry,
+                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore[attr-defined]
+                Factor,
+            ]
+            statement = (
+                sa_select(*entities)
+                .join(
+                    RollupEmission,
+                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                    & (col(RollupEmission.scope).is_(None)),
+                    isouter=True,
+                )
+                .join(
+                    Factor,
+                    col(RollupEmission.primary_factor_id) == col(Factor.id),
+                    isouter=True,
+                )
+            )
+            kg_sort_expr = RollupEmission.kg_co2eq
+        else:
+            # --- Aggregation subquery for multi-emission entries ---
+            # Exclude rollup rows so future rollup types are never double-counted.
+            emission_agg_q = select(
                 DataEntryEmission.data_entry_id,
                 func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
                 func.min(DataEntryEmission.primary_factor_id).label(
                     "primary_factor_id"
                 ),
-            )
-            .group_by(col(DataEntryEmission.data_entry_id))
-            .subquery()
-        )
-
-        # Build query: one row per DataEntry
-        entities: list[Any] = [
-            DataEntry,
-            emission_agg.c.total_kg_co2eq,
-            Factor,
-        ]
-        if is_buildings_entry:
-            # For buildings, we want to show retrieve the room surface area:
-            entities.extend([BuildingRoom])
-
-        if is_travel_entry:
-            entities.extend([MemberEntry, DataEntryEmission])
-        statement: Select[Any] = (
-            sa_select(*entities)
-            .join(
-                emission_agg,
-                col(DataEntry.id) == emission_agg.c.data_entry_id,
-                isouter=True,
-            )
-            .join(
-                Factor,
-                emission_agg.c.primary_factor_id == col(Factor.id),
-                isouter=True,
-            )
-        )
-
-        if is_travel_entry:
-            statement = statement.join(
-                MemberEntry,
-                (
-                    MemberEntry.data["user_institutional_id"].as_string()
-                    == DataEntry.data["user_institutional_id"].as_string()
+            ).group_by(col(DataEntryEmission.data_entry_id))
+            if ROLLUP_EMISSION_TYPE_IDS:
+                emission_agg_q = emission_agg_q.where(
+                    col(DataEntryEmission.emission_type_id).notin_(
+                        ROLLUP_EMISSION_TYPE_IDS
+                    )
                 )
-                & (
-                    col(MemberEntry.carbon_report_module_id)
-                    == col(DataEntry.carbon_report_module_id)
+            emission_agg = emission_agg_q.subquery()
+
+            entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
+            if is_travel_entry:
+                entities.extend([MemberEntry, DataEntryEmission])
+            statement = (
+                sa_select(*entities)
+                .join(
+                    emission_agg,
+                    col(DataEntry.id) == emission_agg.c.data_entry_id,
+                    isouter=True,
                 )
-                & (
-                    col(MemberEntry.data_entry_type_id)
-                    == DataEntryTypeEnum.member.value
-                ),
-                isouter=True,
-            ).join(
-                DataEntryEmission,
-                col(DataEntryEmission.data_entry_id) == DataEntry.id,
-                isouter=True,
+                .join(
+                    Factor,
+                    emission_agg.c.primary_factor_id == col(Factor.id),
+                    isouter=True,
+                )
             )
 
-        if is_buildings_entry:
-            statement = statement.join(
-                BuildingRoom,
-                DataEntry.data["room_name"].as_string() == BuildingRoom.room_name,
-                isouter=True,
-            )
+            if is_travel_entry:
+                statement = statement.join(
+                    MemberEntry,
+                    (
+                        MemberEntry.data["user_institutional_id"].as_string()
+                        == DataEntry.data["user_institutional_id"].as_string()
+                    )
+                    & (
+                        col(MemberEntry.carbon_report_module_id)
+                        == col(DataEntry.carbon_report_module_id)
+                    )
+                    & (
+                        col(MemberEntry.data_entry_type_id)
+                        == DataEntryTypeEnum.member.value
+                    ),
+                    isouter=True,
+                ).join(
+                    DataEntryEmission,
+                    col(DataEntryEmission.data_entry_id) == DataEntry.id,
+                    isouter=True,
+                )
+            kg_sort_expr = emission_agg.c.total_kg_co2eq
 
         statement = statement.where(
             col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
@@ -438,7 +549,7 @@ class DataEntryRepository:
         sort_map = dict(
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
-        sort_map["kg_co2eq"] = emission_agg.c.total_kg_co2eq
+        sort_map["kg_co2eq"] = kg_sort_expr
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -472,15 +583,32 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for row in rows:
+            # Pre-bind conditionally-unpacked variables so static type checkers
+            # see them as definitely-bound (T | None) on every branch path.
+            # MemberEntry is a SQLAlchemy alias of DataEntry, so the runtime
+            # type is DataEntry.
+            member_entry: DataEntry | None = None
+            _emission: DataEntryEmission | None = None
+            building_room: BuildingRoom | None = None
             # Unpack based on query shape
             if is_travel_entry:
-                data_entry, total_kg_co2eq, primary_factor, member_entry, emission = row
+                data_entry, total_kg_co2eq, primary_factor, member_entry, _emission = (
+                    row
+                )
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
-                emission = None
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
-                member_entry, emission = None, None
+
+            # Defense-in-depth: detach loaded ORM rows from the session so any
+            # accidental mutation (here or downstream) cannot be flushed back to
+            # the DB. This method only reads scalar columns and the JSON `data`
+            # field after unpack — no lazy relationships — so expunge is safe.
+            self._detach(data_entry, primary_factor)
+            if is_travel_entry:
+                self._detach(member_entry, _emission)
+            elif is_buildings_entry:
+                self._detach(building_room)
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -493,12 +621,18 @@ class DataEntryRepository:
                     factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
                     factor_result = await self.session.execute(factor_stmt)
                     primary_factor = factor_result.scalar_one_or_none()
+                    if primary_factor is not None:
+                        self._detach(primary_factor)
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
                 primary_factor.classification if primary_factor else {}
             )
-            data_entry.data = {
+            # Build the enriched response payload as a fresh dict — never
+            # mutate `data_entry.data`, which would dirty the ORM row and
+            # cause SQLAlchemy to flush computed values back into the source-
+            # of-truth JSON column on the next session flush/commit.
+            enriched_data: dict = {
                 **data_entry.data,
                 "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
@@ -508,29 +642,21 @@ class DataEntryRepository:
             }
 
             if is_travel_entry:
-                data_entry.data = {
-                    **data_entry.data,
-                    **(
-                        {"traveler_name": member_entry.data.get("name")}
-                        if member_entry
-                        else {}
-                    ),
-                    **(
-                        {"distance_km": emission.meta.get("distance_km")}
-                        if emission and emission.meta and "distance_km" in emission.meta
-                        else {}
-                    ),
-                }
+                distance_km = (
+                    float(_emission.additional_value)
+                    if _emission is not None and _emission.additional_value is not None
+                    else enriched_data.get("distance_km")
+                )
+                if member_entry is not None:
+                    enriched_data["traveler_name"] = member_entry.data.get("name")
+                if distance_km is not None:
+                    enriched_data["distance_km"] = distance_km
             if is_buildings_entry and building_room:
-                surface = building_room.room_surface_square_meter
-                data_entry.data = {
-                    **data_entry.data,
-                    "room_surface_square_meter": surface
-                    if surface is not None
-                    else None,
-                }
+                enriched_data["room_surface_square_meter"] = (
+                    building_room.room_surface_square_meter
+                )
 
-            items.append(handler.to_response(data_entry))
+            items.append(handler.to_response(data_entry, enriched_data))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
@@ -638,6 +764,8 @@ class DataEntryRepository:
         carbon_report_id: int,
         aggregate_by: str = "module_type_id",
         aggregate_field: str = "fte",
+        *,
+        validated_only: bool = True,
     ) -> Dict[str, float]:
         """Aggregate DataEntry data by module_type_id for a whole carbon report.
 
@@ -673,7 +801,11 @@ class DataEntryRepository:
             )
             .where(
                 CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
             )
             .group_by(group_field)
         )

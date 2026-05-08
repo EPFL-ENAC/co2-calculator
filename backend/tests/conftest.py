@@ -12,7 +12,8 @@ from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
@@ -34,6 +35,12 @@ def pytest_configure():
     """Configure pytest settings if needed."""
     logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
     logging.getLogger("aiosqlite").setLevel(logging.WARNING)
+
+
+@pytest.fixture(autouse=True)
+def disable_poller(monkeypatch):
+    """Disable the background poller for all tests."""
+    monkeypatch.setattr("app.main.settings.RUN_BACKGROUND_POLLER", False)
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +142,14 @@ def make_carbon_report():
     """Factory for CarbonReport model instances."""
 
     async def _make(session: AsyncSession, **overrides) -> CarbonReport:
+        if "carbon_project_id" not in overrides:
+            project = CarbonProject(
+                unit_id=overrides.get("unit_id", 1),
+                carbon_report_type=CarbonReportType.CALCULATOR,
+            )
+            session.add(project)
+            await session.flush()
+            overrides["carbon_project_id"] = project.id
         defaults = dict(
             year=2024,
             unit_id=1,

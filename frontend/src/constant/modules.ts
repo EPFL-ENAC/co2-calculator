@@ -1,3 +1,5 @@
+import { MODULES_ORDER } from 'src/constant/timelineItems';
+
 export const MODULES = {
   Headcount: 'headcount',
   ProfessionalTravel: 'professional-travel',
@@ -193,20 +195,11 @@ export type ConditionalSubmoduleProps =
 
 // Exclude the 4 modules that should be removed
 // TODO: refactor the codebase to remove these 4 modules and then remove this exclusion
-export const MODULES_LIST: Module[] = [
-  MODULES.Headcount,
-  MODULES.ProcessEmissions,
-  MODULES.Buildings,
-  MODULES.EquipmentElectricConsumption,
-  MODULES.ExternalCloudAndAI,
-  MODULES.Purchase,
-  MODULES.ProfessionalTravel,
-  MODULES.ResearchFacilities,
-];
-
-export const MODULES_PATTERN = MODULES_LIST.join('|');
+// Note: MODULES_LIST is now aligned with MODULES_ORDER from timelineItems
+export const MODULES_LIST = MODULES_ORDER;
 
 export const MODULES_THRESHOLD_TYPES = ['fixed', 'median', 'top'] as const;
+export const MODULES_PATTERN = MODULES_LIST.join('|');
 
 export type ThresholdType = (typeof MODULES_THRESHOLD_TYPES)[number];
 

@@ -36,6 +36,14 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         - Loads factors for that specific data_entry_type
         - Returns required_columns (strict validation)
         """
+        # Year is required: factor lookups during row processing key on
+        # `{type}:{year}:{kind}:{subkind}`, so a missing year would silently
+        # miss every factor and import rows with primary_factor_id=None.
+        # Symmetric to the MODULE_PER_YEAR guard in
+        # base_csv_provider.py::_resolve_module_per_year_modules.
+        if not self.year:
+            raise ValueError("year is required for MODULE_UNIT_SPECIFIC entity type")
+
         configured_data_entry_type_id = self.config.get("data_entry_type_id")
 
         if configured_data_entry_type_id is None:
@@ -48,7 +56,7 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         # Load factors for this specific data entry type
         logger.info(f"Loading factors for data_entry_type={configured_data_entry_type}")
         type_factors = await load_factors_map(
-            self.data_session, configured_data_entry_type
+            self.data_session, configured_data_entry_type, self.year
         )
         factors_map = type_factors
 
@@ -60,10 +68,19 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         expected_columns = _get_expected_columns_from_handlers(handlers)
         required_columns = _get_required_columns_from_handler(handler)
 
+        # Create factor_id_to_factor mapping for O(1) lookup during row processing
+        # This avoids O(n) loop through factors_map for each row
+        factor_id_to_factor: Dict[int, Any] = {}
+        for factor in factors_map.values():
+            factor_id = getattr(factor, "id", None)
+            if factor_id is not None:
+                factor_id_to_factor[factor_id] = factor
+
         logger.info(
             f"Setup complete for MODULE_UNIT_SPECIFIC: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
+            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}, "
             f"required_columns={len(required_columns)}"
         )
@@ -71,6 +88,7 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         return {
             "handlers": handlers,
             "factors_map": factors_map,
+            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }

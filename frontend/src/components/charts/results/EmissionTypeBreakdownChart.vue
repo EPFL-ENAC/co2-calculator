@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -8,6 +8,7 @@ import type { EChartsOption } from 'echarts';
 import {
   getChartSubcategoryColor,
   CHART_CATEGORY_COLOR_SCALES,
+  RESULTS_CATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
 import {
   TooltipComponent,
@@ -16,6 +17,8 @@ import {
   DatasetComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
 
 use([
   CanvasRenderer,
@@ -27,28 +30,20 @@ use([
 ]);
 
 import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
+import {
+  CATEGORY_CHART_KEYS,
+  normalizeParentKey,
+} from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  process_emissions: 'charts-process-emissions-category',
-  buildings_room: 'charts-buildings-room-category',
-  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  equipment: 'equipment-electric-consumption',
-  external_cloud_and_ai: 'external-cloud-and-ai',
-  purchases: 'purchase',
-  research_facilities: 'charts-research-facilities-category',
-  professional_travel: 'professional-travel',
-  commuting: 'charts-commuting-category',
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  embodied_energy: 'charts-embodied-energy-category',
-};
+const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerant',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
@@ -63,14 +58,15 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   wood_logs: 'charts-wood-logs-subcategory',
   scientific: 'charts-scientific-subcategory',
   it: 'charts-equipment-it',
-  other: 'charts-other-purchases-subcategory',
+  other: 'charts-other-equipment-subcategory',
   scientific_equipment: 'charts-scientific-subcategory',
   it_equipment: 'charts-equipment-it',
   consumable_accessories: 'charts-consumables-subcategory',
   biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
   services: 'charts-services-subcategory',
-  vehicles: 'charts-other-purchases-subcategory',
-  additional: 'charts-other-purchases-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  additional: 'charts-additional-purchases-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
   goods_and_services: 'charts-services-subcategory',
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
@@ -106,9 +102,11 @@ export interface TopClassBreakdownItem {
 const props = defineProps<{
   categoryRows: EmissionBreakdownCategoryRow[];
   topClassBreakdown?: TopClassBreakdownItem[];
+  printMode?: boolean;
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 
 const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 
@@ -124,6 +122,32 @@ const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 // Maps compound segment keys → display labels (used in top-class mode)
 const segmentLabelOverrides = new Map<string, string>();
 
+/**
+ * Sort bars within each category by the CATEGORY_CHART_KEYS display order.
+ * Shared by the default and top-class breakdown branches so both produce
+ * a deterministic, visually intended order rather than backend/DB iteration order.
+ */
+function sortBarsByDisplayOrder(
+  bars: Record<string, unknown>[],
+  barCategoryMap: Map<string, string>,
+  barLabelMap: Map<string, string>,
+): void {
+  bars.sort((a, b) => {
+    const aCat = barCategoryMap.get(a.xx_category as string) ?? '';
+    const bCat = barCategoryMap.get(b.xx_category as string) ?? '';
+    if (aCat !== bCat) return 0; // preserve cross-category order
+    const keys = CATEGORY_CHART_KEYS[aCat] ?? [];
+    const aIdx = keys.indexOf(barLabelMap.get(a.xx_category as string) ?? '');
+    const bIdx = keys.indexOf(barLabelMap.get(b.xx_category as string) ?? '');
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+}
+
+function getRowCategoryKey(row: EmissionBreakdownCategoryRow): string {
+  // Some endpoints return only `category` and omit `category_key`.
+  return String(row.category_key ?? row.category ?? '');
+}
+
 const chartData = computed(() => {
   const emptyResult = {
     bars: [] as Record<string, unknown>[],
@@ -137,7 +161,9 @@ const chartData = computed(() => {
 
   // --- Top-class breakdown mode ---
   if (props.topClassBreakdown?.length) {
-    const categoryKey = props.categoryRows[0]?.category_key ?? '';
+    const categoryKey = props.categoryRows[0]
+      ? getRowCategoryKey(props.categoryRows[0])
+      : '';
     const bars: Record<string, unknown>[] = [];
     const segmentKeysSet = new Set<string>();
     const barCategoryMap = new Map<string, string>();
@@ -145,10 +171,11 @@ const chartData = computed(() => {
     let segCounter = 0;
 
     for (const subcategory of props.topClassBreakdown) {
+      const normalizedName = normalizeParentKey(categoryKey, subcategory.name);
       const compoundKey = `${categoryKey}_${subcategory.name}`;
       const barData: Record<string, unknown> = { xx_category: compoundKey };
       barCategoryMap.set(compoundKey, categoryKey);
-      barLabelMap.set(compoundKey, subcategory.name);
+      barLabelMap.set(compoundKey, normalizedName);
 
       for (const child of subcategory.children) {
         // Use a numeric suffix to guarantee unique, parseable segment keys
@@ -159,6 +186,8 @@ const chartData = computed(() => {
       }
       bars.push(barData);
     }
+
+    sortBarsByDisplayOrder(bars, barCategoryMap, barLabelMap);
 
     return {
       bars,
@@ -179,24 +208,31 @@ const chartData = computed(() => {
   const barLabelMap = new Map<string, string>(); // compoundKey → display barName
 
   for (const row of props.categoryRows) {
+    const categoryKey = getRowCategoryKey(row);
+    if (!categoryKey) continue;
+    const allowedParents = CATEGORY_CHART_KEYS[categoryKey] ?? [];
     for (const emission of row.emissions) {
       const value = Number(emission.value) || 0;
       if (value <= 0) continue;
 
-      const barName = emission.parent_key ?? emission.key;
+      const rawBarName = emission.parent_key ?? emission.key;
+      const barName = normalizeParentKey(categoryKey, String(rawBarName));
+      if (allowedParents.length > 0 && !allowedParents.includes(barName)) {
+        continue;
+      }
       const collapseAiChildren =
-        row.category_key === 'external_cloud_and_ai' && barName === 'ai';
+        categoryKey === 'external_cloud_and_ai' && barName === 'ai';
       const segmentKey = collapseAiChildren ? barName : emission.key;
-      const compoundKey = `${row.category_key}_${barName}`;
+      const compoundKey = `${categoryKey}_${barName}`;
 
       if (!barMap.has(compoundKey)) {
         barMap.set(compoundKey, {});
-        barCategoryMap.set(compoundKey, row.category_key);
+        barCategoryMap.set(compoundKey, categoryKey);
         barLabelMap.set(compoundKey, barName);
       }
       const bar = barMap.get(compoundKey)!;
       // Segment keys must also be unique per compound key to avoid collisions across categories
-      const compoundSegment = `${row.category_key}_${segmentKey}`;
+      const compoundSegment = `${categoryKey}_${segmentKey}`;
       bar[compoundSegment] = (bar[compoundSegment] ?? 0) + value;
     }
   }
@@ -213,6 +249,8 @@ const chartData = computed(() => {
     }
     bars.push(barData);
   }
+
+  sortBarsByDisplayOrder(bars, barCategoryMap, barLabelMap);
 
   return {
     bars,
@@ -247,19 +285,23 @@ function translateSubcategory(key: string): string {
   return i18nKey ? t(i18nKey) : subcategoryKey;
 }
 
-function translateBar(barName: string): string {
-  // Try subcategory label first, then category label
-  const subKey = SUBCATEGORY_LABEL_MAP[barName];
+function translateBar(categoryKey: string, barName: string): string {
+  const baseName =
+    String(barName ?? '').split('__')[0] ?? String(barName ?? '');
+  const subKey = SUBCATEGORY_LABEL_MAP[baseName];
   if (subKey) return t(subKey);
-  const catKey = CATEGORY_LABEL_MAP[barName];
+  const catKey = CATEGORY_LABEL_MAP[baseName];
   if (catKey) return t(catKey);
-  return barName;
+  return baseName || barName;
 }
 
 const shadeOrder = ['darker', 'dark', 'default', 'light', 'lighter'] as const;
 
-// Track index per category so each bar within a category gets a distinct shade
-const segmentColorMap = computed(() => {
+// Maps bar compound key → its designated color.
+// Using a per-bar map (rather than per-segment) ensures each bar row gets its
+// own distinct shade even when multiple bars share the same segment keys
+// (e.g. buildings_room subcategories all share room-type segment keys).
+const barColorMap = computed(() => {
   const map: Record<string, string> = {};
   const { bars, barCategoryMap, barLabelMap } = chartData.value;
   const categoryBarIndex = new Map<string, number>();
@@ -273,23 +315,18 @@ const segmentColorMap = computed(() => {
 
     const scale = CHART_CATEGORY_COLOR_SCALES.value[catKey];
     const specificBarColor = getChartSubcategoryColor(catKey, barName, '');
-    const barColor =
+    map[compoundKey] =
       specificBarColor ||
       (scale ? scale[shadeOrder[barIndex % shadeOrder.length]] : '#999999');
-
-    for (const [key, val] of Object.entries(bar)) {
-      if (key === 'xx_category') continue;
-      if (typeof val === 'number' && val > 0) {
-        map[key] = barColor;
-      }
-    }
   });
 
   return map;
 });
 
-function getSegmentColor(segmentKey: string): string {
-  return segmentColorMap.value[segmentKey] ?? '#999999';
+function getBarColor(dataIndex: number): string {
+  const bar = chartData.value.bars[dataIndex];
+  if (!bar) return '#999999';
+  return barColorMap.value[bar.xx_category as string] ?? '#999999';
 }
 
 const chartOption = computed((): EChartsOption => {
@@ -299,9 +336,13 @@ const chartOption = computed((): EChartsOption => {
 
   const source = bars.map((bar) => ({
     ...bar,
-    [barKey]: translateBar(
-      barLabelMap.get(bar[barKey] as string) ?? (bar[barKey] as string),
-    ),
+    [barKey]: (() => {
+      const compoundKey = bar[barKey] as string;
+      const categoryKey = chartData.value.barCategoryMap.get(compoundKey) ?? '';
+      const rawBarName =
+        barLabelMap.get(compoundKey) ?? (bar[barKey] as string);
+      return translateBar(categoryKey, rawBarName);
+    })(),
   }));
 
   const series = segmentKeys.map((key) => ({
@@ -313,38 +354,50 @@ const chartOption = computed((): EChartsOption => {
       x: key,
     },
     itemStyle: {
-      color: getSegmentColor(key),
+      color: (params: unknown) =>
+        getBarColor((params as { dataIndex: number }).dataIndex),
       borderColor: '#fff',
       borderWidth: 1,
     },
     // Between IT Focus (32px) and default auto width (often very thick)
-    barWidth: 60,
+    barWidth: 58,
     label: { show: false },
-    emphasis: {
-      focus: 'series' as const,
-      blurScope: 'coordinateSystem' as const,
-    },
-    blur: { itemStyle: { opacity: 0.4 } },
+    emphasis: { disabled: true },
   }));
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          marker?: string;
-          seriesIndex?: number;
-          data?: Record<string, unknown>;
-        };
-        const dimKey = segmentKeys[p.seriesIndex ?? 0];
-        const row = p.data;
-        const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
-      },
-    },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'item',
+          formatter: (params: unknown) => {
+            const p = params as {
+              seriesName?: string;
+              color?: string;
+              seriesIndex?: number;
+              data?: Record<string, unknown>;
+            };
+            const dimKey = segmentKeys[p.seriesIndex ?? 0];
+            const row = p.data;
+            const val =
+              row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
+            if (val <= 0) {
+              emitTooltip(null);
+              return '';
+            }
+            emitTooltip({
+              rows: [
+                {
+                  label: p.seriesName ?? '',
+                  value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+                  color: p.color ?? '#888',
+                },
+              ],
+            });
+            return '';
+          },
+        },
     legend: { show: false },
     grid: {
       left: '3%',
@@ -363,6 +416,7 @@ const chartOption = computed((): EChartsOption => {
     },
     yAxis: {
       type: 'category',
+      inverse: true,
       axisLabel: {
         fontSize: 10,
         width: 150,
@@ -379,25 +433,45 @@ const chartOption = computed((): EChartsOption => {
 
 const chartHeight = computed(() => {
   const barCount = chartData.value.bars.length;
-  return Math.max(200, barCount * 60 + 60);
+  const natural = Math.max(200, barCount * 60 + 60);
+  return isPrintMode.value ? Math.min(natural, 500) : natural;
 });
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none q-mb-md">
-    <q-card-section class="flex justify-center items-center">
+  <div class="q-mb-md">
+    <div class="flex justify-center items-center">
       <v-chart
         v-if="chartData.bars.length"
+        ref="chartRef"
         class="chart"
         autoresize
         :option="chartOption"
         :style="{ height: chartHeight + 'px' }"
+        @vue:mounted="onChartReady"
       />
       <span v-else class="text-body2 text-secondary">
         {{ $t('no-chart-data') }}
       </span>
-    </q-card-section>
-  </q-card>
+    </div>
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
+  </div>
 </template>
 
 <style scoped>

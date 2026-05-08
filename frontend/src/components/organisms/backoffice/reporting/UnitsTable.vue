@@ -1,12 +1,9 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { formatRelativeTime } from 'src/utils/date';
-
-const ROWS_PER_PAGE = 20;
-const { locale, t } = useI18n();
-const showAllRows = ref(false);
+import { useBackofficeStore } from 'src/stores/backoffice';
 
 interface UnitReportingData {
   id: string | number;
@@ -19,14 +16,98 @@ interface UnitReportingData {
   total_carbon_footprint: number; // (tCO₂-eq)
 }
 
+interface PaginationMeta {
+  page: number;
+  page_size: number;
+  total_pages: number;
+  total: number;
+}
+
+const { locale, t } = useI18n();
+const backofficeStore = useBackofficeStore();
+
 const props = defineProps<{
   units: Array<UnitReportingData>;
+  paginationMeta?: PaginationMeta;
   loading: boolean;
 }>();
 
 const emit = defineEmits<{
+  'request-data': [];
   viewUnit: [unitId: string | number];
 }>();
+
+function onRequest(request: {
+  pagination: {
+    page: number;
+    rowsPerPage: number;
+    sortBy: string;
+    descending: boolean;
+  };
+}) {
+  const currentSortBy = backofficeStore.unitsPagination.sortBy;
+  const currentDescending = backofficeStore.unitsPagination.descending;
+  const newSortBy = request.pagination.sortBy;
+
+  console.log('🔍 [UnitsTable] onRequest received:', {
+    page: request.pagination.page,
+    rowsPerPage: request.pagination.rowsPerPage,
+    sortBy: newSortBy,
+  });
+
+  console.log('🔍 [UnitsTable] Sort change detection:', {
+    current: { sortBy: currentSortBy, descending: currentDescending },
+    new: { sortBy: newSortBy },
+  });
+
+  let finalDescending;
+  let finalSortBy = newSortBy;
+
+  if (!newSortBy) {
+    // No sorting requested
+    finalDescending = false;
+    finalSortBy = undefined;
+  } else if (newSortBy === currentSortBy) {
+    // Same column clicked - toggle direction or reset on 3rd click
+    if (!currentDescending) {
+      // Was ascending, toggle to descending
+      finalDescending = true;
+      console.log('🔄 [UnitsTable] Toggling to descending');
+    } else {
+      // Was descending, reset to no sort
+      finalDescending = false;
+      finalSortBy = undefined;
+      console.log('🔄 [UnitsTable] Resetting to no sort');
+    }
+  } else {
+    // Different column - start with ascending
+    finalDescending = false;
+    console.log('🆕 [UnitsTable] New column, starting with ascending');
+  }
+
+  backofficeStore.unitsPagination.page = request.pagination.page;
+  backofficeStore.unitsPagination.pageSize = request.pagination.rowsPerPage;
+  backofficeStore.unitsPagination.sortBy = finalSortBy;
+  backofficeStore.unitsPagination.descending = finalDescending;
+
+  console.log(
+    '✅ [UnitsTable] Store updated to:',
+    JSON.stringify(backofficeStore.unitsPagination, null, 2),
+  );
+
+  emit('request-data');
+}
+
+const paginationOptions = [10, 25, 50, 100, { label: 'All', value: 5000 }];
+
+const pagination = computed(() => ({
+  page: backofficeStore.unitsPagination.page,
+  rowsPerPage: backofficeStore.unitsPagination.pageSize,
+  rowsPerPageOptions: paginationOptions,
+  sortBy: backofficeStore.unitsPagination.sortBy,
+  descending: backofficeStore.unitsPagination.descending,
+  rowsNumber: props.paginationMeta?.total ?? 0,
+}));
 
 const columns = computed<QTableColumn[]>(() => [
   {
@@ -86,9 +167,16 @@ const columns = computed<QTableColumn[]>(() => [
   },
 ]);
 
-const pagination = computed(() => ({
-  rowsPerPage: showAllRows.value ? 0 : ROWS_PER_PAGE,
-}));
+// const paginationOptions = [10, 25, 50, 100, 5000];
+
+// const pagination = computed(() => ({
+//   page: props.pagination.page,
+//   rowsPerPage: props.pagination.pageSize,
+//   rowsPerPageOptions: paginationOptions,
+//   sortBy: props.pagination.sortBy,
+//   descending: props.pagination.descending,
+//   rowsNumber: props.paginationMeta?.total ?? 0,
+// }));
 </script>
 
 <template>
@@ -96,22 +184,50 @@ const pagination = computed(() => ({
     <span class="text-body1 text-weight-medium">
       {{
         t('backoffice_reporting_units_status_label', {
-          count: props.units.length,
+          count: paginationMeta?.total,
         })
       }}
     </span>
   </div>
-
   <q-table
-    class="co2-table border shadow-0"
+    v-model:pagination="pagination"
+    :binary-state-sort="true"
     :rows="props.units"
     :columns="columns"
+    :server-pagination="true"
     row-key="id"
-    :pagination="pagination"
     :loading="props.loading"
+    class="co2-table border shadow-0"
+    :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     flat
     bordered
+    @request="onRequest"
   >
+    <template #pagination="scope">
+      <q-btn
+        icon="chevron_left"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isFirstPage"
+        @click="scope.prevPage"
+      />
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
+      <q-btn
+        icon="chevron_right"
+        color="grey-8"
+        round
+        dense
+        flat
+        :disable="scope.isLastPage"
+        @click="scope.nextPage"
+      />
+    </template>
+
     <template #body-cell-unit_name="p">
       <q-td :props="p" class="text-weight-bold">
         {{ p.row.unit_name }}

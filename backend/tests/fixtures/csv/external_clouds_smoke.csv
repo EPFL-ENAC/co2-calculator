@@ -1,0 +1,3 @@
+unit_institutional_id,provider,service_type,spent_amount,currency,note
+{unit_institutional_id},AWS,compute,200.0,eur,
+{unit_institutional_id},AWS,compute,100.0,eur,

@@ -20,13 +20,22 @@ export async function getFactorValues(
   submodule: AllSubmoduleTypes,
   equipmentClass: string,
   subClass?: string | null,
+  year?: string | number | null,
 ): Promise<ValueFactorResponse | null> {
-  let path = `factors/${encodeURIComponent(
-    enumSubmodule[submodule],
-  )}/classes/${encodeURIComponent(equipmentClass)}/values`;
-  if (subClass) {
-    path += `?sub_class=${encodeURIComponent(subClass)}`;
+  const params = new URLSearchParams();
+  if (subClass) params.set('sub_class', subClass);
+  if (year != null) params.set('year', String(year));
+  const query = params.toString();
+  const path =
+    `factors/${encodeURIComponent(enumSubmodule[submodule])}/classes/${encodeURIComponent(equipmentClass)}/values` +
+    (query ? `?${query}` : '');
+  try {
+    const res = await api
+      .get(path, { skipErrorCodes: [404, 422] })
+      .json<ValueFactorResponse | null>();
+    return res ?? null;
+  } catch (err) {
+    console.error('Error fetching factor values:', err);
+    return null;
   }
-  const res = await api.get(path).json<ValueFactorResponse | null>();
-  return res ?? null;
 }

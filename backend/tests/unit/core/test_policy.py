@@ -222,6 +222,51 @@ class TestCheckModulePermission:
 
     @pytest.mark.asyncio
     @patch("app.core.policy.query_policy")
+    async def test_check_module_permission_forwards_institutional_id(
+        self, mock_query_policy
+    ):
+        """institutional_id kwarg must reach the policy via input_data so the
+        scoped permission key (modules.X/iid) can be matched."""
+        user = MagicMock()
+        user.id = "user-123"
+        user.email = "test@example.com"
+        user.roles = [
+            Role(
+                role=RoleName.CO2_USER_PRINCIPAL,
+                on=RoleScope(institutional_id="0184"),
+            )
+        ]
+
+        mock_query_policy.return_value = {"allow": True}
+
+        await check_module_permission(
+            user, "headcount", "view", institutional_id="0184"
+        )
+
+        call_args = mock_query_policy.call_args
+        assert call_args[0][1]["path"] == "modules.headcount"
+        assert call_args[0][1]["institutional_id"] == "0184"
+        assert call_args[0][1]["any_scope"] is False
+
+    @pytest.mark.asyncio
+    @patch("app.core.policy.query_policy")
+    async def test_check_module_permission_forwards_any_scope(self, mock_query_policy):
+        """any_scope kwarg must reach the policy via input_data (taxonomy path)."""
+        user = MagicMock()
+        user.id = "user-123"
+        user.email = "test@example.com"
+        user.roles = []
+
+        mock_query_policy.return_value = {"allow": True}
+
+        await check_module_permission(user, "headcount", "view", any_scope=True)
+
+        call_args = mock_query_policy.call_args
+        assert call_args[0][1]["any_scope"] is True
+        assert call_args[0][1]["institutional_id"] is None
+
+    @pytest.mark.asyncio
+    @patch("app.core.policy.query_policy")
     async def test_check_module_permission_no_allow_key(self, mock_query_policy):
         """Test check_module_permission when policy returns no 'allow' key."""
         user = MagicMock()
@@ -254,7 +299,7 @@ class TestQueryPolicyPermissionCheck:
                     }
                 ],
             },
-            "path": "modules.professional_travel",
+            "path": "modules.professional_travel/123",
             "action": "view",
         }
 

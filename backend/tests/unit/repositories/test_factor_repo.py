@@ -168,7 +168,7 @@ async def test_get_by_classification_with_subkind(repo):
     repo.session.exec = AsyncMock(return_value=result_mock)
 
     result = await repo.get_by_classification(
-        DataEntryTypeEnum.member, kind="k1", subkind="s1"
+        DataEntryTypeEnum.member, kind="k1", subkind="s1", year=2025
     )
 
     assert result == factor
@@ -185,7 +185,7 @@ async def test_get_by_classification_fallback_to_kind_only(repo):
     repo.session.exec = AsyncMock(side_effect=[result_mock_none, result_mock_factor])
 
     result = await repo.get_by_classification(
-        DataEntryTypeEnum.member, kind="k1", subkind="s1"
+        DataEntryTypeEnum.member, kind="k1", subkind="s1", year=2025
     )
 
     assert result == factor

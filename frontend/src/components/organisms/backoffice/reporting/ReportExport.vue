@@ -9,8 +9,8 @@ import {
   downloadUsageReportFile,
   downloadDetailedReportFile,
   downloadResultsReportFile,
-} from 'src/api/reporting';
-import type { ReportFormat, ReportType } from 'src/api/reporting';
+} from 'src/api/backoffice';
+import type { ReportFormat, ReportType } from 'src/api/backoffice';
 import { type UnitFilters } from 'src/stores/backoffice';
 const { t } = useI18n();
 

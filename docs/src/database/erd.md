@@ -33,6 +33,15 @@ erDiagram
     FLOAT room_surface_square_meter
     VARCHAR room_type
   }
+  carbon_projects {
+    VARCHAR carbon_report_type
+    INTEGER end_year "indexed"
+    INTEGER id PK
+    BOOLEAN is_viewable_by_unit_members
+    VARCHAR name "indexed"
+    INTEGER start_year "indexed"
+    INTEGER unit_id FK
+  }
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
@@ -42,10 +51,12 @@ erDiagram
     INTEGER status "indexed"
   }
   carbon_reports {
+    INTEGER carbon_project_id FK
     VARCHAR completion_progress
     INTEGER id PK
     INTEGER last_updated
     INTEGER overall_status
+    INTEGER reference_year
     JSON stats
     INTEGER unit_id FK
     INTEGER year
@@ -62,6 +73,7 @@ erDiagram
     DATETIME updated_at
   }
   data_entry_emissions {
+    FLOAT additional_value "Polymorphic physical quantity tied to this emission row. Unit is inferred from emission_type_id (e.g. km for commuting and travel, kg for food and waste)."
     TIMESTAMP computed_at "indexed"
     INTEGER data_entry_id FK
     INTEGER emission_type_id "indexed"
@@ -69,18 +81,28 @@ erDiagram
     FLOAT kg_co2eq
     JSON meta
     INTEGER primary_factor_id FK
+    INTEGER scope
   }
   data_ingestion_jobs {
+    INTEGER attempts
     INTEGER data_entry_type_id "indexed"
     INTEGER entity_id
     VARCHAR entity_type
+    DATETIME finished_at
     INTEGER id PK
     VARCHAR ingestion_method "indexed"
     BOOLEAN is_current
+    VARCHAR job_type
+    DATETIME locked_at
+    VARCHAR locked_by
+    INTEGER max_attempts
     JSON meta
     INTEGER module_type_id "indexed"
+    UUID pipeline_id
     VARCHAR provider
     VARCHAR result
+    DATETIME run_after "indexed"
+    DATETIME started_at
     VARCHAR state
     VARCHAR status_message
     VARCHAR target_type "indexed"
@@ -91,6 +113,7 @@ erDiagram
     INTEGER data_entry_type_id "indexed"
     INTEGER emission_type_id "indexed"
     INTEGER id PK
+    INTEGER last_seen_job_id FK
     JSON values
     INTEGER year "indexed"
   }
@@ -138,6 +161,7 @@ erDiagram
     INTEGER id PK
     VARCHAR institutional_id "indexed"
     DATETIME last_login
+    DATETIME last_roles_sync_at
     VARCHAR provider
     JSON roles_raw
   }
@@ -148,10 +172,13 @@ erDiagram
     DATETIME updated_at
     INTEGER year PK
   }
+  carbon_projects ||--}o carbon_reports : "carbon_project_id"
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
+  data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
+  units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
   users ||--}o unit_users : "user_id"

@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import IngestionState
 from app.services.data_ingestion import csv_providers as csv_providers_module
 from app.services.data_ingestion.csv_providers.factors import (
     ModulePerYearFactorCSVProvider,
@@ -77,79 +78,67 @@ async def test_setup_handlers_and_context_multiple_types(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_process_csv_in_batches_deletes_existing_factors(monkeypatch):
-    """Test that existing factors are deleted before inserting new ones."""
-    from app.services.factor_service import FactorService
+async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
+    """Plan 310B Part 2: factor ingest upserts in place; never bulk-deletes.
 
-    # Create a properly mocked data session
+    Confirms ``_finalize_and_commit`` routes a non-empty batch through
+    ``factor_repo.upsert_factors`` stamped with the parent job_id, and
+    reports the result in ``stats['factors_upserted']``.
+    """
+    from app.models.factor import Factor
+
     mock_data_session = MagicMock()
     mock_data_session.flush = AsyncMock()
-    mock_data_session.commit = AsyncMock()  # likely also needed in _finalize_and_commit
-    mock_result = MagicMock()
-    mock_result.all = MagicMock(return_value=[])
-    mock_data_session.exec = MagicMock(return_value=mock_result)
 
     provider = ModulePerYearFactorCSVProvider(
         {
             "file_path": "tmp/test.csv",
             "data_entry_type_id": DataEntryTypeEnum.member.value,
             "year": 2024,
+            "job_id": 42,
         },
         data_session=mock_data_session,
     )
+    provider._files_store = MagicMock()
+    provider._files_store.move_file = AsyncMock(return_value=True)
 
-    # Mock the setup method
-    setup_result = {
-        "csv_text": "value\n100\n200",
-        "handlers": [_make_handler()],
-        "expected_columns": {"value"},
-        "required_columns": {"value"},
-        "processing_path": "processing/test.csv",
-        "filename": "test.csv",
-        "valid_entry_types": [DataEntryTypeEnum.member],
+    mock_factor_repo = MagicMock()
+    mock_factor_repo.upsert_factors = AsyncMock(return_value=3)
+
+    batch = [
+        Factor(
+            emission_type_id=10000,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            classification={"kind": "food"},
+            values={"kg_co2eq_per_fte": 420},
+            year=2024,
+        )
+    ]
+    stats = {
+        "rows_processed": 1,
+        "rows_skipped": 0,
+        "batches_processed": 0,
+        "row_errors": [],
+        "row_errors_count": 0,
+        "factors_deleted": 0,
+        "factors_upserted": 0,
     }
 
-    async def mock_setup():
-        return setup_result
-
-    monkeypatch.setattr(provider, "_setup_and_validate", mock_setup)
-
-    # Create a mock FactorService
-    mock_factor_service = MagicMock(spec=FactorService)
-    mock_factor_service.count_by_data_entry_type_and_year = AsyncMock(return_value=5)
-    mock_factor_service.bulk_delete_by_data_entry_type = AsyncMock()
-    mock_factor_service.bulk_create = AsyncMock(return_value=[])
-
-    # Patch FactorService instantiation to return our mocked service
-    monkeypatch.setattr(
-        "app.services.data_ingestion.base_factor_csv_provider.FactorService",
-        MagicMock(return_value=mock_factor_service),
+    result = await provider._finalize_and_commit(
+        batch=batch,
+        factor_service=MagicMock(),
+        stats=stats,
+        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+        factor_repo=mock_factor_repo,
     )
 
-    async def mock_process_batch(batch, factor_service):
-        pass
-
-    monkeypatch.setattr(provider, "_process_batch", mock_process_batch)
-
-    # Mock file store operations
-    mock_files_store = MagicMock()
-    mock_files_store.move_file = AsyncMock(return_value=True)
-    mock_files_store.get_file = AsyncMock(return_value=(b"value\n100\n200", "text/csv"))
-    mock_files_store.file_exists = AsyncMock(return_value=True)
-
-    provider._files_store = mock_files_store
-
-    # Mock repo
-    mock_repo = MagicMock()
-    provider._repo = mock_repo
-
-    # Call process_csv_in_batches
-    result = await provider.process_csv_in_batches()
-
-    # Verify deletion was called
-    mock_factor_service.count_by_data_entry_type_and_year.assert_called_once()
-    mock_factor_service.bulk_delete_by_data_entry_type.assert_called_once()
-
-    # Verify stats include factors_deleted
-    assert "factors_deleted" in result
-    assert result["factors_deleted"] == 5
+    mock_factor_repo.upsert_factors.assert_awaited_once()
+    args, kwargs = mock_factor_repo.upsert_factors.call_args
+    assert kwargs.get("current_job_id") == 42
+    assert stats["factors_upserted"] == 3
+    assert stats["factors_deleted"] == 0
+    # Compare against the enum directly, not its int value — the int is
+    # part of the persisted ABI (we just had a Copilot incident over an
+    # EntityType renumber), so referring to it by name keeps the test
+    # readable AND avoids re-pinning ABI in two places.
+    assert result["state"] == IngestionState.FINISHED

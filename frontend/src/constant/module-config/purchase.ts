@@ -23,7 +23,7 @@ const purchaseFields: ModuleField[] = [
     id: 'supplier',
     labelKey: `${MODULES.Purchase}.inputs.supplier`,
     type: 'text',
-    required: true,
+    required: false,
     placeholder: 'Enter value',
     sortable: true,
     align: 'left',
@@ -43,6 +43,7 @@ const purchaseFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/4',
     icon: 'o_category',
+    maxColumnWidth: 200,
   },
   {
     id: 'quantity',

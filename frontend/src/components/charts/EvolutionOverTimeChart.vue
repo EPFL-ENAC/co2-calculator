@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue';
+import { computed, nextTick, ref, watch, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -11,10 +11,14 @@ import {
   GridComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './results/TooltipEcharts.vue';
+import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 
 use([
   CanvasRenderer,
@@ -123,28 +127,37 @@ const chartOption = computed((): EChartsOption => {
       top: '10%',
       containLabel: true,
     },
-    tooltip: {
-      trigger: 'axis',
-      formatter: (params: unknown) => {
-        const p = params as Array<{
-          seriesName?: string;
-          value?: number;
-          color?: string;
-          axisValue?: string | number;
-        }>;
-        if (!p || p.length === 0) {
-          return '';
-        }
-        const heading = p[0].axisValue != null ? String(p[0].axisValue) : '';
-        let tooltip = heading ? `<strong>${heading}</strong><br/>` : '';
-        p.forEach((item) => {
-          tooltip += `<span style="display:inline-block;margin-right:5px;border-radius:10px;width:10px;height:10px;background-color:${item.color};"></span>`;
-          tooltip += `${item.seriesName}: <strong>${item.value?.toFixed(0)}</strong><br/>`;
-        });
-        return tooltip;
-      },
-    },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'axis',
+          formatter: (params: unknown) => {
+            const arr = Array.isArray(params) ? params : [];
+            if (!arr.length) {
+              emitTooltip(null);
+              return '';
+            }
+            const title =
+              arr[0].axisValue != null ? String(arr[0].axisValue) : undefined;
+            emitTooltip({
+              title,
+              rows: arr.map(
+                (item: {
+                  seriesName?: string;
+                  value?: number;
+                  color?: string;
+                }) => ({
+                  label: item.seriesName ?? '',
+                  value: item.value != null ? item.value.toFixed(0) : '-',
+                  color: item.color ?? '#888',
+                }),
+              ),
+            });
+            return '';
+          },
+        },
     legend: {
+      show: !isPrintMode.value,
       data: [t('plane', 'plane'), t('train', 'train')],
       top: 0,
       left: 'center',
@@ -243,6 +256,14 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 </script>
 
 <template>
@@ -271,7 +292,15 @@ const chartRef = ref<InstanceType<typeof VChart>>();
       class="chart"
       autoresize
       :option="chartOption"
+      @vue:mounted="onChartReady"
     />
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </q-card-section>
 </template>
 

@@ -44,19 +44,19 @@ class TestGetCompletionStatusFromProgress:
 
     def test_not_started(self):
         assert (
-            CarbonReportModuleRepository._get_completion_status_from_progress("0/7")
+            CarbonReportModuleRepository._get_completion_status_from_progress("0/8")
             == ModuleStatus.NOT_STARTED
         )
 
     def test_in_progress(self):
         assert (
-            CarbonReportModuleRepository._get_completion_status_from_progress("3/7")
+            CarbonReportModuleRepository._get_completion_status_from_progress("3/8")
             == ModuleStatus.IN_PROGRESS
         )
 
     def test_validated(self):
         assert (
-            CarbonReportModuleRepository._get_completion_status_from_progress("7/7")
+            CarbonReportModuleRepository._get_completion_status_from_progress("8/8")
             == ModuleStatus.VALIDATED
         )
 
@@ -273,7 +273,7 @@ class TestGetUsageReport:
         results = await repo.get_usage_report(years=[2024])
         assert len(results) == 2
         assert results[0]["module_name"] == "headcount"
-        assert results[0]["module_status"] == ModuleStatus.VALIDATED
+        assert results[0]["module_status"] == "VALIDATED"
 
     async def test_empty_result_with_no_data(self, db_session):
         repo = CarbonReportModuleRepository(db_session)
@@ -373,7 +373,7 @@ class TestGetReportingOverview:
             db_session,
             unit_id=unit.id,
             year=2024,
-            completion_progress="3/7",
+            completion_progress="3/8",
             overall_status=ModuleStatus.IN_PROGRESS,
         )
         repo = CarbonReportModuleRepository(db_session)

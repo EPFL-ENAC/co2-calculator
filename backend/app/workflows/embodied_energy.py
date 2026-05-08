@@ -24,6 +24,7 @@ class EmbodiedEnergyWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> None:
         """
         Post-process the created data entry to calculate embodied energy emissions.
@@ -37,6 +38,7 @@ class EmbodiedEnergyWorkflow:
                 current_user,
                 request_context,
                 background_tasks,
+                year,
             )
 
     async def post_update(
@@ -46,6 +48,7 @@ class EmbodiedEnergyWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> None:
         """Post-process the updated data entry to recalculate
         embodied energy emissions.
@@ -63,6 +66,7 @@ class EmbodiedEnergyWorkflow:
                     current_user,
                     request_context,
                     background_tasks,
+                    year,
                 )
             else:
                 await self._post_update_building(
@@ -72,6 +76,7 @@ class EmbodiedEnergyWorkflow:
                     current_user,
                     request_context,
                     background_tasks,
+                    year,
                 )
 
     async def post_delete(
@@ -105,6 +110,7 @@ class EmbodiedEnergyWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> None:
         """Calculate embodied energy emissions for a new building data entry."""
         embodied_energy_data = self._make_building_embodied_energy_data(data_entry)
@@ -119,6 +125,7 @@ class EmbodiedEnergyWorkflow:
             current_user=current_user,
             request_context=request_context,
             background_tasks=background_tasks,
+            year=year,
         )
 
     async def _post_update_building(
@@ -129,6 +136,7 @@ class EmbodiedEnergyWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> None:
         embodied_energy_data = self._make_building_embodied_energy_data(data_entry)
         if embodied_energy_data is None:
@@ -152,6 +160,7 @@ class EmbodiedEnergyWorkflow:
                 current_user=current_user,
                 request_context=request_context,
                 background_tasks=background_tasks,
+                year=year,
             )
 
     def _make_building_embodied_energy_data(

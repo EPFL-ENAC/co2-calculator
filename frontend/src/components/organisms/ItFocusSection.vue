@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -7,6 +7,8 @@ import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
@@ -26,16 +28,28 @@ const props = withDefaults(
     co2PerKmKg?: number;
     /** Carbon report year (Results page selected year). */
     year?: number;
+    printMode?: boolean;
   }>(),
   {
     loading: false,
     co2PerKmKg: 0,
     year: undefined,
+    printMode: false,
   },
 );
 
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
+
+const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 
 function isItCategoryModuleValidated(categoryKey: string): boolean {
   const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
@@ -65,7 +79,7 @@ const CLOUD_AI_LABEL_MAP: Record<string, string> = {
 
 /** Map category_key → single color (dark shade) */
 const categoryColor = computed(() => ({
-  equipment_it: colors.value.periwinkle.dark,
+  equipment_it: colors.value.plum.dark,
   purchases_it: colors.value.lightGreen.dark,
   external_cloud_and_ai:
     CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
@@ -293,17 +307,35 @@ const barChartOption = computed<EChartsOption>(() => {
       formatter: (params: unknown) => {
         const p = params as {
           seriesName?: string;
-          marker?: string;
           value?: number;
           name?: string;
+          color?: string;
         };
         const name = p.name || '';
         if (!validatedLabels.value.has(name)) {
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: name })}</span>`;
+          emitTooltip({
+            title: name,
+            rows: [],
+            tone: 'muted',
+            footer: t('results_validate_module_title', { module: name }),
+          });
+          return '';
         }
         const val = Number(p.value) || 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
+        emitTooltip({
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
+        });
+        return '';
       },
     },
     legend: { show: false },
@@ -353,24 +385,31 @@ const barChartOption = computed<EChartsOption>(() => {
 
 <template>
   <div>
-    <div class="q-pt-xl q-px-lg">
-      <h2 class="text-h2 text-weight-medium">
-        {{ $t('it-title') }}
-      </h2>
-      <span class="text-body1 text-secondary">{{
-        $t('it-subtitle', { year: year ?? '' })
-      }}</span>
-    </div>
-
-    <q-separator class="q-mt-xl" />
+    <template v-if="!printMode">
+      <div class="q-pt-xl q-px-lg">
+        <h2 class="text-h2 text-weight-medium">
+          {{ $t('it-title') }}
+        </h2>
+        <span class="text-body1 text-secondary">{{
+          $t('it-subtitle', { year: year ?? '' })
+        }}</span>
+      </div>
+      <q-separator class="q-mt-xl" />
+    </template>
 
     <!-- Summary numbers -->
-    <q-card v-if="data" flat class="grid-2-col q-mt-lg q-mb-lg q-px-lg">
+    <q-card
+      v-if="data"
+      flat
+      class="grid-2-col q-mt-lg q-mb-lg"
+      :class="{ 'q-px-lg': !printMode }"
+    >
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
         comparison=""
         color="accent"
+        :print-mode="printMode"
       >
       </BigNumber>
       <BigNumber
@@ -383,14 +422,15 @@ const barChartOption = computed<EChartsOption>(() => {
         :comparison="$t('it-focus-share-of-total-hint')"
         hide-unit
         color="accent"
+        :print-mode="printMode"
       />
     </q-card>
 
     <template v-if="!loading && data">
-      <q-separator class="q-mt-xl" />
+      <q-separator v-if="!printMode" class="q-mt-xl" />
       <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->
 
-      <q-card v-if="hasData" flat class="q-mb-lg q-pa-lg q-mx-lg">
+      <q-card v-if="hasData" flat :bordered="printMode" class="q-mb-lg q-px-lg">
         <div
           class="flex items-center no-wrap text-h5 text-weight-medium q-my-xl"
         >
@@ -414,9 +454,11 @@ const barChartOption = computed<EChartsOption>(() => {
           <span class="q-ml-sm">{{ $t('it-focus-breakdown-bar-title') }}</span>
         </div>
         <v-chart
+          ref="chartRef"
           :option="barChartOption"
           autoresize
           :style="{ height: chartHeight + 'px', width: '100%' }"
+          @vue:mounted="onChartReady"
         />
       </q-card>
     </template>
@@ -425,5 +467,12 @@ const barChartOption = computed<EChartsOption>(() => {
     <div v-else-if="loading" class="flex justify-center q-pa-xl">
       <q-spinner color="accent" size="40px" />
     </div>
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>

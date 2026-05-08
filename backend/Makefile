@@ -110,16 +110,21 @@ test-cov: ## Run tests with coverage
 	$(PYTEST) tests/ --cov=app --cov-report=html --cov-report=term-missing  --cov-fail-under=45
 
 .PHONY: test-cov-xml
-test-cov-xml: ## Run tests with coverage and output XML report
+test-cov-xml: ## Run unit tests with coverage and output XML report (fast, used by PR CI)
 	@set -e; \
-	$(PYTEST) tests/ --cov=app --cov-report=xml --cov-report=term-missing  --cov-fail-under=45
+	$(PYTEST) tests/unit --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=60
+
+.PHONY: test-cov-xml-integration
+test-cov-xml-integration: ## Run integration tests with coverage and output XML report (slow, used by daily CI)
+	@set -e; \
+	$(PYTEST) tests/integration --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=45
 
 .PHONY: seed-data
 seed-data: ## Seed the database with initial data
-# Random seeds: 
+# Random seeds:
 #	$(UV) run -m app.seed.ramdom.seed_all
 # seeds fake user + unit associations (for testing)
-# 	$(UV) run -m app.seed.seed_fake_user_unit
+	$(UV) run -m app.seed.seed_fake_user_unit
 	$(UV) run -m app.seed.seed_locations
 	$(UV) run -m app.seed.seed_building_rooms
 	$(UV) run -m app.seed.seed_generic_factors

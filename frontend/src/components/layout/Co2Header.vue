@@ -1,37 +1,46 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-
 import { isBackOfficeRoute } from 'src/router/routes';
-import { hasPermission } from 'src/utils/permission';
+import { PermissionAction } from 'src/constant/permissions';
 
 const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
+const workspaceStore = useWorkspaceStore();
+const { t } = useI18n();
 
 const unitName = computed(() => {
-  if (!route.params.unit) return '';
-  const unit = decodeURIComponent(route.params.unit as string);
-  // Extract name from format: {id}-{name}
-  // The name part is everything after the first dash
-  const parts = unit.split('-');
-  if (parts.length > 1) {
-    // Join all parts except the first (which is the ID) and replace dashes with spaces
-    return parts.slice(1).join('-').replace(/-/g, ' ');
-  }
-  return unit;
+  return workspaceStore.selectedUnit?.name || '';
 });
 
 const year = computed(() => {
-  return route.params.year || '';
+  return workspaceStore.selectedYear || '';
+});
+
+const simulationContext = computed(() => {
+  if (route.name === 'simulation-explore') return 'explore';
+  if (route.name === 'simulation-plan') return 'plan';
+  return null;
 });
 
 const workspaceDisplay = computed(() => {
   if (!unitName.value || !year.value) return '';
+  if (simulationContextLabel.value) {
+    return `${unitName.value} | ${t(simulationContextLabel.value)}`;
+  }
   return `${unitName.value} | ${year.value}`;
+});
+
+const simulationContextLabel = computed(() => {
+  if (simulationContext.value === 'explore') return 'simulation_tab_explore';
+  if (simulationContext.value === 'plan') return 'simulation_tab_plan';
+  return null;
 });
 
 const handleLogout = async () => {
@@ -39,10 +48,31 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  return hasPermission(authStore.user?.permissions, 'backoffice.users', 'view');
+  return authStore.hasUserPermission('backoffice.users', PermissionAction.VIEW);
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const logoRoute = computed(() => {
+  const routeName = String(route.name ?? '');
+  const isSimulation =
+    routeName === 'simulation' ||
+    routeName === 'simulation-explore' ||
+    routeName === 'simulation-plan';
+
+  if (isSimulation) {
+    return {
+      name: 'simulation',
+      params: {
+        language: route.params.language || 'en',
+      },
+    };
+  }
+
+  return {
+    name: 'workspace-setup',
+  };
+});
 </script>
 
 <template>
@@ -51,9 +81,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
-          :to="{
-            name: 'workspace-setup',
-          }"
+          :to="logoRoute"
           :aria-label="$t('home')"
           :title="$t('home')"
           class="toolbar-home-link row items-center no-wrap"

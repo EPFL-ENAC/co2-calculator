@@ -6,8 +6,8 @@ export default {
     fr: 'Équipements',
   },
   [`${MODULES.EquipmentElectricConsumption}-title-tooltip-subtext`]: {
-    en: 'Equipment title tooltip',
-    fr: 'Tiooltip sur le module équipement',
+    en: 'The emissions from the equipment module contribute to Scope 2 of the laboratory’s carbon footprint.',
+    fr: "Les émissions du module équipement contribue au Scope 2 de l'empreinte carbone du laboratoire.",
   },
   [`${MODULES.EquipmentElectricConsumption}-common`]: {
     en: 'Common data and factors | Common data and factors',
@@ -19,14 +19,28 @@ export default {
   },
 
   [`${MODULES.EquipmentElectricConsumption}-title-subtext`]: {
-    en: `This module allows you to estimate the electrical consumption of the scientific, IT, and other equipment in your unit. The equipment list comes from the equipment inventory carried out by your unit for the faculty. Please fill in the following columns:
-Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task. If your equipement active or standby use is different from the one used by default, please contact the administrator.
-Subclass: Choose the subclass for equipment where this information is necessary.
-Class: Please update the class if the one from your inventory is not appropriate. Note that you will need to apply this change during your next inventory update, as it is not automatically synced through the CO₂ Calculator.`,
-    fr: `Ce module permet d'estimer la consommation électrique des équipements scientifiques, IT et autres dans votre unité. La liste de équipements vient de l'inventaire d'équipement effectué par votre unité pour la faculté. Veuillez remplir les colonnes suivantes:
-Usage actif et usage standby: veuillez remplir les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche. Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.
-Sous-classe: choisissez la sous-classe pour les équipements où cette information est nécessaire.
-Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas appropriée. Attention, vous devrez répercuter ce changement lors de votre prochaine mise à jour de l'inventaire, car celle-ci ne se fait pas automatiquement à travers le Calculateur CO₂.`,
+    en: `This module allows you to estimate the electrical consumption of the scientific, IT, and other equipment in your unit. The equipment list comes from the equipment inventory carried out by your unit for the faculty.
+
+Please fill in the following columns:
+
+- Class: Please update the class if the one from your inventory is not appropriate. Note that you will need to apply this change during your next inventory update, as it is not automatically synced through the CO₂ Calculator.
+
+- Subclass: Choose the subclass for equipment where this information is necessary.
+
+- Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task.
+
+If your equipement active or standby power is different from the one used by default, please contact the administrator.`,
+    fr: `Ce module permet d'estimer la consommation électrique des équipements scientifiques, IT et autres dans votre unité. La liste de équipements vient de l'inventaire d'équipement effectué par votre unité pour la faculté.
+
+Veuillez remplir les colonnes suivantes:
+
+- Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas appropriée. Attention, vous devrez répercuter ce changement lors de votre prochaine mise à jour de l'inventaire, car celle-ci ne se fait pas automatiquement à travers le Calculateur CO₂.
+
+- Sous-classe: choisissez la sous-classe pour les équipements où cette information est nécessaire.
+
+- Usage actif et usage standby: veuillez mettre à jour les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche.
+
+Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
   },
   [`${MODULES.EquipmentElectricConsumption}-charts-title`]: {
     en: 'Charts',
@@ -35,6 +49,30 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
   [`${MODULES.EquipmentElectricConsumption}.inputs.name`]: {
     en: 'Name',
     fr: 'Nom',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.class`]: {
+    en: 'Class',
+    fr: 'Classe',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.subclass`]: {
+    en: 'Sub-class',
+    fr: 'Sous-classe',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.active_usage`]: {
+    en: 'Active usage (hours/week)',
+    fr: 'Usage actif (heures/semaine)',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.standby_usage`]: {
+    en: 'Standby usage (hours/week)',
+    fr: 'Usage standby (heures/semaine)',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.active_power`]: {
+    en: 'Active power (W)',
+    fr: 'Puissance active (W)',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.standby_power`]: {
+    en: 'Standby power (W)',
+    fr: 'Puissance standby (W)',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific`]: {
     en: 'Scientific Equipment',
@@ -138,17 +176,17 @@ Classe: veuillez mettre à jour la classe si celle de votre inventaire n'est pas
     },
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Scientific}-table-title-info-tooltip`]:
     {
-      en: 'Equipment Scientific Tooltip',
-      fr: 'Equipment Scientific Tooltip',
+      en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.IT}-table-title-info-tooltip`]:
     {
-      en: 'Equipment IT Tooltip',
-      fr: 'Equipment IT Tooltip',
+      en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
   [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Other}-table-title-info-tooltip`]:
     {
-      en: 'Equipment Other Tooltip',
-      fr: 'Equipment Other Tooltip',
+      en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
+      fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
 } as const;

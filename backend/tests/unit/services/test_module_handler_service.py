@@ -38,7 +38,7 @@ async def test_resolve_primary_factor_id_with_subkind(service):
 
     payload = {"kind": "ClassA", "subkind": "SubA1"}
     result = await service.resolve_primary_factor_id(
-        handler, payload, DataEntryTypeEnum.scientific
+        handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result["primary_factor_id"] == 42
@@ -46,6 +46,7 @@ async def test_resolve_primary_factor_id_with_subkind(service):
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
         subkind="SubA1",
+        year=2025,
     )
 
 
@@ -58,7 +59,7 @@ async def test_resolve_primary_factor_id_no_subkind_field(service):
 
     payload = {"name": "natural_gas"}
     result = await service.resolve_primary_factor_id(
-        handler, payload, DataEntryTypeEnum.energy_combustion
+        handler, payload, DataEntryTypeEnum.energy_combustion, year=2025
     )
 
     assert result["primary_factor_id"] == 7
@@ -66,6 +67,7 @@ async def test_resolve_primary_factor_id_no_subkind_field(service):
         data_entry_type=DataEntryTypeEnum.energy_combustion,
         kind="natural_gas",
         subkind=None,
+        year=2025,
     )
 
 
@@ -76,7 +78,7 @@ async def test_resolve_primary_factor_id_no_kind_field(service):
 
     payload = {"foo": "bar"}
     result = await service.resolve_primary_factor_id(
-        handler, payload, DataEntryTypeEnum.scientific
+        handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result == {"foo": "bar"}
@@ -92,7 +94,11 @@ async def test_resolve_primary_factor_id_merges_existing_data(service):
     payload = {"kind": "ClassA"}
     existing = {"subkind": "SubB1"}
     result = await service.resolve_primary_factor_id(
-        handler, payload, DataEntryTypeEnum.scientific, existing_data=existing
+        handler,
+        payload,
+        DataEntryTypeEnum.scientific,
+        year=2025,
+        existing_data=existing,
     )
 
     assert result["primary_factor_id"] == 10
@@ -100,6 +106,7 @@ async def test_resolve_primary_factor_id_merges_existing_data(service):
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
         subkind="SubB1",
+        year=2025,
     )
 
 
@@ -118,6 +125,7 @@ async def test_resolve_if_changed_no_existing_data(service):
         DataEntryTypeEnum.scientific,
         item_data={"kind": "A"},
         existing_data=None,
+        year=2025,
     )
 
     assert result["primary_factor_id"] == 5
@@ -135,6 +143,7 @@ async def test_resolve_if_changed_kind_changed(service):
         DataEntryTypeEnum.scientific,
         item_data={"kind": "NewClass"},
         existing_data={"kind": "OldClass", "subkind": "Sub1"},
+        year=2025,
     )
 
     assert result["subkind"] is None
@@ -151,6 +160,7 @@ async def test_resolve_if_changed_nothing_changed(service):
         DataEntryTypeEnum.scientific,
         item_data={"kind": "Same"},
         existing_data={"kind": "Same", "subkind": "Sub"},
+        year=2025,
     )
 
     assert "primary_factor_id" not in result

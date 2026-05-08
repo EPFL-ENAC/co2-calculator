@@ -5,6 +5,25 @@ applyTo: "backend/**, frontend/**"
 
 You are a senior software engineer. Follow ALL rules strictly. No explanations unless asked. Output production-ready code only.
 
+# RTK — Token-Optimized CLI
+
+**SUPER IMPORTANT**: Always prefix shell commands with `rtk` to save 60-90% tokens.
+
+## Rule
+
+- ALL shell commands MUST use `rtk` prefix
+- Examples:
+  - `rtk git status` (not `git status`)
+  - `rtk npm run lint` (not `npm run lint`)
+  - `rtk pytest` (not `pytest`)
+  - `rtk wc -l file.vue` (not `wc -l file.vue`)
+
+## Meta commands
+
+- `rtk gain` - Token savings dashboard
+- `rtk gain --history` - Per-command savings history
+- `rtk discover` - Find missed rtk opportunities
+
 # COMMUNICATION
 
 - Always respond in English.
@@ -20,6 +39,30 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - Prefer implementing directly after analysis (unless a plan is explicitly requested).
 - Preserve existing user changes in the working tree; never reset unrelated work.
 - Reuse existing patterns used in similar modules (for example, behavior already used in travel-like dynamic forms).
+
+# IMPLEMENTATION PLANS
+
+- All implementation plans (whether produced by Claude, Copilot, or any other agent) MUST be saved under `docs/src/implementation-plans/` so they render into the MkDocs site under the **Implementation Plans** nav section.
+- File naming convention: `[issue-id]-[short-kebab-description].md` where `[issue-id]` is the integer GitHub issue id (regex: `^[0-9]+-[a-z0-9-]+\.md$`).
+  - Examples: `840-root-level-rollup-emission-rows.md`, `252-chart-results-endpoint.md`.
+- All plans MUST include YAML frontmatter so the auto-index (`docs/gen_indexes.py` → `_plans_index()`) groups them correctly:
+  - `status`: `delivered` | `in-progress` | `abandoned`
+  - `issue`: GitHub issue id (string or number)
+  - `last_updated`: ISO date (e.g., `2026-05-06`)
+  - `summary`: one-line description
+  - `title` (optional): human-readable title; falls back to first `# H1` then filename
+- Abandoned plans live under `docs/src/implementation-plans/archive/`.
+- One plan file per issue scope; if an issue spawns multiple sub-plans, suffix with a discriminator (e.g., `859-seed-1-factors-ingestion.md`, `859-seed-2-data-entries-ingestion.md`).
+- Do not write plans into the working directory, `backend/`, `frontend/`, or scratch locations — always under `docs/src/implementation-plans/`.
+- If no GitHub issue exists for the work, create one first or ask the user for the id before writing the plan.
+
+## Do NOT propose moving plans back to the repo root
+
+Plans previously lived at `docs/implementation-plans/` (raw, repo-only, not rendered). Issue #860 (PR #1014, B4) moved them into `docs/src/implementation-plans/` so they render into the MkDocs site, gain Material full-text search, are auto-grouped by status, and cross-link with ADRs. **This was reconsidered in May 2026 (PR #1032 follow-up) and confirmed: the rendered location is strictly better for human contributors and equally accessible to LLM agents (which read raw `.md` regardless of location).** Do not propose a "B4 reversal" — the rule above describes the intended end state, not a transitional one.
+
+## Review artifacts (separate from plans)
+
+Bot/Copilot review feedback files (`<issue>-copilot-feedback-<slug>.md`) and manual code-review notes live in `docs/code-review/`, NOT in `docs/src/implementation-plans/`. They have a different lifecycle (transient, overwritten on each `review-copilot-comments` skill re-run) and are not implementation plans.
 
 # DATA AND UI CONSISTENCY RULES
 
@@ -89,7 +132,18 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 - **Logic**: No business logic in templates; extract to Composables (`useX`). Keep business calculations in composables/store logic, not in presentational chart components.
 - **Composables**: Prefer module/domain-specific composables instead of overloading unrelated shared composables.
 - **Legacy logic**: Remove legacy logic when replacement is validated (do not keep dead dual paths).
-- **State**: Pinia (strongly typed). Components ≤300 lines.
+- **State**: Pinia (strongly typed).
+- **Component Size (SUPER IMPORTANT)**: Components ≤500 lines (hard limit).
+  - When approaching 400 lines: PLAN refactoring immediately
+  - When exceeding 500 lines: VIOLATION - must split
+  - Extraction strategies:
+    - Extract reusable UI patterns → `components/molecules/`
+    - Extract feature-specific compositions → `components/organisms/`
+    - Extract business logic → `composables/useX.ts`
+    - Extract complex templates → sub-components
+  - Examples from this codebase:
+    - ModuleConfig refactored to extract UploadCard components
+    - useUploadCard composable extracted shared logic
 - **Cleanliness**: No `console.log`, no unused variables.
 - **Reactivity**: Ensure selector-driven defaults refresh reactively when dependencies change (module, room, room type, heating type, factor). Avoid duplicating option-loading logic across modules. Ensure dependent form fields update immediately when source selectors change (room, room type, heating type, etc.).
 - **UI continuity**: Preserve UI state after create/update — no disappearing charts, no forced navigation to refresh data. Avoid flicker and stale values in reactive UI updates.
@@ -109,6 +163,33 @@ You are a senior software engineer. Follow ALL rules strictly. No explanations u
 
 - **Backend**: `pytest` with fixtures. Mock all external services. No real DB in unit tests.
 - **Frontend**: `Vitest` for composables and business logic; separate from UI components.
+
+# COMPONENT SIZE ENFORCEMENT
+
+## Why
+
+- Maintainability: Smaller components are easier to understand and modify
+- Testability: Easier to write focused unit tests
+- Reusability: Small components can be reused across features
+- Performance: Better tree-shaking and code splitting
+
+## Enforcement
+
+- **Warning**: Components >500 lines trigger pre-commit warning (see `scripts/pre-commit-hook.sh`)
+- **Action Required**: Refactor when approaching 400 lines
+- **Exceptions**: Chart components may exceed limit if justified (document in comment)
+
+## How to Split
+
+1. **Identify concerns**: UI rendering, business logic, data fetching
+2. **Extract logic**: Move to composables (`useX.ts`)
+3. **Extract UI**: Move reusable patterns to molecules
+4. **Split templates**: Break large templates into sub-components
+5. **Use composition**: Compose small components instead of one large component
+
+## Current Technical Debt
+
+See GitHub issue for list of components exceeding 500 lines requiring refactoring.
 
 # NEVER
 

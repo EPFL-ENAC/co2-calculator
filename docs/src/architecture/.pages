@@ -1,0 +1,22 @@
+title: Architecture
+nav:
+  - index.md
+  - 01-purpose-scope.md
+  - 02-system-overview.md
+  - 03-subsystem-map.md
+  - 04-auth-flow.md
+  - 05-environments.md
+  - 06-cicd-pipeline.md
+  - 07-global-conventions.md
+  - 08-tech-stack.md
+  - 09-component-breakdown.md
+  - 10-data-flow.md
+  - 11-deployment-topology.md
+  - 12-scalability.md
+  - 13-cross-cutting-concerns.md
+  - ecodesign.md
+  - 14-architectural-decisions.md
+  - 15-appendices.md
+  - epfl-compliance-mapping.md
+  - code-standards.md
+  - spec.md

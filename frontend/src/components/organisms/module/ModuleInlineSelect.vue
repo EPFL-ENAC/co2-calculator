@@ -18,7 +18,6 @@
       dense
       outlined
       hide-bottom-space
-      class="inline-input"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
@@ -30,6 +29,7 @@
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
+import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
@@ -54,6 +54,7 @@ type CommonProps = {
   row: ModuleRow;
   fieldId: string;
   optionsId: string;
+  optionLabelKey?: string;
   hint?: string;
   cols: TableViewColumnSubset[];
   unitId: number;
@@ -64,6 +65,7 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
+const { t } = useI18n();
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 
@@ -87,7 +89,14 @@ const classOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = dynamicOptions['kind'] ?? [];
   return opts.map((opt) => {
-    // Find node that includes the kind option
+    if (props.optionLabelKey) {
+      return {
+        value: opt.value,
+        label: t(
+          props.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+        ),
+      };
+    }
     const kindNode = taxo?.children?.find((node) => node.name === opt.value);
     return {
       value: opt.value,
@@ -174,9 +183,5 @@ async function onChange() {
     #e0e0e0 100%
   );
   cursor: not-allowed;
-}
-
-.inline-input {
-  width: 140px;
 }
 </style>

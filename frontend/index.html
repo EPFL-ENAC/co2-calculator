@@ -37,6 +37,15 @@
       href="icons/favicon-16x16.png"
     />
     <link rel="icon" type="image/ico" href="favicon.ico" />
+
+    <!--
+      Runtime config. In production this file is overwritten by
+      docker/entrypoint.sh on container startup with the per-env values
+      (Sentry DSN, environment, etc.). Loaded synchronously here so
+      window.injectedEnvVariable is populated before the SPA bundle parses
+      and src/boot/sentry.ts runs.
+    -->
+    <script src="/injectEnv.js"></script>
   </head>
   <body>
     <!-- quasar:entry-point -->

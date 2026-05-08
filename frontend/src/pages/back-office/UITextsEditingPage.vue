@@ -132,6 +132,18 @@ const rows = computed(() => [
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/workspace_setup.ts',
   },
+  {
+    topic: t('documentation_editing_rows_simulation_topic'),
+    description: t('documentation_editing_rows_simulation_description'),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/simulation.ts',
+  },
+  {
+    topic: t('documentation_editing_rows_calculator_update_topic'),
+    description: t('documentation_editing_rows_calculator_update_description'),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/calculator_update.ts',
+  },
 ]);
 
 const columns: QTableColumn[] = [
@@ -183,6 +195,8 @@ const columns: QTableColumn[] = [
           :columns="columns"
           hide-pagination
           :pagination="{ rowsPerPage: 0 }"
+          :no-data-label="$t('common_no_items')"
+          :rows-per-page-label="$t('rows_per_page')"
         >
           <template #body="props">
             <q-tr :props="props" class="q-tr--no-hover">

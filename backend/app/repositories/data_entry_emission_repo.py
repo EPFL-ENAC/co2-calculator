@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import Select, case, literal, or_
+from sqlalchemy import ColumnElement, Select, and_, case, literal, or_
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,6 +12,15 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.utils.data_entry_emission_type_map import ROLLUP_EMISSION_TYPE_IDS
+from app.utils.it_breakdown import ITSqlTotals
+
+
+def _is_leaf_emission() -> ColumnElement[bool]:
+    """Exclude rollup rows from aggregation to prevent double-counting."""
+    if not ROLLUP_EMISSION_TYPE_IDS:
+        return col(DataEntryEmission.id).isnot(None)
+    return col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
 
 
 class DataEntryEmissionRepository:
@@ -84,6 +93,7 @@ class DataEntryEmissionRepository:
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
                 DataEntry.carbon_report_module_id == carbon_report_module_id,
+                _is_leaf_emission(),
             )
             .group_by(group_field)
         )
@@ -101,9 +111,54 @@ class DataEntryEmissionRepository:
 
         return aggregation
 
+    async def get_stats_pair(
+        self,
+        carbon_report_module_id: int,
+        aggregate_by: str = "emission_type_id",
+        primary_field: str = "kg_co2eq",
+        secondary_field: str = "additional_value",
+    ) -> tuple[Dict[str, float | None], Dict[str, float | None]]:
+        """Aggregate DataEntryEmission data by a field and sum two numeric columns.
+
+        Returns:
+            (by_primary, by_secondary) dicts keyed by ``aggregate_by`` values.
+        """
+        group_field = getattr(DataEntryEmission, aggregate_by)
+        sum_primary = getattr(DataEntryEmission, primary_field)
+        sum_secondary = getattr(DataEntryEmission, secondary_field)
+
+        query = (
+            select(
+                group_field,
+                func.sum(sum_primary).label("primary_total"),
+                func.sum(sum_secondary).label("secondary_total"),
+            )
+            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
+            .where(DataEntry.carbon_report_module_id == carbon_report_module_id)
+            .group_by(group_field)
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        by_primary: Dict[str, float | None] = {}
+        by_secondary: Dict[str, float | None] = {}
+        for key, primary_total, secondary_total in rows:
+            label = str(key) if key is not None else "unknown"
+            by_primary[label] = (
+                float(primary_total) if primary_total is not None else None
+            )
+            by_secondary[label] = (
+                float(secondary_total) if secondary_total is not None else None
+            )
+
+        return by_primary, by_secondary
+
     async def get_validated_totals_by_unit(
         self,
         unit_id: int,
+        *,
+        validated_only: bool = True,
     ) -> List[Dict[str, Any]]:
         """Aggregate validated emission totals by year for a unit.
 
@@ -134,8 +189,13 @@ class DataEntryEmissionRepository:
             )
             .where(
                 CarbonReport.unit_id == unit_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(year_expr)
             .order_by(year_expr.asc())
@@ -155,6 +215,8 @@ class DataEntryEmissionRepository:
     async def get_stats_by_carbon_report_id(
         self,
         carbon_report_id: int,
+        *,
+        validated_only: bool = True,
     ) -> Dict[str, float]:
         """Aggregate validated emission totals per module for a carbon report.
 
@@ -180,9 +242,14 @@ class DataEntryEmissionRepository:
                 col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
             )
             .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(col(CarbonReportModule.module_type_id))
         )
@@ -221,8 +288,9 @@ class DataEntryEmissionRepository:
                 col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
             )
             .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(
                 col(CarbonReportModule.module_type_id),
@@ -246,19 +314,29 @@ class DataEntryEmissionRepository:
         self,
         carbon_report_id: int,
     ) -> list[tuple[int, int, float, float | None]]:
-        """Aggregate emissions and quantity by module_type_id and emission_type_id.
+        """Aggregate emissions and physical quantities by module_type_id and
+        emission_type_id.
 
         Returns:
-            [(module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity), ...]
-            where sum_quantity is summed from meta->>'quantity' (NULL when absent).
+            [
+                (
+                    module_type_id,
+                    emission_type_id,
+                    sum_kg_co2eq,
+                    sum_additional_value,
+                ),
+                ...
+            ]
+            where sum_additional_value is summed from DataEntryEmission
+            columns (NULL when absent).
         """
-        query = (
+        query: Select[Any] = (
             select(
                 col(CarbonReportModule.module_type_id),
                 col(DataEntryEmission.emission_type_id),
                 func.sum(col(DataEntryEmission.kg_co2eq)).label("total"),
-                func.sum(col(DataEntryEmission.meta)["quantity"].as_float()).label(
-                    "sum_quantity"
+                func.sum(col(DataEntryEmission.additional_value)).label(
+                    "sum_additional_value"
                 ),
             )
             .join(
@@ -270,8 +348,9 @@ class DataEntryEmissionRepository:
                 col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
             )
             .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
+                _is_leaf_emission(),
             )
             .group_by(
                 col(CarbonReportModule.module_type_id),
@@ -287,10 +366,107 @@ class DataEntryEmissionRepository:
                 int(row.module_type_id),
                 int(row.emission_type_id),
                 float(row.total) if row.total is not None else 0.0,
-                float(row.sum_quantity) if row.sum_quantity is not None else None,
+                float(row.sum_additional_value)
+                if row.sum_additional_value is not None
+                else None,
             )
             for row in rows
         ]
+
+    async def get_it_emission_sql_totals(
+        self,
+        carbon_report_id: int,
+        it_emission_type_ids: list[int],
+        validated_source_module_type_ids: list[int],
+        exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
+    ) -> ITSqlTotals:
+        """Compute IT emission totals via a single SQL query
+        using conditional aggregation.
+
+        Four pre-computed totals replace the Python-level aggregation that was
+        previously performed inside ``build_it_breakdown``:
+
+        - ``it_total_kg``: sum of IT-typed emissions (excluding excluded modules).
+        - ``overall_total_kg``: sum of all emissions (excluding excluded modules).
+        - ``validated_source_total_kg``: total emissions from validated IT source
+          modules (denominator for ``percentage_of_source_modules``).
+        - ``validated_it_kg``: IT emissions from validated IT source modules
+          (numerator for ``percentage_of_source_modules``).
+        """
+        is_it_emission = col(DataEntryEmission.emission_type_id).in_(
+            it_emission_type_ids
+        )
+        is_validated_source = col(CarbonReportModule.module_type_id).in_(
+            validated_source_module_type_ids
+        )
+
+        base_where: list[ColumnElement[bool]] = [
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(DataEntryEmission.kg_co2eq).isnot(None),
+        ]
+        if exclude_module_type_ids:
+            base_where.append(
+                col(CarbonReportModule.module_type_id).notin_(exclude_module_type_ids)
+            )
+        base_where.append(_is_leaf_emission())
+
+        query = (
+            select(
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (is_it_emission, col(DataEntryEmission.kg_co2eq)),
+                            else_=None,
+                        )
+                    ),
+                    0.0,
+                ).label("it_total_kg"),
+                func.coalesce(
+                    func.sum(col(DataEntryEmission.kg_co2eq)),
+                    0.0,
+                ).label("overall_total_kg"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (is_validated_source, col(DataEntryEmission.kg_co2eq)),
+                            else_=None,
+                        )
+                    ),
+                    0.0,
+                ).label("validated_source_total_kg"),
+                func.coalesce(
+                    func.sum(
+                        case(
+                            (
+                                and_(is_validated_source, is_it_emission),
+                                col(DataEntryEmission.kg_co2eq),
+                            ),
+                            else_=None,
+                        )
+                    ),
+                    0.0,
+                ).label("validated_it_kg"),
+            )
+            .join(
+                DataEntry,
+                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
+            )
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(*base_where)
+        )
+
+        result = await self.session.execute(query)
+        row = result.one()
+
+        return {
+            "it_total_kg": float(row.it_total_kg),
+            "overall_total_kg": float(row.overall_total_kg),
+            "validated_source_total_kg": float(row.validated_source_total_kg),
+            "validated_it_kg": float(row.validated_it_kg),
+        }
 
     async def get_embodied_energy_by_building(
         self,
@@ -317,7 +493,7 @@ class DataEntryEmissionRepository:
                 col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
             )
             .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntry.data_entry_type_id)
                 == DataEntryTypeEnum.building_embodied_energy.value,
                 col(DataEntryEmission.emission_type_id)
@@ -366,7 +542,7 @@ class DataEntryEmissionRepository:
                 col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
             )
             .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
+                col(CarbonReportModule.carbon_report_id) == carbon_report_id,
                 col(DataEntry.data_entry_type_id)
                 == DataEntryTypeEnum.building_embodied_energy.value,
                 col(DataEntryEmission.emission_type_id)

@@ -16,7 +16,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
-from app.repositories.data_ingestion import DataIngestionRepository
+from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
 from app.services.data_ingestion.base_csv_provider import (
@@ -35,7 +35,8 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
-    factors_deleted: int
+    factors_deleted: int  # set by local-seed delete-and-insert path; 0 in upsert path
+    factors_upserted: int
 
 
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
@@ -71,7 +72,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         self._files_store: Any = None
-        self._repo: Any = None
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -97,12 +97,6 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             self._files_store = make_files_store()
         return self._files_store
-
-    @property
-    def repo(self) -> Any:
-        if self._repo is None:
-            self._repo = DataIngestionRepository(self.data_session)
-        return self._repo
 
     async def validate_connection(self) -> bool:
         logger.info(f"Validating connection for {self.__class__.__name__}")
@@ -173,36 +167,14 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 "row_errors": [],
                 "row_errors_count": 0,
                 "factors_deleted": 0,
+                "factors_upserted": 0,
             }
             factor_service = FactorService(self.data_session)
-            listed_entry_types = setup_result.get("valid_entry_types", [])
-            # Delete existing factors for this data_entry_type and year
-            # This ensures idempotent uploads - no duplicates
-            data_entry_type_to_iterates = []
-            if self.data_entry_type_id is not None:
-                data_entry_type_to_iterates.append(
-                    DataEntryTypeEnum(int(self.data_entry_type_id))
-                )
-            else:
-                data_entry_type_to_iterates.extend(listed_entry_types)
-            stats["factors_deleted"] = 0
-            if len(data_entry_type_to_iterates) > 0 and self.year:
-                for data_entry_type in data_entry_type_to_iterates:
-                    existing_count = (
-                        await factor_service.count_by_data_entry_type_and_year(
-                            data_entry_type_id=int(data_entry_type.value),
-                            year=self.year,
-                        )
-                    )
-                    logger.info(
-                        f"Deleting {existing_count} existing factors for "
-                        f"data_entry_type_id={data_entry_type.value}, year={self.year}"
-                    )
-                    await factor_service.bulk_delete_by_data_entry_type(
-                        data_entry_type_id=data_entry_type,
-                        year=self.year,
-                    )
-                    stats["factors_deleted"] += existing_count
+            factor_repo = FactorRepository(self.data_session)
+            # Plan 310B: upsert in place (preserves factor.id so existing
+            # DataEntry.primary_factor_id FKs stay valid).  No bulk delete:
+            # factors absent from the new CSV are kept and surfaced as stale
+            # via last_seen_job_id.
 
             batch: List[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
@@ -226,7 +198,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 stats["rows_processed"] += 1
 
                 if len(batch) >= BATCH_SIZE:
-                    await self._process_batch(batch, factor_service)
+                    upserted = await self._upsert_batch(batch, factor_repo)
+                    stats["factors_upserted"] += upserted
                     stats["batches_processed"] += 1
                     logger.info(
                         f"Processed batch {stats['batches_processed']}: "
@@ -235,30 +208,25 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                     batch = []
 
                     if stats["batches_processed"] % 5 == 0 and self.job_id is not None:
-                        await self._update_job_and_sync(
-                            repo=self.repo,
-                            job_id=self.job_id,
+                        await self._update_job(
                             status_message=f"Processing: {stats['rows_processed']}",
                             state=IngestionState.RUNNING,
                             result=None,
-                            metadata=dict(stats),
+                            extra_metadata=dict(stats),
                         )
-                        await self.data_session.flush()
 
             return await self._finalize_and_commit(
-                batch, factor_service, stats, setup_result
+                batch, factor_service, stats, setup_result, factor_repo
             )
         except Exception as e:
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             if self.job_id is not None:
-                await self._update_job_and_sync(
-                    repo=self.repo,
-                    job_id=self.job_id,
+                await self._update_job(
                     status_message=f"Processing failed: {str(e)}",
                     state=IngestionState.FINISHED,
                     result=IngestionResult.ERROR,
-                    metadata={"error": str(e)},
+                    extra_metadata={"error": str(e)},
                 )
             raise
 
@@ -266,13 +234,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.year is None:
             raise ValueError("year is required for factor CSV ingestion")
         if self.job_id is not None:
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
+            await self._update_job(
                 status_message="Starting CSV processing",
                 state=IngestionState.RUNNING,
                 result=None,
-                metadata={},
+                extra_metadata={},
             )
         await self.data_session.flush()
 
@@ -419,11 +385,13 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg
 
-            # Add year to classification if specified
-            if self.year is not None:
-                classification["year"] = self.year
-
-            # Create factor using prepare_create (like seed_generic_factors.py)
+            # ``year`` is stored on the dedicated ``Factor.year`` column;
+            # do NOT also inject it into ``classification``.  The Plan 310B
+            # identity index keys on ``(det, year, emission_type,
+            # classification::text)`` — duplicating ``year`` inside
+            # ``classification`` would silently shift the
+            # ``classification::text`` representation between writers and
+            # break the upsert's identity match.
             factor = await factor_service.prepare_create(
                 emission_type_id=emission_type_id,
                 data_entry_type_id=data_entry_type.value,
@@ -487,8 +455,33 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         batch: List[Factor],
         factor_service: FactorService,
     ) -> None:
+        # Legacy path retained for subclasses that override (notably
+        # ``LocalFactorCSVProvider`` which does delete-and-insert for dev
+        # seeding). Production factor ingest goes through ``_upsert_batch``.
         await factor_service.bulk_create(batch)
         logger.info(f"Created {len(batch)} factors in batch")
+
+    async def _upsert_batch(
+        self,
+        batch: List[Factor],
+        factor_repo: FactorRepository,
+    ) -> int:
+        """Upsert one batch keyed on the factor identity index.
+
+        Returns the number of rows affected so callers can update stats.
+        Requires ``self.job_id`` so each upserted row can be stamped with
+        ``last_seen_job_id``.
+        """
+        if self.job_id is None:
+            raise ValueError("job_id is required for factor upsert")
+        affected = await factor_repo.upsert_factors(batch, current_job_id=self.job_id)
+        # asyncpg can return rowcount=-1 for executemany ON CONFLICT
+        # statements where it can't tally the result reliably.  Fall back
+        # to the input batch size for stats so the operator-visible count
+        # isn't a confusing -1.
+        reported = affected if affected >= 0 else len(batch)
+        logger.info(f"Upserted {reported} factors in batch of {len(batch)}")
+        return reported
 
     def _compute_ingestion_result(self, stats: FactorStatsDict) -> IngestionResult:
         """
@@ -522,38 +515,59 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         factor_service: FactorService,
         stats: FactorStatsDict,
         setup_result: Dict[str, Any],
+        factor_repo: FactorRepository,
     ) -> Dict[str, Any]:
         if batch:
-            await self._process_batch(batch, factor_service)
+            upserted = await self._upsert_batch(batch, factor_repo)
+            stats["factors_upserted"] += upserted
 
         processing_path = setup_result["processing_path"]
         filename = setup_result["filename"]
         processed_path = f"processed/{self.job_id}/{filename}"
         logger.info(f"Moving file from {processing_path} to {processed_path}")
         move_result = await self.files_store.move_file(processing_path, processed_path)
+        metadata_update: Dict[str, Any] = {}
         if not move_result:
-            raise ValueError("Failed to move file to processed path")
+            logger.warning(
+                f"Failed to move file from {processing_path} to {processed_path}"
+            )
+            metadata_update["processed_file_path"] = processing_path
+        else:
+            metadata_update = {"processed_file_path": processed_path}
 
         await self.data_session.flush()
 
-        if self.job_id is not None:
-            # Compute result dynamically based on success rate
-            result = self._compute_ingestion_result(stats)
-            await self._update_job_and_sync(
-                repo=self.repo,
-                job_id=self.job_id,
-                status_message="CSV processing completed",
-                state=IngestionState.FINISHED,
-                result=result,
-                metadata=dict(stats),
-            )
+        status_message = (
+            f"Processed {stats['rows_processed']} rows: "
+            f"{stats['rows_skipped']} skipped, "
+            f"{stats['row_errors_count']} errors, "
+            f"{stats['factors_upserted']} factors upserted"
+        )
+        result = self._compute_ingestion_result(stats)
+
+        metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
+        metadata_for_job["stats"] = stats
+        metadata_for_job.update(metadata_update)
+        await self._update_job(
+            status_message=status_message,
+            state=IngestionState.FINISHED,
+            result=result,
+            extra_metadata=metadata_for_job,
+        )
 
         logger.info(
             f"CSV processing completed: {stats['rows_processed']} rows processed, "
-            f"{stats['rows_skipped']} rows skipped, {stats['row_errors_count']} errors"
-            f"{stats['factors_deleted']} existing factors deleted"
+            f"{stats['rows_skipped']} skipped, "
+            f"{stats['row_errors_count']} errors, "
+            f"{stats['factors_upserted']} factors upserted"
         )
-        return dict(stats)
+        return {
+            "state": IngestionState.FINISHED,
+            "result": result,
+            "inserted": stats["rows_processed"],
+            "skipped": stats["rows_skipped"],
+            "stats": stats,
+        }
 
     @abstractmethod
     async def _setup_handlers_and_context(self) -> Dict[str, Any]:
@@ -570,6 +584,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         except ValueError:
             pass
         return value
+
+    def _get_types_to_delete(
+        self, listed_entry_types: list[DataEntryTypeEnum]
+    ) -> list[DataEntryTypeEnum]:
+        """Return the data entry types whose factors should be deleted before ingestion.
+
+        Override in subclasses to restrict deletion to a subset of types
+        (e.g. when a CSV covers only part of a module's types).
+        """
+        if self.data_entry_type_id is not None:
+            return [DataEntryTypeEnum(int(self.data_entry_type_id))]
+        return list(listed_entry_types)
 
     def _record_row_error(
         self,

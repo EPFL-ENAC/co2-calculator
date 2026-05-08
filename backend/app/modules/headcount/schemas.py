@@ -71,8 +71,8 @@ class HeadCountCreate(DataEntryCreate):
             return v
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
-        if v < 0:
-            raise ValueError("FTE must be non-negative")
+        if v < 0.1:
+            raise ValueError("FTE must be at least 0.1")
         return v
 
     @field_validator("position_category", mode="after")
@@ -92,8 +92,8 @@ class HeadCountStudentCreate(DataEntryCreate):
     @field_validator("fte", mode="after")
     @classmethod
     def validate_fte(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("FTE must be non-negative")
+        if v < 0.1:
+            raise ValueError("FTE must be at least 0.1")
         return v
 
 
@@ -105,8 +105,8 @@ class HeadCountStudentUpdate(DataEntryUpdate):
     def validate_fte(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
-        if v < 0:
-            raise ValueError("FTE must be non-negative")
+        if v < 0.1:
+            raise ValueError("FTE must be at least 0.1")
         return v
 
 
@@ -124,8 +124,8 @@ class HeadCountUpdate(DataEntryUpdate):
             return v
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
-        if v < 0:
-            raise ValueError("FTE must be non-negative")
+        if v < 0.1:
+            raise ValueError("FTE must be at least 0.1")
         return v
 
     @field_validator("position_category", mode="after")
@@ -190,17 +190,21 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
                 formula_key="ef_kg_co2eq_per_unit",
                 quantity_key="fte",
                 multiplier_key="number_of_unit_per_fte",
-                emit_per_factor=True,
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> HeadcountItemResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> HeadcountItemResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 
@@ -246,17 +250,21 @@ class HeadcountStudentModuleHandler(BaseModuleHandler):
                 formula_key="ef_kg_co2eq_per_unit",
                 quantity_key="fte",
                 multiplier_key="number_of_unit_per_fte",
-                emit_per_factor=True,
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> HeadCountStudentResponse:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> HeadCountStudentResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 

@@ -104,8 +104,8 @@ export default {
     en: '>100 times/day',
     fr: '>100 fois/jour',
   },
-  [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
-    en: 'Number of users (fte)',
+  [`${MODULES.ExternalCloudAndAI}.inputs.fte_count`]: {
+    en: 'Number of users (FTE)',
     fr: "Nombre d'utilisateurs (EPT)",
   },
   [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-table-title-info-tooltip`]:

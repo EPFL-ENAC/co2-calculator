@@ -1,6 +1,6 @@
 <template>
   <q-expansion-item
-    v-if="submodule.tableNameKey"
+    v-if="submodule.tableNameKey && collapsible"
     v-model="moduleStore.state.expandedSubmodules[submodule.id]"
     flat
     header-class="text-h5 text-weight-medium"
@@ -38,13 +38,100 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
-          :threshold="threshold"
+          :threshold="effectiveThreshold"
+          :has-top-bar="submodule.hasTableTopBar"
+          :module-type="moduleType"
+          :submodule-type="submodule.id"
+          :module-config="moduleConfig"
+          :submodule-config="submodule"
+          :disable="isTableDisabled"
+          :is-simulator="isSimulator"
+        />
+      </div>
+      <q-separator />
+      <div
+        v-if="isInputDeactivated"
+        class="q-mx-lg q-my-md inputs-deactivated-notice"
+      >
+        <div class="inputs-deactivated-notice__content">
+          <q-icon name="edit_off" size="sm" color="accent" class="q-mb-sm" />
+          <div class="text-body2 text-weight-medium text-center text-primary">
+            {{ $t('module_submodule_inputs_deactivated_notice') }}
+          </div>
+        </div>
+      </div>
+      <template v-else>
+        <div v-if="showModuleForm" class="q-mx-lg">
+          <module-form
+            ref="formRef"
+            :fields="submodule.moduleFields"
+            :submodule-type="submodule.type"
+            :module-type="moduleType"
+            :item="item"
+            :has-subtitle="submodule.hasFormSubtitle"
+            :has-add-with-note="submodule.hasFormAddWithNote"
+            :add-button-label-key="submodule.addButtonLabelKey"
+            :has-tooltip="submodule.hasFormTooltip"
+            :unit-id="unitId"
+            :year="year"
+            :form-defaults="formDefaults"
+            @submit="submitForm"
+          />
+        </div>
+        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
+          <q-badge color="warning" class="q-px-md q-py-sm">
+            {{ $t('common_view_only') }}
+          </q-badge>
+        </div>
+      </template>
+    </q-card-section>
+  </q-expansion-item>
+
+  <q-card
+    v-else-if="submodule.tableNameKey"
+    flat
+    class="q-mb-md container container--pa-none module-submodule-section q-mb-xl"
+  >
+    <q-card-section>
+      <div class="row flex items-center full-width">
+        <div class="col text-h5 text-weight-medium">
+          {{ $t(submodule.tableNameKey, { count: submoduleCount || 0 }) }}
+        </div>
+        <q-icon
+          v-if="hasTableTooltip"
+          :name="outlinedInfo"
+          size="sm"
+          class="cursor-pointer q-mr-sm"
+          :aria-label="
+            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
+          "
+        >
+          <q-tooltip
+            v-if="hasTableTooltip"
+            anchor="center right"
+            self="top right"
+            class="u-tooltip"
+          >
+            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+          </q-tooltip>
+        </q-icon>
+      </div>
+    </q-card-section>
+    <q-separator />
+    <q-card-section class="q-pa-none">
+      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
+        <module-table
+          :module-fields="submodule.moduleFields"
+          :unit-id="unitId"
+          :year="year"
+          :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
           :submodule-type="submodule.id"
           :module-config="moduleConfig"
           :submodule-config="submodule"
           :disable="disable"
+          :is-simulator="isSimulator"
         />
       </div>
       <q-separator />
@@ -74,7 +161,7 @@
         </q-badge>
       </div>
     </q-card-section>
-  </q-expansion-item>
+  </q-card>
 </template>
 
 <script setup lang="ts">
@@ -88,17 +175,19 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type {
   ModuleResponse,
   Threshold,
-  ConditionalSubmoduleProps,
+  AllSubmoduleTypes,
   EnumSubmoduleType,
+  Module,
 } from 'src/constant/modules';
-import { enumSubmodule } from 'src/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { Notify } from 'quasar';
 interface Option {
   label: string;
   value: string;
@@ -144,34 +233,93 @@ type CommonProps = {
   year: string | number;
   threshold: Threshold;
   disable: boolean;
+  isSimulator?: boolean;
 };
 
-type SubModuleSectionProps = ConditionalSubmoduleProps & CommonProps;
+type ModuleTypeProps = {
+  moduleType: Module;
+  submoduleType?: AllSubmoduleTypes;
+};
 
-const props = defineProps<SubModuleSectionProps>();
+type SubModuleSectionProps = ModuleTypeProps & CommonProps;
 
+const yearConfigStore = useYearConfigStore();
+const props = withDefaults(
+  defineProps<SubModuleSectionProps & { collapsible?: boolean }>(),
+  {
+    collapsible: true,
+  },
+);
 const authStore = useAuthStore();
+
+const submoduleKey = computed(() => {
+  return props.submodule.id;
+});
+
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  return subConfig?.inputs_deactivated ?? false;
+});
+
+const isTableDisabled = computed(
+  () => !props.isSimulator && (props.disable || isInputDeactivated.value),
+);
+
+const backendThreshold = computed<Threshold | null>(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return null;
+
+  const subConfig = unifiedConfig.submodules[submoduleKey.value];
+  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+    return null;
+  }
+
+  return {
+    type: MODULES_THRESHOLD_TYPES[0],
+    value: subConfig.threshold,
+  };
+});
+
+const effectiveThreshold = computed<Threshold>(() => {
+  return backendThreshold.value || props.threshold;
+});
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
-  const permissionPath = getModulePermissionPath(props.moduleType);
-  if (!permissionPath) {
-    // Module doesn't require permission, allow editing (backward compatibility)
-    return true;
-  }
-  return hasPermission(
-    authStore.user?.permissions,
-    permissionPath,
+  return authStore.hasUserModulePermission(
+    props.moduleType,
     PermissionAction.EDIT,
   );
 });
 
-const submoduleCount = computed(
-  () =>
-    moduleStore.state.data?.data_entry_types_total_items?.[
-      enumSubmodule[props.submodule.id as EnumSubmoduleType]
-    ] || 0,
-);
+const isFormDisabled = computed(() => props.disable);
+
+const submoduleCount = computed(() => {
+  const submoduleEnumId =
+    enumSubmodule[props.submodule.id as EnumSubmoduleType];
+
+  // Preferred: lightweight per-module counts map (populated by prefetchAllModuleCounts).
+  const fromTotalsMap =
+    moduleStore.state.moduleTotalsMap[props.moduleType]?.[submoduleEnumId];
+  if (typeof fromTotalsMap === 'number') return fromTotalsMap;
+
+  // Fallback: shared module data slot (may belong to any currently-loaded module).
+  const fromModuleTotals =
+    moduleStore.state.data?.data_entry_types_total_items?.[submoduleEnumId];
+  if (typeof fromModuleTotals === 'number') return fromModuleTotals;
+
+  const fromSubmodule =
+    moduleStore.state.dataSubmodule?.[props.submodule.id]?.summary?.total_items;
+  if (typeof fromSubmodule === 'number') return fromSubmodule;
+
+  const fromPagination =
+    moduleStore.state.paginationSubmodule?.[props.submodule.id]?.rowsNumber;
+  if (typeof fromPagination === 'number') return fromPagination;
+
+  return 0;
+});
 
 const item = computed(() => {
   if (props.moduleType === 'headcount' && props.submoduleType === 'student') {
@@ -188,6 +336,14 @@ const hasModuleForm = computed(() => {
       0
   );
 });
+
+const showModuleForm = computed(
+  () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
+);
+
+const showViewOnlyBadge = computed(
+  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
+);
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
@@ -219,6 +375,12 @@ async function submitForm(payload: Record<string, FieldValue>) {
         props.submoduleType,
         payload,
       );
+      if (props.submodule.notifyInfoOnAddKey) {
+        Notify.create({
+          type: 'info',
+          message: t(props.submodule.notifyInfoOnAddKey),
+        });
+      }
     } catch (err: unknown) {
       // Replace generic "user institutional id" in server error messages with
       // the institution-specific label (SCIPER for EPFL).
@@ -235,3 +397,19 @@ async function submitForm(payload: Record<string, FieldValue>) {
   }
 }
 </script>
+
+<style scoped>
+.inputs-deactivated-notice {
+  background-color: rgba(0, 0, 0, 0.02);
+  border: 1px dashed rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+.inputs-deactivated-notice__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+</style>

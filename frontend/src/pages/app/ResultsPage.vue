@@ -26,6 +26,11 @@ import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
+import { useRoute, useRouter } from 'vue-router';
+
+const yearConfigStore = useYearConfigStore();
 
 /** Keeps ECharts-heavy bundles out of the initial Results route chunk (Lighthouse / TTI). */
 const ChartChunkSkeleton = () =>
@@ -134,6 +139,8 @@ const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
 const colorblindStore = useColorblindStore();
+const router = useRouter();
+const route = useRoute();
 const colorblindMode = computed({
   get: () => colorblindStore.enabled,
   set: (v: boolean) => colorblindStore.setEnabled(v),
@@ -201,20 +208,20 @@ function afterPaint(cb: () => void) {
   });
 }
 
-onMounted(() => {
-  void fetchResultsSummary();
+onMounted(async () => {
+  await fetchResultsSummary();
 
   // Phase 1: after first paint, mount charts + start data fetches.
-  afterPaint(() => {
+  afterPaint(async () => {
     mountPrimaryCharts.value = true;
-    void fetchEmissionBreakdown();
-    void fetchItBreakdown();
+    await fetchEmissionBreakdown();
+    await fetchItBreakdown();
   });
 
   // Phase 2: below-fold sections after charts have started.
-  afterPaint(() => {
+  afterPaint(async () => {
     mountBelowFold.value = true;
-    void loadModulesConfig();
+    await loadModulesConfig();
   });
 });
 
@@ -225,12 +232,12 @@ watch(
     currentYear.value,
     hideResearchFacilities.value,
   ],
-  () => {
+  async () => {
     moduleStore.invalidateEmissionBreakdown();
-    void fetchResultsSummary();
-    afterPaint(() => {
-      void fetchEmissionBreakdown();
-      void fetchItBreakdown();
+    await fetchResultsSummary();
+    afterPaint(async () => {
+      await fetchEmissionBreakdown();
+      await fetchItBreakdown();
     });
   },
 );
@@ -339,8 +346,19 @@ const loadModulesConfig = async () => {
 const getModuleConfig = (module: string) => modulesConfig.value?.[module];
 
 const downloadPDF = () => {
-  // Open browser print dialog where user can save as PDF
-  window.print();
+  const resolved = router.resolve({
+    name: 'results-print',
+    params: {
+      language: String(route.params.language ?? 'en'),
+      unit: workspaceStore.selectedParams?.unit ?? route.params.unit,
+      year: String(currentYear.value),
+    },
+    query: {
+      hideResearchFacilities: hideResearchFacilities.value ? '1' : '0',
+      hideAdditionalData: hideAdditionalData.value ? '1' : '0',
+    },
+  });
+  window.open(resolved.href, '_blank');
 };
 
 const getUncertainty = (
@@ -543,7 +561,9 @@ const getUncertainty = (
             resultsSummary.unit_totals.total_fte == null
               ? $t('results_carbon_footprint_per_FTE_no_headcount')
               : $t('results_carbon_footprint_per_fte', {
-                  FTE: resultsSummary.unit_totals.total_fte,
+                  FTE: $nOrDash(resultsSummary.unit_totals.total_fte, {
+                    options: { maximumFractionDigits: 1 },
+                  }),
                 })
           "
           :number="
@@ -622,31 +642,12 @@ const getUncertainty = (
         </div>
       </q-card>
 
-      <q-card v-if="mountBelowFold" flat bordered class="q-pa-lg defer-render">
-        <div class="flex justify-between items-center">
-          <div>
-            <h2 class="text-h2 text-weight-medium">
-              {{ $t('results_objectives_2040_title') }}
-            </h2>
-            <span class="text-body1 text-secondary">{{
-              $t('results_objectives_2040_subtitle')
-            }}</span>
-          </div>
-        </div>
-        <q-card-section class="q-px-none q-pt-lg q-pb-none">
-          <div class="objectives-placeholder-frame">
-            <img
-              src="/placeholder.svg"
-              alt=""
-              width="1380"
-              height="500"
-              loading="lazy"
-              decoding="async"
-              fetchpriority="low"
-              class="objectives-placeholder-image"
-            />
-          </div>
-        </q-card-section>
+      <!-- Reduction Objective -->
+      <q-card v-if="mountBelowFold" flat bordered class="defer-render">
+        <ReductionObjectiveChart
+          :hide-research-facilities="hideResearchFacilities"
+          :hide-additional-data="hideAdditionalData"
+        />
       </q-card>
 
       <div v-if="mountBelowFold" class="defer-render">
@@ -690,15 +691,22 @@ const getUncertainty = (
                   <div class="text-h5 text-weight-medium">{{ $t(module) }}</div>
                   <q-badge
                     v-if="
-                      viewUncertainties && getModuleConfig(module)?.uncertainty
+                      viewUncertainties &&
+                      !['none', null].includes(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      )
                     "
                     outline
                     rounded
                     :color="
-                      getUncertainty(getModuleConfig(module)?.uncertainty).color
+                      getUncertainty(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      ).color
                     "
                     :label="
-                      getUncertainty(getModuleConfig(module)?.uncertainty).label
+                      getUncertainty(
+                        yearConfigStore.getModuleUncertaintyTag(module),
+                      ).label
                     "
                     class="q-ml-sm"
                   />
@@ -707,7 +715,7 @@ const getUncertainty = (
               <template v-if="resultsCategoryExpanded[module]">
                 <q-separator />
 
-                <div class="q-px-lg">
+                <div>
                   <!-- Module has results in the summary -->
                   <template v-if="getModuleResult(module)">
                     <!-- Per-module treemap -->
@@ -719,7 +727,7 @@ const getUncertainty = (
                         "
                       />
                     </template>
-                    <q-card flat class="grid-3-col q-mb-lg">
+                    <q-card flat class="grid-3-col q-mb-lg q-px-lg">
                       <BigNumber
                         :title="
                           getTotalModuleCarbonFootprintTitle(module as Module)
@@ -801,7 +809,10 @@ const getUncertainty = (
                                 'results_carbon_footprint_per_FTE_no_headcount',
                               )
                             : $t('results_carbon_footprint_per_fte', {
-                                FTE: resultsSummary.unit_totals.total_fte,
+                                FTE: $nOrDash(
+                                  resultsSummary.unit_totals.total_fte,
+                                  { options: { maximumFractionDigits: 1 } },
+                                ),
                               })
                         "
                         :number="
@@ -876,11 +887,6 @@ const getUncertainty = (
                 <h2 class="text-h2 text-weight-medium q-mb-none">
                   {{ $t('results_additional_title') }}
                 </h2>
-                <q-icon name="o_info" size="sm" class="text-primary">
-                  <q-tooltip class="text-body2 text-black" max-width="320px">
-                    {{ $t('results_additional_waste_tooltip') }}
-                  </q-tooltip>
-                </q-icon>
               </div>
               <span class="text-body1 text-secondary">{{
                 $t('results_additional_subtitle')

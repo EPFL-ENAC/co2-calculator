@@ -58,6 +58,7 @@
     :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -69,7 +70,10 @@
           :props="scope"
           :align="col.align"
           class="q-pa-xs"
-          :class="{ 'column-max-width': col.maxColumnWidth }"
+          :class="{
+            'column-max-width': col.maxColumnWidth,
+            'column-min-width': col.minColumnWidth,
+          }"
           :style="getColumnStyle(col)"
         >
           <span>{{ col.label }}</span>
@@ -95,7 +99,9 @@
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
       <q-btn
         icon="chevron_right"
         color="grey-8"
@@ -133,6 +139,7 @@
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
+              :option-label-key="col.optionLabelKey"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -354,7 +361,6 @@ import {
   TargetType,
 } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
@@ -522,6 +528,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
       moduleStore.state.data?.carbon_report_module_id;
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
+      year: Number(props.year),
       provider_type: 'csv',
       target_type: TargetType.DATA_ENTRIES,
       file_path: filePath,
@@ -668,6 +675,7 @@ type CommonProps = {
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
   disable: boolean;
+  isSimulator?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -687,22 +695,19 @@ const hasModuleUpload = computed(() => {
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
-  const permissionPath = getModulePermissionPath(props.moduleType);
-  if (!permissionPath) {
-    // Module doesn't require permission, allow editing (backward compatibility)
-    return true;
-  }
-  return hasPermission(
-    authStore.user?.permissions,
-    permissionPath,
+  return authStore.hasUserModulePermission(
+    props.moduleType,
     PermissionAction.EDIT,
   );
 });
 
+// Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
 const isDisabled = computed(
   () =>
-    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-    !canEdit.value,
+    !props.isSimulator &&
+    (props.disable ||
+      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
 );
 
 const filterTerm = ref('');
@@ -736,8 +741,10 @@ type TableViewColumn = {
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string;
+  optionLabelKey?: string;
   tooltip?: string;
   type: ModuleField['type'];
+  minColumnWidth?: number;
   maxColumnWidth?: number;
   readOnlyWhen?: ModuleField['readOnlyWhen'];
   readOnlyDisplayField?: string;
@@ -789,6 +796,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             options,
             tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
             type: f.type,
+            minColumnWidth: f.minColumnWidth,
             maxColumnWidth: f.maxColumnWidth,
             readOnlyWhen: f.readOnlyWhen,
             readOnlyDisplayField: f.readOnlyDisplayField,
@@ -819,8 +827,10 @@ const qCols = computed<TableViewColumn[]>(() => {
           editableInline,
           options,
           optionsId: f.optionsId,
+          optionLabelKey: f.optionLabelKey,
           tooltip,
           type: f.type,
+          minColumnWidth: f.minColumnWidth,
           maxColumnWidth: f.maxColumnWidth,
           readOnlyWhen: f.readOnlyWhen,
           readOnlyDisplayField: f.readOnlyDisplayField,
@@ -845,6 +855,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       options: undefined,
       tooltip: undefined,
       type: 'text',
+      minColumnWidth: undefined,
       maxColumnWidth: undefined,
     });
   }
@@ -952,30 +963,26 @@ function getError(row: ModuleRow, col: { name: string }) {
   return inlineErrors.value[errorKey(row, col)] ?? '';
 }
 
-function validateUsage(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: $t('validation_required') };
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n))
+function validateUsageHoursWeek(value: number) {
+  if (!Number.isFinite(value))
     return {
       valid: false,
       parsed: null,
       error: $t('validation_number_required'),
     };
-  if (n < 0)
+  if (value < 0)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_must_be_non_negative'),
     };
-  if (n > 168)
+  if (value > 168)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_max_hours_per_week'),
     };
-  return { valid: true, parsed: n, error: null };
+  return { valid: true, parsed: value, error: null };
 }
 
 function validateNumberOfTrips(value: unknown) {
@@ -1019,13 +1026,17 @@ async function commitInline(
 
   const valueToSave = (() => {
     if (isUsageField) {
-      const validation = validateUsage(rawVal);
+      const activeVal = Number(row['active_usage_hours_per_week']) || 0;
+      const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
+      const validation = validateUsageHoursWeek(activeVal + standbyVal);
       if (!validation.valid) {
         setError(row, col, validation.error);
         return null;
       }
       setError(row, col, null);
-      return validation.parsed;
+      // parse raw value to number to ensure consistent type (could be string from input)
+      const parsedVal = Number(rawVal);
+      return Number.isFinite(parsedVal) ? parsedVal : rawVal;
     }
     if (isNumberOfTrips) {
       const validation = validateNumberOfTrips(rawVal);
@@ -1113,8 +1124,14 @@ function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
 }
 
 function getColumnStyle(col: TableViewColumn) {
-  if (!col.maxColumnWidth) return {};
-  return { '--max-column-width': `${col.maxColumnWidth}px` };
+  const style: Record<string, string> = {};
+  if (col.minColumnWidth) {
+    style['--min-column-width'] = `${col.minColumnWidth}px`;
+  }
+  if (col.maxColumnWidth) {
+    style['--max-column-width'] = `${col.maxColumnWidth}px`;
+  }
+  return style;
 }
 
 function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
@@ -1122,6 +1139,7 @@ function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
     cellClasses(row, col),
     'table-cell',
     { 'column-max-width': col.maxColumnWidth },
+    { 'column-min-width': col.minColumnWidth },
   ];
 }
 
@@ -1181,7 +1199,7 @@ function isCompleteExternalAI(row: ModuleRow) {
     'provider',
     'usage_type',
     'requests_per_user_per_day',
-    'user_count',
+    'fte_count',
   ];
   return hasRequiredValues(row, required);
 }
@@ -1526,6 +1544,11 @@ onUnmounted(() => {
   word-wrap: break-word;
 }
 
+.column-min-width {
+  min-width: var(--min-column-width, 100%);
+  white-space: normal;
+}
+
 .column-max-width {
   max-width: var(--max-column-width, 100%);
   white-space: normal;
@@ -1533,10 +1556,6 @@ onUnmounted(() => {
 
 .table-search {
   min-width: 240px;
-}
-
-.inline-input {
-  width: 120px;
 }
 
 .row-new {

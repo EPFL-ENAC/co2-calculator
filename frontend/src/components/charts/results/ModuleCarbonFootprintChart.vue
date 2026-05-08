@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, type PropType, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { graphic } from 'echarts';
-import { colors, getChartSubcategoryColor } from 'src/constant/charts';
+import {
+  colors,
+  getChartSubcategoryColor,
+  RESULTS_CATEGORY_LABEL_KEYS,
+} from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
@@ -15,6 +19,8 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from './TooltipEcharts.vue';
+import { useEchartsTooltip } from './useEchartsTooltip';
 
 use([
   CanvasRenderer,
@@ -27,15 +33,28 @@ use([
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
-const props = defineProps<{
-  breakdownData?: EmissionBreakdownResponse | null;
-  title?: string;
-  viewAdditionalData?: boolean;
-}>();
+const props = defineProps({
+  breakdownData: {
+    type: Object as PropType<EmissionBreakdownResponse | null | undefined>,
+    default: undefined,
+  },
+  title: {
+    type: String as PropType<string | undefined>,
+    default: undefined,
+  },
+
+  viewAdditionalData: {
+    type: Boolean as PropType<boolean | undefined>,
+    default: undefined,
+  },
+});
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -155,7 +174,7 @@ function recalculateScopeRects() {
             id: 'sr1',
             left: s1.left,
             top: '15px',
-            shape: { width: s1.width, height: 300 },
+            shape: { width: s1.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(248,248,248,0.9)' },
@@ -185,7 +204,7 @@ function recalculateScopeRects() {
             id: 'sr2',
             left: s2.left,
             top: '15px',
-            shape: { width: s2.width, height: 300 },
+            shape: { width: s2.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(240,240,240,0.9)' },
@@ -215,7 +234,7 @@ function recalculateScopeRects() {
             id: 'sr3',
             left: s3.left,
             top: '15px',
-            shape: { width: s3.width, height: 300 },
+            shape: { width: s3.width, height: isPrintMode.value ? 200 : 300 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(229,229,229,0.9)' },
@@ -257,7 +276,10 @@ function recalculateScopeRects() {
             id: 'sadd',
             left: dividerX,
             top: '15px',
-            shape: { width: additionalRect?.width ?? 200, height: 300 },
+            shape: {
+              width: additionalRect?.width ?? 200,
+              height: isPrintMode ? 200 : 300,
+            },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(215,215,215,0.9)' },
@@ -283,7 +305,7 @@ function recalculateScopeRects() {
             id: 'sdiv',
             left: dividerX,
             top: '0px',
-            shape: { width: 1, height: 420 },
+            shape: { width: 1, height: isPrintMode ? 200 : 420 },
             style: {
               fill: new graphic.LinearGradient(0, 0, 0, 1, [
                 { offset: 0, color: 'rgba(0,0,0,1)' },
@@ -331,20 +353,7 @@ function recalculateScopeRects() {
   });
 }
 
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  commuting: 'charts-commuting-category', // Headcount
-  food: 'charts-food-category',
-  waste: 'charts-waste-category',
-  process_emissions: 'charts-process-emissions-category',
-  buildings_room: 'charts-buildings-room-category',
-  buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  embodied_energy: 'charts-embodied-energy-category',
-  equipment: 'equipment-electric-consumption',
-  external_cloud_and_ai: 'external-cloud-and-ai',
-  purchases: 'purchase',
-  professional_travel: 'professional-travel',
-  research_facilities: 'charts-research-facilities-category',
-};
+const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 function translateCategory(
   entry: Record<string, unknown>,
@@ -352,6 +361,23 @@ function translateCategory(
   const cat = entry.category as string;
   const i18nKey = CATEGORY_LABEL_MAP[cat];
   return { ...entry, category: i18nKey ? t(i18nKey) : cat };
+}
+
+function normalizeCategoryRowKeys(
+  entry: Record<string, unknown>,
+): Record<string, unknown> {
+  const cat = String(entry.category ?? entry.category_key ?? '');
+  // Backend sometimes uses `other` for purchases; keep equipment `other` untouched.
+  if (cat === 'purchases') {
+    const next = { ...entry };
+    if (next.other_purchases == null && next.other != null) {
+      next.other_purchases = next.other;
+    }
+    // Prevent collisions with equipment's `other` series key.
+    delete next.other;
+    return next;
+  }
+  return entry;
 }
 
 function zeroNumericValues(
@@ -441,10 +467,10 @@ const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
   'charts-buildings-energy-combustion-category',
   'charts-buildings-room-category',
-  'equipment-electric-consumption',
-  'external-cloud-and-ai',
-  'professional-travel',
-  'purchase',
+  'charts-equipment-electric-consumption-category',
+  'charts-external-cloud-category',
+  'charts-professional-travel-category',
+  'charts-purchases-category',
   'charts-research-facilities-category',
 ];
 
@@ -477,6 +503,7 @@ const datasetSource = computed(() => {
         const category = String(entry.category ?? '');
         return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
       })
+      .map(normalizeCategoryRowKeys)
       .map(translateCategory),
   );
 
@@ -497,6 +524,7 @@ const datasetSource = computed(() => {
           return { ...entry, __validated: true };
         })
         .map(withAdditionalCategoryTotals)
+        .map(normalizeCategoryRowKeys)
         .map(translateCategory),
     );
     allData = [...baseData, ...additionalData];
@@ -732,6 +760,21 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
+      name: t('charts-heating-elec-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'heating_elec' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_room',
+          'heating_elec',
+          colors.value.lilac.light,
+        ),
+      },
+      label: { show: false },
+    },
+    {
       name: t('charts-lighting-subcategory'),
       type: 'bar' as const,
       stack: 'total',
@@ -776,21 +819,6 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    {
-      name: t('charts-heating-elec-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'heating_elec',
-          colors.value.lilac.light,
-        ),
-      },
-      label: { show: false },
-    },
     // Equipment — subcategories: scientific, it, other
     {
       name: t('charts-scientific-subcategory'),
@@ -802,7 +830,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'scientific',
-          colors.value.mauve.darker,
+          colors.value.plum.darker,
         ),
       },
       label: { show: false },
@@ -814,12 +842,12 @@ const chartOption = computed((): EChartsOption => {
       animation: true,
       encode: { x: 'category', y: 'it' },
       itemStyle: {
-        color: getSubcategoryColor('equipment', 'it', colors.value.mauve.dark),
+        color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
       },
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-other-equipment-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -828,7 +856,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'equipment',
           'other',
-          colors.value.mauve.default,
+          colors.value.plum.default,
         ),
       },
       label: { show: false },
@@ -910,7 +938,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: t('charts-other-purchases-subcategory'),
+      name: t('charts-vehicles-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -926,6 +954,21 @@ const chartOption = computed((): EChartsOption => {
     },
     {
       name: t('charts-other-purchases-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'other_purchases' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'purchases',
+          'other_purchases',
+          colors.value.lavender.dark,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-additional-purchases-subcategory'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -1038,66 +1081,87 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'shadow',
+          },
 
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) return '';
-        const p = arr[0] as {
-          data?: Record<string, unknown>;
-          axisValue?: string;
-          name?: string;
-          seriesName?: string;
-          marker?: string;
-          value?: number | number[];
-        };
-        const data = p.data;
-        const name = p.axisValue || p.name || '';
-        const isValidated = validatedLabels.value.has(name);
+          formatter: (params: unknown) => {
+            const arr = Array.isArray(params) ? params : params ? [params] : [];
+            if (!arr.length) {
+              emitTooltip(null);
+              return '';
+            }
 
-        if (!isValidated) {
-          const moduleName = additionalHeadcountLabels.value.has(name)
-            ? t('headcount')
-            : additionalBuildingsLabels.value.has(name)
-              ? t('buildings')
-              : name;
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: moduleName })}</span>`;
-        }
+            const firstParam = arr[0] as {
+              data?: Record<string, unknown>;
+              axisValue?: string;
+              name?: string;
+            };
+            const data = firstParam.data;
+            const name = firstParam.axisValue || firstParam.name || '';
+            const isValidated = validatedLabels.value.has(name);
 
-        let total = 0;
-        let tooltip = `<strong>${name}</strong><br/>`;
+            if (!isValidated) {
+              const moduleName = additionalHeadcountLabels.value.has(name)
+                ? t('headcount')
+                : additionalBuildingsLabels.value.has(name)
+                  ? t('buildings')
+                  : name;
+              emitTooltip({
+                title: name,
+                rows: [],
+                footer: t('results_validate_module_title', {
+                  module: moduleName,
+                }),
+                tone: 'muted',
+              });
+              return '';
+            }
 
-        arr.reverse().forEach((param: unknown) => {
-          const p = param as {
-            seriesName?: string;
-            seriesIndex?: number;
-            marker?: string;
-            value?: number | number[];
-            data?: Record<string, unknown>;
-          };
-          const series =
-            typeof p.seriesIndex === 'number'
-              ? seriesArray[p.seriesIndex]
-              : seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
+            const rows: TooltipRow[] = [];
+            let total = 0;
 
-          if (!data || !key) return;
-          const dataValue = Number(data[key]) || 0;
-          if (dataValue > 0) {
-            tooltip += `${p.marker || ''} ${series?.name || p.seriesName || ''}: <strong>${formatTonnesForChart(dataValue)} </strong><br/>`;
-            total += dataValue;
-          }
-        });
+            for (const param of [...arr].reverse()) {
+              const p = param as {
+                seriesName?: string;
+                seriesIndex?: number;
+                color?: string;
+                data?: Record<string, unknown>;
+              };
+              const series =
+                typeof p.seriesIndex === 'number'
+                  ? seriesArray[p.seriesIndex]
+                  : seriesArray.find((s) => s.name === p.seriesName);
+              const key = series?.encode.y;
 
-        const totalDisplay = formatTonnesForChart(total);
+              if (!data || !key) continue;
+              const dataValue = Number(data[key]) || 0;
+              if (dataValue > 0) {
+                rows.push({
+                  label: series?.name ?? p.seriesName ?? '',
+                  value: formatTonnesForChart(dataValue),
+                  color:
+                    (series?.itemStyle?.color as string) ?? p.color ?? '#888',
+                });
+                total += dataValue;
+              }
+            }
 
-        return `${tooltip}<hr style="margin: 4px 0"/>Total: <strong>${totalDisplay}</strong>`;
-      },
-    },
+            emitTooltip({
+              title: name,
+              rows,
+              separatorRow: {
+                label: t('total'),
+                value: formatTonnesForChart(total),
+              },
+            });
+            return '';
+          },
+        },
 
     grid: {
       left: '5%',
@@ -1168,6 +1232,7 @@ const chartOption = computed((): EChartsOption => {
         'biological_chemical_gaseous',
         'services',
         'vehicles',
+        'other_purchases',
         'additional',
         'plane',
         'train',
@@ -1191,6 +1256,15 @@ const chartOption = computed((): EChartsOption => {
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 
 const downloadPNG = async () => {
   const chart = chartRef.value?.chart;
@@ -1223,26 +1297,38 @@ const downloadCSV = () => {
     return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  const headers = [
-    ...new Set(
-      datasetSource.value.flatMap((item) =>
-        Object.entries(item)
-          .filter(([key, value]) => {
-            if (key.startsWith('__')) return false;
-            if (typeof value === 'object' && value !== null) return false;
-            return true;
-          })
-          .map(([key]) => key),
-      ),
-    ),
-  ].sort((a, b) =>
-    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+  // Pivot: one row per category × subcategory pair where the value is non-zero.
+  // This avoids the sparse wide-table format where each category gets all
+  // possible subcategory columns, 90% of which are empty.
+  const SKIP_KEYS = new Set(['category', 'category_key']);
+
+  const rows: Array<[string, string, number]> = datasetSource.value.flatMap(
+    (item) => {
+      const category = String(item.category ?? '');
+      return Object.entries(item)
+        .filter(([key, value]) => {
+          if (SKIP_KEYS.has(key) || key.startsWith('__')) return false;
+          if (typeof value === 'object' && value !== null) return false;
+          const n = Number(value);
+          // Only emit rows where the subcategory actually has a value
+          return Number.isFinite(n) && n !== 0;
+        })
+        .map(
+          ([key, value]) =>
+            [category, key, Number(value)] as [string, string, number],
+        );
+    },
   );
 
+  const headers = [
+    t('csv_header_category'),
+    t('csv_header_subcategory'),
+    t('csv_header_co2'),
+  ];
   const csv = [
     headers.map(escape).join(','),
-    ...datasetSource.value.map((item) =>
-      headers.map((key) => escape(item[key])).join(','),
+    ...rows.map(([category, subcategory, co2]) =>
+      [escape(category), escape(subcategory), escape(co2)].join(','),
     ),
   ].join('\n');
 
@@ -1262,6 +1348,7 @@ const downloadCSV = () => {
     <q-card-section class="flex justify-between items-center">
       <div class="flex items-center no-wrap">
         <q-icon
+          v-if="!isPrintMode"
           name="o_info"
           size="xs"
           color="primary"
@@ -1311,29 +1398,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div class="flex items-center no-wrap q-gutter-sm">
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadCSV"
-        />
+      <div v-if="!isPrintMode">
         <q-checkbox
           v-if="props.viewAdditionalData === undefined"
           v-model="toggleAdditionalData"
@@ -1349,10 +1414,43 @@ const downloadCSV = () => {
     >
       <v-chart
         ref="chartRef"
-        class="chart"
+        :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
         @rendered="recalculateScopeRects"
+        @vue:mounted="onChartReady"
+      />
+      <Teleport to="body">
+        <tooltip-echarts
+          v-if="tooltip.visible"
+          :tooltip-state="tooltip.data"
+          :style="style"
+        />
+      </Teleport>
+    </q-card-section>
+    <q-separator v-if="!isPrintMode" />
+    <q-card-section v-if="!isPrintMode" class="flex justify-start q-gutter-sm">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadPNG"
+      />
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_csv')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadCSV"
       />
     </q-card-section>
   </q-card>
@@ -1371,12 +1469,16 @@ const downloadCSV = () => {
 
 .chart {
   width: 100%;
-  min-height: 500px;
+  min-height: 320px;
+}
+
+.chart--print {
+  min-height: 320px;
 }
 
 @media (max-width: 1320px) {
-  .chart {
-    width: 95%;
+  .chart:not(.chart--print) {
+    width: 100%;
   }
 }
 </style>

@@ -123,7 +123,7 @@ export enum IngestionResult {
 
 export type InitiateSyncParams = {
   module_type_id: number;
-  year?: number;
+  year: number;
   provider_type: 'csv' | 'api';
   target_type?: TargetType;
   filters?: Record<string, unknown>;
@@ -132,24 +132,6 @@ export type InitiateSyncParams = {
   data_entry_type_id?: number;
   carbon_report_module_id?: number;
 };
-
-export interface RecalculationStatus {
-  module_type_id: number;
-  data_entry_type_id: number;
-  year: number;
-  needs_recalculation: boolean;
-  last_factor_job_id: number | null;
-  last_factor_job_result: IngestionResult | null;
-  last_recalculation_job_id: number | null;
-  last_recalculation_job_result: IngestionResult | null;
-}
-
-export interface ModuleRecalculationStatus {
-  module_type_id: number;
-  year: number;
-  needs_recalculation: boolean;
-  data_entry_types: RecalculationStatus[];
-}
 
 export const useBackofficeDataManagement = defineStore(
   'backofficeDataManagement',
@@ -643,22 +625,6 @@ provider_type
     }
 
     /**
-     * Fetch recalculation status for all modules in a given year.
-     */
-    async function fetchRecalculationStatus(
-      year: number,
-    ): Promise<ModuleRecalculationStatus[]> {
-      try {
-        return (await api
-          .get(`sync/recalculation-status`, { searchParams: { year } })
-          .json()) as ModuleRecalculationStatus[];
-      } catch (err: unknown) {
-        console.error('Failed to fetch recalculation status:', err);
-        return [];
-      }
-    }
-
-    /**
      * Trigger emission recalculation for a single data entry type.
      * Returns the created job_id.
      */
@@ -692,6 +658,36 @@ provider_type
       return response.job_id;
     }
 
+    async function cancelJob(jobId: number, year: number): Promise<void> {
+      try {
+        const response = (await api
+          .post(`sync/jobs/${jobId}/cancel`)
+          .json()) as SyncJobResponse;
+
+        if (year !== null && syncJobs.value[year]) {
+          const jobIndex = syncJobs.value[year].findIndex(
+            (j: DataIngestionJob) => j.job_id === jobId,
+          );
+          if (jobIndex !== -1) {
+            syncJobs.value[year].splice(jobIndex, 1, {
+              ...syncJobs.value[year][jobIndex],
+              state: response.state,
+              result: response.result,
+              status_message: response.status_message || '',
+              meta: response.meta,
+            });
+          }
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value = err.message ?? 'Failed to cancel job';
+        } else {
+          error.value = 'Failed to cancel job';
+        }
+        throw err;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -720,11 +716,11 @@ provider_type
       getPreviousYearSuccessfulJobs,
       initiateSync,
       initiateComputedFactorSync,
-      fetchRecalculationStatus,
       initiateEmissionRecalculation,
       initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
+      cancelJob,
       reset,
       syncUnitsFromAccred,
     };
