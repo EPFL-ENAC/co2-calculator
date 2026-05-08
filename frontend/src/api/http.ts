@@ -23,7 +23,15 @@ const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
   credentials: 'include',
-  retry: { limit: 1, statusCodes: [401] },
+  // ky's default `methods` excludes POST/PATCH, so without overriding it the
+  // beforeRetry hook below would never fire on form submits — users mid-edit
+  // would get bounced to /login on a single 401 even though the refresh
+  // cookie was still valid (issue #949).
+  retry: {
+    limit: 1,
+    statusCodes: [401],
+    methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
+  },
   hooks: {
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying
@@ -64,6 +72,18 @@ export const api = ky.create({
             // may induced infinite redirect loops if the login page itself makes API calls
             // that return 401, but in practice this should not happen since the login page
             // should not make authenticated API calls.
+            //
+            // Surface a toast before navigating so the user understands why
+            // they're being kicked out (issue #949: previously a silent
+            // bounce to /login that looked like the form had submitted them
+            // back to the home page).
+            Notify.create({
+              color: 'warning',
+              message: i18n.global.t('session_expired_notice'),
+              position: 'top',
+              timeout: 5000,
+              actions: [{ icon: 'close', color: 'white' }],
+            });
             location.replace(loginPageName);
           }
         } else if (res.status === 403) {
