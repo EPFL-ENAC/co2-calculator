@@ -1398,29 +1398,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div v-if="!isPrintMode" class="flex items-center no-wrap q-gutter-sm">
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadCSV"
-        />
+      <div v-if="!isPrintMode">
         <q-checkbox
           v-if="props.viewAdditionalData === undefined"
           v-model="toggleAdditionalData"
@@ -1449,6 +1427,31 @@ const downloadCSV = () => {
           :style="style"
         />
       </Teleport>
+    </q-card-section>
+    <q-separator v-if="!isPrintMode" />
+    <q-card-section v-if="!isPrintMode" class="flex justify-start q-gutter-sm">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadPNG"
+      />
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_csv')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadCSV"
+      />
     </q-card-section>
   </q-card>
 </template>

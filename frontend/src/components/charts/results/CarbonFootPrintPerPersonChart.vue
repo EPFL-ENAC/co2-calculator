@@ -7,14 +7,12 @@ import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 import type { EChartsOption } from 'echarts';
-import { graphic } from 'echarts';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -27,7 +25,6 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  GraphicComponent,
 ]);
 
 import { formatTonnesForChart } from 'src/utils/number';
@@ -362,7 +359,7 @@ const chartGridOption = computed(() => {
       containLabel: true,
     };
   }
-  return { left: '5%', right: '4%', top: 80, bottom: '0%', containLabel: true };
+  return { left: 65, right: '4%', top: 80, bottom: '0%', containLabel: true };
 });
 
 const chartXAxisOption = computed(() => {
@@ -401,23 +398,7 @@ const chartYAxisOption = computed(() => {
   };
 });
 
-const chartGraphicOption = computed(() => {
-  if (isPrintMode.value) return [];
-  return [
-    {
-      type: 'rect',
-      left: '46px',
-      top: '15px',
-      shape: { width: 500, height: 500 },
-      style: {
-        fill: new graphic.LinearGradient(0, 0, 0, 1, [
-          { offset: 0, color: 'rgba(240,240,240,0.9)' },
-          { offset: 1, color: 'rgba(240,240,240,0.1)' },
-        ]),
-      },
-    },
-  ];
-});
+const chartGraphicOption = computed(() => []);
 
 const chartOption = computed((): EChartsOption => {
   return {
@@ -519,31 +500,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div v-if="!isPrintMode" class="flex items-center no-wrap q-gutter-sm">
-        <q-btn
-          v-if="headcountValidated"
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          v-if="headcountValidated"
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadCSV"
-        />
+      <div v-if="!isPrintMode">
         <q-checkbox
           v-if="
             props.viewAdditionalData === undefined &&
@@ -573,6 +530,34 @@ const downloadCSV = () => {
             :style="style"
           />
         </Teleport>
+      </q-card-section>
+      <q-separator v-if="!isPrintMode && headcountValidated" />
+      <q-card-section
+        v-if="!isPrintMode && headcountValidated"
+        class="flex justify-start q-gutter-sm"
+      >
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadCSV"
+        />
       </q-card-section>
     </template>
 
