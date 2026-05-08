@@ -120,8 +120,21 @@ services:
     container_name: co2-frontend
     ports:
       - "3000:8080"
-    volumes:
-      - ./frontend:/app:ro
+    # Match the k8s pod's securityContext (readOnlyRootFilesystem: true plus
+    # the three emptyDir mounts in helm/templates/frontend-deployment.yaml).
+    # Catches read-only-fs regressions locally before they ship to a cluster
+    # — see fix(344): write injectEnv.js to /tmp.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    environment:
+      # Empty by default. Set in your shell (or repo-root .env) to enable
+      # Sentry/GlitchTip from a `docker compose up` run. Same vars the k8s
+      # pod receives via helm/values.yaml frontend.env.
+      APP_SENTRY_DSN: "${APP_SENTRY_DSN:-}"
+      APP_ENVIRONMENT: "${APP_ENVIRONMENT:-compose}"
     labels:
       - "traefik.enable=true"
       # match everything else
