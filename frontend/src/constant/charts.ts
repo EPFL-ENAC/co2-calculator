@@ -479,11 +479,11 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       };
     })(),
     commuting: {
-      walking: colors.value.aqua.darker,
-      cycling: colors.value.aqua.dark,
-      powered_two_wheeler: colors.value.aqua.default,
-      public_transport: colors.value.aqua.light,
-      car: colors.value.aqua.lighter,
+      powered_two_wheeler: colors.value.aqua.darker,
+      public_transport: colors.value.aqua.dark,
+      car: colors.value.aqua.default,
+      cycling: colors.value.aqua.light,
+      walking: colors.value.aqua.lighter,
     },
     food: {
       vegetarian: colors.value.mint.darker,
