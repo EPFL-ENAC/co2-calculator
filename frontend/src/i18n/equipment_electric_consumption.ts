@@ -59,12 +59,12 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     fr: 'Sous-classe',
   },
   [`${MODULES.EquipmentElectricConsumption}.inputs.active_usage`]: {
-    en: 'Active usage (hours/week)',
-    fr: 'Usage actif (heures/semaine)',
+    en: 'Active usage (h/week)',
+    fr: 'Usage actif (h/semaine)',
   },
   [`${MODULES.EquipmentElectricConsumption}.inputs.standby_usage`]: {
-    en: 'Standby usage (hours/week)',
-    fr: 'Usage standby (heures/semaine)',
+    en: 'Standby usage (h/week)',
+    fr: 'Usage standby (h/semaine)',
   },
   [`${MODULES.EquipmentElectricConsumption}.inputs.active_power`]: {
     en: 'Active power (W)',
@@ -116,6 +116,19 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
       en: 'Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.',
       fr: 'Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.',
     },
+  [`${MODULES.EquipmentElectricConsumption}-scientific-form-title-info-tooltip`]:
+    {
+      en: 'Add a scientific equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
+      fr: 'Ajoutez un équipement scientifique qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
+    },
+  [`${MODULES.EquipmentElectricConsumption}-it-form-title-info-tooltip`]: {
+    en: 'Add an IT equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
+    fr: 'Ajoutez un équipement informatique qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
+  },
+  [`${MODULES.EquipmentElectricConsumption}-other-form-title-info-tooltip`]: {
+    en: 'Add another equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
+    fr: 'Ajoutez un autre équipement qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
+  },
   [`${MODULES.EquipmentElectricConsumption}.tooltips.power`]: {
     en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
     fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
@@ -123,6 +136,22 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
   [`${MODULES.EquipmentElectricConsumption}.tooltips.emission`]: {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
     fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.class`]: {
+    en: 'The equipment class determines the average power values used for the emission calculation. Update the class if the one from your inventory is not appropriate.',
+    fr: "La classe de l'équipement détermine les valeurs de puissance moyenne utilisées pour le calcul des émissions. Mettez à jour la classe si celle issue de votre inventaire n'est pas appropriée.",
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.subclass`]: {
+    en: 'The sub-class allows a more precise determination of the average power values for some equipment classes.',
+    fr: "La sous-classe permet une détermination plus précise des valeurs de puissance moyenne pour certaines classes d'équipements.",
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.active_usage`]: {
+    en: 'Number of hours per week the equipment is actively in use. It is recommended to make a conservative (not underestimated) estimate.',
+    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est activement utilisé. Il est recommandé de faire une estimation conservatrice (non sous-estimée).",
+  },
+  [`${MODULES.EquipmentElectricConsumption}.tooltips.standby_usage`]: {
+    en: 'Number of hours per week the equipment is on standby (powered on but not actively used). Active and standby hours combined cannot exceed 168 h/wk.',
+    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est en veille (allumé mais non activement utilisé). Les heures actives et standby combinées ne peuvent pas dépasser 168 h/semaine.",
   },
   equipment_edit_disclaimer: {
     en: `Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.`,

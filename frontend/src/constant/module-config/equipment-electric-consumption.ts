@@ -11,27 +11,6 @@ import {
   SUBMODULE_EQUIPMENT_TYPES,
 } from 'src/constant/modules';
 
-const powerTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.power`;
-
-const emissionTooltip = `${MODULES.EquipmentElectricConsumption}.tooltips.emission`;
-
-// "items": [
-//   {
-//     "data_entry_type_id": 9,
-//     "carbon_report_module_id": 11,
-//     "data": {
-//       "active_usage_hours_per_week": 35,
-//       "standby_usage_hours_per_week": 65,
-//       "power_factor_id": 104,
-//       "emission": 1274,
-//       "primary_factor": {
-//         "active_power_w": 5600,
-//         "standby_power_w": 0
-//       }
-//     },
-//     "id": 2714
-//   },
-
 const baseModuleFields: ModuleField[] = [
   {
     id: 'name',
@@ -54,7 +33,7 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     sortable: true,
     align: 'left',
-    // tooltip: 'Class can be edited via the Edit button only',
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.class`,
     inputTypeName: 'QSelect',
     readOnly: false,
     editableInline: true,
@@ -71,6 +50,7 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     sortable: true,
     align: 'left',
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.subclass`,
     inputTypeName: 'QSelect',
     editableInline: true,
     readOnly: false,
@@ -89,6 +69,7 @@ const baseModuleFields: ModuleField[] = [
     unit: 'hrs/wk',
     sortable: true,
     align: 'left',
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.active_usage`,
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -106,6 +87,7 @@ const baseModuleFields: ModuleField[] = [
     unit: 'hrs/wk',
     sortable: true,
     align: 'left',
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.standby_usage`,
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -121,7 +103,7 @@ const baseModuleFields: ModuleField[] = [
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip: powerTooltip,
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.power`,
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
@@ -140,7 +122,7 @@ const baseModuleFields: ModuleField[] = [
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip: powerTooltip,
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.power`,
     readOnly: true,
     hideIn: {
       form: false,
@@ -159,7 +141,7 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip: emissionTooltip,
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.emission`,
   },
   {
     id: 't_co2eq',
@@ -171,7 +153,7 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip: emissionTooltip,
+    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.emission`,
   },
 ];
 
@@ -208,6 +190,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
         'equipment-electric-consumption-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
+      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-scientific-form-title-info-tooltip`,
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.IT,
@@ -216,6 +199,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,
+      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-it-form-title-info-tooltip`,
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Other,
@@ -225,6 +209,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
         'equipment-electric-consumption-other-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
+      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-other-form-title-info-tooltip`,
     },
   ],
   resultBigNumbers: [
