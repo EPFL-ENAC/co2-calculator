@@ -4,13 +4,13 @@ import {
   defineAsyncComponent,
   h,
   onMounted,
+  onUnmounted,
   reactive,
   ref,
   watch,
 } from 'vue';
 import { QSkeleton } from 'quasar';
 import { MODULES_LIST, MODULES, type Module } from 'src/constant/modules';
-import { useColorblindStore } from 'src/stores/colorblind';
 const ModuleIcon = defineAsyncComponent(
   () => import('src/components/atoms/ModuleIcon.vue'),
 );
@@ -23,11 +23,14 @@ import {
 
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import { useResultsFiltersStore } from 'src/stores/resultsFilters';
+import { storeToRefs } from 'pinia';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
+import ResultsFilterPill from 'src/components/layout/ResultsFilterPill.vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const yearConfigStore = useYearConfigStore();
@@ -138,21 +141,17 @@ function formatPercentChange(value: number | null | undefined): string {
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
-const colorblindStore = useColorblindStore();
+const resultsFiltersStore = useResultsFiltersStore();
+const { hideResearchFacilities, hideAdditionalData } =
+  storeToRefs(resultsFiltersStore);
 const router = useRouter();
 const route = useRoute();
-const colorblindMode = computed({
-  get: () => colorblindStore.enabled,
-  set: (v: boolean) => colorblindStore.setEnabled(v),
-});
 const currentYear = computed(() => {
   return workspaceStore.selectedYear ?? new Date().getFullYear();
 });
 
 const resultsSummary = ref<ResultsSummary | null>(null);
 const resultsSummaryLoading = ref(true);
-
-const hideResearchFacilities = ref(false);
 
 const mountPrimaryCharts = ref(false);
 const mountBelowFold = ref(false);
@@ -271,8 +270,9 @@ function getTotalModuleCarbonFootprintTitle(module: Module): string {
   return t('results_total_module_carbon_footprint', { module: t(module) });
 }
 
+onUnmounted(() => resultsFiltersStore.reset());
+
 const viewUncertainties = ref(false);
-const hideAdditionalData = ref(false);
 const viewAdditionalData = computed(() => !hideAdditionalData.value);
 const compareYears = ref(false);
 
@@ -379,6 +379,7 @@ const getUncertainty = (
 
 <template>
   <q-page>
+    <ResultsFilterPill />
     <Co2Timeline />
     <q-separator />
     <div class="page-grid">
@@ -405,35 +406,6 @@ const getUncertainty = (
               @click="downloadPDF"
             />
             <div class="flex column">
-              <q-checkbox
-                v-model="colorblindMode"
-                :label="$t('results_colorblind_mode')"
-                color="accent"
-                class="text-weight-medium"
-                size="xs"
-              />
-              <q-checkbox
-                v-model="viewUncertainties"
-                :label="$t('results_view_uncertainties')"
-                color="accent"
-                class="text-weight-medium"
-                size="xs"
-              />
-              <q-checkbox
-                v-model="hideResearchFacilities"
-                :label="$t('results_hide_research_facilities')"
-                color="accent"
-                class="text-weight-medium"
-                size="xs"
-              />
-              <q-checkbox
-                v-model="hideAdditionalData"
-                :label="$t('results_hide_additional_data')"
-                color="accent"
-                class="text-weight-medium"
-                size="xs"
-              />
-              <q-separator class="q-my-sm" />
               <q-checkbox
                 v-model="compareYears"
                 :label="$t('results_compare_years')"
@@ -663,6 +635,14 @@ const getUncertainty = (
                 })
               }}</span>
             </div>
+            <q-toggle
+              v-model="viewUncertainties"
+              :label="$t('results_view_uncertainties')"
+              color="accent"
+              keep-color
+              size="lg"
+              class="text-weight-medium"
+            />
           </div>
         </q-card>
         <!-- Module Collapse Items -->

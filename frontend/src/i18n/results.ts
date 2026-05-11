@@ -1107,6 +1107,14 @@ export default {
     en: 'IT research facilities',
     fr: 'Infrastructures de recherche IT',
   },
+  results_filter_pill_research_facilities_tooltip: {
+    en: 'These emissions are calculated based on research facilities data.',
+    fr: 'Ces émissions sont calculées à partir des données propres aux infrastructure de recherche.',
+  },
+  results_filter_pill_additional_data_tooltip: {
+    en: "These emissions are calculated based on EPFL's general assumptions.",
+    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
+  },
   'it-title': {
     en: 'IT focus',
     fr: 'Focus numérique',
