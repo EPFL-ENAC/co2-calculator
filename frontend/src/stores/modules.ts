@@ -636,6 +636,8 @@ export const useModuleStore = defineStore('modules', () => {
           destination_iata: normalized.origin_iata,
           origin_name: normalized.destination_name,
           destination_name: normalized.origin_name,
+          origin_country_code: normalized.destination_country_code,
+          destination_country_code: normalized.origin_country_code,
         };
         try {
           await api.post(path, { json: returnBody }).json();

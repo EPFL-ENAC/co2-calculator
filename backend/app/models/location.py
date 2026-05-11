@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
 # ==========================================
@@ -96,6 +97,26 @@ class Location(LocationBase, table=True):
     """
 
     __tablename__ = "locations"
+    __table_args__ = (
+        # Partial unique indexes replace the old nullable UNIQUE constraint.
+        # Postgres UNIQUE constraints allow multiple NULLs, so uniqueness on
+        # (name, transport_mode, country_code) was not enforced for NULL rows.
+        Index(
+            "uix_location_name_mode_country_notnull",
+            "name",
+            "transport_mode",
+            "country_code",
+            unique=True,
+            postgresql_where="country_code IS NOT NULL",
+        ),
+        Index(
+            "uix_location_name_mode_null_country",
+            "name",
+            "transport_mode",
+            unique=True,
+            postgresql_where="country_code IS NULL",
+        ),
+    )
 
     # ID: Integer, Primary Key, Auto-Increment
     id: Optional[int] = Field(default=None, primary_key=True)

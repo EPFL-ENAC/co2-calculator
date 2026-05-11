@@ -69,17 +69,27 @@ class LocationService:
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
-    async def get_location_by_name(self, name: str) -> Optional[Location]:
+    async def get_location_by_name(
+        self,
+        name: str,
+        transport_mode: TransportModeEnum,
+        country_code: Optional[str] = None,
+    ) -> Optional[Location]:
         """
-        Get location by name.
+        Get location by name and transport_mode, optionally filtered by country_code.
 
         Args:
             name: Location name
+            transport_mode: Transport mode — required to avoid cross-mode ambiguity
+                since uniqueness is defined on (name, transport_mode, country_code).
+            country_code: Optional ISO country code to disambiguate duplicate names
 
         Returns:
             Location if found, None otherwise
         """
-        return await self.repo.get_by_name(name)
+        return await self.repo.get_by_name(
+            name, transport_mode, country_code=country_code
+        )
 
     async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
         """

@@ -73,6 +73,7 @@
               </template>
               <template v-else-if="inp.type === 'date'">
                 <q-input
+                  :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
                   mask="####/##/##"
@@ -505,6 +506,8 @@ function isValidCalendarDate(val: string): boolean {
   );
 }
 
+const dateInputKey = ref(0);
+
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
@@ -656,6 +659,8 @@ function init() {
               form.destination_iata = undefined;
               form.origin_name = undefined;
               form.destination_name = undefined;
+              form.origin_country_code = undefined;
+              form.destination_country_code = undefined;
             }
             break;
           default:
@@ -990,6 +995,7 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  dateInputKey.value++;
 }
 
 function getGridClass(ratio?: string): string {
@@ -1019,6 +1025,7 @@ async function handleFromLocationSelected(location: {
     form.origin_iata = location.iata_code ?? location.name;
   } else {
     form.origin_name = location.name;
+    form.origin_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1053,6 +1060,7 @@ async function handleToLocationSelected(location: {
     form.destination_iata = location.iata_code ?? location.name;
   } else {
     form.destination_name = location.name;
+    form.destination_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1090,6 +1098,10 @@ async function handleSwapLocations() {
     [form.origin_name, form.destination_name] = [
       form.destination_name,
       form.origin_name,
+    ];
+    [form.origin_country_code, form.destination_country_code] = [
+      form.destination_country_code,
+      form.origin_country_code,
     ];
   }
 

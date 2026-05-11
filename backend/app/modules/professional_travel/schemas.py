@@ -12,6 +12,7 @@ from app.models.data_entry_emission import (
     EmissionType,
     FactorQuery,
 )
+from app.models.location import TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -148,6 +149,8 @@ class ProfessionalTravelTrainHandlerCreate(
     user_institutional_id: str
     origin_name: str
     destination_name: str
+    origin_country_code: Optional[str] = None
+    destination_country_code: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
@@ -177,6 +180,8 @@ class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     # traveler_id: Optional[int] = None
     origin_name: Optional[str] = None
     destination_name: Optional[str] = None
+    origin_country_code: Optional[str] = None
+    destination_country_code: Optional[str] = None
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
@@ -302,13 +307,23 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         """Compute train distance and determine relevant country code."""
         origin_name = data_entry.data.get("origin_name")
         destination_name = data_entry.data.get("destination_name")
+        origin_country_code = data_entry.data.get("origin_country_code")
+        destination_country_code = data_entry.data.get("destination_country_code")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_name is None or destination_name is None:
             return {}
 
         loc_service = LocationService(session)
-        origin = await loc_service.get_location_by_name(origin_name)
-        dest = await loc_service.get_location_by_name(destination_name)
+        origin = await loc_service.get_location_by_name(
+            origin_name,
+            TransportModeEnum.train,
+            country_code=origin_country_code,
+        )
+        dest = await loc_service.get_location_by_name(
+            destination_name,
+            TransportModeEnum.train,
+            country_code=destination_country_code,
+        )
         if origin is None or dest is None:
             return {}
         distance_one_trip_km = calculate_train_distance(

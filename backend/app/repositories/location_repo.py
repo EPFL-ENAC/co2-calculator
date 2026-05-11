@@ -3,6 +3,7 @@
 from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
+from sqlalchemy.exc import MultipleResultsFound
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -156,11 +157,37 @@ class LocationRepository:
         result = await self.session.get(Location, location_id)
         return result
 
-    async def get_by_name(self, name: str) -> Optional[Location]:
-        """Get location by name."""
-        statement = select(Location).where(col(Location.name) == name)
+    async def get_by_name(
+        self,
+        name: str,
+        transport_mode: TransportModeEnum,
+        country_code: Optional[str] = None,
+    ) -> Optional[Location]:
+        """Get location by name and transport_mode, optionally filtered by country_code.
+
+        transport_mode is required because uniqueness is defined on
+        (name, transport_mode, country_code); omitting it risks a
+        MultipleResultsFound when the same name exists across modes.
+        """
+        statement = (
+            select(Location)
+            .where(col(Location.name) == name)
+            .where(col(Location.transport_mode) == transport_mode)
+        )
+        if country_code is not None:
+            statement = statement.where(col(Location.country_code) == country_code)
         result = await self.session.execute(statement)
-        return result.scalar_one_or_none()
+        try:
+            return result.scalar_one_or_none()
+        except MultipleResultsFound:
+            logger.warning(
+                "Ambiguous location lookup: name=%r transport_mode=%r country_code=%r "
+                "— multiple rows matched, returning None.",
+                name,
+                transport_mode,
+                country_code,
+            )
+            return None
 
     async def get_by_iata(self, iata_code: str) -> Optional[Location]:
         """Get location by IATA code."""
