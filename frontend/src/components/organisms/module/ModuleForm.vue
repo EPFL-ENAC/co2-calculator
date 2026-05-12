@@ -659,6 +659,8 @@ function init() {
               form.destination_iata = undefined;
               form.origin_name = undefined;
               form.destination_name = undefined;
+              form.origin_natural_key = undefined;
+              form.destination_natural_key = undefined;
               form.origin_country_code = undefined;
               form.destination_country_code = undefined;
             }
@@ -985,6 +987,8 @@ function reset() {
       form.destination_iata = undefined;
       form.origin_name = undefined;
       form.destination_name = undefined;
+      form.origin_natural_key = undefined;
+      form.destination_natural_key = undefined;
     } else {
       // Use null for select/headcount-member-select, empty string for text
       form[i.id] =
@@ -1014,6 +1018,7 @@ async function handleFromLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -1025,6 +1030,7 @@ async function handleFromLocationSelected(location: {
     form.origin_iata = location.iata_code ?? location.name;
   } else {
     form.origin_name = location.name;
+    form.origin_natural_key = location.natural_key ?? undefined;
     form.origin_country_code = location.country_code ?? undefined;
   }
 
@@ -1050,6 +1056,7 @@ async function handleToLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -1060,6 +1067,7 @@ async function handleToLocationSelected(location: {
     form.destination_iata = location.iata_code ?? location.name;
   } else {
     form.destination_name = location.name;
+    form.destination_natural_key = location.natural_key ?? undefined;
     form.destination_country_code = location.country_code ?? undefined;
   }
 
@@ -1098,6 +1106,10 @@ async function handleSwapLocations() {
     [form.origin_name, form.destination_name] = [
       form.destination_name,
       form.origin_name,
+    ];
+    [form.origin_natural_key, form.destination_natural_key] = [
+      form.destination_natural_key,
+      form.origin_natural_key,
     ];
     [form.origin_country_code, form.destination_country_code] = [
       form.destination_country_code,

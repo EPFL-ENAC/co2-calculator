@@ -98,28 +98,21 @@ class Location(LocationBase, table=True):
 
     __tablename__ = "locations"
     __table_args__ = (
-        # Partial unique indexes replace the old nullable UNIQUE constraint.
-        # Postgres UNIQUE constraints allow multiple NULLs, so uniqueness on
-        # (name, transport_mode, country_code) was not enforced for NULL rows.
         Index(
-            "uix_location_name_mode_country_notnull",
-            "name",
-            "transport_mode",
-            "country_code",
+            "uq_location_natural_key",
+            "natural_key",
             unique=True,
-            postgresql_where="country_code IS NOT NULL",
-        ),
-        Index(
-            "uix_location_name_mode_null_country",
-            "name",
-            "transport_mode",
-            unique=True,
-            postgresql_where="country_code IS NULL",
         ),
     )
 
     # ID: Integer, Primary Key, Auto-Increment
     id: Optional[int] = Field(default=None, primary_key=True)
+
+    natural_key: str = Field(
+        max_length=500,
+        nullable=False,
+        description="Stable deduplication key computed at ingestion (never in CSV)",
+    )
 
     def __repr__(self) -> str:
         return (
@@ -143,3 +136,4 @@ class LocationRead(LocationBase):
     """
 
     id: int
+    natural_key: str

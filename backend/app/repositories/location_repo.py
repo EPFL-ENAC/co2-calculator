@@ -189,6 +189,12 @@ class LocationRepository:
             )
             return None
 
+    async def get_by_natural_key(self, natural_key: str) -> Optional[Location]:
+        """Get location by natural_key (unique index — always unambiguous)."""
+        statement = select(Location).where(col(Location.natural_key) == natural_key)
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()
+
     async def get_by_iata(self, iata_code: str) -> Optional[Location]:
         """Get location by IATA code."""
         statement = select(Location).where(col(Location.iata_code) == iata_code)

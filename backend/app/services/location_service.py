@@ -91,6 +91,21 @@ class LocationService:
             name, transport_mode, country_code=country_code
         )
 
+    async def get_location_by_natural_key(self, natural_key: str) -> Optional[Location]:
+        """
+        Get location by natural_key.
+
+        natural_key is unique per location, so this lookup is always unambiguous.
+
+        Args:
+            natural_key: Stable deduplication key
+                (e.g. 'train:ch:zurich hb:47.378:8.540')
+
+        Returns:
+            Location if found, None otherwise
+        """
+        return await self.repo.get_by_natural_key(natural_key)
+
     async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
         """
         Get location by IATA code.
