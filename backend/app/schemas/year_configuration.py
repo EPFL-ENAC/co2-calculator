@@ -402,10 +402,6 @@ class YearConfigurationBase(BaseModel):
         default=False,
         description="If true, data entry is open for users for this year",
     )
-    is_reports_synced: bool = Field(
-        default=False,
-        description="If true, carbon_reports have been initialized for this year",
-    )
     config: Optional[Dict[str, Any]] = Field(
         default=None,
         description="Deep configuration (thresholds, tags, goals) as JSON",
@@ -422,7 +418,6 @@ class YearConfigurationUpdate(BaseModel):
     """Schema for partial update of year configuration."""
 
     is_started: Optional[bool] = None
-    is_reports_synced: Optional[bool] = None
     config: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
@@ -478,7 +473,6 @@ class YearConfigurationResponse(BaseModel):
 
     year: int
     is_started: bool
-    is_reports_synced: bool
     config: Dict[str, Any]
     recalculation_status: List[ModuleRecalculationStatusEntry] = Field(
         default_factory=list,
@@ -486,6 +480,34 @@ class YearConfigurationResponse(BaseModel):
             "Per-module recalculation status for this year (read-only, injected by API)"
         ),
     )
+    updated_at: datetime
+    # Issue #867 — populated by ``POST /year-configuration/{year}`` when the
+    # endpoint auto-enqueues the unit_sync pipeline alongside the row create.
+    # GET responses leave it ``None`` (the active pipeline_id for a running
+    # job lives in ``GET /sync/active-pipelines`` — this field is the
+    # one-shot id returned at creation time so the page can subscribe
+    # without a follow-up call).
+    pipeline_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "UUID of the unit_sync pipeline kicked off by the create endpoint "
+            "(populated only on POST; None elsewhere)."
+        ),
+    )
+
+    class Config:
+        from_attributes = True
+
+
+class YearConfigurationListItem(BaseModel):
+    """Lightweight year row for list endpoints (workspace year selector).
+
+    Excludes the heavy ``config`` JSON and per-job enrichment of the single-year
+    response — callers that need that detail use ``GET /{year}`` instead.
+    """
+
+    year: int
+    is_started: bool
     updated_at: datetime
 
     class Config:

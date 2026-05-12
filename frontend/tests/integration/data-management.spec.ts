@@ -8,10 +8,15 @@
  * ``DataManagementPage.vue`` + ``ModuleConfig.vue``.  Test 3 (sync units
  * refetch) is parked with ``test.fixme`` — the missing-refetch bug is
  * tracked in issue #1080.
+ *
+ * Issue #867 / U5 — additional `Data management — open year for users`
+ * describe block at the bottom of this file covers the is_started chip
+ * + button flow.  Reuses the same `@playwright/test` import.
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import {
   DATA_MANAGEMENT_URL,
+  TEST_PIPELINE_ID,
   buildYearConfig,
   installInitScripts,
   mockBackend,
@@ -69,6 +74,13 @@ test.describe('back-office data-management — happy paths', () => {
     });
     await expect(createBtn).toBeVisible();
 
+    // Issue #867 — the 404 from year-configuration GET is an expected
+    // empty-state, not a user-facing error. The store opts out via
+    // ``skipErrorCodes: [404]`` so no error toast should appear on landing.
+    // (``bg-negative`` is the Quasar utility class applied by
+    // ``Notify.create({ color: 'negative' })``.)
+    await expect(page.locator('.q-notification.bg-negative')).toHaveCount(0);
+
     await createBtn.click();
 
     // POST must hit the singular-form endpoint.
@@ -124,17 +136,129 @@ test.describe('back-office data-management — happy paths', () => {
       .toBeGreaterThan(0);
   });
 
-  test.fixme('3 — sync units from accred refetches after job completion (#1080)', async () => {
-    // FIXME — tracked in https://github.com/EPFL-ENAC/co2-calculator/issues/1080
+  test('3 — create year auto-triggers unit_sync pipeline and refetches on FINISHED (#867)', async ({
+    page,
+  }) => {
+    // Issue #867 — the standalone "Sync units from Accred" button is
+    // gone; year creation now mints a ``pipeline_id`` on the create
+    // response and the page subscribes to its SSE stream.  Verify the
+    // full chain end-to-end:
     //
-    // The current handler in ``DataManagementPage.handleUnitSync``
-    // fires ``POST /sync/units`` then schedules a hard-coded
-    // ``setTimeout(5000)`` success notify — there is no SSE
-    // subscription, no refetch.  Once the side-note-2 fix lands
-    // (subscribe to the returned job_id, refetch year-config on
-    // FINISHED), drop this ``test.fixme`` and verify:
-    //   - POST sync/units fires with target_year=2024
-    //   - SSE pipeline-update FINISHED triggers GET year-configuration/2024
+    //   1. POST /year-configuration/2024 fires once.
+    //   2. The page opens an EventSource against the pipeline_id.
+    //   3. Module config is gated (``inert``) while the pipeline is
+    //      in flight.
+    //   4. A fake ``pipeline-update`` with every job FINISHED un-gates
+    //      the page, surfaces the success toast, and triggers a
+    //      year-configuration GET.
+    const { requests } = await mockBackend(page, {
+      onGetYearConfig: notFoundThen200(),
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const createBtn = page.getByRole('button', { name: /create year/i });
+    await expect(createBtn).toBeVisible();
+    await createBtn.click();
+
+    // (1) POST fires exactly once and returns ``pipeline_id``.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+          ).length,
+      )
+      .toBe(1);
+
+    // (2) Page issues the one-shot snapshot read against
+    // ``GET /sync/pipelines/{id}`` (seed) before opening the SSE.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              r.url.endsWith(`/api/v1/sync/pipelines/${TEST_PIPELINE_ID}`),
+          ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+
+    // (2') The EventSource constructor in ``installInitScripts``
+    // registers itself on ``window.__sse``.  Verify the page opened
+    // the stream for our pipeline_id.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (id) =>
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (window as any).__sse?.sources.has(id) === true,
+          TEST_PIPELINE_ID,
+        ),
+      )
+      .toBe(true);
+
+    // (3) Modules section should be ``inert`` while in flight.
+    await expect(
+      page.locator('div[inert].relative-position').first(),
+    ).toBeVisible();
+
+    // Track the GET count BEFORE we emit the FINISHED event so we
+    // can assert it grows on completion (not just the count from
+    // the create-then-watch flow).
+    const getsBefore = requests.filter(
+      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+    ).length;
+
+    // (4) Drive the FINISHED event.  Single job, FINISHED+SUCCESS;
+    // ``stream_closed: true`` for symmetry with the backend's
+    // terminal payload.
+    await page.evaluate(
+      ({ id }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__sse.emit(id, {
+          pipeline_id: id,
+          jobs: [
+            {
+              id: 1,
+              job_type: 'unit_sync',
+              state: 'FINISHED',
+              result: 'SUCCESS',
+              status_message: 'ok',
+              started_at: '2024-01-01T00:00:00Z',
+              finished_at: '2024-01-01T00:01:00Z',
+            },
+          ],
+          stream_closed: true,
+        });
+      },
+      { id: TEST_PIPELINE_ID },
+    );
+
+    // (4a) Page un-gates: the ``inert`` wrapper either flips off or
+    // is removed.  Use ``not.toHaveAttribute`` to tolerate either.
+    await expect(async () => {
+      const wrapper = page.locator('div.relative-position').first();
+      const inertAttr = await wrapper.getAttribute('inert');
+      // Vue serializes ``:inert="false"`` by removing the attribute.
+      expect(inertAttr).toBeNull();
+    }).toPass({ timeout: 5000 });
+
+    // (4b) Year-configuration GET fires again to pick up the rows
+    // the unit_sync handler upserted.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+          ).length,
+      )
+      .toBeGreaterThan(getsBefore);
+
+    // (4c) Success toast surfaces.
+    await expect(page.locator('.q-notification').first()).toBeVisible();
   });
 
   test('4 — CSV data upload: POST temp-upload + sync/dispatch with target_type=DATA_ENTRIES', async ({
@@ -292,6 +416,55 @@ test.describe('back-office data-management — happy paths', () => {
     // Storybook / component-test coverage for the SubmoduleItem
     // emit chain — see Plan 310 Unit 11.
   });
+
+  test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
+    page,
+  }) => {
+    // The page's empty steady-state response (``[]``) is enough — we
+    // are asserting the REQUEST is fired, not the badge UI (the per-
+    // pipeline UI lives further down the chain in
+    // ``PipelineDiagnosticTooltip`` and is covered by its own spec).
+    const { requests } = await mockBackend(page);
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Wait for the page to finish first-render before asserting
+    // request counts — the ``immediate: true`` watcher fires during
+    // the synchronous setup, but the ``api.get(...).json()`` await
+    // resolves a tick later.
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    // Initial year (2024 — URL query param) must trigger one
+    // year-level fetch.  Without this fetch the SSE watcher has no
+    // way to discover an in-flight unit-sync after a hard reload.
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
+          ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+
+    // Change year → second fetch for the new year.  Mirrors the
+    // year-config fetch pattern (test 1) but for the year-level
+    // pipeline channel.
+    await page.locator('.q-select').first().click();
+    await page.getByRole('option', { name: '2025' }).click();
+
+    await expect
+      .poll(
+        () =>
+          requests.filter(
+            (r) =>
+              r.method === 'GET' &&
+              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
+          ).length,
+      )
+      .toBeGreaterThanOrEqual(1);
+  });
 });
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -385,3 +558,178 @@ async function expandHeadcountAndMember(page: Page): Promise<void> {
   await expect(memberExpand).toBeVisible({ timeout: 10000 });
   await memberExpand.click();
 }
+/**
+ * E2E coverage for the back-office "Open year for users" flow (issue #867).
+ *
+ * Uses the shared `installInitScripts` + `mockBackend` helpers so the
+ * page renders past the auth/permission guards (Lighthouse bypass) and
+ * has stubs for every endpoint the page hits on mount (auth/me,
+ * active-pipelines, active-pipelines/year, year-configuration, ...).
+ *
+ * The button is disabled when `anyModuleIncomplete || is_started` —
+ * `anyModuleIncomplete` iterates `MODULES_LIST` (8 modules) and checks
+ * `isReductionObjectiveIncomplete`.  To reach the "enabled" branch we
+ * mark every module disabled (so `isModuleIncomplete` short-circuits)
+ * and supply a complete `reduction_objectives` (one goal + all 3 files).
+ */
+
+/** Minimal "ready to open" year config: every gate in
+ *  `anyModuleIncomplete` returns false, leaving only `is_started` to
+ *  drive the button's disabled state. */
+function readyToOpenYearConfig(year: number, isStarted: boolean) {
+  const disabledModule = {
+    enabled: false,
+    uncertainty_tag: 'medium',
+    submodules: {},
+  };
+  const fileMeta = {
+    path: '/uploads/x.csv',
+    filename: 'x.csv',
+    uploaded_at: '2024-01-01T00:00:00Z',
+  };
+  return {
+    year,
+    is_started: isStarted,
+    config: {
+      modules: {
+        '1': disabledModule,
+        '2': disabledModule,
+        '3': disabledModule,
+        '4': disabledModule,
+        '5': disabledModule,
+        '6': disabledModule,
+        '7': disabledModule,
+        '8': disabledModule,
+      },
+      reduction_objectives: {
+        files: {
+          institutional_footprint: fileMeta,
+          population_projections: fileMeta,
+          unit_scenarios: fileMeta,
+        },
+        goals: [
+          { target_year: 2030, reduction_percentage: 50, reference_year: 2024 },
+        ],
+        institutional_footprint: [],
+        population_projections: [],
+        unit_scenarios: [],
+      },
+    },
+    recalculation_status: [],
+    updated_at: '2024-01-01T00:00:00Z',
+  };
+}
+
+test.describe('Data management — open year for users', () => {
+  test.beforeEach(async ({ context }) => {
+    await installInitScripts(context);
+  });
+
+  test('button is enabled and shows success toast when year is not yet open', async ({
+    page,
+  }) => {
+    let patchBody: unknown = null;
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(readyToOpenYearConfig(year, false)),
+        });
+      },
+      onUpdateYear: async (route, year) => {
+        patchBody = route.request().postDataJSON();
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(readyToOpenYearConfig(year, true)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const chip = page.getByTestId('year-open-status-chip');
+    await expect(chip).toContainText(/Not yet open|Pas encore ouverte/);
+
+    const btn = page.getByTestId('open-year-for-users-btn');
+    await expect(btn).toBeEnabled();
+    await btn.click();
+
+    await expect(chip).toContainText(/Open to users|Ouverte aux utilisateurs/);
+    expect(patchBody).toEqual({ is_started: true });
+  });
+
+  test('button is disabled with tooltip when year is already open', async ({
+    page,
+  }) => {
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(readyToOpenYearConfig(year, true)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    const chip = page.getByTestId('year-open-status-chip');
+    await expect(chip).toContainText(/Open to users|Ouverte aux utilisateurs/);
+
+    const btn = page.getByTestId('open-year-for-users-btn');
+    await expect(btn).toBeDisabled();
+  });
+
+  // Visibility-gate regressions — the button must not exist in the
+  // DOM (a) before the year-configuration row is created, or (b)
+  // while the unit_sync pipeline is still running.  Spec: "MUST
+  // exist only once the year-configuration pipeline is fully
+  // completed."
+  test('button is hidden on empty-state (no year-configuration row)', async ({
+    page,
+  }) => {
+    await mockBackend(page, {
+      onGetYearConfig: async (route) => {
+        await route.fulfill({
+          status: 404,
+          contentType: 'application/json',
+          body: JSON.stringify({ detail: 'not found' }),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Empty-state card renders.
+    await expect(
+      page.getByRole('button', { name: /create year/i }),
+    ).toBeVisible();
+
+    // The "Open year for users" button must not exist in the DOM.
+    await expect(page.getByTestId('open-year-for-users-btn')).toHaveCount(0);
+  });
+
+  test('button is hidden while the unit_sync pipeline is in flight', async ({
+    page,
+  }) => {
+    await mockBackend(page, {
+      onGetYearConfig: notFoundThen200(),
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    await page.getByRole('button', { name: /create year/i }).click();
+
+    // Wait for the page to enter in-flight state (modules wrapper
+    // picks up the ``inert`` attribute set by yearSyncInFlight).
+    await expect(
+      page.locator('div[inert].relative-position').first(),
+    ).toBeVisible();
+
+    // Mid-pipeline: button must not exist.
+    await expect(page.getByTestId('open-year-for-users-btn')).toHaveCount(0);
+  });
+});

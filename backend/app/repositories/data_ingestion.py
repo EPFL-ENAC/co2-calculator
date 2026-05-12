@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_ingestion import (
     DataIngestionJob,
+    EntityType,
     IngestionMethod,
     IngestionResult,
     IngestionState,
@@ -445,6 +446,62 @@ class DataIngestionRepository:
                 continue
             picked.setdefault(module_id, pipeline_id)
         return picked
+
+    async def get_active_year_level_pipeline_ids(self, year: int) -> list[UUID]:
+        """Return active ``GLOBAL_PER_YEAR`` pipeline_ids for the given year.
+
+        Plan 310-D / Issue #867 — sibling of ``get_current_pipeline_ids_for_modules``
+        for **year-level** pipelines (e.g. the unit-sync chain minted by
+        the back-office "create year" flow).  These are not module-scoped
+        so the existing module-keyed helper can't see them; the SSE
+        watcher on ``DataManagementPage.vue`` reload-rehydrate path needs
+        to enumerate them on its own.
+
+        "Active" mirrors the module-scoped sibling: any non-terminal
+        state (``NOT_STARTED`` / ``QUEUED`` / ``RUNNING``).  The
+        ``pipeline_id IS NOT NULL`` guard is what keeps the result
+        empty when the pipeline-stamping side of the unit-sync flow
+        hasn't shipped yet — legacy unit_sync jobs stay invisible
+        (no SSE stream to attach to anyway), and the watcher idles.
+
+        We dedupe in Python rather than ``DISTINCT`` server-side so
+        the SQLite-backed unit-test fixture works the same as PG (the
+        pattern used by the module sibling) and the result is ordered
+        most-recent-first by job id for deterministic test output.
+        """
+        stmt = (
+            select(DataIngestionJob.pipeline_id, DataIngestionJob.id)
+            .where(
+                col(DataIngestionJob.entity_type) == EntityType.GLOBAL_PER_YEAR,
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+        )
+        exec_result = await self.session.execute(stmt)
+
+        # Multiple jobs can share one pipeline_id (parent + fan-out
+        # children — same pattern as module pipelines).  Dedupe while
+        # preserving the id-DESC traversal order so the first
+        # occurrence (most recent job) wins.
+        seen: set[UUID] = set()
+        ordered: list[UUID] = []
+        for row in exec_result.all():
+            pipeline_id, _job_id = row
+            if pipeline_id is None:
+                continue
+            if pipeline_id in seen:
+                continue
+            seen.add(pipeline_id)
+            ordered.append(pipeline_id)
+        return ordered
 
     # ---- Plan 310A: atomic claim, recovery, poller helpers ----
 

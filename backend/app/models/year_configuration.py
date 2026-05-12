@@ -13,10 +13,6 @@ class YearConfigurationBase(SQLModel):
         default=False,
         description="If true, data entry is open for users for this year",
     )
-    is_reports_synced: bool = Field(
-        default=False,
-        description="If true, carbon_reports have been initialized for this year",
-    )
     config: dict = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False, server_default="{}"),
@@ -28,7 +24,7 @@ class YearConfiguration(YearConfigurationBase, table=True):
     """Year configuration table for annual administrative settings.
 
     This table centralizes:
-    - Annual administrative settings (is_started, is_reports_synced)
+    - Annual administrative settings (is_started)
     - Emission thresholds per module/submodule
     - Uncertainty levels
     - Institutional reduction goals

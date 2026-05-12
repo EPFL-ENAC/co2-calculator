@@ -18,6 +18,14 @@ import type { BrowserContext, Page, Route } from '@playwright/test';
 /** Default backoffice landing URL with explicit year. */
 export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2024';
 
+/**
+ * Issue #867 — fixed pipeline_id returned by the create-year mock so
+ * specs can reference it when emitting fake SSE events via
+ * ``window.__sse.emit(...)``.  Any UUID-shaped string works; this one
+ * is recognizable in test failures.
+ */
+export const TEST_PIPELINE_ID = '00000000-0000-4000-8000-000000000867';
+
 /** Wire shape of the year-configuration response. */
 export interface YearConfigBuilderOptions {
   year: number;
@@ -101,7 +109,6 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
   return {
     year: options.year,
     is_started: false,
-    is_reports_synced: false,
     config: {
       modules: options.modulesOverride ?? { '1': baseHeadcount },
       reduction_objectives: {
@@ -148,6 +155,16 @@ export async function installInitScripts(
       // Some pages run before ``localStorage`` is reachable; ignore.
     }
 
+    // Issue #867 / Plan 310 — registry of live FakeEventSource
+    // instances, keyed by the pipeline_id segment of the URL.  Tests
+    // can drive ``pipeline-update`` events deterministically via
+    // ``window.__sse.emit(pipelineId, payload)`` instead of waiting on
+    // a real SSE socket.
+    interface FakeSseRegistry {
+      sources: Map<string, FakeEventSource>;
+      emit: (pipelineId: string, payload: unknown) => void;
+    }
+
     class FakeEventSource extends EventTarget {
       url: string;
       readyState = 1;
@@ -161,13 +178,43 @@ export async function installInitScripts(
       constructor(url: string) {
         super();
         this.url = url;
+        // ``/api/v1/sync/pipelines/{id}/stream`` → extract id segment.
+        const match = url.match(/\/sync\/pipelines\/([^/]+)\/stream/);
+        if (match) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const reg = (window as any).__sse as FakeSseRegistry | undefined;
+          if (reg) reg.sources.set(match[1]!, this);
+        }
       }
 
       close() {
         this.readyState = 2;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const reg = (window as any).__sse as FakeSseRegistry | undefined;
+        if (reg) {
+          // ``forEach`` instead of ``for...of`` so the file compiles
+          // under tsconfig ``target=es5`` without ``downlevelIteration``.
+          reg.sources.forEach((source, id) => {
+            if (source === this) reg.sources.delete(id);
+          });
+        }
       }
     }
 
+    const registry: FakeSseRegistry = {
+      sources: new Map(),
+      emit(pipelineId, payload) {
+        const source = this.sources.get(pipelineId);
+        if (!source) return;
+        const evt = new MessageEvent('pipeline-update', {
+          data: JSON.stringify(payload),
+        });
+        source.dispatchEvent(evt);
+      },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__sse = registry;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (window as any).EventSource = FakeEventSource;
   });
@@ -187,6 +234,15 @@ export interface RouteOverrides {
     route: Route,
     moduleIds: number[],
   ) => Promise<void> | void;
+  /**
+   * Override active-pipelines/year/{year} response (Issue #867 —
+   * year-level pipelines).  Default returns ``[]`` (no live year-level
+   * chain) which matches the steady state.
+   */
+  onYearLevelActivePipelines?: (
+    route: Route,
+    year: number,
+  ) => Promise<void> | void;
   /** Override sync/units POST. */
   onSyncUnits?: (route: Route) => Promise<void> | void;
   /** Override files/temp-upload POST. */
@@ -199,6 +255,8 @@ export interface RouteOverrides {
   onSyncFactors?: (route: Route) => Promise<void> | void;
   /** Override year-configuration POST (create year). */
   onCreateYear?: (route: Route) => Promise<void> | void;
+  /** Override year-configuration PATCH (e.g., flip is_started). */
+  onUpdateYear?: (route: Route, year: number) => Promise<void> | void;
 }
 
 /**
@@ -253,14 +311,27 @@ export async function mockBackend(
         await overrides.onCreateYear(route);
         return;
       }
+      // Issue #867 — the real backend returns a fresh ``pipeline_id``
+      // on create so the page can subscribe to the unit_sync SSE
+      // stream immediately.  Mirror that here so tests exercising the
+      // post-create flow see the same shape; tests that don't care
+      // can ignore the field.
+      const body = {
+        ...buildYearConfig({ year }),
+        pipeline_id: TEST_PIPELINE_ID,
+      };
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(buildYearConfig({ year })),
+        body: JSON.stringify(body),
       });
       return;
     }
     if (method === 'PATCH') {
+      if (overrides.onUpdateYear) {
+        await overrides.onUpdateYear(route, year);
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -270,6 +341,27 @@ export async function mockBackend(
     }
     await route.fallback();
   });
+
+  // active-pipelines/year/{year} — empty list by default (no live
+  // year-level pipeline).  Issue #867 reload-rehydrate path.
+  // Registered BEFORE the module-scoped catch-all so this more
+  // specific URL pattern wins for ``…/active-pipelines/year/2025``.
+  await page.route(
+    /.*\/api\/v1\/sync\/active-pipelines\/year\/(\d+)$/,
+    async (route) => {
+      const url = new URL(route.request().url());
+      const year = parseInt(url.pathname.split('/').pop() ?? '0', 10);
+      if (overrides.onYearLevelActivePipelines) {
+        await overrides.onYearLevelActivePipelines(route, year);
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: '[]',
+      });
+    },
+  );
 
   // active-pipelines — empty by default (no recalculating badge).
   await page.route('**/api/v1/sync/active-pipelines**', async (route) => {

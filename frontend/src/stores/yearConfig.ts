@@ -106,15 +106,22 @@ interface YearConfig {
 export interface YearConfigurationResponse {
   year: number;
   is_started: boolean;
-  is_reports_synced: boolean;
   config: YearConfig;
   recalculation_status: ModuleRecalculationStatusEntry[];
   updated_at: string;
+  /**
+   * Issue #867 — populated by ``POST /year-configuration/{year}`` when
+   * the endpoint auto-enqueues the ``unit_sync`` pipeline alongside the
+   * row create.  ``GET`` responses leave it ``null`` (the active
+   * pipeline_id for a running job lives in the unified
+   * ``pipelineState`` store sourced from
+   * ``GET /v1/sync/active-pipelines``).
+   */
+  pipeline_id?: string | null;
 }
 
 interface YearConfigurationCreate {
   is_started?: boolean;
-  is_reports_synced?: boolean;
   config?: Partial<YearConfig>;
 }
 
@@ -127,7 +134,6 @@ interface ModuleConfigUpdate {
 
 interface YearConfigurationUpdate {
   is_started?: boolean;
-  is_reports_synced?: boolean;
   config?: {
     modules?: Record<string, ModuleConfigUpdate>;
     reduction_objectives?: Partial<ReductionObjectives>;
@@ -149,8 +155,11 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound.value = false;
 
     try {
+      // Suppress the global 404 error toast: a missing year-configuration is
+      // expected on first visit and is rendered as a "Create year" empty-state
+      // by the caller. Non-404 errors still surface via the global handler.
       const response = (await api
-        .get(`year-configuration/${year}`)
+        .get(`year-configuration/${year}`, { skipErrorCodes: [404] })
         .json()) as YearConfigurationResponse;
       config.value = response;
       return response;
@@ -176,6 +185,10 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading.value = true;
 
     try {
+      // Issue #867 — the response now carries ``pipeline_id`` (UUID of
+      // the unit_sync pipeline auto-enqueued by the backend).  The
+      // caller subscribes to it via ``usePipelineStream``; no extra
+      // store state is needed.
       const response = (await api
         .post(`year-configuration/${year}`, {
           json: payload ?? {},
@@ -361,6 +374,16 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       return modConfig?.enabled ?? false;
     }) as Module[];
   });
+  /**
+   * Flip a year's `is_started` flag to true, making it visible to non-admin
+   * users in their workspace year selector. Thin wrapper over updateConfig
+   * so callers don't need to know the payload shape.
+   */
+  async function openForUsers(
+    year: number,
+  ): Promise<YearConfigurationResponse> {
+    return updateConfig(year, { is_started: true });
+  }
 
   // ── Completeness helpers ────────────────────────────────────────────────────
 
@@ -510,5 +533,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     fetchConfig,
     createConfig,
     updateConfig,
+    openForUsers,
   };
 });
