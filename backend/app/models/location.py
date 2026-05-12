@@ -3,6 +3,7 @@
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
 # ==========================================
@@ -96,9 +97,22 @@ class Location(LocationBase, table=True):
     """
 
     __tablename__ = "locations"
+    __table_args__ = (
+        Index(
+            "uq_location_natural_key",
+            "natural_key",
+            unique=True,
+        ),
+    )
 
     # ID: Integer, Primary Key, Auto-Increment
     id: Optional[int] = Field(default=None, primary_key=True)
+
+    natural_key: str = Field(
+        max_length=500,
+        nullable=False,
+        description="Stable deduplication key computed at ingestion (never in CSV)",
+    )
 
     def __repr__(self) -> str:
         return (
@@ -122,3 +136,4 @@ class LocationRead(LocationBase):
     """
 
     id: int
+    natural_key: str

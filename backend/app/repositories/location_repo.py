@@ -1,15 +1,15 @@
 """Location repository for database operations."""
 
+import logging
 from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import get_logger
 from app.models.location import Location, TransportModeEnum
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LocationRepository:
@@ -156,9 +156,9 @@ class LocationRepository:
         result = await self.session.get(Location, location_id)
         return result
 
-    async def get_by_name(self, name: str) -> Optional[Location]:
-        """Get location by name."""
-        statement = select(Location).where(col(Location.name) == name)
+    async def get_by_natural_key(self, natural_key: str) -> Optional[Location]:
+        """Get location by natural_key (unique index — always unambiguous)."""
+        statement = select(Location).where(col(Location.natural_key) == natural_key)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 

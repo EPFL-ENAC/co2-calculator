@@ -161,6 +161,7 @@ interface LocationSelection {
   longitude: number;
   iata_code?: string | null;
   country_code?: string | null;
+  natural_key?: string;
 }
 
 const props = withDefaults(

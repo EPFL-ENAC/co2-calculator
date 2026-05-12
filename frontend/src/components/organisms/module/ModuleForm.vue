@@ -73,6 +73,7 @@
               </template>
               <template v-else-if="inp.type === 'date'">
                 <q-input
+                  :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
                   mask="####/##/##"
@@ -505,6 +506,8 @@ function isValidCalendarDate(val: string): boolean {
   );
 }
 
+const dateInputKey = ref(0);
+
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
     if (!val || val === '') return required ? $t('validation_required') : true;
@@ -656,6 +659,8 @@ function init() {
               form.destination_iata = undefined;
               form.origin_name = undefined;
               form.destination_name = undefined;
+              form.origin_natural_key = undefined;
+              form.destination_natural_key = undefined;
             }
             break;
           default:
@@ -980,6 +985,8 @@ function reset() {
       form.destination_iata = undefined;
       form.origin_name = undefined;
       form.destination_name = undefined;
+      form.origin_natural_key = undefined;
+      form.destination_natural_key = undefined;
     } else {
       // Use null for select/headcount-member-select, empty string for text
       form[i.id] =
@@ -990,6 +997,7 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  dateInputKey.value++;
 }
 
 function getGridClass(ratio?: string): string {
@@ -1008,6 +1016,7 @@ async function handleFromLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -1019,6 +1028,7 @@ async function handleFromLocationSelected(location: {
     form.origin_iata = location.iata_code ?? location.name;
   } else {
     form.origin_name = location.name;
+    form.origin_natural_key = location.natural_key ?? undefined;
   }
 
   if (
@@ -1043,6 +1053,7 @@ async function handleToLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -1053,6 +1064,7 @@ async function handleToLocationSelected(location: {
     form.destination_iata = location.iata_code ?? location.name;
   } else {
     form.destination_name = location.name;
+    form.destination_natural_key = location.natural_key ?? undefined;
   }
 
   if (
@@ -1090,6 +1102,10 @@ async function handleSwapLocations() {
     [form.origin_name, form.destination_name] = [
       form.destination_name,
       form.origin_name,
+    ];
+    [form.origin_natural_key, form.destination_natural_key] = [
+      form.destination_natural_key,
+      form.origin_natural_key,
     ];
   }
 

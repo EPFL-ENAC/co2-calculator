@@ -69,17 +69,20 @@ class LocationService:
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
-    async def get_location_by_name(self, name: str) -> Optional[Location]:
+    async def get_location_by_natural_key(self, natural_key: str) -> Optional[Location]:
         """
-        Get location by name.
+        Get location by natural_key.
+
+        natural_key is unique per location, so this lookup is always unambiguous.
 
         Args:
-            name: Location name
+            natural_key: Stable deduplication key
+                (e.g. 'train:ch:zurich hb:47.378:8.540')
 
         Returns:
             Location if found, None otherwise
         """
-        return await self.repo.get_by_name(name)
+        return await self.repo.get_by_natural_key(natural_key)
 
     async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
         """
