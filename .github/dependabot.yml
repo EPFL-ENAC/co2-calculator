@@ -45,3 +45,18 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "uv"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+    open-pull-requests-limit: 5
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "docs"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
