@@ -638,8 +638,6 @@ export const useModuleStore = defineStore('modules', () => {
           destination_name: normalized.origin_name,
           origin_natural_key: normalized.destination_natural_key,
           destination_natural_key: normalized.origin_natural_key,
-          origin_country_code: normalized.destination_country_code,
-          destination_country_code: normalized.origin_country_code,
         };
         try {
           await api.post(path, { json: returnBody }).json();

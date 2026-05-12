@@ -12,7 +12,6 @@ from app.models.data_entry_emission import (
     EmissionType,
     FactorQuery,
 )
-from app.models.location import TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -151,8 +150,6 @@ class ProfessionalTravelTrainHandlerCreate(
     destination_name: str
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
-    origin_country_code: Optional[str] = None
-    destination_country_code: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
@@ -184,8 +181,6 @@ class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     destination_name: Optional[str] = None
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
-    origin_country_code: Optional[str] = None
-    destination_country_code: Optional[str] = None
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
@@ -313,35 +308,15 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         destination_name = data_entry.data.get("destination_name")
         origin_natural_key = data_entry.data.get("origin_natural_key")
         destination_natural_key = data_entry.data.get("destination_natural_key")
-        origin_country_code = data_entry.data.get("origin_country_code")
-        destination_country_code = data_entry.data.get("destination_country_code")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_name is None or destination_name is None:
             return {}
+        if not origin_natural_key or not destination_natural_key:
+            return {}
 
         loc_service = LocationService(session)
-
-        # Prefer natural_key (unique — never ambiguous); fall back to name+country_code
-        # for entries created before natural_key was stored on the data entry.
-        if origin_natural_key:
-            origin = await loc_service.get_location_by_natural_key(origin_natural_key)
-        else:
-            origin = await loc_service.get_location_by_name(
-                origin_name,
-                TransportModeEnum.train,
-                country_code=origin_country_code,
-            )
-
-        if destination_natural_key:
-            dest = await loc_service.get_location_by_natural_key(
-                destination_natural_key
-            )
-        else:
-            dest = await loc_service.get_location_by_name(
-                destination_name,
-                TransportModeEnum.train,
-                country_code=destination_country_code,
-            )
+        origin = await loc_service.get_location_by_natural_key(origin_natural_key)
+        dest = await loc_service.get_location_by_natural_key(destination_natural_key)
 
         if origin is None or dest is None:
             return {}

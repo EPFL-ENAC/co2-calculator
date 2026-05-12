@@ -1,16 +1,15 @@
 """Location repository for database operations."""
 
+import logging
 from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
-from sqlalchemy.exc import MultipleResultsFound
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import get_logger
 from app.models.location import Location, TransportModeEnum
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LocationRepository:
@@ -156,38 +155,6 @@ class LocationRepository:
         """Get location by ID."""
         result = await self.session.get(Location, location_id)
         return result
-
-    async def get_by_name(
-        self,
-        name: str,
-        transport_mode: TransportModeEnum,
-        country_code: Optional[str] = None,
-    ) -> Optional[Location]:
-        """Get location by name and transport_mode, optionally filtered by country_code.
-
-        transport_mode is required because uniqueness is defined on
-        (name, transport_mode, country_code); omitting it risks a
-        MultipleResultsFound when the same name exists across modes.
-        """
-        statement = (
-            select(Location)
-            .where(col(Location.name) == name)
-            .where(col(Location.transport_mode) == transport_mode)
-        )
-        if country_code is not None:
-            statement = statement.where(col(Location.country_code) == country_code)
-        result = await self.session.execute(statement)
-        try:
-            return result.scalar_one_or_none()
-        except MultipleResultsFound:
-            logger.warning(
-                "Ambiguous location lookup: name=%r transport_mode=%r country_code=%r "
-                "— multiple rows matched, returning None.",
-                name,
-                transport_mode,
-                country_code,
-            )
-            return None
 
     async def get_by_natural_key(self, natural_key: str) -> Optional[Location]:
         """Get location by natural_key (unique index — always unambiguous)."""

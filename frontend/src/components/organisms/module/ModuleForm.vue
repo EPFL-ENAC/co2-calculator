@@ -661,8 +661,6 @@ function init() {
               form.destination_name = undefined;
               form.origin_natural_key = undefined;
               form.destination_natural_key = undefined;
-              form.origin_country_code = undefined;
-              form.destination_country_code = undefined;
             }
             break;
           default:
@@ -987,8 +985,6 @@ function reset() {
       form.destination_iata = undefined;
       form.origin_name = undefined;
       form.destination_name = undefined;
-      form.origin_country_code = undefined;
-      form.destination_country_code = undefined;
       form.origin_natural_key = undefined;
       form.destination_natural_key = undefined;
     } else {
@@ -1033,7 +1029,6 @@ async function handleFromLocationSelected(location: {
   } else {
     form.origin_name = location.name;
     form.origin_natural_key = location.natural_key ?? undefined;
-    form.origin_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1070,7 +1065,6 @@ async function handleToLocationSelected(location: {
   } else {
     form.destination_name = location.name;
     form.destination_natural_key = location.natural_key ?? undefined;
-    form.destination_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1112,10 +1106,6 @@ async function handleSwapLocations() {
     [form.origin_natural_key, form.destination_natural_key] = [
       form.destination_natural_key,
       form.origin_natural_key,
-    ];
-    [form.origin_country_code, form.destination_country_code] = [
-      form.destination_country_code,
-      form.origin_country_code,
     ];
   }
 
