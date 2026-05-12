@@ -17,14 +17,14 @@ summary: "Make the bulk pipeline (Path 2) pure async to match its latency profil
 > - `chain_job(dedup_active=True)` extension via pre-check + INSERT +
 >   IntegrityError fallback (NOT `ON CONFLICT DO NOTHING` as the original
 >   sketch said — Postgres's partial-index inference doesn't tolerate
->   nullable scope columns).  NULL scope keys raise `ValueError` at
+>   nullable scope columns). NULL scope keys raise `ValueError` at
 >   chain entry to refuse silent dedup bypass.
 > - `csv_ingest` / `api_ingest` handlers chain `emission_recalc` post-success.
 > - `emission_recalc_handler` chains `aggregation` with `dedup_active=True`;
 >   `EmissionRecalculationWorkflow` stops calling `recompute_stats` inline.
 > - `BULK_PATH_PURE_ASYNC` feature flag (default `True`); both
 >   `BaseCSVProvider` and `ProfessionalTravelApiProvider` gate their
->   inline emission-write paths behind it.  Restart-required to flip
+>   inline emission-write paths behind it. Restart-required to flip
 >   (single paradigm with the rest of `Settings`).
 > - `current_pipeline_id` on `CarbonReportModuleRead`, populated by a new
 >   bulk repo helper `get_current_pipeline_ids_for_modules` that folds
