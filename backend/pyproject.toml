@@ -93,7 +93,7 @@ dev = [
     "faker>=40.11.1",
     "docker>=7.1.0",
     "asyncpg>=0.31.0",
-    "types-pyyaml>=6.0.12.20250915",
+    "types-pyyaml>=6.0.12.20260510",
 ]
 
 [tool.mypy]
