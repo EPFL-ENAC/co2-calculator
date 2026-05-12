@@ -43,6 +43,36 @@ jobs:
           disable_search: true
           fail_ci_if_error: false
 
+  test-backend-migrations:
+    name: Backend Migration Smoke (db-create + db-migrate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Spawns its own postgres:16-alpine container (matches existing
+      # tests/integration/services/data_ingestion/conftest.py pattern) and
+      # exercises the exact commands `make db-create && make db-migrate`
+      # runs.  Scoped to a single file so it stays fast on PRs; the daily
+      # integration suite picks it up too via the normal tests/integration/
+      # discovery.
+      - name: Run alembic migration smoke test
+        run: uv run pytest tests/integration/test_alembic_migrations.py -vv
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest

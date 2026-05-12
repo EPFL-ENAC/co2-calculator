@@ -171,6 +171,10 @@ build: ## Build Docker image
 db-migrate: ## Run database migrations (upgrade to head)
 	uv run alembic upgrade head
 
+.PHONY: test-db-migrate
+test-db-migrate: ## Smoke-test `db-create + db-migrate` against a docker postgres
+	$(PYTEST) tests/integration/test_alembic_migrations.py -vv
+
 .PHONY: db-downgrade
 db-downgrade: ## Downgrade database to previous revision (usage: make db-downgrade revision="-1")
 	uv run alembic downgrade -1
