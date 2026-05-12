@@ -11,18 +11,18 @@ dependencies = [
     "uvicorn[standard]==0.38.0",
     "python-multipart==0.0.28",
     "sqlalchemy[asyncio,mypy]==2.0.44",
-    "psycopg[binary,pool]==3.3.3",
+    "psycopg[binary,pool]==3.3.4",
     "alembic==1.18.4",
-    "authlib==1.6.11",
+    "authlib==1.7.2",
     # to remove once, we use entra or keycloak
     "passlib[bcrypt]==1.7.4",
     # "python-dotenv==1.0.0",
-    "pydantic==2.12.5",
+    "pydantic==2.13.4",
     "pydantic-settings==2.11.0",
     "email-validator==2.3.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
-    "joserfc>=1.4.0",
+    "joserfc>=1.6.5",
     "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.38",
     "enacit4r-files",
@@ -93,7 +93,7 @@ dev = [
     "faker>=40.11.1",
     "docker>=7.1.0",
     "asyncpg>=0.31.0",
-    "types-pyyaml>=6.0.12.20250915",
+    "types-pyyaml>=6.0.12.20260510",
 ]
 
 [tool.mypy]
