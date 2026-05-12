@@ -987,6 +987,8 @@ function reset() {
       form.destination_iata = undefined;
       form.origin_name = undefined;
       form.destination_name = undefined;
+      form.origin_country_code = undefined;
+      form.destination_country_code = undefined;
       form.origin_natural_key = undefined;
       form.destination_natural_key = undefined;
     } else {
