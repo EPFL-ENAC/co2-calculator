@@ -22,7 +22,7 @@ dependencies = [
     "email-validator==2.3.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
-    "joserfc>=1.4.0",
+    "joserfc>=1.6.5",
     "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.38",
     "enacit4r-files",
