@@ -13,7 +13,7 @@ dependencies = [
     "sqlalchemy[asyncio,mypy]==2.0.44",
     "psycopg[binary,pool]==3.3.3",
     "alembic==1.18.4",
-    "authlib==1.6.11",
+    "authlib==1.7.2",
     # to remove once, we use entra or keycloak
     "passlib[bcrypt]==1.7.4",
     # "python-dotenv==1.0.0",
