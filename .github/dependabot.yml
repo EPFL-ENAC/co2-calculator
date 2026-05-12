@@ -32,6 +32,22 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
+    directory: "/frontend/storybook"
+    schedule:
+      interval: "daily"
+    target-branch: "dev"
+    open-pull-requests-limit: 5
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "dev"
+      - "storybook"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
