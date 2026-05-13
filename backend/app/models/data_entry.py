@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Integer
+from sqlalchemy import Column, DateTime, Float, Integer
 from sqlmodel import JSON, Field, SQLModel
 
 
@@ -138,6 +138,11 @@ class DataEntry(DataEntryBase, table=True):
         default=None,
         index=True,
         description="Creator ID: user.id or data_ingestion_job.id",
+    )
+
+    kg_co2eq_override: Optional[float] = Field(
+        default=None,
+        sa_column=Column(Float, nullable=True),
     )
 
     created_at: datetime = Field(

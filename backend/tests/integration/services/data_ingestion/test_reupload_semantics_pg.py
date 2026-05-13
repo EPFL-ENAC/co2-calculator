@@ -21,12 +21,12 @@ representative module-per-year scope:
    ``_insert_child_with_dedup`` returns ``None``.
 
 3. **kg_co2eq override is REPLACED, not preserved**: a row uploaded
-   with an inline ``kg_co2eq`` override (carried via the
-   ``__kg_co2eq_override__`` carrier on ``DataEntry.data``) does NOT
-   survive a reupload that omits the override — replace semantics
-   apply, the new (override-less) row wins.  Operators relying on a
-   one-time inline override must keep it in every reupload of the
-   same ``(module, det, year)``.
+   with an inline ``kg_co2eq`` override (stored in the first-class
+   ``DataEntry.kg_co2eq_override`` column) does NOT survive a reupload
+   that omits the override — replace semantics apply, the new
+   (override-less) row wins.  Operators relying on a one-time inline
+   override must keep it in every reupload of the same
+   ``(module, det, year)``.
 
 These tests exercise the real ``ModulePerYearCSVProvider`` end-to-end
 (file move → CSV parse → bulk insert → chain fan-out) so the contract
@@ -57,7 +57,6 @@ from app.models.data_ingestion import (
 )
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
-from app.services.data_entry_emission_service import KG_CO2EQ_OVERRIDE_KEY
 from app.services.data_ingestion.csv_providers.module_per_year import (
     ModulePerYearCSVProvider,
 )
@@ -541,18 +540,17 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
 async def test_data_reupload_replaces_kg_co2eq_overrides(
     pg_dsn_with_310b, monkeypatch, tmp_path
 ):
-    """Pin: a row uploaded with ``kg_co2eq=42.0`` (override carrier)
+    """Pin: a row uploaded with ``kg_co2eq=42.0`` (override column)
     is REPLACED — not preserved — when the same ``(module, det, year)``
     is re-uploaded with the same logical row but no override.  Replace
-    semantics extend to the ``__kg_co2eq_override__`` carrier on
-    ``DataEntry.data``: there's no row-level survival policy that
-    re-attaches a prior override to a re-inserted entry.
+    semantics extend to ``DataEntry.kg_co2eq_override``: there's no
+    row-level survival policy that re-attaches a prior override to a
+    re-inserted entry.
 
     Operators relying on a one-time inline override must keep it in
     every reupload of the same scope.  The first pass at this contract
-    might assume "override sticky" — empirically, the carrier is just
-    a column inside ``DataEntry.data`` and the row gets DELETEd before
-    the new one is INSERTed, so nothing carries over.
+    might assume "override sticky" — empirically, the row gets DELETEd
+    before the new one is INSERTed, so nothing carries over.
     """
     _redirect_files_storage(monkeypatch, tmp_path)
     engine = create_async_engine(pg_dsn_with_310b, future=True)
@@ -594,14 +592,13 @@ async def test_data_reupload_replaces_kg_co2eq_overrides(
     async with Sf() as s:
         rows1 = await _read_member_entries(s, headcount_crm_id)
     assert len(rows1) == 1, f"upload #1 should produce 1 row; got {len(rows1)}"
-    # Sanity-check the carrier landed on the row's data dict (proves the
-    # override was actually applied — without this, test 3 would silently
-    # always pass because there'd be nothing to "replace").
-    persisted_override = rows1[0].data.get(KG_CO2EQ_OVERRIDE_KEY)
+    # Sanity-check: the override landed in the column (proves it was
+    # actually applied — without this, the "replace" check below would
+    # silently always pass because there'd be nothing to "replace").
+    persisted_override = rows1[0].kg_co2eq_override
     assert persisted_override == pytest.approx(override_value, rel=1e-6), (
-        f"upload #1 should have persisted kg_co2eq override on the row's "
-        f"{KG_CO2EQ_OVERRIDE_KEY} carrier; got {persisted_override!r} on "
-        f"data={rows1[0].data!r}"
+        f"upload #1 should have set kg_co2eq_override={override_value!r}; "
+        f"got {persisted_override!r}"
     )
 
     # ── Upload #2: same logical row, NO override column at all ─────────
@@ -635,8 +632,8 @@ async def test_data_reupload_replaces_kg_co2eq_overrides(
     async with Sf() as s:
         rows2 = await _read_member_entries(s, headcount_crm_id)
 
-    # Still 1 row (replace, not append) but the override is GONE — the
-    # second upload's row has no ``__kg_co2eq_override__`` carrier.
+    # Still 1 row (replace, not append) but ``kg_co2eq_override`` is GONE —
+    # the second CSV had no ``kg_co2eq_override`` input column.
     assert len(rows2) == 1, (
         f"reupload should REPLACE — expected exactly 1 row, got {len(rows2)}"
     )
@@ -645,11 +642,11 @@ async def test_data_reupload_replaces_kg_co2eq_overrides(
         f"got the same id {rows2[0].id} both times, suggesting upsert "
         "semantics rather than wipe-and-insert."
     )
-    # The contract: override is REPLACED with absence, not preserved.
-    assert KG_CO2EQ_OVERRIDE_KEY not in rows2[0].data, (
-        f"reupload without an override column should DROP the prior "
-        f"{KG_CO2EQ_OVERRIDE_KEY} carrier — replace semantics apply.  "
-        f"Got data={rows2[0].data!r}.  If this assert flips in the "
+    # The contract: kg_co2eq_override is REPLACED with absence, not preserved.
+    assert rows2[0].kg_co2eq_override is None, (
+        f"reupload without a kg_co2eq_override column should DROP the prior override "
+        f"— replace semantics apply.  Got kg_co2eq_override="
+        f"{rows2[0].kg_co2eq_override!r}.  If this assert flips in the "
         "future, document the new override-survival contract here."
     )
 

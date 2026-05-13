@@ -17,8 +17,8 @@ Asserts, per submodule (plane, train):
    rows with the right ``DataEntrySourceEnum`` value.
 2. ``ProfessionalTravelApiProvider._load_data`` persists rows with
    ``source = EXTERNAL_INTEGRATION`` and writes the Tableau
-   ``OUT_CO2_CORRECTED`` / ``kg_co2eq`` value into
-   ``DataEntry.data[__kg_co2eq_override__]``.  Pins the V2 fix —
+   ``OUT_CO2_CORRECTED`` / ``kg_co2eq`` value into the first-class
+   ``DataEntry.kg_co2eq_override`` column.  Pins the V2 fix —
    ``kg_co2eq=0`` and ``kg_co2eq=0.0`` SURVIVE the override channel
    (``is not None`` rather than truthy check).
 3. The 1-1 invariant: after every successful ingest,
@@ -34,7 +34,7 @@ Asserts, per submodule (plane, train):
    prior CSV-sourced rows and preserves the 1-1 invariant.
 
 Plus extends ``test_kg_co2eq_override_async_path_pg.py`` with two
-travel-shaped tests asserting that ``__kg_co2eq_override__=0`` and
+travel-shaped tests asserting that ``kg_co2eq_override=0`` and
 ``=0.0`` survive the runner-driven async recalc path.
 
 Requires Docker — see ``conftest.py``'s ``postgres_container``
@@ -81,10 +81,7 @@ from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
 from app.schemas.data_entry import DataEntryResponse
-from app.services.data_entry_emission_service import (
-    KG_CO2EQ_OVERRIDE_KEY,
-    DataEntryEmissionService,
-)
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (  # noqa: E501
     ProfessionalTravelApiProvider,
 )
@@ -825,8 +822,8 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
     """``ProfessionalTravelApiProvider._load_data`` must persist:
 
     * ``DataEntry.source = EXTERNAL_INTEGRATION`` (5)
-    * The override carrier ``__kg_co2eq_override__`` for every record
-      with a non-``None`` ``kg_co2eq`` — INCLUDING ``0`` and ``0.0``.
+    * ``DataEntry.kg_co2eq_override`` set for every record with a
+      non-``None`` ``kg_co2eq`` — INCLUDING ``0`` and ``0.0``.
 
     This pins the V2 ``is not None`` fix at the source: a falsy zero
     must NOT collapse to ``OUT_CO2_CORRECTED`` fallback (the V1 ``or``
@@ -907,19 +904,17 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
                 f"API provider hard-codes plane data_entry_type — got "
                 f"{r.data_entry_type_id}"
             )
-            # The reserved override carrier was set on every record.
-            assert KG_CO2EQ_OVERRIDE_KEY in r.data, (
-                f"override carrier missing from record: {r.data!r}"
+            # Override is stored in the first-class column (not data dict).
+            assert r.kg_co2eq_override is not None, (
+                f"kg_co2eq_override missing from record: {r!r}"
             )
-            # And the raw `kg_co2eq` key was stripped from the persisted
-            # payload (B-H1 sanitisation — guards against the override
-            # leaking back into formula recomputes).
+            # The raw `kg_co2eq` key must never appear in the persisted data.
             assert "kg_co2eq" not in r.data, (
                 f"raw kg_co2eq leaked into persisted data: {r.data!r}"
             )
 
         overrides_by_user = {
-            r.data["user_institutional_id"]: r.data[KG_CO2EQ_OVERRIDE_KEY] for r in rows
+            r.data["user_institutional_id"]: r.kg_co2eq_override for r in rows
         }
         # V2 fix — int 0 + float 0.0 both survive as 0.0 (NOT replaced
         # by the 999.0 OUT_CO2_CORRECTED fallback).
@@ -938,8 +933,8 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
 async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
     pg_dsn_with_310b,
 ) -> None:
-    """V2 fix end-to-end (int zero): a DataEntry persisted with
-    ``__kg_co2eq_override__ = 0`` must produce an emission whose
+    """V2 fix end-to-end (int zero): a DataEntry with
+    ``kg_co2eq_override = 0`` must produce an emission whose
     ``kg_co2eq`` equals ``0`` after the async ``upsert_by_data_entry``
     path — NOT the formula-derived value.
 
@@ -967,11 +962,10 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
                 "destination_iata": "CDG",
                 "cabin_class": "eco",
                 "number_of_trips": 1,
-                # Override is the V2 boundary: int zero — a plane trip
-                # someone manually corrected to 0 (e.g. cancelled).  Must
-                # survive as 0.0 through the async recalc path.
-                KG_CO2EQ_OVERRIDE_KEY: 0,
             },
+            # V2 boundary: int zero — a plane trip manually corrected to 0
+            # (e.g. cancelled). Must survive as 0.0 through async recalc.
+            kg_co2eq_override=0,
         )
         s.add(entry)
         await s.commit()
@@ -1025,7 +1019,7 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
     pg_dsn_with_310b,
 ) -> None:
     """V2 fix end-to-end (float zero): mirror of the int-zero test,
-    pinning that ``__kg_co2eq_override__ = 0.0`` (the type
+    pinning that ``kg_co2eq_override = 0.0`` (the type
     ``ProfessionalTravelApiProvider._load_data`` writes after the
     ``float()`` coercion) survives the async path.
     """
@@ -1050,8 +1044,8 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
                 "destination_iata": "CDG",
                 "cabin_class": "eco",
                 "number_of_trips": 1,
-                KG_CO2EQ_OVERRIDE_KEY: 0.0,
             },
+            kg_co2eq_override=0.0,
         )
         s.add(entry)
         await s.commit()

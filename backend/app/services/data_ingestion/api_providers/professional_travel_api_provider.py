@@ -16,10 +16,7 @@ from app.models.user import User
 from app.repositories.unit_repo import UnitRepository
 from app.schemas.user import UserRead
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import (
-    KG_CO2EQ_OVERRIDE_KEY,
-    DataEntryEmissionService,
-)
+from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
@@ -457,13 +454,11 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         emission_service = DataEntryEmissionService(self.data_session)
 
         # Create data entries with preserved CO2 values.
-        # The raw ``kg_co2eq`` key is stripped from the persisted payload —
-        # under the reserved ``__kg_co2eq_override__`` carrier instead — so
-        # the formula short-circuit in ``prepare_create`` can still tell the
-        # raw input apart from the override channel, and so a future user
-        # edit clearing the override can trigger a clean recompute (B-H1).
-        # The parallel ``kg_co2eq_overrides`` list is kept index-aligned with
-        # ``entries`` for the legacy inline-write path below.
+        # The raw ``kg_co2eq`` key is stripped from the persisted payload and
+        # the override is stored in the first-class ``kg_co2eq_override``
+        # column so that a future user edit clearing the override can trigger
+        # a clean recompute.  The parallel ``kg_co2eq_overrides`` list is
+        # kept index-aligned with ``entries`` for the legacy inline-write path.
         entries = []
         kg_co2eq_overrides: list[float | None] = []
         for item in data:
@@ -499,17 +494,11 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                         f"Invalid kg_co2eq value {kg_co2eq!r} from API source, "
                         f"ignoring override"
                     )
-            # Persist the override under the reserved carrier key so the
-            # async recalc path (``upsert_by_data_entry`` →
-            # ``prepare_create``) still honors Tableau's ``OUT_CO2_CORRECTED``
-            # under ``BULK_PATH_PURE_ASYNC``.
-            if override is not None:
-                data_payload[KG_CO2EQ_OVERRIDE_KEY] = override
-
             entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
                 data_entry_type_id=DataEntryTypeEnum.plane.value,
                 data=data_payload,
+                kg_co2eq_override=override,
             )
             entries.append(entry)
             kg_co2eq_overrides.append(override)
@@ -535,12 +524,15 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         # race the chain's writes for the same primary key.
         #
         # Travel data carries a per-row ``kg_co2eq`` override (Tableau's
-        # ``OUT_CO2_CORRECTED``) that the legacy path threaded through
-        # ``prepare_create(kg_co2eq_override=...)``.  The async path
-        # persists the same value under ``KG_CO2EQ_OVERRIDE_KEY`` above,
-        # which ``prepare_create`` reads as a fallback when no function-arg
-        # override is passed — so the recalc workflow's
-        # ``upsert_by_data_entry`` preserves it across the async hop.
+        # ``OUT_CO2_CORRECTED``), persisted in the first-class
+        # ``DataEntry.kg_co2eq_override`` column (set above in the loop).
+        # The recalc chain calls ``upsert_by_data_entry`` →
+        # ``prepare_create``, which falls back to
+        # ``data_entry.kg_co2eq_override`` when no function-arg override
+        # is supplied — so Tableau's value is honoured across the async
+        # hop.  NOTE: if the recalc chain fails to fire, no
+        # ``DataEntryEmission`` rows will exist for these entries until
+        # the chain is retried or run manually.
         if get_settings().BULK_PATH_PURE_ASYNC:
             await self.data_session.flush()
             return {"inserted": len(data_entries_response)}

@@ -68,6 +68,7 @@ erDiagram
     JSON data
     INTEGER data_entry_type_id "indexed"
     INTEGER id PK
+    FLOAT kg_co2eq_override
     INTEGER source "indexed"
     VARCHAR status
     DATETIME updated_at

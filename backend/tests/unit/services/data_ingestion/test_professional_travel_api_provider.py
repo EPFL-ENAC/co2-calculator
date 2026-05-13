@@ -579,13 +579,10 @@ class TestLoadDataKgCo2eqHandling:
         }
         assert overrides_by_id == {1: 152.685, 2: None}
 
-        # B-H1 — the parseable override is also persisted under the reserved
-        # ``__kg_co2eq_override__`` carrier so the async recalc path picks
-        # it up via ``prepare_create``'s data-keyed fallback.  Garbage
-        # values are dropped (no carrier set) — operators see the WARNING
-        # logged above and the row falls back to formula-based emissions.
-        assert captured_entries[0].data.get("__kg_co2eq_override__") == 152.685
-        assert "__kg_co2eq_override__" not in captured_entries[1].data
+        # The parseable override is stored in the first-class column.
+        # Garbage values are dropped — row falls back to formula-based emissions.
+        assert captured_entries[0].kg_co2eq_override == 152.685
+        assert captured_entries[1].kg_co2eq_override is None
 
     @pytest.mark.asyncio
     async def test_load_data_skips_emissions_under_pure_async(self):

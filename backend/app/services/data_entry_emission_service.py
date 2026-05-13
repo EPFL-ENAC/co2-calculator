@@ -32,16 +32,6 @@ from app.utils.it_breakdown import ITSqlTotals
 settings = get_settings()
 logger = get_logger(__name__)
 
-# B-H1 — reserved key on ``DataEntry.data`` for the per-row ``kg_co2eq``
-# override carrier (Tableau's ``OUT_CO2_CORRECTED`` for the travel API,
-# parsed CSV-side ``kg_co2eq`` column for ``base_csv_provider``).  The
-# double-underscore prefix marks it internal and keeps it from clashing
-# with handler-defined kind/subkind keys.  Bulk-path providers persist
-# the override here so the async recalc workflow's
-# ``upsert_by_data_entry`` (which has no ``kg_co2eq_override`` parameter)
-# still honors it via ``prepare_create``'s data-keyed fallback.
-KG_CO2EQ_OVERRIDE_KEY = "__kg_co2eq_override__"
-
 
 def _emission_depth(et: EmissionType) -> int:
     """Count parent chain length (0 = root)."""
@@ -246,11 +236,10 @@ class DataEntryEmissionService:
             kg_co2eq_override: When set (legacy inline ingestion path),
                 short-circuits the formula and produces a single emission
                 with this kg_co2eq and ``primary_factor_id=None``. Takes
-                precedence over the ``KG_CO2EQ_OVERRIDE_KEY`` carrier in
-                ``data_entry.data`` (see B-H1).
+                precedence over ``data_entry.kg_co2eq_override`` column.
 
                 Under ``BULK_PATH_PURE_ASYNC`` the ingest providers persist
-                the override on the data entry under ``KG_CO2EQ_OVERRIDE_KEY``,
+                the override in the first-class ``kg_co2eq_override`` column,
                 which survives the inline-write skip and is honored here
                 when the function-arg override is absent.  The runner-driven
                 recalc workflow's ``upsert_by_data_entry`` therefore
@@ -281,30 +270,14 @@ class DataEntryEmissionService:
             DataEntryTypeEnum(data_entry.data_entry_type)
         )
 
-        # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
-        # (set by the bulk-path providers) when the caller did not pass an
-        # explicit ``kg_co2eq_override``.  The function arg wins so the
-        # legacy inline path (which already routes via the arg) keeps its
-        # existing semantics.
+        # Function arg takes precedence; fall back to the first-class column.
         effective_override: float | None = kg_co2eq_override
         if effective_override is None:
-            persisted_override = data_entry.data.get(KG_CO2EQ_OVERRIDE_KEY)
-            if persisted_override is not None:
-                try:
-                    effective_override = float(persisted_override)
-                except (ValueError, TypeError):
-                    logger.warning(
-                        f"Invalid {KG_CO2EQ_OVERRIDE_KEY} value "
-                        f"{persisted_override!r} on data_entry_id="
-                        f"{data_entry.id!r}, ignoring override"
-                    )
+            effective_override = getattr(data_entry, "kg_co2eq_override", None)
 
         # Build context: data_entry.data enriched with pre-computed values.
-        # Strip the reserved override carrier so it never leaks into the
-        # ``meta`` blobs spread from ``ctx`` below; the source dict on the
-        # data entry is left intact so re-runs remain idempotent.
         ctx: dict = {**data_entry.data}
-        ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
+        ctx.pop("__kg_co2eq_override__", None)
         ctx.update(await handler.pre_compute(data_entry, self.session))
 
         # Prefer using the lightweight hook that tests commonly patch.
