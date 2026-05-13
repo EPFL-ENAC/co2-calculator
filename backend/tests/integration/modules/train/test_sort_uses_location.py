@@ -70,6 +70,13 @@ async def test_origin_destination_name_come_from_location_join(
         latitude=47.3769,
         longitude=8.5417,
         country_code="CH",
+        natural_key=Location.compute_natural_key(
+            transport_mode=TransportModeEnum.train,
+            name="Zurich",
+            latitude=47.3769,
+            longitude=8.5417,
+            country_code="CH",
+        ),
     )
     loc_aachen = Location(
         transport_mode=TransportModeEnum.train,
@@ -77,6 +84,13 @@ async def test_origin_destination_name_come_from_location_join(
         latitude=50.7753,
         longitude=6.0839,
         country_code="DE",
+        natural_key=Location.compute_natural_key(
+            transport_mode=TransportModeEnum.train,
+            name="Aachen",
+            latitude=50.7753,
+            longitude=6.0839,
+            country_code="DE",
+        ),
     )
     db_session.add(loc_zurich)
     db_session.add(loc_aachen)
@@ -174,6 +188,13 @@ async def test_distance_km_sort_uses_coalesce_additional_value_over_data(
         latitude=46.2044,
         longitude=6.1432,
         country_code="CH",
+        natural_key=Location.compute_natural_key(
+            transport_mode=TransportModeEnum.train,
+            name="Geneva",
+            latitude=46.2044,
+            longitude=6.1432,
+            country_code="CH",
+        ),
     )
     loc_lau = Location(
         transport_mode=TransportModeEnum.train,
@@ -181,6 +202,13 @@ async def test_distance_km_sort_uses_coalesce_additional_value_over_data(
         latitude=46.5197,
         longitude=6.6323,
         country_code="CH",
+        natural_key=Location.compute_natural_key(
+            transport_mode=TransportModeEnum.train,
+            name="Lausanne",
+            latitude=46.5197,
+            longitude=6.6323,
+            country_code="CH",
+        ),
     )
     db_session.add(loc_gen)
     db_session.add(loc_lau)

@@ -128,6 +128,7 @@ erDiagram
     FLOAT longitude
     VARCHAR municipality "indexed"
     VARCHAR name "indexed"
+    VARCHAR natural_key "indexed"
     VARCHAR transport_mode "indexed"
   }
   unit_users {

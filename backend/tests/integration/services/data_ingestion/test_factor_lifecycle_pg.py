@@ -336,6 +336,10 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
                         latitude=46.2381,
                         longitude=6.1090,
                         country_code="CH",
+                        natural_key=Location.compute_natural_key(
+                            transport_mode=TransportModeEnum.plane,
+                            iata_code="GVA",
+                        ),
                     ),
                     Location(
                         transport_mode=TransportModeEnum.plane,
@@ -344,6 +348,10 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
                         latitude=49.0097,
                         longitude=2.5479,
                         country_code="FR",
+                        natural_key=Location.compute_natural_key(
+                            transport_mode=TransportModeEnum.plane,
+                            iata_code="CDG",
+                        ),
                     ),
                 ]
             )

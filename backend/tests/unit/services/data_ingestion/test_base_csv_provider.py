@@ -454,6 +454,7 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     )
     handler.kind_field = "kind"
     handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
 
     async def resolve_handler(*_args, **_kwargs):
         return (DataEntryTypeEnum.student, handler, None)
@@ -667,6 +668,7 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
     # validate_create receives the filtered_row payload — confirm kg_co2eq is
     # NOT present in what it sees, then return whatever data it likes.
     captured_validation_payload: list[dict] = []
@@ -768,6 +770,7 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
     )
     handler.kind_field = "category"
     handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
 
     async def resolve_handler(*_args, **_kwargs):
         return (DataEntryTypeEnum.plane, handler, None)
@@ -817,6 +820,7 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
     )
     handler.kind_field = "category"
     handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
 
     async def resolve_handler(*_args, **_kwargs):
         return (DataEntryTypeEnum.plane, handler, None)
@@ -895,6 +899,7 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
     )
     handler.kind_field = "category"
     handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
 
     async def resolve_handler(*_args, **_kwargs):
         return (DataEntryTypeEnum.plane, handler, None)

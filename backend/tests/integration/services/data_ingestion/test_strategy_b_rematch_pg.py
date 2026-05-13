@@ -177,6 +177,10 @@ async def test_travel_plane_factor_values_change_propagates(pg_dsn):
                     latitude=46.2381,
                     longitude=6.1090,
                     country_code="CH",
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.plane,
+                        iata_code="GVA",
+                    ),
                 ),
                 Location(
                     transport_mode=TransportModeEnum.plane,
@@ -185,6 +189,10 @@ async def test_travel_plane_factor_values_change_propagates(pg_dsn):
                     latitude=49.0097,
                     longitude=2.5479,
                     country_code="FR",
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.plane,
+                        iata_code="CDG",
+                    ),
                 ),
             ]
         )
@@ -273,6 +281,10 @@ async def test_travel_plane_factor_drop_clears_emission(pg_dsn):
                     iata_code="GVA",
                     latitude=46.2381,
                     longitude=6.1090,
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.plane,
+                        iata_code="GVA",
+                    ),
                 ),
                 Location(
                     transport_mode=TransportModeEnum.plane,
@@ -280,6 +292,10 @@ async def test_travel_plane_factor_drop_clears_emission(pg_dsn):
                     iata_code="CDG",
                     latitude=49.0097,
                     longitude=2.5479,
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.plane,
+                        iata_code="CDG",
+                    ),
                 ),
             ]
         )
@@ -367,6 +383,13 @@ async def test_travel_train_factor_values_change_propagates(pg_dsn):
                     latitude=46.2104,
                     longitude=6.1428,
                     country_code="CH",
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.train,
+                        name="Geneva",
+                        latitude=46.2104,
+                        longitude=6.1428,
+                        country_code="CH",
+                    ),
                 ),
                 Location(
                     transport_mode=TransportModeEnum.train,
@@ -374,6 +397,13 @@ async def test_travel_train_factor_values_change_propagates(pg_dsn):
                     latitude=46.5167,
                     longitude=6.6322,
                     country_code="CH",
+                    natural_key=Location.compute_natural_key(
+                        transport_mode=TransportModeEnum.train,
+                        name="Lausanne",
+                        latitude=46.5167,
+                        longitude=6.6322,
+                        country_code="CH",
+                    ),
                 ),
             ]
         )
@@ -398,6 +428,20 @@ async def test_travel_train_factor_values_change_propagates(pg_dsn):
                 "user_institutional_id": "U-001",
                 "origin_name": "Geneva",
                 "destination_name": "Lausanne",
+                "origin_natural_key": Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Geneva",
+                    latitude=46.2104,
+                    longitude=6.1428,
+                    country_code="CH",
+                ),
+                "destination_natural_key": Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Lausanne",
+                    latitude=46.5167,
+                    longitude=6.6322,
+                    country_code="CH",
+                ),
                 "cabin_class": "second",
                 "number_of_trips": 1,
             },

@@ -167,3 +167,27 @@ class LocationRepository:
         statement = select(Location).where(col(Location.iata_code) == iata_code)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
+
+    async def find_train_stations_by_name(
+        self,
+        name: str,
+        country_code: str,
+        limit: int = 2,
+    ) -> List[Location]:
+        """Exact-match train station lookup by name within a country.
+
+        Case-insensitive on the lowercased+trimmed name. Used by the CSV
+        ingestion resolver to map ``origin_name`` → a single ``Location``,
+        so the caller only needs to distinguish 0 / 1 / many matches —
+        ``limit=2`` is the cheapest way to do that.
+        """
+        normalized = name.strip().lower()
+        statement = (
+            select(Location)
+            .where(col(Location.transport_mode) == TransportModeEnum.train)
+            .where(text("lower(trim(name)) = :name").bindparams(name=normalized))
+            .where(col(Location.country_code) == country_code)
+            .limit(limit)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())

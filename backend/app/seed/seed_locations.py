@@ -26,6 +26,10 @@ _COPY_STAGING_SQL = (
     ") FROM STDIN CSV HEADER NULL ''"
 )
 
+# Keep in lock-step with ``Location.compute_natural_key`` — the seed runs
+# this in Postgres for bulk UPSERT while application code (ingestion, tests)
+# calls the Python helper. Drift makes the same logical location dedupe to
+# two different rows.
 _NATURAL_KEY_EXPR = r"""
     CASE
         WHEN transport_mode = 'plane' AND iata_code IS NOT NULL

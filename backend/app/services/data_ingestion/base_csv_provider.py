@@ -965,6 +965,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Build DataEntry
             data = dict(validated.data)
 
+            # CSV-time enrichment hook. Default no-op; the train handler uses
+            # it to resolve origin_name/destination_name → *_natural_key via
+            # a Location lookup so the recalc-time pre_compute can compute
+            # distance. Returning a non-None error_msg skips the row.
+            data, enrich_error = await handler.enrich_csv_row(data, self.data_session)
+            if enrich_error is not None:
+                self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
+                return None, enrich_error, None, None
+
             # Note: primary_factor_id is already in payload and
             # will be in validated.data
             # No need to set it again

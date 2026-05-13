@@ -177,6 +177,10 @@ async def _seed_plane_locations(session: AsyncSession) -> None:
                 latitude=46.2381,
                 longitude=6.1090,
                 country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.plane,
+                    iata_code="GVA",
+                ),
             ),
             Location(
                 transport_mode=TransportModeEnum.plane,
@@ -185,6 +189,10 @@ async def _seed_plane_locations(session: AsyncSession) -> None:
                 latitude=49.0097,
                 longitude=2.5479,
                 country_code="FR",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.plane,
+                    iata_code="CDG",
+                ),
             ),
         ]
     )
@@ -201,6 +209,13 @@ async def _seed_train_locations(session: AsyncSession) -> None:
                 latitude=46.2104,
                 longitude=6.1428,
                 country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Geneva",
+                    latitude=46.2104,
+                    longitude=6.1428,
+                    country_code="CH",
+                ),
             ),
             Location(
                 transport_mode=TransportModeEnum.train,
@@ -208,6 +223,13 @@ async def _seed_train_locations(session: AsyncSession) -> None:
                 latitude=46.5167,
                 longitude=6.6322,
                 country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Lausanne",
+                    latitude=46.5167,
+                    longitude=6.6322,
+                    country_code="CH",
+                ),
             ),
         ]
     )
@@ -615,6 +637,10 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
                 latitude=46.2381,
                 longitude=6.1090,
                 country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.plane,
+                    iata_code="GVA",
+                ),
             )
         )
         await s.commit()
@@ -690,6 +716,13 @@ async def test_train_unknown_station_persists_entry_without_emission(
                 latitude=46.2104,
                 longitude=6.1428,
                 country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Geneva",
+                    latitude=46.2104,
+                    longitude=6.1428,
+                    country_code="CH",
+                ),
             )
         )
         await s.commit()
