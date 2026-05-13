@@ -862,6 +862,50 @@ async def get_active_pipelines(
     return {module_id: str(pid) for module_id, pid in pipeline_by_module.items()}
 
 
+@router.get("/active-pipelines/year/{year}", response_model=list[str])
+async def get_active_year_level_pipelines(
+    year: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list[str]:
+    """Return active **year-level** pipeline_ids (``entity_type=GLOBAL_PER_YEAR``).
+
+    **Required Permission**: ``backoffice.data_management.view``
+
+    Issue #867 — back-office data-management page reload reattach.  The
+    sibling ``GET /active-pipelines`` only sees module-scoped pipelines
+    (it requires a ``modules`` query param and filters by
+    ``module_type_id``).  Year-level chains (e.g. the unit-sync pipeline
+    minted by the create-year flow) carry no ``module_type_id`` and
+    were invisible to that endpoint, so the frontend SSE watcher could
+    not re-attach after a reload.
+
+    Returns a flat list of pipeline_id UUIDs (string-serialised) for
+    every job in ``NOT_STARTED`` / ``QUEUED`` / ``RUNNING`` with
+    ``entity_type=GLOBAL_PER_YEAR`` and the given ``year``.  Order is
+    most-recent-first by job id; the frontend treats the list as a
+    set, but a stable order makes assertion-based tests trivial.
+
+    The endpoint applies only the global ``backoffice.data_management.view``
+    gate — there is no per-module decision loop here because year-level
+    pipelines are not module-scoped (the per-module security guard on
+    the sibling endpoint defends against pipeline_id enumeration across
+    *modules* a backoffice user can't read; year-level pipelines have
+    no equivalent sub-perimeter today).
+
+    Empty result is the steady state — both "no active year-level
+    pipelines" and "U1's pipeline-stamping for unit_sync hasn't shipped
+    yet" surface as the same empty list, which is what the watcher
+    needs to safely no-op.
+    """
+    pipeline_ids = await DataIngestionRepository(db).get_active_year_level_pipeline_ids(
+        year
+    )
+    return [str(pid) for pid in pipeline_ids]
+
+
 @router.get("/recalculation-status", response_model=list[ModuleRecalculationStatus])
 async def get_recalculation_status(
     year: int,

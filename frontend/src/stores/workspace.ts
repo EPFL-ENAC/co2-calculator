@@ -167,7 +167,9 @@ export const useWorkspaceStore = defineStore(
       const url = `carbon-reports/simulator/explore/unit/${unitId}/reference-year/${referenceYear}/`;
       let inv: CarbonReport;
       try {
-        inv = await api.get(url).json();
+        // 404 is expected here — the catch branch seeds an explore report.
+        // Opt out of the global error toast for that status only.
+        inv = await api.get(url, { skipErrorCodes: [404] }).json();
       } catch (err) {
         if (err instanceof HTTPError && err.response.status === 404) {
           // No explore report exists yet — seed one from the Calculator report.

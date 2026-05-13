@@ -81,7 +81,6 @@ erDiagram
     YearConfigurationResponse {
         number year
         boolean is_started
-        boolean is_reports_synced
         YearConfig config
         ModuleRecalculationStatusEntry[] recalculation_status
         string updated_at

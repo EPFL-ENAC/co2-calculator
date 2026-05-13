@@ -214,7 +214,6 @@ export function buildYearConfigResponse(year: number): unknown {
   return {
     year,
     is_started: false,
-    is_reports_synced: false,
     config: {
       modules: {
         '1': {

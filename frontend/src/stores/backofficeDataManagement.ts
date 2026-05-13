@@ -526,36 +526,6 @@ provider_type
     }
 
     /**
-     * Sync units from Accred API.
-     * Triggers background task to fetch and upsert all units and principal users.
-     */
-    async function syncUnitsFromAccred(target_year: number): Promise<void> {
-      if (loading.value) {
-        throw new Error('Another operation is in progress');
-      }
-
-      loading.value = true;
-      error.value = null;
-
-      try {
-        await api
-          .post('sync/units', {
-            json: { target_year },
-          })
-          .json();
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          error.value = err.message ?? 'Failed to sync units from Accred API';
-        } else {
-          error.value = 'Failed to sync units from Accred API';
-        }
-        throw err;
-      } finally {
-        loading.value = false;
-      }
-    }
-
-    /**
      * Get successful jobs from a specific year, filtered by module type and target type.
      * Returns only jobs that have state = FINISHED (3) and result = SUCCESS (0).
      */
@@ -722,7 +692,6 @@ provider_type
       unsubscribeFromJobUpdates,
       cancelJob,
       reset,
-      syncUnitsFromAccred,
     };
   },
 );
