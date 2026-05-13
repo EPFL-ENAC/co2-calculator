@@ -62,7 +62,9 @@ help: ## Show available targets
 .PHONY: install
 install: ## Install all dependencies and set up git hooks
 	@echo "Installing root npm dependencies (lefthook + prettier)..."
-	npm install
+	@command -v node >/dev/null 2>&1 || { echo "❌ node not found. Run: nvm install"; exit 1; }
+	@echo "Node: $$(node --version), npm: $$(npm --version)"
+	@npm run setup
 	@echo "Installing git hooks with lefthook..."
 	npx lefthook install
 	@echo "Installing backend dependencies..."
@@ -210,4 +212,3 @@ build-docs: ## Build documentation site
 serve-docs: ## Serve documentation with live reload
 	@echo "Starting documentation server..."
 	if [ -d "docs" ]; then cd docs && $(MAKE) serve-docs; fi
-
