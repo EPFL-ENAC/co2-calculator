@@ -26,7 +26,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '>=24.0.0'
 
       - name: Install conventional-changelog-cli
         run: npm install -g conventional-changelog-cli

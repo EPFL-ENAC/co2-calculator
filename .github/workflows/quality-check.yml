@@ -7,7 +7,7 @@ on:
     branches: [main, dev, stage, 'ci-test/**']
 
 jobs:
-  
+
   frontent-quality:
     name: Frontent Lint/Type Check
     runs-on: ubuntu-latest
@@ -20,9 +20,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: ">=24.0.0"
+          node-version-file: '.nvmrc'
           cache: "npm"
           cache-dependency-path: "./package-lock.json"
+
+      - name: Enable Corepack
+        run: corepack enable
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -63,6 +66,6 @@ jobs:
 
       - name: Check code formatting
         run: make lint
-      
+
       - name: Type Check
         run: make type-check
