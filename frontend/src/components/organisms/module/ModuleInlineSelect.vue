@@ -65,7 +65,7 @@ type CommonProps = {
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = defineProps<ModuleTableProps>();
-const { t } = useI18n();
+const { t, te } = useI18n();
 const isClass = computed(() => props.optionsId === 'kind');
 const isSubClass = computed(() => props.optionsId === 'subkind');
 
@@ -98,6 +98,9 @@ const classOptions = computed(() => {
       };
     }
     const kindNode = taxo?.children?.find((node) => node.name === opt.value);
+    if (kindNode?.translation_key && te(kindNode.translation_key)) {
+      return { value: opt.value, label: t(kindNode.translation_key) };
+    }
     return {
       value: opt.value,
       label: kindNode ? kindNode.label : opt.label || opt.value,

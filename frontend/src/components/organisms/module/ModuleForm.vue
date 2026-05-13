@@ -302,7 +302,7 @@ import {
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
-const { t: $t } = useI18n();
+const { t: $t, te: $te } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const moduleStore = useModuleStore();
 
@@ -429,7 +429,14 @@ const filteredOptionsMap = computed(() => {
     const dynamicOpts = buildingRoomOpts ?? dynamicOptions[optionsId];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
-        ? dynamicOpts
+        ? dynamicOpts.map((o: { label: string; value: string }) => ({
+            value: o.value,
+            label:
+              inp.optionLabelPrefix &&
+              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                : o.label,
+          }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
             value: o.value,
@@ -487,6 +494,10 @@ function getFilteredOptions(
     const taxoOptNode = taxoNode?.children?.find(
       (node) => node.name === opt.value,
     );
+    if (taxoOptNode?.translation_key && $te(taxoOptNode.translation_key)) {
+      opt.label = $t(taxoOptNode.translation_key);
+      return;
+    }
     if (taxoOptNode) {
       opt.label = taxoOptNode.label;
     }

@@ -30,6 +30,7 @@ const cloudFields: ModuleField[] = [
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
     optionsId: 'subkind',
+    optionLabelPrefix: 'external-cloud-service-type-',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',

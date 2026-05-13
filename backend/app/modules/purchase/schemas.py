@@ -54,7 +54,6 @@ class PurchaseHandlerCreate(DataEntryCreate):
     total_spent_amount: float
     currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
-    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
 
@@ -130,7 +129,6 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
     total_spent_amount: Optional[float] = None
     currency: Optional[str] = None
     purchase_institutional_code: Optional[str] = None
-    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
 
@@ -199,7 +197,6 @@ class PurchaseModuleHandler(BaseModuleHandler):
     response_dto = PurchaseHandlerResponse
 
     kind_field: str = "purchase_institutional_code"
-    kind_label_field: str = "purchase_institutional_description"
     subkind_field: Optional[str] = ""
     # purchase_institutional_code is not always present, so we can't 100% rely on it
     # for matching entries to factors
@@ -243,9 +240,6 @@ class PurchaseModuleHandler(BaseModuleHandler):
                 "supplier": data.get("supplier"),
                 "quantity": data.get("quantity"),
                 "purchase_institutional_code": data.get("purchase_institutional_code"),
-                "purchase_institutional_description": data.get(
-                    "purchase_institutional_description"
-                ),
                 "total_spent_amount": data.get("total_spent_amount"),
                 "kg_co2eq": data.get("kg_co2eq", None),
             }
@@ -439,19 +433,21 @@ class PurchaseAdditionalFactorHandler(BaseFactorHandler):
 
 purchase_common_classification_fields: list[str] = [
     "purchase_institutional_code",
-    "purchase_institutional_description",
     "purchase_additional_code",
     "currency",
 ]
-purchase_common_value_fields: list[str] = ["ef_kg_co2eq_per_currency"]
+purchase_common_value_fields: list[str] = [
+    "ef_kg_co2eq_per_currency",
+    "translation_key",
+]
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
     purchase_institutional_code: str
-    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: str
     currency: str
     ef_kg_co2eq_per_currency: float
+    translation_key: Optional[str] = None
 
     @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod
@@ -463,18 +459,18 @@ class PurchaseCommonFactorCreate(FactorCreate):
 
 class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_institutional_code: Optional[str] = None
-    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     currency: Optional[str] = None
     ef_kg_co2eq_per_currency: Optional[float] = None
+    translation_key: Optional[str] = None
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_institutional_code: str
-    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     currency: str
     ef_kg_co2eq_per_currency: Optional[float] = None
+    translation_key: Optional[str] = None
 
 
 class PurchaseCommonFactorHandler(BaseFactorHandler):

@@ -47,19 +47,14 @@ const roomFields: ModuleField[] = [
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
+    optionLabelsAreKeys: true,
     options: [
-      { value: 'office', label: 'Office' },
-      { value: 'miscellaneous', label: 'Miscellaneous' },
-      {
-        value: 'laboratories',
-        label: 'Laboratories',
-      },
-      { value: 'archives', label: 'Archives' },
-      { value: 'libraries', label: 'Libraries' },
-      {
-        value: 'auditoriums',
-        label: 'Auditoriums',
-      },
+      { value: 'office', label: 'buildings-room-type-office' },
+      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
+      { value: 'laboratories', label: 'buildings-room-type-laboratories' },
+      { value: 'archives', label: 'buildings-room-type-archives' },
+      { value: 'libraries', label: 'buildings-room-type-libraries' },
+      { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
     ],
   },
   {
