@@ -76,6 +76,7 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
       lastFactorJob: toSyncJobResponse(
         subConfig?.latest_factor_job ?? mod?.latest_common_factor_job,
       ),
+      lastReferenceJob: toSyncJobResponse(subConfig?.latest_reference_job),
     };
   }
 

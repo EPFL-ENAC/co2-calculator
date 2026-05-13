@@ -38,7 +38,14 @@ const filesStore = useFilesStore();
 const { safeFileName } = useUploadCard();
 
 const isLoading = ref(false);
-const lastJob = ref<SyncJobResponse | undefined>(undefined);
+// Local job from the in-session SSE stream.  Survives only as long as the card
+// instance does — ``q-expansion-item`` unmounts content on collapse, so the
+// authoritative "last successful upload" lives on the parent year-config row
+// (``row.lastReferenceJob``).  We read whichever is more recent.
+const localJob = ref<SyncJobResponse | undefined>(undefined);
+const lastJob = computed<SyncJobResponse | undefined>(
+  () => localJob.value ?? props.row.lastReferenceJob,
+);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isJobStuck = computed(
   () =>
@@ -139,7 +146,7 @@ function downloadLastCsv(): void {
 async function handleCancelJob() {
   if (!lastJob.value?.job_id) return;
   await backofficeDataManagement.cancelJob(lastJob.value.job_id, props.year);
-  lastJob.value = undefined;
+  localJob.value = undefined;
 }
 
 function handleUpload() {
@@ -226,7 +233,7 @@ async function uploadSelectedFile(file: File) {
             status_message: payload.status_message,
             meta: payload.meta,
           };
-          lastJob.value = response;
+          localJob.value = response;
           emit('completed', response);
         }
 

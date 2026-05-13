@@ -35,6 +35,7 @@ export interface ImportRow {
   lastDataJob?: SyncJobResponse;
   lastApiDataJob?: SyncJobResponse;
   lastFactorJob?: SyncJobResponse;
+  lastReferenceJob?: SyncJobResponse;
 }
 
 export interface JobRowError {
