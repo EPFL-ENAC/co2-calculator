@@ -34,16 +34,6 @@ jobs:
       - name: Enable Corepack
         run: corepack enable
 
-      # setup-node ships an npm version that may not satisfy package.json's
-      # engines field (e.g. node 24.15.0 ships npm 11.12.1, but we require
-      # >=11.14.1).  Pin npm to the version declared in `packageManager` so
-      # `npm ci` doesn't fail with EBADENGINE.  Single source of truth.
-      - name: Pin npm to packageManager version
-        working-directory: ./frontend
-        run: |
-          NPM_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
-          npm install -g "npm@${NPM_VERSION}"
-
       - name: Install frontend dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: ./frontend

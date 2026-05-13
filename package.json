@@ -7,7 +7,7 @@
   "packageManager": "npm@11.14.1",
   "engines": {
     "node": ">=v24.15.0 <25",
-    "npm": ">=11.14.1 <12"
+    "npm": ">=11.12.1 <12"
   },
   "devDependencies": {
     "@commitlint/cli": "=17.1.2",
