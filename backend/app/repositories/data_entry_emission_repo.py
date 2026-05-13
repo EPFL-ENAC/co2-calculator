@@ -29,6 +29,27 @@ class DataEntryEmissionRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    @staticmethod
+    def _looks_like_purchase_institutional_code(value: str) -> bool:
+        """Return True if value looks like a real institutional code.
+
+        Filters out sentinel/fallback strings (empty, whitespace-only,
+        ``"rest"``, ``"unknown"``) that are inserted by the aggregation
+        pipeline rather than originating from real purchase data.
+
+        Args:
+            value: The raw group-by value from a purchase data entry.
+
+        Returns:
+            True when the value appears to be a genuine code.
+        """
+        stripped = value.strip()
+        if not stripped:
+            return False
+        if stripped.lower() in {"rest", "unknown"}:
+            return False
+        return True
+
     async def create(self, obj: DataEntryEmission) -> DataEntryEmission:
         self.session.add(obj)
         await self.session.flush()

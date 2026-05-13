@@ -411,6 +411,12 @@ _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.purchase: "purchase_institutional_code",
 }
 
+# Maps module type → JSON data field to use as the human-readable label
+# in the top-class breakdown response (falls back to the group field when absent).
+_MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
+    ModuleTypeEnum.purchase: "name",
+}
+
 
 @router.get(
     "/{unit_id}/{year}/{module_id}/top-class-breakdown",
