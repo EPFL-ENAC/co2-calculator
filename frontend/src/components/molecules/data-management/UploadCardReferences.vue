@@ -7,7 +7,6 @@ import {
   TargetType,
   IngestionState,
   IngestionResult,
-  EntityType,
 } from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
@@ -15,6 +14,7 @@ import type {
   JobUpdatePayload,
   InitiateSyncParams,
 } from 'src/stores/backofficeDataManagement';
+import { useFilesStore, type FileObject } from 'src/stores/files';
 import { Notify } from 'quasar';
 
 interface Props {
@@ -28,17 +28,25 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const emit = defineEmits<{
-  (e: 'upload', row: ImportRow, entityType: EntityType): void;
   (e: 'completed', job: SyncJobResponse): void;
   (e: 'progressing', job: SyncJobResponse): void;
 }>();
 
 const { t } = useI18n();
 const backofficeDataManagement = useBackofficeDataManagement();
+const filesStore = useFilesStore();
 const { safeFileName } = useUploadCard();
 
 const isLoading = ref(false);
-const lastJob = ref<SyncJobResponse | undefined>(undefined);
+// Local job from the in-session SSE stream.  Survives only as long as the card
+// instance does — ``q-expansion-item`` unmounts content on collapse, so the
+// authoritative "last successful upload" lives on the parent year-config row
+// (``row.lastReferenceJob``).  We read whichever is more recent.
+const localJob = ref<SyncJobResponse | undefined>(undefined);
+const lastJob = computed<SyncJobResponse | undefined>(
+  () => localJob.value ?? props.row.lastReferenceJob,
+);
+const fileInputRef = ref<HTMLInputElement | null>(null);
 const isJobStuck = computed(
   () =>
     lastJob.value?.state === IngestionState.RUNNING ||
@@ -138,24 +146,47 @@ function downloadLastCsv(): void {
 async function handleCancelJob() {
   if (!lastJob.value?.job_id) return;
   await backofficeDataManagement.cancelJob(lastJob.value.job_id, props.year);
-  lastJob.value = undefined;
+  localJob.value = undefined;
 }
 
-async function handleUpload() {
+function handleUpload() {
   if (props.isDisabled || props.row.isDisabled) return;
+  fileInputRef.value?.click();
+}
 
+async function onFileSelected(event: Event) {
+  const target = event.target as HTMLInputElement;
+  const file = target.files?.[0];
+  // Clear so picking the same file twice still re-triggers ``change``.
+  target.value = '';
+  if (!file) return;
+  await uploadSelectedFile(file);
+}
+
+async function uploadSelectedFile(file: File) {
   isLoading.value = true;
 
   try {
+    // Cast via ``unknown``: the store types ``FileObject`` with a ``path``
+    // field (set by the response), but ``uploadTempFiles`` reads only the
+    // file's bytes + name from the input.  A browser ``File`` is structurally
+    // sufficient at runtime.
+    const uploaded = await filesStore.uploadTempFiles([
+      file as unknown as FileObject,
+    ]);
+    const filePath = uploaded[0]?.path;
+    if (!filePath) {
+      throw new Error('Upload returned no file path');
+    }
+
     const syncPayload: InitiateSyncParams = {
       module_type_id: props.row.moduleTypeId,
       year: props.year,
       provider_type: 'csv' as const,
       target_type: TargetType.REFERENCE_DATA,
       data_entry_type_id: props.row.dataEntryTypeId,
-      config: {
-        entity_type: EntityType.MODULE_UNIT_SPECIFIC,
-      },
+      file_path: filePath,
+      config: {},
     };
 
     const jobId = await backofficeDataManagement.initiateSync(syncPayload);
@@ -202,7 +233,7 @@ async function handleUpload() {
             status_message: payload.status_message,
             meta: payload.meta,
           };
-          lastJob.value = response;
+          localJob.value = response;
           emit('completed', response);
         }
 
@@ -287,6 +318,14 @@ function isErrorOrWarning(): boolean {
     <div v-if="row.other" class="q-mb-xs text-caption text-grey-7">
       {{ $t(row.other) }}
     </div>
+
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".csv,text/csv"
+      style="display: none"
+      @change="onFileSelected"
+    />
 
     <div class="row justify-between items-center full-width">
       <div class="row items-center" style="gap: 0.5rem">

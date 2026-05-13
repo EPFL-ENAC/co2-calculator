@@ -427,8 +427,19 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       if (!job || job.result !== 0) return true;
     }
     if (sub.other) {
-      const job = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
-      if (!job || job.result !== 0) return true;
+      const dataJob =
+        subConfig?.latest_data_job ?? mod?.latest_common_data_job;
+      const dataOk = !!dataJob && dataJob.result === 0;
+      // Submodules with both CSV and API data sources (e.g. plane) accept
+      // either path — admins choose one or the other, so requiring both would
+      // mark every API-only or CSV-only setup as incomplete.
+      if (sub.hasApi) {
+        const apiJob = subConfig?.latest_api_data_job;
+        const apiOk = !!apiJob && apiJob.result === 0;
+        if (!dataOk && !apiOk) return true;
+      } else if (!dataOk) {
+        return true;
+      }
     }
     if (!sub.noData && !sub.dataEntryTypeId) {
       const job = mod?.latest_common_data_job;

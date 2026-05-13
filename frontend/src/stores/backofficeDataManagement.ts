@@ -35,6 +35,7 @@ export interface ImportRow {
   lastDataJob?: SyncJobResponse;
   lastApiDataJob?: SyncJobResponse;
   lastFactorJob?: SyncJobResponse;
+  lastReferenceJob?: SyncJobResponse;
 }
 
 export interface JobRowError {
@@ -98,9 +99,16 @@ export enum TargetType {
   REFERENCE_DATA = 3,
 }
 
+// Mirrors backend ``app.models.data_ingestion.EntityType`` — keep the integer
+// values in lock-step (BE persists ``entity_type.value`` into job meta and
+// round-trips via ``EntityType(value)``).  The dispatch endpoint currently
+// overrides the FE-sent value from ``carbon_report_module_id`` presence, but
+// other callers (or that endpoint after a refactor) may trust the FE value.
+// ``GLOBAL_PER_YEAR = 3`` exists on the BE for unit-sync jobs; the FE never
+// emits it, so it's intentionally omitted here.
 export enum EntityType {
-  MODULE_PER_YEAR = 2,
-  MODULE_UNIT_SPECIFIC = 3,
+  MODULE_PER_YEAR = 1,
+  MODULE_UNIT_SPECIFIC = 2,
 }
 
 export enum FactorType {

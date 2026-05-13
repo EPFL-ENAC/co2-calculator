@@ -37,6 +37,7 @@ def bootstrap_handlers() -> None:
         aggregation_tasks,  # noqa: F401
         emission_recalculation_tasks,  # noqa: F401
         ingestion_tasks,  # noqa: F401
+        reference_ingest_tasks,  # noqa: F401
         unit_sync_tasks,  # noqa: F401
     )
 
