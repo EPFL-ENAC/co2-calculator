@@ -1,7 +1,7 @@
 # ==============================================================================
 # Build Stage: Compile and build the application
 # ==============================================================================
-FROM node:24-alpine AS builder
+FROM node:24.15.0-alpine AS base
 
 # Git SHA passed by CI via --build-arg. .git is not in the build context, so
 # quasar.config.js can't run `git rev-parse` itself; it reads this env var
@@ -12,12 +12,25 @@ ENV GIT_SHA=${GIT_SHA}
 WORKDIR /app
 
 # Copy package files for dependency installation
-COPY package.json package-lock.json ./
+COPY package.json ./
+
+# Enable Corepack
+RUN corepack enable \
+ && corepack prepare --activate \
+ && npm --version
+
+# ---- Dependencies ----
+FROM base AS deps
+# Copy package-lock.json for dependency installation
+COPY package-lock.json ./
 
 # Install dependencies
 # Skip postinstall scripts to avoid running any build steps prematurely
-RUN npm ci --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --ignore-scripts --prefer-offline
 
+# ---- Build ----
+FROM deps AS build
 
 # Copy source code
 COPY . .
@@ -50,7 +63,7 @@ COPY --chmod=755 docker/entrypoint.sh /docker-entrypoint.d/40-inject-env.sh
 # `sourcemap: false` in quasar.config.js for the reason.)
 # --chown=nginx:nginx so the entrypoint script (run as the nginx user) can
 # write injectEnv.js into this directory at startup.
-COPY --from=builder --chown=nginx:nginx /app/dist/spa /usr/share/nginx/html
+COPY --from=build --chown=nginx:nginx /app/dist/spa /usr/share/nginx/html
 
 # Expose non-privileged port
 EXPOSE 8080
