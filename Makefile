@@ -65,8 +65,6 @@ install: ## Install all dependencies and set up git hooks
 	@command -v node >/dev/null 2>&1 || { echo "❌ node not found. Run: nvm install"; exit 1; }
 	@echo "Node: $$(node --version), npm: $$(npm --version)"
 	@npm run setup
-	@echo "Installing git hooks with lefthook..."
-	npx lefthook install
 	@echo "Installing backend dependencies..."
 	cd backend && $(MAKE) install
 	@echo "Installing frontend dependencies..."
