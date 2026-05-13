@@ -28,7 +28,7 @@
     "storybook:test-ci": "npm run test:ci --workspace co2-calculator-storybook"
   },
   "dependencies": {
-    "@quasar/extras": "=1.17.0",
+    "@quasar/extras": "=1.18.0",
     "@sentry/vue": "=10.52.0",
     "echarts": "=6.0.0",
     "ky": "=1.14.0",
