@@ -34,6 +34,7 @@ class StatsDict(TypedDict):
     rows_with_factors: int
     rows_without_factors: int
     rows_skipped: int
+    rows_missing_centre_financier: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
 
@@ -143,8 +144,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     "total_available": len(all_field_captions),
                     "requested": len(field_captions),
                     "max_fields": self.max_fields,
-                    "centre_financier_requested": "IN_Centre financier"
-                    in field_captions,
+                    "centre_financier_requested": "Centre financier" in field_captions,
                     "captions": field_captions,
                 },
             )
@@ -205,7 +205,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     number_of_trips = 1
                 number_of_trips = max(1, number_of_trips)
                 logger.info(record.get("ROUND_TRIP"))
-                unit_institutional_id = record.get("IN_Centre financier")
+                unit_institutional_id = record.get("Centre financier")
 
                 # Strip leading character only if it's a prefix (e.g., 'F' in 'F0828')
                 # Otherwise use as-is
@@ -297,12 +297,17 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             )
 
             # Initialize statistics
-            max_row_errors = int(self.config.get("max_row_errors", 100))
+            # Default raised to 250 — Tableau ships ~100-150 rows/year with
+            # a missing Centre financier (SAP coverage gap, per Kuoni/SAP
+            # integration owner 2026-05). Truncating the row_errors list to
+            # 100 dropped row indices operators need to investigate.
+            max_row_errors = int(self.config.get("max_row_errors", 250))
             stats: StatsDict = {
                 "rows_processed": 0,
                 "rows_with_factors": 0,
                 "rows_without_factors": 0,
                 "rows_skipped": 0,
+                "rows_missing_centre_financier": 0,
                 "row_errors": [],
                 "row_errors_count": 0,
             }
@@ -328,8 +333,16 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             for idx, record in enumerate(transformed_data, start=1):
                 unit_code = record.get("unit_institutional_id")
                 if not unit_code or str(unit_code).strip() == "":
+                    # SAP coverage gap: a blank Centre financier means no
+                    # matching expense report exists in SAP for the Kuoni
+                    # décompte number. Tracked separately from other skip
+                    # reasons so dashboards can alert on a feed regression.
+                    stats["rows_missing_centre_financier"] += 1
                     self._record_row_error(
-                        stats, idx, "Missing unit_institutional_id", max_row_errors
+                        stats,
+                        idx,
+                        "Missing Centre financier (no matching SAP expense report)",
+                        max_row_errors,
                     )
                     continue
 

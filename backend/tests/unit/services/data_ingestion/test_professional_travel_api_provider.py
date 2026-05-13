@@ -229,6 +229,7 @@ class TestRecordRowError:
             "rows_with_factors": 0,
             "rows_without_factors": 0,
             "rows_skipped": 0,
+            "rows_missing_centre_financier": 0,
             "row_errors": [],
             "row_errors_count": 0,
         }
@@ -243,6 +244,7 @@ class TestRecordRowError:
             "rows_with_factors": 0,
             "rows_without_factors": 0,
             "rows_skipped": 0,
+            "rows_missing_centre_financier": 0,
             "row_errors": [{"row": i, "reason": "x"} for i in range(10)],
             "row_errors_count": 10,
         }
@@ -270,7 +272,7 @@ class TestTransformData:
             "IN_Segment destination airport code": "CDG",
             "Number of trips": "2",
             "ROUND_TRIP": "YES",
-            "IN_Centre financier": "F0828",
+            "Centre financier": "F0828",
             "IN_Segment class": "AIR ECONOMY CLASS",
             "OUT_CO2_CORRECTED": 150.5,
             "OUT_DISTANCE_CORRECTED": 420.0,
@@ -331,16 +333,16 @@ class TestTransformData:
         assert result[0]["number_of_trips"] == 1
 
     async def test_unit_prefix_not_stripped_for_numeric(self, provider):
-        records = [self._make_record(**{"IN_Centre financier": "1234"})]
+        records = [self._make_record(**{"Centre financier": "1234"})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] == "1234"
 
     async def test_missing_centre_financier_yields_none(self, provider):
-        # When Tableau drops the IN_Centre financier column (rename or
+        # When Tableau drops the Centre financier column (rename or
         # max_fields cutoff), every record's unit_institutional_id must
         # be None — not a "unknown_unit" sentinel that masks the
         # fail-fast guard in _resolve_carbon_report_modules.
-        records = [self._make_record(**{"IN_Centre financier": None})]
+        records = [self._make_record(**{"Centre financier": None})]
         result = await provider.transform_data(records)
         assert result[0]["unit_institutional_id"] is None
 
@@ -352,6 +354,64 @@ class TestTransformData:
         ]
         with pytest.raises(ValueError, match="Centre financier column is required"):
             await provider._resolve_carbon_report_modules(transformed)
+
+
+# ---------------------------------------------------------------------------
+# ingest — SAP coverage gap observability
+# ---------------------------------------------------------------------------
+
+
+class TestIngestSapCoverageGap:
+    """Pin the SAP coverage signal that Kuoni/SAP integration owner flagged
+    2026-05: ~117/15865 rows per year have a blank Centre financier (no
+    matching SAP expense report for the Kuoni décompte number). The provider
+    must skip those rows without failing the job AND surface them under a
+    dedicated counter so a feed regression is detectable from job metadata.
+    """
+
+    @pytest.mark.asyncio
+    async def test_blank_centre_financier_counted_separately(self):
+        provider = _make_provider(year=2024)
+        provider.user = None
+
+        def _raw(sciper, cf):
+            return {
+                "IN_Departure date": "20240601",
+                "SCIPER": sciper,
+                "IN_Segment origin airport code": "GVA",
+                "IN_Segment destination airport code": "CDG",
+                "Number of trips": "1",
+                "ROUND_TRIP": "YES",
+                "Centre financier": cf,
+                "IN_Segment class": "AIR ECONOMY CLASS",
+                "OUT_CO2_CORRECTED": 100,
+                "OUT_DISTANCE_CORRECTED": 400,
+            }
+
+        provider.fetch_data = AsyncMock(
+            return_value=[
+                _raw("111", "F0828"),
+                _raw("222", None),
+                _raw("333", ""),
+            ]
+        )
+        provider._resolve_carbon_report_modules = AsyncMock(return_value={"0828": 42})
+        provider._load_data = AsyncMock(return_value={"inserted": 1})
+        provider._update_job = AsyncMock()
+
+        result = await provider.ingest()
+        stats = result["stats"]
+
+        assert stats["rows_missing_centre_financier"] == 2
+        assert stats["rows_processed"] == 1
+        assert stats["rows_skipped"] == 2
+
+        # Operator-facing message names the SAP root cause, not the
+        # internal "unit_institutional_id" jargon.
+        reasons = [e["reason"] for e in stats["row_errors"]]
+        assert all(
+            "Centre financier" in r and "SAP expense report" in r for r in reasons
+        )
 
 
 # ---------------------------------------------------------------------------
