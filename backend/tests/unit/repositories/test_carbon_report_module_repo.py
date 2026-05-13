@@ -399,3 +399,60 @@ class TestGetReportingOverview:
         )
         assert result["total"] == 0
         assert result["data"] == []
+
+    async def test_multi_year_counts_distinct_units(
+        self, db_session, make_unit, make_carbon_report
+    ):
+        # One unit with a CarbonReport in each of the two selected years.
+        # The (Unit JOIN CarbonReport) cardinality is 2, but the unit count
+        # exposed to the UI must stay at 1 — otherwise the status cards and
+        # table total double when multiple years are selected.
+        unit = await make_unit(db_session, name="LAB-MY")
+        cr_2024 = await make_carbon_report(
+            db_session,
+            unit_id=unit.id,
+            year=2024,
+            overall_status=ModuleStatus.VALIDATED,
+        )
+        await make_carbon_report(
+            db_session,
+            unit_id=unit.id,
+            year=2025,
+            overall_status=ModuleStatus.IN_PROGRESS,
+            carbon_project_id=cr_2024.carbon_project_id,
+        )
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo.get_reporting_overview(years=[2024, 2025])
+
+        assert result["total"] == 1
+        assert result["total_units_count"] == 1
+        # Only 1 of 2 selected years is VALIDATED → IN_PROGRESS bucket
+        # (matches the "1/2" row helper output).
+        assert result["validated_units_count"] == 0
+        assert result["in_progress_units_count"] == 1
+        assert result["not_started_units_count"] == 0
+
+    async def test_multi_year_all_validated_buckets_as_validated(
+        self, db_session, make_unit, make_carbon_report
+    ):
+        unit = await make_unit(db_session, name="LAB-MYV")
+        cr_2024 = await make_carbon_report(
+            db_session,
+            unit_id=unit.id,
+            year=2024,
+            overall_status=ModuleStatus.VALIDATED,
+        )
+        await make_carbon_report(
+            db_session,
+            unit_id=unit.id,
+            year=2025,
+            overall_status=ModuleStatus.VALIDATED,
+            carbon_project_id=cr_2024.carbon_project_id,
+        )
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo.get_reporting_overview(years=[2024, 2025])
+
+        assert result["total_units_count"] == 1
+        assert result["validated_units_count"] == 1
+        assert result["in_progress_units_count"] == 0
+        assert result["not_started_units_count"] == 0

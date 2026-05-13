@@ -248,6 +248,9 @@ const props = withDefaults(
   defineProps<SubModuleSectionProps & { collapsible?: boolean }>(),
   {
     collapsible: true,
+    error: null,
+    data: null,
+    submoduleType: undefined,
   },
 );
 const authStore = useAuthStore();

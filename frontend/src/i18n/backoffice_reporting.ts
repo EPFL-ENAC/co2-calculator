@@ -99,6 +99,10 @@ export default {
     en: 'Validation status',
     fr: 'Statut de validation',
   },
+  backoffice_reporting_column_years_completed: {
+    en: 'Years completed',
+    fr: 'Années complétées',
+  },
   backoffice_reporting_column_principal_user: {
     en: 'Unit manager',
     fr: "Responsable de l'unité",

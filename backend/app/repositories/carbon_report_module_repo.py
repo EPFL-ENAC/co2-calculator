@@ -423,21 +423,68 @@ class CarbonReportModuleRepository:
                 "total_units_count": 0,
             }
 
+        is_multi_year = len(years) > 1
+
         # --- STEP 1: The Cheap Count ---
-        # Count units per status in a single GROUP BY query.
-        status_count_stmt = (
-            select(
-                col(CarbonReport.overall_status),
-                func.count(col(Unit.id)),
+        # Count units per status. Single year: one report per unit, group by status.
+        # Multi-year: roll up per unit, then bucket by validated_years_count to
+        # match the table row helper (_get_completion_status_from_progress on
+        # "validated_count/len(years)"); without this, units are double-counted
+        # once per selected year.
+        if is_multi_year:
+            unit_rollup_stmt: Any = (
+                select(
+                    col(CarbonReport.unit_id).label("unit_id"),
+                    func.sum(
+                        case(
+                            (
+                                col(CarbonReport.overall_status)
+                                == int(ModuleStatus.VALIDATED),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("validated_years_count"),
+                )
+                .where(col(CarbonReport.year).in_(years))
+                .group_by(col(CarbonReport.unit_id))
             )
-            .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
-            .where(col(CarbonReport.year).in_(years))
-            .group_by(col(CarbonReport.overall_status))
-        )
-        if hierarchy_unit_ids is not None:
-            status_count_stmt = status_count_stmt.where(
-                col(Unit.id).in_(hierarchy_unit_ids)
+            if hierarchy_unit_ids is not None:
+                unit_rollup_stmt = unit_rollup_stmt.where(
+                    col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+                )
+            unit_rollup_subq = unit_rollup_stmt.subquery()
+
+            rollup_bucket = case(
+                (
+                    col(unit_rollup_subq.c.validated_years_count) >= len(years),
+                    int(ModuleStatus.VALIDATED),
+                ),
+                (
+                    col(unit_rollup_subq.c.validated_years_count) > 0,
+                    int(ModuleStatus.IN_PROGRESS),
+                ),
+                else_=int(ModuleStatus.NOT_STARTED),
             )
+            status_count_stmt = (
+                select(rollup_bucket.label("bucket"), func.count())
+                .select_from(unit_rollup_subq)
+                .group_by(rollup_bucket)
+            )
+        else:
+            status_count_stmt = (
+                select(
+                    col(CarbonReport.overall_status),
+                    func.count(col(Unit.id)),
+                )
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
+                .where(col(CarbonReport.year).in_(years))
+                .group_by(col(CarbonReport.overall_status))
+            )
+            if hierarchy_unit_ids is not None:
+                status_count_stmt = status_count_stmt.where(
+                    col(Unit.id).in_(hierarchy_unit_ids)
+                )
 
         status_count_rows = (await self.session.exec(status_count_stmt)).all()
         status_counts = {int(status): count for status, count in status_count_rows}
@@ -446,9 +493,10 @@ class CarbonReportModuleRepository:
         in_progress_units_count = status_counts.get(int(ModuleStatus.IN_PROGRESS), 0)
         not_started_units_count = status_counts.get(int(ModuleStatus.NOT_STARTED), 0)
 
-        # Base count stmt still needed for the filtered table count below.
+        # Base count for the filtered table. DISTINCT avoids double-counting units
+        # that have a CarbonReport row in each selected year.
         base_count_stmt = (
-            select(func.count(col(Unit.id)))
+            select(func.count(func.distinct(col(Unit.id))))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
@@ -475,8 +523,6 @@ class CarbonReportModuleRepository:
                 "page_size": page_size,
                 "total_pages": 0,
             }
-
-        is_multi_year = len(years) > 1
 
         # --- STEP 2: Paginate just the basic Unit/Report info ---
         if is_multi_year:

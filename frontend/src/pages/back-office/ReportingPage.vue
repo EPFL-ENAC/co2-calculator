@@ -257,6 +257,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           :units="tableRows"
           :pagination-meta="paginationMeta"
           :loading="loading"
+          :selected-years-count="selectedYears.length"
           @request-data="fetchUnits"
           @view-unit="handleViewUnit"
         />
