@@ -431,9 +431,11 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label: inp.optionLabelPrefix
-              ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-              : o.label,
+            label:
+              inp.optionLabelPrefix &&
+              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                : o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,

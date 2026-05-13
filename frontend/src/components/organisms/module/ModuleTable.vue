@@ -355,7 +355,6 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
-import { useFactorsStore } from 'src/stores/factors';
 import { useAuthStore } from 'src/stores/auth';
 import {
   useBackofficeDataManagement,
@@ -686,7 +685,6 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
-const factorsStore = useFactorsStore();
 
 const hasModuleUpload = computed(() => {
   return (
@@ -867,14 +865,9 @@ const qCols = computed<TableViewColumn[]>(() => {
   return baseCols;
 });
 
-// Map from kind value → label (taxonomy first, factor store label map as fallback)
 const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
   const map: Record<string, string> = {};
-  // Factor store kind-label map (populated by fetchClassOptions)
-  const factorMap = factorsStore.kindLabelMapBySubmodule[props.submoduleType] ?? {};
-  Object.assign(map, factorMap);
-  // Taxonomy overrides (more authoritative, locale-aware)
   taxo?.children?.forEach((node) => {
     if (node.name && node.label) {
       if (node.translation_key && $te(node.translation_key)) {
@@ -962,7 +955,8 @@ function renderCell(
   }
   // Factor-sourced options: translate using optionLabelPrefix
   if (col.optionLabelPrefix && typeof val === 'string') {
-    return $t(`${col.optionLabelPrefix}${val.toLowerCase()}`);
+    const key = `${col.optionLabelPrefix}${val.toLowerCase()}`;
+    return $te(key) ? $t(key) : val;
   }
   // Factor-sourced kind/subkind: look up label from taxonomy
   if (col.optionsId === 'kind' && typeof val === 'string') {

@@ -124,7 +124,7 @@ export default {
     en: 'Stationery products',
   },
   purchase_factor_printing_writing_paper: {
-    fr: 'Papier d\'imprimerie et d\'écriture',
+    fr: "Papier d'imprimerie et d'écriture",
     en: 'Printing and writing paper',
   },
   purchase_factor_personal_paper_based_products: {
@@ -148,15 +148,15 @@ export default {
     en: 'Machines and accessories for industrial processing and manufacturing',
   },
   purchase_factor_machines_equipment_supplies_pharmaceutical_industry: {
-    fr: 'Machines, équipements et fournitures pour l\'industrie pharmaceutique',
+    fr: "Machines, équipements et fournitures pour l'industrie pharmaceutique",
     en: 'Machines, equipment and supplies for the pharmaceutical industry',
   },
   purchase_factor_packaging_machines: {
-    fr: 'Machines d\'emballage',
+    fr: "Machines d'emballage",
     en: 'Packaging machines',
   },
   purchase_factor_handling_packaging_storage_machines_accessories_supplies: {
-    fr: 'Machines pour la manutention, l\'emballage et le stockage, accessoires et fournitures',
+    fr: "Machines pour la manutention, l'emballage et le stockage, accessoires et fournitures",
     en: 'Handling, packaging and storage machines, accessories and supplies',
   },
   purchase_factor_containers_storage_means: {
@@ -176,7 +176,7 @@ export default {
     en: 'Liquid containers',
   },
   purchase_factor_packaging_materials: {
-    fr: 'Matériel pour l\'emballage',
+    fr: "Matériel pour l'emballage",
     en: 'Packaging materials',
   },
   purchase_factor_bottles: {
@@ -196,13 +196,14 @@ export default {
     en: 'Holding and clamping tools',
   },
   purchase_factor_tool_supplies_accessories: {
-    fr: 'Fournitures et accessoires d\'outil',
+    fr: "Fournitures et accessoires d'outil",
     en: 'Tool supplies and accessories',
   },
-  purchase_factor_components_provisions_structures_building_construction_manufacturing: {
-    fr: 'Constituants et provisions de Structures et bâtiment et construction et fabrication',
-    en: 'Components and provisions for structures, building, construction and manufacturing',
-  },
+  purchase_factor_components_provisions_structures_building_construction_manufacturing:
+    {
+      fr: 'Constituants et provisions de Structures et bâtiment et construction et fabrication',
+      en: 'Components and provisions for structures, building, construction and manufacturing',
+    },
   purchase_factor_components_supplies_manufacturing: {
     fr: 'Composants et fournitures pour la fabrication',
     en: 'Components and supplies for manufacturing',
@@ -212,7 +213,7 @@ export default {
     en: 'Abrasives and abrasive products',
   },
   purchase_factor_adhesives_glues_sealants: {
-    fr: 'Adhésifs, colles et enduits d\'étanchéité',
+    fr: "Adhésifs, colles et enduits d'étanchéité",
     en: 'Adhesives, glues and sealants',
   },
   purchase_factor_adhesive_tapes: {
@@ -236,7 +237,7 @@ export default {
     en: 'Power conditioning equipment',
   },
   purchase_factor_heating_ventilation_air_circulation: {
-    fr: 'Chauffage, ventilation et circulation d\'air',
+    fr: "Chauffage, ventilation et circulation d'air",
     en: 'Heating, ventilation and air circulation',
   },
   purchase_factor_gas_fluid_distribution: {
@@ -268,31 +269,33 @@ export default {
     en: 'Filters',
   },
   purchase_factor_laboratory_measurement_observation_test_equipment: {
-    fr: 'Équipements de laboratoire, de mesure, d\'observation et d\'essai',
+    fr: "Équipements de laboratoire, de mesure, d'observation et d'essai",
     en: 'Laboratory, measurement, observation and test equipment',
   },
   purchase_factor_scientific_laboratory_equipment: {
     fr: 'Équipements scientifiques et de laboratoire',
     en: 'Scientific and laboratory equipment',
   },
-  purchase_factor_laboratory_equipment_supplies_mixing_dispersion_homogenization: {
-    fr: 'Équipements et fournitures de laboratoire pour le mélange, la dispersion et l\'homogénéisation',
-    en: 'Laboratory equipment and supplies for mixing, dispersion and homogenization',
-  },
-  purchase_factor_laboratory_equipment_drilling_grinding_cutting_crushing_pressing: {
-    fr: 'Équipements de laboratoire pour le perçage, le meulage, le découpage, le concassage et le pressage',
-    en: 'Laboratory equipment for drilling, grinding, cutting, crushing and pressing',
-  },
+  purchase_factor_laboratory_equipment_supplies_mixing_dispersion_homogenization:
+    {
+      fr: "Équipements et fournitures de laboratoire pour le mélange, la dispersion et l'homogénéisation",
+      en: 'Laboratory equipment and supplies for mixing, dispersion and homogenization',
+    },
+  purchase_factor_laboratory_equipment_drilling_grinding_cutting_crushing_pressing:
+    {
+      fr: 'Équipements de laboratoire pour le perçage, le meulage, le découpage, le concassage et le pressage',
+      en: 'Laboratory equipment for drilling, grinding, cutting, crushing and pressing',
+    },
   purchase_factor_laboratory_equipment_heating_drying: {
     fr: 'Équipements de laboratoire pour le chauffage et le séchage',
     en: 'Laboratory equipment for heating and drying',
   },
   purchase_factor_laboratory_equipment_accessories_animal_studies: {
-    fr: 'Équipements et accessoires de laboratoire pour l\'étude des animaux',
+    fr: "Équipements et accessoires de laboratoire pour l'étude des animaux",
     en: 'Laboratory equipment and accessories for animal studies',
   },
   purchase_factor_histology_equipment: {
-    fr: 'Équipements d\'histologie',
+    fr: "Équipements d'histologie",
     en: 'Histology equipment',
   },
   purchase_factor_laboratory_refrigeration_equipment: {
@@ -328,7 +331,7 @@ export default {
     en: 'Specimen collection and transport containers and supplies',
   },
   purchase_factor_laboratory_water_purification_equipment_supplies: {
-    fr: 'Équipements et fournitures de purification de l\'eau pour laboratoire',
+    fr: "Équipements et fournitures de purification de l'eau pour laboratoire",
     en: 'Laboratory water purification equipment and supplies',
   },
   purchase_factor_fermentation_equipment: {
@@ -336,17 +339,18 @@ export default {
     en: 'Fermentation equipment',
   },
   purchase_factor_laboratory_incubation_equipment: {
-    fr: 'Équipements d\'incubation pour laboratoire',
+    fr: "Équipements d'incubation pour laboratoire",
     en: 'Laboratory incubation equipment',
   },
   purchase_factor_ovens_accessories_laboratory: {
     fr: 'Étuves et accessoires pour laboratoire',
     en: 'Ovens and accessories for laboratory',
   },
-  purchase_factor_equipment_supplies_laboratory_extraction_evaporation_distillation_decanting: {
-    fr: 'Matériel et fournitures pour extraction, évaporation, distillation et décantation de laboratoire',
-    en: 'Equipment and supplies for laboratory extraction, evaporation, distillation and decanting',
-  },
+  purchase_factor_equipment_supplies_laboratory_extraction_evaporation_distillation_decanting:
+    {
+      fr: 'Matériel et fournitures pour extraction, évaporation, distillation et décantation de laboratoire',
+      en: 'Equipment and supplies for laboratory extraction, evaporation, distillation and decanting',
+    },
   purchase_factor_laboratory_filtration_equipment_accessories: {
     fr: 'Équipements ou accessoires de filtration pour laboratoire',
     en: 'Laboratory filtration equipment or accessories',
@@ -360,15 +364,16 @@ export default {
     en: 'Laboratory pumps and tubing',
   },
   purchase_factor_laboratory_electrophoresis_transfer_systems_supplies: {
-    fr: 'Systèmes et fournitures d\'électrophorèse et de transfert pour laboratoire',
+    fr: "Systèmes et fournitures d'électrophorèse et de transfert pour laboratoire",
     en: 'Laboratory electrophoresis and transfer systems and supplies',
   },
-  purchase_factor_nucleic_acid_extraction_purification_quantification_elements_kits: {
-    fr: 'Éléments et kits d\'extraction, de purification et de quantification de l\'acide nucléique',
-    en: 'Nucleic acid extraction, purification and quantification elements and kits',
-  },
+  purchase_factor_nucleic_acid_extraction_purification_quantification_elements_kits:
+    {
+      fr: "Éléments et kits d'extraction, de purification et de quantification de l'acide nucléique",
+      en: 'Nucleic acid extraction, purification and quantification elements and kits',
+    },
   purchase_factor_dna_deoxyribonucleic_acid_sequencing_products: {
-    fr: 'Produits de séquençage de l\'ADN (acide désoxyribonucléique)',
+    fr: "Produits de séquençage de l'ADN (acide désoxyribonucléique)",
     en: 'DNA (deoxyribonucleic acid) sequencing products',
   },
   purchase_factor_vitro_translation_transcription_products: {
@@ -380,23 +385,25 @@ export default {
     en: 'Libraries and related materials',
   },
   purchase_factor_nucleic_acid_detection_labeling_systems: {
-    fr: 'Systèmes de détection et de marquage de l\'acide nucléique',
+    fr: "Systèmes de détection et de marquage de l'acide nucléique",
     en: 'Nucleic acid detection and labeling systems',
   },
-  purchase_factor_materials_kits_media_microorganism_transformation_propagation: {
-    fr: 'Matériel, kits et milieux pour la transformation et la propagation des microorganismes',
-    en: 'Materials, kits and media for microorganism transformation and propagation',
-  },
-  purchase_factor_products_polymerase_chain_reaction_reverse_transcriptase_polymerase_chain_reaction: {
-    fr: 'Produits pour amplification en chaîne par polymérase et amplification en chaîne par polymérase-transcriptase inverse',
-    en: 'Products for polymerase chain reaction and reverse transcriptase polymerase chain reaction',
-  },
+  purchase_factor_materials_kits_media_microorganism_transformation_propagation:
+    {
+      fr: 'Matériel, kits et milieux pour la transformation et la propagation des microorganismes',
+      en: 'Materials, kits and media for microorganism transformation and propagation',
+    },
+  purchase_factor_products_polymerase_chain_reaction_reverse_transcriptase_polymerase_chain_reaction:
+    {
+      fr: 'Produits pour amplification en chaîne par polymérase et amplification en chaîne par polymérase-transcriptase inverse',
+      en: 'Products for polymerase chain reaction and reverse transcriptase polymerase chain reaction',
+    },
   purchase_factor_primers_linkers_adapters: {
     fr: 'Amorce, lieurs et adaptateurs',
     en: 'Primers, linkers and adapters',
   },
   purchase_factor_protein_expression_products: {
-    fr: 'Produits d\'expression des protéines',
+    fr: "Produits d'expression des protéines",
     en: 'Protein expression products',
   },
   purchase_factor_vectors: {
@@ -404,7 +411,7 @@ export default {
     en: 'Vectors',
   },
   purchase_factor_test_examination_measurement_instruments: {
-    fr: 'Instruments d\'essai, d\'examen et de mesure',
+    fr: "Instruments d'essai, d'examen et de mesure",
     en: 'Test, examination and measurement instruments',
   },
   purchase_factor_weight_measurement_instruments: {
@@ -412,11 +419,11 @@ export default {
     en: 'Weight measurement instruments',
   },
   purchase_factor_length_thickness_distance_measurement_instruments: {
-    fr: 'Instruments de mesure de la longueur, de l\'épaisseur ou de la distance',
+    fr: "Instruments de mesure de la longueur, de l'épaisseur ou de la distance",
     en: 'Length, thickness or distance measurement instruments',
   },
   purchase_factor_examination_observation_instruments_accessories: {
-    fr: 'Instruments d\'examen et d\'observation et accessoires',
+    fr: "Instruments d'examen et d'observation et accessoires",
     en: 'Examination and observation instruments and accessories',
   },
   purchase_factor_heat_temperature_measurement_instruments: {
@@ -424,15 +431,15 @@ export default {
     en: 'Heat and temperature measurement instruments',
   },
   purchase_factor_instruments_supplies_chemical_evaluation: {
-    fr: 'Instruments et fournitures pour l\'évaluation chimique',
+    fr: "Instruments et fournitures pour l'évaluation chimique",
     en: 'Instruments and supplies for chemical evaluation',
   },
   purchase_factor_electrical_measurement_test_equipment: {
-    fr: 'Équipements de mesures et d\'essais électriques',
+    fr: "Équipements de mesures et d'essais électriques",
     en: 'Electrical measurement and test equipment',
   },
   purchase_factor_measurement_control_instruments_electronics_communications: {
-    fr: 'Instruments de mesure et de contrôle pour l\'électronique et les communications',
+    fr: "Instruments de mesure et de contrôle pour l'électronique et les communications",
     en: 'Measurement and control instruments for electronics and communications',
   },
   purchase_factor_spectroscopy_equipment: {
@@ -440,7 +447,7 @@ export default {
     en: 'Spectroscopy equipment',
   },
   purchase_factor_electrochemistry_measurement_equipment_accessories: {
-    fr: 'Équipements et accessoires de mesures d\'électrochimie',
+    fr: "Équipements et accessoires de mesures d'électrochimie",
     en: 'Electrochemistry measurement equipment and accessories',
   },
   purchase_factor_chromatographic_measurement_instruments_accessories: {
@@ -560,7 +567,7 @@ export default {
     en: 'Enema administration supplies',
   },
   purchase_factor_needles_injection_aspiration_accessories: {
-    fr: 'Aiguilles et accessoires d\'injection et d\'aspiration',
+    fr: "Aiguilles et accessoires d'injection et d'aspiration",
     en: 'Needles and injection and aspiration accessories',
   },
   purchase_factor_syringes_accessories: {
@@ -568,15 +575,15 @@ export default {
     en: 'Syringes and accessories',
   },
   purchase_factor_products_emergency_field_medical_assistance: {
-    fr: 'Produits pour assistance médicale d\'urgence et sur le terrain',
+    fr: "Produits pour assistance médicale d'urgence et sur le terrain",
     en: 'Products for emergency and field medical assistance',
   },
   purchase_factor_patient_examination_monitoring_products: {
-    fr: 'Produits d\'examen et de contrôle du patient',
+    fr: "Produits d'examen et de contrôle du patient",
     en: 'Patient examination and monitoring products',
   },
   purchase_factor_general_purpose_examination_diagnostic_products: {
-    fr: 'Produits d\'examen et de diagnostic à usage général',
+    fr: "Produits d'examen et de diagnostic à usage général",
     en: 'General purpose examination and diagnostic products',
   },
   purchase_factor_medical_thermometers_accessories: {
@@ -588,7 +595,7 @@ export default {
     en: 'Measuring devices for medical examinations',
   },
   purchase_factor_medical_diagnostic_imaging_nuclear_medicine_products: {
-    fr: 'Produits d\'imagerie diagnostique médicale et de médecine nucléaire',
+    fr: "Produits d'imagerie diagnostique médicale et de médecine nucléaire",
     en: 'Medical diagnostic imaging and nuclear medicine products',
   },
   purchase_factor_x_ray_medical_diagnostic_products: {
@@ -596,7 +603,7 @@ export default {
     en: 'X-ray medical diagnostic products',
   },
   purchase_factor_medical_image_processing_equipment_supplies: {
-    fr: 'Équipements et fournitures de traitement d\'images médicales',
+    fr: "Équipements et fournitures de traitement d'images médicales",
     en: 'Medical image processing equipment and supplies',
   },
   purchase_factor_intravenous_arterial_cannulas_catheters_accessories: {
@@ -624,17 +631,18 @@ export default {
     en: 'Sterilization indicators and witnesses',
   },
   purchase_factor_sterilization_packaging_supplies: {
-    fr: 'Fournitures d\'emballage pour stérilisation',
+    fr: "Fournitures d'emballage pour stérilisation",
     en: 'Sterilization packaging supplies',
   },
   purchase_factor_surgical_products: {
     fr: 'Produits chirurgicaux',
     en: 'Surgical products',
   },
-  purchase_factor_cutting_surgical_instruments_ligature_clips_accessories_related_products: {
-    fr: 'Instruments chirurgicaux coupants, serre-nœuds, accessoires et produits apparentés',
-    en: 'Cutting surgical instruments, ligature clips, accessories and related products',
-  },
+  purchase_factor_cutting_surgical_instruments_ligature_clips_accessories_related_products:
+    {
+      fr: 'Instruments chirurgicaux coupants, serre-nœuds, accessoires et produits apparentés',
+      en: 'Cutting surgical instruments, ligature clips, accessories and related products',
+    },
   purchase_factor_wound_care_products: {
     fr: 'Produits de soin des plaies',
     en: 'Wound care products',
@@ -656,7 +664,7 @@ export default {
     en: 'Computer accessories',
   },
   purchase_factor_devices_equipment_network_datacom_connection_installation: {
-    fr: 'Appareils et équipements pour l\'installation des connexions réseaux et datacom',
+    fr: "Appareils et équipements pour l'installation des connexions réseaux et datacom",
     en: 'Devices and equipment for network and datacom connection installation',
   },
   purchase_factor_software: {
@@ -664,7 +672,7 @@ export default {
     en: 'Software',
   },
   purchase_factor_publishing_content_creation_software: {
-    fr: 'Logiciels d\'édition et de création de contenu',
+    fr: "Logiciels d'édition et de création de contenu",
     en: 'Publishing and content creation software',
   },
   purchase_factor_content_management_software: {
@@ -716,21 +724,22 @@ export default {
     en: 'Office supplies',
   },
   purchase_factor_writing_instruments: {
-    fr: 'Instruments d\'écriture',
+    fr: "Instruments d'écriture",
     en: 'Writing instruments',
   },
   purchase_factor_equipment_supplies_printing_photography_audiovisual: {
-    fr: 'Équipements et fournitures pour l\'impression, la photographie et l\'audiovisuel',
+    fr: "Équipements et fournitures pour l'impression, la photographie et l'audiovisuel",
     en: 'Equipment and supplies for printing, photography and audiovisual',
   },
   purchase_factor_recording_photography_media: {
-    fr: 'Supports d\'enregistrement et de photographie',
+    fr: "Supports d'enregistrement et de photographie",
     en: 'Recording and photography media',
   },
-  purchase_factor_equipment_supplies_defense_law_enforcement_safety_protection: {
-    fr: 'Équipements et fournitures pour la défense, l\'application de la loi, la sécurité et la protection',
-    en: 'Equipment and supplies for defense, law enforcement, safety and protection',
-  },
+  purchase_factor_equipment_supplies_defense_law_enforcement_safety_protection:
+    {
+      fr: "Équipements et fournitures pour la défense, l'application de la loi, la sécurité et la protection",
+      en: 'Equipment and supplies for defense, law enforcement, safety and protection',
+    },
   purchase_factor_personal_safety_protection: {
     fr: 'Sécurité et protection des personnes',
     en: 'Personal safety and protection',
@@ -756,15 +765,15 @@ export default {
     en: 'Cleaning equipment and supplies',
   },
   purchase_factor_water_wastewater_treatment_supplies_disposal: {
-    fr: 'Traitement, fournitures et élimination de l\'eau et de l\'eau usée',
+    fr: "Traitement, fournitures et élimination de l'eau et de l'eau usée",
     en: 'Water and wastewater treatment, supplies and disposal',
   },
   purchase_factor_water_supply_treatment_equipment: {
-    fr: 'Équipements de fourniture et de traitement d\'eau',
+    fr: "Équipements de fourniture et de traitement d'eau",
     en: 'Water supply and treatment equipment',
   },
   purchase_factor_cleaning_maintenance_equipment: {
-    fr: 'Matériel de nettoyage et d\'entretien',
+    fr: "Matériel de nettoyage et d'entretien",
     en: 'Cleaning and maintenance equipment',
   },
   purchase_factor_floor_cleaning_equipment: {
@@ -780,7 +789,7 @@ export default {
     en: 'Cleaning equipment',
   },
   purchase_factor_cleaning_maintenance_supplies: {
-    fr: 'Fournitures de nettoyage et d\'entretien',
+    fr: "Fournitures de nettoyage et d'entretien",
     en: 'Cleaning and maintenance supplies',
   },
   purchase_factor_catering_services_equipment: {
@@ -824,7 +833,7 @@ export default {
     en: 'Laxatives',
   },
   purchase_factor_hormones_hormone_inhibitors: {
-    fr: 'Hormones et inhibiteurs d\'hormones',
+    fr: "Hormones et inhibiteurs d'hormones",
     en: 'Hormones and hormone inhibitors',
   },
   purchase_factor_immunostimulant_agents: {
@@ -832,7 +841,7 @@ export default {
     en: 'Immunostimulant agents',
   },
   purchase_factor_clothing_luggage_personal_hygiene_products: {
-    fr: 'Habillement, bagages et produits d\'hygiène personnelle',
+    fr: "Habillement, bagages et produits d'hygiène personnelle",
     en: 'Clothing, luggage and personal hygiene products',
   },
   purchase_factor_clothing: {
@@ -844,7 +853,7 @@ export default {
     en: 'Footwear',
   },
   purchase_factor_bath_body_hygiene_products: {
-    fr: 'Produits de bains et d\'hygiène du corps',
+    fr: "Produits de bains et d'hygiène du corps",
     en: 'Bath and body hygiene products',
   },
   purchase_factor_clocks: {
@@ -879,18 +888,20 @@ export default {
     fr: 'Mobilier de laboratoires',
     en: 'Laboratory furniture',
   },
-  purchase_factor_musical_instruments_games_toys_teaching_craft_artistic_equipment_materials_accessories_supplies: {
-    fr: 'Instruments de musique, jeux, jouets, et équipements, matériel, accessoires et fournitures pour l\'enseignement et les activités artisanales et artistiques',
-    en: 'Musical instruments, games, toys, and teaching, craft and artistic equipment, materials, accessories and supplies',
-  },
+  purchase_factor_musical_instruments_games_toys_teaching_craft_artistic_equipment_materials_accessories_supplies:
+    {
+      fr: "Instruments de musique, jeux, jouets, et équipements, matériel, accessoires et fournitures pour l'enseignement et les activités artisanales et artistiques",
+      en: 'Musical instruments, games, toys, and teaching, craft and artistic equipment, materials, accessories and supplies',
+    },
   purchase_factor_beads_accessories_beadwork: {
     fr: 'Perles ou accessoires pour travaux de perles',
     en: 'Beads or accessories for beadwork',
   },
-  purchase_factor_building_construction_maintenance_repair_services_complementary_services: {
-    fr: 'Services de construction, maintenance et réparation de bâtiment et services complémentaires',
-    en: 'Building construction, maintenance and repair services and complementary services',
-  },
+  purchase_factor_building_construction_maintenance_repair_services_complementary_services:
+    {
+      fr: 'Services de construction, maintenance et réparation de bâtiment et services complémentaires',
+      en: 'Building construction, maintenance and repair services and complementary services',
+    },
   purchase_factor_complementary_building_services: {
     fr: 'Services complémentaires au bâtiment',
     en: 'Complementary building services',
@@ -904,7 +915,7 @@ export default {
     en: 'Production equipment repair and maintenance services',
   },
   purchase_factor_precision_instrument_manufacturing: {
-    fr: 'Fabrication d\'instruments de précision',
+    fr: "Fabrication d'instruments de précision",
     en: 'Precision instrument manufacturing',
   },
   purchase_factor_transportation_postal_storage_services: {

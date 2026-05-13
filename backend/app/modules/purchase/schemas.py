@@ -436,7 +436,10 @@ purchase_common_classification_fields: list[str] = [
     "purchase_additional_code",
     "currency",
 ]
-purchase_common_value_fields: list[str] = ["ef_kg_co2eq_per_currency", "translation_key"]
+purchase_common_value_fields: list[str] = [
+    "ef_kg_co2eq_per_currency",
+    "translation_key",
+]
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
@@ -444,6 +447,7 @@ class PurchaseCommonFactorCreate(FactorCreate):
     purchase_additional_code: str
     currency: str
     ef_kg_co2eq_per_currency: float
+    translation_key: Optional[str] = None
 
     @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod
@@ -458,6 +462,7 @@ class PurchaseCommonFactorUpdate(FactorUpdate):
     purchase_additional_code: Optional[str] = None
     currency: Optional[str] = None
     ef_kg_co2eq_per_currency: Optional[float] = None
+    translation_key: Optional[str] = None
 
 
 class PurchaseCommonFactorResponse(FactorResponseGen):
@@ -465,6 +470,7 @@ class PurchaseCommonFactorResponse(FactorResponseGen):
     purchase_additional_code: Optional[str] = None
     currency: str
     ef_kg_co2eq_per_currency: Optional[float] = None
+    translation_key: Optional[str] = None
 
 
 class PurchaseCommonFactorHandler(BaseFactorHandler):

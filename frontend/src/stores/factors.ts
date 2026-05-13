@@ -18,10 +18,6 @@ export const useFactorsStore = defineStore('factors', () => {
   const subclassMapFetchedAt = reactive<
     Partial<Record<AllSubmoduleTypes, number>>
   >({});
-  const kindLabelMapBySubmodule = reactive<
-    Partial<Record<AllSubmoduleTypes, Record<string, string>>>
-  >({});
-
   async function ensureSubclassOptionMap(
     submodule: keyof typeof enumSubmodule,
   ): Promise<Record<string, Option[]>> {
@@ -73,7 +69,6 @@ export const useFactorsStore = defineStore('factors', () => {
   return {
     subclassOptionMapBySubmodule,
     subclassMapFetchedAt,
-    kindLabelMapBySubmodule,
     fetchClassOptions,
     fetchSubclassOptions,
     fetchPowerFactor,

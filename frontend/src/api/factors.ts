@@ -14,15 +14,6 @@ export async function getSubclassMap(
   return res ?? {};
 }
 
-export async function getKindLabelMap(
-  submodule: keyof typeof enumSubmodule,
-): Promise<Record<string, string>> {
-  const res = await api
-    .get(`factors/${encodeURIComponent(enumSubmodule[submodule])}/kind-label-map`)
-    .json<Record<string, string>>();
-  return res ?? {};
-}
-
 export type ValueFactorResponse = Record<string, number | string | null> | null;
 
 export async function getFactorValues(

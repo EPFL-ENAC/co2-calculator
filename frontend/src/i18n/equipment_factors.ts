@@ -211,7 +211,7 @@ export default {
     en: 'Other infrastructure equipment',
     fr: "Autres équipements d'infrastructure",
   },
-  equipment_factor_lab_freezer_frigde: {
+  equipment_factor_lab_freezer_fridge: {
     en: 'Lab Freezer / Fridge',
     fr: 'Congélateur / Réfrigérateur de labo',
   },
