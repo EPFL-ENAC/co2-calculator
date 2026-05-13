@@ -30,7 +30,10 @@ const props = defineProps<{
   units: Array<UnitReportingData>;
   paginationMeta?: PaginationMeta;
   loading: boolean;
+  selectedYearsCount?: number;
 }>();
+
+const isMultiYear = computed(() => (props.selectedYearsCount ?? 1) > 1);
 
 const emit = defineEmits<{
   'request-data': [];
@@ -126,7 +129,9 @@ const columns = computed<QTableColumn[]>(() => [
   },
   {
     name: 'validation_status',
-    label: t('backoffice_reporting_column_validation_status'),
+    label: isMultiYear.value
+      ? t('backoffice_reporting_column_years_completed')
+      : t('backoffice_reporting_column_validation_status'),
     field: 'validation_status',
     align: 'center',
     sortable: true,

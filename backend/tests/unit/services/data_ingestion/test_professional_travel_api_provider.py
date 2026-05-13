@@ -352,7 +352,9 @@ class TestTransformData:
             {"unit_institutional_id": None},
             {"unit_institutional_id": ""},
         ]
-        with pytest.raises(ValueError, match="Centre financier column is required"):
+        with pytest.raises(
+            ValueError, match=r"all \d+ rows have a null 'Centre financier'"
+        ):
             await provider._resolve_carbon_report_modules(transformed)
 
 
