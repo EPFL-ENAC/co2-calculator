@@ -146,7 +146,7 @@ watch(showDialog, (newVal) => {
           accept=".csv, text/csv"
         />
 
-        <template v-if="row.hasApi">
+        <template v-if="row.hasApi && targetType === TargetType.DATA_ENTRIES">
           <div class="row items-center q-my-sm">
             <q-separator class="col" />
             <span class="q-px-md text-grey-6 text-caption">{{

@@ -14,7 +14,6 @@ from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeE
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.user import User
 from app.repositories.unit_repo import UnitRepository
-from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.user import UserRead
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
@@ -37,6 +36,28 @@ class StatsDict(TypedDict):
     rows_missing_centre_financier: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
+
+
+# Stable contract with the Tableau datasource. Captions are validated against
+# read-metadata at fetch time so a rename/removal upstream fails loud instead
+# of silently dropping a column. Do NOT add "IN_Centre financier" here — the
+# Tableau service team requires the calculated "Centre financier" field.
+REQUIRED_CAPTIONS: list[str] = [
+    "OUT_CO2_CORRECTED",
+    "OUT_DISTANCE_CORRECTED",
+    "SCIPER",
+    "Centre financier",
+    "IN_Departure date",
+    "IN_Segment class",
+    "IN_Segment destination airport code",
+    "IN_Segment origin airport code",
+    "IN_Supplier",
+    "IN_Ticket number",
+    "PASSENGER_TYPE",
+    "ROUND_TRIP",
+    "TRANSPORT_TYPE",
+    "Number of trips",
+]
 
 
 # todo: hard code travel ?
@@ -85,7 +106,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         self.timeout = int(self.settings.TABLEAU_REQUEST_TIMEOUT_SECONDS)
         self.verify_ssl = to_bool(self.settings.TABLEAU_VERIFY_SSL)
         self.min_api_version = self.settings.TABLEAU_REST_MIN_API_VERSION
-        self.max_fields = self.settings.TABLEAU_MAX_FIELDS
         # Extract module_type_id from config for carbon report resolution
         self.module_type_id = config.get("module_type_id")
 
@@ -136,20 +156,23 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 raise Exception("Tableau authentication failed")
 
             metadata = await self._vds_read_metadata(session, x_auth)
-            all_field_captions = self._extract_field_captions(metadata)
-            field_captions = all_field_captions[: self.max_fields]
+            available_captions = set(self._extract_field_captions(metadata))
+            missing = [c for c in REQUIRED_CAPTIONS if c not in available_captions]
+            if missing:
+                raise ValueError(
+                    f"Required Tableau captions missing from datasource "
+                    f"metadata: {missing}"
+                )
             logger.info(
-                "Tableau VDS field captions resolved",
+                "Tableau VDS required captions validated",
                 extra={
-                    "total_available": len(all_field_captions),
-                    "requested": len(field_captions),
-                    "max_fields": self.max_fields,
-                    "centre_financier_requested": "Centre financier" in field_captions,
-                    "captions": field_captions,
+                    "available_count": len(available_captions),
+                    "required_count": len(REQUIRED_CAPTIONS),
+                    "captions": REQUIRED_CAPTIONS,
                 },
             )
 
-            payload = self._build_payload(field_captions)
+            payload = self._build_payload(REQUIRED_CAPTIONS)
             payload, _ = normalize_vds_payload(payload)
             result = await self._vds_query_datasource(session, x_auth, payload)
 
@@ -818,9 +841,19 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 unit_codes.add(str(unit_code).strip())
 
         if not unit_codes:
+            if not transformed_data:
+                raise ValueError(
+                    "No travel rows passed validation — all rows were filtered "
+                    "for missing SCIPER, missing IATA airport codes, or wrong "
+                    "departure year. If data is expected, contact the Tableau "
+                    "team that owns the professional travel datasource."
+                )
             raise ValueError(
-                "No valid unit_institutional_id values found in travel data. "
-                "Centre financier column is required."
+                f"No rows could be imported: all {len(transformed_data)} rows "
+                "have a null 'Centre financier'. Contact the Tableau team that "
+                "owns the professional travel datasource — the 'Centre "
+                "financier' calculated field must be populated for the "
+                "requested year."
             )
 
         logger.info(
@@ -843,11 +876,10 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         # Build mapping: institutional_id → unit.id
         unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
 
-        # Resolve carbon report modules
+        # Resolve carbon report modules (carbon reports are expected to be
+        # pre-created by the year-config bootstrap flow).
         carbon_report_service = CarbonReportService(self.data_session)
         code_to_module_map: dict[str, int] = {}
-        reports_created = 0
-        reports_reused = 0
 
         for unit_institutional_id in unit_codes:
             # Skip missing units
@@ -859,26 +891,19 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 )
                 continue
 
-            # Check if carbon report exists
             carbon_report = await carbon_report_service.get_by_unit_and_year(
                 unit_id, year
             )
 
             if not carbon_report:
-                # Create new carbon report (auto-creates all 7 modules)
-                logger.info(
-                    "Creating carbon_report for unit_institutional_id=%s "
-                    "(unit_id=%s), year=%s",
+                logger.warning(
+                    "No carbon_report for unit_institutional_id=%s "
+                    "(unit_id=%s), year=%s — skipping",
                     unit_institutional_id,
                     unit_id,
                     year,
                 )
-                carbon_report = await carbon_report_service.create(
-                    CarbonReportCreate(unit_id=unit_id, year=year)
-                )
-                reports_created += 1
-            else:
-                reports_reused += 1
+                continue
 
             # Get the carbon_report_module_id for this module_type
             module_service = carbon_report_service.module_service
@@ -897,9 +922,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             code_to_module_map[unit_institutional_id] = carbon_report_module.id
 
         logger.info(
-            f"Resolved carbon_report_module_ids: "
-            f"created {reports_created} new reports, "
-            f"reused {reports_reused} existing reports"
+            f"Resolved carbon_report_module_ids for {len(code_to_module_map)} units"
         )
 
         return code_to_module_map

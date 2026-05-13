@@ -299,6 +299,10 @@ export default {
     en: 'rows imported',
     fr: 'lignes importées',
   },
+  data_management_api_ingestion: {
+    en: 'API ingestion',
+    fr: 'Ingestion API',
+  },
   data_management_download_last_csv: {
     en: 'Download last CSV',
     fr: 'Télécharger le dernier CSV',

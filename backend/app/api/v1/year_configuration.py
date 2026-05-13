@@ -165,14 +165,25 @@ def _pick_latest_job(
     sub_id: int | None,
     target_val: int,
 ) -> SyncJobSummary | None:
-    """Pick the most recent job across all ingestion methods for a given target type.
+    """Pick the latest job for a given target type.
 
-    Prefers API (0) > CSV (1) > MANUAL (2) > COMPUTED (3) when multiple exist.
+    For target=DATA_ENTRIES, only CSV uploads surface here: API has its own
+    field (``latest_api_data_job``); MANUAL is reserved for seed-data
+    scripts; COMPUTED targets factor recompute, not data. Restricting to CSV
+    prevents a failed API ingestion from masking a successful CSV upload.
+    For factor/reference targets, all methods are considered (API preferred
+    via the existing ingestion_method ascending sort).
     """
+    INGESTION_METHOD_CSV = 1
+    TARGET_DATA_ENTRIES = 0
+
     candidates = [
         v
         for k, v in job_lookup.items()
-        if k[0] == module_id and k[1] == sub_id and k[2] == target_val
+        if k[0] == module_id
+        and k[1] == sub_id
+        and k[2] == target_val
+        and (target_val != TARGET_DATA_ENTRIES or k[3] == INGESTION_METHOD_CSV)
     ]
     if not candidates:
         return None

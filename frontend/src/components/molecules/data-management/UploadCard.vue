@@ -4,6 +4,7 @@ import { useUploadCard } from 'src/composables/useUploadCard';
 import {
   TargetType,
   IngestionState,
+  IngestionMethod,
 } from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
@@ -22,6 +23,7 @@ interface Props {
   isDisabled?: boolean;
   isLoading?: boolean;
   lastJob?: SyncJobResponse;
+  apiJob?: SyncJobResponse;
   targetType?: TargetType;
   hasRecalcButton?: boolean;
   recalcStatus?: RecalculationStatusEntry;
@@ -39,6 +41,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
   isLoading: false,
   lastJob: undefined,
+  apiJob: undefined,
   targetType: undefined,
   hasRecalcButton: false,
   recalcStatus: undefined,
@@ -68,6 +71,15 @@ const isJobStuck = computed(
     props.lastJob?.state === IngestionState.RUNNING ||
     props.lastJob?.state === IngestionState.QUEUED,
 );
+
+const apiJobInfo = computed(() => getJobInfo(props.apiJob));
+const hasApiErrorOrWarn = computed(() => hasErrorOrWarning(props.apiJob));
+const apiErrorDetails = computed(() => getErrorDetails(props.apiJob));
+const apiRowsInserted = computed<number | undefined>(() => {
+  const meta = props.apiJob?.meta as Record<string, unknown> | undefined;
+  const inserted = meta?.inserted;
+  return typeof inserted === 'number' ? inserted : undefined;
+});
 
 function handleUpload() {
   if (props.row && props.targetType !== undefined) {
@@ -174,6 +186,7 @@ function handleCancel() {
           </div>
         </div>
         <q-btn
+          v-if="lastJob?.ingestion_method !== IngestionMethod.API"
           color="positive"
           icon="o_download"
           size="sm"
@@ -229,6 +242,23 @@ function handleCancel() {
       </div>
     </div>
 
+    <!-- API ingestion status (success: small inline line; error: banner below) -->
+    <div
+      v-if="apiJob && !hasApiErrorOrWarn"
+      class="row items-center text-caption q-mt-xs text-grey-7"
+      data-testid="api-status-success"
+    >
+      <span class="text-positive q-mr-xs">✓</span>
+      <span>{{ $t('data_management_api_ingestion') }}:</span>
+      <span v-if="apiRowsInserted !== undefined" class="q-ml-xs">
+        {{ apiRowsInserted }}
+        {{ $t('data_management_rows_imported') }}
+      </span>
+      <span v-if="apiJobInfo.timestamp" class="q-ml-xs">
+        • {{ apiJobInfo.timestamp.toLocaleDateString() }}
+      </span>
+    </div>
+
     <!-- Error/warning banner -->
     <div
       v-if="hasErrorOrWarn"
@@ -249,6 +279,27 @@ function handleCancel() {
         class="text-caption text-grey-7"
       >
         {{ key }}: {{ value }}
+      </div>
+    </div>
+
+    <!-- API ingestion error/warning banner (secondary, below the CSV one) -->
+    <div
+      v-if="hasApiErrorOrWarn"
+      class="q-mt-sm q-pa-md bg-grey-2 rounded-borders"
+      data-testid="api-status-error"
+    >
+      <div class="text-body2 text-weight-bold q-mb-sm text-negative">
+        {{ $t('data_management_api_ingestion') }}:
+        {{ apiErrorDetails.message }}
+      </div>
+      <div
+        v-if="
+          apiErrorDetails.error &&
+          apiErrorDetails.error !== apiErrorDetails.message
+        "
+        class="text-body2"
+      >
+        {{ apiErrorDetails.error }}
       </div>
     </div>
   </q-card>

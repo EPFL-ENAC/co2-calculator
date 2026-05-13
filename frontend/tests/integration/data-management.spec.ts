@@ -417,6 +417,90 @@ test.describe('back-office data-management — happy paths', () => {
     // emit chain — see Plan 310 Unit 11.
   });
 
+  test('9 — UploadCardData renders both CSV status and API failure banner (regression)', async ({
+    page,
+  }) => {
+    // Regression: when both latest_data_job (CSV) and latest_api_data_job
+    // are returned for a submodule, the card must surface BOTH. Previously
+    // a failed API ingestion was hidden because the backend preferred API
+    // over CSV in _pick_latest_job — see test_failed_api_does_not_mask_
+    // successful_csv on the backend side.
+    const csvSuccess = {
+      job_id: 100,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 1,
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: { rows_processed: 5, file_path: '/uploads/data.csv' },
+    };
+    const apiFailure = {
+      job_id: 200,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 2,
+      status_message: 'Travel API ingestion failed',
+      meta: { error: 'Centre financier missing' },
+    };
+
+    const yearConfigWithBothJobs = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: csvSuccess,
+                latest_data_job: csvSuccess,
+                latest_api_data_job: apiFailure,
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigWithBothJobs(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    // Both statuses must coexist on the data card.
+    const apiBanner = page.getByTestId('api-status-error').first();
+    await expect(apiBanner).toBeVisible({ timeout: 10000 });
+    await expect(apiBanner).toContainText(/Travel API ingestion failed/i);
+  });
+
   test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
     page,
   }) => {
