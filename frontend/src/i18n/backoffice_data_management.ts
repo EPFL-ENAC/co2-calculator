@@ -175,8 +175,8 @@ export default {
     fr: 'Localisations aéroport',
   },
   data_management_other_institution_rooms: {
-    en: 'Institution rooms',
-    fr: "Salles de l'institution",
+    en: 'Institution rooms — uploading a CSV replaces every room in the table.',
+    fr: "Salles de l'institution — un téléversement remplace toutes les salles de la table.",
   },
   data_management_upload_reference: {
     en: 'Upload Reference',

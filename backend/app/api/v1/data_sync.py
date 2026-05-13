@@ -61,6 +61,11 @@ def _job_type_for(target_type: TargetType, ingestion_method: IngestionMethod) ->
     """
     if target_type == TargetType.FACTORS:
         return "factor_ingest"
+    if target_type == TargetType.REFERENCE_DATA:
+        # Reference data (locations, building rooms) is year-agnostic global
+        # state — no per-(module, det) emission_recalc fan-out, so it gets its
+        # own handler that skips the recalc chain ``csv_ingest`` would trigger.
+        return "reference_ingest"
     if ingestion_method == IngestionMethod.csv:
         return "csv_ingest"
     return "api_ingest"
