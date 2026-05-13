@@ -10,7 +10,7 @@
     "npm": ">=11.12.1 <12"
   },
   "devDependencies": {
-    "@commitlint/cli": "=17.1.2",
+    "@commitlint/cli": "=17.8.1",
     "@commitlint/config-conventional": "=17.1.0",
     "@evilmartians/lefthook": "=1.5.0",
     "prettier": "=3.8.2"
