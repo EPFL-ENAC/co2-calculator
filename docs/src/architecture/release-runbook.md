@@ -68,7 +68,7 @@ promotion (see [section 2](#2-end-of-sprint-promotion-dev-stage)).
 ### Step 2 — Open the `stage → main` PR
 
 ```bash
-rtk gh pr create --base main --head stage \
+gh pr create --base main --head stage \
   --title "chore(release): vX.Y.Z" \
   --body "Promote stage to main — release vX.Y.Z"
 ```
@@ -96,10 +96,10 @@ not comfortable on the command line, do these merges in the GitHub UI.**
 
 ```bash
 # main → stage
-rtk git checkout stage && rtk git pull && rtk git merge origin/main && rtk git push
+git checkout stage && git pull && git merge origin/main && git push
 
 # stage → dev
-rtk git checkout dev && rtk git pull && rtk git merge origin/stage && rtk git push
+git checkout dev && git pull && git merge origin/stage && git push
 ```
 
 - Verify: `git log --graph --oneline -15` shows the branches converged.
@@ -129,7 +129,7 @@ name **"Generate Changelog"**) runs when a PR **from `dev`** is
 ### Step 2 — Open the `dev → stage` promotion PR
 
 ```bash
-rtk gh pr create --base stage --head dev \
+gh pr create --base stage --head dev \
   --title "chore: promote dev to stage (end of sprint N) (#<issue>)" \
   --body "Promote dev to stage — end of sprint N"
 ```
@@ -166,7 +166,7 @@ Once stage is healthy and any fixes are in, merge `stage` back into
 any stage-only fixes back into `dev`).
 
 ```bash
-rtk git checkout dev && rtk git pull && rtk git merge origin/stage && rtk git push
+git checkout dev && git pull && git merge origin/stage && git push
 ```
 
 - Verify: `dev` contains the changelog commit and any stage fixes.
