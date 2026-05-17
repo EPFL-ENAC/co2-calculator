@@ -23,7 +23,7 @@ graph LR
 
 Cuts the versioned GitHub release. The custom workflow `release-please.yml` ("Tag and Release") fires when a PR **from `stage`** merges into `main`, and releases the root `package.json` version. (The `release-please` name is legacy — it no longer uses that tool; read the file to see what it does.)
 
-1. **Check changelog and version.** `CHANGELOG.md` is already generated (section 2); confirm its top entry, and that root `package.json` `version` is the version to release — "Tag and Release" tags from this value.
+1. **Check changelog and version.** `CHANGELOG.md` should already be present on `stage`, having been generated during the most recent `dev → stage` promotion (documented in section 2, and typically completed before this release). Confirm its top entry, and that root `package.json` `version` is the version to release — "Tag and Release" tags from this value.
 2. **Open the PR** `stage → main` and get external review per [Release Management](release-management.md#release-process). The workflow only fires for `head.ref == 'stage'`, so head **must** be `stage`:
    ```bash
    gh pr create --base main --head stage --title "chore(release): vX.Y.Z"
