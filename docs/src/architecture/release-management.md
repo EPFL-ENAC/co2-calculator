@@ -6,6 +6,7 @@ procedures for releases, hotfixes, and rollbacks.
 
 **Related documentation:**
 
+- [Dev Release Runbook](release-runbook.md) - Step-by-step commands to cut a release
 - [CI/CD Pipeline](06-cicd-pipeline.md) - Pipeline architecture
 - [CI/CD Workflows](cicd-workflows.md) - GitHub Actions details
 - [Workflow Guide](workflow-guide.md) - Developer daily workflow
