@@ -69,7 +69,7 @@ If ArgoCD shows the environment unhealthy or on the wrong version, the usual sus
 
 ### Database rebuild (pre-v1.0.0 only)
 
-> **🚨 Destructive.** `make db-drop` deletes the target database. First open `backend/.env` and confirm `DB_URL` points to the environment you intend — the wrong target on prod is unrecoverable.
+> **🚨 Destructive.** `make db-drop` deletes the target database. First open `backend/.env` and confirm `DB_URL` points to the environment you intend, and take a DB snapshot/backup before dropping — the wrong target on prod is unrecoverable.
 
 Until v1.0.0, migrations don't migrate data, so rebuild and reseed. Get the target `DB_URL` from the secrets manager, set it in `backend/.env`, then from `backend/`:
 
