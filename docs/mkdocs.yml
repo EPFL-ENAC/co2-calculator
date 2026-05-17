@@ -82,7 +82,9 @@ nav:
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
       - EPFL Compliance: architecture/epfl-compliance-mapping.md
+      - EPFL IT Requirements (RFC-001): architecture/epfl-constraint.md
       - Code Standards: architecture/code-standards.md
+      - RFC-First Process: architecture/rfc-first-process.md
 
   - Architecture Decision Records:
       - Overview: architecture-decision-records/index.md
