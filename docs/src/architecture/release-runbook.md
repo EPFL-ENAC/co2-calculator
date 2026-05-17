@@ -82,12 +82,11 @@ rtk gh pr create --base main --head stage \
 - The **"Tag and Release"** workflow runs on merge: creates the git tag and the GitHub release from root `package.json` `version`.
 - Verify: GitHub → **Releases** shows the new `vX.Y.Z`; **Actions → Tag and Release** is green.
 
-!!! note "How `main`/prod deploys"
-`deploy.yml` triggers on pushes to `dev`/`stage` **and** on
-`v*.*.*` tag pushes (`tags: ["v*.*.*"]`). Creating the `vX.Y.Z` tag
-in this step therefore also triggers the **"deploy"** workflow for
-prod/main automatically — no extra action needed. Just verify it
-landed in ArgoCD (Step 5).
+> **Note — how `main`/prod deploys:** `deploy.yml` triggers on pushes
+> to `dev`/`stage` **and** on `v*.*.*` tag pushes (`tags: ["v*.*.*"]`).
+> Creating the `vX.Y.Z` tag in this step therefore also triggers the
+> **"deploy"** workflow for prod/main automatically — no extra action
+> needed. Just verify it landed in ArgoCD (Step 5).
 
 ### Step 4 — Re-sync branches (prevent divergence)
 
@@ -120,9 +119,9 @@ name **"Generate Changelog"**) runs when a PR **from `dev`** is
 
 ### Step 1 — Bump the version in root `package.json`
 
-!!! warning "Bump first"
-If you skip this, the automatic changelog will **not** be generated
-with the right version. Do this **before** opening the PR.
+> **⚠️ Bump first:** If you skip this, the automatic changelog will
+> **not** be generated with the right version. Do this **before**
+> opening the PR.
 
 - Edit root `package.json` → set `version` to the next sprint version (e.g. `0.10.0`).
 - Commit it on `dev` and push.
@@ -188,12 +187,12 @@ version, the usual suspects:
 
 ### Database rebuild (pre-v1.0.0 only)
 
-!!! danger "Destructive — drops the entire database"
-`make db-drop` **deletes the target database**. Until **v1.0.0**,
-migrations do not migrate data, so a full rebuild + reseed is the
-sanctioned recovery. **Before running anything**, open `backend/.env`
-and confirm `DB_URL` points to the environment you intend (stage or
-prod). Getting this wrong on **prod** is unrecoverable.
+> **🚨 Destructive — drops the entire database.** `make db-drop`
+> **deletes the target database**. Until **v1.0.0**, migrations do not
+> migrate data, so a full rebuild + reseed is the sanctioned recovery.
+> **Before running anything**, open `backend/.env` and confirm `DB_URL`
+> points to the environment you intend (stage or prod). Getting this
+> wrong on **prod** is unrecoverable.
 
 1. Get the target DB URL from the **secrets manager** (stage or prod).
 2. Set `DB_URL` in `backend/.env` to that URL. **Re-read it and confirm the host and database name are the ones you intend.**
