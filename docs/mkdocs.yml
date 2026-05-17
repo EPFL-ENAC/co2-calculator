@@ -66,6 +66,9 @@ nav:
       - Auth Flow: architecture/04-auth-flow.md
       - Environments: architecture/05-environments.md
       - CI/CD Pipeline: architecture/06-cicd-pipeline.md
+      - CI/CD Workflows: architecture/cicd-workflows.md
+      - Workflow Guide: architecture/workflow-guide.md
+      - Release Management: architecture/release-management.md
       - Dev Release Runbook: architecture/release-runbook.md
       - Global Conventions: architecture/07-global-conventions.md
       - Tech Stack: architecture/08-tech-stack.md
