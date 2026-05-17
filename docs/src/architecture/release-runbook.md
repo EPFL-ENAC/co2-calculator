@@ -53,6 +53,8 @@ Ships the sprint to stage and generates the changelog. `changelog.yml` ("Generat
    git checkout dev && git pull && git merge origin/stage && git push
    ```
 
+> **Optional — human-readable changelog.** The `CHANGELOG.md` generated at step 2 is raw commit messages. Feed the new version's entry to an LLM to rewrite it under three headings — `## Key Changes`, `## Bug Fixes`, `## Technical Improvements (Non-functional)` — then commit it to `stage` before the step 4 re-sync.
+
 Done. The only remaining step is to **communicate the release**.
 
 ## Troubleshooting: deployment
