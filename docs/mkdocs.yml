@@ -84,6 +84,7 @@ nav:
       - EPFL Compliance: architecture/epfl-compliance-mapping.md
       - EPFL IT Requirements (RFC-001): architecture/epfl-constraint.md
       - Code Standards: architecture/code-standards.md
+      - Documentation Standards: architecture/documentation-standards.md
       - RFC-First Process: architecture/rfc-first-process.md
 
   - Architecture Decision Records:
