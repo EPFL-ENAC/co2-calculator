@@ -22,11 +22,11 @@ import { useI18n } from 'vue-i18n';
 // TODO: fix the available years dynamically
 const route = useRoute();
 const router = useRouter();
-const MIN_YEARS = 2024;
+const MIN_YEARS = 2023;
 const availableYears = ref<number[]>([]);
 const currentYear = new Date().getFullYear();
 if (currentYear > MIN_YEARS) {
-  for (let year = MIN_YEARS; year < currentYear; year++) {
+  for (let year = MIN_YEARS; year <= currentYear; year++) {
     availableYears.value.push(year);
   }
 }
