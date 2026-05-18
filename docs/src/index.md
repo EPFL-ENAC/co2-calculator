@@ -1,67 +1,29 @@
-# Calculator CO2
+---
+status: delivered
+last_updated: 2026-05-05
+summary: Landing page for co2-calculator developer documentation.
+---
 
-Welcome to the technical documentation for the Calculator CO2. This documentation is organized into five main sections, each covering a specific aspect of the system.
+# co2-calculator developer docs
 
-## Documentation Sections
+co2-calculator is an EPFL open-source web app that lets labs measure, visualise, and simulate their CO2 emissions; this site exists to keep maintenance cheap, onboard new contributors fast, and give LLM agents stable anchors for code navigation.
 
-### [Architecture](./architecture/index.md)
+The docs cover product scope (the CRD/spec), system architecture and decision records, and per-stack guides for backend, frontend, database, and infrastructure.
 
-High-level system design, technology choices, and cross-cutting concerns:
+## Start here — humans
 
-- System overview and component interactions
-- Security model and authentication flow
-- CI/CD pipeline and environment topology
-- Eco-design principles applied
-- Tech stack rationale
+- [Architecture overview](./architecture/index.md)
+- [Frontend overview](./frontend/01-overview.md)
+- [Backend overview](./backend/01-overview.md)
 
-### [Frontend](./frontend/01-overview.md)
+## Start here — LLM agents
 
-User interface layer implementation details.
+- [CRD / spec](./architecture/spec.md)
+- [ADR index](./architecture-decision-records/index.md)
+- [Implementation plans](./implementation-plans/_index.md)
 
-- Frontend architecture and technologies
-- UI component system and design patterns
-- API integration and data management
-- Development workflows and testing
+## How decisions are made
 
-### [Backend](./backend/01-overview.md)
-
-Business logic and API layer implementation details.
-
-- Backend architecture and module structure
-- API design and contracts
-- Plugin system and extension mechanisms
-- Testing strategies and deployment
-
-### [Database](./database/01-overview.md)
-
-Data persistence layer implementation details.
-
-- Database schema and entity relationships
-- Data flows and ownership models
-- Migration processes and versioning
-- Backup and maintenance procedures
-
-### [Infrastructure](./infra/01-overview.md)
-
-Hosting and operational infrastructure.
-
-- Hosting environment and networking
-- Monitoring and logging systems
-- Deployment and scaling strategies
-
-## Getting Started
-
-To get started with the project, we recommend:
-
-1. Read the [Architecture Overview](./architecture/index.md) to understand the big picture
-2. Explore the specific section relevant to your area of interest
-3. Check the development guides in each section for implementation details
-
-## Contributing
-
-This documentation is a living document that evolves with the project. If you find any inaccuracies or have suggestions for improvement, please submit a pull request or open an issue in the repository.
-
-## Additional Resources
-
-- [Repository](https://github.com/epfl-enac/architecture)
-- [Issue Tracker](https://github.com/epfl-enac/architecture/issues)
+Architectural decisions live in `architecture-decision-records/`; each ADR captures context, options, and consequences.
+The CRD is `architecture/spec.md` — the authoritative product requirement.
+Issue-scoped delivery detail lives in `docs/src/implementation-plans/` (one file per GitHub issue), browsable in the [Implementation Plans](./implementation-plans/_index.md) nav section.

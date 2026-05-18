@@ -54,6 +54,7 @@ function handleRecalculate(item: ImportRow) {
     :is-disabled="isDisabled || row.isDisabled"
     :is-loading="row.lastDataJob?.state === IngestionState.RUNNING"
     :last-job="row.lastDataJob"
+    :api-job="row.lastApiDataJob"
     :target-type="TargetType.DATA_ENTRIES"
     :has-recalc-button="row.hasFactors"
     :recalc-status="recalcStatus"

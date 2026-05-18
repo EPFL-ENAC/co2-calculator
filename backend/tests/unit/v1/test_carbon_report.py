@@ -1,6 +1,7 @@
 """Unit tests for carbon_report API endpoints."""
 
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
@@ -11,6 +12,7 @@ import app.api.v1.carbon_report as module
 def _db():
     db = MagicMock()
     db.commit = AsyncMock()
+    db.get = AsyncMock(return_value=MagicMock())
     return db
 
 
@@ -31,7 +33,8 @@ async def test_list_carbon_reports_by_unit_returns_list():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        result = await module.list_carbon_reports_by_unit(1, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.list_carbon_reports_by_unit(1, db, _user())
         assert result == mock_reports
     finally:
         module.CarbonReportService = original
@@ -50,7 +53,10 @@ async def test_get_carbon_report_by_unit_and_year_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        result = await module.get_carbon_report_by_unit_and_year(1, 2024, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report_by_unit_and_year(
+                1, 2024, db, _user()
+            )
         assert result == report
     finally:
         module.CarbonReportService = original
@@ -65,8 +71,9 @@ async def test_get_carbon_report_by_unit_and_year_not_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with pytest.raises(HTTPException) as exc:
-            await module.get_carbon_report_by_unit_and_year(1, 2024, db, _user())
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.get_carbon_report_by_unit_and_year(1, 2024, db, _user())
         assert exc.value.status_code == 404
     finally:
         module.CarbonReportService = original
@@ -86,7 +93,8 @@ async def test_create_carbon_report_commits_and_returns():
     module.CarbonReportService = lambda db: svc
     try:
         payload = MagicMock()
-        result = await module.create_carbon_report(payload, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.create_carbon_report(payload, db, _user())
         assert result == new_report
         db.commit.assert_awaited_once()
     finally:
@@ -106,7 +114,8 @@ async def test_get_carbon_report_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        result = await module.get_carbon_report(42, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_carbon_report(42, db, _user())
         assert result == report
     finally:
         module.CarbonReportService = original
@@ -265,3 +274,135 @@ async def test_update_status_value_error_raises_400():
     finally:
         module.CarbonReportService = orig_report
         module.CarbonReportModuleService = orig_module
+
+
+# ── get_simulator_explore_carbon_report ───────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_simulator_explore_found_fresh_no_refresh():
+    """Found, within TTL → return report, no background refresh scheduled."""
+    db = _db()
+    fresh_ts = int(datetime.now(timezone.utc).timestamp())
+    report = MagicMock()
+    report.id = 42
+    report.last_updated = fresh_ts
+    svc = MagicMock()
+    svc.get_explore = AsyncMock(return_value=report)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
+            )
+        assert result == report
+        background_tasks.add_task.assert_not_called()
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_simulator_explore_not_found_raises_404():
+    """Missing report → 404."""
+    db = _db()
+    svc = MagicMock()
+    svc.get_explore = AsyncMock(return_value=None)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.get_simulator_explore_carbon_report(
+                    1, 2024, MagicMock(), db, _user()
+                )
+        assert exc.value.status_code == 404
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_simulator_explore_expired_schedules_background_refresh():
+    """Stale report (>24 h) → returned immediately, background refresh queued."""
+    db = _db()
+    stale_ts = int(datetime.now(timezone.utc).timestamp()) - (25 * 60 * 60)
+    report = MagicMock()
+    report.id = 99
+    report.last_updated = stale_ts
+    svc = MagicMock()
+    svc.get_explore = AsyncMock(return_value=report)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
+            )
+        assert result == report  # stale report returned immediately
+        background_tasks.add_task.assert_called_once_with(
+            module._refresh_explore_background,
+            unit_id=1,
+            old_report_id=99,
+            reference_year=2024,
+        )
+    finally:
+        module.CarbonReportService = original
+
+
+@pytest.mark.asyncio
+async def test_get_simulator_explore_null_last_updated_schedules_refresh():
+    """last_updated=None (no timestamp) → treated as expired, refresh queued."""
+    db = _db()
+    report = MagicMock()
+    report.id = 7
+    report.last_updated = None
+    svc = MagicMock()
+    svc.get_explore = AsyncMock(return_value=report)
+
+    background_tasks = MagicMock()
+    background_tasks.add_task = MagicMock()
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.get_simulator_explore_carbon_report(
+                1, 2024, background_tasks, db, _user()
+            )
+        assert result == report
+        background_tasks.add_task.assert_called_once()
+    finally:
+        module.CarbonReportService = original
+
+
+# ── create_simulator_explore_carbon_report ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_create_simulator_explore_commits_and_returns():
+    """POST creates explore report and commits."""
+    db = _db()
+    new_report = MagicMock()
+    svc = MagicMock()
+    svc.create_explore = AsyncMock(return_value=new_report)
+
+    original = module.CarbonReportService
+    module.CarbonReportService = lambda db: svc
+    try:
+        with patch.object(module, "require_unit_access"):
+            result = await module.create_simulator_explore_carbon_report(
+                1, 2024, db, _user()
+            )
+        assert result == new_report
+        db.commit.assert_awaited_once()
+    finally:
+        module.CarbonReportService = original

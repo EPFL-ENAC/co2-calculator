@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 import {
   MODULE_TO_CATEGORIES,
   CHART_CATEGORY_COLOR_SCALES,
@@ -32,6 +33,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
 
 // Modules that can appear as tabs (exclude headcount — no treemap chart)
 // Same left-to-right order as the bar chart (mirrors backend MODULE_BREAKDOWN_ORDER)
@@ -202,7 +204,7 @@ const emissionTypeInfoKey = computed(() =>
 
 <template>
   <q-card flat bordered class="q-pa-xl">
-    <div class="flex justify-between items-center q-mb-md">
+    <div v-if="!isPrintMode" class="flex justify-between items-center q-mb-md">
       <span class="text-h5 text-weight-medium">{{
         $t('results_treemap_title')
       }}</span>
@@ -259,7 +261,7 @@ const emissionTypeInfoKey = computed(() =>
     </div>
 
     <!-- Module tab buttons -->
-    <div class="flex flex-wrap q-gutter-sm q-mb-md">
+    <div v-if="!isPrintMode" class="flex flex-wrap q-gutter-sm q-mb-md">
       <q-btn
         v-for="mod in availableModules"
         :key="mod"

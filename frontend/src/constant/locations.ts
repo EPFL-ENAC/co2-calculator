@@ -34,6 +34,9 @@ export interface Location {
   /** ISO country code (e.g., 'AE', 'AL', 'AM') */
   country_code: string | null;
 
+  /** Stable deduplication key (e.g. 'train:ch:zurich hb:47.378:8.540') */
+  natural_key: string;
+
   /** Timestamp when the location was created */
   created_at: string;
 

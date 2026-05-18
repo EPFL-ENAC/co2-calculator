@@ -69,17 +69,20 @@ class LocationService:
         # Convert to DTOs
         return [LocationRead.model_validate(location) for location in locations]
 
-    async def get_location_by_name(self, name: str) -> Optional[Location]:
+    async def get_location_by_natural_key(self, natural_key: str) -> Optional[Location]:
         """
-        Get location by name.
+        Get location by natural_key.
+
+        natural_key is unique per location, so this lookup is always unambiguous.
 
         Args:
-            name: Location name
+            natural_key: Stable deduplication key
+                (e.g. 'train:ch:zurich hb:47.378:8.540')
 
         Returns:
             Location if found, None otherwise
         """
-        return await self.repo.get_by_name(name)
+        return await self.repo.get_by_natural_key(natural_key)
 
     async def get_location_by_iata(self, iata_code: str) -> Optional[Location]:
         """
@@ -92,6 +95,38 @@ class LocationService:
             Location if found, None otherwise
         """
         return await self.repo.get_by_iata(iata_code)
+
+    async def resolve_train_station_for_csv(
+        self,
+        name: str,
+        default_country_code: str = "CH",
+    ) -> tuple[Optional[Location], str]:
+        """Resolve a train station name to a single ``Location`` for CSV ingest.
+
+        Production train CSVs ship only ``origin_name`` / ``destination_name``
+        (no country, no coordinates, no precomputed natural_key), so the CSV
+        provider needs a name → Location resolver to fill in ``natural_key``
+        before persisting the row. The resolver defaults to ``CH`` because
+        the project's data is Swiss-centric; non-CH cases will be revisited
+        when the CSV gains a ``country_code`` column.
+
+        Returns:
+            (Location, "ok") on a single match.
+            (None, "not_found") on zero matches.
+            (None, "ambiguous: N matches") on multiple matches — caller surfaces
+            this to the operator so they can disambiguate via a manual
+            ``origin_natural_key`` override or fix the upstream data.
+        """
+        matches = await self.repo.find_train_stations_by_name(
+            name=name,
+            country_code=default_country_code,
+            limit=2,
+        )
+        if not matches:
+            return None, "not_found"
+        if len(matches) > 1:
+            return None, f"ambiguous: {len(matches)} matches in {default_country_code}"
+        return matches[0], "ok"
 
     async def get_location_by_id(self, location_id: int) -> Optional[Location]:
         """

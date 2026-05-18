@@ -30,7 +30,10 @@ const props = defineProps<{
   units: Array<UnitReportingData>;
   paginationMeta?: PaginationMeta;
   loading: boolean;
+  selectedYearsCount?: number;
 }>();
+
+const isMultiYear = computed(() => (props.selectedYearsCount ?? 1) > 1);
 
 const emit = defineEmits<{
   'request-data': [];
@@ -126,7 +129,9 @@ const columns = computed<QTableColumn[]>(() => [
   },
   {
     name: 'validation_status',
-    label: t('backoffice_reporting_column_validation_status'),
+    label: isMultiYear.value
+      ? t('backoffice_reporting_column_years_completed')
+      : t('backoffice_reporting_column_validation_status'),
     field: 'validation_status',
     align: 'center',
     sortable: true,
@@ -198,6 +203,8 @@ const columns = computed<QTableColumn[]>(() => [
     row-key="id"
     :loading="props.loading"
     class="co2-table border shadow-0"
+    :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     flat
     bordered
     @request="onRequest"
@@ -212,7 +219,7 @@ const columns = computed<QTableColumn[]>(() => [
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-      <div class="q-px-sm">
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
         {{ scope.pagination.page }} / {{ scope.pagesNumber }}
       </div>
       <q-btn

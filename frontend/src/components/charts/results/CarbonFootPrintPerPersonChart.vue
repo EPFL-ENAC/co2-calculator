@@ -7,14 +7,17 @@ import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 import type { EChartsOption } from 'echarts';
-import { graphic } from 'echarts';
-import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
+import {
+  buildChartDecal,
+  CHART_CATEGORY_COLOR_SCHEMES,
+  colors,
+} from 'src/constant/charts';
+import { useColorblindStore } from 'src/stores/colorblind';
 import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
@@ -27,10 +30,10 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
-  GraphicComponent,
 ]);
 
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 const props = defineProps<{
   perPersonBreakdown?: Record<string, number> | null;
@@ -42,12 +45,14 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
+const isColorblind = computed(() => colorblindStore.enabled);
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
 );
 
-// ✅ TOOLTIP COMPOSABLE
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
 const chartRef = ref<InstanceType<typeof VChart>>();
@@ -129,15 +134,14 @@ const datasetSource = computed(() => {
 
 const additionalSeriesData = computed(() => {
   if (!effectiveToggle.value) return [];
+  const encodeFor = (cat: string, val: string) =>
+    isPrintMode.value ? { x: val, y: cat } : { x: cat, y: val };
   return [
     {
       name: t('charts-commuting-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'commuting',
-      },
+      encode: encodeFor('category', 'commuting'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.commuting,
       },
@@ -149,10 +153,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-food-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'food',
-      },
+      encode: encodeFor('category', 'food'),
       itemStyle: {
         color: colors.value.mint.darker,
       },
@@ -164,10 +165,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-waste-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'waste',
-      },
+      encode: encodeFor('category', 'waste'),
       itemStyle: {
         color: colors.value.periwinkle.darker,
       },
@@ -179,10 +177,7 @@ const additionalSeriesData = computed(() => {
       name: t('charts-embodied-energy-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'embodied_energy',
-      },
+      encode: encodeFor('category', 'embodied_energy'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.embodied_energy,
       },
@@ -193,16 +188,21 @@ const additionalSeriesData = computed(() => {
   ];
 });
 
-const chartOption = computed((): EChartsOption => {
-  const seriesArray = [
+function encodeFor(categoryAxis: string, valueAxis: string) {
+  return isPrintMode.value
+    ? { x: valueAxis, y: categoryAxis }
+    : { x: categoryAxis, y: valueAxis };
+}
+
+const seriesArray = computed(() => {
+  const barMaxWidth = isPrintMode.value ? 40 : undefined;
+  return [
     {
       name: t('charts-process-emissions-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'process_emissions',
-      },
+      barMaxWidth,
+      encode: encodeFor('category', 'process_emissions'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.process_emissions,
       },
@@ -214,10 +214,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-buildings-energy-combustion-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'buildings_energy_combustion',
-      },
+      encode: encodeFor('category', 'buildings_energy_combustion'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_energy_combustion,
       },
@@ -229,10 +226,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('charts-buildings-room-category'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'buildings_room',
-      },
+      encode: encodeFor('category', 'buildings_room'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.buildings_room,
       },
@@ -244,10 +238,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('equipment-electric-consumption'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'equipment',
-      },
+      encode: encodeFor('category', 'equipment'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.equipment,
       },
@@ -259,10 +250,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('external-cloud-and-ai'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'external_cloud_and_ai',
-      },
+      encode: encodeFor('category', 'external_cloud_and_ai'),
       itemStyle: {
         color: CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
       },
@@ -274,10 +262,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('professional-travel'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'professional_travel',
-      },
+      encode: encodeFor('category', 'professional_travel'),
       itemStyle: {
         color: colors.value.babyBlue.darker,
       },
@@ -289,10 +274,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('purchase'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'purchases',
-      },
+      encode: encodeFor('category', 'purchases'),
       itemStyle: {
         color: colors.value.lightGreen.darker,
       },
@@ -304,10 +286,7 @@ const chartOption = computed((): EChartsOption => {
       name: t('research-facilities'),
       type: 'bar' as const,
       stack: 'total',
-      encode: {
-        x: 'category',
-        y: 'research_facilities',
-      },
+      encode: encodeFor('category', 'research_facilities'),
       itemStyle: {
         color: colors.value.paleYellowGreen.darker,
       },
@@ -321,10 +300,7 @@ const chartOption = computed((): EChartsOption => {
             name: t('charts-objective-tick'),
             type: 'bar' as const,
             stack: 'total',
-            encode: {
-              x: 'category',
-              y: 'objective2030',
-            },
+            encode: encodeFor('category', 'objective2030'),
             itemStyle: {
               color: colors.value.skyBlue.darker,
             },
@@ -336,102 +312,112 @@ const chartOption = computed((): EChartsOption => {
       : []),
     ...additionalSeriesData.value,
   ];
+});
+
+const chartTooltipOption = computed(() => {
+  if (isPrintMode.value) return { show: false };
+
+  function tooltipFormatter(params: unknown): string {
+    const arr = Array.isArray(params) ? params : params ? [params] : [];
+    if (!arr.length) {
+      emitTooltip(null);
+      return '';
+    }
+
+    const firstParam = arr[0] as Record<string, unknown>;
+    const data = firstParam.data as Record<string, unknown> | undefined;
+    const title = String(firstParam.axisValue ?? firstParam.name ?? '');
+
+    const rows: TooltipRow[] = [];
+
+    for (const param of [...arr].reverse()) {
+      const p = param as Record<string, unknown>;
+      const series = seriesArray.value.find((s) => s.name === p.seriesName);
+      const key = series?.encode.y;
+      const dataValue = Number(data?.[key]) || 0;
+      if (dataValue > 0 && series) {
+        rows.push({
+          label: series.name,
+          value: formatTonnesForChart(dataValue),
+          color: (series.itemStyle?.color as string) ?? '#888',
+        });
+      }
+    }
+
+    const state: TooltipState = { title, rows };
+    emitTooltip(state);
+    return '';
+  }
 
   return {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) {
-          emitTooltip(null);
-          return '';
-        }
+    trigger: 'axis' as const,
+    axisPointer: { type: 'shadow' as const },
+    formatter: tooltipFormatter,
+  };
+});
 
-        const firstParam = arr[0] as Record<string, unknown>;
-        const data = firstParam.data as Record<string, unknown> | undefined;
-        const title = String(firstParam.axisValue ?? firstParam.name ?? '');
-
-        const rows: TooltipRow[] = [];
-
-        for (const param of [...arr].reverse()) {
-          const p = param as Record<string, unknown>;
-          const series = seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
-          const dataValue = Number(data?.[key]) || 0;
-          if (dataValue > 0 && series) {
-            rows.push({
-              label: series.name,
-              value: formatTonnesForChart(dataValue),
-              color: (series.itemStyle?.color as string) ?? '#888',
-            });
-          }
-        }
-
-        const state: TooltipState = { title, rows };
-        emitTooltip(state);
-        return '';
-      },
-    },
-
-    grid: {
-      left: '5%',
+const chartGridOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      left: '10%',
       right: '4%',
-      top: 80,
-      bottom: '0%',
+      top: 10,
+      bottom: 30,
       containLabel: true,
-    },
+    };
+  }
+  return { left: 65, right: '4%', top: 80, bottom: '0%', containLabel: true };
+});
 
-    xAxis: {
-      type: 'category',
-      axisLabel: {
-        interval: 0,
-        rotate: 45,
-        fontSize: 11,
-      },
-    },
-
-    yAxis: {
-      type: 'value',
+const chartXAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'value' as const,
       name: t('tco2eq'),
-      nameLocation: 'middle',
-      nameGap: 40,
-      nameRotate: 90,
-      nameTextStyle: {
-        fontSize: 11,
-        fontWeight: 'bold',
-      },
-      axisLabel: {
-        formatter: '{value}',
-      },
+      nameLocation: 'middle' as const,
+      nameGap: 30,
+      nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+      axisLabel: { formatter: '{value}' },
+    };
+  }
+  return {
+    type: 'category' as const,
+    axisLabel: { interval: 0, rotate: 45, fontSize: 11 },
+  };
+});
+
+const chartYAxisOption = computed(() => {
+  if (isPrintMode.value) {
+    return {
+      type: 'category' as const,
+      axisLabel: { fontSize: 11 },
+      axisTick: { alignWithLabel: true },
+    };
+  }
+  return {
+    type: 'value' as const,
+    name: t('tco2eq'),
+    nameLocation: 'middle' as const,
+    nameGap: 40,
+    nameRotate: 90,
+    nameTextStyle: { fontSize: 11, fontWeight: 'bold' as const },
+    axisLabel: { formatter: '{value}' },
+  };
+});
+
+const chartGraphicOption = computed(() => []);
+
+const chartOption = computed((): EChartsOption => {
+  return {
+    tooltip: chartTooltipOption.value,
+    grid: chartGridOption.value,
+    xAxis: chartXAxisOption.value,
+    yAxis: chartYAxisOption.value,
+    graphic: chartGraphicOption.value,
+    aria: {
+      enabled: isColorblind.value,
+      decal: buildChartDecal(isColorblind.value),
     },
-
-    graphic: [
-      {
-        type: 'rect',
-        left: '46px',
-        top: '15px',
-        shape: {
-          width: 500,
-          height: 300,
-        },
-        style: {
-          fill: new graphic.LinearGradient(0, 0, 0, 1, [
-            {
-              offset: 0,
-              color: 'rgba(240,240,240,0.9)',
-            },
-            {
-              offset: 1,
-              color: 'rgba(240,240,240,0.1)',
-            },
-          ]),
-        },
-      },
-    ],
-
     dataset: {
       dimensions: [
         'category',
@@ -451,7 +437,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as echarts.SeriesOption[],
+    series: seriesArray.value as echarts.SeriesOption[],
   };
 });
 
@@ -508,8 +494,15 @@ const downloadCSV = () => {
 </script>
 
 <template>
-  <q-card flat class="container container--pa-none full-width">
-    <q-card-section class="flex justify-between items-center">
+  <q-card
+    flat
+    class="container container--pa-none full-width"
+    :class="{ 'container--print': isPrintMode }"
+  >
+    <q-card-section
+      class="flex justify-between items-center"
+      :class="{ 'q-pb-none': isPrintMode }"
+    >
       <div>
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{
@@ -518,31 +511,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div class="flex items-center no-wrap q-gutter-sm">
-        <q-btn
-          v-if="headcountValidated"
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          v-if="headcountValidated"
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadCSV"
-        />
+      <div v-if="!isPrintMode">
         <q-checkbox
           v-if="
             props.viewAdditionalData === undefined &&
@@ -560,7 +529,8 @@ const downloadCSV = () => {
       <q-card-section class="chart-container flex justify-center items-center">
         <v-chart
           ref="chartRef"
-          class="chart"
+          :key="colorblindStore.enabled ? 'cb' : 'default'"
+          :class="['chart', { 'chart--print': isPrintMode }]"
           autoresize
           :option="chartOption"
           @vue:mounted="onChartReady"
@@ -572,6 +542,34 @@ const downloadCSV = () => {
             :style="style"
           />
         </Teleport>
+      </q-card-section>
+      <q-separator v-if="!isPrintMode && headcountValidated" />
+      <q-card-section
+        v-if="!isPrintMode && headcountValidated"
+        class="flex justify-start q-gutter-sm"
+      >
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_png')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadPNG"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          outline
+          icon="o_download"
+          :label="$t('common_download_as_csv')"
+          size="xs"
+          dense
+          class="text-weight-bold q-px-sm"
+          @click="downloadCSV"
+        />
       </q-card-section>
     </template>
 
@@ -602,8 +600,13 @@ const downloadCSV = () => {
 }
 
 .chart {
-  width: 200px;
-  min-height: 500px;
+  width: 100%;
+  min-height: 420px;
+}
+
+.chart--print {
+  min-height: unset;
+  height: 120px !important;
 }
 
 .validation-placeholder {

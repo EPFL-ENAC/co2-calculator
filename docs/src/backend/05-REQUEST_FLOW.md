@@ -1,327 +1,175 @@
+---
+status: delivered
+last_updated: 2026-05-05
+summary: HTTP request lifecycle, validation, and auth flow in the backend.
+---
+
 # Request Flow
 
-This document shows how a typical HTTP request flows through the
-backend layers. Use it to understand the request lifecycle and where
-each layer processes data.
+A request travels through middleware, router, service, and repository
+before hitting the database. Each layer has one job. This page shows
+the lifecycle and points at the auth and audit hooks.
 
-## Overview
+For deeper auth details see
+[06 Permission System](06-PERMISSION-SYSTEM.md),
+[07 Permissions Developer Guide](07-DEVELOPER-GUIDE-PERMISSIONS.md),
+[ADR-005 In-Code RBAC](../architecture-decision-records/005-authorization-strategy.md),
+and [ADR-012 JWT](../architecture-decision-records/012-jwt-authentication-strategy.md).
 
-A request travels through five layers before returning a response:
+## Sequence
 
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client
+    participant MW as Middleware<br/>(Session, Proxy)
+    participant R as Router<br/>(app/api/v1)
+    participant Auth as get_current_user<br/>(JWT decode)
+    participant S as Service
+    participant Repo as Repository
+    participant DB as PostgreSQL
+    participant Aud as Audit
+
+    C->>MW: HTTP request + auth cookie
+    MW->>R: scoped request
+    R->>Auth: Depends(get_current_user)
+    Auth-->>R: User (id, roles)
+    R->>R: Depends(require_permission(path, action))
+    R->>R: Pydantic validate body / query
+    R->>S: call(user, payload)
+    S->>S: get_data_filters (data scope)
+    S->>Repo: query(filters) or write(payload)
+    Repo->>DB: SQL with WHERE filters
+    DB-->>Repo: rows
+    Repo-->>S: ORM models
+    S->>Aud: log mutation (writes only)
+    S-->>R: domain result
+    R-->>C: Pydantic JSON response
 ```
-HTTP Request
-    ↓
-API Layer       - Validate and route
-    ↓
-Service Layer   - Check permissions, apply logic
-    ↓
-Repository Layer - Query database
-    ↓
-Database        - Return data
-    ↓
-HTTP Response
+
+Authentication runs as a FastAPI dependency, not middleware.
+**Permission checks run at the route layer** via
+`Depends(require_permission(path, action))` per ADR-005 — see usage
+across `backend/app/api/v1/data_sync.py`. Service code receives an
+already-authorized user and focuses on **data-scope filtering**.
+
+Audit writes have two integration points: auth events log directly
+from `app/api/v1/auth.py` via `_log_auth_audit_event`; service-layer
+mutations log via `AuditDocumentService.create_version()`. The
+`audit_helpers` module is utility-only (e.g., `extract_handled_ids`)
+— not a write path.
+
+## Auth and Permission Flow
+
+```mermaid
+flowchart TD
+    A[Request] --> B{auth cookie present?}
+    B -- no --> R401[401 Unauthorized]
+    B -- yes --> C[decode JWT]
+    C -->|invalid / expired| R401
+    C --> D[load User by<br/>institutional_id + provider]
+    D --> E{Depends require_permission<br/>path, action?}
+    E -- no --> R403[403 HTTPException]
+    E -- yes --> G[get_data_filters by scope<br/>global / unit / own]
+    G --> H[Repository applies WHERE]
+    H --> I[200 OK + payload]
 ```
 
-## Complete Flow Example
+Roles are stored on `User.roles_raw`. Permissions are computed during
+policy evaluation per request from the role list — never persisted.
+The `/auth/me` endpoint is a separate route used by the SPA to fetch
+its own permission set; it is not on the request-time auth path for
+other endpoints. See [06 Permission System](06-PERMISSION-SYSTEM.md)
+for computation rules and [07](07-DEVELOPER-GUIDE-PERMISSIONS.md) for
+adding new permission paths.
 
-Here's how `GET /api/v1/resources` processes:
+## Worked Example: `GET /api/v1/resources`
 
-### 1. API Layer
-
-**File**: `app/api/v1/resources.py`
+Router declares dependencies — FastAPI handles JWT decode, body
+validation, permission check, and DI before the handler runs:
 
 ```python
-@router.get("/resources")
-def list_resources(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
+@router.get(
+    "/resources",
+    response_model=list[ResourceRead],
+    dependencies=[Depends(require_permission("modules.resources", "view"))],
+)
+async def list_resources(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_active_user),
 ):
-    return resource_service.list_resources(db, user)
+    return await resource_service.list_resources(db, user)
 ```
 
-**Actions**:
-
-- Validate JWT token from Authorization header
-- Extract User object from token
-- Get database session
-- Call service layer
-
-### 2. Security Middleware
-
-**File**: `app/core/security.py`
+Service builds the scope filter and delegates — no permission check
+here, route already enforced it:
 
 ```python
-def decode_jwt(token: str) -> dict:
-    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    return payload
-
-def get_user_by_id(user_id: str) -> User:
-    # Fetch user from database
-    return User(id="user@epfl.ch", roles=["user"], unit_id="ENAC")
+async def list_resources(db: AsyncSession, user: User):
+    filters = get_data_filters(user, "resources")  # global/unit/own
+    return await resource_repo.get_resources(db, filters)
 ```
 
-**Actions**:
-
-- Decode JWT token
-- Load user from database
-- Return User object with roles and unit
-
-### 3. Service Layer
-
-**File**: `app/services/resource_service.py`
+Repository applies the filters at the database level — never in Python,
+never trust caller-provided ones:
 
 ```python
-def list_resources(db: Session, user: User):
-    # Check permissions
-    if not user.has_permission("resource.read"):
-        raise PermissionDenied()
-
-    # Build filters for this user
-    filters = {
-        "unit_id": user.unit_id,
-        "visibility": ["public", "unit"]
-    }
-
-    # Query with filters
-    return resource_repo.get_resources(db, filters=filters)
-```
-
-**Actions**:
-
-- Check user has permission to read resources
-- Build filters based on user context (unit, role)
-- Call repository with filters
-
-### 4. Repository Layer
-
-**File**: `app/repositories/resource_repo.py`
-
-```python
-def get_resources(db: Session, filters: dict):
-    query = db.query(Resource)
-
-    # Apply filters from service
+async def get_resources(session: AsyncSession, filters: dict):
+    stmt = select(Resource)
     for key, value in filters.items():
-        if isinstance(value, list):
-            query = query.filter(
-                getattr(Resource, key).in_(value)
-            )
-        else:
-            query = query.filter(
-                getattr(Resource, key) == value
-            )
-
-    return query.all()
+        col = getattr(Resource, key)
+        stmt = stmt.where(col.in_(value) if isinstance(value, list) else col == value)
+    result = await session.exec(stmt)
+    return result.all()
 ```
 
-**Actions**:
+Pydantic `response_model` serializes the ORM rows to JSON.
 
-- Build SQLAlchemy query
-- Apply filters to WHERE clause
-- Execute query and return results
+## Errors
 
-### 5. Database Query
+Route-level authorization currently raises
+`HTTPException(403, "Permission denied")` from `app/core/security.py`
+when `require_permission` denies access. That is the 403 shape callers
+see today.
 
-**SQL Generated**:
-
-```sql
-SELECT * FROM resources
-WHERE unit_id = 'ENAC'
-  AND visibility IN ('public', 'unit')
-```
-
-**Result**:
+For service-layer code that needs structured payloads, three custom
+exception classes are pre-wired in `app/main.py` with handlers:
 
 ```python
-[
-    Resource(id=1, name="Resource A", unit_id="ENAC", ...),
-    Resource(id=2, name="Resource B", unit_id="ENAC", ...),
-]
+app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
+app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
+app.add_exception_handler(RecordAccessDeniedError, permission_denied_handler)
 ```
 
-### 6. Serialization
+`permission_denied_handler` (`app/core/exception_handlers.py`) returns
+HTTP 403 with a structured body containing `detail`, `permission.path`,
+`permission.action`, and — when applicable — `scope` or `record`
+context. These classes are scaffolding: services may raise them to
+surface structured 403 details. Today no service raises them in
+production code, so a debugger tracing a real 403 should look at
+`HTTPException` first.
 
-**File**: `app/schemas/resource.py`
+Other failure modes:
 
-```python
-class ResourceRead(BaseModel):
-    id: int
-    name: str
-    unit_id: str
-    visibility: str
-    created_at: datetime
-```
+- `401` — missing or invalid JWT (FastAPI `HTTPException` from the
+  `get_current_user` dependency).
+- `422` — Pydantic validation error on body, query, or path params
+  (FastAPI default handler).
+- `5xx` — uncaught exceptions; the global logger captures them.
 
-**Actions**:
+Fail closed: when scope or permission state is ambiguous, services
+raise rather than return data.
 
-- Convert SQLAlchemy models to Pydantic schemas
-- Validate output matches schema
-- Serialize to JSON
+## Rules
 
-### 7. HTTP Response
-
-```json
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-[
-  {
-    "id": 1,
-    "name": "Resource A",
-    "unit_id": "ENAC",
-    "visibility": "unit",
-    "created_at": "2025-10-29T10:00:00Z"
-  },
-  {
-    "id": 2,
-    "name": "Resource B",
-    "unit_id": "ENAC",
-    "visibility": "public",
-    "created_at": "2025-10-29T11:00:00Z"
-  }
-]
-```
-
-## Authorization Decision Points
-
-### Who? (Authentication)
-
-- **Where**: `app/core/security.py`
-- **Action**: Validate JWT token
-- **Result**: User object with id, roles, unit_id
-
-### What? (Authorization)
-
-- **Where**: `app/services/resource_service.py`
-- **Action**: Check user permissions
-- **Result**: Allow or deny access
-
-### Which? (Data Filtering)
-
-- **Where**: `app/repositories/resource_repo.py`
-- **Action**: Apply filters to SQL query
-- **Result**: Only authorized resources returned
-
-## Example Scenarios
-
-### Regular User
-
-```python
-User: {roles: ["user"], unit_id: "ENAC"}
-Filters: {unit_id: "ENAC", visibility: ["public", "unit"]}
-SQL: WHERE unit_id = 'ENAC' AND visibility IN ('public', 'unit')
-```
-
-### Admin
-
-```python
-User: {roles: ["admin"], unit_id: "ENAC"}
-Filters: {unit_id: "ENAC"}
-SQL: WHERE unit_id = 'ENAC'
-```
-
-### Superuser
-
-```python
-User: {roles: ["admin"], is_superuser: true}
-Filters: {}
-SQL: (no WHERE clause - see all)
-```
-
-### Insufficient Permissions
-
-```python
-User: {roles: [], unit_id: "ENAC"}
-Service: raise PermissionDenied()
-Response: 403 Forbidden
-```
-
-## Key Concepts
-
-### Fail Secure
-
-When permissions are unclear or missing, deny access. Better to be too
-restrictive than too permissive.
-
-### Filter at Database Level
-
-Apply filters in SQL queries, not in Python code. This is more
-efficient and secure.
-
-```python
-# Good: Filter in database
-filters = {"unit_id": user.unit_id}
-resources = repo.get_resources(db, filters=filters)
-
-# Bad: Filter in Python
-all_resources = repo.get_all(db)
-resources = [r for r in all_resources if r.unit_id == user.unit_id]
-```
-
-### Explicit Dependencies
-
-FastAPI dependency injection makes dependencies visible:
-
-```python
-def endpoint(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_active_user)
-):
-    # Dependencies are clear in signature
-```
-
-## Common Patterns
-
-### Create Resource
-
-```
-POST /api/v1/resources
-    ↓
-[API] Validate ResourceCreate schema
-    ↓
-[Service] Check create permission, add owner_id
-    ↓
-[Repository] INSERT into database
-    ↓
-[Response] Return created resource
-```
-
-### Update Resource
-
-```
-PATCH /api/v1/resources/{id}
-    ↓
-[API] Extract id, validate update schema
-    ↓
-[Service] Check ownership or admin role
-    ↓
-[Repository] UPDATE database
-    ↓
-[Response] Return updated resource
-```
-
-### Delete Resource
-
-```
-DELETE /api/v1/resources/{id}
-    ↓
-[API] Extract id
-    ↓
-[Service] Check ownership or admin role
-    ↓
-[Repository] DELETE from database
-    ↓
-[Response] 204 No Content
-```
-
-## Summary
-
-Requests flow through distinct layers: API validates, services check
-permissions, repositories query data. Each layer has one job and passes
-results to the next layer.
-
-Authorization happens in the service layer by building filters based on
-user context. Repositories apply these filters at the database level
-for efficiency and security.
-
-When adding features, follow the layer sequence and never skip layers.
+- One job per layer. Routers validate, depend on permission and DB
+  sessions, and route. Services orchestrate and apply data-scope.
+  Repositories query.
+- Filter at the database. Build a filter dict in the service, apply
+  it in `WHERE`. Never load-then-filter in Python.
+- Declare dependencies. Use `Depends(...)` so auth, permission, and DB
+  sessions are visible in the signature.
+- Audit on writes. Auth events log from `app/api/v1/auth.py` via
+  `_log_auth_audit_event`; service mutations log via
+  `AuditDocumentService.create_version()`. `audit_helpers` is
+  utility-only.

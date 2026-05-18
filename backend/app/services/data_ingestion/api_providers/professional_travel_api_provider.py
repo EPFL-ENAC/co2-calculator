@@ -14,10 +14,12 @@ from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeE
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.user import User
 from app.repositories.unit_repo import UnitRepository
-from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.user import UserRead
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
@@ -31,8 +33,31 @@ class StatsDict(TypedDict):
     rows_with_factors: int
     rows_without_factors: int
     rows_skipped: int
+    rows_missing_centre_financier: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
+
+
+# Stable contract with the Tableau datasource. Captions are validated against
+# read-metadata at fetch time so a rename/removal upstream fails loud instead
+# of silently dropping a column. Do NOT add "IN_Centre financier" here — the
+# Tableau service team requires the calculated "Centre financier" field.
+REQUIRED_CAPTIONS: list[str] = [
+    "OUT_CO2_CORRECTED",
+    "OUT_DISTANCE_CORRECTED",
+    "SCIPER",
+    "Centre financier",
+    "IN_Departure date",
+    "IN_Segment class",
+    "IN_Segment destination airport code",
+    "IN_Segment origin airport code",
+    "IN_Supplier",
+    "IN_Ticket number",
+    "PASSENGER_TYPE",
+    "ROUND_TRIP",
+    "TRANSPORT_TYPE",
+    "Number of trips",
+]
 
 
 # todo: hard code travel ?
@@ -81,7 +106,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         self.timeout = int(self.settings.TABLEAU_REQUEST_TIMEOUT_SECONDS)
         self.verify_ssl = to_bool(self.settings.TABLEAU_VERIFY_SSL)
         self.min_api_version = self.settings.TABLEAU_REST_MIN_API_VERSION
-        self.max_fields = self.settings.TABLEAU_MAX_FIELDS
         # Extract module_type_id from config for carbon report resolution
         self.module_type_id = config.get("module_type_id")
 
@@ -132,9 +156,23 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 raise Exception("Tableau authentication failed")
 
             metadata = await self._vds_read_metadata(session, x_auth)
-            field_captions = self._extract_field_captions(metadata)[: self.max_fields]
+            available_captions = set(self._extract_field_captions(metadata))
+            missing = [c for c in REQUIRED_CAPTIONS if c not in available_captions]
+            if missing:
+                raise ValueError(
+                    f"Required Tableau captions missing from datasource "
+                    f"metadata: {missing}"
+                )
+            logger.info(
+                "Tableau VDS required captions validated",
+                extra={
+                    "available_count": len(available_captions),
+                    "required_count": len(REQUIRED_CAPTIONS),
+                    "captions": REQUIRED_CAPTIONS,
+                },
+            )
 
-            payload = self._build_payload(field_captions)
+            payload = self._build_payload(REQUIRED_CAPTIONS)
             payload, _ = normalize_vds_payload(payload)
             result = await self._vds_query_datasource(session, x_auth, payload)
 
@@ -190,13 +228,13 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                     number_of_trips = 1
                 number_of_trips = max(1, number_of_trips)
                 logger.info(record.get("ROUND_TRIP"))
-                unit_institutional_id = record.get("Centre financier") or "unknown_unit"
+                unit_institutional_id = record.get("Centre financier")
 
                 # Strip leading character only if it's a prefix (e.g., 'F' in 'F0828')
                 # Otherwise use as-is
-                def strip_unit_prefix(unit_id: str) -> str:
+                def strip_unit_prefix(unit_id: str | None) -> str | None:
                     """Strip leading prefix character from unit ID if present."""
-                    if not unit_id or unit_id == "unknown_unit":
+                    if not unit_id:
                         return unit_id
                     # If starts with letter followed by digits, strip the letter
                     if (
@@ -282,12 +320,17 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             )
 
             # Initialize statistics
-            max_row_errors = int(self.config.get("max_row_errors", 100))
+            # Default raised to 250 — Tableau ships ~100-150 rows/year with
+            # a missing Centre financier (SAP coverage gap, per Kuoni/SAP
+            # integration owner 2026-05). Truncating the row_errors list to
+            # 100 dropped row indices operators need to investigate.
+            max_row_errors = int(self.config.get("max_row_errors", 250))
             stats: StatsDict = {
                 "rows_processed": 0,
                 "rows_with_factors": 0,
                 "rows_without_factors": 0,
                 "rows_skipped": 0,
+                "rows_missing_centre_financier": 0,
                 "row_errors": [],
                 "row_errors_count": 0,
             }
@@ -313,8 +356,16 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             for idx, record in enumerate(transformed_data, start=1):
                 unit_code = record.get("unit_institutional_id")
                 if not unit_code or str(unit_code).strip() == "":
+                    # SAP coverage gap: a blank Centre financier means no
+                    # matching expense report exists in SAP for the Kuoni
+                    # décompte number. Tracked separately from other skip
+                    # reasons so dashboards can alert on a feed regression.
+                    stats["rows_missing_centre_financier"] += 1
                     self._record_row_error(
-                        stats, idx, "Missing unit_institutional_id", max_row_errors
+                        stats,
+                        idx,
+                        "Missing Centre financier (no matching SAP expense report)",
+                        max_row_errors,
                     )
                     continue
 
@@ -405,23 +456,55 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         service = DataEntryService(self.data_session)
         emission_service = DataEntryEmissionService(self.data_session)
 
-        # Create data entries with preserved CO2 values
+        # Create data entries with preserved CO2 values.
+        # The raw ``kg_co2eq`` key is stripped from the persisted payload —
+        # under the reserved ``__kg_co2eq_override__`` carrier instead — so
+        # the formula short-circuit in ``prepare_create`` can still tell the
+        # raw input apart from the override channel, and so a future user
+        # edit clearing the override can trigger a clean recompute (B-H1).
+        # The parallel ``kg_co2eq_overrides`` list is kept index-aligned with
+        # ``entries`` for the legacy inline-write path below.
         entries = []
+        kg_co2eq_overrides: list[float | None] = []
         for item in data:
             carbon_report_module_id = item.get("carbon_report_module_id")
             if not carbon_report_module_id:
                 continue
 
-            # Extract CO2 values from item (preserved from source)
-            kg_co2eq = item.get("kg_co2eq") or item.get("OUT_CO2_CORRECTED")
-            distance_km = item.get("distance_km") or item.get("OUT_DISTANCE_CORRECTED")
+            # Use ``is not None`` rather than ``or`` so a valid 0/0.0 isn't
+            # silently replaced by the OUT_*-corrected fallback.  Walking
+            # legs and fully-electric trips on green grids land here.
+            kg_raw = item.get("kg_co2eq")
+            kg_co2eq = kg_raw if kg_raw is not None else item.get("OUT_CO2_CORRECTED")
+            dist_raw = item.get("distance_km")
+            distance_km = (
+                dist_raw if dist_raw is not None else item.get("OUT_DISTANCE_CORRECTED")
+            )
 
-            # Store in data payload
             data_payload = dict(item)
-            if kg_co2eq is not None:
-                data_payload["kg_co2eq"] = kg_co2eq
+            data_payload.pop("kg_co2eq", None)
             if distance_km is not None:
                 data_payload["distance_km"] = distance_km
+
+            # Coerce the override value to float; log + skip on garbage values
+            # rather than crashing the whole batch (mirrors base_csv_provider).
+            override: float | None = None
+            if kg_co2eq is not None:
+                try:
+                    override = float(kg_co2eq)
+                except (ValueError, TypeError):
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
+                        f"Invalid kg_co2eq value {kg_co2eq!r} from API source, "
+                        f"ignoring override"
+                    )
+            # Persist the override under the reserved carrier key so the
+            # async recalc path (``upsert_by_data_entry`` →
+            # ``prepare_create``) still honors Tableau's ``OUT_CO2_CORRECTED``
+            # under ``BULK_PATH_PURE_ASYNC``.
+            if override is not None:
+                data_payload[KG_CO2EQ_OVERRIDE_KEY] = override
 
             entry = DataEntry(
                 carbon_report_module_id=carbon_report_module_id,
@@ -429,6 +512,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 data=data_payload,
             )
             entries.append(entry)
+            kg_co2eq_overrides.append(override)
 
         if not entries:
             return {"inserted": 0}
@@ -442,14 +526,38 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             created_by_id=self.job_id,
         )
 
-        # Prepare and create emissions using preserved CO2 values
+        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` (default True) the
+        # runner-driven ``emission_recalc`` chain (fired by
+        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
+        # writes for the bulk path.  Skip the inline path here — the
+        # chain reads the freshly-committed ``data_entries`` and writes
+        # emissions against the latest factors.  Inline writes would
+        # race the chain's writes for the same primary key.
+        #
+        # Travel data carries a per-row ``kg_co2eq`` override (Tableau's
+        # ``OUT_CO2_CORRECTED``) that the legacy path threaded through
+        # ``prepare_create(kg_co2eq_override=...)``.  The async path
+        # persists the same value under ``KG_CO2EQ_OVERRIDE_KEY`` above,
+        # which ``prepare_create`` reads as a fallback when no function-arg
+        # override is passed — so the recalc workflow's
+        # ``upsert_by_data_entry`` preserves it across the async hop.
+        if get_settings().BULK_PATH_PURE_ASYNC:
+            await self.data_session.flush()
+            return {"inserted": len(data_entries_response)}
+
+        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
+        overrides_by_id: dict[int, float] = {
+            resp.id: ov
+            for resp, ov in zip(data_entries_response, kg_co2eq_overrides)
+            if ov is not None and resp.id is not None
+        }
+
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
-                # Use emission service to prepare emissions
-                # This will use the preserved kg_co2eq from data payload
                 emission_objs = await emission_service.prepare_create(
-                    data_entry_response
+                    data_entry_response,
+                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
                 )
                 if emission_objs is not None:
                     emissions_to_create.extend(emission_objs)
@@ -733,9 +841,19 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 unit_codes.add(str(unit_code).strip())
 
         if not unit_codes:
+            if not transformed_data:
+                raise ValueError(
+                    "No travel rows passed validation — all rows were filtered "
+                    "for missing SCIPER, missing IATA airport codes, or wrong "
+                    "departure year. If data is expected, contact the Tableau "
+                    "team that owns the professional travel datasource."
+                )
             raise ValueError(
-                "No valid unit_institutional_id values found in travel data. "
-                "Centre financier column is required."
+                f"No rows could be imported: all {len(transformed_data)} rows "
+                "have a null 'Centre financier'. Contact the Tableau team that "
+                "owns the professional travel datasource — the 'Centre "
+                "financier' calculated field must be populated for the "
+                "requested year."
             )
 
         logger.info(
@@ -758,11 +876,10 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         # Build mapping: institutional_id → unit.id
         unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
 
-        # Resolve carbon report modules
+        # Resolve carbon report modules (carbon reports are expected to be
+        # pre-created by the year-config bootstrap flow).
         carbon_report_service = CarbonReportService(self.data_session)
         code_to_module_map: dict[str, int] = {}
-        reports_created = 0
-        reports_reused = 0
 
         for unit_institutional_id in unit_codes:
             # Skip missing units
@@ -774,26 +891,19 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
                 )
                 continue
 
-            # Check if carbon report exists
             carbon_report = await carbon_report_service.get_by_unit_and_year(
                 unit_id, year
             )
 
             if not carbon_report:
-                # Create new carbon report (auto-creates all 7 modules)
-                logger.info(
-                    "Creating carbon_report for unit_institutional_id=%s "
-                    "(unit_id=%s), year=%s",
+                logger.warning(
+                    "No carbon_report for unit_institutional_id=%s "
+                    "(unit_id=%s), year=%s — skipping",
                     unit_institutional_id,
                     unit_id,
                     year,
                 )
-                carbon_report = await carbon_report_service.create(
-                    CarbonReportCreate(unit_id=unit_id, year=year)
-                )
-                reports_created += 1
-            else:
-                reports_reused += 1
+                continue
 
             # Get the carbon_report_module_id for this module_type
             module_service = carbon_report_service.module_service
@@ -812,9 +922,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             code_to_module_map[unit_institutional_id] = carbon_report_module.id
 
         logger.info(
-            f"Resolved carbon_report_module_ids: "
-            f"created {reports_created} new reports, "
-            f"reused {reports_reused} existing reports"
+            f"Resolved carbon_report_module_ids for {len(code_to_module_map)} units"
         )
 
         return code_to_module_map

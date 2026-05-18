@@ -1,16 +1,15 @@
 """Location repository for database operations."""
 
+import logging
 from typing import List, Optional
 
 from sqlalchemy import bindparam, case, or_, text
-from sqlalchemy.sql.elements import BindParameter
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import get_logger
 from app.models.location import Location, TransportModeEnum
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class LocationRepository:
@@ -26,15 +25,16 @@ class LocationRepository:
         limit: int = 20,
     ) -> List[Location]:
         """
-        Search locations by keywords, municipality, and name with relevance ordering.
+        Search locations by keywords, municipality, iata and name with
+        relevance ordering.
 
         Search is performed across:
         - keywords column
         - municipality column
+        - iata_code column
         - name column
 
-        Search is accent-insensitive and case-insensitive using PostgreSQL ICU
-        collations.
+        Search uses PostgreSQL trigram similarity for efficient pattern matching.
 
         Results are prioritized by:
         1. Switzerland (country_code == "CH") first
@@ -60,39 +60,21 @@ class LocationRepository:
         if not query:
             return []
 
-        # Validate collation against whitelist to prevent injection
-        allowed_collations = {"ch_fr_ci_ai", "ch_de_ci_ai", "ch_it_ci_ai"}
-        collation = "ch_fr_ci_ai"
-        if collation not in allowed_collations:
-            raise ValueError(f"Invalid collation: {collation}")
-
         statement = select(Location)
 
-        search_pattern = f"%{query}%".lower()
-        query_lower = query.lower()
-        query_starts_pattern = f"{query}%".lower()
-
-        table_name = Location.__tablename__
-
-        search_pattern_param: BindParameter[str] = bindparam(
-            "search_pattern", search_pattern
-        )
-        query_exact_param: BindParameter[str] = bindparam("query_exact", query_lower)
-        query_starts_param: BindParameter[str] = bindparam(
-            "query_starts", query_starts_pattern
-        )
-
+        # Use PostgreSQL trigram similarity for efficient searching
+        # This works with our GIN indexes using gin_trgm_ops
         search_condition = or_(
-            text(
-                f"LOWER({table_name}.name COLLATE {collation}) LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
-            text(
-                f"LOWER({table_name}.municipality COLLATE {collation}) "
-                f"LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
-            text(
-                f"LOWER({table_name}.keywords COLLATE {collation}) LIKE :search_pattern"
-            ).bindparams(search_pattern_param),
+            text("LOWER(name) % LOWER(:query)").bindparams(bindparam("query", query)),
+            text("LOWER(iata_code) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
+            text("LOWER(municipality) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
+            text("LOWER(keywords) % LOWER(:query)").bindparams(
+                bindparam("query", query)
+            ),
         )
 
         statement = statement.where(search_condition)
@@ -101,47 +83,28 @@ class LocationRepository:
         if transport_mode:
             statement = statement.where(col(Location.transport_mode) == transport_mode)
 
-        # Build relevance scoring using parameterized queries with collations
-        # for accent-insensitive matching
-        relevance = case(
-            # Exact matches (highest priority) - accent-insensitive
-            (
-                or_(
-                    text(
-                        f"LOWER({table_name}.name COLLATE {collation}) = :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.municipality COLLATE {collation}) "
-                        f"= :query_exact"
-                    ).bindparams(query_exact_param),
-                    text(
-                        f"LOWER({table_name}.keywords COLLATE {collation}) "
-                        f"= :query_exact"
-                    ).bindparams(query_exact_param),
-                ),
-                1,
-            ),
-            # Starts with (medium priority) - accent-insensitive
-            (
-                or_(
-                    text(
-                        f"LOWER({table_name}.name COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                    text(
-                        f"LOWER({table_name}.municipality COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                    text(
-                        f"LOWER({table_name}.keywords COLLATE {collation}) "
-                        f"LIKE :query_starts"
-                    ).bindparams(query_starts_param),
-                ),
-                2,
-            ),
-            # Contains (lowest priority)
-            else_=3,
-        )
+        # Calculate numeric relevance score using trigram similarity.
+        # The % operator above is only a boolean threshold match filter; similarity()
+        # returns the 0..1 score used here for ordering.
+        relevance_score = case(
+            # Exact matches get highest score (1.0)
+            (text("LOWER(name) = LOWER(:exact_query)"), 1.0),
+            # Similarity scores for partial matches
+            else_=text("""
+                GREATEST(
+                    COALESCE(similarity(LOWER(name), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(iata_code), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(municipality), LOWER(:query)), 0),
+                    COALESCE(similarity(LOWER(keywords), LOWER(:query)), 0)
+                )
+            """),
+        ).label("relevance")
+
+        # Add relevance score to select (use separate var to preserve base type)
+        extended = statement.add_columns(relevance_score)
+
+        # Bind parameters for relevance calculation
+        extended = extended.params(exact_query=query, query=query)
 
         # Prioritize Switzerland
         switzerland_priority = case(
@@ -150,40 +113,40 @@ class LocationRepository:
         )
 
         # For airport searches, prioritize large_airport first
-        if transport_mode == TransportModeEnum.plane.value:
+        if transport_mode == TransportModeEnum.plane:
             airport_priority = case(
                 (col(Location.airport_size) == "large_airport", 1),
                 else_=2,
             )
-            statement = statement.order_by(
+            extended = extended.order_by(
                 switzerland_priority.asc(),
                 airport_priority.asc(),
-                relevance.asc(),
+                text("relevance DESC"),  # Higher similarity scores first
                 col(Location.name).asc(),
             )
         else:
-            # For train searches, order by Switzerland first
-            statement = statement.order_by(
+            # For train searches, order by Switzerland first, then relevance
+            extended = extended.order_by(
                 switzerland_priority.asc(),
-                relevance.asc(),
+                text("relevance DESC"),  # Higher similarity scores first
                 col(Location.name).asc(),
             )
 
-        statement = statement.limit(limit)
+        extended = extended.limit(limit)
 
         try:
-            compiled = statement.compile(compile_kwargs={"literal_binds": False})
+            compiled = extended.compile(compile_kwargs={"literal_binds": False})
             logger.debug(f"Location search SQL: {compiled}")
 
-            result = await self.session.execute(statement)
-            locations = list(result.scalars().all())
+            result = await self.session.execute(extended)
+            # Since we added a relevance column, extract just the Location objects
+            locations = [row[0] for row in result.fetchall()]
+
             logger.debug(f"Found {len(locations)} locations for query '{query}'")
             return locations
         except Exception as e:
             logger.error(
-                f"Error executing location search query for '{query}'. "
-                f"Collation {collation} may not exist or query syntax error. "
-                f"Error: {e}",
+                f"Error executing location search query for '{query}'. Error: {e}",
                 exc_info=True,
             )
             raise
@@ -193,9 +156,9 @@ class LocationRepository:
         result = await self.session.get(Location, location_id)
         return result
 
-    async def get_by_name(self, name: str) -> Optional[Location]:
-        """Get location by name."""
-        statement = select(Location).where(col(Location.name) == name)
+    async def get_by_natural_key(self, natural_key: str) -> Optional[Location]:
+        """Get location by natural_key (unique index — always unambiguous)."""
+        statement = select(Location).where(col(Location.natural_key) == natural_key)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
@@ -204,3 +167,27 @@ class LocationRepository:
         statement = select(Location).where(col(Location.iata_code) == iata_code)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
+
+    async def find_train_stations_by_name(
+        self,
+        name: str,
+        country_code: str,
+        limit: int = 2,
+    ) -> List[Location]:
+        """Exact-match train station lookup by name within a country.
+
+        Case-insensitive on the lowercased+trimmed name. Used by the CSV
+        ingestion resolver to map ``origin_name`` → a single ``Location``,
+        so the caller only needs to distinguish 0 / 1 / many matches —
+        ``limit=2`` is the cheapest way to do that.
+        """
+        normalized = name.strip().lower()
+        statement = (
+            select(Location)
+            .where(col(Location.transport_mode) == TransportModeEnum.train)
+            .where(text("lower(trim(name)) = :name").bindparams(name=normalized))
+            .where(col(Location.country_code) == country_code)
+            .limit(limit)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())

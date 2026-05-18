@@ -30,6 +30,7 @@ const cloudFields: ModuleField[] = [
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
     optionsId: 'subkind',
+    optionLabelPrefix: 'external-cloud-service-type-',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -83,14 +84,6 @@ const cloudFields: ModuleField[] = [
   },
 ];
 
-// class ExternalAIHandlerResponse(DataEntryResponseGen):
-//     # ai_provider,ai_use,frequency_use_per_day,user_count
-//     ai_provider: str
-//     ai_use: str
-//     frequency_use_per_day: int
-//     user_count: int
-//     kg_co2eq: float
-
 const externalAIFields: ModuleField[] = [
   {
     id: 'provider',
@@ -119,13 +112,13 @@ const externalAIFields: ModuleField[] = [
     type: 'select',
   },
   {
-    id: 'user_count',
-    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.user_count`,
+    id: 'fte_count',
+    labelKey: `${MODULES.ExternalCloudAndAI}.inputs.fte_count`,
     type: 'number',
     required: true,
     editableInline: true,
-    min: 1,
-    step: 1,
+    min: 0.1,
+    step: 0.1,
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },

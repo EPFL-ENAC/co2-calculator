@@ -1,8 +1,10 @@
 """Location models for train stations and airports."""
 
+import re
 from enum import Enum
 from typing import Optional
 
+from sqlalchemy import Index
 from sqlmodel import Field, SQLModel
 
 # ==========================================
@@ -77,7 +79,10 @@ class LocationBase(SQLModel):
     keywords: Optional[str] = Field(
         default=None,
         max_length=255,
-        description="Keywords (e.g., ['airport', 'train station'])",
+        description=(
+            "Keywords (e.g., ['airport', 'train station']); indexed via "
+            "explicit Alembic trigram GIN migration"
+        ),
     )
 
 
@@ -93,9 +98,55 @@ class Location(LocationBase, table=True):
     """
 
     __tablename__ = "locations"
+    __table_args__ = (
+        Index(
+            "uq_location_natural_key",
+            "natural_key",
+            unique=True,
+        ),
+    )
 
     # ID: Integer, Primary Key, Auto-Increment
     id: Optional[int] = Field(default=None, primary_key=True)
+
+    natural_key: str = Field(
+        max_length=500,
+        nullable=False,
+        description="Stable deduplication key computed at ingestion (never in CSV)",
+    )
+
+    @staticmethod
+    def compute_natural_key(
+        transport_mode: "TransportModeEnum",
+        name: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        country_code: Optional[str] = None,
+        iata_code: Optional[str] = None,
+    ) -> str:
+        """Python mirror of ``app/seed/seed_locations.py::_NATURAL_KEY_EXPR``.
+
+        Keep the two shapes in lock-step — the seed runs this expression in
+        Postgres for bulk UPSERT, while application code (ingestion, tests)
+        calls this helper. A drift between them would make the same logical
+        location dedupe to two different rows.
+
+        Plane stations are uniquely keyed by IATA, so the fast path only
+        needs ``transport_mode=plane`` + ``iata_code``. Every other path
+        (train, or plane without iata) requires ``name``, ``latitude``,
+        ``longitude``.
+        """
+        if transport_mode == TransportModeEnum.plane and iata_code:
+            return f"plane:{iata_code}"
+        if name is None or latitude is None or longitude is None:
+            raise ValueError(
+                "compute_natural_key requires name, latitude, longitude "
+                "unless transport_mode=plane and iata_code is provided"
+            )
+        mode = "train" if transport_mode == TransportModeEnum.train else "plane"
+        cc = (country_code or "").lower()
+        normalized = re.sub(r"\s+", " ", name.strip().lower())
+        return f"{mode}:{cc}:{normalized}:{latitude}:{longitude}"
 
     def __repr__(self) -> str:
         return (
@@ -119,3 +170,4 @@ class LocationRead(LocationBase):
     """
 
     id: int
+    natural_key: str

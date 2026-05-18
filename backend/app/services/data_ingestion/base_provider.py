@@ -36,6 +36,14 @@ class DataIngestionProvider(ABC):
         self.data_session = data_session  # For data operations (atomic commit)
         self.job_id: Optional[int] = None
         self.job: Optional[DataIngestionJob] = None
+        # Plan 310-C: when the runner drives dispatch, it owns the
+        # FINISHED transition (so finished_at, the preempt-check, and
+        # factor_ingest's chain-job fan-out all happen in the right
+        # order).  Callers running providers via ``run_job`` set this
+        # to True after construction; it gates the FINISHED state-write
+        # in ``_update_job`` (status_message + extra_metadata still
+        # flow through for SSE progress).
+        self.defer_finalize: bool = False
 
     async def set_job_id(self, job_id: int):
         self.job_id = job_id
@@ -221,20 +229,39 @@ class DataIngestionProvider(ABC):
             logger.warning("No job session available. Cannot update ingestion job.")
             return
 
+        # Plan 310-C: when the runner owns the FINISHED transition,
+        # strip state + result from the write (and skip completed_at
+        # stamping, which is auto-stamped on the runner's authoritative
+        # FINISHED transition via PR #1026).  The status_message and
+        # extra_metadata still land so SSE consumers see the
+        # provider's final progress message; the row stays in RUNNING
+        # until the runner's next call.
+        write_state = state
+        write_result = result
+        write_completed_at: datetime | None = (
+            datetime.now(timezone.utc) if state in (IngestionState.FINISHED,) else None
+        )
+        if self.defer_finalize and state == IngestionState.FINISHED:
+            write_state = None
+            write_result = None
+            write_completed_at = None
+
         repo = DataIngestionRepository(self.job_session)
         await repo.update_ingestion_job(
             job_id=self.job_id,
             status_message=status_message,
             metadata=metadata,
-            completed_at=datetime.now(timezone.utc)
-            if state in (IngestionState.FINISHED,)
-            else None,
-            state=state,
-            result=result,
+            completed_at=write_completed_at,
+            state=write_state,
+            result=write_result,
         )
 
-        # Mark as current if job is finished
-        if state in (IngestionState.FINISHED, IngestionState.RUNNING) and self.job_id:
+        # Mark as current if job is finished — only when we actually
+        # wrote the FINISHED state, not when the runner deferred it.
+        if (
+            write_state in (IngestionState.FINISHED, IngestionState.RUNNING)
+            and self.job_id
+        ):
             job = await repo.get_job_by_id(self.job_id)
             if job:
                 await repo.mark_job_as_current(job)

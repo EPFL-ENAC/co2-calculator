@@ -13,7 +13,7 @@ from app.services.data_ingestion.csv_providers.reduction_objectives import (
     ModulePerYearReductionObjectivesApiProvider,
 )
 from app.services.data_ingestion.csv_providers.reference_data import (
-    ModulePerYearReferenceDataApiProvider,
+    ReferenceDataCSVProvider,
 )
 
 __all__ = [
@@ -21,5 +21,5 @@ __all__ = [
     "ModulePerYearCSVProvider",
     "ModulePerYearFactorCSVProvider",
     "ModulePerYearReductionObjectivesApiProvider",
-    "ModulePerYearReferenceDataApiProvider",
+    "ReferenceDataCSVProvider",
 ]

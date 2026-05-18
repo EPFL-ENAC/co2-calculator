@@ -1,6 +1,6 @@
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import ValidationInfo, field_validator
+from pydantic import ValidationInfo, field_validator, model_validator
 from sqlalchemy import case
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -64,7 +64,7 @@ class ExternalAIHandlerResponse(DataEntryResponseGen):
     provider: Optional[str] = None
     usage_type: Optional[str] = None
     requests_per_user_per_day: Optional[str] = None
-    user_count: Optional[int] = None
+    fte_count: Optional[float] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
 
@@ -76,6 +76,19 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
     currency: Optional[str] = None
     note: Optional[str] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def ensure_default_currency(cls, data: Any) -> Any:
+        """Ensure default currency is applied when input has null or empty currency."""
+        if isinstance(data, dict):
+            currency = data.get("currency")
+            # Apply default when currency is None, empty string, or whitespace-only
+            if currency is None or (
+                isinstance(currency, str) and currency.strip() == ""
+            ):
+                data["currency"] = "eur"
+        return data
+
     @field_validator("spent_amount", mode="after")
     @classmethod
     def validate_spent_amount(cls, v: float) -> float:
@@ -85,20 +98,21 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
 
     @field_validator("currency", mode="after")
     @classmethod
-    def validate_currency(cls, v: Optional[str]) -> Optional[str]:
+    def validate_currency(cls, v: Optional[str]) -> str:
         if v is None:
-            return v
+            return "eur"
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class ExternalAIHandlerCreate(DataEntryCreate):
     provider: str
     usage_type: str
     requests_per_user_per_day: Optional[str] = None
-    user_count: int
+    fte_count: float
     note: Optional[str] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
@@ -113,11 +127,11 @@ class ExternalAIHandlerCreate(DataEntryCreate):
             )
         return v
 
-    @field_validator("user_count", mode="after")
+    @field_validator("fte_count", mode="after")
     @classmethod
-    def validate_user_count(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("user_count must be at least 1")
+    def validate_fte_count(cls, v: float) -> float:
+        if v < 0.1:
+            raise ValueError("fte_count must be at least 0.1")
         return v
 
 
@@ -142,17 +156,18 @@ class ExternalCloudHandlerUpdate(DataEntryUpdate):
     def validate_currency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
+        normalized_v = v.strip().lower()
         valid_currencies = ["chf", "eur", "usd"]
-        if v.lower() not in valid_currencies:
+        if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
-        return v
+        return normalized_v
 
 
 class ExternalAIHandlerUpdate(DataEntryUpdate):
     provider: Optional[str] = None
     usage_type: Optional[str] = None
     requests_per_user_per_day: Optional[str] = None
-    user_count: Optional[int] = None
+    fte_count: Optional[float] = None
     note: Optional[str] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
@@ -167,13 +182,13 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
             )
         return v
 
-    @field_validator("user_count", mode="after")
+    @field_validator("fte_count", mode="after")
     @classmethod
-    def validate_user_count(cls, v: Optional[int]) -> Optional[int]:
+    def validate_fte_count(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
-        if v < 1:
-            raise ValueError("user_count must be at least 1")
+        if v < 0.1:
+            raise ValueError("fte_count must be at least 0.1")
         return v
 
 
@@ -200,18 +215,22 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
         "provider": Factor.classification[kind_field].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ExternalCloudHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ExternalCloudHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
                 "service_type": primary_factor.get("subkind")
-                or data_entry.data.get("service_type"),
-                "provider": primary_factor.get("kind")
-                or data_entry.data.get("provider"),
+                or data.get("service_type"),
+                "provider": primary_factor.get("kind") or data.get("provider"),
             }
         )
 
@@ -373,7 +392,7 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         "provider": Factor.classification["provider"].as_string(),
         "usage_type": Factor.classification["usage_type"].as_string(),
         "requests_per_user_per_day": _requests_frequency_sort_expr(),
-        "user_count": DataEntry.data["user_count"].as_float(),
+        "fte_count": DataEntry.data["fte_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
@@ -382,18 +401,22 @@ class ExternalAIModuleHandler(BaseModuleHandler):
         "usage_type": Factor.classification["usage_type"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ExternalAIHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ExternalAIHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "provider": primary_factor.get("provider")
-                or data_entry.data.get("provider"),
+                **data,
+                "provider": primary_factor.get("provider") or data.get("provider"),
                 "usage_type": primary_factor.get("usage_type")
-                or data_entry.data.get("usage_type"),
+                or data.get("usage_type"),
             }
         )
 
@@ -411,12 +434,16 @@ class ExternalAIModuleHandler(BaseModuleHandler):
 
         def _ai_formula(ctx: dict, factor_values: dict):
             frequency_str = ctx.get("requests_per_user_per_day")
-            frequency = REQUESTS_FREQUENCY_MAP.get(frequency_str or "", 0.0)
-            users = ctx.get("user_count", 0)
-            factor_g = factor_values.get("ef_kg_co2eq_per_request", 0)
-            if not frequency or not users or not factor_g:
+            frequency = REQUESTS_FREQUENCY_MAP.get(frequency_str or "")
+            if frequency is None:
                 return None
-            return (frequency * 5 * 46 * users * factor_g) / 1000
+            fte_count = ctx.get("fte_count")
+            if fte_count is None:
+                return None
+            factor_g = factor_values.get("ef_kg_co2eq_per_request")
+            if factor_g is None:
+                return None
+            return (frequency * 5 * 46 * fte_count * factor_g) / 1000
 
         return [
             EmissionComputation(

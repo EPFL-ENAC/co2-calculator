@@ -167,13 +167,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         "room_type": DataEntry.data["room_type"].as_string(),
     }
 
-    @staticmethod
-    def _safe_float(value: Any) -> float:
-        try:
-            return float(value) if value is not None else 0.0
-        except (TypeError, ValueError):
-            return 0.0
-
     # Maps each building EmissionType leaf → factor field for kwh/m².
     _EMISSION_TO_KWH_FIELD: dict = {
         EmissionType.buildings__rooms__lighting: "lighting_kwh_per_square_meter",
@@ -246,8 +239,13 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> BuildingRoomHandlerResponse:
-        d = data_entry.data
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> BuildingRoomHandlerResponse:
+        d = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = d.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
@@ -255,16 +253,16 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
                 **d,
                 "room_type": d.get("room_type"),
-                "heating_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                "heating_kwh_per_square_meter": primary_factor.get(
                     "heating_kwh_per_square_meter", None
                 ),
-                "cooling_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                "cooling_kwh_per_square_meter": primary_factor.get(
                     "cooling_kwh_per_square_meter", None
                 ),
-                "ventilation_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                "ventilation_kwh_per_square_meter": primary_factor.get(
                     "ventilation_kwh_per_square_meter", None
                 ),
-                "lighting_kwh_per_square_meter": d.get("primary_factor", {}).get(
+                "lighting_kwh_per_square_meter": primary_factor.get(
                     "lighting_kwh_per_square_meter", None
                 ),
             }
@@ -480,17 +478,24 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
             )
         ]
 
-    def to_response(self, data_entry: DataEntry) -> EnergyCombustionHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
-        factor_values = primary_factor.get("values", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> EnergyCombustionHandlerResponse:
+        d = enriched_data if enriched_data is not None else data_entry.data
+        # primary_factor is a flat dict of factor.values merged with
+        # factor.classification (see DataEntryRepository.get_submodule_data).
+        # Read fields directly off the flat dict — there is no nested "values".
+        primary_factor = d.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "name": primary_factor.get("kind") or data_entry.data.get("name"),
-                "unit": factor_values.get("unit") or data_entry.data.get("unit"),
+                **d,
+                "name": primary_factor.get("kind") or d.get("name"),
+                "unit": primary_factor.get("unit") or d.get("unit"),
             }
         )
 
@@ -597,15 +602,18 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     }
 
     def to_response(
-        self, data_entry: DataEntry
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
     ) -> BuildingEmbodiedEnergyHandlerResponse:
+        d = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "building_name": data_entry.data.get("building_name"),
+                **d,
+                "building_name": d.get("building_name"),
             }
         )
 
@@ -623,9 +631,9 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
             ctx: dict, factor_values: dict
         ) -> float | None:
             surface = ctx.get("room_surface_square_meter")
-            ef_kgco2eq_per_m2 = factor_values.get("ef_kgco2eq_per_m2") or 0.0
+            ef_kgco2eq_per_m2 = factor_values.get("ef_kgco2eq_per_m2")
             # If any of the required values are missing, we cannot compute the emissions
-            if surface is None:
+            if surface is None or ef_kgco2eq_per_m2 is None:
                 return None
             return float(surface) * float(ef_kgco2eq_per_m2)
 

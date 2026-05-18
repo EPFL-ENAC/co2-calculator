@@ -1,12 +1,19 @@
 {
   "scripts": {
-    "lint": "lefthook run pre-commit"
+    "lint": "lefthook run pre-commit",
+    "setup": "npm ci --ignore-scripts && npm rebuild lefthook --ignore-scripts=false && npx lefthook install --force",
+    "setup:fresh": "npm install --ignore-scripts && npm rebuild lefthook --ignore-scripts=false && npx lefthook install --force"
+  },
+  "packageManager": "npm@11.14.1",
+  "engines": {
+    "node": ">=v24.15.0 <25",
+    "npm": ">=11.12.1 <12"
   },
   "devDependencies": {
-    "@commitlint/cli": "^17.1.2",
-    "@commitlint/config-conventional": "^17.1.0",
-    "@evilmartians/lefthook": "^1.5.0",
-    "prettier": "^3.5.3"
+    "@commitlint/cli": "=17.8.1",
+    "@commitlint/config-conventional": "=17.8.1",
+    "@evilmartians/lefthook": "=1.13.6",
+    "prettier": "=3.8.3"
   },
-  "version": "0.9.0"
+  "version": "0.10.0"
 }

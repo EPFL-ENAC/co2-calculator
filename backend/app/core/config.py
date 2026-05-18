@@ -243,8 +243,11 @@ class Settings(BaseSettings):
         description="OAuth2/OIDC cookie path",
     )
 
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_HOURS: int = 12
+    # Session lifetimes — see issue #949. Tuned for an internal EPFL app
+    # behind Entra SSO + httpOnly+secure+samesite cookies; 8h access / 24h
+    # refresh keeps a working day usable while still capping idle sessions.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    REFRESH_TOKEN_EXPIRE_HOURS: int = 24
     # Frontend URL for redirects
     FRONTEND_URL: str = Field(
         default="http://localhost:9000",
@@ -314,14 +317,45 @@ class Settings(BaseSettings):
         ),
     )
 
-    # Background job safety (Plan 310A)
+    # Background job safety (Plan 310A + auto-recovery sweep, PR #998)
     STALE_JOB_TIMEOUT_MINUTES: int = Field(
-        default=30,
-        description="Minutes before a RUNNING job is considered stale",
+        default=60,
+        description=(
+            "Minutes before a RUNNING job is considered stale.  Doubles as "
+            "the auto-recovery sweep's threshold: jobs whose ``locked_at`` "
+            "is older than this are reset to NOT_STARTED (or marked "
+            "FINISHED+ERROR if attempts >= max_attempts).  Until the worker "
+            "heartbeats ``locked_at`` (planned in 310C), set this *above* "
+            "the longest plausible job runtime — otherwise the sweep will "
+            "preempt a still-working pod and trigger duplicate processing.  "
+            "60 min gives ample headroom for current ingest/recalc loads; "
+            "raise if a specific job type is expected to run longer."
+        ),
     )
     RUN_BACKGROUND_POLLER: bool = Field(
         default=True,
         description="Whether to run the in-process safety poller",
+    )
+
+    # Plan 310-D — bulk-path pure async cutover
+    BULK_PATH_PURE_ASYNC: bool = Field(
+        default=True,
+        description=(
+            "Plan 310-D: when True (default), bulk-path data-entry "
+            "providers (CSV, API) commit ``data_entries`` only and do "
+            "NOT write ``data_entry_emissions`` or call "
+            "``recompute_stats`` inline; the runner-driven "
+            "``emission_recalc`` → ``aggregation`` chain owns those "
+            "writes.  When False, the providers fall back to the "
+            "legacy inline-write behavior (kept for emergency "
+            "rollback if a chain step regresses in production — note "
+            "that flipping this env var requires an app restart "
+            "because the runtime gate reads it through "
+            "``get_settings()``'s ``lru_cache``).  Path 1 (interactive "
+            "UI edits via ``CarbonReportModuleWorkflow``) is unaffected "
+            "by this flag — its synchronous emission + stats writes "
+            "remain the deliberate UX choice for single-row edits."
+        ),
     )
 
 

@@ -104,6 +104,8 @@ class ProfessionalTravelPlaneHandlerResponse(DepartureDateMixin, DataEntryRespon
     number_of_trips: int = 1
     origin: Optional[str] = None
     destination: Optional[str] = None
+    origin_name: Optional[str] = None
+    destination_name: Optional[str] = None
     distance_km: Optional[float] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
@@ -148,6 +150,14 @@ class ProfessionalTravelTrainHandlerCreate(
     user_institutional_id: str
     origin_name: str
     destination_name: str
+    origin_natural_key: Optional[str] = None
+    destination_natural_key: Optional[str] = None
+    # Optional CSV columns. Future train CSVs are expected to ship these so
+    # the ingest-time resolver can disambiguate same-name stations across
+    # countries (e.g. Bern, CH vs Berne, DE). Absent → resolver defaults to
+    # "CH" per the project's data center of mass.
+    origin_country_code: Optional[str] = None
+    destination_country_code: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
@@ -177,6 +187,8 @@ class ProfessionalTravelTrainHandlerUpdate(DataEntryUpdate):
     # traveler_id: Optional[int] = None
     origin_name: Optional[str] = None
     destination_name: Optional[str] = None
+    origin_natural_key: Optional[str] = None
+    destination_natural_key: Optional[str] = None
     cabin_class: Optional[str] = None
     departure_date: Optional[date] = None
     number_of_trips: Optional[int] = None
@@ -202,15 +214,23 @@ class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
         "number_of_trips": DataEntry.data["number_of_trips"].as_float(),
         "traveler_name": MemberEntry.data["name"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
+        # Plane destination
+        "origin_iata": DataEntry.data["origin_iata"].as_string(),
+        "destination_iata": DataEntry.data["destination_iata"].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> DataEntryResponseGen:
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> DataEntryResponseGen:
+        data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
+                **data,
             }
         )
 
@@ -293,17 +313,89 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     update_dto = ProfessionalTravelTrainHandlerUpdate
     response_dto = ProfessionalTravelTrainHandlerResponse
 
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: Any,
+    ) -> tuple[dict, Optional[str]]:
+        """Resolve ``origin_name`` / ``destination_name`` → ``*_natural_key``.
+
+        Production train CSVs currently ship only the station names. A
+        ``{role}_country_code`` column is expected in future CSVs to
+        disambiguate same-name stations across countries (e.g. Bern, CH vs
+        Berne, DE); when absent or blank the resolver defaults to ``CH`` per
+        the project's data center of mass.
+
+        UI/API entries already carry ``*_natural_key`` (sent directly from
+        the station autocomplete) — the hook leaves those rows alone.
+
+        Resolution failure modes split:
+          - ambiguous (>1 match): row fails — operator must supply a
+            ``{role}_country_code`` (or hand-curate the upstream data)
+          - not_found (0 matches): mirror the plane unknown-IATA path —
+            persist the entry without ``natural_key``; ``pre_compute`` logs
+            a WARNING and skips emission. Operator sees the gap in
+            entry-vs-emission counts.
+        """
+        enriched = dict(data)
+        loc_service = LocationService(session)
+        for role in ("origin", "destination"):
+            if enriched.get(f"{role}_natural_key"):
+                continue
+            name = enriched.get(f"{role}_name")
+            if not name:
+                return data, f"Missing {role}_name"
+            country_code = enriched.get(f"{role}_country_code") or "CH"
+            station, reason = await loc_service.resolve_train_station_for_csv(
+                name=name,
+                default_country_code=country_code,
+            )
+            if station is not None:
+                enriched[f"{role}_natural_key"] = station.natural_key
+                continue
+            if reason.startswith("ambiguous"):
+                return (
+                    data,
+                    f"{role} station {name!r} in {country_code}: {reason} "
+                    f"— supply {role}_country_code or fix the upstream data",
+                )
+            logger.warning(
+                "Train CSV row: %s station %r not found in locations table "
+                "(country_code=%s). Entry will persist but emission cannot "
+                "be computed.",
+                role,
+                name,
+                country_code,
+            )
+        return enriched, None
+
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute train distance and determine relevant country code."""
         origin_name = data_entry.data.get("origin_name")
         destination_name = data_entry.data.get("destination_name")
+        origin_natural_key = data_entry.data.get("origin_natural_key")
+        destination_natural_key = data_entry.data.get("destination_natural_key")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_name is None or destination_name is None:
             return {}
+        if not origin_natural_key or not destination_natural_key:
+            # Should not happen on the CSV path — ``enrich_csv_row`` fills these
+            # in at ingest time. The UI path always sends them. Logging at
+            # WARNING so a silent recurrence is visible in operator dashboards
+            # instead of surfacing only as zero emissions downstream.
+            logger.warning(
+                "Train data_entry id=%s missing natural_keys "
+                "(origin=%r, destination=%r); no distance/emission computed.",
+                data_entry.id,
+                origin_natural_key,
+                destination_natural_key,
+            )
+            return {}
 
         loc_service = LocationService(session)
-        origin = await loc_service.get_location_by_name(origin_name)
-        dest = await loc_service.get_location_by_name(destination_name)
+        origin = await loc_service.get_location_by_natural_key(origin_natural_key)
+        dest = await loc_service.get_location_by_natural_key(destination_natural_key)
+
         if origin is None or dest is None:
             return {}
         distance_one_trip_km = calculate_train_distance(

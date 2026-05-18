@@ -17,6 +17,12 @@ import type {
   TaxonomyNode,
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
+import { useWorkspaceStore } from 'src/stores/workspace';
+
+// Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
+const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
+  'simulation-explore': 1,
+};
 
 /**
  * API response for validated totals endpoint.
@@ -107,7 +113,12 @@ export interface EmissionBreakdownCategoryRow {
 }
 
 /**
- * API response for inventory module
+ * API response for inventory module.
+ *
+ * Plan 310-D / Issue #1062 — ``current_pipeline_id`` no longer rides
+ * here; the unified ``pipelineStateStore`` (driven by
+ * ``GET /v1/sync/active-pipelines``) is the single source of truth
+ * for "is there an active pipeline for this module/year?".
  */
 interface CarbonReportModuleResponse {
   id: number;
@@ -163,7 +174,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         .get(`carbon-reports/${carbonReportId}/modules/`)
         .json()) as CarbonReportModuleResponse[];
 
-      // Update itemStates from API response
+      // Update itemStates from API response.
       for (const mod of response) {
         const moduleKey = getModuleFromTypeId(mod.module_type_id);
         if (moduleKey) {
@@ -248,6 +259,15 @@ export const useTimelineStore = defineStore('timeline', () => {
 });
 
 export const useModuleStore = defineStore('modules', () => {
+  const workspaceStore = useWorkspaceStore();
+  const $route = useRoute();
+  const carbonProjectType = computed(() => {
+    const name = $route.name;
+    return typeof name === 'string'
+      ? (SIMULATION_ROUTE_CARBON_PROJECT_TYPE[name] ?? 0)
+      : 0;
+  });
+
   const state = reactive<{
     loading: boolean;
     error: string | null;
@@ -291,6 +311,8 @@ export const useModuleStore = defineStore('modules', () => {
     itBreakdown: ItBreakdownResponse | null;
     loadingItBreakdown: boolean;
     errorItBreakdown: string | null;
+    // Lightweight per-module counts map keyed by module type.
+    moduleTotalsMap: Record<string, Record<number, number>>;
   }>({
     loading: false,
     error: null,
@@ -325,6 +347,10 @@ export const useModuleStore = defineStore('modules', () => {
     itBreakdown: null,
     loadingItBreakdown: false,
     errorItBreakdown: null,
+    // Lightweight counts map: moduleType → data_entry_types_total_items.
+    // Populated by prefetchAllModuleCounts (preview_limit=0 per module) so
+    // submodule title counts are available without fetching full submodule data.
+    moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
   function modulePath(moduleType: Module, unit: number, year: string) {
     const moduleTypeEncoded = encodeURIComponent(moduleType);
@@ -370,7 +396,9 @@ export const useModuleStore = defineStore('modules', () => {
     state.data = null;
     try {
       state.data = (await api
-        .get(modulePath(moduleType, unit, year))
+        .get(modulePath(moduleType, unit, year), {
+          searchParams: { carbon_project_type: carbonProjectType.value },
+        })
         .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -394,7 +422,11 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     try {
       const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
-      state.data = (await api.get(path).json()) as ModuleResponse;
+      state.data = (await api
+        .get(path, {
+          searchParams: { carbon_project_type: carbonProjectType.value },
+        })
+        .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -460,6 +492,10 @@ export const useModuleStore = defineStore('modules', () => {
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
       }
+      queryParams.append(
+        'carbon_project_type',
+        String(carbonProjectType.value),
+      );
       const url = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
         submoduleType,
       )}?${queryParams.toString()}`;
@@ -542,7 +578,7 @@ export const useModuleStore = defineStore('modules', () => {
         year = year.toString();
       }
 
-      const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}`;
+      const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}?carbon_project_type=${carbonProjectType.value}`;
       const normalized: Record<string, string | number | boolean | null> = {};
 
       Object.entries(payload).forEach(([key, raw]) => {
@@ -600,6 +636,8 @@ export const useModuleStore = defineStore('modules', () => {
           destination_iata: normalized.origin_iata,
           origin_name: normalized.destination_name,
           destination_name: normalized.origin_name,
+          origin_natural_key: normalized.destination_natural_key,
+          destination_natural_key: normalized.origin_natural_key,
         };
         try {
           await api.post(path, { json: returnBody }).json();
@@ -629,8 +667,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
-      requestEmissionBreakdownRefresh();
       invalidateEmissionBreakdown();
+      await refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -650,7 +688,7 @@ export const useModuleStore = defineStore('modules', () => {
     try {
       const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}`;
+      )}?carbon_project_type=${carbonProjectType.value}`;
 
       // Normalize payload similar to postItem
       const normalized: Record<string, string | number | boolean | null> = {};
@@ -684,8 +722,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
-      requestEmissionBreakdownRefresh();
       invalidateEmissionBreakdown();
+      await refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -705,7 +743,7 @@ export const useModuleStore = defineStore('modules', () => {
       // Find affected submodule BEFORE deleting (item won't be in data after deletion)
       const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}`;
+      )}?carbon_project_type=${carbonProjectType.value}`;
       await api.delete(path);
 
       // Refresh module totals
@@ -720,8 +758,8 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       invalidateValidatedTotals();
-      requestEmissionBreakdownRefresh();
       invalidateEmissionBreakdown();
+      await refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -794,36 +832,43 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  // Track which carbon report the cached emission breakdown belongs to
-  const emissionBreakdownCarbonReportId = ref<number | null>(null);
-  const emissionBreakdownInFlightReportId = ref<number | null>(null);
+  // Track which carbon report + exclude list the cached emission breakdown belongs to
+  const emissionBreakdownCacheKey = ref<string | null>(null);
+  const emissionBreakdownInFlightCacheKey = ref<string | null>(null);
   const emissionBreakdownInFlightToken = ref(0);
-  const emissionBreakdownRefreshSequence = ref(0);
-  const emissionBreakdownLastConsumedSequence = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
-  function requestEmissionBreakdownRefresh() {
-    emissionBreakdownRefreshSequence.value += 1;
-  }
-
-  function consumeEmissionBreakdownRefreshRequest(sequence: number): boolean {
-    if (sequence <= emissionBreakdownLastConsumedSequence.value) return false;
-    emissionBreakdownLastConsumedSequence.value = sequence;
-    return true;
+  function makeBreakdownCacheKey(
+    carbonReportId: number,
+    excludeModules: number[],
+  ): string {
+    return `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
   }
 
   function invalidateEmissionBreakdown() {
-    emissionBreakdownCarbonReportId.value = null;
+    emissionBreakdownCacheKey.value = null;
+  }
+
+  async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
+    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+    if (!carbonReportId) return;
+
+    // Always refetch after mutations so that ResultsPage, ModuleCharts, and
+    // simulation pages all reflect the latest data without requiring a report
+    // or year change to bust the cache.
+    invalidateEmissionBreakdown();
+    await getEmissionBreakdown(carbonReportId, []);
   }
 
   async function getEmissionBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
   ) {
-    if (emissionBreakdownCarbonReportId.value === carbonReportId) return;
+    const cacheKey = makeBreakdownCacheKey(carbonReportId, excludeModules);
+    if (emissionBreakdownCacheKey.value === cacheKey) return;
     if (
       emissionBreakdownInFlight &&
-      emissionBreakdownInFlightReportId.value === carbonReportId
+      emissionBreakdownInFlightCacheKey.value === cacheKey
     ) {
       await emissionBreakdownInFlight;
       return;
@@ -831,13 +876,13 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.loadingEmissionBreakdown = true;
     state.errorEmissionBreakdown = null;
-    emissionBreakdownInFlightReportId.value = carbonReportId;
+    emissionBreakdownInFlightCacheKey.value = cacheKey;
     const currentRequestToken = ++emissionBreakdownInFlightToken.value;
     const currentRequest = (async () => {
       // Only the latest in-flight request is allowed to update state.
       const isLatestRequest = () =>
         emissionBreakdownInFlightToken.value === currentRequestToken &&
-        emissionBreakdownInFlightReportId.value === carbonReportId;
+        emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
         const params = new URLSearchParams();
@@ -851,7 +896,7 @@ export const useModuleStore = defineStore('modules', () => {
           return;
         }
         state.emissionBreakdown = data;
-        emissionBreakdownCarbonReportId.value = carbonReportId;
+        emissionBreakdownCacheKey.value = cacheKey;
       } catch (err: unknown) {
         if (!isLatestRequest()) {
           return;
@@ -863,7 +908,7 @@ export const useModuleStore = defineStore('modules', () => {
           state.errorEmissionBreakdown = 'Unknown error';
           state.emissionBreakdown = null;
         }
-        emissionBreakdownCarbonReportId.value = null;
+        emissionBreakdownCacheKey.value = null;
       }
     })();
     emissionBreakdownInFlight = currentRequest;
@@ -874,7 +919,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (emissionBreakdownInFlightToken.value === currentRequestToken) {
         state.loadingEmissionBreakdown = false;
         emissionBreakdownInFlight = null;
-        emissionBreakdownInFlightReportId.value = null;
+        emissionBreakdownInFlightCacheKey.value = null;
       }
     }
   }
@@ -952,6 +997,31 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Fetch preview_limit=0 for each module in parallel and store only the
+   * data_entry_types_total_items counts in moduleTotalsMap. This is the
+   * lightweight alternative to prefetching every submodule's full dataset.
+   */
+  async function prefetchAllModuleCounts(
+    modules: Array<{ type: Module; unit: number; year: string }>,
+  ): Promise<void> {
+    await Promise.allSettled(
+      modules.map(async ({ type, unit, year }) => {
+        try {
+          const path = `${modulePath(type, unit, year)}?preview_limit=0`;
+          const response = (await api
+            .get(path, {
+              searchParams: { carbon_project_type: carbonProjectType.value },
+            })
+            .json()) as ModuleResponse;
+          state.moduleTotalsMap[type] = response.data_entry_types_total_items;
+        } catch {
+          // Non-fatal: counts will fall back to 0 in submoduleCount.
+        }
+      }),
+    );
+  }
+
   return {
     initializeSubmoduleState,
     getModuleData,
@@ -970,10 +1040,9 @@ export const useModuleStore = defineStore('modules', () => {
     getYearlyValidatedEmissions,
     getEmissionBreakdown,
     invalidateEmissionBreakdown,
-    requestEmissionBreakdownRefresh,
-    consumeEmissionBreakdownRefreshRequest,
-    emissionBreakdownRefreshSequence,
+    refreshEmissionBreakdownIfNeeded,
     getItBreakdown,
+    prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
     state,
   };

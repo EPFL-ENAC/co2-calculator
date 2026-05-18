@@ -94,18 +94,21 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
         "subcategory": Factor.classification[subkind_field].as_string(),
     }
 
-    def to_response(self, data_entry: DataEntry) -> ProcessEmissionsHandlerResponse:
-        primary_factor = data_entry.data.get("primary_factor", {})
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ) -> ProcessEmissionsHandlerResponse:
+        data = enriched_data if enriched_data is not None else data_entry.data
+        primary_factor = data.get("primary_factor", {})
         return self.response_dto.model_validate(
             {
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data_entry.data,
-                "category": primary_factor.get("kind")
-                or data_entry.data.get("category"),
-                "subcategory": primary_factor.get("subkind")
-                or data_entry.data.get("subcategory"),
+                **data,
+                "category": primary_factor.get("kind") or data.get("category"),
+                "subcategory": primary_factor.get("subkind") or data.get("subcategory"),
             }
         )
 
@@ -122,10 +125,12 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
             return []
 
         def _process_formula(ctx: dict, factor_values: dict):
-            quantity_kg = ctx.get("quantity", 0)
-            if quantity_kg < 0:
+            quantity_kg = ctx.get("quantity")
+            if quantity_kg is None or quantity_kg < 0:
                 return None
-            gwp = factor_values.get("ef_kg_co2eq_per_unit", 0)
+            gwp = factor_values.get("ef_kg_co2eq_per_unit")
+            if gwp is None:
+                return None
             return quantity_kg * gwp
 
         return [

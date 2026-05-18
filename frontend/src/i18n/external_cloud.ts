@@ -104,8 +104,8 @@ export default {
     en: '>100 times/day',
     fr: '>100 fois/jour',
   },
-  [`${MODULES.ExternalCloudAndAI}.inputs.user_count`]: {
-    en: 'Number of users (fte)',
+  [`${MODULES.ExternalCloudAndAI}.inputs.fte_count`]: {
+    en: 'Number of users (FTE)',
     fr: "Nombre d'utilisateurs (EPT)",
   },
   [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-table-title-info-tooltip`]:
@@ -122,5 +122,17 @@ export default {
   [`${MODULES.ExternalCloudAndAI}-title-tooltip-subtext`]: {
     en: 'You can add data one at a time using the Add button below, or upload several entries at once using a file that follows the template.',
     fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
+  },
+  'external-cloud-service-type-storage': {
+    en: 'Storage',
+    fr: 'Stockage',
+  },
+  'external-cloud-service-type-compute': {
+    en: 'Compute',
+    fr: 'Calcul',
+  },
+  'external-cloud-service-type-virtualisation': {
+    en: 'Virtualisation',
+    fr: 'Virtualisation',
   },
 } as const;

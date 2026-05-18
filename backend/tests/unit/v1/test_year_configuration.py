@@ -69,14 +69,15 @@ class TestBuildJobLookup:
 class TestEnrichConfigWithJobs:
     def test_injects_per_target_type_jobs(self):
         config = {"modules": {"2": {"submodules": {"20": {}}}}}
-        job = _fake_job()
-        lookup = _build_job_lookup([job])
+        # CSV data job — exercises both latest_data_job and (no) latest_api_data_job
+        csv_job = _fake_job(ingestion_method=SimpleNamespace(value=1))
+        lookup = _build_job_lookup([csv_job])
         _enrich_config_with_jobs(config, lookup)
         sub = config["modules"]["2"]["submodules"]["20"]
         assert sub["latest_data_job"] is not None
         assert sub["latest_factor_job"] is None
         assert sub["latest_reference_job"] is None
-        assert sub["latest_api_data_job"] is not None
+        assert sub["latest_api_data_job"] is None
 
     def test_injects_factor_job(self):
         config = {"modules": {"2": {"submodules": {"20": {}}}}}
@@ -122,20 +123,66 @@ class TestEnrichConfigWithJobs:
         lookup = _build_job_lookup([api_job, csv_job])
         _enrich_config_with_jobs(config, lookup)
         sub = config["modules"]["2"]["submodules"]["20"]
-        assert sub["latest_data_job"] is not None
-        assert sub["latest_api_data_job"] is not None
+        # latest_data_job tracks CSV uploads only; the API job surfaces
+        # separately under latest_api_data_job. These fields must be disjoint.
+        assert sub["latest_data_job"]["job_id"] == 11
         assert sub["latest_api_data_job"]["job_id"] == 10
-        assert sub["latest_data_job"]["job_id"] == 10
+
+    def test_failed_api_does_not_mask_successful_csv(self):
+        """Regression: a failed API ingestion must NOT appear as
+        latest_data_job when a successful CSV upload exists. Before the fix,
+        _pick_latest_job preferred API over CSV, so a broken API job hid the
+        successful CSV upload behind an error status in the year-config UI.
+        """
+        config = {"modules": {"2": {"submodules": {"20": {}}}}}
+        csv_success = _fake_job(
+            id=11,
+            ingestion_method=SimpleNamespace(value=1),
+            result=SimpleNamespace(value=0),
+            status_message="Success",
+        )
+        api_failure = _fake_job(
+            id=17,
+            ingestion_method=SimpleNamespace(value=0),
+            result=SimpleNamespace(value=2),
+            status_message="Travel API ingestion failed",
+        )
+        lookup = _build_job_lookup([csv_success, api_failure])
+        _enrich_config_with_jobs(config, lookup)
+        sub = config["modules"]["2"]["submodules"]["20"]
+        assert sub["latest_data_job"]["job_id"] == 11
+        assert sub["latest_data_job"]["result"] == 0
+        assert sub["latest_api_data_job"]["job_id"] == 17
+        assert sub["latest_api_data_job"]["result"] == 2
 
 
 class TestPickLatestJob:
-    def test_prefers_api_over_csv(self):
+    def test_data_target_excludes_api(self):
+        """For target=DATA_ENTRIES, API jobs are filtered out so they cannot
+        shadow CSV uploads in latest_data_job (latest_api_data_job covers them).
+        """
         api_job = _fake_job(id=1, ingestion_method=SimpleNamespace(value=0))
         csv_job = _fake_job(id=2, ingestion_method=SimpleNamespace(value=1))
         lookup = _build_job_lookup([api_job, csv_job])
         result = _pick_latest_job(lookup, 2, 20, 0)
         assert result is not None
-        assert result.ingestion_method == 0
+        assert result.ingestion_method == 1
+        assert result.job_id == 2
+
+    def test_data_target_returns_none_when_only_api_exists(self):
+        """If the only data job is API-sourced, latest_data_job is None."""
+        api_only = _fake_job(id=1, ingestion_method=SimpleNamespace(value=0))
+        lookup = _build_job_lookup([api_only])
+        assert _pick_latest_job(lookup, 2, 20, 0) is None
+
+    def test_data_target_excludes_manual_and_computed(self):
+        """MANUAL is reserved for seed-data scripts; COMPUTED targets factor
+        recompute, not data. Only CSV uploads should surface for data target.
+        """
+        manual_job = _fake_job(id=3, ingestion_method=SimpleNamespace(value=2))
+        computed_job = _fake_job(id=4, ingestion_method=SimpleNamespace(value=3))
+        lookup = _build_job_lookup([manual_job, computed_job])
+        assert _pick_latest_job(lookup, 2, 20, 0) is None
 
     def test_returns_csv_when_no_api(self):
         csv_job = _fake_job(id=2, ingestion_method=SimpleNamespace(value=1))

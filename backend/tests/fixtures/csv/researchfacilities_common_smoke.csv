@@ -1,0 +1,3 @@
+unit_institutional_id,researchfacility_id,researchfacility_name,use,use_unit,note
+{unit_institutional_id},RF-001,Smoke Facility A,10.0,hours,
+{unit_institutional_id},RF-001,Smoke Facility A,5.0,hours,

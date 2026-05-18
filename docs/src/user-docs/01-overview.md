@@ -1,5 +1,3 @@
-# User Documentation Overview
+# User Documentation
 
-Organize in multiple modules covering different aspects of CO2 calculation for users.
-
-## Purpose and goals
+The user documentation is out at [https://epfl-enac.github.io/co2-calculator-user-doc/](https://epfl-enac.github.io/co2-calculator-user-doc/)

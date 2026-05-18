@@ -79,6 +79,7 @@
           <q-btn
             color="accent"
             :label="$t('simulation_explore_btn')"
+            :to="{ name: 'simulation-explore', params: { explore: 'new' } }"
             unelevated
             no-caps
             size="md"
@@ -112,6 +113,8 @@
             row-key="name"
             hide-pagination
             :rows-per-page-options="[0]"
+            :no-data-label="$t('common_no_items')"
+            :rows-per-page-label="$t('rows_per_page')"
           >
             <template #header="scope">
               <q-tr :props="scope">

@@ -20,8 +20,8 @@ from app.services.data_ingestion.csv_providers import (
     ModulePerYearCSVProvider,
     ModulePerYearFactorCSVProvider,
     ModulePerYearReductionObjectivesApiProvider,
-    ModulePerYearReferenceDataApiProvider,
     ModuleUnitSpecificCSVProvider,
+    ReferenceDataCSVProvider,
 )
 
 
@@ -72,13 +72,19 @@ class ProviderFactory:
             TargetType.REDUCTION_OBJECTIVES,
             EntityType.MODULE_PER_YEAR,
         ): ModulePerYearReductionObjectivesApiProvider,
-        ## MODULE_PER_YEAR REFERENCE DATA
-        (
-            None,
-            IngestionMethod.csv,
-            TargetType.REFERENCE_DATA,
-            EntityType.MODULE_PER_YEAR,
-        ): ModulePerYearReferenceDataApiProvider,
+        ## REFERENCE DATA — front-end pins module_type_id (professional_travel
+        ## for train/plane, buildings for rooms), so the registry must cover
+        ## every ModuleTypeEnum value rather than the lone (None, ...) key
+        ## the dummy stub registered.
+        **{
+            (
+                module_type,
+                IngestionMethod.csv,
+                TargetType.REFERENCE_DATA,
+                EntityType.MODULE_PER_YEAR,
+            ): ReferenceDataCSVProvider
+            for module_type in ModuleTypeEnum
+        },
         # API Providers
         (
             ModuleTypeEnum.professional_travel,

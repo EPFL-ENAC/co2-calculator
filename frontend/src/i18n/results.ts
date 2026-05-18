@@ -7,6 +7,22 @@ export default {
     en: 'Download as PDF',
     fr: 'Télécharger en PDF',
   },
+  results_print: {
+    en: 'Print',
+    fr: 'Imprimer',
+  },
+  results_loading: {
+    en: 'Loading…',
+    fr: 'Chargement…',
+  },
+  results_module_chart_emission_types: {
+    en: '{module} — Emission types',
+    fr: "{module} — Types d'émissions",
+  },
+  results_module_chart_breakdown: {
+    en: '{module} — Breakdown',
+    fr: '{module} — Répartition',
+  },
   results_colorblind_mode: {
     en: 'Colorblind mode',
     fr: 'Mode daltonien',
@@ -67,6 +83,10 @@ export default {
     en: 'Results',
     fr: 'Résultats',
   },
+  results_print_title: {
+    en: 'Total results',
+    fr: 'Résultats totaux',
+  },
   results_subtitle: {
     en: 'Annual carbon footprint {year}',
     fr: 'Empreinte carbone annuelle {year}',
@@ -112,8 +132,8 @@ export default {
     fr: 'Empreinte carbone par ETP (total de {FTE})',
   },
   results_carbon_footprint_per_FTE_no_headcount: {
-    en: 'Carbon footprint per FTE',
-    fr: 'Empreinte carbone par ETP',
+    en: 'My unit carbon footprint per FTE',
+    fr: "Empreinte carbone de l'unité par ETP",
   },
   results_unit_carbon_footprint: {
     en: 'Comparison to previous year',
@@ -625,22 +645,6 @@ export default {
     en: 'AI',
     fr: 'IA',
   },
-  'charts-co2-subcategory': {
-    en: 'CO₂',
-    fr: 'CO₂',
-  },
-  'charts-ch4-subcategory': {
-    en: 'CH4',
-    fr: 'CH4',
-  },
-  'charts-n2o-subcategory': {
-    en: 'N2O',
-    fr: 'N2O',
-  },
-  'charts-refrigerants-subcategory': {
-    en: 'Refrigerants',
-    fr: 'Réfrigérants',
-  },
   'charts-heating-subcategory': {
     en: 'Heating',
     fr: 'Chauffage',
@@ -738,8 +742,8 @@ export default {
     fr: 'Scope',
   },
   'charts-my-unit-tick': {
-    en: 'My Unit',
-    fr: 'Mon unité',
+    en: 'Total',
+    fr: 'Total',
   },
   'charts-epf-tick': {
     en: 'EPFL',

@@ -1,6 +1,7 @@
 import enum
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict
+from uuid import UUID
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -8,8 +9,10 @@ from sqlmodel import col, desc, select, update
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_ingestion import (
     DataIngestionJob,
+    EntityType,
     IngestionMethod,
     IngestionResult,
     IngestionState,
@@ -69,15 +72,21 @@ class DataIngestionRepository:
         state: Optional[IngestionState] = None,
         result: Optional[IngestionResult] = None,
     ) -> Optional[DataIngestionJob]:
-        """Update ingestion job with legacy status_code and new state/result.
+        """Update ingestion job's status_message, state, result, and metadata.
+
+        ``state == FINISHED`` also auto-stamps the top-level ``finished_at``
+        column when it is still NULL (see the ``state`` arg below).
 
         Args:
             job_id: Job ID to update
             status_message: Status message
-            status_code: Legacy status code (for backward compatibility)
             metadata: Metadata to merge
-            completed_at: Optional completed timestamp
-            state: New state value (optional, for new code)
+            completed_at: Optional completed timestamp written into ``meta``
+                (legacy JSON field; pre-dates the ``finished_at`` column).
+            state: New state value (optional, for new code).  When this
+                transitions the row to ``FINISHED`` and ``finished_at`` is
+                still NULL, the column is auto-stamped (idempotent — a
+                later update keeps the original timestamp).
             result: New result value (optional, for new code)
         """
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
@@ -94,6 +103,12 @@ class DataIngestionRepository:
                 result_job.state = state
             if result is not None:
                 result_job.result = result
+            if state == IngestionState.FINISHED and result_job.finished_at is None:
+                # Auto-stamp on the FIRST transition to FINISHED.  IS NULL
+                # guard makes it idempotent — re-running update on an
+                # already-FINISHED row leaves the original timestamp intact.
+                # Server-side ``func.now()`` matches claim_job's locked_at.
+                result_job.finished_at = func.now()
 
             merged_meta = {
                 **self.sanitize_for_json(result_job.meta or {}),
@@ -113,6 +128,157 @@ class DataIngestionRepository:
             await self.session.refresh(result_job)
         return result_job
 
+    async def finish_job(
+        self,
+        job_id: int,
+        pod_id: str,
+        result: IngestionResult,
+        status_message: Optional[str] = None,
+        metadata: Optional[dict] = None,
+    ) -> bool:
+        """Atomic compare-and-set transition to ``FINISHED`` for the owning pod.
+
+        Plan 310 review finding **B-C1** — the prior ``update_ingestion_job``
+        FINISHED path did a ``SELECT … WHERE id`` then mutated state without
+        a CAS guard, so a pod whose heartbeat failed during a DB outage could
+        complete its handler AFTER another pod recovered the row and
+        re-claimed it; its FINISHED write then clobbered the new owner's
+        RUNNING state.
+
+        This method enforces the missing CAS:
+
+            UPDATE data_ingestion_jobs
+            SET state=FINISHED, result=:result, finished_at=…, meta=…, …
+            WHERE id=:job_id AND locked_by=:pod_id AND state=RUNNING
+            RETURNING id
+
+        Returns:
+            True  — the row was ours and we wrote FINISHED (rowcount==1).
+            False — we were preempted between handler completion and this
+                    write (rowcount==0).  The caller must NOT retry, must
+                    NOT re-raise, and must let the new owner close the row.
+
+        Atomicity:
+            ``locked_by == pod_id AND state == RUNNING`` makes meta-merge
+            safe: only the lock owner can write meta while it holds the
+            lock, so SELECT-then-merge-then-UPDATE-with-CAS has no TOCTOU
+            window for the same row.
+
+        Idempotent ``finished_at`` (Plan 310-C observability): use
+            ``coalesce(finished_at, now())`` — matches the ``started_at``
+            pattern in ``claim_job`` (the CAS UPDATE has no Python read step
+            we could guard with an ``IS NULL`` check, so the coalesce keeps
+            an already-stamped timestamp intact).
+
+        Optional kwargs (``status_message``, ``metadata``) match the
+        ``update_ingestion_job`` shape so the runner can swap call sites
+        without losing fields.  When omitted, those columns are not
+        touched (we don't NULL them out).
+        """
+        # Pre-read meta so we can merge with any new metadata.  Safe under
+        # the WHERE-CAS: if we're preempted between this read and the
+        # UPDATE, the UPDATE matches no row, the merged dict is dropped,
+        # and the new owner's eventual finish_job writes its own meta.
+        values: dict = {
+            "state": IngestionState.FINISHED,
+            "result": result,
+            "finished_at": func.coalesce(col(DataIngestionJob.finished_at), func.now()),
+        }
+        if status_message is not None:
+            values["status_message"] = status_message
+
+        if metadata is not None:
+            existing = await self.session.execute(
+                select(DataIngestionJob.meta).where(
+                    col(DataIngestionJob.id) == job_id,
+                    col(DataIngestionJob.locked_by) == pod_id,
+                    col(DataIngestionJob.state) == IngestionState.RUNNING,
+                )
+            )
+            existing_meta = existing.scalar_one_or_none() or {}
+            merged_meta = {
+                **self.sanitize_for_json(existing_meta),
+                **self.sanitize_for_json(metadata),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            values["meta"] = merged_meta
+
+        result_obj = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(**values)
+            .returning(col(DataIngestionJob.id))
+        )
+        updated_id = result_obj.scalar_one_or_none()
+        await self.session.commit()
+        return updated_id is not None
+
+    async def heartbeat(self, job_id: int, pod_id: str) -> int:
+        """Refresh ``locked_at`` on a RUNNING job we still own.
+
+        The Plan 310-C runner spawns a heartbeat task per active job that
+        wakes every ``STALE_JOB_TIMEOUT_MINUTES / 4`` and calls this
+        method.  Without it, the safety poller's stale-lock sweep would
+        falsely classify any legitimately long-running job as a crashed
+        pod once its runtime exceeds the timeout window — leading to the
+        same row being claimed by a second pod.
+
+        The WHERE clause guards against three failure modes:
+
+        - ``locked_by == pod_id`` — refuse to refresh someone else's
+          lock if a sweep already preempted us; the next preemption
+          check in the runner will then exit cleanly.
+        - ``state == RUNNING`` — refuse to revive a row that the runner
+          (or an admin) already moved out of RUNNING (cancelled,
+          finished, recovered).
+
+        Returns the rowcount actually updated (0 or 1) so the caller
+        can detect preemption and stop the heartbeat loop.
+        """
+        result = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.locked_by) == pod_id,
+                col(DataIngestionJob.state) == IngestionState.RUNNING,
+            )
+            .values(locked_at=func.now())
+        )
+        await self.session.commit()
+        # ``rowcount`` is a SQLAlchemy ``Result`` attribute populated by
+        # the UPDATE driver — Pyright's stubs don't expose it, so guard
+        # via ``hasattr`` (matches the pattern in ``mark_job_as_current``).
+        if result is not None and hasattr(result, "rowcount"):
+            return int(result.rowcount or 0)
+        return 0
+
+    async def set_started_at(self, job_id: int) -> None:
+        """Stamp ``started_at`` on the FIRST successful claim only.
+
+        Idempotent via the ``started_at IS NULL`` guard — retries (every
+        subsequent claim_job after the original pod crashed and the safety
+        sweep recovered the row) call this again but the UPDATE matches no
+        row, leaving the original timestamp intact.  This is the property
+        that lets ``finished_at - started_at`` measure total wall-clock
+        duration across retries; ``locked_at`` (refreshed on every claim)
+        answers a different question.
+
+        Does not commit — leaves transaction control to the caller (the
+        ``run_job`` runner in Plan 310C), matching ``update_ingestion_job``.
+        """
+        await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                col(DataIngestionJob.id) == job_id,
+                col(DataIngestionJob.started_at).is_(None),
+            )
+            .values(started_at=func.now())
+        )
+
     async def get_job_by_id(self, job_id: int) -> Optional[DataIngestionJob]:
         stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
         exec_result = await self.session.execute(stmt)
@@ -126,6 +292,216 @@ class DataIngestionRepository:
         stmt = stmt.order_by(col(DataIngestionJob.id).desc())
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
+
+    async def list_jobs_by_pipeline_id(
+        self, pipeline_id: UUID
+    ) -> List[DataIngestionJob]:
+        """Return every job that shares the given ``pipeline_id``.
+
+        Plan 310C — backs the ``GET /sync/pipelines/{pipeline_id}`` endpoint
+        so dashboards can render the whole multi-step run (parent + fan-out
+        children seeded by ``_enqueue_stale_recalculations``) in id order.
+
+        ``populate_existing=True`` is required for Plan 310D's SSE polling
+        endpoint (``GET /sync/pipelines/{pipeline_id}/stream``): the runner
+        writes job state changes (claim, FINISHED, status_message) on its
+        OWN ``SessionLocal()`` connection, so without this flag SQLAlchemy's
+        identity map would serve the SSE session a stale cached row on
+        every poll and the change-detection (``snapshot != last_snapshot``)
+        would never fire.  The one-shot read endpoint pays no cost for the
+        flag (its session lives one request), so we set it here rather than
+        plumbing a ``populate_existing`` kwarg through.
+        """
+        stmt = (
+            select(DataIngestionJob)
+            .where(DataIngestionJob.pipeline_id == pipeline_id)
+            .order_by(col(DataIngestionJob.id).asc())
+            .execution_options(populate_existing=True)
+        )
+        exec_result = await self.session.execute(stmt)
+        return list(exec_result.scalars().all())
+
+    async def get_current_pipeline_id_for_module(
+        self,
+        module_type_id: int,
+        year: Optional[int] = None,
+    ) -> Optional[UUID]:
+        """Return the most recent active pipeline whose any-job touches
+        the given ``module_type_id`` (and optionally ``year``).
+
+        Plan 310-D — backs the ``CarbonReportModuleRead.current_pipeline_id``
+        field so the frontend can show a "Recalculating..." badge while
+        a bulk pipeline is in flight.  "Active" means a non-terminal
+        state: ``NOT_STARTED``, ``QUEUED``, or ``RUNNING``.  ``FINISHED``
+        and any ``CANCELLED``/error states are excluded — once the
+        terminal write lands, the badge clears.
+
+        We scope by ``module_type_id`` (and year, for the read endpoint
+        that's already keyed by year) and pick the **most recent** one
+        by job id when multiple active pipelines exist (rare but possible
+        — e.g. if a follow-up factor sync chains while an earlier ingest
+        chain is still aggregating).  The frontend subscribes to a
+        single pipeline, so returning more than one would force the
+        caller to pick anyway.
+
+        ``pipeline_id`` is allowed to be NULL on legacy rows; the
+        ``isnot(None)`` guard ensures we only consider chained jobs.
+
+        Returns ``None`` when no active pipeline matches.
+
+        Resolved during the dev-rebase of PR #1053 (PR5) on top of #1052:
+        PR5 needs the optional ``year`` filter for the carbon-report
+        service caller, which is keyed by year.  Strict superset of #1052's
+        signature — when ``year=None`` the filter is omitted, matching
+        the original behavior.
+        """
+        stmt = (
+            select(DataIngestionJob.pipeline_id)
+            .where(
+                col(DataIngestionJob.module_type_id) == module_type_id,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+            .limit(1)
+        )
+        if year is not None:
+            stmt = stmt.where(col(DataIngestionJob.year) == year)
+
+        exec_result = await self.session.execute(stmt)
+        row = exec_result.first()
+        if row is None:
+            return None
+        return row[0]
+
+    async def get_current_pipeline_ids_for_modules(
+        self,
+        module_type_ids: List[int],
+        year: int,
+    ) -> dict[int, UUID]:
+        """Bulk-fetch sibling of ``get_current_pipeline_id_for_module``.
+
+        Plan 310-D — backs ``CarbonReportModuleService.list_modules``
+        which previously did one query per module (an N+1 on a
+        frontend-facing endpoint).  A typical carbon report has ~10
+        modules → this collapses 10 round-trips into one.
+
+        Returns ``{module_type_id: pipeline_id}`` for every module
+        in ``module_type_ids`` that has at least one active
+        (NOT_STARTED/QUEUED/RUNNING) pipeline-attached job for the
+        given ``year``.  Modules without an active pipeline are
+        absent from the dict — callers use ``.get(...)`` and treat
+        missing keys as "no badge".
+
+        Implementation: single ``WHERE module_type_id IN (...) AND
+        year = :year AND ...`` query returns every active pipeline
+        row for the requested modules; per-module "most recent"
+        picking happens in Python.  ``DISTINCT ON (module_type_id)``
+        would let PG do it server-side but isn't portable to the
+        SQLite-backed unit-test fixture, and at the realistic input
+        size (≤20 modules × ≤few active rows each) the in-memory
+        pick is free.
+
+        Empty input → empty dict (no query fired).
+        """
+        if not module_type_ids:
+            return {}
+
+        stmt = (
+            select(
+                DataIngestionJob.module_type_id,
+                DataIngestionJob.pipeline_id,
+                DataIngestionJob.id,
+            )
+            .where(
+                col(DataIngestionJob.module_type_id).in_(module_type_ids),
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+        )
+        exec_result = await self.session.execute(stmt)
+
+        # The ORDER BY id DESC means the first row we see for a given
+        # module_type_id is the most recent — keep it, ignore later
+        # (older) entries.  ``setdefault`` on a dict gives us that
+        # "first wins" semantics in one pass.
+        picked: dict[int, UUID] = {}
+        for row in exec_result.all():
+            module_id, pipeline_id, _job_id = row
+            if module_id is None or pipeline_id is None:
+                continue
+            picked.setdefault(module_id, pipeline_id)
+        return picked
+
+    async def get_active_year_level_pipeline_ids(self, year: int) -> list[UUID]:
+        """Return active ``GLOBAL_PER_YEAR`` pipeline_ids for the given year.
+
+        Plan 310-D / Issue #867 — sibling of ``get_current_pipeline_ids_for_modules``
+        for **year-level** pipelines (e.g. the unit-sync chain minted by
+        the back-office "create year" flow).  These are not module-scoped
+        so the existing module-keyed helper can't see them; the SSE
+        watcher on ``DataManagementPage.vue`` reload-rehydrate path needs
+        to enumerate them on its own.
+
+        "Active" mirrors the module-scoped sibling: any non-terminal
+        state (``NOT_STARTED`` / ``QUEUED`` / ``RUNNING``).  The
+        ``pipeline_id IS NOT NULL`` guard is what keeps the result
+        empty when the pipeline-stamping side of the unit-sync flow
+        hasn't shipped yet — legacy unit_sync jobs stay invisible
+        (no SSE stream to attach to anyway), and the watcher idles.
+
+        We dedupe in Python rather than ``DISTINCT`` server-side so
+        the SQLite-backed unit-test fixture works the same as PG (the
+        pattern used by the module sibling) and the result is ordered
+        most-recent-first by job id for deterministic test output.
+        """
+        stmt = (
+            select(DataIngestionJob.pipeline_id, DataIngestionJob.id)
+            .where(
+                col(DataIngestionJob.entity_type) == EntityType.GLOBAL_PER_YEAR,
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.pipeline_id).isnot(None),
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+            .order_by(col(DataIngestionJob.id).desc())
+        )
+        exec_result = await self.session.execute(stmt)
+
+        # Multiple jobs can share one pipeline_id (parent + fan-out
+        # children — same pattern as module pipelines).  Dedupe while
+        # preserving the id-DESC traversal order so the first
+        # occurrence (most recent job) wins.
+        seen: set[UUID] = set()
+        ordered: list[UUID] = []
+        for row in exec_result.all():
+            pipeline_id, _job_id = row
+            if pipeline_id is None:
+                continue
+            if pipeline_id in seen:
+                continue
+            seen.add(pipeline_id)
+            ordered.append(pipeline_id)
+        return ordered
 
     # ---- Plan 310A: atomic claim, recovery, poller helpers ----
 
@@ -207,6 +583,15 @@ class DataIngestionRepository:
                     .values(
                         locked_by=pod_id,
                         locked_at=func.now(),
+                        # Stamp ``started_at`` atomically with the RUNNING
+                        # transition so a crash between this commit and the
+                        # runner doing work cannot leave the column NULL.
+                        # ``coalesce`` preserves the original timestamp on
+                        # retry-claim — ``finished_at - started_at`` then
+                        # measures total wall-clock duration across retries.
+                        started_at=func.coalesce(
+                            col(DataIngestionJob.started_at), func.now()
+                        ),
                         state=IngestionState.RUNNING,
                         is_current=True,
                         attempts=col(DataIngestionJob.attempts) + 1,
@@ -216,12 +601,124 @@ class DataIngestionRepository:
                 if result.scalar_one_or_none() is None:
                     raise _ClaimUnavailable
         except _ClaimUnavailable:
+            # Expected non-claim outcome (locked, attempts exhausted,
+            # run_after in the future, …).  Debug-level so the polling
+            # loop doesn't flood production logs but operators can still
+            # opt in when triaging "why didn't this job get picked up".
+            logger.debug(
+                "claim_job: job_id=%s not claimable (locked/attempts/run_after)",
+                job_id,
+            )
             return False
         except IntegrityError:
+            # Step 2 tripped the partial unique index
+            # ``ix_data_ingestion_jobs_is_current_unique`` — another pod
+            # already flipped a sibling for the same combo to
+            # is_current=TRUE.  Expected on rare two-pod races; if it
+            # repeats for the same job_id the row is permanently stuck
+            # and operators need visibility.  WARN with exc_info so
+            # log aggregation surfaces the IntegrityError detail.
+            logger.warning(
+                "claim_job IntegrityError on job_id=%s",
+                job_id,
+                exc_info=True,
+            )
             return False
 
         await self.session.commit()
         return True
+
+    async def sweep_stuck_running_jobs(
+        self, stale_timeout_minutes: int
+    ) -> tuple[int, int]:
+        """Auto-recovery sweep for jobs stuck in RUNNING after a pod crash.
+
+        The poller calls this once per tick.  Jobs whose ``locked_at`` is
+        older than the stale window are split into two buckets:
+
+        - **Recoverable** (``attempts < max_attempts``) — reset to
+          NOT_STARTED so the next poll cycle can re-dispatch them.  Unlike
+          ``recover_job`` (the manual API path, which resets ``attempts=0``
+          on operator intent), this preserves ``attempts`` so a genuinely
+          broken job that crashes every claim can't loop forever — once
+          ``attempts`` reaches ``max_attempts`` the next sweep abandons it.
+
+        - **Abandoned** (``attempts >= max_attempts``) — moved to
+          ``state=FINISHED, result=ERROR`` with a diagnostic
+          ``status_message``.  Operators see the failure on the dashboard
+          instead of a silently-stuck row.
+
+        Returns ``(recovered_count, abandoned_count)``.
+
+        ⚠️ **No heartbeat (yet)**: ``locked_at`` is set ONCE by
+        ``claim_job`` and never refreshed during execution, so any
+        legitimately long-running job whose runtime exceeds
+        ``stale_timeout_minutes`` will be falsely classified as stale.
+        That triggers duplicate processing — the sweep recovers the row,
+        another pod claims and re-runs it, while the original pod is
+        still working toward its commit.  Mitigation today: set
+        ``STALE_JOB_TIMEOUT_MINUTES`` *above* the longest plausible job
+        runtime (default 60 min, raise if needed).  Plan 310C wires a
+        per-job heartbeat into the generic ``run_job`` runner; until
+        then, this method shares the same long-running-job hazard as the
+        manual ``recover_job`` path — the sweep just exercises it more
+        often.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
+        stale_filter = and_(
+            col(DataIngestionJob.state) == IngestionState.RUNNING,
+            or_(
+                col(DataIngestionJob.locked_at).is_(None),
+                col(DataIngestionJob.locked_at) < cutoff,
+            ),
+        )
+
+        # Bucket 1: still has retries left → unlock and let claim_job pick
+        # it up next cycle.  Preserve ``attempts`` so claim_job's
+        # ``attempts < max_attempts`` guard caps the retry count.
+        recovered = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                stale_filter,
+                col(DataIngestionJob.attempts) < col(DataIngestionJob.max_attempts),
+            )
+            .values(
+                state=IngestionState.NOT_STARTED,
+                locked_by=None,
+                locked_at=None,
+                is_current=False,
+                run_after=None,
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        recovered_ids = list(recovered.scalars().all())
+
+        # Bucket 2: out of retries → mark FINISHED+ERROR loud and clear.
+        abandoned = await self.session.execute(
+            update(DataIngestionJob)
+            .where(
+                stale_filter,
+                col(DataIngestionJob.attempts) >= col(DataIngestionJob.max_attempts),
+            )
+            .values(
+                state=IngestionState.FINISHED,
+                result=IngestionResult.ERROR,
+                # Terminal transition — stamp finished_at so the dashboard
+                # query sees auto-abandoned rows alongside normal completions.
+                finished_at=func.now(),
+                status_message=(
+                    "Auto-recovery: pod-crash sweep found this job RUNNING past "
+                    "the stale-timeout window with attempts >= max_attempts.  "
+                    "Marking FINISHED+ERROR.  If the underlying issue is fixed, "
+                    "create a new job — this row's attempts counter is exhausted."
+                ),
+            )
+            .returning(col(DataIngestionJob.id))
+        )
+        abandoned_ids = list(abandoned.scalars().all())
+
+        await self.session.commit()
+        return len(recovered_ids), len(abandoned_ids)
 
     async def recover_job(
         self, job_id: int, stale_timeout_minutes: int
@@ -400,6 +897,10 @@ class DataIngestionRepository:
         job.state = IngestionState.FINISHED
         job.result = IngestionResult.ERROR
         job.status_message = "Cancelled by user"
+        # Terminal transition — stamp finished_at so observability queries
+        # see cancelled rows alongside success/error completions.
+        if job.finished_at is None:
+            job.finished_at = func.now()
         job.is_current = False
         merged_meta = {
             **self.sanitize_for_json(job.meta or {}),
@@ -570,6 +1071,179 @@ class DataIngestionRepository:
             )
         return status_rows
 
+    async def find_stale_aggregations(
+        self, threshold_minutes: int
+    ) -> list["StaleStatsRow"]:
+        """Return one row per ``(module_type_id, year)`` whose aggregation is
+        stale or missing.
+
+        Plan 310-D Follow-up 1 (#1063) — backstop for passive monitoring of
+        the aggregation pipeline.  The runner-driven chain surfaces failures
+        interactively (badge + logs); this query catches the cases nobody is
+        watching: stuck NOT_STARTED rows, last-run errors, slow-burn drift.
+
+        Source-of-truth for "what should have an aggregation" is
+        ``carbon_report_modules`` × ``carbon_reports.year`` (the modules
+        themselves declare their own scope).  We LEFT JOIN to the latest
+        ``job_type='aggregation'`` row per scope (``MAX(id)`` — within a
+        scope, id ordering tracks chronological insertion since serial PKs
+        are monotonically allocated).
+
+        Classification (``why_stale``):
+
+        - ``no_aggregation_ever`` — module exists but no aggregation row
+          was ever inserted for that ``(module_type_id, year)``.
+        - ``pending_aggregation_stuck`` — latest row is in a non-terminal
+          state (NOT_STARTED / QUEUED / RUNNING).  The stuck-state runner
+          sweeper handles RUNNING leases separately, but a NOT_STARTED row
+          that never got picked up surfaces here.
+        - ``last_aggregation_failed`` — latest row is FINISHED with
+          ``result=ERROR``.
+        - ``last_aggregation_too_old`` — latest row is FINISHED with
+          ``result != ERROR`` but ``finished_at`` is older than the cutoff
+          (or NULL).
+
+        Successful, fresh aggregations (FINISHED, non-ERROR, finished_at
+        within the window) are filtered out — they aren't stale.
+
+        Args:
+            threshold_minutes: How long since ``finished_at`` qualifies as
+                "too old".  Caller is responsible for range-checking
+                (``>= 1``).
+
+        Returns:
+            Unsorted list of stale entries.  The endpoint stamps the HTTP
+            response shape; the repo stays Pydantic-free.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=threshold_minutes)
+
+        # Latest aggregation row per (module_type_id, year), regardless of
+        # state — pending rows must be visible alongside finished ones.
+        latest_agg_sub = (
+            select(
+                col(DataIngestionJob.module_type_id).label("module_type_id"),
+                col(DataIngestionJob.year).label("year"),
+                func.max(col(DataIngestionJob.id)).label("latest_job_id"),
+            )
+            .where(
+                col(DataIngestionJob.job_type) == "aggregation",
+                col(DataIngestionJob.module_type_id).isnot(None),
+                col(DataIngestionJob.year).isnot(None),
+            )
+            .group_by(
+                col(DataIngestionJob.module_type_id),
+                col(DataIngestionJob.year),
+            )
+            .subquery()
+        )
+
+        # Seed: distinct (module_type_id, carbon_reports.year) the modules
+        # themselves declare.  DISTINCT keeps the seed one row per scope
+        # even when many units share the same (module_type_id, year).
+        scopes_sub = (
+            select(
+                col(CarbonReportModule.module_type_id).label("module_type_id"),
+                col(CarbonReport.year).label("year"),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .distinct()
+            .subquery()
+        )
+
+        # LEFT JOIN scopes → latest aggregation; rows with NULL latest_job_id
+        # are the "no_aggregation_ever" bucket.
+        stmt = select(
+            scopes_sub.c.module_type_id,
+            scopes_sub.c.year,
+            latest_agg_sub.c.latest_job_id,
+        ).join(
+            latest_agg_sub,
+            and_(
+                scopes_sub.c.module_type_id == latest_agg_sub.c.module_type_id,
+                scopes_sub.c.year == latest_agg_sub.c.year,
+            ),
+            isouter=True,
+        )
+        scope_rows = (await self.session.execute(stmt)).all()
+
+        # Hydrate the latest job rows in one extra round-trip — only the
+        # state/result/finished_at columns are needed for classification.
+        latest_ids = [
+            r.latest_job_id for r in scope_rows if r.latest_job_id is not None
+        ]
+        latest_jobs: dict[int, DataIngestionJob] = {}
+        if latest_ids:
+            jobs_stmt = select(DataIngestionJob).where(
+                col(DataIngestionJob.id).in_(latest_ids)
+            )
+            jobs_result = await self.session.execute(jobs_stmt)
+            for job in jobs_result.scalars().all():
+                if job.id is not None:
+                    latest_jobs[job.id] = job
+
+        out: list[StaleStatsRow] = []
+        for r in scope_rows:
+            job = (
+                latest_jobs.get(r.latest_job_id)
+                if r.latest_job_id is not None
+                else None
+            )
+            if job is None:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=None,
+                        why_stale="no_aggregation_ever",
+                        last_aggregation_job_id=None,
+                    )
+                )
+                continue
+
+            if job.state != IngestionState.FINISHED:
+                # NOT_STARTED / QUEUED / RUNNING — runner hasn't terminally
+                # resolved this row yet.
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=None,
+                        why_stale="pending_aggregation_stuck",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+                continue
+
+            if job.result == IngestionResult.ERROR:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=job.finished_at,
+                        why_stale="last_aggregation_failed",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+                continue
+
+            # FINISHED, non-ERROR — only stale if finished_at is missing or
+            # older than the cutoff.  Fresh successes don't surface.
+            if job.finished_at is None or job.finished_at < cutoff:
+                out.append(
+                    StaleStatsRow(
+                        module_type_id=r.module_type_id,
+                        year=r.year,
+                        last_finished_aggregation_at=job.finished_at,
+                        why_stale="last_aggregation_too_old",
+                        last_aggregation_job_id=job.id,
+                    )
+                )
+
+        return out
+
 
 class RecalculationStatusRow(TypedDict):
     """Lightweight status row returned by get_recalculation_status_by_year."""
@@ -582,3 +1256,25 @@ class RecalculationStatusRow(TypedDict):
     last_factor_job_result: Optional[IngestionResult]
     last_recalculation_job_id: Optional[int]
     last_recalculation_job_result: Optional[IngestionResult]
+
+
+WhyStaleLiteral = Literal[
+    "no_aggregation_ever",
+    "last_aggregation_failed",
+    "last_aggregation_too_old",
+    "pending_aggregation_stuck",
+]
+
+
+class StaleStatsRow(TypedDict):
+    """Lightweight stale-aggregation row returned by ``find_stale_aggregations``.
+
+    Mirrors the ``StaleStatsEntry`` Pydantic schema in ``api/v1/data_sync.py``;
+    the repo stays Pydantic-free so unit tests don't need the FastAPI stack.
+    """
+
+    module_type_id: int
+    year: int
+    last_finished_aggregation_at: Optional[datetime]
+    why_stale: WhyStaleLiteral
+    last_aggregation_job_id: Optional[int]

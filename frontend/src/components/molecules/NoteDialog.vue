@@ -5,17 +5,9 @@
   >
     <q-card style="min-width: 500px">
       <q-card-section class="row items-center q-pb-none">
-        <q-icon
-          :name="mode === 'edit' ? 'o_edit_note' : 'o_add_comment'"
-          size="sm"
-          class="q-mr-sm"
-        />
+        <q-icon :name="iconName" size="sm" class="q-mr-sm" />
         <div class="text-h4 text-weight-medium">
-          {{
-            mode === 'edit'
-              ? $t('common_edit_comment_title')
-              : $t('common_comment_entry_title')
-          }}
+          {{ title }}
         </div>
         <q-space />
         <q-btn
@@ -44,7 +36,7 @@
 
       <q-card-actions class="q-px-md q-pb-md">
         <q-btn
-          :label="$t('common_save')"
+          :label="submitLabel"
           color="accent"
           unelevated
           no-caps
@@ -67,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 const { t: $t } = useI18n();
@@ -88,6 +80,19 @@ const emit = defineEmits<{
 }>();
 
 const localNote = ref(props.note ?? '');
+
+const isEdit = computed(() => props.mode === 'edit');
+const iconName = computed(() =>
+  isEdit.value ? 'o_edit_note' : 'o_add_comment',
+);
+const title = computed(() =>
+  isEdit.value
+    ? $t('common_edit_comment_title')
+    : $t('common_comment_entry_title'),
+);
+const submitLabel = computed(() =>
+  isEdit.value ? $t('common_edit') : $t('common_add_button'),
+);
 
 watch(
   () => props.modelValue,

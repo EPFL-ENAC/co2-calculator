@@ -136,17 +136,19 @@ watch(showDialog, (newVal) => {
           <q-icon name="warning" size="sm" class="q-mr-sm" />
           {{ $t('data_management_last_upload_overwrite') }}
         </q-banner>
-        <q-file
-          v-model="selectedFiles"
-          dense
-          outlined
-          multiple
-          :hint="$t('data_management_supported_file_types')"
-          counter
-          accept=".csv, text/csv"
-        />
+        <div data-testid="data-entry-file-input">
+          <q-file
+            v-model="selectedFiles"
+            dense
+            outlined
+            multiple
+            :hint="$t('data_management_supported_file_types')"
+            counter
+            accept=".csv, text/csv"
+          />
+        </div>
 
-        <template v-if="row.hasApi">
+        <template v-if="row.hasApi && targetType === TargetType.DATA_ENTRIES">
           <div class="row items-center q-my-sm">
             <q-separator class="col" />
             <span class="q-px-md text-grey-6 text-caption">{{

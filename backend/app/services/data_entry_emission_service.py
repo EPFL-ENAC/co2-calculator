@@ -1,11 +1,13 @@
 from typing import Optional
 
+from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -29,6 +31,16 @@ from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
 logger = get_logger(__name__)
+
+# B-H1 — reserved key on ``DataEntry.data`` for the per-row ``kg_co2eq``
+# override carrier (Tableau's ``OUT_CO2_CORRECTED`` for the travel API,
+# parsed CSV-side ``kg_co2eq`` column for ``base_csv_provider``).  The
+# double-underscore prefix marks it internal and keeps it from clashing
+# with handler-defined kind/subkind keys.  Bulk-path providers persist
+# the override here so the async recalc workflow's
+# ``upsert_by_data_entry`` (which has no ``kg_co2eq_override`` parameter)
+# still honors it via ``prepare_create``'s data-keyed fallback.
+KG_CO2EQ_OVERRIDE_KEY = "__kg_co2eq_override__"
 
 
 def _emission_depth(et: EmissionType) -> int:
@@ -73,22 +85,16 @@ class DataEntryEmissionService:
         self.session = session
         self.repo = DataEntryEmissionRepository(session)
 
-    async def _get_year_from_data_entry(
+    async def _get_report_for_data_entry(
         self, data_entry: DataEntry | DataEntryResponse
-    ) -> Optional[int]:
-        """Extract year from DataEntry via CarbonReportModule -> CarbonReport.
-
-        The year is stored in the parent CarbonReport, which is linked
-        through the carbon_report_module_id.
-        """
+    ) -> CarbonReport | None:
+        """Fetch the CarbonReport for a DataEntry via CarbonReportModule."""
         if (
             not hasattr(data_entry, "carbon_report_module_id")
             or not data_entry.carbon_report_module_id
         ):
             logger.warning("DataEntry missing carbon_report_module_id")
             return None
-
-        # Fetch the CarbonReportModule to get carbon_report_id
 
         stmt = select(CarbonReportModule).where(
             col(CarbonReportModule.id) == data_entry.carbon_report_module_id
@@ -103,22 +109,127 @@ class DataEntryEmissionService:
             )
             return None
 
-        # Fetch the CarbonReport to get year
         stmt_cr = select(CarbonReport).where(
             col(CarbonReport.id) == module.carbon_report_id
         )
         result_cr = await self.session.exec(stmt_cr)
         report = result_cr.one_or_none()
-
-        if not report:
+        if report is None:
             logger.warning(f"CarbonReport not found for id {module.carbon_report_id}")
+        return report
+
+    async def _get_year_from_data_entry(
+        self, data_entry: DataEntry | DataEntryResponse
+    ) -> Optional[int]:
+        report = await self._get_report_for_data_entry(data_entry)
+        if report is None:
+            return None
+        return report.year if report.year is not None else report.reference_year
+
+    async def _get_percentage_override_kg(
+        self,
+        data_entry: DataEntry | DataEntryResponse,
+        emission_type: EmissionType,
+        report: CarbonReport,
+    ) -> float | None:
+        """If percentage_of_last_year is present, compute kg_co2eq from base year.
+
+        The override matches the previous-year DataEntry within the same module type
+        and data_entry_type, using stable identifiers when available.
+        """
+        raw = data_entry.data.get("percentage_of_last_year")
+        if raw is None:
+            return None
+        try:
+            percentage = float(raw)
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid percentage_of_last_year=%r for data_entry_id=%r",
+                raw,
+                data_entry.id,
+            )
             return None
 
-        return report.year
+        base_year = report.reference_year if report.reference_year is not None else None
+        if base_year is None:
+            if report.year is None:
+                return None
+            base_year = report.year - 1
+
+        if report.unit_id is None:
+            return None
+
+        # Resolve current module_type_id so we can match the prior-year module.
+        stmt_mod = select(CarbonReportModule).where(
+            col(CarbonReportModule.id) == data_entry.carbon_report_module_id
+        )
+        cur_mod = (await self.session.exec(stmt_mod)).one_or_none()
+        if cur_mod is None:
+            return None
+
+        # Find the prior-year Calculator report for the same unit.
+        stmt_prev_report = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                col(CarbonReport.unit_id) == report.unit_id,
+                col(CarbonReport.year) == base_year,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        prev_report = (await self.session.exec(stmt_prev_report)).one_or_none()
+        if prev_report is None:
+            return None
+
+        # Find the matching prior-year module (same module_type_id).
+        stmt_prev_mod = select(CarbonReportModule).where(
+            col(CarbonReportModule.carbon_report_id) == prev_report.id,
+            col(CarbonReportModule.module_type_id) == cur_mod.module_type_id,
+        )
+        prev_mod = (await self.session.exec(stmt_prev_mod)).one_or_none()
+        if prev_mod is None:
+            return None
+
+        # Match prior-year DataEntry for the same data_entry_type_id.
+        stmt_prev_entry = select(DataEntry).where(
+            col(DataEntry.carbon_report_module_id) == prev_mod.id,
+            col(DataEntry.data_entry_type_id) == data_entry.data_entry_type_id,
+        )
+
+        # Prefer stable identifiers when present.
+        uid = data_entry.data.get("user_institutional_id")
+        if isinstance(uid, str) and uid.strip():
+            stmt_prev_entry = stmt_prev_entry.where(
+                DataEntry.data["user_institutional_id"].as_string() == uid.strip()
+            )
+        name = data_entry.data.get("name")
+        if uid is None and isinstance(name, str) and name.strip():
+            stmt_prev_entry = stmt_prev_entry.where(
+                DataEntry.data["name"].as_string() == name.strip()
+            )
+
+        prev_entry = (await self.session.exec(stmt_prev_entry.limit(1))).one_or_none()
+        if prev_entry is None:
+            return None
+
+        leaf_ids = get_subtree_leaves(emission_type)
+        stmt_prev_em = select(
+            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)
+        ).where(
+            col(DataEntryEmission.data_entry_id) == prev_entry.id,
+            col(DataEntryEmission.emission_type_id).in_(leaf_ids),
+        )
+        prev_kg = float((await self.session.exec(stmt_prev_em)).one())
+
+        return prev_kg * (percentage / 100.0)
 
     async def prepare_create(
         self,
         data_entry: DataEntry | DataEntryResponse,
+        kg_co2eq_override: float | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
 
@@ -132,6 +243,19 @@ class DataEntryEmissionService:
 
         Args:
             data_entry: Fully hydrated data entry with ``data_entry_type``.
+            kg_co2eq_override: When set (legacy inline ingestion path),
+                short-circuits the formula and produces a single emission
+                with this kg_co2eq and ``primary_factor_id=None``. Takes
+                precedence over the ``KG_CO2EQ_OVERRIDE_KEY`` carrier in
+                ``data_entry.data`` (see B-H1).
+
+                Under ``BULK_PATH_PURE_ASYNC`` the ingest providers persist
+                the override on the data entry under ``KG_CO2EQ_OVERRIDE_KEY``,
+                which survives the inline-write skip and is honored here
+                when the function-arg override is absent.  The runner-driven
+                recalc workflow's ``upsert_by_data_entry`` therefore
+                preserves Tableau's ``OUT_CO2_CORRECTED`` (and CSV-side
+                overrides) across the async path instead of formula-recomputing.
 
         Returns:
             Ready-to-insert ``DataEntryEmission`` rows; empty on any failure.
@@ -157,16 +281,55 @@ class DataEntryEmissionService:
             DataEntryTypeEnum(data_entry.data_entry_type)
         )
 
-        # Build context: data_entry.data enriched with pre-computed values
+        # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
+        # (set by the bulk-path providers) when the caller did not pass an
+        # explicit ``kg_co2eq_override``.  The function arg wins so the
+        # legacy inline path (which already routes via the arg) keeps its
+        # existing semantics.
+        effective_override: float | None = kg_co2eq_override
+        if effective_override is None:
+            persisted_override = data_entry.data.get(KG_CO2EQ_OVERRIDE_KEY)
+            if persisted_override is not None:
+                try:
+                    effective_override = float(persisted_override)
+                except (ValueError, TypeError):
+                    logger.warning(
+                        f"Invalid {KG_CO2EQ_OVERRIDE_KEY} value "
+                        f"{persisted_override!r} on data_entry_id="
+                        f"{data_entry.id!r}, ignoring override"
+                    )
+
+        # Build context: data_entry.data enriched with pre-computed values.
+        # Strip the reserved override carrier so it never leaks into the
+        # ``meta`` blobs spread from ``ctx`` below; the source dict on the
+        # data entry is left intact so re-runs remain idempotent.
         ctx: dict = {**data_entry.data}
+        ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
         ctx.update(await handler.pre_compute(data_entry, self.session))
 
-        # Get year from CarbonReport for year-aware factor lookup
+        # Prefer using the lightweight hook that tests commonly patch.
+        # This avoids unnecessary DB calls to fetch the report when tests
+        # replace `_get_year_from_data_entry` with an AsyncMock.
+        report = None
         year = await self._get_year_from_data_entry(data_entry)
+        if year is None:
+            # Fallback to loading the full report only when year couldn't be
+            # resolved via the helper. This keeps behavior unchanged for
+            # production while making unit tests easier to mock.
+            report = await self._get_report_for_data_entry(data_entry)
+            if report is not None:
+                year = report.year if report.year is not None else report.reference_year
         if year is None:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"
             )
+        # Also load the report when the percentage override is requested, since
+        # _get_percentage_override_kg needs reference_year and unit_id.
+        if (
+            report is None
+            and data_entry.data.get("percentage_of_last_year") is not None
+        ):
+            report = await self._get_report_for_data_entry(data_entry)
         # Add factor year to context for year-specific formulas
         ctx["_year"] = year
 
@@ -178,11 +341,36 @@ class DataEntryEmissionService:
             for comp in computations:
                 factors = await self._fetch_factors(comp, year)
 
+                if report is not None:
+                    override_kg = await self._get_percentage_override_kg(
+                        data_entry=data_entry,
+                        emission_type=emission_type,
+                        report=report,
+                    )
+                    if override_kg is not None:
+                        results.append(
+                            DataEntryEmission(
+                                data_entry_id=data_entry.id,
+                                emission_type_id=emission_type.value,
+                                primary_factor_id=None,
+                                scope=emission_type.scope,
+                                kg_co2eq=float(override_kg),
+                                meta={
+                                    "factors_used": [],
+                                    "percentage_of_last_year": data_entry.data.get(
+                                        "percentage_of_last_year"
+                                    ),
+                                    "reference_year": report.reference_year,
+                                    **ctx,
+                                },
+                            )
+                        )
+                        continue
+
                 # Check if CSV provides an override value (takes precedence)
-                csv_kg_co2eq = data_entry.data.get("kg_co2eq")
-                if csv_kg_co2eq is not None:
+                if effective_override is not None:
                     logger.info(
-                        f"Using CSV-provided kg_co2eq={csv_kg_co2eq} override for "
+                        f"Using kg_co2eq={effective_override} override for "
                         f"emission_type={emission_type.name!r} "
                         f"data_entry_id={data_entry.id!r}"
                     )
@@ -191,7 +379,7 @@ class DataEntryEmissionService:
                             data_entry_id=data_entry.id,
                             emission_type_id=comp.emission_type.value,
                             primary_factor_id=None,
-                            kg_co2eq=float(csv_kg_co2eq),
+                            kg_co2eq=float(effective_override),
                             scope=comp.emission_type.scope,
                             meta={
                                 "factors_used": [
@@ -480,17 +668,6 @@ class DataEntryEmissionService:
         First deletes existing emissions for this data entry, then creates new ones.
         Returns the list of created/updated emissions.
         """
-        # Strip any stored kg_co2eq from data before recomputing so that the
-        # CSV override in prepare_create does not suppress the formula.
-        # (e.g. a changed number_of_trips).
-        if data_entry_response.data.get("kg_co2eq") is not None:
-            clean_data = {
-                k: v for k, v in data_entry_response.data.items() if k != "kg_co2eq"
-            }
-            data_entry_response = data_entry_response.model_copy(
-                update={"data": clean_data}
-            )
-
         # Prepare the emission records
         prepared_emissions = await self.prepare_create(data_entry_response)
         if not prepared_emissions:
@@ -522,10 +699,13 @@ class DataEntryEmissionService:
     async def get_stats_by_carbon_report_id(
         self,
         carbon_report_id: int,
+        *,
+        validated_only: bool = True,
     ) -> dict[str, float]:
-        """Get validated emission totals per module for a carbon report."""
+        """Get emission totals per module for a carbon report."""
         return await self.repo.get_stats_by_carbon_report_id(
             carbon_report_id=carbon_report_id,
+            validated_only=validated_only,
         )
 
     async def get_emission_breakdown(
