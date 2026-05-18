@@ -120,6 +120,13 @@ export interface YearConfigurationResponse {
   pipeline_id?: string | null;
 }
 
+/** Lightweight row from `GET /year-configuration/` (workspace year selector). */
+export interface YearConfigurationListItem {
+  year: number;
+  is_started: boolean;
+  updated_at: string;
+}
+
 interface YearConfigurationCreate {
   is_started?: boolean;
   config?: Partial<YearConfig>;
@@ -146,6 +153,29 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const loading = ref(false);
   /** True when the backend returned 404 — no configuration exists yet for this year. */
   const notFound = ref(false);
+  /** All year-configuration rows visible to the caller (workspace year selector). */
+  const configuredYears = ref<YearConfigurationListItem[]>([]);
+
+  /**
+   * Set of years that are globally open (`is_started`). The list endpoint
+   * already filters these for regular users; admins receive every row, so we
+   * re-filter client-side to keep the meaning identical for both.
+   */
+  const startedYears = computed(
+    () =>
+      new Set(
+        configuredYears.value.filter((y) => y.is_started).map((y) => y.year),
+      ),
+  );
+
+  /** Fetch the list of year-configuration rows (global, not unit-scoped). */
+  async function fetchConfiguredYears(): Promise<YearConfigurationListItem[]> {
+    const rows = (await api
+      .get('year-configuration/')
+      .json()) as YearConfigurationListItem[];
+    configuredYears.value = rows;
+    return rows;
+  }
 
   // Methods
   async function fetchConfig(
@@ -519,7 +549,9 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     config,
     loading,
     notFound,
+    configuredYears,
     // Computed
+    startedYears,
     anyModuleIncomplete,
     isReductionObjectiveIncomplete,
     unifiedModuleConfig,
@@ -541,6 +573,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,
+    fetchConfiguredYears,
     createConfig,
     updateConfig,
     openForUsers,

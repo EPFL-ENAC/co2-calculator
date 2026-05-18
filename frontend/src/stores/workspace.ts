@@ -4,8 +4,6 @@ import type { PersistenceOptions } from 'pinia-plugin-persistedstate';
 import { ref, computed } from 'vue';
 import { api } from 'src/api/http';
 
-export const WORKSPACE_DEFAULT_YEAR = 2025;
-
 export interface Unit {
   id: number;
   name: string;
@@ -36,12 +34,18 @@ interface SelectedParams {
   year: number;
   unit: string; // unit id-name string
 }
+export interface CarbonReportStats {
+  // Pre-computed aggregate written by the backend. `total` is in kg CO2eq.
+  total?: number | null;
+  [key: string]: unknown;
+}
 export interface CarbonReport {
   id: number;
   unit_id: number;
   year: number;
   reference_year?: number | null;
   carbon_project_id: number;
+  stats?: CarbonReportStats | null;
 }
 
 export const useWorkspaceStore = defineStore(
@@ -103,20 +107,6 @@ export const useWorkspaceStore = defineStore(
         carbonReportsLoading.value = false;
       }
     }
-
-    // Compute year range for selection (min year in DB or WORKSPACE_DEFAULT_YEAR, up to N-1)
-    const availableCarbonReportYears = computed(() => {
-      const currentYear = new Date().getFullYear();
-      const yearsInDb = carbonReports.value.map((inv) => inv.year);
-      const minDbYear =
-        yearsInDb.length > 0 ? Math.min(...yearsInDb) : WORKSPACE_DEFAULT_YEAR;
-      const startYear =
-        minDbYear < WORKSPACE_DEFAULT_YEAR ? minDbYear : WORKSPACE_DEFAULT_YEAR;
-      const maxYear = currentYear - 1;
-      const years: number[] = [];
-      for (let y = startYear; y <= maxYear; y++) years.push(y);
-      return years;
-    });
 
     // Helper: does carbon report exist for year?
     function carbonReportForYear(year: number) {
@@ -324,7 +314,6 @@ export const useWorkspaceStore = defineStore(
       carbonReportsError,
       selectedCarbonReport,
       fetchCarbonReportsForUnit,
-      availableCarbonReportYears,
       carbonReportForYear,
       createCarbonReport,
       selectCarbonReportForYear,

@@ -35,11 +35,6 @@ interface ValidatedTotalsResponse {
   total_fte: number;
 }
 
-interface YearlyValidatedEmission {
-  year: number;
-  total_tonnes_co2eq: number;
-}
-
 export interface EmbodiedEnergyCategoryEntry {
   category: string;
   kg_co2eq: number;
@@ -302,9 +297,6 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
-    yearlyValidatedEmissions: YearlyValidatedEmission[];
-    loadingYearlyValidatedEmissions: boolean;
-    errorYearlyValidatedEmissions: string | null;
     emissionBreakdown: EmissionBreakdownResponse | null;
     loadingEmissionBreakdown: boolean;
     errorEmissionBreakdown: string | null;
@@ -338,9 +330,6 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
-    yearlyValidatedEmissions: [],
-    loadingYearlyValidatedEmissions: false,
-    errorYearlyValidatedEmissions: null,
     emissionBreakdown: null,
     loadingEmissionBreakdown: false,
     errorEmissionBreakdown: null,
@@ -953,26 +942,6 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getYearlyValidatedEmissions(unitId: number) {
-    state.loadingYearlyValidatedEmissions = true;
-    state.errorYearlyValidatedEmissions = null;
-    try {
-      const path = `unit/${encodeURIComponent(unitId)}/yearly-validated-emissions`;
-      const data = await api.get(path).json<YearlyValidatedEmission[]>();
-      state.yearlyValidatedEmissions = data;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.errorYearlyValidatedEmissions = err.message ?? 'Unknown error';
-        state.yearlyValidatedEmissions = [];
-      } else {
-        state.errorYearlyValidatedEmissions = 'Unknown error';
-        state.yearlyValidatedEmissions = [];
-      }
-    } finally {
-      state.loadingYearlyValidatedEmissions = false;
-    }
-  }
-
   async function getItBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
@@ -1037,7 +1006,6 @@ export const useModuleStore = defineStore('modules', () => {
     getTopClassBreakdown,
     getValidatedTotals,
     invalidateValidatedTotals,
-    getYearlyValidatedEmissions,
     getEmissionBreakdown,
     invalidateEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,
