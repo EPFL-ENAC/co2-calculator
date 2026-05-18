@@ -576,3 +576,34 @@ export const uncertaintyColor = (hex: string): string => {
   }
   return hex;
 };
+
+/** Standard hatch-pattern decal used for accessibility/colorblind mode across all charts. */
+export const CHART_DECAL_PATTERN = {
+  symbol: 'rect',
+  dashArrayX: [2, 0] as [number, number],
+  dashArrayY: [2, 4] as [number, number],
+  rotation: -Math.PI / 4,
+  color: 'rgba(0, 0, 0, 0.15)',
+} as const;
+
+/**
+ * Builds a full ECharts `aria.decal` block.
+ * @param show - Whether to show the decal (typically driven by colorblind mode).
+ * @param overrides - Optional overrides for the decal pattern fields.
+ */
+export function buildChartDecal(
+  show: boolean,
+  overrides?: Partial<{
+    symbol: string;
+    dashArrayX: [number, number];
+    dashArrayY: [number, number];
+    rotation: number;
+    color: string;
+    lineWidth?: number;
+  }>,
+) {
+  return {
+    show,
+    decals: { ...CHART_DECAL_PATTERN, ...overrides },
+  };
+}

@@ -9,6 +9,7 @@ import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
@@ -17,7 +18,9 @@ import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { useColorblindStore } from 'src/stores/colorblind';
 
+import { buildChartDecal } from 'src/constant/charts';
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
@@ -25,6 +28,7 @@ const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
 const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
@@ -83,6 +87,7 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
+  AriaComponent,
 ]);
 
 const props = defineProps<{
@@ -165,6 +170,10 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
+    },
     tooltip: isPrintMode.value
       ? { show: false }
       : {
@@ -322,7 +331,7 @@ const babyBlueScheme = computed(() => {
   <q-card-section class="chart-container q-pa-none">
     <v-chart
       ref="chartRef"
-      :key="visibleData.map((c) => c.name).join('|')"
+      :key="`${visibleData.map((c) => c.name).join('|')}-${colorblindStore.enabled}`"
       class="chart"
       autoresize
       :option="chartOption"

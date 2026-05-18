@@ -13,10 +13,15 @@ import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { PieChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
-import { TooltipComponent, LegendComponent } from 'echarts/components';
+import {
+  TooltipComponent,
+  LegendComponent,
+  AriaComponent,
+} from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
 import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
+import { useColorblindStore } from 'src/stores/colorblind';
 import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
@@ -33,7 +38,13 @@ import type {
   EmbodiedEnergyCategoryEntry,
 } from 'src/stores/modules';
 
-use([CanvasRenderer, PieChart, TooltipComponent, LegendComponent]);
+use([
+  CanvasRenderer,
+  PieChart,
+  TooltipComponent,
+  LegendComponent,
+  AriaComponent,
+]);
 
 const props = defineProps<{
   commutingRow?: EmissionBreakdownCategoryRow | null;
@@ -47,6 +58,7 @@ const props = defineProps<{
 }>();
 
 const { t, te } = useI18n();
+const colorblindStore = useColorblindStore();
 
 const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
 
@@ -111,8 +123,7 @@ onBeforeUnmount(() => {
   chartVisibilityObserver = null;
 });
 
-watch(chartsInView, async (v) => {
-  if (!v || props.printMode) return;
+async function reAttachAll() {
   await nextTick();
   for (const r of [
     commutingCO2Ref,
@@ -126,7 +137,20 @@ watch(chartsInView, async (v) => {
     const chart = r.value?.chart;
     if (chart) attach(chart);
   }
+}
+
+watch(chartsInView, (v) => {
+  if (!v || props.printMode) return;
+  reAttachAll();
 });
+
+watch(
+  () => colorblindStore.enabled,
+  () => {
+    if (!chartsInView.value || props.printMode) return;
+    reAttachAll();
+  },
+);
 
 function getCategoryAccent(
   categoryKey: 'commuting' | 'food' | 'waste' | 'embodied_energy',
@@ -202,6 +226,7 @@ const commutingCO2Option = computed(() =>
     commutingEntries.value,
     false,
     emitTooltip,
+    colorblindStore.enabled,
   ),
 );
 
@@ -212,6 +237,7 @@ const commutingPhysicalOption = computed(() => {
     commutingEntries.value,
     true,
     emitTooltip,
+    colorblindStore.enabled,
   );
 });
 
@@ -230,7 +256,14 @@ const foodEntries = computed((): DisplayEntry[] => {
 });
 
 const foodCO2Option = computed(() =>
-  buildDoughnutOption({ t, te }, 'food', foodEntries.value, false, emitTooltip),
+  buildDoughnutOption(
+    { t, te },
+    'food',
+    foodEntries.value,
+    false,
+    emitTooltip,
+    colorblindStore.enabled,
+  ),
 );
 
 const foodPhysicalOption = computed(() => {
@@ -240,6 +273,7 @@ const foodPhysicalOption = computed(() => {
     foodEntries.value,
     true,
     emitTooltip,
+    colorblindStore.enabled,
   );
 });
 
@@ -292,6 +326,7 @@ const wasteCO2Option = computed(() =>
     wasteGrouped.value,
     false,
     emitTooltip,
+    colorblindStore.enabled,
   ),
 );
 
@@ -302,6 +337,7 @@ const wastePhysicalOption = computed(() => {
     wasteGrouped.value,
     true,
     emitTooltip,
+    colorblindStore.enabled,
   );
 });
 
@@ -357,6 +393,7 @@ const embodiedEnergyCO2Option = computed((): EChartsOption => {
     entries,
     false,
     emitTooltip,
+    colorblindStore.enabled,
   );
 });
 
@@ -452,7 +489,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="commutingCO2Ref"
-                  :key="`commuting-co2-${commutingEntries.length}`"
+                  :key="`commuting-co2-${commutingEntries.length}-${colorblindStore.enabled}`"
                   :option="commutingCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
@@ -470,7 +507,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="commutingPhysicalRef"
-                  :key="`commuting-qty-${commutingEntries.length}`"
+                  :key="`commuting-qty-${commutingEntries.length}-${colorblindStore.enabled}`"
                   :option="commutingPhysicalOption"
                   :autoresize="chartsInView"
                   class="chart"
@@ -531,6 +568,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="foodCO2Ref"
+                  :key="`food-co2-${colorblindStore.enabled}`"
                   :option="foodCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
@@ -546,6 +584,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="foodPhysicalRef"
+                  :key="`food-qty-${colorblindStore.enabled}`"
                   :option="foodPhysicalOption"
                   :autoresize="chartsInView"
                   class="chart"
@@ -616,6 +655,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="wasteCO2Ref"
+                  :key="`waste-co2-${colorblindStore.enabled}`"
                   :option="wasteCO2Option"
                   :autoresize="chartsInView"
                   class="chart"
@@ -631,6 +671,7 @@ const embodiedEnergyLegend = computed(() =>
                 <VChart
                   v-if="chartsInView"
                   ref="wastePhysicalRef"
+                  :key="`waste-qty-${colorblindStore.enabled}`"
                   :option="wastePhysicalOption"
                   :autoresize="chartsInView"
                   class="chart"
@@ -738,6 +779,7 @@ const embodiedEnergyLegend = computed(() =>
               <VChart
                 v-if="chartsInView"
                 ref="embodiedEnergyCO2Ref"
+                :key="`embodied-co2-${colorblindStore.enabled}`"
                 :option="embodiedEnergyCO2Option"
                 :autoresize="chartsInView"
                 class="chart"

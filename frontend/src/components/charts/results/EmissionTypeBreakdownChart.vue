@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import {
+  buildChartDecal,
   getChartSubcategoryColor,
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
@@ -15,10 +16,12 @@ import {
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
+import { useColorblindStore } from 'src/stores/colorblind';
 
 use([
   CanvasRenderer,
@@ -27,6 +30,7 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  AriaComponent,
 ]);
 
 import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
@@ -107,6 +111,7 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
 
 const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 
@@ -367,6 +372,10 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
+    },
     tooltip: isPrintMode.value
       ? { show: false }
       : {
@@ -454,6 +463,7 @@ const onChartReady = async () => {
       <v-chart
         v-if="chartData.bars.length"
         ref="chartRef"
+        :key="colorblindStore.enabled ? 'cb' : 'default'"
         class="chart"
         autoresize
         :option="chartOption"

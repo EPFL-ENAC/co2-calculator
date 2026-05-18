@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { LineChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import {
+  AriaComponent,
   GraphicComponent,
   GridComponent,
   LegendComponent,
@@ -25,8 +26,10 @@ import {
 } from 'src/utils/chart-tooltip-extractors';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useColorblindStore } from 'src/stores/colorblind';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import {
+  buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
@@ -53,6 +56,7 @@ use([
   GridComponent,
   ToolboxComponent,
   GraphicComponent,
+  AriaComponent,
 ]);
 
 type PopulationRow = { year: number; pop: number };
@@ -65,6 +69,7 @@ const INT_FORMATTER = new Intl.NumberFormat(undefined, {
 
 const yearConfigStore = useYearConfigStore();
 const workspaceStore = useWorkspaceStore();
+const colorblindStore = useColorblindStore();
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 
@@ -493,6 +498,12 @@ const chartOption = computed<EChartsOption | null>(() => {
     series: popSeries
       ? [...payload.stackedSeries, popSeries]
       : [...payload.stackedSeries],
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled, {
+        color: 'rgba(0, 0, 0, 0.35)',
+      }),
+    },
   } as EChartsOption;
 });
 </script>
@@ -518,6 +529,7 @@ const chartOption = computed<EChartsOption | null>(() => {
         <VChart
           v-if="chartOption"
           ref="chartRef"
+          :key="colorblindStore.enabled ? 'cb' : 'default'"
           :option="chartOption"
           autoresize
           class="objective-chart__canvas"
