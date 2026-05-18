@@ -43,6 +43,34 @@ from app.models.data_entry_emission import EmissionType
 # here and resolved at runtime by resolve_emission_types() below.
 # =============================================================================
 
+# =============================================================================
+# Rollup emission types
+#
+# For DataEntryTypeEnum values that produce multiple leaf emissions per entry
+# (e.g. buildings: 5 energy types x room_type), we also persist a single
+# parent-level "rollup" DataEntryEmission row whose kg_co2eq equals the sum of
+# its leaves. Queries that need the per-entry total (submodule table, sorting)
+# can then JOIN directly on the rollup row instead of aggregating.
+#
+# The rollup row's emission_type_id is intentionally a parent type that is NOT
+# registered in EMISSION_SCOPE — this excludes it from breakdown charts and
+# aggregation queries that iterate EMISSION_SCOPE leaves, preventing
+# double-counting.
+# =============================================================================
+
+DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType] = {
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    DataEntryTypeEnum.member: EmissionType.headcount,
+    DataEntryTypeEnum.student: EmissionType.headcount,
+}
+
+# Flat set of emission_type_id integers that identify rollup (aggregate) rows.
+# Every query that sums kg_co2eq must exclude these IDs to avoid double-counting.
+ROLLUP_EMISSION_TYPE_IDS: frozenset[int] = frozenset(
+    e.value for e in DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION.values()
+)
+
+
 FACTOR_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None] = {
     # --- Additional Categories ------------------------------------------------
     # member/student each produce N rows — one per factor applied (food, waste,

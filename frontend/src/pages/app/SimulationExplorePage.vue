@@ -1,6 +1,6 @@
 <template>
   <q-page>
-    <h1 class="text-h1">Module Results</h1>
+    <h1 class="text-h1">{{ $t('explore') }}</h1>
   </q-page>
 </template>
 

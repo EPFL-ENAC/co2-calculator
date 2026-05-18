@@ -2,12 +2,18 @@ import {
   CHART_CATEGORY_COLOR_SCHEMES,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
 } from 'src/constant/charts';
+import type {
+  EmissionBreakdownCategoryRow,
+  EmissionBreakdownValue,
+} from 'src/stores/modules';
 
 export interface EmissionTreemapChild {
   name: string;
   value: number;
   percentage: number;
   color: string;
+  /** YY-level parent key, present when the child is a ZZ-level item */
+  parentKey?: string;
 }
 
 export interface EmissionTreemapCategory {
@@ -18,13 +24,46 @@ export interface EmissionTreemapCategory {
   children: EmissionTreemapChild[];
 }
 
+/**
+ * Normalize raw emission parent_key / key values to canonical chart keys.
+ * Purchases subcategories use several alternate backend names that must be
+ * mapped to the canonical keys used in CATEGORY_CHART_KEYS and color schemes.
+ */
+const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
+  ['other_purchase', 'other_purchases'],
+  ['other', 'other_purchases'],
+  ['additional', 'additional'],
+  ['scientific_equipment', 'scientific_equipment'],
+  ['it_equipment', 'it_equipment'],
+  ['consumable', 'consumable_accessories'],
+  ['biological_chemical_gaseous', 'biological_chemical_gaseous'],
+  ['service', 'services'],
+  ['vehicle', 'vehicles'],
+  ['vehicule', 'vehicles'],
+];
+
+export function normalizeParentKey(
+  categoryKey: string,
+  rawKey: string,
+): string {
+  const baseKey = String(rawKey ?? '').split('__')[0] ?? '';
+  if (!baseKey) return baseKey;
+  if (categoryKey === 'purchases') {
+    const match = PURCHASES_PREFIX_MAP.find(([prefix]) =>
+      baseKey.startsWith(prefix),
+    );
+    if (match) return match[1]!;
+  }
+  return baseKey;
+}
+
 // Mirrors backend CATEGORY_CHART_KEYS in emission_breakdown.py
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
   process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
-  buildings_energy_combustion: ['heating_thermal', 'combustion'],
-  buildings_room: ['lighting', 'cooling', 'ventilation', 'heating_elec'],
+  buildings_energy_combustion: ['combustion', 'heating_thermal'],
+  buildings_room: ['heating_elec', 'lighting', 'cooling', 'ventilation'],
   equipment: ['scientific', 'it', 'other'],
-  external_cloud_and_ai: ['stockage', 'virtualisation', 'calcul', 'provider'],
+  external_cloud_and_ai: ['clouds', 'ai'],
   purchases: [
     'scientific_equipment',
     'it_equipment',
@@ -32,7 +71,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'biological_chemical_gaseous',
     'services',
     'vehicles',
-    'other',
+    'other_purchases',
     'additional',
   ],
   research_facilities: ['facilities', 'animal'],
@@ -40,14 +79,34 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
 };
 
 /**
- * Builds a treemap hierarchy from flat module_breakdown rows returned by the API.
+ * Categories that should be rendered at YY level (subcategory) rather than
+ * drilling to ZZ (item) level. Buildings uses ZZ for room types
+ * (office, labs…) which is too granular for the chart.
+ */
+const YY_LEVEL_CATEGORIES = new Set([
+  'buildings_room',
+  'buildings_energy_combustion',
+  // Cloud items (stockage, virtualisation, calcul) are ZZ keys stored directly
+  // on the flat row; AI providers aggregate under the `ai` parent sum.
+  // Both are read via flat key lookup rather than the emissions list.
+  'external_cloud_and_ai',
+]);
+
+/**
+ * Builds a treemap hierarchy from module_breakdown rows returned by the API.
  *
- * @param rows - flat per-category rows from `emission_breakdown.module_breakdown`
- * @param categoryChartKeys - maps each category name to its list of subcategory keys;
- *   pass a subset of CATEGORY_CHART_KEYS to filter to specific module categories
+ * For most categories, uses the `emissions` list on each row to render the
+ * deepest available level (ZZ items such as train class or cabin class),
+ * grouping by `parent_key` for color assignment. Categories in
+ * `YY_LEVEL_CATEGORIES` are capped at YY (subcategory) level using the
+ * pre-aggregated flat parent sums on the row.
+ *
+ * @param rows - per-category rows from `emission_breakdown.module_breakdown`
+ * @param categoryChartKeys - maps each category name to its list of YY parent
+ *   keys used for filtering and color lookup
  */
 export function buildModuleTreemapData(
-  rows: Array<{ category: string; [key: string]: number | string }>,
+  rows: EmissionBreakdownCategoryRow[],
   categoryChartKeys: Record<string, string[]>,
 ): EmissionTreemapCategory[] {
   const colorByCategory = CHART_CATEGORY_COLOR_SCHEMES.value as Record<
@@ -62,31 +121,74 @@ export function buildModuleTreemapData(
   const result: EmissionTreemapCategory[] = [];
 
   for (const cat of Object.keys(categoryChartKeys)) {
-    const row = rows.find((r) => r.category === cat);
+    const row = rows.find((r) => r.category_key === cat || r.category === cat);
     if (!row) continue;
 
     const subKeys = categoryChartKeys[cat] ?? [];
     const catColor = colorByCategory[cat] ?? '#999999';
     const subColors = subcolorByCategory[cat] ?? {};
+    const rawEmissions = (row.emissions as EmissionBreakdownValue[]) ?? [];
 
     let catTotal: number;
     let children: EmissionTreemapChild[];
 
-    if (subKeys.length > 0) {
+    if (
+      subKeys.length > 0 &&
+      rawEmissions.length > 0 &&
+      !YY_LEVEL_CATEGORIES.has(cat)
+    ) {
+      // Use the emissions list to render the deepest available level (ZZ).
+      // Iterate subKeys (CATEGORY_CHART_KEYS order) so treemap left→right
+      // matches the breakdown chart top→bottom order.
+      children = [];
+      for (const parentKey of subKeys) {
+        for (const emission of rawEmissions) {
+          const rawParentKey = emission.parent_key
+            ? String(emission.parent_key)
+            : String(emission.key);
+          const emParentKey = normalizeParentKey(cat, rawParentKey);
+          if (emParentKey !== parentKey) continue;
+          const val = Number(emission.value) || 0;
+          if (val <= 0) continue;
+          children.push({
+            name: emission.key,
+            value: val,
+            percentage: 0, // filled below
+            color: subColors[parentKey] ?? catColor,
+            ...(emission.parent_key
+              ? { parentKey: String(emission.parent_key) }
+              : {}),
+          });
+        }
+      }
+      catTotal = children.reduce((s, c) => s + c.value, 0);
+    } else if (subKeys.length > 0) {
+      // YY-level categories (e.g. buildings) or rows without an emissions
+      // array: use the pre-aggregated flat parent sums on the row.
       children = subKeys
-        .map((k) => ({ key: k, val: Number(row[k]) || 0 }))
+        .map((k) => ({
+          key: k,
+          val: Number((row as Record<string, unknown>)[k]) || 0,
+        }))
         .filter(({ val }) => val > 0)
         .map(({ key, val }) => ({
           name: key,
           value: val,
-          percentage: 0, // filled below
+          percentage: 0,
           color: subColors[key] ?? catColor,
         }));
       catTotal = children.reduce((s, c) => s + c.value, 0);
     } else {
       // No predefined subkeys — sum all numeric non-metadata values
       catTotal = Object.entries(row)
-        .filter(([k]) => k !== 'category' && !k.endsWith('StdDev'))
+        .filter(
+          ([k]) =>
+            k !== 'category' &&
+            k !== 'category_key' &&
+            k !== 'emissions' &&
+            k !== 'parent_keys_order' &&
+            !k.endsWith('StdDev'),
+        )
         .reduce((s, [, v]) => s + (Number(v) || 0), 0);
       children = [];
     }
@@ -120,7 +222,7 @@ export function buildModuleTreemapData(
  * @param moduleBreakdown - `emission_breakdown.module_breakdown` from the API
  */
 export function buildResultsTreemapData(
-  moduleBreakdown: Array<{ category: string; [key: string]: number | string }>,
+  moduleBreakdown: EmissionBreakdownCategoryRow[],
 ): EmissionTreemapCategory[] {
   return buildModuleTreemapData(moduleBreakdown, CATEGORY_CHART_KEYS);
 }

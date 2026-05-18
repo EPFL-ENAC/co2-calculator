@@ -42,6 +42,7 @@ async def get_factor(
     data_entry_type_id: DataEntryTypeEnum,
     kind: str,
     subkind: str = Query(default=None, alias="sub_class"),
+    year: int = Query(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -52,6 +53,7 @@ async def get_factor(
         data_entry_type=data_entry_type_id,
         kind=kind,
         subkind=subkind,
+        year=year,
     )
     if factor:
         # For combustion factors, `unit` lives in `classification` rather than `values`.

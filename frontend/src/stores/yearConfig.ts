@@ -5,13 +5,15 @@ import {
   MODULE_SUBMODULES,
   MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as ModuleUploadConfig,
+  type SubmoduleConfig as StaticSubmoduleConfig,
 } from 'src/constant/backoffice-module-config';
-import { MODULES_LIST } from 'src/constant/modules';
+import { MODULES_LIST, type Module } from 'src/constant/modules';
 
-interface FileMetadata {
+export interface FileMetadata {
   path: string;
   filename: string;
   uploaded_at: string;
+  rows_processed?: number;
 }
 
 export interface ReductionObjectiveGoal {
@@ -35,7 +37,11 @@ interface ReductionObjectives {
 export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
-  latest_job?: SyncJobSummary | null;
+  inputs_deactivated?: boolean;
+  latest_data_job?: SyncJobSummary | null;
+  latest_api_data_job?: SyncJobSummary | null;
+  latest_factor_job?: SyncJobSummary | null;
+  latest_reference_job?: SyncJobSummary | null;
 }
 
 export interface SyncJobSummary {
@@ -55,6 +61,41 @@ export interface ModuleConfig {
   enabled: boolean;
   uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
   submodules: Record<string, SubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
+}
+
+export interface UnifiedModuleConfig {
+  enabled: boolean;
+  uncertainty_tag: 'low' | 'medium' | 'high' | 'none';
+  submodules: Record<string, UnifiedSubmoduleConfig>;
+  latest_common_data_job?: SyncJobSummary | null;
+  latest_common_factor_job?: SyncJobSummary | null;
+}
+
+export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
+  key: string;
+  labelKey: string;
+  moduleTypeId: number;
+  dataEntryTypeId?: number;
+}
+
+export interface RecalculationStatusEntry {
+  module_type_id: number;
+  data_entry_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  last_factor_job_id?: number | null;
+  last_factor_job_result?: number | null;
+  last_recalculation_job_id?: number | null;
+  last_recalculation_job_result?: number | null;
+}
+
+export interface ModuleRecalculationStatusEntry {
+  module_type_id: number;
+  year: number;
+  needs_recalculation: boolean;
+  data_entry_types: RecalculationStatusEntry[];
 }
 
 interface YearConfig {
@@ -67,7 +108,7 @@ export interface YearConfigurationResponse {
   is_started: boolean;
   is_reports_synced: boolean;
   config: YearConfig;
-  latest_jobs: SyncJobSummary[];
+  recalculation_status: ModuleRecalculationStatusEntry[];
   updated_at: string;
 }
 
@@ -167,10 +208,159 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     }
   }
 
-  /** All current ingestion jobs for the loaded year. */
-  const latestJobs = computed<SyncJobSummary[]>(
-    () => config.value?.latest_jobs ?? [],
-  );
+  // ── Unified module config helper ────────────────────────────────────────────
+
+  function buildModuleTypeIdMapping(): Partial<Record<Module, number>> {
+    const mapping: Partial<Record<Module, number>> = {};
+    for (const modName of Object.keys(MODULE_SUBMODULES) as Module[]) {
+      const subs = MODULE_SUBMODULES[modName];
+      if (subs && subs.length > 0) {
+        mapping[modName] = subs[0].moduleTypeId;
+      }
+    }
+    return mapping;
+  }
+
+  function invertMapping(
+    mapping: Partial<Record<Module, number>>,
+  ): Record<number, Module> {
+    const inverted: Record<number, Module> = {} as Record<number, Module>;
+    for (const [moduleName, typeId] of Object.entries(mapping)) {
+      inverted[typeId] = moduleName as Module;
+    }
+    return inverted;
+  }
+
+  function mergeSubmoduleConfigs(
+    backendSubmodules: Record<string, SubmoduleConfig>,
+    staticSubmodules: StaticSubmoduleConfig[],
+  ): Record<string, UnifiedSubmoduleConfig> {
+    const merged: Record<string, UnifiedSubmoduleConfig> = {};
+
+    for (const staticSub of staticSubmodules) {
+      const subKey =
+        staticSub.dataEntryTypeId !== undefined
+          ? String(staticSub.dataEntryTypeId)
+          : staticSub.key;
+      const backendSub = backendSubmodules[subKey];
+
+      if (backendSub) {
+        merged[staticSub.key] = {
+          ...backendSub,
+          key: staticSub.key,
+          labelKey: staticSub.labelKey,
+          moduleTypeId: staticSub.moduleTypeId,
+          dataEntryTypeId: staticSub.dataEntryTypeId,
+        };
+      } else {
+        merged[staticSub.key] = {
+          enabled: true,
+          threshold: null,
+          inputs_deactivated: false,
+          key: staticSub.key,
+          labelKey: staticSub.labelKey,
+          moduleTypeId: staticSub.moduleTypeId,
+          dataEntryTypeId: staticSub.dataEntryTypeId,
+        };
+      }
+    }
+
+    return merged;
+  }
+
+  /**
+   * Merged module config keyed by FRONTEND module names.
+   * Combines backend runtime config with static submodule definitions.
+   */
+  const unifiedModuleConfig = computed(() => {
+    if (!config.value?.config?.modules) return {};
+
+    const mapping = buildModuleTypeIdMapping();
+    const reverseMapping = invertMapping(mapping);
+
+    return Object.fromEntries(
+      Object.entries(config.value.config.modules).map(
+        ([backendId, modConfig]) => {
+          const moduleName = reverseMapping[parseInt(backendId)];
+          if (!moduleName) return [backendId, modConfig];
+
+          const staticSubmodules = MODULE_SUBMODULES[moduleName] || [];
+          const unifiedSubmodules = mergeSubmoduleConfigs(
+            modConfig.submodules,
+            staticSubmodules,
+          );
+
+          return [
+            moduleName,
+            {
+              ...modConfig,
+              submodules: unifiedSubmodules,
+            },
+          ];
+        },
+      ),
+    );
+  });
+
+  /** Get unified config for a module by frontend name. */
+  function getModule(moduleName: Module): UnifiedModuleConfig | null {
+    return (
+      (unifiedModuleConfig.value[moduleName] as UnifiedModuleConfig) || null
+    );
+  }
+
+  /** Get unified config for a submodule by module and submodule key. */
+  function getSubmodule(
+    moduleName: Module,
+    subKey: string,
+  ): UnifiedSubmoduleConfig | null {
+    return (
+      (unifiedModuleConfig.value[moduleName]?.submodules[
+        subKey
+      ] as UnifiedSubmoduleConfig) || null
+    );
+  }
+
+  /** Get module name from a submodule config. */
+  function getModuleNameFromSubmodule(sub: ModuleUploadConfig): Module | null {
+    for (const moduleName of Object.keys(MODULE_SUBMODULES) as Module[]) {
+      const subs = MODULE_SUBMODULES[moduleName];
+      if (subs?.some((s) => s.key === sub.key)) {
+        return moduleName;
+      }
+    }
+    return null;
+  }
+
+  // ── Module visibility helpers ───────────────────────────────────────────────
+
+  /** Check if a module is enabled and visible to users. */
+  function isModuleVisible(module: Module): boolean {
+    const config = getModule(module);
+    return config?.enabled ?? false;
+  }
+
+  function getModuleUncertaintyTag(
+    module: Module,
+  ): 'low' | 'medium' | 'high' | 'none' | null {
+    const config = getModule(module);
+    return config?.uncertainty_tag ?? null;
+  }
+
+  /** Check if a submodule is enabled and visible. */
+  function isSubmoduleVisible(moduleName: Module, subKey: string): boolean {
+    const sub = getSubmodule(moduleName, subKey);
+    return sub?.enabled ?? false;
+  }
+
+  /** Get list of currently visible (enabled) modules in timeline order. */
+  const visibleModules = computed(() => {
+    if (!config.value?.config?.modules) return [];
+    return Object.keys(unifiedModuleConfig.value).filter((key) => {
+      const modConfig = unifiedModuleConfig.value[key] as UnifiedModuleConfig;
+      return modConfig?.enabled ?? false;
+    }) as Module[];
+  });
 
   // ── Completeness helpers ────────────────────────────────────────────────────
 
@@ -194,52 +384,31 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.enabled ?? true;
   }
 
-  function _preferredIngestionMethods(targetType: 0 | 1): string[] {
-    if (targetType === 1) {
-      return ['CSV', 'COMPUTED'];
-    }
-    return ['CSV', 'API', 'COMPUTED'];
-  }
-
-  function _pickLatestJobByIngestionMethod(
-    candidates: (typeof latestJobs.value)[number][],
-    targetType: 0 | 1,
-  ) {
-    const preferredMethods = _preferredIngestionMethods(targetType);
-    for (const method of preferredMethods) {
-      const job = candidates.find(
-        (candidate) =>
-          String(candidate.ingestion_method ?? '').toUpperCase() === method,
-      );
-      if (job) return job;
-    }
-    return candidates[0];
-  }
-
-  function _latestJob(sub: ModuleUploadConfig, targetType: 0 | 1) {
-    const candidates = latestJobs.value.filter(
-      (j) =>
-        j.module_type_id === sub.moduleTypeId && j.target_type === targetType,
-    );
-    const scopedCandidates =
+  function isSubmoduleInputsDeactivated(sub: ModuleUploadConfig): boolean {
+    const subKey =
       sub.dataEntryTypeId !== undefined
-        ? candidates.filter(
-            (j) => (j.data_entry_type_id ?? undefined) === sub.dataEntryTypeId,
-          )
-        : candidates;
-
-    // Prefer the ingestion method used for completeness checks instead of
-    // relying on API ordering when multiple current jobs exist.
-    return _pickLatestJobByIngestionMethod(scopedCandidates, targetType);
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return false;
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    return mod?.submodules?.[subKey]?.inputs_deactivated ?? false;
   }
 
   function isSubmoduleIncomplete(sub: ModuleUploadConfig): boolean {
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    const subConfig = sub.dataEntryTypeId
+      ? mod?.submodules?.[String(sub.dataEntryTypeId)]
+      : undefined;
     if (!sub.noFactors) {
-      const job = _latestJob(sub, 1);
+      const job = subConfig?.latest_factor_job ?? mod?.latest_common_factor_job;
       if (!job || job.result !== 0) return true;
     }
     if (sub.other) {
-      const job = _latestJob(sub, 0);
+      const job = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
+      if (!job || job.result !== 0) return true;
+    }
+    if (!sub.noData && !sub.dataEntryTypeId) {
+      const job = mod?.latest_common_data_job;
       if (!job || job.result !== 0) return true;
     }
     return false;
@@ -259,10 +428,58 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     );
   }
 
+  /** True when reduction objectives goals or CSV files are not fully configured. */
+  const isReductionObjectiveIncomplete = computed(() => {
+    if (!config.value) return false;
+    const ro = config.value.config?.reduction_objectives;
+    if (!ro) return true;
+    const hasGoal = ro.goals.some(
+      (g) => g.target_year > 0 && g.reference_year > 0,
+    );
+    const files = ro.files;
+    const allFilesUploaded =
+      !!files?.institutional_footprint &&
+      !!files?.population_projections &&
+      !!files?.unit_scenarios;
+    return !hasGoal || !allFilesUploaded;
+  });
+
   /** True when any enabled module has mandatory uploads missing or failed. */
   const anyModuleIncomplete = computed(
-    () => !!config.value && MODULES_LIST.some((m) => isModuleIncomplete(m)),
+    () =>
+      !!config.value &&
+      (MODULES_LIST.some((m) => isModuleIncomplete(m)) ||
+        isReductionObjectiveIncomplete.value),
   );
+
+  function getModuleConfig(module: Module): ModuleConfig | null {
+    const moduleTypeIdMap = buildModuleTypeIdMapping();
+    const targetTypeId = moduleTypeIdMap[module];
+    if (!targetTypeId) return null;
+
+    const backendKey = String(targetTypeId);
+    return config.value?.config?.modules?.[backendKey] ?? null;
+  }
+
+  const recalculationStatus = computed<
+    Record<number, ModuleRecalculationStatusEntry>
+  >(() => {
+    const map: Record<number, ModuleRecalculationStatusEntry> = {};
+    for (const s of config.value?.recalculation_status ?? []) {
+      map[s.module_type_id] = s;
+    }
+    return map;
+  });
+
+  function getRecalcStatus(
+    moduleTypeId: number,
+    dataEntryTypeId?: number,
+  ): RecalculationStatusEntry | undefined {
+    if (dataEntryTypeId === undefined) return undefined;
+    return recalculationStatus.value[moduleTypeId]?.data_entry_types.find(
+      (d) => d.data_entry_type_id === dataEntryTypeId,
+    );
+  }
 
   return {
     // State
@@ -270,13 +487,25 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading,
     notFound,
     // Computed
-    latestJobs,
     anyModuleIncomplete,
-    // Completeness helpers
+    isReductionObjectiveIncomplete,
+    unifiedModuleConfig,
+    visibleModules,
+    recalculationStatus,
+    // Helpers
+    getModule,
+    getSubmodule,
+    getModuleNameFromSubmodule,
+    getModuleConfig,
+    getRecalcStatus,
+    isModuleVisible,
+    isSubmoduleVisible,
     isModuleEnabled,
     isSubmoduleEnabled,
+    isSubmoduleInputsDeactivated,
     isModuleIncomplete,
     isSubmoduleIncomplete,
+    getModuleUncertaintyTag,
     // Methods
     fetchConfig,
     createConfig,

@@ -15,7 +15,7 @@ def test_normalize_kind_trims_and_lowercases():
 
 def test_is_in_factors_map_requires_subkind():
     factors_map = {
-        "1:kind:sub": Factor(
+        "1:2025:kind:sub": Factor(
             emission_type_id=1,
             data_entry_type_id=DataEntryTypeEnum.scientific,
             classification={"equipment_class": "Kind", "sub_class": "Sub"},
@@ -36,7 +36,7 @@ def test_is_in_factors_map_requires_subkind():
 
 def test_is_in_factors_map_with_subkind_match():
     factors_map = {
-        "1:kind:sub": Factor(
+        "1:2025:kind:sub": Factor(
             emission_type_id=1,
             data_entry_type_id=DataEntryTypeEnum.scientific.value,
             classification={"equipment_class": "Kind", "sub_class": "Sub"},
@@ -57,7 +57,7 @@ def test_is_in_factors_map_with_subkind_match():
 
 def test_is_in_factors_map_kind_only_match():
     factors_map = {
-        "1:kind": Factor(
+        "1:2025:kind": Factor(
             emission_type_id=1,
             data_entry_type_id=DataEntryTypeEnum.scientific.value,
             classification={"equipment_class": "Kind"},
@@ -77,7 +77,7 @@ def test_is_in_factors_map_kind_only_match():
 
 def test_lookup_factor_no_match():
     factors_map = {
-        "1:kind:sub": Factor(
+        "1:2025:kind:sub": Factor(
             emission_type_id=1,
             data_entry_type_id=DataEntryTypeEnum.scientific.value,
             classification={"equipment_class": "Kind", "sub_class": "Sub"},
@@ -99,7 +99,7 @@ def test_lookup_factor_single_match():
         values={"ef_kg_co2eq_per_unit": 1.0},
     )
     factors_map = {
-        "1:kind:sub": factor,
+        "1:2025:kind:sub": factor,
     }
 
     result = seed_helper.lookup_factor(
@@ -123,8 +123,8 @@ def test_lookup_factor_ambiguous_match_logs_warning(caplog):
         values={"ef_kg_co2eq_per_unit": 1.0},
     )
     factors_map = {
-        "1:kind:sub": factor_one,
-        "2:kind:sub": factor_two,
+        "1:2025:kind:sub": factor_one,
+        "2:2025:kind:sub": factor_two,
     }
 
     with caplog.at_level("WARNING"):
@@ -157,8 +157,10 @@ async def test_load_factors_map_builds_keys(monkeypatch):
     monkeypatch.setattr(seed_helper, "FactorService", MagicMock(return_value=service))
 
     factors_map = await seed_helper.load_factors_map(
-        session=MagicMock(), data_entry_type=DataEntryTypeEnum.scientific
+        session=MagicMock(),
+        data_entry_type=DataEntryTypeEnum.scientific,
+        year=2025,
     )
 
-    assert f"{DataEntryTypeEnum.scientific.value}:kind:sub" in factors_map
-    assert f"{DataEntryTypeEnum.scientific.value}:kind" in factors_map
+    assert f"{DataEntryTypeEnum.scientific.value}:0:kind:sub" in factors_map
+    assert f"{DataEntryTypeEnum.scientific.value}:0:kind" in factors_map

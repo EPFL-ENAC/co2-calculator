@@ -3,11 +3,6 @@ import type {
   RouteLocationNormalized,
   NavigationGuardReturn,
 } from 'vue-router';
-import {
-  getPermissionValue,
-  hasPermission,
-  getModulePermissionPath,
-} from 'src/utils/permission';
 import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 
@@ -18,40 +13,20 @@ import type { Module } from 'src/constant/modules';
  * has the required permission. If the permission is granted, navigation proceeds.
  * If not, the user is redirected to the unauthorized page.
  *
- * @param path - The permission path (e.g., 'modules.headcount')
+ * @param path - The permission path (e.g., 'backoffice.users')
  * @param action - The action to check (defaults to 'view')
  * @returns A navigation guard function compatible with Vue Router's `beforeEnter`
- *
- * @example
- * ```typescript
- * // Usage in routes
- * {
- *   path: '/headcount',
- *   component: HeadcountPage,
- *   beforeEnter: requirePermission('modules.headcount', 'view')
- * }
- *
- * // With edit permission
- * {
- *   path: '/equipment/edit',
- *   component: EditEquipmentPage,
- *   beforeEnter: requirePermission('modules.equipment', 'edit')
- * }
- * ```
  */
 export function requirePermission(
   path: string,
-  action: string = PermissionAction.VIEW,
+  action: PermissionAction = PermissionAction.VIEW,
 ) {
   return (): NavigationGuardReturn => {
     // Lighthouse CI bypass: allow all routes regardless of permissions.
     if (window.__LIGHTHOUSE_BYPASS__) return true;
 
     const authStore = useAuthStore();
-    const hasRequiredPermission = getPermissionValue(
-      authStore.user?.permissions,
-      `${path}.${action}`,
-    );
+    const hasRequiredPermission = authStore.hasUserPermission(path, action);
     if (hasRequiredPermission === true) {
       return true;
     } else {
@@ -79,18 +54,9 @@ export function requireModuleEditPermission() {
     const authStore = useAuthStore();
     const module = to.params.module as Module;
 
-    // Get the permission path for this module
-    const permissionPath = getModulePermissionPath(module);
-
-    // If module doesn't have a permission path, allow access (not yet protected)
-    if (!permissionPath) {
-      return true;
-    }
-
     // First check if user has view permission (standard users without view should be blocked)
-    const hasViewPermission = hasPermission(
-      authStore.user?.permissions,
-      permissionPath,
+    const hasViewPermission = authStore.hasUserModulePermission(
+      module,
       PermissionAction.VIEW,
     );
 
@@ -100,9 +66,8 @@ export function requireModuleEditPermission() {
     }
 
     // Check if user has edit permission (required for data entry for other modules)
-    const hasEditPermission = hasPermission(
-      authStore.user?.permissions,
-      permissionPath,
+    const hasEditPermission = authStore.hasUserModulePermission(
+      module,
       PermissionAction.EDIT,
     );
 

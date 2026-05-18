@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -7,6 +7,8 @@ import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import { TooltipComponent, GridComponent } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
@@ -37,6 +39,16 @@ const props = withDefaults(
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
 
+const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
+
 function isItCategoryModuleValidated(categoryKey: string): boolean {
   const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
   if (!mod) return false;
@@ -65,7 +77,7 @@ const CLOUD_AI_LABEL_MAP: Record<string, string> = {
 
 /** Map category_key → single color (dark shade) */
 const categoryColor = computed(() => ({
-  equipment_it: colors.value.periwinkle.dark,
+  equipment_it: colors.value.plum.dark,
   purchases_it: colors.value.lightGreen.dark,
   external_cloud_and_ai:
     CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
@@ -293,17 +305,35 @@ const barChartOption = computed<EChartsOption>(() => {
       formatter: (params: unknown) => {
         const p = params as {
           seriesName?: string;
-          marker?: string;
           value?: number;
           name?: string;
+          color?: string;
         };
         const name = p.name || '';
         if (!validatedLabels.value.has(name)) {
-          return `<strong>${name}</strong><br/><span style="color:#aaa">${t('results_validate_module_title', { module: name })}</span>`;
+          emitTooltip({
+            title: name,
+            rows: [],
+            tone: 'muted',
+            footer: t('results_validate_module_title', { module: name }),
+          });
+          return '';
         }
         const val = Number(p.value) || 0;
-        if (val <= 0) return '';
-        return `${p.marker || ''} <strong>${p.seriesName || ''}</strong>: ${formatTonnesForChart(val)}${t('results_units_tonnes')}`;
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
+        emitTooltip({
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
+        });
+        return '';
       },
     },
     legend: { show: false },
@@ -414,9 +444,11 @@ const barChartOption = computed<EChartsOption>(() => {
           <span class="q-ml-sm">{{ $t('it-focus-breakdown-bar-title') }}</span>
         </div>
         <v-chart
+          ref="chartRef"
           :option="barChartOption"
           autoresize
           :style="{ height: chartHeight + 'px', width: '100%' }"
+          @vue:mounted="onChartReady"
         />
       </q-card>
     </template>
@@ -425,5 +457,12 @@ const barChartOption = computed<EChartsOption>(() => {
     <div v-else-if="loading" class="flex justify-center q-pa-xl">
       <q-spinner color="accent" size="40px" />
     </div>
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>

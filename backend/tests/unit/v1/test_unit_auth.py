@@ -143,11 +143,13 @@ async def test_refresh_token_invalid_payload(monkeypatch, payload):
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.refresh_token(
             refresh_token="token",
             response=response,
             request=request,
+            background_tasks=bg_tasks,
             db=db,
         )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -165,11 +167,13 @@ async def test_refresh_token_user_missing(monkeypatch):
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.refresh_token(
             refresh_token="token",
             response=response,
             request=request,
+            background_tasks=bg_tasks,
             db=db,
         )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -180,11 +184,13 @@ async def test_refresh_token_no_token():
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.refresh_token(
             refresh_token=None,
             response=response,
             request=request,
+            background_tasks=bg_tasks,
             db=db,
         )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -198,11 +204,13 @@ async def test_refresh_token_exception(monkeypatch):
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
+    bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
         await auth_module.refresh_token(
             refresh_token="token",
             response=response,
             request=request,
+            background_tasks=bg_tasks,
             db=db,
         )
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
@@ -239,11 +247,13 @@ async def test_refresh_token_logs_audit_event(monkeypatch):
     db = MagicMock()
     response = Response()
     request = MagicMock()
+    bg_tasks = MagicMock()
 
     result = await auth_module.refresh_token(
         refresh_token="token",
         response=response,
         request=request,
+        background_tasks=bg_tasks,
         db=db,
     )
 

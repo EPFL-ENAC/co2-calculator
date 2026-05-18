@@ -221,6 +221,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
                 config_key=handler.config_key,
                 filename=setup["filename"],
                 processed_path=setup.get("processed_path"),
+                rows_processed=stats["rows_processed"],
             )
 
             # -- Finalize ---------------------------------------------------
@@ -338,6 +339,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         config_key: str,
         filename: str,
         processed_path: str | None = None,
+        rows_processed: int | None = None,
     ) -> None:
         """Write the validated CSV rows into year_configuration.config."""
         if not self.year:
@@ -388,6 +390,9 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
             "path": processed_path or "",
             "filename": filename,
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "rows_processed": rows_processed
+            if rows_processed is not None
+            else len(validated_rows),
         }
 
         # SQLAlchemy does not detect in-place mutations on JSON/dict columns.

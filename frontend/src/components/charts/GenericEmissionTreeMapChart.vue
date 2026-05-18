@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
-import { TreemapChart } from 'echarts/charts';
+import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import {
   TooltipComponent,
@@ -12,19 +12,19 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
+import TooltipEcharts from './results/TooltipEcharts.vue';
+import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+
+import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
-import type {
-  EmissionTreemapCategory,
-  EmissionTreemapChild,
-} from 'src/composables/useEmissionTreemap';
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
 
-const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
+const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
   co2: 'charts-co2-subcategory',
   ch4: 'charts-ch4-subcategory',
@@ -38,36 +38,46 @@ const TREEMAP_LABEL_KEY_MAP: Record<string, string> = {
   // equipment
   scientific: 'charts-scientific-subcategory',
   it: 'charts-equipment-it',
+  other: 'charts-other-equipment-subcategory',
   // external cloud & AI
   stockage: 'charts-stockage-subcategory',
   virtualisation: 'charts-virtualisation-subcategory',
   calcul: 'charts-calcul-subcategory',
   provider: 'charts-ai-provider-subcategory',
   ai_provider: 'charts-ai-provider-subcategory',
+  ai: 'charts-ai-provider-subcategory',
+  clouds: 'charts-clouds-subcategory',
   // purchases
   scientific_equipment: 'charts-scientific-subcategory',
   it_equipment: 'charts-equipment-it',
   consumable_accessories: 'charts-consumables-subcategory',
   biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
   services: 'charts-services-subcategory',
-  vehicles: 'charts-other-purchases-subcategory',
-  additional: 'charts-other-purchases-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
+  additional: 'charts-additional-purchases-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
   // professional travel
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
+  // professional travel ZZ items
+  class_1: 'charts-class-1-subcategory',
+  class_2: 'charts-class-2-subcategory',
+  first: 'charts-first-class-subcategory',
+  business: 'charts-business-class-subcategory',
+  eco: 'charts-eco-class-subcategory',
 };
 
 function resolveLabel(raw: string): string {
-  const key = TREEMAP_LABEL_KEY_MAP[raw];
+  const key = LABEL_KEY_MAP[raw];
   return key ? t(key) : raw.replace(/_/g, ' ');
 }
 
 use([
   CanvasRenderer,
-  TreemapChart,
+  BarChart,
   TooltipComponent,
   LegendComponent,
   GridComponent,
@@ -79,166 +89,143 @@ const props = defineProps<{
   showEvolutionDialog?: boolean;
 }>();
 
-type TreemapNode = {
-  name: string;
-  value: number;
-  itemStyle: { color: string };
-  children?: TreemapNode[];
-};
-
-function toTreemapNode(
-  node: EmissionTreemapCategory | EmissionTreemapChild,
-): TreemapNode {
-  const label = resolveLabel(node.name);
-  const treeNode: TreemapNode = {
-    name: label,
-    value: node.value,
-    itemStyle: { color: node.color },
-  };
-  if (
-    'children' in node &&
-    Array.isArray(node.children) &&
-    node.children.length > 0
-  ) {
-    treeNode.children = node.children.map((child) => toTreemapNode(child));
-  }
-  return treeNode;
-}
-
-const treemapData = computed(() => {
-  return props.data
-    .filter((item) => item.value > 0 && item.children.length > 0)
-    .map((item) => toTreemapNode(item));
-});
+const visibleData = computed(() =>
+  props.data.flatMap((cat) => cat.children.filter((c) => c.value > 0)),
+);
 
 const legendData = computed(() => {
   const seen = new Set<string>();
-  return props.data
-    .filter((cat) => cat.value > 0)
-    .flatMap((cat) =>
-      cat.children
-        .filter((c) => c.value > 0)
-        .map((c) => ({ name: resolveLabel(c.name), color: c.color })),
-    )
-    .filter((item) => {
-      if (seen.has(item.name)) return false;
-      seen.add(item.name);
-      return true;
-    });
+  const items: { name: string; color: string }[] = [];
+  for (const child of visibleData.value) {
+    // For ZZ items, show the YY parent in the legend (deduplicated).
+    const legendKey = child.parentKey ?? child.name;
+    if (seen.has(legendKey)) continue;
+    seen.add(legendKey);
+    items.push({ name: resolveLabel(legendKey), color: child.color });
+  }
+  return items;
 });
 
-const chartOption = computed(
-  (): EChartsOption => ({
-    backgroundColor: 'transparent',
-    grid: { top: 0, bottom: 0, left: 0, right: 0, containLabel: false },
-    legend: { show: false },
+const chartOption = computed((): EChartsOption => {
+  const total = visibleData.value.reduce((s, c) => s + c.value, 0);
+
+  const series = visibleData.value.map((cat) => {
+    const pct = total > 0 ? cat.value / total : 0;
+    const label = resolveLabel(cat.name);
+
+    return {
+      name: label,
+      type: 'bar' as const,
+      stack: 'total',
+      barWidth: '100%',
+      data: [{ value: pct * 100, originalValue: cat.value }],
+      itemStyle: {
+        color: cat.color,
+        borderColor: '#fff',
+        borderWidth: 0,
+      },
+      label: {
+        show: pct >= 0.09,
+        position: 'inside' as const,
+        formatter: label,
+        color: '#fff',
+        fontWeight: 'bold' as const,
+        fontSize: 13,
+        backgroundColor: 'rgba(0,0,0,0.15)',
+        borderRadius: 3,
+        padding: [5, 10],
+        overflow: 'truncate' as const,
+      },
+      emphasis: {
+        focus: 'none' as const,
+        label: {
+          show: true,
+          position: 'inside' as const,
+          formatter: label,
+          color: '#fff',
+          fontWeight: 'bold' as const,
+          fontSize: 13,
+
+          overflow: 'truncate' as const,
+        },
+        itemStyle: {
+          color: cat.color,
+          borderColor: '#fff',
+          borderWidth: 1,
+        },
+      },
+      blur: {
+        itemStyle: { opacity: 0.9 },
+        label: { opacity: 1 },
+      },
+    };
+  });
+
+  return {
+    animation: false,
     tooltip: {
       trigger: 'item',
       formatter: (params: unknown) => {
         const p = params as {
-          name?: string;
-          value?: number;
-          treePathInfo?: Array<{ name: string }>;
-          itemStyle?: { color?: string };
+          seriesName?: string;
           color?: string;
-          data?: { name?: string; itemStyle?: { color?: string } };
+          data?: { value: number; originalValue: number };
         };
-
-        const name = p.name ?? p.data?.name ?? '';
-        const value = p.value ?? 0;
-        const color =
-          p.data?.itemStyle?.color ??
-          p.itemStyle?.color ??
-          p.color ??
-          '#999999';
-
-        const path = (p.treePathInfo?.map((i) => i.name) ?? []).filter(Boolean);
-        const levels = path.length > 1 ? path.slice(1) : path;
-        const categoryName = levels[0] ?? name;
-        const displayName = levels[levels.length - 1] ?? name;
-
-        return (
-          `<span style="display:inline-block;margin-right:5px;border-radius:10px;` +
-          `width:10px;height:10px;background-color:${color};"></span>` +
-          `<strong>${categoryName}</strong><br/>` +
-          `${displayName}: <strong>${formatTonnesForChart(value)}</strong>`
-        );
+        const val = p.data?.originalValue ?? 0;
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
+        emitTooltip({
+          rows: [
+            {
+              label: p.seriesName ?? '',
+              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+              color: p.color ?? '#888',
+            },
+          ],
+        });
+        return '';
       },
     },
-    series: [
-      {
-        type: 'treemap',
-        data: treemapData.value,
-        roam: false,
-        nodeClick: false,
-        breadcrumb: { show: false },
-        left: 0,
-        right: 0,
-        top: 0,
-        bottom: 0,
-        width: '100%',
-        height: '100%',
-        label: {
-          show: true,
-          formatter: '{b}',
-          fontSize: 14,
-          fontWeight: 'bold',
-          color: 'white',
-        },
-        upperLabel: { show: false, height: 0, color: 'white' },
-        itemStyle: { borderColor: 'transparent', borderWidth: 0, gapWidth: 1 },
-        emphasis: {
-          itemStyle: { borderColor: 'transparent', borderWidth: 0 },
-          label: { show: true, fontSize: 16, color: 'white' },
-        },
-        sort: false,
-        levels: [
-          {
-            itemStyle: {
-              borderColor: 'transparent',
-              borderWidth: 0,
-              gapWidth: 5,
-            },
-            upperLabel: {
-              show: false,
-              fontSize: 16,
-              fontWeight: 'bold',
-              color: '#333',
-              height: 0,
-            },
-            label: { show: false, fontSize: 14, color: '#333' },
-          },
-          {
-            itemStyle: {
-              borderColor: 'transparent',
-              borderWidth: 0,
-              gapWidth: 3,
-            },
-            upperLabel: {
-              show: false,
-              fontSize: 12,
-              fontWeight: 'bold',
-              color: '#fff',
-              height: 22,
-            },
-            label: { show: true, fontSize: 12, color: '#fff' },
-          },
-          {
-            itemStyle: {
-              borderColor: 'transparent',
-              borderWidth: 0,
-              gapWidth: 1,
-            },
-            upperLabel: { show: false },
-            label: { show: true, fontSize: 11, color: '#fff' },
-          },
-        ],
-      },
-    ],
-  }),
-);
+    legend: { show: false },
+    grid: {
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      containLabel: false,
+    },
+    yAxis: {
+      type: 'category',
+      data: [''],
+      axisLabel: { show: false },
+      axisTick: { show: false },
+      axisLine: { show: false },
+    },
+    xAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLabel: { show: false },
+      axisTick: { show: false },
+      axisLine: { show: false },
+      splitLine: { show: false },
+    },
+    series,
+  };
+});
 
 const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
+
 const showEvolutionDialogRef = ref(false);
 
 const hasMultipleYears = computed(() => {
@@ -267,9 +254,7 @@ const isEvolutionDialogOpen = computed({
   },
 });
 
-// The evolution dialog always uses babyBlue (professional travel color)
 const babyBlueScheme = computed(() => {
-  // Access a color from the first category that has data, or fallback
   const first = props.data[0];
   return first
     ? {
@@ -290,7 +275,7 @@ const babyBlueScheme = computed(() => {
 </script>
 
 <template>
-  <div class="flex justify-between items-center">
+  <div class="flex justify-between items-center q-mb-xs">
     <q-card-section
       v-if="legendData.length > 0"
       class="legend-container q-pa-none"
@@ -309,6 +294,7 @@ const babyBlueScheme = computed(() => {
         </div>
       </div>
     </q-card-section>
+
     <q-btn
       v-if="showEvolutionDialog"
       color="primary"
@@ -332,14 +318,23 @@ const babyBlueScheme = computed(() => {
   <q-card-section class="chart-container q-pa-none">
     <v-chart
       ref="chartRef"
+      :key="visibleData.map((c) => c.name).join('|')"
       class="chart"
       autoresize
       :option="chartOption"
       :style="{ height: height ?? '200px' }"
+      @vue:mounted="onChartReady"
     />
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </q-card-section>
 
-  <q-dialog v-model="isEvolutionDialogOpen" class="evolution-dialog">
+  <q-dialog v-model="isEvolutionDialogOpen">
     <q-card style="width: 700px; max-width: 80vw">
       <q-card-section class="row items-center q-py-md">
         <div class="text-h4 text-weight-medium">

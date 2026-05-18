@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="module-table-section__submodules">
-      <template v-for="sub in currentModuleConfig.submodules" :key="sub.id">
+      <template v-for="sub in visibleSubmodules" :key="sub.id">
         <sub-module-section
           :submodule="sub"
           :module-config="currentModuleConfig"
@@ -30,6 +30,7 @@ import type { ModuleResponse } from 'src/constant/modules';
 import { MODULES_THRESHOLD_TYPES, type Threshold } from 'src/constant/modules';
 
 import { Module } from 'src/constant/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 
 const props = defineProps<{
   type: Module;
@@ -41,9 +42,21 @@ const props = defineProps<{
   disable: boolean;
 }>();
 
+const yearConfigStore = useYearConfigStore();
+
 const currentModuleConfig: Ref<ModuleConfig> = computed(
   () => MODULES_CONFIG[props.type] as ModuleConfig,
 );
+
+const visibleSubmodules = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.type);
+  if (!unifiedConfig) return currentModuleConfig.value.submodules;
+
+  return currentModuleConfig.value.submodules.filter((sub) => {
+    const subConfig = unifiedConfig.submodules[sub.id];
+    return subConfig?.enabled ?? true;
+  });
+});
 
 const defaultThreshold: Threshold = {
   type: MODULES_THRESHOLD_TYPES[0],

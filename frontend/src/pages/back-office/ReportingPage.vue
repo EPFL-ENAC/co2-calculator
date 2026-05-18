@@ -4,7 +4,8 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { Module } from 'src/constant/modules';
 import { MODULE_STATES, type ModuleState } from 'src/constant/moduleStates';
-import { type UnitFilters, useBackofficeStore } from 'src/stores/backoffice';
+import type { UnitFilters } from 'src/stores/backoffice';
+import { useBackofficeStore } from 'src/stores/backoffice';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import ModuleSelector, {
@@ -12,7 +13,7 @@ import ModuleSelector, {
 } from 'src/components/organisms/backoffice/reporting/ModuleSelector.vue';
 import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
 import ReportingStatCardUnit from 'src/components/organisms/backoffice/reporting/ReportingStatCardUnit.vue';
-import { type ReportingStats } from 'src/api/reporting';
+import { type ReportingStats } from 'src/api/backoffice';
 import ReportingYear from 'src/components/organisms/backoffice/reporting/ReportingYear.vue';
 import ReportingFilters from 'src/components/organisms/backoffice/reporting/ReportingFilters.vue';
 import UnitsTable from 'src/components/organisms/backoffice/reporting/UnitsTable.vue';
@@ -56,19 +57,16 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
 const selectedYears = ref<string[]>(['2026']); // Default to latest year
 
 // Track selected hierarchy filters from ReportingFilters
-const selectedPathLvl2 = ref<number[]>([]);
-const selectedPathLvl3 = ref<number[]>([]);
+const selectedPathAffiliation = ref<number[]>([]);
 const selectedPathLvl4 = ref<number[]>([]);
 const selectedCompletionStatus = ref<string | number>('');
 
 function handleFiltersUpdate(payload: {
-  path_lvl2: number[];
-  path_lvl3: number[];
+  path_affiliation: number[];
   path_lvl4: number[];
   completion_status: string | number;
 }) {
-  selectedPathLvl2.value = payload.path_lvl2;
-  selectedPathLvl3.value = payload.path_lvl3;
+  selectedPathAffiliation.value = payload.path_affiliation;
   selectedPathLvl4.value = payload.path_lvl4;
   selectedCompletionStatus.value = payload.completion_status;
   fetchUnits();
@@ -86,6 +84,7 @@ const reportingEmissionBreakdown = computed(
 const tableRows = computed(() => units.value?.data ?? []);
 const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
 const tableTotal = computed(() => units.value?.total_units_count ?? 0);
+const paginationMeta = computed(() => units.value?.pagination);
 
 const usageStats = computed<ReportingStats>(() => ({
   [MODULE_STATES.Default]: units.value?.not_started_units_count ?? 0,
@@ -116,10 +115,10 @@ const unitFilters = computed<UnitFilters>(() => {
   });
 
   return {
-    path_lvl2:
-      selectedPathLvl2.value.length > 0 ? selectedPathLvl2.value : undefined,
-    path_lvl3:
-      selectedPathLvl3.value.length > 0 ? selectedPathLvl3.value : undefined,
+    path_affiliation:
+      selectedPathAffiliation.value.length > 0
+        ? selectedPathAffiliation.value
+        : undefined,
     path_lvl4:
       selectedPathLvl4.value.length > 0 ? selectedPathLvl4.value : undefined,
     years: selectedYears.value,
@@ -256,8 +255,9 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
       <div class="q-mt-xl">
         <UnitsTable
           :units="tableRows"
-          :pagination="units?.pagination"
+          :pagination-meta="paginationMeta"
           :loading="loading"
+          @request-data="fetchUnits"
           @view-unit="handleViewUnit"
         />
       </div>

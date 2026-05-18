@@ -8,6 +8,7 @@ export const WORKSPACE_DEFAULT_YEAR = 2025;
 export interface Unit {
   id: number;
   name: string;
+  institutional_id: string;
   principal_user_id: string;
   principal_user_function: string;
   principal_user_name: string;

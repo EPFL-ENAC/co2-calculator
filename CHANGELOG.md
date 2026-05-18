@@ -1,3 +1,143 @@
+# [0.9.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.8.1...v0.9.0) (2026-05-04)
+
+## Key Changes
+
+| Area                       | What changed                                                                                                                              | Consequences / Reason                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Simulation & planning      | New Simulation Explore/Plan pages, simulator integrated into workspace setup, reduction objective chart for EPFL and units                 | Enables what-if planning and visual tracking against reduction goals               |
+| Job system (#310a, #780)   | Plan 310A job claiming with safety poller; cancel-job endpoint and UI for stuck ingestion jobs                                            | Prevents zombie/lost ingestion jobs and gives operators a recovery path            |
+| Data ingestion             | Seed data and seed factors refactored to reuse the CSV ingestion logic; `BaseFactorCSVProvider` aligned with parent move-failure handling | Single source of truth for ingestion; less drift between seed and runtime imports  |
+| Permissions & roles (#974) | Module permissions contextualized by workspace unit and scoped to unit `institutional_id`; background role sync (later simplified to refresh-triggered) | Closes cross-unit permission leaks; roles stay current without persistent SSE      |
+| Module configuration (#837) | Uncertainty tag and module constants now sourced from backend config; submodule input deactivation                                       | Consolidates configuration on the backend; less front-end drift                    |
+| Year-aware factors (#927)  | Year propagated to all factor lookups; `factors_map` no longer collides across years                                                      | Resolves 500 errors and silent miscalculations on multi-year selections            |
+| Pagination & filtering (#757, #781) | Server-side pagination and sorting for backoffice reporting; clearable completion status filter; multi-year validation count           | Scales reporting to large datasets and clarifies multi-year completion state       |
+| Reporting & breakdowns     | SQL-driven totals in IT breakdown; rollup rows excluded from aggregations; more specific emission type id; physical quantity unified as `additional_value` | Accurate aggregations without double-counting and cleaner type granularity         |
+| Affiliation filter         | Replaced Faculties/Institutes filters with a single Affiliation filter                                                                    | Simpler, less confusing filter UI                                                  |
+| Locations                  | Faster CSV upload for locations                                                                                                           | Reduced ingestion time on large location datasets                                  |
+| Charts & UI                | Unified ECharts tooltip component; consistent module chart order/colors; room allocation ratio (#690); calculator update card             | Visual consistency and easier interpretation                                       |
+
+---
+
+## Bug Fixes
+
+| Category                 | Fixes                                                                                                                                                  | Consequences / Reason                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| Job system / async       | Plugged `claim_job` silent-zero leak; mirrored RUNNING guard; safer mocks (`data_entry_type_id=None`); SSE endpoint path correction; UTC time comparison | Prevents lost or duplicate ingestion jobs            |
+| Data management (#780, #898) | Stale props in data entry dialog; broken upload event chain; submodule config leak; module CSV upload; `ExternalAIHandlerResponse` fields optional; deletion scoped to uploaded `data_entry_type` only | Restores reliability of the upload pipeline          |
+| Permissions (#974)       | Module permission checks scoped to unit `institutional_id`                                                                                             | Closes cross-unit permission bypass                  |
+| Year-aware factors (#927) | Year passed to factor values endpoint to avoid multi-year 500                                                                                          | Resolves crash on multi-year reporting selections    |
+| Pagination & filters (#757, #781) | Made pagination work on backoffice reporting; respect empty filter results in `_resolve_hierarchy_unit_ids`; corrected status update test; correct stats filtering | Stops empty/invalid pagination states                |
+| UX & labels (#619, #853) | Better contextual dialog text; corrected upload naming without duplication; restored compute-factors button for research-facilities; changed 0/7 to 0/8 | Removes user confusion and restores expected actions |
+| Display                  | Correct decimals; correct `last_update` timestamp display in backoffice reporting                                                                      | Accurate user-facing values                          |
+| Roles                    | Commit after sync of user units; updated role tests; completed role change detection                                                                    | Reliable role propagation                            |
+
+---
+
+## Technical Improvements (Non-functional)
+
+| Area     | Change                                                                                                                  | Consequences / Reason                                |
+| -------- | ----------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Backend  | Seed data and seed factors now use CSV ingestion; removed emit-per-factor logic; CodeQL findings addressed (PR #980)    | Less code duplication; reduced static-analysis debt  |
+| Frontend | Unified ECharts tooltip component; chart colors and module order normalized; `make format` cleanup                       | Consistency across charts; lint/format kept clean    |
+| Testing  | Tests updated for `BaseFactorCSVProvider` refactor; safer mocks for ingestion jobs; year-aware factor coverage           | Higher confidence in pipeline changes                |
+
+
+
+### Bug Fixes
+
+* **#310a:** address Copilot review feedback ([2841d40](https://github.com/EPFL-ENAC/co2-calculator/commit/2841d40a262e3021e4d7f18209484a6b8ad28baf)), closes [#310a](https://github.com/EPFL-ENAC/co2-calculator/issues/310a)
+* **#310a:** plug claim_job silent-zero leak; mirror RUNNING guard ([b827fff](https://github.com/EPFL-ENAC/co2-calculator/commit/b827fff5698449945f51709799aeff1654699371)), closes [#310a](https://github.com/EPFL-ENAC/co2-calculator/issues/310a)
+* **#780:** run make format on frontend ([ad5dc13](https://github.com/EPFL-ENAC/co2-calculator/commit/ad5dc13b09d547683f6cff77ddacc44585a155c9)), closes [#780](https://github.com/EPFL-ENAC/co2-calculator/issues/780)
+* **#974:** scope module permission checks to unit institutional_id ([e97924c](https://github.com/EPFL-ENAC/co2-calculator/commit/e97924cda8f5207e88275d3d70ddd53715274d85)), closes [#974](https://github.com/EPFL-ENAC/co2-calculator/issues/974) [#974](https://github.com/EPFL-ENAC/co2-calculator/issues/974)
+* **619:** add better text for contextual dialog ([b7bcce2](https://github.com/EPFL-ENAC/co2-calculator/commit/b7bcce27eec6b6185e5c9e229ef149ee201dc70d))
+* **619:** correct naming without duplicating upload ([c428f0f](https://github.com/EPFL-ENAC/co2-calculator/commit/c428f0f88532a86b24ff6f3b2606e7cb52eec306))
+* **619:** format frontend properly ([f2c7854](https://github.com/EPFL-ENAC/co2-calculator/commit/f2c7854934ac1a19e20ec824296c0271126fed2c))
+* **619:** restore compute-factors button for research-facilities ([26011e5](https://github.com/EPFL-ENAC/co2-calculator/commit/26011e51abd551d4c00270b8f05f1cabccf12d95))
+* **757:** add a way to simplify status ([1c08031](https://github.com/EPFL-ENAC/co2-calculator/commit/1c080311487c90cd7c52e51c76645647f631c234))
+* **757:** correct test for status update on carbon_report ([a632e29](https://github.com/EPFL-ENAC/co2-calculator/commit/a632e29cc4aa1037e77a7c7302753d739966f0d0))
+* **757:** make pagination works ([3c524d6](https://github.com/EPFL-ENAC/co2-calculator/commit/3c524d6fda20dcc6d4a55d5ca5a405d2413e32b0))
+* **757:** respect empty filter results in _resolve_hierarchy_unit_ids ([fccbecc](https://github.com/EPFL-ENAC/co2-calculator/commit/fccbecc249ea3c31550610e7ba83457ef21255e0))
+* **780:** make ExternalAIHandlerResponse fields optional ([03ade21](https://github.com/EPFL-ENAC/co2-calculator/commit/03ade21d6edc231a3365a0798110e4baae1e8530))
+* **780:** scope deletion to uploaded data_entry_type only ([14b43d4](https://github.com/EPFL-ENAC/co2-calculator/commit/14b43d474b8c9ec990b997de27fdac62b935e4ae))
+* **781:** filter properly stats ([f1acb0d](https://github.com/EPFL-ENAC/co2-calculator/commit/f1acb0d2d0a5981d3b027f23481d47ef2adeb45a))
+* **853:** change 0/7 to 0/8 ([cdee1ab](https://github.com/EPFL-ENAC/co2-calculator/commit/cdee1abbf040937852c6c81908c23af698aec44c))
+* **898:** correct unit test_module_unit_specific ([2dc1a72](https://github.com/EPFL-ENAC/co2-calculator/commit/2dc1a72c4a87c74480a6f54844b2ad9eeeeb00e8))
+* **898:** corret module upload csv ([f14c350](https://github.com/EPFL-ENAC/co2-calculator/commit/f14c3508e26b0e04aef6e073463318f722c0cdbc))
+* **927:** pass year to factor values endpoint to avoid multi-year 500 ([9471ccc](https://github.com/EPFL-ENAC/co2-calculator/commit/9471cccf69985e13581f5e5ed09a848dfb883b13))
+* add BackgroundTasks to /me endpoint for async role sync ([d33f3c3](https://github.com/EPFL-ENAC/co2-calculator/commit/d33f3c3d0aec32af64388757caf48a81cc6e326d))
+* add log ([6ca64f3](https://github.com/EPFL-ENAC/co2-calculator/commit/6ca64f3a42e979d4412d8b7af92550a679655c82))
+* added commit after sync user units ([4b0f476](https://github.com/EPFL-ENAC/co2-calculator/commit/4b0f4767f947f1c70dc05e796569844168bf63eb))
+* added tests and safe guards ([05ba090](https://github.com/EPFL-ENAC/co2-calculator/commit/05ba090896f706af5444bc002b8c7b87a3e8ee41))
+* call role provider after ttl check, ensure utc times compare ([8fae164](https://github.com/EPFL-ENAC/co2-calculator/commit/8fae16440e59d33eb36458ff67605f8550d3b464))
+* code review ([55f458e](https://github.com/EPFL-ENAC/co2-calculator/commit/55f458e7c448ffdd58e85dae1404d0595f88cddc))
+* code review ([44abc3c](https://github.com/EPFL-ENAC/co2-calculator/commit/44abc3c9bb5cd90300624b153649cdd3a53275ed))
+* code review ([cbe07fa](https://github.com/EPFL-ENAC/co2-calculator/commit/cbe07faec691e8d19a293ac28eb824717ca4892e))
+* code review ([6a46913](https://github.com/EPFL-ENAC/co2-calculator/commit/6a469132aa384633ae8d77c6bead8d9e68e6d454))
+* completed role change detection ([34d24df](https://github.com/EPFL-ENAC/co2-calculator/commit/34d24df03b9983bf8e40967bbf95e3d25996a8e5))
+* correct decimals ([6d0dd93](https://github.com/EPFL-ENAC/co2-calculator/commit/6d0dd93513aee1b5ca7250d80bf110c2ac3dac6f))
+* correct last_update timestamp display in backoffice reporting ([534a8f4](https://github.com/EPFL-ENAC/co2-calculator/commit/534a8f403b5baeaa097865b7c038076c45f0333e))
+* correct SSE endpoint path to avoid double /roles prefix ([d070e70](https://github.com/EPFL-ENAC/co2-calculator/commit/d070e709fb4d9c063cd901c07b9b39e384168c41))
+* **data-management #780:** add latest_api_data_job and fix job lookup ambiguity ([1b31c89](https://github.com/EPFL-ENAC/co2-calculator/commit/1b31c892494523902f6efc01d7f30fad4bd5ea0f))
+* **data-management #780:** align BaseFactorCSVProvider move-failure handling with parent class ([3e4732a](https://github.com/EPFL-ENAC/co2-calculator/commit/3e4732a40ec52328c8597e0f5bda4528bf4176e2)), closes [#780](https://github.com/EPFL-ENAC/co2-calculator/issues/780)
+* **data-management #780:** fix stale props in data entry dialog and broken upload event chain ([92aa3f9](https://github.com/EPFL-ENAC/co2-calculator/commit/92aa3f972a8e4f92d3097ecb7a3b2bbaa81ed337))
+* **data-management #780:** surface common upload jobs and fix submodule config leak ([10b1ff8](https://github.com/EPFL-ENAC/co2-calculator/commit/10b1ff8f9402a96330be4f98b5af02df009d75d4))
+* declare active_connections as global in emit_role_update_event ([42e0472](https://github.com/EPFL-ENAC/co2-calculator/commit/42e04721f2ab1e2a19b206ef7ff0eeb2367c317f))
+* make format ([cf2f2b3](https://github.com/EPFL-ENAC/co2-calculator/commit/cf2f2b38e34a92e3d9d052cb75accf93b9a8e3cf))
+* pass year to all factor lookups and fix factors_map year collision ([b39fec7](https://github.com/EPFL-ENAC/co2-calculator/commit/b39fec7edbf0ddf4ae6563b20f311205fd14f8e4))
+* set data_entry_type_id=None on mock job to prevent MagicMock truthy evaluation ([8ab6fe9](https://github.com/EPFL-ENAC/co2-calculator/commit/8ab6fe9b7f6cde119dfd74771639d55aba545ab5))
+* **tests:** update tests for BaseFactorCSVProvider refactoring ([01f08cf](https://github.com/EPFL-ENAC/co2-calculator/commit/01f08cfa22596fb3872e622505c8cf49a5580920))
+* updated code after review ([2831155](https://github.com/EPFL-ENAC/co2-calculator/commit/2831155e0b2a4dc328ef531acd5aaac60f4c2f34))
+* updated role tests ([b11ab4c](https://github.com/EPFL-ENAC/co2-calculator/commit/b11ab4cb7b76a6e4c0f971b12051e1275f3ac1c3))
+
+
+### Features
+
+* **#310a:** add Plan 310A job claiming and safety poller ([dd1e870](https://github.com/EPFL-ENAC/co2-calculator/commit/dd1e870eb7d9e72c0c238b37f808956814685914)), closes [#310a](https://github.com/EPFL-ENAC/co2-calculator/issues/310a)
+* **690:** added room allocation ratio, with default value 1 ([af97186](https://github.com/EPFL-ENAC/co2-calculator/commit/af971862f2066e08f71528b27f17f5fe10a29ea7))
+* **757:** add a way to paginate ([d2bbe30](https://github.com/EPFL-ENAC/co2-calculator/commit/d2bbe30f2a7ade6bc6f8c8b52931cc9d843d635f))
+* **757:** add better pagination sort_by ([bfc7742](https://github.com/EPFL-ENAC/co2-calculator/commit/bfc7742c14b4cee8666fc536a615e6952262b771))
+* **757:** make better pagination sort ([34d68b0](https://github.com/EPFL-ENAC/co2-calculator/commit/34d68b0c48d87994eb2c1274f1ef7b84cccacfc0))
+* **757:** show validated year count in validation_status for multi-year selection ([d9205c3](https://github.com/EPFL-ENAC/co2-calculator/commit/d9205c3e3672d5d3c2f51caf04a8ff9c43474621))
+* **781:** completion status filter — clearable dropdown, i18n, API cleanup ([5f60082](https://github.com/EPFL-ENAC/co2-calculator/commit/5f6008276af2d58f904590184079ed22656a4539))
+* **837:** add a way to use constant and backend module config ([880b1ed](https://github.com/EPFL-ENAC/co2-calculator/commit/880b1edf0e2be4f7a8a2787e0b206ac350b2c076))
+* **837:** add uncertainty tag from backend ([72d72ae](https://github.com/EPFL-ENAC/co2-calculator/commit/72d72ae1022178cecd74f95a35c5dbaf4f98824a))
+* **840:** add new implementations-plan ([0163c0b](https://github.com/EPFL-ENAC/co2-calculator/commit/0163c0b2460621aa23f6ca8f02784dfe48052e7a))
+* **898:** improve reduction objectives upload UX ([4d0ff65](https://github.com/EPFL-ENAC/co2-calculator/commit/4d0ff655a4e8800c5dec5acffda907e989d54c63))
+* add 'scope' column to data_entry_emissions table ([672b3d1](https://github.com/EPFL-ENAC/co2-calculator/commit/672b3d1d550fb86c6fe8e0681167a593d4f21af2))
+* add calculator update card and i18n entries ([d43e20e](https://github.com/EPFL-ENAC/co2-calculator/commit/d43e20e2a00fb27b927cfa23704690b295080342))
+* add input deactivation feature for submodules ([04466d9](https://github.com/EPFL-ENAC/co2-calculator/commit/04466d92493f9d3c36e71981b2e79cf13beddf7e))
+* add last_roles_sync_at timestamp field to User model ([7476b1c](https://github.com/EPFL-ENAC/co2-calculator/commit/7476b1c70aff146994689fe3c4df35b021f2b968))
+* add reduction objective chart for EPFL and my unit ([92aab3a](https://github.com/EPFL-ENAC/co2-calculator/commit/92aab3a588bcf16f9d42de1000c56d05cc28151d))
+* add role sync service for background role synchronization ([477a4ba](https://github.com/EPFL-ENAC/co2-calculator/commit/477a4ba07c501f17ad6032ce9a7f1dbc169ede5a))
+* add role sync store with SSE connection and TTL fallback ([940609f](https://github.com/EPFL-ENAC/co2-calculator/commit/940609f42a603abba23fe4c099703a120c99e7ec))
+* add Simulation Explore and Plan pages ([9451322](https://github.com/EPFL-ENAC/co2-calculator/commit/94513222d301e910709a0011983938628822f000))
+* add Simulations page UI and i18n ([db4dd21](https://github.com/EPFL-ENAC/co2-calculator/commit/db4dd21e134c1b5bc396ef9971ff68bed8b0ff26))
+* add simulator in workspace setup page ([a368ea0](https://github.com/EPFL-ENAC/co2-calculator/commit/a368ea0236f5008eb2a009228c2afb30834a1f5e))
+* add SSE endpoint for real-time role update notifications ([46d11af](https://github.com/EPFL-ENAC/co2-calculator/commit/46d11af916e384e94d0fd45df3d8dd9568e06213))
+* add unified ECharts tooltip component ([7b02eca](https://github.com/EPFL-ENAC/co2-calculator/commit/7b02eca84ad67bbbc637f35927b8fc035ef8e799))
+* added min column width in module table ([961f38f](https://github.com/EPFL-ENAC/co2-calculator/commit/961f38f6b258016add6da5345e5c9abf1130f005))
+* adjusted room allocation ratio column ui (width and tooltip) ([8354c91](https://github.com/EPFL-ENAC/co2-calculator/commit/8354c9140d5f57d997bbeedb6b1e7879e682dba0))
+* correct chart colors ([4177879](https://github.com/EPFL-ENAC/co2-calculator/commit/417787921c4e13eda862e2443365fd40dfd5323c))
+* correct module charts order ([249573f](https://github.com/EPFL-ENAC/co2-calculator/commit/249573fcda9d02d9bf9bbae7e37e53730265d08a))
+* correct module charts order ([c89b9e9](https://github.com/EPFL-ENAC/co2-calculator/commit/c89b9e95f4654d02af3b92c88c5409d0c70f600b))
+* corrections ([c63ea47](https://github.com/EPFL-ENAC/co2-calculator/commit/c63ea4717ee235b2bccad769dc9d3a057fe19196))
+* **data-management #780:** add cancel job endpoint and UI for stuck ingestion jobs ([50443d1](https://github.com/EPFL-ENAC/co2-calculator/commit/50443d102d1adfb9f07ba753d4cf0a81e867c98f)), closes [#780](https://github.com/EPFL-ENAC/co2-calculator/issues/780)
+* exclude rollup emission rows from aggregations ([b2136c3](https://github.com/EPFL-ENAC/co2-calculator/commit/b2136c38c3511829a8bb1fdafe93cacab70a5e56))
+* **locations:** faster upload of csv locations ([1ffc020](https://github.com/EPFL-ENAC/co2-calculator/commit/1ffc02002f3e8d86c84b45137fd30b2a73732cf9))
+* modules permissions are contextualized by workspace's unit, simplified permissions format with list of actions ([e6dcfe9](https://github.com/EPFL-ENAC/co2-calculator/commit/e6dcfe9bef663d162491a8a69728aaf650687536))
+* normalize room allocation ratio ([d8d12a1](https://github.com/EPFL-ENAC/co2-calculator/commit/d8d12a16ce8df1eba540c6efd1caea460d65638a))
+* pick more specific emission type id ([4d51e39](https://github.com/EPFL-ENAC/co2-calculator/commit/4d51e395ba3ad67c84be5eac9b549b5c9ac4b13c))
+* refactored seed data so that it uses the csv data ingestion logic ([e866fdf](https://github.com/EPFL-ENAC/co2-calculator/commit/e866fdf68d62fdea044d775339dbf04440b240ad))
+* refactored seed factors so that it uses the csv data ingestion logic ([8b2e6dd](https://github.com/EPFL-ENAC/co2-calculator/commit/8b2e6dd15c1fb0088db42156a89fd5e4602b4052))
+* remove emit per factor logic ([d454f47](https://github.com/EPFL-ENAC/co2-calculator/commit/d454f47d711eb736d276685b34c2488fd90c154e))
+* replace Faculties/Institutes filters with single Affiliation filter ([448fbb8](https://github.com/EPFL-ENAC/co2-calculator/commit/448fbb8d1290d0e3a6039e6b33fe1b65c1cdb963))
+* send page/page_size to API backend ([7022a69](https://github.com/EPFL-ENAC/co2-calculator/commit/7022a69afdd6375dec066de9cf354dcb7a46edfd))
+* simplified implementation, no SSE, roles sync triggered on refresh instead ([744330a](https://github.com/EPFL-ENAC/co2-calculator/commit/744330a40456ce09cfc2291801ad347f6cb66e90))
+* trigger background role sync from /me endpoint ([6e85b7d](https://github.com/EPFL-ENAC/co2-calculator/commit/6e85b7de0cc931c90382ff286b812c09666490f7))
+* unify physical quantity as additional_value ([923ed39](https://github.com/EPFL-ENAC/co2-calculator/commit/923ed396b5a36ce333bd6907e654c128118c3590))
+* use external tooltip for headcount bar chart ([aea6b7b](https://github.com/EPFL-ENAC/co2-calculator/commit/aea6b7baa731758a19b4070290e154305869b947))
+* use SQL totals in IT breakdown ([0492649](https://github.com/EPFL-ENAC/co2-calculator/commit/0492649907aeef48a93350097be2a30df0ad9fe5))
+* wire up server-side pagination and sorting for backoffice reporting ([79a4b2a](https://github.com/EPFL-ENAC/co2-calculator/commit/79a4b2ac1258f915fa7639a055f76d5d2ce3a304))
 ## [0.8.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.7.0...v0.8.1) (2026-04-16)
 
 

@@ -8,7 +8,10 @@ import {
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
-
+import { PermissionAction } from 'src/constant/permissions';
+import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import { Module } from 'src/constant/modules';
+import { useWorkspaceStore } from './workspace';
 interface User {
   id: string;
   email: string;
@@ -31,6 +34,8 @@ interface User {
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
   const loading = ref(false);
+
+  const workspaceStore = useWorkspaceStore();
 
   const displayName = computed(() => {
     if (!user.value) return '';
@@ -100,6 +105,51 @@ export const useAuthStore = defineStore('auth', () => {
     return user.value !== null;
   });
 
+  /**
+   * Check if current user has a specific permission.
+   *
+   * @param path The permission path to check (e.g., 'modules.headcount')
+   * @param action The action to check (e.g., 'view')
+   * @returns boolean indicating if the user has the specified permission
+   */
+  function hasUserPermission(
+    path: string,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    // Check for global permission first (without workspace context)
+    const globallyPermitted = hasPermission(
+      user.value.permissions,
+      path,
+      action,
+    );
+    if (globallyPermitted) return true;
+    // append workspace context to permission path if available
+    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
+    if (institutionalId) {
+      path = `${path}/${institutionalId}`;
+      return hasPermission(user.value.permissions, path, action);
+    }
+    return false;
+  }
+
+  /**
+   * Check if current user has a specific permission for a module.
+   * This is a convenience function that derives the permission path from the module.
+   *
+   * @param module The module to check permissions for
+   * @param action The action to check (e.g., 'view')
+   * @returns boolean indicating if the user has the specified permission for the module
+   */
+  function hasUserModulePermission(
+    module: Module,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    const path = getModulePermissionPath(module);
+    if (!path) return false; // If module doesn't have a permission path, treat as no access
+    return hasUserPermission(path, action);
+  }
+
   return {
     user,
     loading,
@@ -110,5 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
     login_test,
     logout,
     isAuthenticated,
+    hasUserPermission,
+    hasUserModulePermission,
   };
 });

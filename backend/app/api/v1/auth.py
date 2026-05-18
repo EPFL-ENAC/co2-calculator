@@ -6,7 +6,16 @@ from typing import Any, Optional
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,6 +33,7 @@ from app.providers.role_provider import RoleProviderNetworkError, get_role_provi
 from app.schemas.user import UserRead
 from app.services.audit_service import AuditDocumentService
 from app.services.user_service import UserService
+from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.utils.request_context import extract_ip_address, extract_route_payload
 
 logger = get_logger(__name__)
@@ -489,8 +499,8 @@ async def get_me(
 
     Returns user details including id, email, roles.
     Requires valid auth_token cookie.
-    Refreshes roles from provider on each call.
     Resolves user by stable identity (institutional_id, provider) from JWT.
+    NO LONGER syncs roles synchronously - uses cached DB roles.
     """
     if not auth_token:
         raise HTTPException(
@@ -569,9 +579,7 @@ async def get_me(
                 detail="User email missing",
             )
 
-        # create an issue background to refresh roles periodically? cf #334
-
-        user_read = UserRead.from_orm(user)
+        user_read = UserRead.model_validate(user)
         return user_read
 
     except HTTPException:
@@ -587,6 +595,7 @@ async def get_me(
 @router.post("/refresh")
 async def refresh_token(
     request: Request,
+    background_tasks: BackgroundTasks,
     refresh_token: Optional[str] = Cookie(None),
     response: Response = Response(),
     db: AsyncSession = Depends(get_db),
@@ -683,6 +692,16 @@ async def refresh_token(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="User ID missing",
             )
+
+        # Trigger background role sync if needed (non-blocking)
+        # Note: This is fire-and-forget - errors don't affect /refresh response
+        if user.id is not None:
+            background_tasks.add_task(
+                trigger_role_sync_for_user,
+                user_id=user.id,
+                force=False,
+            )
+
         # Set new tokens
         _set_auth_cookies(
             response=response,

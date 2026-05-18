@@ -521,12 +521,17 @@ if (props.moduleType === MODULES.EquipmentElectricConsumption) {
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(form, toRef(props, 'submoduleType'), {
-    classFieldId: kindFieldId.value ?? undefined,
-    subClassFieldId: subkindFieldId.value ?? undefined,
-    fetchFactorValuesOnChange: true,
-    ...useEquipmentClassOptionsConfig,
-  });
+  useEquipmentClassOptions(
+    form,
+    toRef(props, 'submoduleType'),
+    {
+      classFieldId: kindFieldId.value ?? undefined,
+      subClassFieldId: subkindFieldId.value ?? undefined,
+      fetchFactorValuesOnChange: true,
+      ...useEquipmentClassOptionsConfig,
+    },
+    toRef(props, 'year'),
+  );
 
 const { dynamicOptions: buildingRoomDynamicOptions } =
   useBuildingRoomDynamicOptions(

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
@@ -13,8 +13,11 @@ import {
   GraphicComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
+import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 
 import { colors } from 'src/constant/charts';
+import { MODULES } from 'src/constant/modules';
 
 use([
   CanvasRenderer,
@@ -27,6 +30,15 @@ use([
 ]);
 
 const { t, te } = useI18n();
+const chartRef = ref<InstanceType<typeof VChart>>();
+const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+
+const onChartReady = async () => {
+  await nextTick();
+  const chart = chartRef.value?.chart;
+  if (!chart) return;
+  attach(chart);
+};
 
 const props = withDefaults(
   defineProps<{
@@ -56,6 +68,33 @@ const chartOptions = computed<EChartsOption>(() => {
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
+      formatter: (params: unknown) => {
+        const arr = Array.isArray(params) ? params : params ? [params] : [];
+        if (!arr.length) {
+          emitTooltip(null);
+          return '';
+        }
+        const p = arr[0] as {
+          data?: { category: string; value: number };
+          name?: string;
+        };
+        const val = p.data?.value ?? 0;
+        const name = p.data?.category ?? p.name ?? '';
+        if (val <= 0) {
+          emitTooltip(null);
+          return '';
+        }
+        emitTooltip({
+          rows: [
+            {
+              label: name,
+              value: `${Math.round(val * 10) / 10} ${t('module_total_result_title_unit', { type: MODULES.Headcount })}`,
+              color: '#00a79f',
+            },
+          ],
+        });
+        return '';
+      },
     },
     legend: { show: false },
     grid: { left: '3%', right: '4%', bottom: '50px', containLabel: true },
@@ -98,7 +137,19 @@ const chartOptions = computed<EChartsOption>(() => {
 
 <template>
   <div class="head-count-bar-chart">
-    <v-chart :option="chartOptions" autoresize />
+    <v-chart
+      ref="chartRef"
+      :option="chartOptions"
+      autoresize
+      @vue:mounted="onChartReady"
+    />
+    <Teleport to="body">
+      <tooltip-echarts
+        v-if="tooltip.visible"
+        :tooltip-state="tooltip.data"
+        :style="style"
+      />
+    </Teleport>
   </div>
 </template>
 

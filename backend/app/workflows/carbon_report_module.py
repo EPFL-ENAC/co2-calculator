@@ -37,6 +37,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -48,7 +49,7 @@ class CarbonReportModuleWorkflow:
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_service = ModuleHandlerService(self.session)
             create_payload = await handler_service.resolve_primary_factor_id(
-                handler, create_payload, data_entry_type
+                handler, create_payload, data_entry_type, year=year
             )
 
             validated_data = handler.validate_create(create_payload)
@@ -156,6 +157,7 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
+        year: int,
     ) -> DataEntryResponse:
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
@@ -169,7 +171,12 @@ class CarbonReportModuleWorkflow:
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_service = ModuleHandlerService(self.session)
             update_payload = await handler_service.resolve_primary_factor_if_changed(
-                handler, update_payload, data_entry_type, item_data, existing_data
+                handler,
+                update_payload,
+                data_entry_type,
+                item_data,
+                existing_data,
+                year=year,
             )
 
             # For equipment partial PATCH, validate against merged persisted+incoming

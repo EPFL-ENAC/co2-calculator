@@ -267,11 +267,16 @@ class FactorRepository:
         kind_field = handler.kind_field or ""
         subkind_field = handler.subkind_field or ""
 
-        conditions_base = [col(Factor.data_entry_type_id) == data_entry_type.value]
+        if year is None:
+            raise ValueError(
+                "year is required for get_by_classification to avoid "
+                "matching factors from multiple years"
+            )
 
-        # Add year filter if provided
-        if year is not None:
-            conditions_base.append(col(Factor.year) == year)
+        conditions_base = [
+            col(Factor.data_entry_type_id) == data_entry_type.value,
+            col(Factor.year) == year,
+        ]
 
         if subkind:
             conditions = conditions_base + [

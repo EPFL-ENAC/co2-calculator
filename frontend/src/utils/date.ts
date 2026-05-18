@@ -10,7 +10,7 @@ export function formatRelativeTime(
   locale: string,
   prefix = 'Active',
 ): string {
-  const date = new Date(dateString);
+  const date = parseUtcDate(dateString);
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
@@ -33,4 +33,38 @@ export function formatRelativeTime(
 
   // Less than a minute ago
   return `${prefix} ${rtf.format(0, 'minute')}`;
+}
+
+export function parseUtcDate(dateString: string): Date {
+  if (!dateString) {
+    return new Date(NaN);
+  }
+
+  if (
+    dateString.endsWith('Z') ||
+    dateString.includes('+') ||
+    dateString.includes('-')
+  ) {
+    return new Date(dateString);
+  }
+
+  const isoMatch = dateString.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?$/,
+  );
+  if (isoMatch) {
+    const [, year, month, day, hour, minute, second, ms] = isoMatch;
+    return new Date(
+      Date.UTC(
+        parseInt(year, 10),
+        parseInt(month, 10) - 1,
+        parseInt(day, 10),
+        parseInt(hour, 10),
+        parseInt(minute, 10),
+        parseInt(second, 10),
+        ms ? parseInt(ms.padEnd(3, '0').slice(0, 3), 10) : 0,
+      ),
+    );
+  }
+
+  return new Date(dateString);
 }

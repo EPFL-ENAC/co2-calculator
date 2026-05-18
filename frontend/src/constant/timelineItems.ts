@@ -1,41 +1,56 @@
-import { MODULES } from 'src/constant/modules';
+export type Module =
+  | 'headcount'
+  | 'professional-travel'
+  | 'process-emissions'
+  | 'buildings'
+  | 'equipment-electric-consumption'
+  | 'purchase'
+  | 'research-facilities'
+  | 'external-cloud-and-ai'
+  | 'commuting'
+  | 'food'
+  | 'waste'
+  | 'embodied-energy';
 
 export const timelineItems = [
   {
     icon: 'o_diversity_2',
-    link: MODULES.Headcount,
+    link: 'headcount' as Module,
   },
 
   {
     icon: 'o_science',
-    link: MODULES.ProcessEmissions,
+    link: 'process-emissions' as Module,
   },
   {
     icon: 'o_apartment',
-    link: MODULES.Buildings,
+    link: 'buildings' as Module,
   },
   {
     icon: 'o_bolt',
-    link: MODULES.EquipmentElectricConsumption,
+    link: 'equipment-electric-consumption' as Module,
   },
   {
     icon: 'o_filter_drama',
-    link: MODULES.ExternalCloudAndAI,
+    link: 'external-cloud-and-ai' as Module,
   },
   {
     icon: 'o_flight',
-    link: MODULES.ProfessionalTravel,
+    link: 'professional-travel' as Module,
   },
 
   {
     icon: 'o_sell',
-    link: MODULES.Purchase,
+    link: 'purchase' as Module,
   },
 
   {
     icon: 'o_apps',
-    link: MODULES.ResearchFacilities,
+    link: 'research-facilities' as Module,
   },
 ];
 
 export type TimelineItem = (typeof timelineItems)[number];
+
+/** Ordered list of modules for navigation (same order as timelineItems). */
+export const MODULES_ORDER: Module[] = timelineItems.map((item) => item.link);

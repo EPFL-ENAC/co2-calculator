@@ -5,6 +5,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Union
 
 from pydantic import BaseModel
+from sqlalchemy import DateTime
 from sqlalchemy import Enum as SAEnum
 
 if TYPE_CHECKING:
@@ -104,27 +105,8 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     if not roles:
         return {}
 
-    # Initialize with all permissions set to False
-    permissions = {
-        "backoffice.reporting": {"view": False, "export": False},
-        "backoffice.users": {"view": False, "edit": False, "export": False},
-        "backoffice.data_management": {
-            "view": False,
-            "edit": False,
-            "export": False,
-            "sync": False,
-        },
-        "backoffice.documentation": {"view": False, "edit": False},
-        "system.users": {"edit": False},
-        "modules.headcount": {"view": False, "edit": False},
-        "modules.equipment": {"view": False, "edit": False},
-        "modules.professional_travel": {"view": False, "edit": False},
-        "modules.buildings": {"view": False, "edit": False},
-        "modules.purchase": {"view": False, "edit": False},
-        "modules.research_facilities": {"view": False, "edit": False},
-        "modules.external_cloud_and_ai": {"view": False, "edit": False},
-        "modules.process_emissions": {"view": False, "edit": False},
-    }
+    # Initialize with no permissions
+    permissions: dict[str, list[str]] = {}
 
     # Helper to check if scope is global (handles both GlobalScope objects and dicts)
     def is_global_scope(s):
@@ -139,12 +121,43 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         if isinstance(s, RoleScope):
             return True
         if isinstance(s, dict):
-            return "unit" in s or "affiliation" in s
+            return "institutional_id" in s or "affiliation" in s
         return False
+
+    def as_scope_key(s):
+        # Note: affiliation-based permissions are not implemented yet,
+        # so we return empty string for now to avoid granting permissions
+        # based on unrecognized scope formats, but this can be updated in
+        # the future when affiliation-based permissions are implemented
+        if is_global_scope(s):
+            return ""
+        if isinstance(s, RoleScope):
+            if s.institutional_id and s.institutional_id is not None:
+                return f"/{s.institutional_id}"
+            if s.affiliation:
+                return ""
+        elif isinstance(s, dict):
+            if "institutional_id" in s and s["institutional_id"] is not None:
+                return f"/{s['institutional_id']}"
+            if "affiliation" in s:
+                return ""
+        # Default to no scope if unrecognized format (should not grant permissions)
+        return "/?"
+
+    # Helper to merge permission actions and keep unique actions
+    def merge_actions(existing, new):
+        if existing:
+            return list(set(existing) | set(new))
+        return new
 
     for role in roles:
         role_name = role.role if isinstance(role.role, str) else role.role.value
         scope = role.on
+        # Note: for now scope will apply only to modules.* permissions, backoffice
+        # or system roles will generally be global but can also have institutional scope
+        # for future flexibility (currently treated the same as global since we don't
+        # have affiliation-based permissions yet)
+        scope_key = as_scope_key(scope)
 
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
@@ -153,96 +166,141 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
             # Backoffice metier can have either global scope or affiliation scope
             # Grants full backoffice access for reporting, docs, and data updates
             if is_global_scope(scope) or is_role_scope(scope):
-                permissions["backoffice.reporting"] = {"view": True, "export": True}
-                permissions["backoffice.users"] = {
-                    "view": True,
-                    "edit": True,
-                    "export": True,
-                }
-                permissions["backoffice.data_management"] = {
-                    "view": True,
-                    "edit": True,
-                    "export": True,
-                    "sync": True,
-                }
-                permissions["backoffice.documentation"] = {"view": True, "edit": True}
+                permissions["backoffice.reporting"] = merge_actions(
+                    permissions.get("backoffice.reporting"), ["view", "export"]
+                )
+                permissions["backoffice.users"] = merge_actions(
+                    permissions.get("backoffice.users"), ["view", "edit", "export"]
+                )
+                permissions["backoffice.data_management"] = merge_actions(
+                    permissions.get("backoffice.data_management"),
+                    [
+                        "view",
+                        "edit",
+                        "export",
+                        "sync",
+                    ],
+                )
+                permissions["backoffice.documentation"] = merge_actions(
+                    permissions.get("backoffice.documentation"), ["view", "edit"]
+                )
 
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
             if is_role_scope(scope):
-                permissions["modules.headcount"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.equipment"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.professional_travel"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.buildings"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.purchase"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.research_facilities"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.external_cloud_and_ai"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
-                permissions["modules.process_emissions"] = {
-                    "view": True,
-                    "edit": True,
-                    "sync": True,
-                }
+                permissions[f"modules.headcount{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.headcount{scope_key}"),
+                    ["view", "edit", "sync"],
+                )
+                permissions[f"modules.equipment{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.equipment{scope_key}"),
+                    ["view", "edit", "sync"],
+                )
+                permissions[f"modules.professional_travel{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.professional_travel{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                        "sync",
+                    ],
+                )
+                permissions[f"modules.buildings{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.buildings{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                        "sync",
+                    ],
+                )
+                permissions[f"modules.purchase{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.purchase{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                        "sync",
+                    ],
+                )
+                permissions[f"modules.research_facilities{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.research_facilities{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                        "sync",
+                    ],
+                )
+                permissions[f"modules.external_cloud_and_ai{scope_key}"] = (
+                    merge_actions(
+                        permissions.get(f"modules.external_cloud_and_ai{scope_key}"),
+                        [
+                            "view",
+                            "edit",
+                            "sync",
+                        ],
+                    )
+                )
+                permissions[f"modules.process_emissions{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.process_emissions{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                        "sync",
+                    ],
+                )
                 # Principals can assign co2.user.std role to unit members
                 # This grants backoffice.users.edit for unit-scoped role assignment
-                permissions["backoffice.users"]["edit"] = True
+                permissions["backoffice.users"] = merge_actions(
+                    permissions.get("backoffice.users"), ["edit"]
+                )
 
         elif role_name == RoleName.CO2_USER_STD.value:
             if is_role_scope(scope):
-                permissions["modules.professional_travel"] = {
-                    "view": True,
-                    "edit": True,
-                }
-                permissions["modules.external_cloud_and_ai"] = {
-                    "view": True,
-                    "edit": True,
-                }
+                permissions[f"modules.professional_travel{scope_key}"] = merge_actions(
+                    permissions.get(f"modules.professional_travel{scope_key}"),
+                    [
+                        "view",
+                        "edit",
+                    ],
+                )
+                permissions[f"modules.external_cloud_and_ai{scope_key}"] = (
+                    merge_actions(
+                        permissions.get(f"modules.external_cloud_and_ai{scope_key}"),
+                        [
+                            "view",
+                            "edit",
+                        ],
+                    )
+                )
 
         # SYSTEM ROLES - Affect system.* permissions (and potentially backoffice.*)
         elif role_name == RoleName.CO2_SUPERADMIN.value:
             if is_global_scope(scope):
                 # Super admin has full system and backoffice access
-                permissions["system.users"]["edit"] = True
-                permissions["backoffice.reporting"] = {"view": True, "export": True}
-                permissions["backoffice.users"] = {
-                    "view": True,
-                    "edit": True,
-                    "export": True,
-                }
-                permissions["backoffice.data_management"] = {
-                    "view": True,
-                    "edit": True,
-                    "export": True,
-                    "sync": True,
-                }
-                permissions["backoffice.documentation"] = {"view": True, "edit": True}
+                permissions["system.users"] = merge_actions(
+                    permissions.get("system.users"), ["edit"]
+                )
+                permissions["backoffice.reporting"] = merge_actions(
+                    permissions.get("backoffice.reporting"), ["view", "export"]
+                )
+                permissions["backoffice.users"] = merge_actions(
+                    permissions.get("backoffice.users"),
+                    [
+                        "view",
+                        "edit",
+                        "export",
+                    ],
+                )
+                permissions["backoffice.data_management"] = merge_actions(
+                    permissions.get("backoffice.data_management"),
+                    [
+                        "view",
+                        "edit",
+                        "export",
+                        "sync",
+                    ],
+                )
+                permissions["backoffice.documentation"] = merge_actions(
+                    permissions.get("backoffice.documentation"), ["view", "edit"]
+                )
 
     return permissions
 
@@ -301,6 +359,11 @@ class User(UserBase, table=True):
         default=None,
         nullable=True,
         description="User function/title (e.g., 'Professor', 'PhD Student')",
+    )
+    last_roles_sync_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description="Last timestamp when roles were synced from provider",
     )
 
     def __repr__(self) -> str:

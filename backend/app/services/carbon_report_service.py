@@ -15,6 +15,7 @@ from app.schemas.carbon_report import (
     CarbonReportUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 logger = get_logger(__name__)
 
@@ -123,6 +124,7 @@ class CarbonReportService:
         scope2_total = 0.0
         scope3_total = 0.0
         by_emission_type: dict[str, float] = {}
+        by_additional_value: dict[str, float] = {}
         total_entry_count = 0
 
         for module in modules:
@@ -143,30 +145,53 @@ class CarbonReportService:
                         current = by_emission_type.get(et_id_str, 0.0)
                         by_emission_type[et_id_str] = current + kg_co2eq
 
+            module_by_add = module_stats.get("by_additional_value", {})
+            if isinstance(module_by_add, dict):
+                for et_id_str, add_val in module_by_add.items():
+                    if add_val:
+                        current = by_additional_value.get(et_id_str, 0.0)
+                        by_additional_value[et_id_str] = current + float(add_val)
+
             # Sum entry counts
             total_entry_count += module_stats.get("entry_count", 0) or 0
 
         # Calculate grand total
         total = scope1_total + scope2_total + scope3_total
 
-        # Build aggregated stats dict
+        # Pre-compute IT total so IT-breakdown endpoints can read it from cached stats
+        _it_et_id_strs = {str(et.value) for et in IT_EMISSION_TYPES}
+        it_total_kg = sum(v for k, v in by_emission_type.items() if k in _it_et_id_strs)
+
+        # Find highest category module (validated modules only)
+        highest_category_module_id: Optional[int] = None
+        highest_category_total = 0.0
+        for module in modules:
+            if module.status != ModuleStatus.VALIDATED:
+                continue
+            module_total = module.stats.get("total", 0) if module.stats else 0
+            if module_total and module_total > highest_category_total:
+                highest_category_total = module_total
+                highest_category_module_id = module.module_type_id
+
         stats = {
             "scope1": scope1_total,
             "scope2": scope2_total,
             "scope3": scope3_total,
             "total": total,
+            "it_total_kg": it_total_kg,
             "by_emission_type": by_emission_type,
+            "by_additional_value": by_additional_value,
             "computed_at": datetime.now(timezone.utc).isoformat(),
             "entry_count": total_entry_count,
+            "highest_category_module_id": highest_category_module_id,
         }
 
-        # Update carbon_report with aggregated stats and progress
         report = await self.repo.get(carbon_report_id)
         report_id_sanitized = sanitize(carbon_report_id)
         if report:
             report.stats = stats
+            report.last_updated = int(datetime.now(timezone.utc).timestamp())
             await self.session.flush()
-            # Also recompute progress and overall status
             await self.recompute_report_progress(carbon_report_id)
             logger.info(
                 f"Report stats recomputed for carbon_report_id={report_id_sanitized}: "
@@ -218,13 +243,13 @@ class CarbonReportService:
         # Build completion progress string
         completion_progress = f"{completed_modules}/{total_modules}"
 
-        # Update carbon_report
         report = await self.repo.get(carbon_report_id)
         report_id_sanitized = sanitize(carbon_report_id)
         status_name = ModuleStatus(overall_status).name
         if report:
             report.completion_progress = completion_progress
             report.overall_status = overall_status
+            report.last_updated = int(datetime.now(timezone.utc).timestamp())
             await self.session.flush()
             logger.info(
                 f"Report progress updated for carbon_report_id={report_id_sanitized}: "

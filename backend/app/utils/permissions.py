@@ -8,90 +8,60 @@ from typing import Optional
 
 
 def has_permission(
-    permissions: Optional[dict], path: str, action: str = "view"
+    permissions: Optional[dict],
+    path: str,
+    action: str = "view",
+    *,
+    institutional_id: Optional[str] = None,
+    any_scope: bool = False,
 ) -> bool:
-    """Check if a specific permission exists and is True.
+    """Check if a permission exists and grants ``action``.
 
-    This is a helper function for checking permissions in application code.
-    Works with flat permission structure using dot-notation keys.
+    Permission keys may be un-scoped (``"backoffice.users"``, ``"system.users"``)
+    or scoped to a unit (``"modules.headcount/0184"``). Only ``modules.*`` permissions
+    are unit-scoped — ``backoffice.*`` and ``system.*`` permissions are always stored
+    un-scoped. Callers pick the matching mode via kwargs:
+
+    - ``institutional_id`` set: strict match on ``f"{path}/{institutional_id}"``.
+      Use this when the caller has a unit context (route handlers gating a unit-scoped
+      module action).
+    - Neither kwarg: strict match on the bare ``path``. This is the right default
+      for un-scoped permissions (``backoffice.*``, ``system.*``).
+    - ``any_scope=True``: bare path OR any ``f"{path}/*"`` key.
+
+      EXCEPTION — only taxonomy endpoints (``app/api/v1/taxonomies.py``) should
+      use this. Taxonomies expose module-level reference data (the list of valid
+      data-entry types for a module) and are inherently scope-blind: we have no
+      unit_id at call time. A user authorised on ANY unit for ``modules.X`` may
+      legitimately read the ``X`` taxonomy. Do not use ``any_scope`` for routes
+      that operate on unit data — it re-creates the scope-blind permission gap
+      that PR #974 was specifically designed to close.
 
     Args:
-        permissions: The permissions dict (from user.permissions)
-        path: Dot-notation path (e.g., "modules.headcount")
-        action: The action to check (e.g., "view", "edit", "export")
+        permissions: Permissions dict (from ``user.calculate_permissions()``).
+        path: Base permission path (e.g. ``"modules.headcount"``).
+        action: Action to check (default ``"view"``).
+        institutional_id: Unit institutional_id for scoped lookup.
+        any_scope: If True and ``institutional_id`` is None, also match any scoped
+            variant of ``path``.
 
     Returns:
-        bool: True if the permission exists and is True, False otherwise
-
-    Examples:
-        >>> perms = {"modules.headcount": {"view": True, "edit": False}}
-        >>> has_permission(perms, "modules.headcount", "view")
-        True
-        >>> has_permission(perms, "modules.headcount", "edit")
-        False
-        >>> has_permission(perms, "modules.equipment", "view")
-        False
+        True iff the action is granted under one of the candidate keys.
     """
     if not permissions:
         return False
 
-    try:
-        # Look up the path directly (flat structure)
-        if path not in permissions:
-            return False
+    candidates: list[str]
+    if institutional_id is not None:
+        candidates = [f"{path}/{institutional_id}"]
+    elif any_scope:
+        scope_prefix = f"{path}/"
+        candidates = [path, *[k for k in permissions if k.startswith(scope_prefix)]]
+    else:
+        candidates = [path]
 
-        perm_set = permissions[path]
-
-        # Check the action
-        if not isinstance(perm_set, dict) or action not in perm_set:
-            return False
-
-        return bool(perm_set[action])
-
-    except (KeyError, TypeError, AttributeError):
-        return False
-
-
-def get_permission_value(permissions: Optional[dict], full_path: str) -> Optional[bool]:
-    """Get the value of a specific permission using full dot-notation path.
-
-    Args:
-        permissions: The permissions dict (from user.permissions)
-        full_path: Full dot-notation path including action
-
-    Returns:
-        Optional[bool]: The permission value, or None if not found
-
-    Examples:
-        >>> perms = {"modules.headcount": {"view": True, "edit": False}}
-        >>> get_permission_value(perms, "modules.headcount.view")
-        True
-        >>> get_permission_value(perms, "modules.headcount.edit")
-        False
-        >>> get_permission_value(perms, "modules.equipment.view")
-        None
-    """
-    if not permissions:
-        return None
-
-    try:
-        # Split into resource path and action
-        # e.g., "modules.headcount.view" -> ["modules.headcount", "view"]
-        parts = full_path.rsplit(".", 1)
-        if len(parts) != 2:
-            return None
-
-        resource_path, action = parts
-
-        # Look up in flat structure
-        if resource_path not in permissions:
-            return None
-
-        perm_set = permissions[resource_path]
-        if not isinstance(perm_set, dict) or action not in perm_set:
-            return None
-
-        return bool(perm_set[action])
-
-    except (KeyError, TypeError, AttributeError, ValueError):
-        return None
+    for key in candidates:
+        actions = permissions.get(key)
+        if isinstance(actions, list) and action in actions:
+            return True
+    return False

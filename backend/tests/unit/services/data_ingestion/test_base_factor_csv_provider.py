@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_ingestion import EntityType
+from app.models.data_ingestion import EntityType, IngestionState
 from app.services.data_ingestion import base_factor_csv_provider
 from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVProvider
 
@@ -27,6 +27,7 @@ def _build_stats():
         "batches_processed": 0,
         "row_errors": [],
         "row_errors_count": 0,
+        "factors_deleted": 0,
     }
 
 
@@ -280,10 +281,99 @@ async def test_finalize_and_commit_move_file_failure():
     provider._files_store.move_file = AsyncMock(return_value=False)
     provider.data_session.flush = AsyncMock()
 
-    with pytest.raises(ValueError, match="Failed to move file"):
-        await provider._finalize_and_commit(
-            batch=[],
-            factor_service=MagicMock(),
-            stats=_build_stats(),
-            setup_result={"processing_path": "processing/x", "filename": "x.csv"},
-        )
+    result = await provider._finalize_and_commit(
+        batch=[],
+        factor_service=MagicMock(),
+        stats=_build_stats(),
+        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+    )
+    assert result["state"] == IngestionState.FINISHED
+
+
+# ---------------------------------------------------------------------------
+# Tests for _get_types_to_delete
+# ---------------------------------------------------------------------------
+
+
+def test_get_types_to_delete_with_configured_data_entry_type_id():
+    """When data_entry_type_id is set, only that single type is returned."""
+    provider = ConcreteFactorProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": DataEntryTypeEnum.member.value,
+        },
+        data_session=MagicMock(),
+    )
+    listed = [DataEntryTypeEnum.member, DataEntryTypeEnum.student]
+
+    result = provider._get_types_to_delete(listed)
+
+    assert result == [DataEntryTypeEnum.member]
+
+
+def test_get_types_to_delete_without_data_entry_type_id_returns_all():
+    """When data_entry_type_id is not set, all listed types are returned."""
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"},
+        data_session=MagicMock(),
+    )
+    listed = [DataEntryTypeEnum.member, DataEntryTypeEnum.student]
+
+    result = provider._get_types_to_delete(listed)
+
+    assert result == listed
+
+
+def test_get_types_to_delete_empty_listed_without_id():
+    """Empty listed_entry_types results in an empty deletion list."""
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv"},
+        data_session=MagicMock(),
+    )
+
+    result = provider._get_types_to_delete([])
+
+    assert result == []
+
+
+def test_get_types_to_delete_subclass_override_restricts_scope():
+    """A subclass that overrides _get_types_to_delete can restrict deletion scope."""
+
+    class RestrictedProvider(ConcreteFactorProvider):
+        def _get_types_to_delete(
+            self, listed_entry_types: list[DataEntryTypeEnum]
+        ) -> list[DataEntryTypeEnum]:
+            return [DataEntryTypeEnum.member]
+
+    provider = RestrictedProvider(
+        {"file_path": "tmp/test.csv"},
+        data_session=MagicMock(),
+    )
+    listed = [
+        DataEntryTypeEnum.member,
+        DataEntryTypeEnum.student,
+        DataEntryTypeEnum.scientific,
+    ]
+
+    result = provider._get_types_to_delete(listed)
+
+    assert result == [DataEntryTypeEnum.member]
+    assert DataEntryTypeEnum.student not in result
+    assert DataEntryTypeEnum.scientific not in result
+
+
+def test_get_types_to_delete_configured_id_ignores_listed():
+    """Configured data_entry_type_id takes priority; listed types are ignored."""
+    provider = ConcreteFactorProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": DataEntryTypeEnum.scientific.value,
+        },
+        data_session=MagicMock(),
+    )
+    # listed contains types that do NOT include `scientific`
+    listed = [DataEntryTypeEnum.member, DataEntryTypeEnum.student]
+
+    result = provider._get_types_to_delete(listed)
+
+    assert result == [DataEntryTypeEnum.scientific]

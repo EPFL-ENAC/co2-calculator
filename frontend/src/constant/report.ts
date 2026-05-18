@@ -1,5 +1,5 @@
 // export type ReportType = 'usage' | 'results' | 'combined';
-import type { ReportType } from 'src/api/reporting';
+import type { ReportType } from 'src/api/backoffice';
 
 export const REPORT_TYPES = [
   {

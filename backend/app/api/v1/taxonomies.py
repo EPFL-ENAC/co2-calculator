@@ -34,7 +34,13 @@ async def get_taxonomy_for_module_type(
     current_user: User = Depends(get_current_user),
 ) -> TaxonomyNode:
     """Get taxonomy for a given module type."""
-    await check_module_permission(current_user, module_type.name, "view")
+    # Taxonomies are module-level reference data with no unit context.
+    # ``any_scope=True`` accepts any scoped variant (``modules.X/*``), so a user
+    # authorised on ANY unit for module X can read X's taxonomy. See
+    # ``app.utils.permissions.has_permission`` for the exception's rationale.
+    await check_module_permission(
+        current_user, module_type.name, "view", any_scope=True
+    )
     handler_service = ModuleHandlerService(db)
     nodes = []
     for data_entry_type in get_data_entry_types_for_module_type(module_type):
@@ -66,7 +72,13 @@ async def get_taxonomy_for_data_entry_type(
     module_type = get_module_type_for_data_entry_type(data_entry_type)
     if not module_type:
         raise HTTPException(status_code=404, detail="Module type not found")
-    await check_module_permission(current_user, module_type.name, "view")
+    # Taxonomies are module-level reference data with no unit context.
+    # ``any_scope=True`` accepts any scoped variant (``modules.X/*``), so a user
+    # authorised on ANY unit for module X can read X's taxonomy. See
+    # ``app.utils.permissions.has_permission`` for the exception's rationale.
+    await check_module_permission(
+        current_user, module_type.name, "view", any_scope=True
+    )
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     handler_service = ModuleHandlerService(db)
     return await handler_service.get_taxonomy(handler, data_entry_type, year)
@@ -91,7 +103,13 @@ async def get_taxonomy_for_module(
     if module_name not in ModuleTypeEnum.__members__:
         raise HTTPException(status_code=404, detail="Module not found")
     module_type = ModuleTypeEnum[module_name]
-    await check_module_permission(current_user, module_type.name, "view")
+    # Taxonomies are module-level reference data with no unit context.
+    # ``any_scope=True`` accepts any scoped variant (``modules.X/*``), so a user
+    # authorised on ANY unit for module X can read X's taxonomy. See
+    # ``app.utils.permissions.has_permission`` for the exception's rationale.
+    await check_module_permission(
+        current_user, module_type.name, "view", any_scope=True
+    )
     return await get_taxonomy_for_module_type(module_type, year, db, current_user)
 
 

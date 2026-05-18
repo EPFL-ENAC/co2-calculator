@@ -156,6 +156,30 @@ export default {
     en: 'Disabled',
     fr: 'Désactivé',
   },
+  all_modules_disabled_title: {
+    en: 'All modules are disabled',
+    fr: 'Tous les modules sont désactivés',
+  },
+  all_modules_disabled_description: {
+    en: 'No modules are currently enabled for this year. Please contact your administrator to enable modules.',
+    fr: "Aucun module n'est actuellement activé pour cette année. Veuillez contacter votre administrateur pour activer les modules.",
+  },
+  module_disabled_title: {
+    en: 'Module disabled',
+    fr: 'Module désactivé',
+  },
+  module_disabled_description: {
+    en: 'This module is not currently enabled. Please select another module from the timeline.',
+    fr: "Ce module n'est pas actuellement activé. Veuillez sélectionner un autre module dans la chronologie.",
+  },
+  back_to_timeline: {
+    en: 'Back to timeline',
+    fr: 'Retour à la chronologie',
+  },
+  module_disabled: {
+    en: 'Module is disabled',
+    fr: 'Module désactivé',
+  },
   common_filters_search_label: {
     en: 'Search',
     fr: 'Rechercher',
@@ -295,6 +319,10 @@ export default {
   common_view_only: {
     en: 'View Only',
     fr: 'Lecture seule',
+  },
+  module_submodule_inputs_deactivated_notice: {
+    en: 'Data entry for this section has been deactivated by the administrator.',
+    fr: "La saisie de données pour cette section a été désactivée par l'administrateur.",
   },
   common_mandatory: {
     en: 'Mandatory',
@@ -451,5 +479,9 @@ export default {
   'carbon_footprint_title_research-facilities': {
     en: 'Carbon footprint from the use of research infrastructures',
     fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
+  },
+  headcount_fte: {
+    en: 'FTE',
+    fr: 'EPT',
   },
 };

@@ -33,6 +33,8 @@ from app.schemas.year_configuration import (
     FileCategory,
     FileMetadata,
     FileUploadResponse,
+    ModuleRecalculationStatusEntry,
+    RecalculationStatusEntry,
     SyncJobSummary,
     YearConfigurationCreate,
     YearConfigurationResponse,
@@ -52,29 +54,35 @@ router = APIRouter()
 
 def _build_job_lookup(
     jobs: list,
-) -> dict[tuple[int | None, int | None], "SyncJobSummary"]:
-    """Build a lookup dict from latest jobs keyed by (module, data_entry) IDs.
+) -> dict[tuple[int | None, int | None, int | None, int | None], "SyncJobSummary"]:
+    """Build a lookup dict from latest jobs keyed by
+    (module, data_entry, target, method) IDs.
 
     Args:
         jobs: List of DataIngestionJob objects.
 
     Returns:
-        Dict mapping (module_type_id, data_entry_type_id) to SyncJobSummary.
+        Dict mapping (module_type_id, data_entry_type_id, target_type,
+        ingestion_method) to SyncJobSummary.
     """
-    lookup: dict[tuple[int | None, int | None], SyncJobSummary] = {}
+    lookup: dict[
+        tuple[int | None, int | None, int | None, int | None], SyncJobSummary
+    ] = {}
     for job in jobs:
         if job.id is None:
             continue
-        key = (job.module_type_id, job.data_entry_type_id)
+        target_val = job.target_type.value if job.target_type is not None else None
+        method_val = (
+            job.ingestion_method.value if job.ingestion_method is not None else 0
+        )
+        key = (job.module_type_id, job.data_entry_type_id, target_val, method_val)
         lookup[key] = SyncJobSummary(
             job_id=job.id,
             module_type_id=job.module_type_id,
             data_entry_type_id=job.data_entry_type_id,
             year=job.year,
-            ingestion_method=job.ingestion_method.value
-            if job.ingestion_method is not None
-            else 0,
-            target_type=job.target_type.value if job.target_type is not None else None,
+            ingestion_method=method_val,
+            target_type=target_val,
             state=job.state.value if job.state is not None else None,
             result=job.result.value if job.result is not None else None,
             status_message=job.status_message,
@@ -83,68 +91,122 @@ def _build_job_lookup(
     return lookup
 
 
-def _build_jobs_list(jobs: list) -> list["SyncJobSummary"]:
-    """Build a flat list of SyncJobSummary from DataIngestionJob objects.
-
-    Args:
-        jobs: List of DataIngestionJob objects.
-
-    Returns:
-        List of SyncJobSummary (all current jobs for the year).
-    """
-    result: list[SyncJobSummary] = []
-    for job in jobs:
-        if job.id is None:
-            continue
-        result.append(
-            SyncJobSummary(
-                job_id=job.id,
-                module_type_id=job.module_type_id,
-                data_entry_type_id=job.data_entry_type_id,
-                year=job.year,
-                ingestion_method=job.ingestion_method.value
-                if job.ingestion_method is not None
-                else 0,
-                target_type=job.target_type.value
-                if job.target_type is not None
-                else None,
-                state=job.state.value if job.state is not None else None,
-                result=job.result.value if job.result is not None else None,
-                status_message=job.status_message,
-                meta=job.meta,
-            )
-        )
-    return result
-
-
 def _enrich_config_with_jobs(
-    config: dict, job_lookup: dict[tuple[int | None, int | None], SyncJobSummary]
+    config: dict,
+    job_lookup: dict[
+        tuple[int | None, int | None, int | None, int | None], SyncJobSummary
+    ],
 ) -> dict:
-    """Inject latest_job into each submodule of the config dict.
+    """Inject per-target-type latest jobs into each submodule of the config dict.
 
     Args:
         config: Year configuration dict (modules → submodules).
-        job_lookup: Mapping from (module_type_id, data_entry_type_id) to job summary.
+        job_lookup: Mapping from
+            (module_type_id, data_entry_type_id, target_type, ingestion_method)
+            to job summary.
 
     Returns:
         Enriched config dict (mutated in-place for efficiency).
     """
+    target_type_map = {
+        0: "latest_data_job",
+        1: "latest_factor_job",
+        3: "latest_reference_job",
+    }
+    INGESTION_METHOD_API = 0
+    common_target_type_map = {
+        0: "latest_common_data_job",
+        1: "latest_common_factor_job",
+    }
     modules = config.get("modules", {})
     for module_key, module_val in modules.items():
         if not isinstance(module_val, dict):
+            continue
+        try:
+            m_id = int(module_key)
+        except (ValueError, TypeError):
             continue
         submodules = module_val.get("submodules", {})
         for sub_key, sub_val in submodules.items():
             if not isinstance(sub_val, dict):
                 continue
             try:
-                m_id = int(module_key)
                 s_id = int(sub_key)
             except (ValueError, TypeError):
                 continue
-            job = job_lookup.get((m_id, s_id))
-            sub_val["latest_job"] = job.model_dump() if job else None
+            for target_val, field_name in target_type_map.items():
+                job = _pick_latest_job(job_lookup, m_id, s_id, target_val)
+                sub_val[field_name] = job.model_dump() if job else None
+            api_data_job = job_lookup.get((m_id, s_id, 0, INGESTION_METHOD_API))
+            sub_val["latest_api_data_job"] = (
+                api_data_job.model_dump() if api_data_job else None
+            )
+        for target_val, field_name in common_target_type_map.items():
+            common_job = _pick_latest_job(job_lookup, m_id, None, target_val)
+            module_val[field_name] = common_job.model_dump() if common_job else None
     return config
+
+
+def _pick_latest_job(
+    job_lookup: dict[
+        tuple[int | None, int | None, int | None, int | None], SyncJobSummary
+    ],
+    module_id: int,
+    sub_id: int | None,
+    target_val: int,
+) -> SyncJobSummary | None:
+    """Pick the most recent job across all ingestion methods for a given target type.
+
+    Prefers API (0) > CSV (1) > MANUAL (2) > COMPUTED (3) when multiple exist.
+    """
+    candidates = [
+        v
+        for k, v in job_lookup.items()
+        if k[0] == module_id and k[1] == sub_id and k[2] == target_val
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda j: j.ingestion_method)
+    return candidates[0]
+
+
+def _build_recalculation_status(
+    rows: list,
+) -> list[ModuleRecalculationStatusEntry]:
+    """Build per-module recalculation status from repository rows.
+
+    Args:
+        rows: List of RecalculationStatusRow dicts from the repository.
+
+    Returns:
+        List of ModuleRecalculationStatusEntry grouped by module_type_id.
+    """
+    modules: dict[int, list[RecalculationStatusEntry]] = {}
+    for row in rows:
+        module_id = row["module_type_id"]
+        if module_id not in modules:
+            modules[module_id] = []
+        modules[module_id].append(
+            RecalculationStatusEntry(
+                module_type_id=row["module_type_id"],
+                data_entry_type_id=row["data_entry_type_id"],
+                year=row["year"],
+                needs_recalculation=row["needs_recalculation"],
+                last_factor_job_id=row["last_factor_job_id"],
+                last_factor_job_result=row["last_factor_job_result"],
+                last_recalculation_job_id=row["last_recalculation_job_id"],
+                last_recalculation_job_result=row["last_recalculation_job_result"],
+            )
+        )
+    return [
+        ModuleRecalculationStatusEntry(
+            module_type_id=module_id,
+            year=dets[0].year if dets else 0,
+            needs_recalculation=any(det.needs_recalculation for det in dets),
+            data_entry_types=dets,
+        )
+        for module_id, dets in modules.items()
+    ]
 
 
 def get_files_storage_path() -> str:
@@ -313,9 +375,10 @@ async def get_year_configuration(
 ):
     """Fetch year configuration for the given year, enriched with latest sync jobs.
 
-    Each submodule in the response includes a `latest_job` field with the most
-    recent ingestion job summary. This eliminates the need for a separate
-    call to `/sync/jobs/year/{year}/latest`.
+    Each submodule in the response includes `latest_data_job`, `latest_factor_job`,
+    and `latest_reference_job` fields with the most recent ingestion job summary
+    per target type. This eliminates the need for a separate call to
+    `/sync/jobs/year/{year}/latest`.
 
     Returns 404 if no configuration has been created yet.
     Backoffice users can then create it via POST /{year}.
@@ -337,21 +400,22 @@ async def get_year_configuration(
             detail=f"No configuration found for year {year}",
         )
 
-    # Fetch latest jobs and enrich config
     repo = DataIngestionRepository(db)
     latest_jobs = await repo.get_latest_jobs_by_year(year)
     job_lookup = _build_job_lookup(latest_jobs)
-    jobs_list = _build_jobs_list(latest_jobs)
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+
+    recalc_rows = await repo.get_recalculation_status_by_year(year)
+    recalculation_status = _build_recalculation_status(recalc_rows)
 
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
         is_reports_synced=result.is_reports_synced,
         config=enriched_config,
-        latest_jobs=jobs_list,
+        recalculation_status=recalculation_status,
         updated_at=result.updated_at,
     )
 
@@ -544,21 +608,22 @@ async def update_year_configuration(
         extra={"user_id": current_user.id, "year": year},
     )
 
-    # Fetch latest jobs so the response includes them
     repo = DataIngestionRepository(db)
     latest_jobs = await repo.get_latest_jobs_by_year(year)
-    jobs_list = _build_jobs_list(latest_jobs)
     job_lookup = _build_job_lookup(latest_jobs)
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+
+    recalc_rows = await repo.get_recalculation_status_by_year(year)
+    recalculation_status = _build_recalculation_status(recalc_rows)
 
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
         is_reports_synced=result.is_reports_synced,
         config=enriched_config,
-        latest_jobs=jobs_list,
+        recalculation_status=recalculation_status,
         updated_at=result.updated_at,
     )
 

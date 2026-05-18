@@ -11,6 +11,7 @@ export interface ModuleCard {
   module: Module;
   active: boolean;
   badge?: ModuleCardBadge;
+  isDisabled?: boolean;
 }
 
 export const MODULE_CARDS: ModuleCard[] = [

@@ -100,19 +100,19 @@ def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID
     app.dependency_overrides[deps_module.get_db] = mock_get_db
 
 
-async def _allow_travel_only(user, module_id, action):
+async def _allow_travel_only(user, module_id, action, **_kwargs):
     return {"allow": module_id == "professional-travel"}
 
 
-async def _allow_headcount_only(user, module_id, action):
+async def _allow_headcount_only(user, module_id, action, **_kwargs):
     return {"allow": module_id == "headcount"}
 
 
-async def _allow_all(user, module_id, action):
+async def _allow_all(user, module_id, action, **_kwargs):
     return {"allow": True}
 
 
-async def _deny_all(user, module_id, action):
+async def _deny_all(user, module_id, action, **_kwargs):
     return {"allow": False}
 
 

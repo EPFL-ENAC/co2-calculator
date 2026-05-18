@@ -120,7 +120,7 @@ async def test_list_headcount_members_403_when_no_permission():
     user = _user(roles=[])
     db = _mock_db()
 
-    async def deny_all(u, mod, action):
+    async def deny_all(u, mod, action, **_kwargs):
         return {"allow": False}
 
     with patch.object(crm, "get_module_permission_decision", side_effect=deny_all):
@@ -143,7 +143,7 @@ async def test_list_headcount_members_principal_for_unit_sees_all():
         {"institutional_id": "22222", "name": "B"},
     ]
 
-    async def allow_headcount(u, mod, action):
+    async def allow_headcount(u, mod, action, **_kwargs):
         return {"allow": mod == "headcount"}
 
     svc = MagicMock()
@@ -170,7 +170,7 @@ async def test_list_headcount_members_global_role_sees_all():
         {"institutional_id": "22222", "name": "B"},
     ]
 
-    async def allow_all(u, mod, action):
+    async def allow_all(u, mod, action, **_kwargs):
         return {"allow": True}
 
     svc = MagicMock()
@@ -198,7 +198,7 @@ async def test_list_headcount_members_std_user_sees_only_own():
         {"institutional_id": "22222", "name": "B"},
     ]
 
-    async def allow_travel(u, mod, action):
+    async def allow_travel(u, mod, action, **_kwargs):
         return {"allow": mod == "professional-travel"}
 
     svc = MagicMock()
@@ -229,7 +229,7 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
         {"institutional_id": "22222", "name": "B"},
     ]
 
-    async def allow_headcount(u, mod, action):
+    async def allow_headcount(u, mod, action, **_kwargs):
         return {"allow": mod == "headcount"}
 
     svc = MagicMock()
@@ -252,37 +252,22 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
 
 
 @pytest.mark.asyncio
-async def test_list_headcount_members_unit_not_found_restricts_access():
-    """When unit row is missing from DB, has_full_access falls back to False."""
+async def test_list_headcount_members_404_when_unit_missing():
+    """Missing unit row raises 404 — the gate needs the unit's institutional_id
+    to scope the permission lookup, so we can't continue without it."""
     user = _user("11111", [_principal(UNIT_IID)])
     db = _mock_db(unit_found=False)
-    members = [
-        {"institutional_id": "11111", "name": "A"},
-        {"institutional_id": "22222", "name": "B"},
-    ]
 
-    async def allow_headcount(u, mod, action):
+    async def allow_headcount(u, mod, action, **_kwargs):
         return {"allow": mod == "headcount"}
 
-    svc = MagicMock()
-    svc.get_headcount_members = AsyncMock(return_value=members)
-    svc.get_member_by_institutional_id = AsyncMock(
-        return_value={"institutional_id": "11111", "name": "A"}
-    )
-
-    with (
-        patch.object(
-            crm, "get_module_permission_decision", side_effect=allow_headcount
-        ),
-        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
-        patch.object(crm, "DataEntryService", return_value=svc),
+    with patch.object(
+        crm, "get_module_permission_decision", side_effect=allow_headcount
     ):
-        result = await crm.list_headcount_members(1, 2024, db, user)
+        with pytest.raises(HTTPException) as exc:
+            await crm.list_headcount_members(1, 2024, db, user)
 
-    # unit_iid is None → pick_role_for_institutional_id not called
-    # → has_full_access=False
-    assert len(result) == 1
-    assert result[0].institutional_id == "11111"
+    assert exc.value.status_code == 404
 
 
 # ── pick_role_for_institutional_id ────────────────────────────────────────────

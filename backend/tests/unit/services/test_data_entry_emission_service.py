@@ -5,9 +5,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission
+from app.models.data_entry_emission import (
+    DataEntryEmission,
+    EmissionComputation,
+    EmissionType,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.utils.data_entry_emission_type_map import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    ROLLUP_EMISSION_TYPE_IDS,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -176,6 +184,191 @@ async def test_upsert_returns_none_and_flushes_when_no_emissions():
     service.repo.delete_by_data_entry_id.assert_awaited_once_with(data_entry.id)
     service.session.flush.assert_awaited_once()
     service.repo.bulk_create.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# meta_extras — distance_km / weight_kg stored for headcount categories
+# ---------------------------------------------------------------------------
+
+
+class TestMetaExtras:
+    """Tests that headcount commuting/food/waste emissions carry named quantity keys."""
+
+    def _make_service(self) -> DataEntryEmissionService:
+        session = MagicMock()
+        session.flush = AsyncMock()
+        return DataEntryEmissionService(session)
+
+    def _make_factor(self, emission_type_value: int, factor_values: dict):
+        from app.models.factor import Factor
+
+        f = MagicMock(spec=Factor)
+        f.id = 99
+        f.emission_type_id = emission_type_value
+        f.values = factor_values
+        return f
+
+    @pytest.mark.asyncio
+    async def test_commuting_emission_has_distance_km(self):
+        from app.models.data_entry import DataEntryTypeEnum
+        from app.models.data_entry_emission import EmissionType
+        from app.schemas.data_entry import DataEntryResponse
+
+        service = self._make_service()
+        # fte=1.0, number_of_unit_per_fte=4000 → quantity = 4000 km
+        factor = self._make_factor(
+            EmissionType.commuting__cycling.value,
+            {
+                "ef_kg_co2eq_per_unit": 0.0,
+                "number_of_unit_per_fte": 4000.0,
+                "unit": "km",
+            },
+        )
+        de = DataEntryResponse(
+            id=1,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=10,
+            data={"fte": 1.0},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.commuting],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+            ) as mock_handler_cls,
+        ):
+            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+
+            mock_handler = HeadcountMemberModuleHandler()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(de)
+
+        assert len(results) == 1
+        assert results[0].additional_value == pytest.approx(4000.0)
+        assert "distance_km" not in results[0].meta
+        assert "weight_kg" not in results[0].meta
+
+    @pytest.mark.asyncio
+    async def test_food_emission_has_weight_kg(self):
+        from app.models.data_entry import DataEntryTypeEnum
+        from app.models.data_entry_emission import EmissionType
+        from app.schemas.data_entry import DataEntryResponse
+
+        service = self._make_service()
+        factor = self._make_factor(
+            EmissionType.food__vegetarian.value,
+            {
+                "ef_kg_co2eq_per_unit": 0.0,
+                "number_of_unit_per_fte": 160.0,
+                "unit": "kg",
+            },
+        )
+        de = DataEntryResponse(
+            id=2,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=10,
+            data={"fte": 1.0},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.food],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+            ) as mock_handler_cls,
+        ):
+            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+
+            mock_handler = HeadcountMemberModuleHandler()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(de)
+
+        assert len(results) == 1
+        assert results[0].additional_value == pytest.approx(160.0)
+        assert "weight_kg" not in results[0].meta
+        assert "distance_km" not in results[0].meta
+
+    @pytest.mark.asyncio
+    async def test_non_headcount_emission_has_no_named_quantity_key(self):
+        """Professional travel (plane) should not duplicate quantity keys into meta."""
+        from app.models.data_entry import DataEntryTypeEnum
+        from app.models.data_entry_emission import EmissionType
+        from app.schemas.data_entry import DataEntryResponse
+
+        service = self._make_service()
+        factor = self._make_factor(
+            EmissionType.professional_travel__plane__eco.value,
+            {
+                "ef_kg_co2eq_per_unit": 0.5,
+                "unit": "km",
+            },
+        )
+        de = DataEntryResponse(
+            id=3,
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            carbon_report_module_id=10,
+            data={"distance_km": 1000.0},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.professional_travel__plane__eco],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations.return_value = [
+                __import__(
+                    "app.models.data_entry_emission",
+                    fromlist=["EmissionComputation"],
+                ).EmissionComputation(
+                    emission_type=EmissionType.professional_travel__plane__eco,
+                    quantity_key="distance_km",
+                    formula_key="ef_kg_co2eq_per_unit",
+                )
+            ]
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(de)
+
+        assert len(results) == 1
+        meta = results[0].meta
+        # Travel inputs may include distance_km in ctx (thus present in meta),
+        # but the emission row persists it in additional_value (source of truth).
+        assert meta.get("distance_km") == pytest.approx(1000.0)
+        assert "weight_kg" not in meta
+        assert results[0].additional_value == pytest.approx(1000.0)
 
 
 # ---------------------------------------------------------------------------
@@ -1148,3 +1341,243 @@ class TestDelegationMethods:
 
 #     # (1 * 5 * 46 * 1 * 1000) / 1000 = 230 kg
 #     assert result["kg_co2eq"] == 230.0
+
+
+# ---------------------------------------------------------------------------
+# prepare_create — rollup row creation
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareCreateRollup:
+    """Verify that prepare_create appends a single rollup row for building entries."""
+
+    @pytest.mark.asyncio
+    async def test_building_gets_rollup_row(self):
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=99,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            carbon_report_module_id=10,
+            data={"room_type": "laboratories", "name": "Lab"},
+        )
+
+        leaf_types = [
+            EmissionType.buildings__rooms__lighting,
+            EmissionType.buildings__rooms__cooling,
+        ]
+        fake_factor = MagicMock()
+        fake_factor.id = 7
+        fake_factor.emission_type_id = EmissionType.buildings__rooms__lighting.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.buildings__rooms__lighting,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=leaf_types,
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=500.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        rollup_et = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[DataEntryTypeEnum.building]
+        rollup_rows = [r for r in results if r.emission_type_id == rollup_et.value]
+        leaf_rows = [r for r in results if r.emission_type_id != rollup_et.value]
+
+        # Must have exactly one rollup row
+        assert len(rollup_rows) == 1, f"Expected 1 rollup row, got {len(rollup_rows)}"
+        rollup = rollup_rows[0]
+
+        # Rollup row properties
+        assert rollup.primary_factor_id == 7
+        assert rollup.meta.get("is_rollup") is True
+        assert rollup.kg_co2eq == pytest.approx(sum(r.kg_co2eq for r in leaf_rows)), (
+            "Rollup kg_co2eq must equal the sum of all leaf rows"
+        )
+
+    @pytest.mark.asyncio
+    async def test_non_building_gets_no_rollup_row(self):
+        """Entry types without a rollup mapping must not get a rollup row."""
+
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=100,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={"name": "Microscope"},
+        )
+
+        fake_factor = MagicMock()
+        fake_factor.id = 3
+        fake_factor.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.equipment__scientific,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=250.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        # All rows should be leaf rows only
+        rollup_rows = [
+            r for r in results if r.emission_type_id in ROLLUP_EMISSION_TYPE_IDS
+        ]
+        assert rollup_rows == [], "Non-building types must not produce a rollup row"
+
+    @pytest.mark.asyncio
+    async def test_csv_override_with_multiple_factors_creates_single_row(self):
+        """CSV kg_co2eq override must not be duplicated per matching factor."""
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=102,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={"name": "Microscope", "kg_co2eq": 300.0},
+        )
+
+        fake_factor_1 = MagicMock()
+        fake_factor_1.id = 11
+        fake_factor_1.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor_1.values = {"factor_kgco2eq": 1.0}
+
+        fake_factor_2 = MagicMock()
+        fake_factor_2.id = 12
+        fake_factor_2.emission_type_id = EmissionType.equipment__scientific.value
+        fake_factor_2.values = {"factor_kgco2eq": 2.0}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.equipment__scientific,
+            formula_key="factor_kgco2eq",
+            quantity_key="units",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_fetch_factors",
+                new=AsyncMock(return_value=[fake_factor_1, fake_factor_2]),
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        assert len(results) == 1
+        override_row = results[0]
+        assert override_row.kg_co2eq == 300.0
+        assert override_row.primary_factor_id is None
+        assert len(override_row.meta["factors_used"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_headcount_gets_rollup_row(self):
+        service = _make_service()
+
+        data_entry = DataEntryResponse(
+            id=101,
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=10,
+            data={"name": "Alice", "fte": 1.0},
+        )
+
+        leaf_types = [EmissionType.food, EmissionType.waste, EmissionType.commuting]
+        fake_factor = MagicMock()
+        fake_factor.id = 7
+        fake_factor.emission_type_id = EmissionType.food.value
+        fake_factor.values = {}
+
+        fake_comp = EmissionComputation(
+            emission_type=EmissionType.food,
+            formula_key="",
+            quantity_key="",
+        )
+
+        with (
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=leaf_types,
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[fake_factor])
+            ),
+            patch.object(service, "_apply_formula", return_value=100.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type"
+            ) as mock_handler_cls,
+        ):
+            mock_handler = MagicMock()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(data_entry)
+
+        rollup_et = DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION[DataEntryTypeEnum.member]
+        rollup_rows = [r for r in results if r.emission_type_id == rollup_et.value]
+        leaf_rows = [r for r in results if r.emission_type_id != rollup_et.value]
+
+        assert len(rollup_rows) == 1
+        rollup = rollup_rows[0]
+        assert rollup.scope is None
+        assert rollup.meta.get("is_rollup") is True
+        assert rollup.kg_co2eq == pytest.approx(sum(r.kg_co2eq for r in leaf_rows))

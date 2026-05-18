@@ -84,6 +84,39 @@ async def get_carbon_report(
     return carbon_report_module
 
 
+async def _check_module_permission_for_unit(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    unit_id: int,
+) -> Unit:
+    """Load the Unit and gate access using its ``institutional_id``.
+
+    Module permissions are stored as ``modules.{name}/{institutional_id}`` (see
+    PR #974). Routes that operate on a specific unit must look up the unit's
+    ``institutional_id`` before delegating to the policy — otherwise scoped
+    users (CO2_USER_*) are denied because the bare-path lookup misses.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel filters
+    or principal/global checks) without re-fetching.
+    """
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+    await _check_module_permission(
+        current_user,
+        module_id,
+        action,
+        institutional_id=unit.institutional_id,
+    )
+    return unit
+
+
 async def _get_professional_travel_institutional_id_filter(
     *,
     db: AsyncSession,
@@ -193,7 +226,13 @@ async def get_module(
     Returns:
         ModuleResponse with submodules, items, and calculated totals
     """
-    await _check_module_permission(current_user, module_id, "view")
+    unit = await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"GET module: module_id={sanitize(module_id)}, unit_id={sanitize(unit_id)}, "
@@ -214,7 +253,6 @@ async def get_module(
         )
     travel_institutional_id_filter: Optional[str] = None
     if ModuleTypeEnum[module_key] == ModuleTypeEnum.professional_travel:
-        unit = await db.get(Unit, unit_id)
         if not _has_global_or_principal_access_for_unit(
             current_user=current_user,
             unit=unit,
@@ -287,7 +325,13 @@ async def get_stats_by_class(
 
     Returns treemap-format data for charts.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     carbon_report_module_id = await get_carbon_report_id(
@@ -332,7 +376,13 @@ async def get_top_class_breakdown(
     emission) and a "rest" bucket. Works for any module configured in
     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     module_type = ModuleTypeEnum[module_key]
@@ -376,7 +426,13 @@ async def get_evolution_over_time(
     """
     Get travel emissions aggregated by year and category for a unit.
     """
-    await _check_module_permission(current_user, "professional-travel", "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id="professional-travel",
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     stats = await DataEntryEmissionService(db).get_travel_evolution_over_time(
         unit_id=unit_id,
@@ -407,12 +463,28 @@ async def list_headcount_members(
         Users with headcount access for this unit receive the full list;
         users with only professional_travel access receive only their own record.
     """
-    # Gate: must have headcount.view OR professional_travel.view to call this endpoint
+    # Load the unit up-front so we can scope the permission gate to its
+    # institutional_id. Module permissions are stored as ``modules.X/{iid}``.
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+
+    # Gate: must have headcount.view OR professional_travel.view (scoped to this
+    # unit's institutional_id) to call this endpoint.
     travel_decision = await get_module_permission_decision(
-        current_user, "professional-travel", "view"
+        current_user,
+        "professional-travel",
+        "view",
+        institutional_id=unit.institutional_id,
     )
     headcount_decision = await get_module_permission_decision(
-        current_user, "headcount", "view"
+        current_user,
+        "headcount",
+        "view",
+        institutional_id=unit.institutional_id,
     )
     # Allow global-scope users (superadmin/backoffice) regardless of module permissions.
     # This prevents global roles from being blocked by the module-level gate while
@@ -426,12 +498,6 @@ async def list_headcount_members(
             detail="Permission denied: headcount.view or professional_travel.view "
             "required",
         )
-
-    # Data-level scope: determine the user's effective role FOR THIS SPECIFIC UNIT.
-    # `get_module_permission_decision` uses calculate_user_permissions which is
-    # scope-blind (a principal for unit A would appear to have headcount.view for
-    # unit B too). We instead check the unit's own institutional_code directly.
-    unit = await db.get(Unit, unit_id)
 
     # Full access: global roles or principal of this specific unit.
     # NOTE: having headcount.view permission alone does NOT grant full access —
@@ -507,7 +573,13 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"GET submodule: module_id={sanitize(module_id)}, "
@@ -609,7 +681,13 @@ async def check_unique(
         ``{"unique": true}`` when the value is available,
         ``{"unique": false}`` when a conflict exists.
     """
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     submodule_key = submodule_id.replace("-", "_")
@@ -667,7 +745,13 @@ async def create(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Current user ID is required to create item",
         )
-    await _check_module_permission(current_user, module_id, "edit")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     module_key = module_id.replace("-", "_")
     module_type_id = ModuleTypeEnum[module_key].value
@@ -702,6 +786,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_create(
         carbon_report_module,
@@ -709,6 +794,7 @@ async def create(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 
@@ -729,7 +815,13 @@ async def get(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "view")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"GET item: unit_id={sanitize(unit_id)}, year={sanitize(year)}, "
@@ -772,7 +864,13 @@ async def update(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "edit")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     logger.info(
         f"PATCH item: unit_id={sanitize(unit_id)}, "
@@ -811,6 +909,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
         carbon_report_module,
@@ -818,6 +917,7 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
+        year=year,
     )
     return response
 
@@ -837,7 +937,13 @@ async def delete(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission(current_user, module_id, "edit")
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id=module_id,
+        action="edit",
+        db=db,
+        unit_id=unit_id,
+    )
 
     if current_user.id is None:
         raise HTTPException(

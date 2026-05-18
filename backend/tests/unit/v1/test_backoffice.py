@@ -1,14 +1,9 @@
 """Tests for backoffice.py pure helper functions."""
 
 from app.api.v1.backoffice import (
-    CompletionCounts,
-    _get_module_type_name,
     _get_year_keys,
     _get_years_to_process,
-    _is_unit_complete,
     _is_year_based,
-    calculate_completion_counts,
-    calculate_total_outlier_values,
     get_completion_for_years,
     get_module_outlier_values,
     get_module_status,
@@ -23,13 +18,13 @@ class TestGetModuleStatus:
         assert get_module_status({"status": "validated"}) == "validated"
 
     def test_dict_without_status(self):
-        assert get_module_status({}) == "default"
+        assert get_module_status({}) == "not_started"
 
     def test_string_value(self):
         assert get_module_status("in-progress") == "in-progress"
 
     def test_non_string_non_dict(self):
-        assert get_module_status(42) == "default"
+        assert get_module_status(42) == "not_started"
 
 
 # ---------------------------------------------------------------------------
@@ -131,114 +126,3 @@ class TestGetCompletionForYears:
         completion = {"2024": "bad_data"}
         result = get_completion_for_years(completion)
         assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# calculate_completion_counts
-# ---------------------------------------------------------------------------
-class TestCalculateCompletionCounts:
-    def test_old_format(self):
-        old = {
-            "headcount": {"status": "validated"},
-            "buildings": {"status": "in-progress"},
-            "purchase": {"status": "default"},
-        }
-        counts = calculate_completion_counts(old)
-        assert counts == CompletionCounts(validated=1, in_progress=1, default=1)
-
-    def test_year_based(self):
-        completion = {
-            "2024": {
-                "headcount": {"status": "validated"},
-                "buildings": {"status": "in-progress"},
-            },
-            "2025": {
-                "headcount": {"status": "validated"},
-                "buildings": {"status": "validated"},
-            },
-        }
-        counts = calculate_completion_counts(completion)
-        assert counts.validated == 3
-        assert counts.in_progress == 1
-        assert counts.default == 0
-
-    def test_year_filter(self):
-        completion = {
-            "2024": {"headcount": {"status": "validated"}},
-            "2025": {"headcount": {"status": "in-progress"}},
-        }
-        counts = calculate_completion_counts(completion, ["2024"])
-        assert counts.validated == 1
-        assert counts.in_progress == 0
-
-
-# ---------------------------------------------------------------------------
-# calculate_total_outlier_values
-# ---------------------------------------------------------------------------
-class TestCalculateTotalOutlierValues:
-    def test_sums_outliers(self):
-        completion = {
-            "2024": {
-                "headcount": {"status": "validated", "outlier_values": 3},
-                "buildings": {"status": "validated", "outlier_values": 2},
-            }
-        }
-        assert calculate_total_outlier_values(completion) == 5
-
-    def test_old_format(self):
-        old = {
-            "headcount": {"status": "validated", "outlier_values": 1},
-            "buildings": {"status": "validated", "outlier_values": 4},
-        }
-        assert calculate_total_outlier_values(old) == 5
-
-
-# ---------------------------------------------------------------------------
-# _is_unit_complete
-# ---------------------------------------------------------------------------
-class TestIsUnitComplete:
-    def test_old_format_complete(self):
-        completion = {f"mod{i}": {"status": "validated"} for i in range(7)}
-        assert _is_unit_complete(completion) is True
-
-    def test_old_format_incomplete_count(self):
-        completion = {f"mod{i}": {"status": "validated"} for i in range(6)}
-        assert _is_unit_complete(completion) is False
-
-    def test_old_format_incomplete_status(self):
-        completion = {f"mod{i}": {"status": "validated"} for i in range(6)}
-        completion["mod6"] = {"status": "in-progress"}
-        assert _is_unit_complete(completion) is False
-
-    def test_year_based_complete(self):
-        year_data = {f"mod{i}": {"status": "validated"} for i in range(7)}
-        completion = {"2024": year_data}
-        assert _is_unit_complete(completion) is True
-
-    def test_year_based_incomplete(self):
-        year_data = {f"mod{i}": {"status": "validated"} for i in range(6)}
-        year_data["mod6"] = {"status": "in-progress"}
-        completion = {"2024": year_data}
-        assert _is_unit_complete(completion) is False
-
-    def test_year_filter(self):
-        good = {f"mod{i}": {"status": "validated"} for i in range(7)}
-        bad = {f"mod{i}": {"status": "in-progress"} for i in range(7)}
-        completion = {"2024": good, "2025": bad}
-        assert _is_unit_complete(completion, ["2024"]) is True
-        assert _is_unit_complete(completion, ["2025"]) is False
-        assert _is_unit_complete(completion) is False
-
-
-# ---------------------------------------------------------------------------
-# _get_module_type_name
-# ---------------------------------------------------------------------------
-class TestGetModuleTypeName:
-    def test_known_ids(self):
-        assert _get_module_type_name(1) == "headcount_member"
-        assert _get_module_type_name(10) == "equipment_it"
-        assert _get_module_type_name(20) == "professional_travel"
-        assert _get_module_type_name(50) == "process_emissions"
-
-    def test_unknown_id(self):
-        assert _get_module_type_name(999) == "unknown_999"

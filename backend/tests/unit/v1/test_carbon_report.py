@@ -179,6 +179,7 @@ async def test_update_status_success():
     updated = MagicMock()
     report_svc = MagicMock()
     report_svc.get = AsyncMock(return_value=report)
+    report_svc.recompute_report_stats = AsyncMock()
     report_svc.recompute_report_progress = AsyncMock()
     module_svc = MagicMock()
     module_svc.update_status = AsyncMock(return_value=updated)

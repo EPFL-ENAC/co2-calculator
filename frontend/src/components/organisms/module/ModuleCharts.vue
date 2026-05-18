@@ -13,11 +13,11 @@
       </span>
     </template>
     <template v-else>
-      <div class="flex w-full items-center justify-between">
+      <div class="flex w-full items-center justify-between q-mx-lg">
         <div class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black">
           {{ carbonFootprintTitle }}
         </div>
-        <div class="flex items-center no-wrap q-gutter-xs q-mb-sm">
+        <div class="flex items-center no-wrap q-gutter-xs">
           <q-btn
             v-if="emissionTypeInfoKey && moduleChartView === 'type'"
             flat
@@ -42,11 +42,7 @@
             <q-btn
               unelevated
               dense
-              :style="
-                moduleChartView === 'type'
-                  ? { backgroundColor: activeColor, color: '#fff' }
-                  : {}
-              "
+              :style="moduleChartView === 'type' ? activeButtonStyle : {}"
               :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
               icon="stacked_bar_chart"
               size="sm"
@@ -55,11 +51,7 @@
             <q-btn
               unelevated
               dense
-              :style="
-                moduleChartView === 'breakdown'
-                  ? { backgroundColor: activeColor, color: '#fff' }
-                  : {}
-              "
+              :style="moduleChartView === 'breakdown' ? activeButtonStyle : {}"
               :class="moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''"
               icon="grid_view"
               size="sm"
@@ -68,29 +60,34 @@
           </div>
         </div>
       </div>
+      <q-separator class="q-my-lg" />
+      <div class="q-mx-lg">
+        <template v-if="moduleChartView === 'breakdown'">
+          <generic-emission-tree-map-chart
+            v-if="moduleTreemapData.length"
+            :key="type"
+            :data="moduleTreemapData"
+            :show-evolution-dialog="
+              type === MODULES.ProfessionalTravel && showEvolutionChart
+            "
+          />
+          <span v-else class="text-body2 text-secondary">
+            {{ $t('no-chart-data') }}
+          </span>
+        </template>
+        <template v-else>
+          <emission-type-breakdown-chart
+            v-if="moduleCategoryRows.length"
+            :key="type"
+            :category-rows="moduleCategoryRows"
+            :top-class-breakdown="topClassBreakdownData"
+          />
 
-      <template v-if="moduleChartView === 'breakdown'">
-        <generic-emission-tree-map-chart
-          v-if="moduleTreemapData.length"
-          :data="moduleTreemapData"
-          :show-evolution-dialog="
-            type === MODULES.ProfessionalTravel && showEvolutionChart
-          "
-        />
-        <span v-else class="text-body2 text-secondary">
-          {{ $t('no-chart-data') }}
-        </span>
-      </template>
-      <template v-else>
-        <emission-type-breakdown-chart
-          v-if="moduleCategoryRows.length"
-          :category-rows="moduleCategoryRows"
-          :top-class-breakdown="topClassBreakdownData"
-        />
-        <span v-else class="text-body2 text-secondary">
-          {{ $t('no-chart-data') }}
-        </span>
-      </template>
+          <span v-else class="text-body2 text-secondary">
+            {{ $t('no-chart-data') }}
+          </span>
+        </template>
+      </div>
     </template>
   </q-card-section>
 </template>
@@ -111,6 +108,7 @@ import {
 } from 'src/composables/useEmissionTreemap';
 import {
   CHART_CATEGORY_COLOR_SCALES,
+  CHART_SUBCATEGORY_COLOR_SCHEMES,
   MODULE_TO_CATEGORIES,
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
@@ -141,6 +139,21 @@ const activeColor = computed(() => {
       firstCategory as keyof typeof CHART_CATEGORY_COLOR_SCALES.value
     ];
   return scale?.darker ?? '#00a79f';
+});
+
+const activeButtonStyle = computed((): Record<string, string> => {
+  if (props.type === MODULES.Buildings) {
+    const roomColor =
+      CHART_CATEGORY_COLOR_SCALES.value['buildings_room']?.darker ?? '#00a79f';
+    const combustionColor =
+      CHART_SUBCATEGORY_COLOR_SCHEMES.value['buildings_energy_combustion']
+        ?.combustion ?? '#00a79f';
+    return {
+      background: `linear-gradient(to right, ${combustionColor}, ${roomColor})`,
+      color: '#fff',
+    };
+  }
+  return { backgroundColor: activeColor.value, color: '#fff' };
 });
 
 // Modules that support the top-class breakdown chart
@@ -176,6 +189,13 @@ watch(
   { immediate: true },
 );
 
+// Re-fetch top-class breakdown when the module type changes (e.g. navigating
+// from purchases to equipment) so stale data from the previous module is replaced.
+watch(
+  () => props.type,
+  () => fetchTopClassBreakdownIfNeeded(),
+);
+
 watch(
   emissionBreakdownRefreshSequence,
   (sequence) => {
@@ -198,21 +218,34 @@ const moduleTreemapData = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown?.module_breakdown;
   if (!breakdown || breakdown.length === 0) return [];
   const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
+  const getRowCategoryKey = (row: Record<string, unknown>): string =>
+    String(
+      (row as { category_key?: unknown }).category_key ?? row.category ?? '',
+    );
+
   const filteredKeys = Object.fromEntries(
     Object.entries(CATEGORY_CHART_KEYS).filter(([k]) => categories.includes(k)),
   ) as Record<string, string[]>;
-  return buildModuleTreemapData(
-    breakdown as Array<{ category: string; [key: string]: string | number }>,
-    filteredKeys,
+  // Defensive: ensure we only feed rows belonging to this module's categories.
+  const filteredRows = breakdown.filter((r) =>
+    categories.includes(getRowCategoryKey(r as Record<string, unknown>)),
   );
+  return buildModuleTreemapData(filteredRows, filteredKeys);
 });
 
 const moduleCategoryRows = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown;
   if (!breakdown) return [];
   const categories = MODULE_TO_CATEGORIES.value[props.type] ?? [];
+  const getRowCategoryKey = (row: Record<string, unknown>): string =>
+    String(
+      (row as { category_key?: unknown }).category_key ?? row.category ?? '',
+    );
+
   return breakdown.module_breakdown.filter((row) =>
-    categories.includes(row.category),
+    categories.includes(
+      getRowCategoryKey(row as unknown as Record<string, unknown>),
+    ),
   );
 });
 

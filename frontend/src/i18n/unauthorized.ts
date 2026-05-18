@@ -11,4 +11,8 @@ export default {
     en: 'If you need assistance, please contact your administrator or the support team.',
     fr: "Si vous avez besoin d'aide, veuillez contacter votre administrateur ou l'équipe de support.",
   },
+  module_disabled_access: {
+    en: 'This module is currently disabled and not available for access.',
+    fr: "Ce module est actuellement désactivé et n'est pas accessible.",
+  },
 } as const;
