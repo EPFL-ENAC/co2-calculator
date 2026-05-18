@@ -322,7 +322,7 @@ function recalculateScopeRects() {
             style: {
               fill: '#000000',
               text: t('charts-additional-category'),
-              font: '11px SuisseIntl',
+              font: 'italic 11px SuisseIntl',
             },
             silent: true,
           },
