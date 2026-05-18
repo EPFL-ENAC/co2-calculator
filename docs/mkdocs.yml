@@ -66,6 +66,10 @@ nav:
       - Auth Flow: architecture/04-auth-flow.md
       - Environments: architecture/05-environments.md
       - CI/CD Pipeline: architecture/06-cicd-pipeline.md
+      - CI/CD Workflows: architecture/cicd-workflows.md
+      - Workflow Guide: architecture/workflow-guide.md
+      - Release Management: architecture/release-management.md
+      - Dev Release Runbook: architecture/release-runbook.md
       - Global Conventions: architecture/07-global-conventions.md
       - Tech Stack: architecture/08-tech-stack.md
       - Component Breakdown: architecture/09-component-breakdown.md
@@ -78,7 +82,10 @@ nav:
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
       - EPFL Compliance: architecture/epfl-compliance-mapping.md
+      - EPFL IT Requirements (RFC-001): architecture/epfl-constraint.md
       - Code Standards: architecture/code-standards.md
+      - Documentation Standards: architecture/documentation-standards.md
+      - RFC-First Process: architecture/rfc-first-process.md
 
   - Architecture Decision Records:
       - Overview: architecture-decision-records/index.md

@@ -321,6 +321,7 @@ function isErrorOrWarning(): boolean {
 
     <input
       ref="fileInputRef"
+      :data-testid="`reference-file-input-${row.moduleTypeId}-${row.dataEntryTypeId}`"
       type="file"
       accept=".csv,text/csv"
       style="display: none"
