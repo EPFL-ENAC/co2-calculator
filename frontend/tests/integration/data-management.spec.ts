@@ -269,11 +269,15 @@ test.describe('back-office data-management — happy paths', () => {
 
     await openHeadcountDataDialog(page);
 
-    // Pick a CSV file.  Quasar's ``q-file`` wraps the native input —
-    // setInputFiles on the underlying ``input[type=file]`` works.
+    // Pick a CSV file.  Target the dialog's q-file by its
+    // ``data-testid`` rather than a bare ``input[type=file]``: every
+    // submodule with an ``other`` reference dataset (e.g.
+    // Buildings/rooms) mounts its own hidden references file input
+    // regardless of expansion state, so ``.first()`` would otherwise
+    // hijack the references upload instead.
     await page
+      .getByTestId('data-entry-file-input')
       .locator('input[type=file]')
-      .first()
       .setInputFiles({
         name: 'data.csv',
         mimeType: 'text/csv',
@@ -317,8 +321,8 @@ test.describe('back-office data-management — happy paths', () => {
     await openHeadcountFactorsDialog(page);
 
     await page
+      .getByTestId('data-entry-file-input')
       .locator('input[type=file]')
-      .first()
       .setInputFiles({
         name: 'factors.csv',
         mimeType: 'text/csv',
@@ -339,6 +343,54 @@ test.describe('back-office data-management — happy paths', () => {
       (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
     );
     expect(dispatch?.body).toContain('"target_type":1'); // FACTORS
+  });
+
+  test('5c — references upload: hidden file input → POST sync/dispatch with target_type=REFERENCE_DATA', async ({
+    page,
+  }) => {
+    const { requests } = await mockBackend(page);
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // The Buildings/rooms submodule (module_type_id 3,
+    // data_entry_type_id 30) ships an ``other`` reference dataset, so
+    // its UploadCardReferences mounts a hidden file input even while
+    // the module is collapsed.  Drive that input directly — the
+    // visible "Upload Reference" button only proxies a native
+    // file-picker click, a dead-end in headless Chromium.
+    const refInput = page.getByTestId('reference-file-input-3-30');
+    await expect(refInput).toBeAttached({ timeout: 10000 });
+
+    await refInput.setInputFiles({
+      name: 'rooms.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from('room,area\nA,10\n', 'utf8'),
+    });
+
+    // References upload goes through the same temp-upload → dispatch
+    // path as the dialog flow, but with TargetType.REFERENCE_DATA (3)
+    // and no save-button step.
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) =>
+            r.method === 'POST' && r.url.endsWith('/api/v1/files/temp-upload'),
+        ),
+      )
+      .toBeTruthy();
+
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+        ),
+      )
+      .toBeTruthy();
+
+    const dispatch = requests.find(
+      (r) => r.method === 'POST' && r.url.endsWith('/api/v1/sync/dispatch'),
+    );
+    expect(dispatch?.body).toContain('"target_type":3'); // REFERENCE_DATA
+    expect(dispatch?.body).toContain('"file_path":"/tmp/data.csv"');
   });
 
   test('6 — recalculate emissions: dialog → confirm → POST recalculate-emissions/{module}', async ({
