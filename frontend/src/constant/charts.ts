@@ -577,19 +577,47 @@ export const uncertaintyColor = (hex: string): string => {
   return hex;
 };
 
-/** Standard hatch-pattern decal used for accessibility/colorblind mode across all charts. */
-export const CHART_DECAL_PATTERN = {
-  symbol: 'rect',
-  dashArrayX: [2, 0] as [number, number],
-  dashArrayY: [2, 4] as [number, number],
-  rotation: -Math.PI / 4,
-  color: 'rgba(0, 0, 0, 0.15)',
-} as const;
+/**
+ * Three visually distinct decal patterns for accessibility/colorblind mode.
+ * ECharts cycles through these across series so segments differ by texture, not just colour.
+ */
+export const CHART_DECAL_PATTERNS: Array<{
+  symbol: string;
+  dashArrayX: [number, number];
+  dashArrayY: [number, number];
+  rotation: number;
+  color: string;
+}> = [
+  // Pattern 1: diagonal lines (−45°)
+  {
+    symbol: 'rect',
+    dashArrayX: [2, 0],
+    dashArrayY: [2, 4],
+    rotation: -Math.PI / 4,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+  // Pattern 2: dots
+  {
+    symbol: 'circle',
+    dashArrayX: [3, 5],
+    dashArrayY: [3, 5],
+    rotation: 0,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+  // Pattern 3: vertical lines (90°)
+  {
+    symbol: 'rect',
+    dashArrayX: [2, 0],
+    dashArrayY: [2, 4],
+    rotation: Math.PI / 2,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+];
 
 /**
  * Builds a full ECharts `aria.decal` block.
- * @param show - Whether to show the decal (typically driven by colorblind mode).
- * @param overrides - Optional overrides for the decal pattern fields.
+ * @param show
+ * @param overrides
  */
 export function buildChartDecal(
   show: boolean,
@@ -602,8 +630,11 @@ export function buildChartDecal(
     lineWidth?: number;
   }>,
 ) {
+  const patterns = overrides
+    ? CHART_DECAL_PATTERNS.map((p) => ({ ...p, ...overrides }))
+    : CHART_DECAL_PATTERNS;
   return {
     show,
-    decals: { ...CHART_DECAL_PATTERN, ...overrides },
+    decals: patterns,
   };
 }
