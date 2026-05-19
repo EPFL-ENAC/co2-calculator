@@ -66,6 +66,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlmodel import col, select
+from fastapi_csrf_protect import CsrfProtect
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -143,12 +144,15 @@ def _set_auth_cookies(
     email: str,
     institutional_id: str,
     provider: str,
-) -> None:
+    include_csrf_token: bool = True,
+) -> tuple[str | None, str | None]:
     """
     Helper function to create and set authentication cookies.
 
     Creates both access and refresh tokens and sets them as httpOnly cookies.
     Uses stable identity fields (institutional_id, provider) instead of DB primary key.
+
+    Returns tuple of (csrf_token, signed_csrf_token) if CSRF is enabled and requested.
     """
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     refresh_token_expires = timedelta(hours=settings.REFRESH_TOKEN_EXPIRE_HOURS)
@@ -175,7 +179,7 @@ def _set_auth_cookies(
         key="auth_token",
         value=access_token,
         httponly=True,
-        samesite="lax",
+        samesite=settings.CSRF_COOKIE_SAMESITE,
         max_age=int(access_token_expires.total_seconds()),
         path=settings.OAUTH_COOKIE_PATH,
         secure=settings.COOKIE_SECURE,
@@ -186,11 +190,22 @@ def _set_auth_cookies(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        samesite="lax",
+        samesite=settings.CSRF_COOKIE_SAMESITE,
         max_age=int(refresh_token_expires.total_seconds()),
         path=settings.OAUTH_COOKIE_PATH,
         secure=settings.COOKIE_SECURE,
     )
+
+    # Generate and set CSRF token if enabled and requested
+    csrf_token: str | None = None
+    signed_token: str | None = None
+
+    if settings.CSRF_ENABLED and include_csrf_token:
+        csrf_protect = CsrfProtect()
+        csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+        csrf_protect.set_csrf_cookie(signed_token, response)
+
+    return csrf_token, signed_token
 
 
 def _sanitize_route_payload(payload: Optional[dict]) -> Optional[dict]:
@@ -394,13 +409,24 @@ async def login_test(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User ID missing",
         )
-    _set_auth_cookies(
+    csrf_token, _ = _set_auth_cookies(
         response=response,
         sub=user_info.get("sub", ""),
         institutional_id=user.institutional_id or str(user.id),
         provider=str(UserProvider.TEST.value),
         email=user.email,
+        include_csrf_token=settings.CSRF_ENABLED,
     )
+
+    if settings.CSRF_ENABLED and csrf_token:
+        response.set_cookie(
+            key="csrf_token",
+            value=csrf_token,
+            httponly=False,
+            samesite=settings.CSRF_COOKIE_SAMESITE,
+            path=settings.OAUTH_COOKIE_PATH,
+            secure=settings.CSRF_COOKIE_SECURE,
+        )
 
     await _log_auth_audit_event(
         db=db,
@@ -657,13 +683,32 @@ async def oauth_callback(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication failed",
             )
-
-
 # /login-test is registered only in DEBUG builds — see the function's
 # docstring for the security rationale. In production the route does not
 # exist at all.
 if settings.DEBUG:
     oauth_router.add_api_route("/login-test", login_test, methods=["GET"])
+
+
+@oauth_router.get("/csrf")
+async def get_csrf_token(response: Response):
+    """Issue CSRF token pair for Double Submit Cookie bootstrap/recovery."""
+    # We use the "nosec B105" comment to indicate that returning the CSRF token
+    # in the response body is intentional and not a security issue,
+    # since it's meant for bootstrapping the token on the client side.
+    if not settings.CSRF_ENABLED:
+        return {
+            "csrf_enabled": False,
+            "csrf_token": None,  # nosec B105
+        }
+
+    csrf_protect = CsrfProtect()
+    csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
+    csrf_protect.set_csrf_cookie(signed_token, response)
+    return {
+        "csrf_enabled": True,
+        "csrf_token": csrf_token,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -817,7 +862,7 @@ async def refresh_session(
     Refresh access token using refresh token.
 
     Client should call this when access token expires.
-    Returns new access token in cookie.
+    Returns new access token in cookie and CSRF token if enabled.
     Resolves user by stable identity (institutional_id, provider) from JWT.
     """
     if not refresh_token:
@@ -842,6 +887,11 @@ async def refresh_session(
                 detail="Invalid token payload",
             )
 
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -863,13 +913,24 @@ async def refresh_session(
             )
 
         # Set new tokens
-        _set_auth_cookies(
+        csrf_token, _ = _set_auth_cookies(
             response=response,
             sub=sub,
             institutional_id=user.institutional_id or str(user.id),
             provider=str(user.provider.value),
             email=user.email,
+            include_csrf_token=settings.CSRF_ENABLED,
         )
+
+        if settings.CSRF_ENABLED and csrf_token:
+            response.set_cookie(
+                key="csrf_token",
+                value=csrf_token,
+                httponly=False,
+                samesite=settings.CSRF_COOKIE_SAMESITE,
+                path=settings.OAUTH_COOKIE_PATH,
+                secure=settings.CSRF_COOKIE_SECURE,
+            )
 
         logger.info("Token refreshed successfully", extra={"user_id": user.id})
 
@@ -890,7 +951,10 @@ async def refresh_session(
                 },
                 entity_id=user.id or 0,
             )
-        return {"message": "Token refreshed successfully"}
+        return {
+            "message": "Token refreshed successfully",
+            "csrf_token": csrf_token if settings.CSRF_ENABLED else None,
+        }
 
     except HTTPException:
         raise
@@ -913,6 +977,7 @@ async def delete_session(
     Logout the current user.
 
     Clears both auth_token and refresh_token cookies.
+    Returns CSRF enabled status (CSRF token is cleared on logout).
     Note: This does not log out from Entra ID SSO session.
     """
     # Clear access token
@@ -921,7 +986,9 @@ async def delete_session(
         value="",
         httponly=True,
         max_age=0,
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH or "/",
+        samesite=settings.CSRF_COOKIE_SAMESITE,
+        secure=settings.COOKIE_SECURE,
     )
 
     # Clear refresh token
@@ -930,8 +997,14 @@ async def delete_session(
         value="",
         httponly=True,
         max_age=0,
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH or "/",
+        samesite=settings.CSRF_COOKIE_SAMESITE,
+        secure=settings.COOKIE_SECURE,
     )
+
+    if settings.CSRF_ENABLED:
+        csrf_protect = CsrfProtect()
+        csrf_protect.unset_csrf_cookie(response)
 
     logger.info("User logged out")
 
@@ -989,4 +1062,7 @@ async def delete_session(
             )
         except Exception as exc:
             logger.warning("Failed to log logout audit", extra={"error": str(exc)})
-    return {"message": "Logged out successfully"}
+    return {
+        "message": "Logged out successfully",
+        "csrf_enabled": settings.CSRF_ENABLED,
+    }
