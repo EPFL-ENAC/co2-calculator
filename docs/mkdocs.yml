@@ -127,6 +127,7 @@ nav:
       - Persona Flows: frontend/01-overview/personas.md
       - Design Tokens: frontend/02-design-tokens.md
       - Quasar Bridge: frontend/quasar-bridge.md
+      - Error Monitoring: frontend/error-monitoring.md
       - Data Management:
           - Overview: frontend/data-management/index.md
           - Architecture: frontend/data-management/architecture.md
