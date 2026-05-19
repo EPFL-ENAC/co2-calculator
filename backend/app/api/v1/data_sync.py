@@ -39,6 +39,7 @@ from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
 from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
@@ -304,12 +305,27 @@ class PipelineJobResponse(BaseModel):
     year: Optional[int] = None
 
 
+class PipelineProgressResponse(BaseModel):
+    """Server-authoritative pipeline phase/done/error (Issue #1219).
+
+    Mirrors ``app.services.pipeline_progress.PipelineProgress``; the
+    frontend trusts this instead of inferring "done" from a
+    possibly-incomplete job snapshot."""
+
+    phase: int
+    phases_total: int
+    phase_label: PhaseLabel
+    done: bool
+    has_error: bool
+
+
 class PipelineResponse(BaseModel):
     """Wrapper for ``GET /sync/pipelines/{pipeline_id}`` — pipeline UUID
     plus the ordered job list (parent first, then fan-out children)."""
 
     pipeline_id: UUID
     jobs: list[PipelineJobResponse]
+    progress: PipelineProgressResponse
 
 
 class StaleStatsEntry(BaseModel):
@@ -1007,6 +1023,7 @@ async def get_pipeline_jobs(
             for job in jobs
             if job.id is not None
         ],
+        progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
     )
 
 
@@ -1107,10 +1124,20 @@ async def pipeline_stream_by_id(
                 if job.id is not None
             ]
 
+            # Issue #1219 — server-authoritative completion.  The old
+            # "every job in the snapshot is FINISHED" test fired in the
+            # window where the parent upload was FINISHED but its
+            # recalc/aggregation children had not been INSERTed yet, so
+            # the UI flashed green on a half-done pipeline.  Derive
+            # phase/done from the expected fan-out recorded in meta
+            # instead, and ship it so the client trusts the same truth.
+            progress = compute_pipeline_progress(jobs)
+
             if snapshot != last_snapshot:
                 payload = {
                     "pipeline_id": str(pipeline_id),
                     "jobs": snapshot,
+                    "progress": progress,
                 }
                 yield f"event: pipeline-update\ndata: {json.dumps(payload)}\n\n"
                 last_snapshot = snapshot
@@ -1118,10 +1145,7 @@ async def pipeline_stream_by_id(
                 # clock so we don't double-emit on the next tick.
                 seconds_since_heartbeat = 0
 
-            all_finished = bool(jobs) and all(
-                job.state == IngestionState.FINISHED for job in jobs
-            )
-            if all_finished:
+            if progress["done"]:
                 polls_after_completion += 1
                 # Mirror the job-stream endpoint's "send a final marker
                 # then close" handshake so clients can flip UI state
@@ -1130,6 +1154,7 @@ async def pipeline_stream_by_id(
                     final_payload = {
                         "pipeline_id": str(pipeline_id),
                         "jobs": last_snapshot or snapshot,
+                        "progress": progress,
                         "stream_closed": True,
                     }
                     yield (

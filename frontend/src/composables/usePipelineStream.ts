@@ -207,6 +207,7 @@ export function usePipelineStream() {
     // Re-export the store's reactive accessors so callers can compute
     // badge state without a separate ``useStore()`` call.
     isFinishedFor: (id: string) => store.isFinishedFor(id),
+    progressFor: (id: string) => store.progressFor(id),
     hasErrorFor: (id: string) => store.hasErrorFor(id),
     failedStatusMessagesFor: (id: string) => store.failedStatusMessagesFor(id),
     jobsFor: (id: string) => store.jobsFor(id),

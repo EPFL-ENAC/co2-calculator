@@ -306,8 +306,15 @@ async def _chain_recalc_for_stale(
     # ``emission_recalc_handler`` reads scope from the row's columns
     # (data_entry_type_id, year), not from meta.config, so the config
     # is intentionally minimal.
+    # Count only children this pipeline actually created — a
+    # dedup-skipped target (``chain_job`` returns ``None``) means an
+    # earlier active pipeline already owns that recalc, so it must NOT
+    # count toward THIS pipeline's expected fan-out (the
+    # pipeline-progress contract keys phase 2 off this number; counting
+    # skipped targets would make completion wait forever).
+    chained = 0
     for row in targets:
-        await chain_job(
+        child_id = await chain_job(
             job,
             job_type="emission_recalc",
             module_type_id=row["module_type_id"],
@@ -316,11 +323,13 @@ async def _chain_recalc_for_stale(
             session=session,
             dedup_config=EMISSION_RECALC_DEDUP,
         )
+        if child_id is not None:
+            chained += 1
     logger.info(
-        f"factor_ingest job {job.id}: chained {len(targets)} emission_recalc "
-        f"child(ren) for year={year}"
+        f"factor_ingest job {job.id}: chained {chained}/{len(targets)} "
+        f"emission_recalc child(ren) for year={year}"
     )
-    return len(targets)
+    return chained
 
 
 # ---------------------------------------------------------------------------
@@ -415,20 +424,30 @@ async def _chain_emission_recalc_for_data_ingest(
         )
         return 0
 
+    # ``dedup_config`` (Fix #1219): a pre-existing active recalc for
+    # this scope now yields a logged no-op (``chain_job`` returns
+    # ``None``) instead of an uncaught IntegrityError that poisoned the
+    # job_session and stranded the parent.  Mirror the factor path.
+    # Count only owned children — see ``_chain_recalc_for_stale``.
+    chained = 0
     for row in targets:
-        await chain_job(
+        child_id = await chain_job(
             job,
             job_type="emission_recalc",
             module_type_id=row["module_type_id"],
             data_entry_type_id=row["data_entry_type_id"],
             year=year,
             session=session,
+            dedup_config=EMISSION_RECALC_DEDUP,
         )
+        if child_id is not None:
+            chained += 1
     logger.info(
-        f"data ingest job {job.id}: chained {len(targets)} emission_recalc "
-        f"child(ren) for module_type_id={job.module_type_id}/year={year}"
+        f"data ingest job {job.id}: chained {chained}/{len(targets)} "
+        f"emission_recalc child(ren) for "
+        f"module_type_id={job.module_type_id}/year={year}"
     )
-    return len(targets)
+    return chained
 
 
 __all__ = [

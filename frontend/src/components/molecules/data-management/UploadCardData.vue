@@ -6,6 +6,7 @@ import {
 } from 'src/stores/backofficeDataManagement';
 import type { ImportRow } from 'src/stores/backofficeDataManagement';
 import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   isDisabled?: boolean;
   recalcRunning?: boolean;
   recalcStatus?: RecalculationStatusEntry;
+  /** Issue #1219 — module-scoped pipeline progress (null when idle). */
+  pipelineProgress?: PipelineProgress | null;
   onDownload?: (row: ImportRow, targetType: TargetType) => void;
 }
 
@@ -20,6 +23,7 @@ const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
   recalcRunning: false,
   recalcStatus: undefined,
+  pipelineProgress: null,
   onDownload: undefined,
 });
 
@@ -59,6 +63,7 @@ function handleRecalculate(item: ImportRow) {
     :has-recalc-button="row.hasFactors"
     :recalc-status="recalcStatus"
     :recalc-running="recalcRunning"
+    :pipeline-progress="pipelineProgress"
     @upload="handleUpload"
     @download="handleDownload"
     @recalculate="handleRecalculate"

@@ -40,12 +40,33 @@ export interface PipelineJob {
 }
 
 /**
+ * Server-authoritative pipeline phase/done/error (Issue #1219).
+ * Mirrors the backend ``PipelineProgressResponse`` /
+ * ``app.services.pipeline_progress.PipelineProgress``.  The frontend
+ * trusts ``done`` here instead of inferring it from a
+ * possibly-incomplete job snapshot (the parent upload finishes before
+ * its recalc/aggregation children are even INSERTed).
+ */
+export interface PipelineProgress {
+  phase: number;
+  phases_total: number;
+  phase_label: 'data' | 'emissions' | 'aggregation';
+  done: boolean;
+  has_error: boolean;
+}
+
+/**
  * The wire payload of an ``event: pipeline-update`` SSE message.
  * Backend SSE endpoint: ``GET /v1/sync/pipelines/{pipeline_id}/stream``.
  */
 export interface PipelineUpdate {
   pipeline_id: string;
   jobs: PipelineJob[];
+  /**
+   * Authoritative progress (Issue #1219).  Present on every stream
+   * payload; the one-shot ``PipelineSnapshot`` seed carries it too.
+   */
+  progress?: PipelineProgress;
   /** Terminal marker — backend sets it on the very last event. */
   stream_closed?: boolean;
 }
@@ -60,10 +81,13 @@ export interface PipelineUpdate {
 export interface PipelineSnapshot {
   pipeline_id: string;
   jobs: PipelineJob[];
+  progress?: PipelineProgress;
 }
 
 interface PipelineEntry {
   jobs: PipelineJob[];
+  /** Latest authoritative progress, or null until the first payload. */
+  progress: PipelineProgress | null;
   /** ``true`` once a ``stream_closed: true`` payload has arrived. */
   closed: boolean;
   /** Refcount of mounted subscribers (composables). */
@@ -95,10 +119,17 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
   function applyUpdate(payload: PipelineUpdate): void {
     const entry = entries[payload.pipeline_id] ?? {
       jobs: [],
+      progress: null,
       closed: false,
       subscriberCount: 0,
     };
     entry.jobs = payload.jobs;
+    // Only overwrite progress when the payload carries it.  A
+    // snapshot-only seed (legacy / transient) must not wipe an
+    // authoritative progress we already received from the stream.
+    if (payload.progress !== undefined) {
+      entry.progress = payload.progress;
+    }
     if (payload.stream_closed) {
       entry.closed = true;
     }
@@ -125,6 +156,7 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
   function acquire(pipelineId: string): number {
     const entry = entries[pipelineId] ?? {
       jobs: [],
+      progress: null,
       closed: false,
       subscriberCount: 0,
     };
@@ -162,9 +194,14 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
   }
 
   /**
-   * Reactive ``isFinished`` — true when every job in the snapshot is
-   * FINISHED, OR when the stream's terminal ``stream_closed: true``
-   * marker arrived.  Empty pipelines (no jobs yet) are NOT finished.
+   * Reactive ``isFinished`` — Issue #1219: server-authoritative.
+   * True only when the backend says the *whole pipeline* is done
+   * (``progress.done``) or sent its terminal ``stream_closed: true``.
+   *
+   * The old "every job in the snapshot is FINISHED" heuristic is
+   * deliberately gone: it fired in the window where the parent upload
+   * was FINISHED but its recalc/aggregation children had not been
+   * INSERTed yet, flashing the module green on a half-done pipeline.
    */
   function isFinishedFor(pipelineId: string): ComputedRef<boolean> {
     return computed(() => {
@@ -172,14 +209,18 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
       if (!entry) {
         return false;
       }
-      if (entry.closed) {
-        return true;
-      }
-      if (entry.jobs.length === 0) {
-        return false;
-      }
-      return entry.jobs.every((j) => j.state === FINISHED);
+      return entry.closed || entry.progress?.done === true;
     });
+  }
+
+  /**
+   * Reactive authoritative progress for the 3-phase badge, or null
+   * until the first payload lands.
+   */
+  function progressFor(
+    pipelineId: string,
+  ): ComputedRef<PipelineProgress | null> {
+    return computed(() => entries[pipelineId]?.progress ?? null);
   }
 
   /**
@@ -225,6 +266,7 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
     clear,
     jobsFor,
     isFinishedFor,
+    progressFor,
     hasErrorFor,
     failedStatusMessagesFor,
   };

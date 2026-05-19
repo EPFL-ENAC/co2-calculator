@@ -6,6 +6,7 @@ import { useRecalculation } from 'src/composables/useRecalculation';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 import {
   TargetType,
   type ImportRow,
@@ -38,7 +39,7 @@ const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
 // unified ``pipelineStateStore`` keyed by ``(module_type_id, year)``
 // — the SSE composable is responsible for the live state of that
 // pipeline once we know its id.
-const { subscribe, unsubscribe, isFinishedFor, hasErrorFor } =
+const { subscribe, unsubscribe, isFinishedFor, progressFor, hasErrorFor } =
   usePipelineStream();
 
 const currentPipelineId = computed<string | null>(() =>
@@ -83,6 +84,32 @@ const hasRecalcFailure = computed<boolean>(() => {
   if (!id) return false;
   return hasErrorFor(id).value;
 });
+
+// Issue #1219 — the badge now shows which of the 3 pipeline phases is
+// running (Data → Emissions → Aggregation) instead of a bare
+// "Recalculating…".  Falls back to the generic label in the brief
+// window before the first authoritative ``progress`` payload lands.
+const PHASE_LABEL_KEYS: Record<string, string> = {
+  data: 'data_management_pipeline_phase_data',
+  emissions: 'data_management_pipeline_phase_emissions',
+  aggregation: 'data_management_pipeline_phase_aggregation',
+};
+
+// Issue #1219 — the module owns the single pipeline SSE subscription;
+// expose its authoritative progress to the per-upload cards (provided
+// below) so each card shows the live recalc phase, not just whether
+// its own upload job is RUNNING.
+const pipelineProgress = computed<PipelineProgress | null>(() => {
+  const id = currentPipelineId.value;
+  return id ? progressFor(id).value : null;
+});
+
+const recalcBadgeLabelKey = computed<string>(
+  () =>
+    (pipelineProgress.value &&
+      PHASE_LABEL_KEYS[pipelineProgress.value.phase_label]) ??
+    'data_management_pipeline_recalculating',
+);
 
 // Plan 310-D — contextual recalculation button.
 //
@@ -223,6 +250,7 @@ provide('handleJobCompleted', handleJobCompleted);
 provide('handleJobProgressing', handleJobProgressing);
 provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
+provide('pipelineProgress', pipelineProgress);
 </script>
 
 <template>
@@ -288,8 +316,8 @@ provide('triggerTypeRecalculation', triggerTypeRecalculation);
               color="info"
               class="text-weight-medium cursor-help"
               tabindex="0"
-              :aria-label="$t('data_management_pipeline_recalculating')"
-              :label="$t('data_management_pipeline_recalculating')"
+              :aria-label="$t(recalcBadgeLabelKey)"
+              :label="$t(recalcBadgeLabelKey)"
               @focus="recalcTooltip?.show()"
               @blur="recalcTooltip?.hide()"
             >
