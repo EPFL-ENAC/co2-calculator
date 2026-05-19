@@ -73,8 +73,8 @@ still counts as terminal, matching the backend's `done ⇔ phase3 OR
 any FINISHED+ERROR` rule, so an errored pipeline shows the failure
 badge even before an authoritative `progress` payload). `seedFromSnapshot`
 forwards the one-shot endpoint's `progress` so the badge/card show the
-phase immediately on subscribe, not only after the first ~2s SSE poll. `ModuleConfig.vue` shows
-`Step N/3 · …` per phase.
+phase immediately on subscribe, not only after the first ~2s SSE poll.
+`ModuleConfig.vue`'s badge shows `Step N/3 · …` per phase.
 
 `ModuleConfig.vue` also `provide()`s the module's reactive
 `pipelineProgress`; `ModuleUploadsSection.vue` injects it and threads
