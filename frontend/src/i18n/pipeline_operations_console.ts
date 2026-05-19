@@ -66,6 +66,14 @@ export default {
   pipeops_status_done: { en: 'Done', fr: 'Terminé' },
   pipeops_status_failed: { en: 'Failed', fr: 'Échec' },
   pipeops_status_partial: { en: 'Partial', fr: 'Partiel' },
+  pipeops_status_warning: { en: 'Warning', fr: 'Avertissement' },
+
+  pipeops_msg_click_hint: {
+    en: 'Click to view the full message',
+    fr: 'Cliquer pour voir le message complet',
+  },
+  pipeops_msg_title: { en: 'Message', fr: 'Message' },
+  pipeops_msg_copy: { en: 'Copy', fr: 'Copier' },
 
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },
   pipeops_live: { en: 'live', fr: 'live' },

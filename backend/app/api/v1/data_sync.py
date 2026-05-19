@@ -382,6 +382,28 @@ def _project_pipeline_meta(meta: Optional[dict]) -> dict:
     return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
 
 
+def _module_label(value: Optional[int]) -> Optional[str]:
+    """Resolve a module_type_id int to its enum name (#1234) — done
+    server-side so the table shows names with no frontend int→label
+    map to drift. Unknown/legacy ints degrade to ``None``."""
+    if value is None:
+        return None
+    try:
+        return ModuleTypeEnum(value).name
+    except ValueError:
+        return None
+
+
+def _det_label(value: Optional[int]) -> Optional[str]:
+    """Resolve a data_entry_type_id int to its enum name (#1234)."""
+    if value is None:
+        return None
+    try:
+        return DataEntryTypeEnum(value).name
+    except ValueError:
+        return None
+
+
 _EnumT = TypeVar("_EnumT", bound=enum.Enum)
 
 
@@ -422,6 +444,9 @@ class PipelineJobListEntry(BaseModel):
     status_message: Optional[str] = None
     module_type_id: Optional[int] = None
     data_entry_type_id: Optional[int] = None
+    # #1234 — human label (resolved from the int enum server-side so
+    # the table shows names, not integers, with no frontend drift).
+    data_entry_type_label: Optional[str] = None
     year: Optional[int] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
@@ -443,6 +468,8 @@ class PipelineListItem(BaseModel):
     progress: PipelineProgressResponse
     job_type: Optional[str] = None
     module_type_id: Optional[int] = None
+    # #1234 — human label for the related module (server-resolved).
+    module_label: Optional[str] = None
     year: Optional[int] = None
     status_message: Optional[str] = None
     started_at: Optional[datetime] = None
@@ -1214,6 +1241,7 @@ async def list_pipelines(
                 progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
                 job_type=root.job_type,
                 module_type_id=root.module_type_id,
+                module_label=_module_label(root.module_type_id),
                 year=root.year,
                 status_message=root.status_message,
                 started_at=min(started) if started else None,
@@ -1235,6 +1263,7 @@ async def list_pipelines(
                         status_message=j.status_message,
                         module_type_id=j.module_type_id,
                         data_entry_type_id=j.data_entry_type_id,
+                        data_entry_type_label=_det_label(j.data_entry_type_id),
                         year=j.year,
                         started_at=j.started_at,
                         finished_at=j.finished_at,

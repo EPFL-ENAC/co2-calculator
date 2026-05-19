@@ -23,6 +23,7 @@ export interface PipelineJobListEntry {
   status_message: string | null;
   module_type_id: number | null;
   data_entry_type_id: number | null;
+  data_entry_type_label: string | null;
   year: number | null;
   started_at: string | null;
   finished_at: string | null;
@@ -36,6 +37,7 @@ export interface PipelineListItem {
   progress: PipelineProgress;
   job_type: string | null;
   module_type_id: number | null;
+  module_label: string | null;
   year: number | null;
   status_message: string | null;
   started_at: string | null;

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { copyToClipboard, Notify } from 'quasar';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import {
@@ -10,6 +11,25 @@ import {
 const store = usePipelineOperationsConsole();
 
 const expanded = ref<Set<string>>(new Set());
+
+// UI1 — full-message dialog + copy-to-clipboard.
+const msgDialog = ref(false);
+const msgText = ref('');
+
+function openMsg(text: string | null): void {
+  if (!text) return;
+  msgText.value = text;
+  msgDialog.value = true;
+}
+
+async function copyMsg(): Promise<void> {
+  try {
+    await copyToClipboard(msgText.value);
+    Notify.create({ type: 'positive', message: 'Copied', timeout: 1200 });
+  } catch {
+    Notify.create({ type: 'negative', message: 'Copy failed' });
+  }
+}
 
 function rowKey(p: PipelineListItem): string {
   return p.pipeline_id ?? `orphan-${p.latest_job_id}`;
@@ -23,12 +43,18 @@ function toggle(p: PipelineListItem): void {
   expanded.value = new Set(expanded.value);
 }
 
-type StatusKind = 'failed' | 'running' | 'partial' | 'done';
+type StatusKind = 'failed' | 'running' | 'warning' | 'done';
 
+function hasWarning(p: PipelineListItem): boolean {
+  return p.jobs.some((j) => j.state === 'FINISHED' && j.result === 'WARNING');
+}
+
+// UI3 — WARNING is amber, distinct from ERROR red: a chain that
+// completed with only WARNING children is not a failure.
 function statusOf(p: PipelineListItem): StatusKind {
   if (p.progress.has_error) return 'failed';
   if (!p.progress.done) return 'running';
-  if (p.error_count > 0) return 'partial';
+  if (hasWarning(p)) return 'warning';
   return 'done';
 }
 
@@ -38,7 +64,7 @@ const STATUS_META: Record<
 > = {
   failed: { color: 'negative', icon: 'error', key: 'pipeops_status_failed' },
   running: { color: 'primary', icon: 'sync', key: 'pipeops_status_running' },
-  partial: { color: 'warning', icon: 'warning', key: 'pipeops_status_partial' },
+  warning: { color: 'warning', icon: 'warning', key: 'pipeops_status_warning' },
   done: { color: 'positive', icon: 'check_circle', key: 'pipeops_status_done' },
 };
 
@@ -269,7 +295,10 @@ onMounted(() => {
                     {{ $t('pipeops_orphan_tag') }}
                   </span>
                 </td>
-                <td>{{ p.module_type_id ?? '—' }} / {{ p.year ?? '—' }}</td>
+                <td>
+                  {{ p.module_label ?? p.module_type_id ?? '—' }} /
+                  {{ p.year ?? '—' }}
+                </td>
                 <td>
                   {{ p.job_count - p.error_count }}/{{ p.job_count }} ✓
                   <span v-if="p.error_count" class="text-negative">
@@ -280,8 +309,10 @@ onMounted(() => {
                 <td>{{ fmtWhen(p.started_at) }}</td>
                 <td
                   class="text-grey-8 ellipsis"
+                  :class="{ 'cursor-pointer': !!p.status_message }"
                   style="max-width: 320px"
-                  :title="p.status_message ?? ''"
+                  :title="$t('pipeops_msg_click_hint')"
+                  @click.stop="openMsg(p.status_message)"
                 >
                   {{ p.status_message ?? '—' }}
                 </td>
@@ -306,14 +337,20 @@ onMounted(() => {
                         #{{ j.job_id }} {{ j.job_type ?? '—' }}
                       </span>
                       <span class="text-caption text-grey-7 q-mr-sm">
-                        det {{ j.data_entry_type_id ?? '—' }} ·
-                        {{ fmtDuration(j.started_at, j.finished_at) }}
+                        {{
+                          j.data_entry_type_label ??
+                          (j.data_entry_type_id != null
+                            ? 'det ' + j.data_entry_type_id
+                            : '—')
+                        }}
+                        · {{ fmtDuration(j.started_at, j.finished_at) }}
                       </span>
                       <span
                         v-if="j.status_message"
-                        class="text-caption text-grey-8 ellipsis"
+                        class="text-caption text-grey-8 ellipsis cursor-pointer"
                         style="max-width: 520px"
-                        :title="j.status_message"
+                        :title="$t('pipeops_msg_click_hint')"
+                        @click.stop="openMsg(j.status_message)"
                       >
                         {{ j.status_message }}
                       </span>
@@ -349,5 +386,36 @@ onMounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- UI1 — full message + copy to clipboard -->
+    <q-dialog v-model="msgDialog">
+      <q-card style="min-width: 480px; max-width: 90vw">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-subtitle1">{{ $t('pipeops_msg_title') }}</div>
+          <q-space />
+          <q-btn
+            flat
+            dense
+            icon="content_copy"
+            :label="$t('pipeops_msg_copy')"
+            @click="copyMsg"
+          />
+          <q-btn v-close-popup flat dense round icon="close" />
+        </q-card-section>
+        <q-card-section>
+          <pre
+            class="q-pa-md bg-grey-2 rounded-borders"
+            style="
+              white-space: pre-wrap;
+              word-break: break-word;
+              max-height: 60vh;
+              overflow: auto;
+              margin: 0;
+            "
+            >{{ msgText }}</pre
+          >
+        </q-card-section>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
