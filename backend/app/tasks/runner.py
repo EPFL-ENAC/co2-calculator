@@ -222,6 +222,18 @@ async def run_job(job_id: int) -> None:
                 metadata = {}
                 result = IngestionResult.ERROR
                 handler_succeeded = False
+                # The handler may have left ``job_session`` in a
+                # PendingRollbackError state — e.g. an uncaught
+                # IntegrityError from a chain_job INSERT that tripped a
+                # partial unique index.  Without this rollback the
+                # preempt-check (``get_job_by_id``) and ``finish_job``
+                # below both run on the poisoned session, re-raise, and
+                # escape this ``except`` — so the job never reaches
+                # FINISHED+ERROR and stays RUNNING forever, with the
+                # zombie row self-propagating the stall to every job
+                # that touches it.  A clean rollback restores the
+                # session for the terminal-state write.
+                await job_session.rollback()
 
             if handler_aborted:
                 # We no longer own the lock (or are about to lose it):

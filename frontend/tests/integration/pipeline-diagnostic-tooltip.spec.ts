@@ -281,6 +281,79 @@ test.describe('data-management — pipeline observability + a11y (Unit 11)', () 
     await expect(page.getByText(RECALCULATING_LABEL)).toHaveCount(0);
   });
 
+  test('Issue #1219: badge follows server-authoritative progress, not snapshot', async ({
+    page,
+  }) => {
+    // Regression for the core UX bug: the parent upload job is
+    // FINISHED but the pipeline as a whole is NOT — recalc/aggregation
+    // children have not been INSERTed yet. The OLD "every job in the
+    // snapshot is FINISHED" heuristic flashed the module green here.
+    // With the authoritative ``progress`` contract the badge must stay
+    // up (showing the current phase) until ``progress.done``.
+    const EMISSIONS_PHASE_LABEL = 'Step 2/3 · Recalculating emissions…';
+
+    activePipelines.set({ [HEADCOUNT_MODULE_TYPE_ID]: PIPELINE_UUID });
+    await gotoDataManagement(page, year);
+
+    const badge = page.getByText(RECALCULATING_LABEL).first();
+    await expect(badge).toBeVisible();
+    await waitForSsePipe(page, PIPELINE_UUID);
+
+    // Parent FINISHED, but progress says phase 2 / not done. Badge
+    // must NOT clear, and must now show the phase label.
+    await dispatchPipelineUpdate(page, PIPELINE_UUID, {
+      pipeline_id: PIPELINE_UUID,
+      jobs: [
+        {
+          id: 1,
+          job_type: 'csv_ingest',
+          state: 'FINISHED',
+          result: 'OK',
+          status_message: null,
+          started_at: new Date(Date.now() - 5000).toISOString(),
+          finished_at: new Date().toISOString(),
+        },
+      ],
+      progress: {
+        phase: 2,
+        phases_total: 3,
+        phase_label: 'emissions',
+        done: false,
+        has_error: false,
+      },
+    });
+
+    await expect(page.getByText(EMISSIONS_PHASE_LABEL)).toBeVisible();
+
+    // Now the backend reports the whole pipeline done (no
+    // stream_closed needed — ``progress.done`` is authoritative).
+    activePipelines.set({});
+    await dispatchPipelineUpdate(page, PIPELINE_UUID, {
+      pipeline_id: PIPELINE_UUID,
+      jobs: [
+        {
+          id: 1,
+          job_type: 'csv_ingest',
+          state: 'FINISHED',
+          result: 'OK',
+          status_message: null,
+          started_at: new Date(Date.now() - 5000).toISOString(),
+          finished_at: new Date().toISOString(),
+        },
+      ],
+      progress: {
+        phase: 3,
+        phases_total: 3,
+        phase_label: 'aggregation',
+        done: true,
+        has_error: false,
+      },
+    });
+
+    await expect(page.getByText(EMISSIONS_PHASE_LABEL)).toHaveCount(0);
+    await expect(page.getByText(RECALCULATING_LABEL)).toHaveCount(0);
+  });
+
   test('keyboard a11y: focus opens tooltip, blur closes it (F-C1 regression gate)', async ({
     page,
   }) => {

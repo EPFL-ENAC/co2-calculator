@@ -15,6 +15,7 @@ from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlalchemy.exc import PendingRollbackError
 
 from app.models.data_ingestion import (
     IngestionResult,
@@ -365,6 +366,88 @@ async def test_run_job_handler_raise_with_preemption_skips_state_update():
     # longer own the row, even though the handler raised.
     repo.update_ingestion_job.assert_not_called()
     repo.finish_job.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_job_handler_poisons_job_session_still_marks_error():
+    """Issue #1219 regression — the CORE bug.
+
+    When a handler raises an exception that left ``job_session`` in a
+    PendingRollbackError state (e.g. an uncaught IntegrityError from a
+    chain_job INSERT tripping ``uq_emission_recalc_active``), the
+    runner must roll back ``job_session`` BEFORE the preempt-check so
+    ``get_job_by_id`` / ``finish_job`` can run and the job is durably
+    written FINISHED+ERROR.
+
+    Fidelity note: a bare ``raise IntegrityError`` does NOT reproduce
+    the bug — the handler ``except`` already swallows that. The bug is
+    that the *next* DB call on the poisoned session re-raises and
+    escapes. So this test makes the post-handler ``get_job_by_id``
+    raise ``PendingRollbackError`` UNTIL ``job_session.rollback()`` has
+    been awaited. Without the fix (no rollback) the third
+    ``get_job_by_id`` raises, ``run_job`` propagates it, and
+    ``finish_job`` is never called → the assertion below fails. With
+    the fix it succeeds and the job is marked ERROR.
+    """
+    job = _make_job()
+    job.locked_by = runner_mod.POD_ID
+    repo = _make_repo_returning(job)
+
+    captured_sessions: list[MagicMock] = []
+
+    @asynccontextmanager
+    async def _capture_session():
+        session = MagicMock()
+        session.commit = AsyncMock()
+        session.rollback = AsyncMock()
+        session.add = MagicMock()
+        captured_sessions.append(session)
+        yield session
+
+    call_count = {"n": 0}
+
+    async def _get_job_by_id(_job_id: int):
+        call_count["n"] += 1
+        # Calls 1 (pre-claim) and 2 (post-claim refetch) are clean.
+        if call_count["n"] < 3:
+            return job
+        # Call 3 is the post-handler preempt-check, on what may be a
+        # poisoned job_session. job_session is captured_sessions[0].
+        job_session = captured_sessions[0]
+        if job_session.rollback.await_count == 0:
+            raise PendingRollbackError(
+                "This Session's transaction has been rolled back due to "
+                "a previous exception during flush."
+            )
+        return job
+
+    repo.get_job_by_id = AsyncMock(side_effect=_get_job_by_id)
+
+    @register("test_job")
+    async def _handler(j, js, ds) -> dict:
+        # Simulate an uncaught IntegrityError that poisoned the
+        # session — the message mirrors the production stack.
+        raise RuntimeError(
+            'duplicate key value violates unique constraint "uq_emission_recalc_active"'
+        )
+
+    with (
+        patch.object(runner_mod, "SessionLocal", _capture_session),
+        _patch_heartbeat(),
+        patch.object(runner_mod, "DataIngestionRepository", return_value=repo),
+    ):
+        await runner_mod.run_job(1)
+
+    job_session, data_session = captured_sessions
+    # The poisoned job_session was rolled back before the preempt-check.
+    job_session.rollback.assert_awaited()
+    data_session.rollback.assert_awaited()
+    # And the job was durably finalized FINISHED+ERROR — NOT left
+    # stuck RUNNING (the zombie-propagation defect).
+    repo.finish_job.assert_awaited_once()
+    _, kwargs = repo.finish_job.call_args
+    assert kwargs["result"] == IngestionResult.ERROR
+    assert "uq_emission_recalc_active" in kwargs["status_message"]
 
 
 # chain_job tests live in ``test_chain.py``.
