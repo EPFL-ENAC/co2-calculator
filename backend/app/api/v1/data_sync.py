@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import (
     APIRouter,
@@ -79,6 +79,7 @@ async def _stamp_job_type_and_meta(
     job_type: str,
     provider_name: Optional[str] = None,
     extra_meta: Optional[dict] = None,
+    pipeline_id: Optional[UUID] = None,
 ) -> None:
     """After ``provider.create_job`` returns, stamp ``job_type`` and
     extend ``meta`` so the runner's registry lookup hits the right
@@ -103,6 +104,14 @@ async def _stamp_job_type_and_meta(
     if extra_meta:
         merged_meta.update(extra_meta)
     row.meta = merged_meta
+    # Issue #1219 — stamp the pipeline_id eagerly when the caller
+    # supplies one.  ``chain_job`` only generates a UUID when
+    # ``parent.pipeline_id is None`` (_chain.py:154-157), so a
+    # pre-set value is honored and inherited by every child — and it
+    # closes the pod-crash-then-recovery orphan window the lazy path
+    # explicitly worries about.
+    if pipeline_id is not None:
+        row.pipeline_id = pipeline_id
     db.add(row)
 
 
@@ -243,6 +252,14 @@ class SyncStatusResponse(BaseModel):
     state: IngestionState
     message: str
     progress: Optional[dict] = None
+    # Issue #1219 — the parent's pipeline_id, assigned eagerly at
+    # creation (not lazily at first fan-out) so the frontend can seed
+    # its pipeline-state store and subscribe to the SSE stream from
+    # the moment the job is dispatched.  Without this the card only
+    # discovers the pipeline after the upload job already FINISHED,
+    # so phase 1 ("Inserting data…") is never visible and fast
+    # chains complete inside the discovery gap, showing nothing.
+    pipeline_id: Optional[str] = None
 
 
 class SyncJobResponse(BaseModel):
@@ -535,12 +552,14 @@ async def sync_module_data_entries(
     # NOTE: file_path validation happens in provider.__init__() via
     # _validate_file_path() to prevent directory traversal attacks
     # (e.g., /../../../etc/passwd).
+    pipeline_id = uuid4()
     await _stamp_job_type_and_meta(
         db,
         job_id,
         job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
         provider_name=provider.__class__.__name__,
         extra_meta={"filters": syncRequest.filters or {}},
+        pipeline_id=pipeline_id,
     )
     await db.commit()
 
@@ -551,6 +570,7 @@ async def sync_module_data_entries(
         "state": IngestionState.NOT_STARTED,
         "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
+        "pipeline_id": str(pipeline_id),
     }
 
 
@@ -635,12 +655,14 @@ async def sync_module_factors(
             "route_payload": await extract_route_payload(request),
         },
     )
+    pipeline_id = uuid4()
     await _stamp_job_type_and_meta(
         db,
         job_id,
         job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
         provider_name=provider.__class__.__name__,
         extra_meta={"filters": syncRequest.filters or {}},
+        pipeline_id=pipeline_id,
     )
     await db.commit()
 
@@ -651,6 +673,7 @@ async def sync_module_factors(
         "state": IngestionState.NOT_STARTED,
         "message": f"Sync initiated using {syncRequest.ingestion_method}",
         "progress": None,
+        "pipeline_id": str(pipeline_id),
     }
 
 
@@ -1397,6 +1420,8 @@ async def recalculate_emissions_for_type(
         data_entry_type_id: The data entry type to recalculate.
         year: The report year (required).
     """
+    # Issue #1219 — eager pipeline_id (see SyncStatusResponse / _chain.py:154).
+    pipeline_id = uuid4()
     job = DataIngestionJob(
         job_type="emission_recalc",
         module_type_id=module_type_id.value,
@@ -1406,6 +1431,7 @@ async def recalculate_emissions_for_type(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
     created_job = await DataIngestionRepository(db).create_ingestion_job(job)
@@ -1421,6 +1447,7 @@ async def recalculate_emissions_for_type(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
         message="Emission recalculation scheduled",
+        pipeline_id=str(pipeline_id),
     )
 
 
@@ -1476,6 +1503,8 @@ async def recalculate_emissions_for_module(
     else:
         det_ids = all_det_ids
 
+    # Issue #1219 — eager pipeline_id (see SyncStatusResponse / _chain.py:154).
+    pipeline_id = uuid4()
     job = DataIngestionJob(
         job_type="module_emission_recalc",
         module_type_id=module_type_id.value,
@@ -1485,6 +1514,7 @@ async def recalculate_emissions_for_module(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
         meta={
             "config": {
                 "year": year,
@@ -1507,6 +1537,7 @@ async def recalculate_emissions_for_module(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
         message=f"Module emission recalculation scheduled for {n} data entry types",
+        pipeline_id=str(pipeline_id),
     )
 
 
