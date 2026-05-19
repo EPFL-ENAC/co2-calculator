@@ -195,8 +195,30 @@ async def _run_ingest(
 
     data = result.get("data", {}) or {}
     ingestion_result = data.get("result", IngestionResult.SUCCESS)
+    status_message = result.get("status_message", "Success")
+    # #1236 root cause: ``ingest()`` hardcodes status_message="Success"
+    # whenever it doesn't *raise*, but a CSV where every row errored
+    # finishes WITHOUT raising and is classified ERROR/WARNING from the
+    # row-error stats. A FINISHED job whose result != SUCCESS must not
+    # claim "Success" — that lie is what pipeline status / last_error
+    # then propagate (#1219). Replace the generic message with an
+    # honest summary from the counts the provider already returned.
+    # Only overrides the generic "Success"; a real exception-path
+    # message ("failed: …") never reaches here (it raises upstream).
+    if ingestion_result != IngestionResult.SUCCESS and (
+        not status_message or status_message.strip().lower() == "success"
+    ):
+        rec = (
+            "ERROR"
+            if ingestion_result == IngestionResult.ERROR
+            else "WARNING"
+        )
+        status_message = (
+            f"{rec}: {data.get('inserted', 0)} inserted, "
+            f"{data.get('skipped', 0)} skipped"
+        )
     return {
-        "status_message": result.get("status_message", "Success"),
+        "status_message": status_message,
         "result": ingestion_result,
         **data,
     }

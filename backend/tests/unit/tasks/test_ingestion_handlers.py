@@ -119,6 +119,49 @@ async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
 
 
 @pytest.mark.asyncio
+async def test_csv_ingest_error_result_does_not_report_success():
+    """#1236 root cause: ``ingest()`` hardcodes status_message='Success'
+    when it doesn't raise, but a CSV where every row errored finishes
+    WITHOUT raising and is classified ERROR. A FINISHED job whose
+    result != SUCCESS must NOT claim 'Success' (jobs 2/49/50/51 shape).
+    """
+    job = _make_job(meta={"provider_name": "FakeCSV", "config": {}})
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "Success",  # the hardcoded ingest() lie
+            "data": {
+                "result": IngestionResult.ERROR,
+                "inserted": 0,
+                "skipped": 50072,
+            },
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+    ):
+        meta = await ingest_mod.csv_ingest_handler(
+            job, MagicMock(), MagicMock()
+        )
+
+    assert meta["result"] == IngestionResult.ERROR
+    assert meta["status_message"] != "Success"
+    assert "Success" not in meta["status_message"]
+    assert meta["status_message"] == "ERROR: 0 inserted, 50072 skipped"
+
+
+@pytest.mark.asyncio
 async def test_api_ingest_handler_uses_same_path():
     """``api_ingest_handler`` shares ``_run_ingest`` — same contract."""
     job = _make_job(meta={"provider_name": "FakeAPI"})
