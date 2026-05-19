@@ -311,6 +311,9 @@ spec:
 
 ## Monitoring & Observability
 
+Client-side JavaScript errors are tracked separately in self-hosted
+GlitchTip — see [Frontend Error Monitoring](../frontend/error-monitoring.md).
+
 ### Prometheus Metrics
 
 **Backend metrics** (`/metrics` endpoint):

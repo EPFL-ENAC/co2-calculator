@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import { useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import type { Unit } from 'src/stores/workspace';
 import { useRouter, useRoute } from 'vue-router';
 import LabSelectorItem from 'src/components/organisms/workspace-selector/LabSelectorItem.vue';
@@ -13,7 +14,7 @@ import { MODULES_LIST } from 'src/constant/modules';
 
 const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
-const moduleStore = useModuleStore();
+const yearConfigStore = useYearConfigStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -22,26 +23,23 @@ const selectedWorkspace = ref<'calculator' | 'simulator' | null>(null);
 // --- COMPUTED ---
 const unitsWithRoles = computed(() => workspaceStore.units);
 
-const yearsCount = computed(
-  () => workspaceStore.availableCarbonReportYears.length,
-);
-const hasMultipleYears = computed(
-  () => workspaceStore.availableCarbonReportYears.length > 1,
-);
-
+// Intersection: years globally opened (year-configuration `is_started`) AND
+// having a carbon report for this unit. tCO₂-eq comes from that report's
+// pre-computed `stats.total` (stored in kg, hence /1000).
 const yearRows = computed<YearData[]>(() => {
-  const emissionsMap = new Map<number, number>();
-  for (const row of moduleStore.state.yearlyValidatedEmissions) {
-    const year = row.year;
-    const tonnes = row.total_tonnes_co2eq;
-    emissionsMap.set(year, tonnes);
-  }
-  return workspaceStore.availableCarbonReportYears.map((year) => ({
-    year,
-    tco2eq: emissionsMap.get(year) ?? null,
-    status: workspaceStore.carbonReportForYear(year) ? 'complete' : 'missing',
-  }));
+  const startedYears = yearConfigStore.startedYears;
+  return workspaceStore.carbonReports
+    .filter((report) => startedYears.has(report.year))
+    .map((report) => ({
+      year: report.year,
+      tco2eq: report.stats?.total != null ? report.stats.total / 1000 : null,
+      status: 'complete',
+    }))
+    .sort((a, b) => a.year - b.year);
 });
+
+const yearsCount = computed(() => yearRows.value.length);
+const hasMultipleYears = computed(() => yearRows.value.length > 1);
 
 const selectedUnitAffiliations = computed(() => {
   const unit = workspaceStore.selectedUnit;
@@ -85,10 +83,7 @@ const handleUnitSelect = async (unit: Unit) => {
   workspaceStore.setUnit(unit);
   workspaceStore.setYear(null);
   selectedWorkspace.value = null;
-  await Promise.all([
-    workspaceStore.fetchCarbonReportsForUnit(unit.id),
-    moduleStore.getYearlyValidatedEmissions(unit.id),
-  ]);
+  await workspaceStore.fetchCarbonReportsForUnit(unit.id);
   // Show real module progress for the most recent report straight away
   const reports = workspaceStore.carbonReports;
   if (reports.length > 0) {
@@ -157,7 +152,11 @@ const reset = () => {
 onMounted(async () => {
   workspaceStore.reset();
   timelineStore.reset();
-  await workspaceStore.getUnits();
+  // Configured years are global (not unit-scoped) — fetch once per mount.
+  await Promise.all([
+    workspaceStore.getUnits(),
+    yearConfigStore.fetchConfiguredYears(),
+  ]);
 });
 </script>
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { inject } from 'vue';
+import { computed, inject, type ComputedRef } from 'vue';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
@@ -32,6 +33,15 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
   useRecalculation({
     selectedYear: props.selectedYear,
   });
+
+// Issue #1219 — the module's authoritative pipeline progress, provided
+// by ModuleConfig (the single SSE subscriber). Shared by every card in
+// the module: the recalc/aggregation pipeline is module-scoped.
+const injectedPipelineProgress =
+  inject<ComputedRef<PipelineProgress | null>>('pipelineProgress');
+const pipelineProgress = computed<PipelineProgress | null>(
+  () => injectedPipelineProgress?.value ?? null,
+);
 
 const backofficeStore = useBackofficeDataManagement();
 
@@ -77,9 +87,19 @@ async function handleCancelJob(jobId: number) {
           {{ $t(common.labelKey) }}
         </div>
         <div class="row q-pb-md" style="gap: 1rem">
+          <UploadCardFactors
+            v-if="getImportRow(common).hasFactors"
+            :row="getImportRow(common)"
+            :pipeline-progress="pipelineProgress"
+            :on-download="downloadLastCsv"
+            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
+            @recalculate="() => triggerTypeRecalculation(common)"
+            @cancel="handleCancelJob"
+          />
           <UploadCardData
             v-if="getImportRow(common).hasData"
             :row="getImportRow(common)"
+            :pipeline-progress="pipelineProgress"
             :recalc-running="
               recalcTypeRunning[
                 `${common.moduleTypeId}-${common.dataEntryTypeId}`
@@ -88,14 +108,6 @@ async function handleCancelJob(jobId: number) {
             :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-            @recalculate="() => triggerTypeRecalculation(common)"
-            @cancel="handleCancelJob"
-          />
-          <UploadCardFactors
-            v-if="getImportRow(common).hasFactors"
-            :row="getImportRow(common)"
-            :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
             @recalculate="() => triggerTypeRecalculation(common)"
             @cancel="handleCancelJob"
           />

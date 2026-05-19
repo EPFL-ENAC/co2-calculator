@@ -11,6 +11,7 @@ import type {
   SyncJobResponse,
 } from 'src/stores/backofficeDataManagement';
 import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 
 interface Props {
   title: string;
@@ -28,6 +29,8 @@ interface Props {
   hasRecalcButton?: boolean;
   recalcStatus?: RecalculationStatusEntry;
   recalcRunning?: boolean;
+  /** Issue #1219 — module-scoped pipeline progress (null when idle). */
+  pipelineProgress?: PipelineProgress | null;
   hasComputedFactorButton?: boolean;
   computedFactorRunning?: boolean;
   isComputedFactorDisabled?: boolean;
@@ -46,6 +49,7 @@ const props = withDefaults(defineProps<Props>(), {
   hasRecalcButton: false,
   recalcStatus: undefined,
   recalcRunning: false,
+  pipelineProgress: null,
   hasComputedFactorButton: false,
   computedFactorRunning: false,
   isComputedFactorDisabled: false,
@@ -79,6 +83,22 @@ const apiRowsInserted = computed<number | undefined>(() => {
   const meta = props.apiJob?.meta as Record<string, unknown> | undefined;
   const inserted = meta?.inserted;
   return typeof inserted === 'number' ? inserted : undefined;
+});
+
+// Issue #1219 — live recalc-pipeline phase for this card. The pipeline
+// is module-scoped, so every card in the module reflects the same
+// phase while it runs (Data → Emissions → Aggregation). Hidden once
+// the pipeline is done or errored (the error surfaces via lastJob).
+const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {
+  data: 'data_management_pipeline_phase_data',
+  emissions: 'data_management_pipeline_phase_emissions',
+  aggregation: 'data_management_pipeline_phase_aggregation',
+};
+
+const pipelinePhaseLabelKey = computed<string | null>(() => {
+  const p = props.pipelineProgress;
+  if (!p || p.done || p.has_error) return null;
+  return PIPELINE_PHASE_LABEL_KEYS[p.phase_label] ?? null;
 });
 
 function handleUpload() {
@@ -240,6 +260,16 @@ function handleCancel() {
           @click="handleCancel"
         />
       </div>
+    </div>
+
+    <!-- Issue #1219 — live recalc-pipeline phase (module-scoped) -->
+    <div
+      v-if="pipelinePhaseLabelKey"
+      class="row items-center text-caption q-mt-xs text-grey-7"
+      data-testid="pipeline-phase"
+    >
+      <q-spinner-rings color="grey" size="sm" class="q-mr-xs" />
+      <span>{{ $t(pipelinePhaseLabelKey) }}</span>
     </div>
 
     <!-- API ingestion status (success: small inline line; error: banner below) -->

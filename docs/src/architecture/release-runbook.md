@@ -12,11 +12,12 @@ A release is two ordered promotions — do the real release first, then the end-
 
 ```mermaid
 graph LR
-    S1[stage] -->|PR + merge| M[main]
-    M -->|Tag and Release + v*.*.* deploy| P[prod]
-    M -->|sync back| S1 --> D[dev]
-    D2[dev] -->|bump + PR + merge| S2[stage]
+    S1[stage] -->|1. PR + merge - sprint n-1| M[main]
+    M -->|Tag and Release + v*.*.* deploy| P[prod env]
+    M -->|2. Sync back| S1 -->|3. Sync back| D[dev]
+    D2[dev] -->|4. PR + merge - sprint n| S2[stage]
     S2 -->|Generate Changelog + deploy| E[stage env]
+    S2 -->|5. Sync back| D2
 ```
 
 ## 1. Real release: stage to main
@@ -42,9 +43,9 @@ Ships the sprint to stage and generates the changelog. `changelog.yml` ("Generat
 
 > **⚠️ Bump the version first.** Edit root `package.json` `version` (e.g. `0.10.0`) and commit on `dev` **before** opening the PR — otherwise the changelog is not generated with the right version.
 
-1. **Open the PR** `dev → stage`. Head **must** be `dev`. Example title: `chore: promote dev to stage (end of sprint 7) (#770)`:
+1. **Open the PR** `dev → stage`. Head **must** be `dev`. Example title: `chore: promote dev to stage (end of sprint 7)`:
    ```bash
-   gh pr create --base stage --head dev --title "chore: promote dev to stage (end of sprint N) (#<issue>)"
+   gh pr create --base stage --head dev --title "chore: promote dev to stage (end of sprint N)"
    ```
 2. **Merge the PR.** `deploy.yml` deploys to **stage**; "Generate Changelog" commits `CHANGELOG.md` to `stage`. Verify: Actions → "deploy" and "Generate Changelog" green; `CHANGELOG.md` updated on `stage`.
 3. **Verify in ArgoCD** that stage is healthy; fix any issues — see [Troubleshooting](#troubleshooting-deployment).
@@ -72,6 +73,11 @@ If ArgoCD shows the environment unhealthy or on the wrong version, the usual sus
 > **🚨 Destructive.** `make db-drop` deletes the target database. First open `backend/.env` and confirm `DB_URL` points to the environment you intend, and take a DB snapshot/backup before dropping — the wrong target on prod is unrecoverable.
 
 Until v1.0.0, migrations don't migrate data, so rebuild and reseed. Get the target `DB_URL` from the secrets manager, set it in `backend/.env`, then from `backend/`:
+
+Pre-requisites:
+
+- Make sure `stage` branch is up-to-date: `git checkout stage && git pull origin stage`
+- Have `backend/.env` with stage's `DB_URL`
 
 ```bash
 make db-drop && make db-create && make db-migrate && make seed-data

@@ -617,6 +617,18 @@ export default {
     en: 'Last recalc failed',
     fr: 'Échec du dernier recalcul',
   },
+  data_management_pipeline_phase_data: {
+    en: 'Step 1/3 · Inserting data…',
+    fr: 'Étape 1/3 · Insertion des données…',
+  },
+  data_management_pipeline_phase_emissions: {
+    en: 'Step 2/3 · Recalculating emissions…',
+    fr: 'Étape 2/3 · Recalcul des émissions…',
+  },
+  data_management_pipeline_phase_aggregation: {
+    en: 'Step 3/3 · Aggregating…',
+    fr: 'Étape 3/3 · Agrégation…',
+  },
   data_management_recalculate_retry: {
     en: 'Retry recalculation',
     fr: 'Relancer le recalcul',

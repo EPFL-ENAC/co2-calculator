@@ -656,3 +656,83 @@ async def test_csv_ingest_handler_skips_fan_out_when_module_type_id_missing():
     mock_chain.assert_not_awaited()
     assert meta["recalc_jobs_chained"] == 0
     assert meta["result"] == IngestionResult.SUCCESS
+
+
+# ---------------------------------------------------------------------------
+# Issue #1219 — dedup on the csv/api fan-out + owned-child count
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_fan_out_passes_dedup_config():
+    """Issue #1219 Fix 2: the csv/api recalc fan-out must pass
+    ``dedup_config=EMISSION_RECALC_DEDUP`` (it previously did not, so a
+    pre-existing active recalc raised an uncaught IntegrityError that
+    poisoned the job_session and stranded the parent)."""
+    from app.tasks._chain import EMISSION_RECALC_DEDUP
+
+    job = _make_job(
+        module_type_id=5,
+        data_entry_type_id=11,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock) as mock_chain,
+    ):
+        await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    assert mock_chain.await_args.kwargs["dedup_config"] is EMISSION_RECALC_DEDUP
+
+
+@pytest.mark.asyncio
+async def test_csv_ingest_fan_out_counts_only_owned_children():
+    """Issue #1219 Fix 2b: a dedup-skipped target (``chain_job``
+    returns ``None`` — its recalc is owned by an earlier active
+    pipeline) must NOT count toward this pipeline's
+    ``recalc_jobs_chained``; otherwise the pipeline-progress contract
+    would wait forever for a child that lives under another pipeline.
+    """
+    from app.models.module_type import (
+        MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+        ModuleTypeEnum,
+    )
+
+    module = ModuleTypeEnum.headcount
+    expected_dets = [d.value for d in MODULE_TYPE_TO_DATA_ENTRY_TYPES[module]]
+    assert len(expected_dets) >= 2  # multi-det module — fan-out > 1
+
+    job = _make_job(
+        module_type_id=module.value,
+        data_entry_type_id=None,
+        year=2025,
+        meta={"provider_name": "FakeCSV"},
+    )
+    _, fake_class = _patch_provider(success=True)
+
+    # First det: created (returns an id). Remaining dets: dedup-skipped
+    # (return None) — already owned by an earlier active pipeline.
+    returns = [42] + [None] * (len(expected_dets) - 1)
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory, "get_provider_class", return_value=fake_class
+        ),
+        patch.object(
+            ingest_mod,
+            "chain_job",
+            new_callable=AsyncMock,
+            side_effect=returns,
+        ) as mock_chain,
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    # All dets attempted, but only the one owned child counts.
+    assert mock_chain.await_count == len(expected_dets)
+    assert meta["recalc_jobs_chained"] == 1
+    assert meta["result"] == IngestionResult.SUCCESS
