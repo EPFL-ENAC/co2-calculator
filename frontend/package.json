@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@quasar/extras": "=1.18.0",
-    "@sentry/vue": "=10.52.0",
+    "@sentry/vue": "=10.53.0",
     "echarts": "=6.0.0",
     "ky": "=1.14.0",
     "pinia": "=3.0.4",
