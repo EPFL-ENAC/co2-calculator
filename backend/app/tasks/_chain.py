@@ -156,6 +156,24 @@ async def chain_job(
         pipeline_id = uuid4()
         parent.pipeline_id = pipeline_id
         session.add(parent)
+        # #1236 — back-fill the pipeline aggregate row for ad-hoc runs
+        # that mint lazily (idempotent; atomic with the parent update).
+        await repo.ensure_pipeline_exists(
+            pipeline_id,
+            kind=parent.job_type,
+            entity_type=(
+                parent.entity_type.value
+                if parent.entity_type is not None
+                else None
+            ),
+            ingestion_method=(
+                parent.ingestion_method.value
+                if parent.ingestion_method is not None
+                else None
+            ),
+            module_type_id=parent.module_type_id,
+            year=parent.year,
+        )
         await session.commit()
 
     resolved_module_type_id = (

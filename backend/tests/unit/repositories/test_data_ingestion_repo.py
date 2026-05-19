@@ -19,6 +19,8 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
     TargetType,
 )
 from app.models.user import UserProvider
@@ -1134,3 +1136,152 @@ async def test_list_pipelines_orphans_are_pipelines_of_one(
     assert orphans[0]["pipeline_id"] is None
     assert len(orphans[0]["jobs"]) == 1
     assert orphans[0]["jobs"][0].status_message == "InFailedSqlTransaction"
+
+
+# ======================================================================
+# Pipeline aggregate (#1236 Phase 1): ensure / recompute / reconcile
+# ======================================================================
+
+
+async def _count_pipelines(db_session: AsyncSession, pid) -> int:
+    rows = await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    return len(rows.scalars().all())
+
+
+@pytest.mark.asyncio
+async def test_ensure_pipeline_exists_is_idempotent(db_session: AsyncSession):
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+
+    await repo.ensure_pipeline_exists(
+        pid, kind="csv_ingest", entity_type=1, ingestion_method=1,
+        module_type_id=4, year=2026,
+    )
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")  # second call
+    await db_session.flush()
+
+    assert await _count_pipelines(db_session, pid) == 1
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.NOT_STARTED.value
+    assert row.kind == "csv_ingest"
+    assert row.module_type_id == 4
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_success_on_done(db_session: AsyncSession):
+    """Parent FINISHED+SUCCESS, no expected recalc → progress.done →
+    status SUCCESS, counts set (recompute-and-store, last-child)."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.SUCCESS.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.SUCCESS.value
+    assert row.job_count == 1
+    assert row.error_count == 0
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_failed_on_error(db_session: AsyncSession):
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="InFailedSqlTransaction",
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.FAILED.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.FAILED.value
+    assert row.error_count == 1
+    assert row.last_error == "InFailedSqlTransaction"
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_skips_when_not_done(db_session: AsyncSession):
+    """Last-child oracle: a non-terminal call must NOT write
+    (compute_pipeline_progress.done is False) — status stays default."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.RUNNING,  # parent not finished → not done
+            result=None,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+
+    assert written is None  # skipped
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.NOT_STARTED.value
+
+
+@pytest.mark.asyncio
+async def test_reconcile_heals_drift(db_session: AsyncSession):
+    """A done pipeline whose stored status was never advanced (runner
+    skipped) is corrected by the sweep; afterwards zero drift."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+    # Simulated drift: row still NOT_STARTED though the pipeline is done.
+    pre = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert pre.status == PipelineStatus.NOT_STARTED.value
+
+    summary = await repo.reconcile_pipeline_statuses()
+
+    assert summary["checked"] >= 1
+    assert summary["corrected"] >= 1
+    healed = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert healed.status == PipelineStatus.SUCCESS.value

@@ -113,6 +113,22 @@ async def _stamp_job_type_and_meta(
     # explicitly worries about.
     if pipeline_id is not None:
         row.pipeline_id = pipeline_id
+        # #1236 — create the pipeline aggregate row at parent creation
+        # (idempotent; the runner only advances status, never creates).
+        await repo.ensure_pipeline_exists(
+            pipeline_id,
+            kind=job_type,
+            entity_type=(
+                row.entity_type.value if row.entity_type is not None else None
+            ),
+            ingestion_method=(
+                row.ingestion_method.value
+                if row.ingestion_method is not None
+                else None
+            ),
+            module_type_id=row.module_type_id,
+            year=row.year,
+        )
     db.add(row)
 
 
@@ -1469,7 +1485,17 @@ async def recalculate_emissions_for_type(
         pipeline_id=pipeline_id,
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
-    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    repo = DataIngestionRepository(db)
+    created_job = await repo.create_ingestion_job(job)
+    # #1236 — pipeline aggregate row, atomic with the job creation.
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="emission_recalc",
+        entity_type=EntityType.MODULE_PER_YEAR.value,
+        ingestion_method=IngestionMethod.computed.value,
+        module_type_id=module_type_id.value,
+        year=year,
+    )
     await db.commit()
     if created_job.id is None:
         raise HTTPException(
@@ -1558,7 +1584,17 @@ async def recalculate_emissions_for_module(
             }
         },
     )
-    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    repo = DataIngestionRepository(db)
+    created_job = await repo.create_ingestion_job(job)
+    # #1236 — pipeline aggregate row, atomic with the job creation.
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="module_emission_recalc",
+        entity_type=EntityType.MODULE_PER_YEAR.value,
+        ingestion_method=IngestionMethod.computed.value,
+        module_type_id=module_type_id.value,
+        year=year,
+    )
     await db.commit()
     if created_job.id is None:
         raise HTTPException(

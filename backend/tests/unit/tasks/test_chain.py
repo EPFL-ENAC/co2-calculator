@@ -48,6 +48,9 @@ def _make_repo_for_chain(parent: MagicMock) -> MagicMock:
     repo = MagicMock()
     repo.get_job_by_id = AsyncMock(return_value=parent)
     repo.create_ingestion_job = AsyncMock(side_effect=lambda j: j)
+    # #1236 — chain_job's lazy-mint path now creates the pipeline
+    # aggregate row via this idempotent helper; stub it on the mock.
+    repo.ensure_pipeline_exists = AsyncMock()
     return repo
 
 

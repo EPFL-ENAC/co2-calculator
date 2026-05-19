@@ -16,6 +16,8 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
     TargetType,
 )
 
@@ -478,6 +480,145 @@ class DataIngestionRepository:
                     )
                 )
         return groups, total
+
+    async def ensure_pipeline_exists(
+        self,
+        pipeline_id: UUID,
+        *,
+        kind: Optional[str] = None,
+        entity_type: Optional[int] = None,
+        ingestion_method: Optional[int] = None,
+        module_type_id: Optional[int] = None,
+        year: Optional[int] = None,
+    ) -> None:
+        """Idempotently create the `pipelines` row (#1236 Phase 1).
+
+        Called from the parent-creation mint sites (not the runner —
+        the runner is a terminal actor). Fast-path SELECT skips the
+        common already-exists case; the SAVEPOINT around the INSERT
+        contains a concurrent-creator ``IntegrityError`` so it never
+        poisons the caller's transaction (the #1225 discipline; mirrors
+        ``claim_job``'s ``begin_nested`` use here).
+        """
+        existing = await self.session.execute(
+            select(Pipeline.id).where(col(Pipeline.id) == pipeline_id)
+        )
+        if existing.first() is not None:
+            return
+        try:
+            async with self.session.begin_nested():
+                self.session.add(
+                    Pipeline(
+                        id=pipeline_id,
+                        kind=kind,
+                        entity_type=entity_type,
+                        ingestion_method=ingestion_method,
+                        module_type_id=module_type_id,
+                        year=year,
+                        status=PipelineStatus.NOT_STARTED.value,
+                    )
+                )
+                await self.session.flush()
+        except IntegrityError:
+            # A concurrent creator won the race — idempotent no-op.
+            pass
+
+    async def recompute_pipeline_status(
+        self, pipeline_id: UUID
+    ) -> Optional[str]:
+        """Recompute-and-store the pipeline's authoritative status (#1236).
+
+        The single source of truth is the pure
+        ``compute_pipeline_progress`` over the pipeline's jobs — never
+        an incremental accumulator (drift = the #1219 bug class).
+
+        Option (a) — last-child oracle: only writes when
+        ``progress.done`` (the terminal that flips it is, by
+        definition, the last expected child); a non-terminal call is a
+        cheap read + skip. Self-healing: a skipped/lost write is
+        recovered by the next terminal or the reconciliation sweep.
+
+        Does NOT commit — the caller owns the transaction boundary
+        (the runner wraps this in its post-``finish_job`` isolated
+        try/except; the sweep batches). Returns the written status, or
+        ``None`` when skipped (no jobs / not done).
+        """
+        # Local import: pure function, models-only deps; avoids a
+        # module-level service→repo edge.
+        from app.services.pipeline_progress import compute_pipeline_progress
+
+        jobs = await self.list_jobs_by_pipeline_id(pipeline_id)
+        if not jobs:
+            return None
+        progress = compute_pipeline_progress(jobs)
+        if not progress["done"]:
+            return None  # not the last child — skip (option a)
+
+        errored = [
+            j
+            for j in jobs
+            if j.state == IngestionState.FINISHED
+            and j.result == IngestionResult.ERROR
+        ]
+        # Phase-1 mapping. PARTIAL is reserved (model enum) but not
+        # emitted until the FAILED-vs-PARTIAL boundary open question is
+        # decided — do not invent a definition here.
+        new_status = (
+            PipelineStatus.FAILED.value
+            if errored
+            else PipelineStatus.SUCCESS.value
+        )
+        started = [j.started_at for j in jobs if j.started_at is not None]
+        finished = [j.finished_at for j in jobs if j.finished_at is not None]
+        await self.session.execute(
+            update(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .values(
+                status=new_status,
+                job_count=len(jobs),
+                error_count=len(errored),
+                started_at=min(started) if started else None,
+                finished_at=max(finished) if finished else None,
+                last_error=errored[-1].status_message if errored else None,
+                updated_at=func.now(),
+            )
+        )
+        return new_status
+
+    async def reconcile_pipeline_statuses(self) -> dict:
+        """Phase-1 standalone reconciliation sweep (#1236).
+
+        The durable backstop for the runner's isolated post-finish
+        write: that write log-and-skips on any DB error, so status can
+        lag. This recomputes-and-stores every pipeline that has jobs
+        (idempotent; commits per pipeline so a mid-sweep failure keeps
+        prior fixes). Phase 3 schedules this on a cron before flipping
+        reads; Phase 1 just ships it callable.
+
+        Returns ``{"checked": n, "corrected": m}``.
+        """
+        pid_rows = await self.session.execute(
+            select(col(DataIngestionJob.pipeline_id))
+            .where(col(DataIngestionJob.pipeline_id).isnot(None))
+            .distinct()
+        )
+        pids = [r[0] for r in pid_rows.all()]
+        checked = 0
+        corrected = 0
+        for pid in pids:
+            checked += 1
+            before = (
+                await self.session.execute(
+                    select(col(Pipeline.status)).where(
+                        col(Pipeline.id) == pid
+                    )
+                )
+            ).scalar_one_or_none()
+            after = await self.recompute_pipeline_status(pid)
+            await self.session.commit()
+            if after is not None and after != before:
+                corrected += 1
+        return {"checked": checked, "corrected": corrected}
 
     async def get_current_pipeline_id_for_module(
         self,

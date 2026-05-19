@@ -130,6 +130,12 @@ async def run_job(job_id: int) -> None:
             logger.warning(f"run_job: job {job_id} disappeared after claim — exiting")
             return
 
+        # #1236 — capture pipeline_id as a plain value now (immutable
+        # for the job's life). Read post-``finish_job`` from a fresh /
+        # post-commit ``job_session`` would risk an expired-instance
+        # lazy load; a local value sidesteps that entirely.
+        pipeline_id_for_status = job.pipeline_id
+
         # Plain ``asyncio.create_task`` (not ``fire_and_forget``): the
         # local ``heartbeat_task`` ref keeps the task alive for the
         # lifetime of this function, and we cancel + await it in the
@@ -283,6 +289,32 @@ async def run_job(job_id: int) -> None:
             if not wrote:
                 logger.warning("preempted before FINISHED write: job_id=%s", job_id)
                 return
+
+            # #1236 — advance the pipeline aggregate's authoritative
+            # status. ``finish_job`` already COMMITTED job_session, so
+            # this is a separate post-commit transaction: a failure
+            # here CANNOT poison the durable job terminal (stronger
+            # than the SAVEPOINT ideal — there is no enclosing txn
+            # left to corrupt). Fully isolated: log-and-skip on any DB
+            # error; the reconciliation sweep or the next sibling
+            # terminal self-heals. Recompute-and-store + the
+            # last-child oracle (compute_pipeline_progress.done) live
+            # in ``recompute_pipeline_status``.
+            if pipeline_id_for_status is not None:
+                try:
+                    await repo.recompute_pipeline_status(
+                        pipeline_id_for_status
+                    )
+                    await job_session.commit()
+                except Exception:
+                    logger.exception(
+                        "run_job: pipeline status recompute failed — "
+                        "skipped, sweep will heal (job_id=%s "
+                        "pipeline_id=%s)",
+                        job_id,
+                        pipeline_id_for_status,
+                    )
+                    await job_session.rollback()
         finally:
             heartbeat_task.cancel()
             try:
