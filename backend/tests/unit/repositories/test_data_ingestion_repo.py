@@ -1285,3 +1285,46 @@ async def test_reconcile_heals_drift(db_session: AsyncSession):
         await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
     ).scalar_one()
     assert healed.status == PipelineStatus.SUCCESS.value
+
+
+@pytest.mark.asyncio
+async def test_recompute_last_error_skips_success_message(
+    db_session: AsyncSession,
+):
+    """#1236 / advisor blocker: a csv_ingest that succeeded then
+    poisoned downstream has result=ERROR but status_message='Success'.
+    last_error must carry the informative sibling error, not 'Success'
+    (this logic is reused by Phase-2 backfill across all history)."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="Success",  # the misleading #1219 shape
+            meta={"recalc_jobs_chained": 1},
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="DeadlockDetected: data_entry_emissions",
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.FAILED.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.last_error == "DeadlockDetected: data_entry_emissions"
+    assert row.last_error != "Success"

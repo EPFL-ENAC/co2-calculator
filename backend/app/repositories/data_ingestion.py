@@ -568,6 +568,21 @@ class DataIngestionRepository:
             if errored
             else PipelineStatus.SUCCESS.value
         )
+        # ``last_error`` must carry signal, not the #1219 lie: a
+        # ``csv_ingest`` that succeeded then poisoned downstream has
+        # ``result=ERROR`` but ``status_message="Success"`` (jobs
+        # 2/47/49/74 shape). Prefer an errored job whose message is
+        # NOT "Success"; fall back to the first errored only if every
+        # one is uninformative. (Phase 2 backfill reuses this logic
+        # across all history — must not write "last_error: Success".)
+        last_error: Optional[str] = None
+        if errored:
+            informative = [
+                j
+                for j in errored
+                if (j.status_message or "").strip().lower() != "success"
+            ]
+            last_error = (informative or errored)[0].status_message
         started = [j.started_at for j in jobs if j.started_at is not None]
         finished = [j.finished_at for j in jobs if j.finished_at is not None]
         await self.session.execute(
@@ -579,7 +594,7 @@ class DataIngestionRepository:
                 error_count=len(errored),
                 started_at=min(started) if started else None,
                 finished_at=max(finished) if finished else None,
-                last_error=errored[-1].status_message if errored else None,
+                last_error=last_error,
                 updated_at=func.now(),
             )
         )

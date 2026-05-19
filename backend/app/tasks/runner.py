@@ -300,6 +300,14 @@ async def run_job(job_id: int) -> None:
             # terminal self-heals. Recompute-and-store + the
             # last-child oracle (compute_pipeline_progress.done) live
             # in ``recompute_pipeline_status``.
+            #
+            # NOTE for future handler authors: this write reuses
+            # ``job_session`` — the SAME connection the handler ran on.
+            # It is in a clean post-commit state here, but a handler
+            # that leaves connection-level artifacts (advisory locks,
+            # server-side temp state) would silently leak them into
+            # this write. No current handler does; if you add one that
+            # does, give the status write its own session.
             if pipeline_id_for_status is not None:
                 try:
                     await repo.recompute_pipeline_status(
