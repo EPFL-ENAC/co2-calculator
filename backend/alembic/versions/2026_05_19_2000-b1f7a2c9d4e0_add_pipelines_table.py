@@ -3,10 +3,11 @@
 
 First-class pipeline aggregate root.  Table-only: the existing
 ``data_ingestion_jobs.pipeline_id`` column stays a plain UUID with NO
-foreign key here — legacy rows reference pipeline_ids that have no
-``pipelines`` row yet, so an enforced FK would reject the first insert.
-The FK is added post-backfill in Phase 2
-(``ADD CONSTRAINT … NOT VALID`` + ``VALIDATE CONSTRAINT``).
+foreign key here — when this migration first applies onto an existing
+DB, pre-Phase-1 jobs hold pipeline_ids with no ``pipelines`` row, so
+an enforced FK would reject them.  v0.x drops the DB between deploys
+(no backfill until v1.x), so the FK is enforced in a follow-up
+migration once a clean DB runs Phase-1 code — not gated on a backfill.
 
 Revision ID: b1f7a2c9d4e0
 Revises: 30c096280772

@@ -151,20 +151,33 @@ Most of this extends primitives already built.
 
 ## Phased plan (each shippable + reversible)
 
-1. **Add table + write-through.** Migration creates `pipelines`
-   table-only (column stays plain UUID, **no FK constraint** — legacy
-   rows have no pipeline row yet; FK is added post-backfill in Phase 2
-   via `ADD CONSTRAINT … NOT VALID` + `VALIDATE`). The 4 mint sites
-   call `ensure_pipeline_exists`; the runner advances `status`
+> **v0.x has no backfill — the DB is dropped between deploys; real
+> backfill starts at v1.x.** This collapses old Phase 2: there is no
+> history to synthesise. On any fresh v0.x DB every `pipeline_id`
+> originates from `ensure_pipeline_exists`, so the FK is not
+> backfill-gated — it can be enforced once a clean DB is running
+> Phase-1 code (i.e. the deploy *after* Phase 1 ships, which in v0.x
+> is a DB drop). The mid-DB-life window (Phase 1 deployed onto a DB
+> that already has pre-Phase-1 pipeline_id rows) is the only reason
+> the FK isn't in the Phase-1 migration itself.
+
+1. **Add table + write-through.** ✅ DONE (`fix/pipeline-debug`).
+   Migration creates `pipelines` table-only (column stays plain UUID,
+   **no FK yet** — see box above). The 4 mint sites call
+   `ensure_pipeline_exists`; the runner advances `status`
    post-`finish_job` as an isolated log-and-skip write (last-child
-   oracle). Sweep shipped as a standalone callable.
-   _Verify:_ the sweep/reconciliation query returns **zero** rows
-   where stored `status` ≠ `compute_pipeline_progress` over the
-   pipeline's jobs.
-2. **Backfill.** One migration: a `pipelines` row per historical
-   `pipeline_id`; NULL-pipeline parents → single-step pipelines.
-   _Verify:_ counts reconcile; #1219/poisoned samples land
-   `FAILED`/`PARTIAL`.
+   oracle). Sweep is a standalone callable.
+   _Verify (met):_ the reconciliation test proves **zero** drift
+   (stored `status` == `compute_pipeline_progress`).
+2. **Enforce FK** (v0.x, post-DB-drop) — add `pipeline_id` FK →
+   `pipelines(id)` once a clean DB runs Phase-1 code. No data
+   migration. _Verify:_ migration applies on a fresh DB; an orphan
+   `pipeline_id` is impossible because `ensure_pipeline_exists` runs
+   at every mint. **(v1.x: a real backfill migration replaces this
+   step — a `pipelines` row per historical `pipeline_id`,
+   NULL-pipeline parents → single-step; #1219/poisoned samples land
+   `FAILED`/`PARTIAL`. The `last_error`-skips-"Success" fix already
+   makes that backfill safe.)**
 3. **Flip reads.** Console (#1234), `GET /pipelines/{id}`, progress
    read the table; `compute_pipeline_progress` becomes writer-side
    only. _Verify:_ golden-output diff before/after on the same DB.
@@ -173,8 +186,8 @@ Most of this extends primitives already built.
    VERIFY above.
 5. **Retire meta threading** once nothing reads the counters.
 
-Phases 1–2 are pure additions (revert = drop table); phase 3 is the
-only behavioural flip.
+Phase 1 is a pure addition (revert = drop table); phase 3 is the only
+behavioural flip.
 
 ## Rejected alternatives
 
