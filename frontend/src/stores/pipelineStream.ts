@@ -145,6 +145,12 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
     applyUpdate({
       pipeline_id: snapshot.pipeline_id,
       jobs: snapshot.jobs,
+      // Issue #1219 — forward the one-shot endpoint's authoritative
+      // progress so the badge/card show the phase immediately on
+      // subscribe, not only after the first ~2s SSE poll. Without
+      // this the seed wipes nothing (applyUpdate skips undefined) but
+      // leaves progress null until the stream catches up.
+      progress: snapshot.progress,
     });
   }
 
@@ -195,13 +201,21 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
 
   /**
    * Reactive ``isFinished`` — Issue #1219: server-authoritative.
-   * True only when the backend says the *whole pipeline* is done
-   * (``progress.done``) or sent its terminal ``stream_closed: true``.
+   * True when the backend says the *whole pipeline* is done
+   * (``progress.done``), sent its terminal ``stream_closed: true``,
+   * OR any job is FINISHED+ERROR.
    *
-   * The old "every job in the snapshot is FINISHED" heuristic is
-   * deliberately gone: it fired in the window where the parent upload
-   * was FINISHED but its recalc/aggregation children had not been
-   * INSERTed yet, flashing the module green on a half-done pipeline.
+   * The old "every job in the snapshot is FINISHED" *success*
+   * heuristic is deliberately gone: it fired in the window where the
+   * parent upload was FINISHED but its recalc/aggregation children
+   * had not been INSERTed yet, flashing the module green on a
+   * half-done pipeline.
+   *
+   * The FINISHED+ERROR clause is kept (and matches the backend's own
+   * ``done ⇔ phase3 OR any FINISHED+ERROR`` rule): a broken chain
+   * spawns no further children, so an error is unambiguously terminal
+   * regardless of fan-out completeness — the failure badge must show
+   * even before / without an authoritative ``progress`` payload.
    */
   function isFinishedFor(pipelineId: string): ComputedRef<boolean> {
     return computed(() => {
@@ -209,7 +223,11 @@ export const usePipelineStreamStore = defineStore('pipelineStream', () => {
       if (!entry) {
         return false;
       }
-      return entry.closed || entry.progress?.done === true;
+      return (
+        entry.closed ||
+        entry.progress?.done === true ||
+        entry.jobs.some((j) => j.state === FINISHED && j.result === ERROR)
+      );
     });
   }
 

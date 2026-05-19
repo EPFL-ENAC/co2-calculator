@@ -37,9 +37,8 @@ const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
 // Issue #1219 — the module's authoritative pipeline progress, provided
 // by ModuleConfig (the single SSE subscriber). Shared by every card in
 // the module: the recalc/aggregation pipeline is module-scoped.
-const injectedPipelineProgress = inject<
-  ComputedRef<PipelineProgress | null>
->('pipelineProgress');
+const injectedPipelineProgress =
+  inject<ComputedRef<PipelineProgress | null>>('pipelineProgress');
 const pipelineProgress = computed<PipelineProgress | null>(
   () => injectedPipelineProgress?.value ?? null,
 );
