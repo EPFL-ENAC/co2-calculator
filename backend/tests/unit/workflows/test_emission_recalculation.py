@@ -141,6 +141,143 @@ async def test_recalculate_partial_error():
 
 
 @pytest.mark.asyncio
+async def test_recalculate_aborts_batch_on_connection_invalidated():
+    """A connection-invalidated DBAPIError aborts the whole batch
+    (re-raised) instead of looping the same fatal error per remaining
+    entry.  Regression for the stage incident where one dead-connection
+    failure produced one identical "transaction aborted / can't
+    reconnect" log line per remaining data_entry and a silently failed
+    job.  Re-raising lets the runner record FINISHED+ERROR with the
+    real cause (per-entry data errors still continue — see
+    test_recalculate_partial_error)."""
+    from sqlalchemy.exc import DBAPIError
+
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entries = [_make_mock_entry(1, 10), _make_mock_entry(2, 11)]
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryResponse"
+        ) as mock_response_cls,
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
+
+        def _model_validate(entry):
+            m = MagicMock()
+            m.id = entry.id
+            return m
+
+        mock_response_cls.model_validate.side_effect = _model_validate
+
+        upsert_calls: list[int] = []
+
+        async def _upsert(entry_response):
+            upsert_calls.append(entry_response.id)
+            if entry_response.id == 1:
+                raise DBAPIError(
+                    "UPDATE data_entry_emissions ...",
+                    {},
+                    Exception("server closed the connection unexpectedly"),
+                    connection_invalidated=True,
+                )
+
+        mock_emission_cls.return_value.upsert_by_data_entry = _upsert
+
+        with pytest.raises(DBAPIError):
+            await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
+
+    # Aborted at the first entry — the second was never attempted, so
+    # no error storm and no masking of the first cause.
+    assert upsert_calls == [1]
+
+
+@pytest.mark.asyncio
+async def test_recalculate_aborts_batch_on_pending_rollback():
+    """A ``PendingRollbackError`` / ``InvalidRequestError`` (the
+    "Can't reconnect until invalid transaction is rolled back" shape
+    actually seen in the stage storm) must also abort the batch — not
+    just ``DBAPIError.connection_invalidated``.  This is the case the
+    first version of the fix missed: once the session needs a full
+    rollback, every remaining entry (including ``begin_nested()``'s
+    SAVEPOINT enter) re-raises the same error."""
+    from sqlalchemy.exc import PendingRollbackError
+
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entries = [_make_mock_entry(1, 10), _make_mock_entry(2, 11)]
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryResponse"
+        ) as mock_response_cls,
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
+
+        def _model_validate(entry):
+            m = MagicMock()
+            m.id = entry.id
+            return m
+
+        mock_response_cls.model_validate.side_effect = _model_validate
+
+        upsert_calls: list[int] = []
+
+        async def _upsert(entry_response):
+            upsert_calls.append(entry_response.id)
+            if entry_response.id == 1:
+                raise PendingRollbackError(
+                    "This Session's transaction has been rolled back "
+                    "due to a previous exception during flush."
+                )
+
+        mock_emission_cls.return_value.upsert_by_data_entry = _upsert
+
+        with pytest.raises(PendingRollbackError):
+            await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
+
+    assert upsert_calls == [1]
+
+
+@pytest.mark.asyncio
 async def test_recalculate_empty_result():
     """No data entries for the type/year → all counts are zero."""
     mock_session = MagicMock()
