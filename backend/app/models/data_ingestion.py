@@ -371,3 +371,94 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             f"provider={self.provider} status={self.state} "
             f"result={self.result} is_current={self.is_current}>"
         )
+
+
+# ==========================================
+# 3. PIPELINE AGGREGATE ROOT (Issue #1236)
+# ==========================================
+
+
+class PipelineStatus(str, Enum):
+    """Authoritative pipeline status (#1236).
+
+    Stored as text (no PG enum type — keeps the migration and the
+    SQLite test fixture trivial).  Derived by the runner via
+    ``compute_pipeline_progress`` (recompute-and-store), never an
+    incremental accumulator.
+    """
+
+    NOT_STARTED = "NOT_STARTED"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"  # chain completed, some children errored
+    FAILED = "FAILED"  # chain broken (a job FINISHED+ERROR)
+
+
+class Pipeline(SQLModel, table=True):
+    """First-class pipeline (#1236) — the aggregate root for a
+    multi-step run that today is only an emergent ``pipeline_id`` tag
+    on ``data_ingestion_jobs``.
+
+    Phase 1: the row is created at parent creation via
+    ``ensure_pipeline_exists``; ``status`` is advanced by the runner
+    post-``finish_job`` (recompute-and-store, last-child oracle,
+    isolated log-and-skip).  ``data_ingestion_jobs.pipeline_id`` stays
+    a plain UUID — the FK is added post-backfill in Phase 2.
+    """
+
+    __tablename__ = "pipelines"
+
+    id: UUID = Field(sa_column=Column(SAUUID, primary_key=True))
+    # = parent job_type (csv_ingest / factor_ingest / unit_sync / …)
+    kind: Optional[str] = Field(default=None, sa_column=Column(String(100)))
+    status: str = Field(
+        default=PipelineStatus.NOT_STARTED.value,
+        sa_column=Column(String(32), nullable=False, server_default="NOT_STARTED"),
+    )
+    # scope / provenance — int-enum values mirrored from the parent job
+    entity_type: Optional[int] = Field(default=None)
+    ingestion_method: Optional[int] = Field(default=None)
+    module_type_id: Optional[int] = Field(default=None)
+    year: Optional[int] = Field(default=None)
+    # owned recalc count (was meta.recalc_jobs_chained) — kept for the
+    # Phase-3 console; the last-child oracle uses compute_pipeline_progress,
+    # not this counter.
+    expected_recalc: Optional[int] = Field(default=None)
+    job_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    error_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    started_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True))
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True))
+    )
+    last_error: Optional[str] = Field(default=None, sa_column=Column(String))
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(
+            SADateTime(timezone=True),
+            nullable=False,
+            server_default=text("CURRENT_TIMESTAMP"),
+        ),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(
+            SADateTime(timezone=True),
+            nullable=False,
+            server_default=text("CURRENT_TIMESTAMP"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Pipeline id={self.id} kind={self.kind} "
+            f"status={self.status} jobs={self.job_count} "
+            f"errors={self.error_count}>"
+        )

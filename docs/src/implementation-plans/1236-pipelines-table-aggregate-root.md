@@ -84,16 +84,37 @@ Rejected alternatives).
   incremental accumulator under concurrency + retries + out-of-order
   terminals is precisely how drift returns. The per-terminal sibling
   SELECT is bounded and indexed by `pipeline_id` — cheap insurance.
-- **Option (a) — only the last expected child writes status.** Use
-  `expected_recalc` (+ aggregation count) so just the terminating
-  child performs the status write. Cuts the all-children-write-the-
-  same-`pipelines`-row contention to ~one write per pipeline.
-- The status write **must** sit inside a `begin_nested()` SAVEPOINT
-  (the #1225 discipline): if it deadlocks/errors, roll back **only the
-  savepoint** so the job's own `finish_job` survives; log-and-skip the
-  status update; reconcile later. A reconciliation sweep (recompute
-  status for any pipeline whose stored status ≠
-  `compute_pipeline_progress`) is the safety net for skipped writes.
+- **Option (a) — only the last child writes status.** No manual
+  counting: `compute_pipeline_progress(siblings).done` _is_ the
+  last-child oracle. Under READ COMMITTED a non-last terminal sees
+  `done=false` and skips; the actually-last terminal sees every
+  earlier commit and writes. If two terminals race and both observe
+  the full set, both write — benign, recompute-from-truth makes the
+  writes identical (just brief row contention). UPSERT; add no
+  coordination machinery for a self-resolving edge.
+- **Mechanism: post-commit isolated write, NOT a SAVEPOINT inside the
+  finish transaction.** `repo.finish_job` self-commits the
+  `job_session`; there is no enclosing transaction to nest in. So the
+  status write is its own short transaction _after_ `finish_job`
+  returns `True`, fully `try/except`'d (log-and-skip on any DB error).
+  This is _stronger_ isolation than the SAVEPOINT ideal: the job's
+  terminal is already durably committed, so a failed status write
+  cannot poison it at all. Trade-off: a small window where a reader
+  sees stale status — irrelevant in Phase 1 (no reads flipped),
+  absorbed in Phase 3 by the sweep + next-terminal self-heal.
+- **Row creation is a separate concern from status.** Create the
+  `pipelines` row at **parent creation**, not in the runner (the
+  runner is a terminal actor, not a kickoff actor). One idempotent
+  helper `ensure_pipeline_exists(session, pipeline_id, parent_job)`
+  (`INSERT … ON CONFLICT DO NOTHING`) called from the 4 post-merge
+  mint sites (`_stamp_job_type_and_meta`, the 2 recalc endpoints'
+  `DataIngestionJob(...)`, `_chain.py` lazy mint). One logical
+  chokepoint, several call sites — keeps Phase-3 in-flight visibility
+  without 4-way drift.
+- **Reconciliation sweep** (recompute status where stored ≠
+  `compute_pipeline_progress`) is the durable backstop for skipped
+  writes. Phase 1 ships it as a standalone callable (manually /
+  cron-invokable); Phase 3 schedules it before flipping reads.
 
 ## Concurrency & contention model (informs Phase 3+)
 
@@ -130,11 +151,16 @@ Most of this extends primitives already built.
 
 ## Phased plan (each shippable + reversible)
 
-1. **Add table + write-through.** Create `pipelines`;
-   chain/dispatch/recalc upsert a row; runner advances `status` via
-   recompute-and-store, option (a), inside the #1225 SAVEPOINT.
-   _Verify:_ a reconciliation query returns **zero** rows where stored
-   `status` ≠ `compute_pipeline_progress` over the pipeline's jobs.
+1. **Add table + write-through.** Migration creates `pipelines`
+   table-only (column stays plain UUID, **no FK constraint** — legacy
+   rows have no pipeline row yet; FK is added post-backfill in Phase 2
+   via `ADD CONSTRAINT … NOT VALID` + `VALIDATE`). The 4 mint sites
+   call `ensure_pipeline_exists`; the runner advances `status`
+   post-`finish_job` as an isolated log-and-skip write (last-child
+   oracle). Sweep shipped as a standalone callable.
+   _Verify:_ the sweep/reconciliation query returns **zero** rows
+   where stored `status` ≠ `compute_pipeline_progress` over the
+   pipeline's jobs.
 2. **Backfill.** One migration: a `pipelines` row per historical
    `pipeline_id`; NULL-pipeline parents → single-step pipelines.
    _Verify:_ counts reconcile; #1219/poisoned samples land
