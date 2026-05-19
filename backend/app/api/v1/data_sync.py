@@ -1,7 +1,8 @@
 import asyncio
+import enum
 import json
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TypeVar
 from uuid import UUID, uuid4
 
 from fastapi import (
@@ -363,6 +364,32 @@ _PIPELINE_META_ALLOW = (
 def _project_pipeline_meta(meta: Optional[dict]) -> dict:
     m = meta or {}
     return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+
+
+_EnumT = TypeVar("_EnumT", bound=enum.Enum)
+
+
+def _resolve_enum_name(
+    enum_cls: type[_EnumT], value: Optional[str], field: str
+) -> Optional[_EnumT]:
+    """Resolve a query param to an enum member by *name* (#1234).
+
+    ``IngestionState`` / ``IngestionResult`` are int enums, so FastAPI's
+    built-in coercion expects the integer value and 422s on the
+    human-readable name the UI sends (``RUNNING``, ``ERROR`` …).  This
+    accepts the name case-insensitively and 422s only on a genuinely
+    unknown value."""
+    if value is None:
+        return None
+    needle = value.strip().lower()
+    for member in enum_cls:
+        if member.name.lower() == needle:
+            return member
+    valid = ", ".join(m.name for m in enum_cls)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Invalid {field} '{value}'. Expected one of: {valid}",
+    )
 
 
 class PipelineJobListEntry(BaseModel):
@@ -1079,8 +1106,8 @@ async def get_recalculation_status(
 
 @router.get("/pipelines", response_model=PipelineListResponse)
 async def list_pipelines(
-    state: Optional[IngestionState] = None,
-    result: Optional[IngestionResult] = None,
+    state: Optional[str] = None,
+    result: Optional[str] = None,
     job_type: Optional[str] = None,
     module_type_id: Optional[int] = None,
     year: Optional[int] = None,
@@ -1110,20 +1137,31 @@ async def list_pipelines(
     wins routing.  Drill-down/live stays on the existing
     ``GET /pipelines/{id}`` (+ ``/stream``) — not rebuilt here.
 
-    Permission model mirrors ``get_active_pipelines``: the global
-    ``backoffice.data_management.view`` gate (dependency above) plus a
-    per-module *drop* (not 403) for pipelines whose module the operator
-    can't view.  Pipelines with no ``module_type_id`` (unit_sync,
-    unpinned factor ingests) pass on the global gate alone.  ``total``
-    is the pre-drop match count, so a scope-limited operator may see a
-    short page — acceptable for an internal ops tool where backoffice
-    users almost always hold broad view; the alternative (exact
+    ``state`` / ``result`` filters take the enum **name**
+    (case-insensitive: ``RUNNING``, ``FINISHED``, ``SUCCESS``,
+    ``ERROR`` …).  ``IngestionState``/``IngestionResult`` are int
+    enums, so FastAPI's native enum coercion would demand the integer
+    value and 422 on the readable name the UI sends — hence the
+    explicit name resolution here.
+
+    Permission model matches the single-pipeline endpoint
+    (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
+    *non-raising*: the global ``backoffice.data_management.view`` gate
+    (dependency above) covers cross-unit ``MODULE_PER_YEAR`` pipelines
+    (recalc/aggregation) and unscoped runs (unit_sync); a pipeline is
+    *dropped* (not 403) only when it is unit-pinned
+    (``MODULE_UNIT_SPECIFIC``) and the operator lacks the
+    ``modules.{name}`` scope for that unit.  ``total`` is the pre-drop
+    match count, so a unit-scoped operator may see a short page —
+    acceptable for an internal ops tool; the alternative (exact
     post-filter pagination) would require loading every pipeline,
     defeating the SQL-side pagination.
     """
+    resolved_state = _resolve_enum_name(IngestionState, state, "state")
+    resolved_result = _resolve_enum_name(IngestionResult, result, "result")
     groups, total = await DataIngestionRepository(db).list_pipelines_paginated(
-        state=state,
-        result=result,
+        state=resolved_state,
+        result=resolved_result,
         job_type=job_type,
         module_type_id=module_type_id,
         year=year,
@@ -1135,25 +1173,22 @@ async def list_pipelines(
         offset=offset,
     )
 
-    allowed: dict[int, bool] = {}
     items: list[PipelineListItem] = []
     for group in groups:
         jobs = group["jobs"]
         if not jobs:
             continue
+        # Same scope gate as the single-pipeline read endpoint, made
+        # non-fatal: cross-unit MODULE_PER_YEAR pipelines and unscoped
+        # runs pass on the global backoffice gate; only a unit-pinned
+        # pipeline the operator can't view is dropped (not 403).
+        try:
+            await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="view")
+        except HTTPException:
+            continue
         # Root/parent = lowest id (repo returns jobs id-ascending; the
         # ingest parent is created before its fan-out children).
         root = jobs[0]
-        mod = root.module_type_id
-        if mod is not None:
-            if mod not in allowed:
-                decision = await get_module_permission_decision(
-                    current_user, mod, "view"
-                )
-                allowed[mod] = bool(decision.get("allow"))
-            if not allowed[mod]:
-                continue
-
         started = [j.started_at for j in jobs if j.started_at is not None]
         finished = [j.finished_at for j in jobs if j.finished_at is not None]
         items.append(
