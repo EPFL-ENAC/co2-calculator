@@ -135,6 +135,47 @@ async def factor_ingest_handler(
 # ---------------------------------------------------------------------------
 
 
+def finalize_ingest_meta(result: dict) -> dict:
+    """Flatten a provider ``ingest()`` return into the handler's meta,
+    making ``status_message`` honest (#1236).
+
+    The provider's ``ingest()`` hardcodes ``status_message="Success"``
+    whenever it does not *raise* — but a CSV where every row errored
+    finishes WITHOUT raising and is classified ERROR/WARNING from the
+    row-error stats. A FINISHED job whose result != SUCCESS must not
+    claim "Success" — that lie is what pipeline status / ``last_error``
+    then propagate (#1219). When result != SUCCESS and the message is
+    the generic "Success", replace it with an honest summary from the
+    counts the provider already returned. A real exception-path
+    message ("failed: …") never reaches here (it raises upstream), so
+    it is preserved.
+
+    Shared by ``_run_ingest`` (csv/api/factor) and
+    ``reference_ingest_handler`` — they had two identical copies of
+    this join; the duplication is what let the bug exist in one.
+    """
+    data = result.get("data", {}) or {}
+    ingestion_result = data.get("result", IngestionResult.SUCCESS)
+    status_message = result.get("status_message", "Success")
+    if ingestion_result != IngestionResult.SUCCESS and (
+        not status_message or status_message.strip().lower() == "success"
+    ):
+        rec = (
+            "ERROR"
+            if ingestion_result == IngestionResult.ERROR
+            else "WARNING"
+        )
+        status_message = (
+            f"{rec}: {data.get('inserted', 0)} inserted, "
+            f"{data.get('skipped', 0)} skipped"
+        )
+    return {
+        "status_message": status_message,
+        "result": ingestion_result,
+        **data,
+    }
+
+
 async def _run_ingest(
     job: DataIngestionJob,
     job_session: AsyncSession,
@@ -193,35 +234,7 @@ async def _run_ingest(
     filters = job_meta.get("filters") or {}
     result = await provider.ingest(filters)
 
-    data = result.get("data", {}) or {}
-    ingestion_result = data.get("result", IngestionResult.SUCCESS)
-    status_message = result.get("status_message", "Success")
-    # #1236 root cause: ``ingest()`` hardcodes status_message="Success"
-    # whenever it doesn't *raise*, but a CSV where every row errored
-    # finishes WITHOUT raising and is classified ERROR/WARNING from the
-    # row-error stats. A FINISHED job whose result != SUCCESS must not
-    # claim "Success" — that lie is what pipeline status / last_error
-    # then propagate (#1219). Replace the generic message with an
-    # honest summary from the counts the provider already returned.
-    # Only overrides the generic "Success"; a real exception-path
-    # message ("failed: …") never reaches here (it raises upstream).
-    if ingestion_result != IngestionResult.SUCCESS and (
-        not status_message or status_message.strip().lower() == "success"
-    ):
-        rec = (
-            "ERROR"
-            if ingestion_result == IngestionResult.ERROR
-            else "WARNING"
-        )
-        status_message = (
-            f"{rec}: {data.get('inserted', 0)} inserted, "
-            f"{data.get('skipped', 0)} skipped"
-        )
-    return {
-        "status_message": status_message,
-        "result": ingestion_result,
-        **data,
-    }
+    return finalize_ingest_meta(result)
 
 
 # ---------------------------------------------------------------------------
