@@ -328,6 +328,84 @@ class PipelineResponse(BaseModel):
     progress: PipelineProgressResponse
 
 
+# Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
+# Everything else (esp. ``error_details`` / ``affected_module_ids``,
+# which are KB-scale per row) is stripped server-side so the list
+# payload stays small.  These five are exactly what threads the DAG /
+# drives ``compute_pipeline_progress`` plus the provenance the table
+# shows.
+_PIPELINE_META_ALLOW = (
+    "parent_job_id",
+    "recalc_jobs_chained",
+    "aggregation_job_id",
+    "provider_name",
+    "filters",
+)
+
+
+def _project_pipeline_meta(meta: Optional[dict]) -> dict:
+    m = meta or {}
+    return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+
+
+class PipelineJobListEntry(BaseModel):
+    """One job inside a pipeline, as shown in the ops-console DAG (#1234).
+
+    Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
+    carries timing for per-step duration and an **allow-listed** ``meta``
+    (never the big ``error_details`` / ``affected_module_ids`` arrays)."""
+
+    job_id: int
+    job_type: Optional[str] = None
+    state: Optional[IngestionState] = None
+    result: Optional[IngestionResult] = None
+    status_message: Optional[str] = None
+    module_type_id: Optional[int] = None
+    data_entry_type_id: Optional[int] = None
+    year: Optional[int] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    attempts: Optional[int] = None
+    meta: dict = {}
+
+
+class PipelineListItem(BaseModel):
+    """One pipeline row in the ops console (#1234).
+
+    ``pipeline_id`` is ``None`` for an orphan — a parent that failed
+    before fan-out so it never minted a pipeline (``is_orphan=True``);
+    it still appears as a pipeline-of-one.  Rollups (job_type, module,
+    year, status_message) come from the root/parent job; timing spans
+    the whole chain."""
+
+    pipeline_id: Optional[UUID] = None
+    is_orphan: bool
+    progress: PipelineProgressResponse
+    job_type: Optional[str] = None
+    module_type_id: Optional[int] = None
+    year: Optional[int] = None
+    status_message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    latest_job_id: int
+    job_count: int
+    error_count: int
+    jobs: list[PipelineJobListEntry]
+
+
+class PipelineListResponse(BaseModel):
+    """Page of pipelines for the ops console (#1234).
+
+    ``total`` is the full match count *before* the per-module
+    permission drop (see endpoint docstring), so a page may contain
+    fewer than ``limit`` items for a scope-limited operator."""
+
+    items: list[PipelineListItem]
+    total: int
+    limit: int
+    offset: int
+
+
 class StaleStatsEntry(BaseModel):
     """One ``(module_type_id, year)`` scope whose aggregation is missing,
     failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
@@ -974,6 +1052,128 @@ async def get_recalculation_status(
         )
         for module_id, dets in modules.items()
     ]
+
+
+@router.get("/pipelines", response_model=PipelineListResponse)
+async def list_pipelines(
+    state: Optional[IngestionState] = None,
+    result: Optional[IngestionResult] = None,
+    job_type: Optional[str] = None,
+    module_type_id: Optional[int] = None,
+    year: Optional[int] = None,
+    has_errors: Optional[bool] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+    q: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> PipelineListResponse:
+    """Paginated, filtered list of ingestion/recalc pipelines (#1234).
+
+    **Required Permission**: ``backoffice.data_management.view``
+
+    Backs the back-office pipeline-operations console — a global view
+    complementary to the per-module data-management page.  The unit is
+    the *pipeline* (one ``pipeline_id`` = parent + fan-out children);
+    pagination never splits a pipeline's jobs across pages.  Orphans
+    (a parent that failed before minting a ``pipeline_id``) appear as
+    pipelines-of-one with ``is_orphan=True``.
+
+    Declared before ``/pipelines/{pipeline_id}`` so the static path
+    wins routing.  Drill-down/live stays on the existing
+    ``GET /pipelines/{id}`` (+ ``/stream``) — not rebuilt here.
+
+    Permission model mirrors ``get_active_pipelines``: the global
+    ``backoffice.data_management.view`` gate (dependency above) plus a
+    per-module *drop* (not 403) for pipelines whose module the operator
+    can't view.  Pipelines with no ``module_type_id`` (unit_sync,
+    unpinned factor ingests) pass on the global gate alone.  ``total``
+    is the pre-drop match count, so a scope-limited operator may see a
+    short page — acceptable for an internal ops tool where backoffice
+    users almost always hold broad view; the alternative (exact
+    post-filter pagination) would require loading every pipeline,
+    defeating the SQL-side pagination.
+    """
+    groups, total = await DataIngestionRepository(db).list_pipelines_paginated(
+        state=state,
+        result=result,
+        job_type=job_type,
+        module_type_id=module_type_id,
+        year=year,
+        has_errors=has_errors,
+        since=since,
+        until=until,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    allowed: dict[int, bool] = {}
+    items: list[PipelineListItem] = []
+    for group in groups:
+        jobs = group["jobs"]
+        if not jobs:
+            continue
+        # Root/parent = lowest id (repo returns jobs id-ascending; the
+        # ingest parent is created before its fan-out children).
+        root = jobs[0]
+        mod = root.module_type_id
+        if mod is not None:
+            if mod not in allowed:
+                decision = await get_module_permission_decision(
+                    current_user, mod, "view"
+                )
+                allowed[mod] = bool(decision.get("allow"))
+            if not allowed[mod]:
+                continue
+
+        started = [j.started_at for j in jobs if j.started_at is not None]
+        finished = [j.finished_at for j in jobs if j.finished_at is not None]
+        items.append(
+            PipelineListItem(
+                pipeline_id=group["pipeline_id"],
+                is_orphan=group["is_orphan"],
+                progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
+                job_type=root.job_type,
+                module_type_id=root.module_type_id,
+                year=root.year,
+                status_message=root.status_message,
+                started_at=min(started) if started else None,
+                finished_at=max(finished) if finished else None,
+                latest_job_id=max(j.id for j in jobs if j.id is not None),
+                job_count=len(jobs),
+                error_count=sum(
+                    1
+                    for j in jobs
+                    if j.state == IngestionState.FINISHED
+                    and j.result == IngestionResult.ERROR
+                ),
+                jobs=[
+                    PipelineJobListEntry(
+                        job_id=j.id,
+                        job_type=j.job_type,
+                        state=j.state,
+                        result=j.result,
+                        status_message=j.status_message,
+                        module_type_id=j.module_type_id,
+                        data_entry_type_id=j.data_entry_type_id,
+                        year=j.year,
+                        started_at=j.started_at,
+                        finished_at=j.finished_at,
+                        attempts=j.attempts,
+                        meta=_project_pipeline_meta(j.meta),
+                    )
+                    for j in jobs
+                    if j.id is not None
+                ],
+            )
+        )
+
+    return PipelineListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
 @router.get("/pipelines/{pipeline_id}", response_model=PipelineResponse)

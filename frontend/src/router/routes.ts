@@ -232,6 +232,22 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
+            path: 'back-office/pipeline-operations',
+            name: BACKOFFICE_NAV.BACKOFFICE_PIPELINE_OPERATIONS.routeName,
+            component: () =>
+              import('pages/back-office/PipelineOperationsConsolePage.vue'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.EDIT,
+            ),
+            meta: {
+              requiresAuth: true,
+              note: 'Back Office - Pipeline operations console (admin only)',
+              breadcrumb: false,
+              isBackOffice: true,
+            },
+          },
+          {
             path: 'back-office/documentation-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>

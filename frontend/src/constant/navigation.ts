@@ -34,6 +34,12 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     icon: 'data_object',
     limitedAccess: true,
   },
+  BACKOFFICE_PIPELINE_OPERATIONS: {
+    routeName: 'backoffice-pipeline-operations',
+    description: 'backoffice-pipeline-operations-description',
+    icon: 'o_account_tree',
+    limitedAccess: true,
+  },
   BACKOFFICE_LOGS: {
     routeName: 'backoffice-logs',
     description: 'backoffice-logs-description',
