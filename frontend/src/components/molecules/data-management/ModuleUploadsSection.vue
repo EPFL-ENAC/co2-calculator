@@ -77,6 +77,14 @@ async function handleCancelJob(jobId: number) {
           {{ $t(common.labelKey) }}
         </div>
         <div class="row q-pb-md" style="gap: 1rem">
+          <UploadCardFactors
+            v-if="getImportRow(common).hasFactors"
+            :row="getImportRow(common)"
+            :on-download="downloadLastCsv"
+            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
+            @recalculate="() => triggerTypeRecalculation(common)"
+            @cancel="handleCancelJob"
+          />
           <UploadCardData
             v-if="getImportRow(common).hasData"
             :row="getImportRow(common)"
@@ -88,14 +96,6 @@ async function handleCancelJob(jobId: number) {
             :recalc-status="getRecalcStatus(common)"
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-            @recalculate="() => triggerTypeRecalculation(common)"
-            @cancel="handleCancelJob"
-          />
-          <UploadCardFactors
-            v-if="getImportRow(common).hasFactors"
-            :row="getImportRow(common)"
-            :on-download="downloadLastCsv"
-            @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
             @recalculate="() => triggerTypeRecalculation(common)"
             @cancel="handleCancelJob"
           />
