@@ -14,11 +14,178 @@ export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
 export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 export const API_ME_URL = 'auth/me';
+export const API_CSRF_URL = 'auth/csrf';
 export const API_REFRESH_URL = 'auth/refresh';
 export const API_LOGOUT_URL = 'auth/logout';
 export const loginPageName = '/en/login';
+export const CSRF_HEADER_NAME = 'X-CSRF';
+
+type CsrfBootstrapResponse = {
+  csrf_enabled: boolean;
+  csrf_token: string | null;
+};
 
 const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
+const isCsrfBootstrap = (u: string) => u.endsWith(API_CSRF_URL);
+const CSRF_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+
+let csrfToken: string | null = null;
+let csrfBootstrapPromise: Promise<string | null> | null = null;
+let csrfEnabled: boolean | null = null;
+
+const apiNoHooks = ky.create({
+  prefixUrl: API_BASE_URL,
+  credentials: 'include',
+  retry: { limit: 0 },
+});
+
+async function fetchAndStoreCsrfToken(): Promise<string | null> {
+  if (csrfBootstrapPromise) {
+    return csrfBootstrapPromise;
+  }
+
+  csrfBootstrapPromise = (async () => {
+    const response = await apiNoHooks
+      .get(API_CSRF_URL)
+      .json<CsrfBootstrapResponse>();
+    csrfEnabled = response.csrf_enabled;
+    csrfToken = response.csrf_enabled ? response.csrf_token : null;
+    return csrfToken;
+  })();
+
+  try {
+    return await csrfBootstrapPromise;
+  } finally {
+    csrfBootstrapPromise = null;
+  }
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (csrfEnabled === true && csrfToken) {
+    return csrfToken;
+  }
+
+  if (csrfEnabled === false) {
+    return null;
+  }
+
+  try {
+    return await fetchAndStoreCsrfToken();
+  } catch {
+    return null;
+  }
+}
+
+export async function bootstrapCsrfToken(): Promise<string | null> {
+  return fetchAndStoreCsrfToken();
+}
+
+export function clearCsrfToken(): void {
+  csrfToken = null;
+  csrfEnabled = null;
+  csrfBootstrapPromise = null;
+}
+
+async function handleCsrfError(
+  req: Request,
+  options: RequestInit,
+): Promise<Response | undefined> {
+  const newToken = await bootstrapCsrfToken();
+  if (!newToken) {
+    location.replace(loginPageName);
+    return;
+  }
+
+  const headers = new Headers(options.headers ?? req.headers);
+  headers.set(CSRF_HEADER_NAME, newToken);
+
+  try {
+    return await apiNoHooks(req.url, {
+      method: options.method ?? req.method,
+      body: options.body ?? req.body,
+      headers,
+      credentials: 'include',
+      retry: { limit: 0 },
+    });
+  } catch (error) {
+    console.warn('CSRF retry failed:', error);
+    location.replace(loginPageName);
+    return;
+  }
+}
+
+async function handlePermissionError(
+  _res: Response,
+  errorResponse: {
+    error?: string;
+    detail?: string;
+    reason?: string;
+  } | null,
+): Promise<void> {
+  let permissionDetails: {
+    path?: string;
+    action?: string;
+    message?: string;
+  };
+
+  const errorDetail = errorResponse?.detail || 'Permission denied';
+
+  const permissionDeniedMatch = errorDetail.match(/Permission denied:\s*(.+)/i);
+  if (permissionDeniedMatch) {
+    const reasonText = permissionDeniedMatch[1].trim();
+    const pathActionMatch = reasonText.match(
+      /^([a-z0-9_.]+)\.([a-z]+)\s+required$/i,
+    );
+    if (pathActionMatch) {
+      permissionDetails = {
+        path: pathActionMatch[1],
+        action: pathActionMatch[2],
+        message: errorDetail,
+      };
+    } else {
+      permissionDetails = {
+        message: errorDetail,
+      };
+    }
+  } else {
+    permissionDetails = {
+      message: errorDetail,
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (permissionDetails.path) {
+    queryParams.set('permission', permissionDetails.path);
+  }
+  if (permissionDetails.action) {
+    queryParams.set('action', permissionDetails.action);
+  }
+
+  const toastMessage = permissionDetails.message || 'Access denied';
+  Notify.create({
+    color: 'negative',
+    message: toastMessage,
+    position: 'top',
+    timeout: 3000,
+    actions: [{ icon: 'close', color: 'white' }],
+  });
+
+  const queryString = queryParams.toString();
+  const redirectUrl = queryString
+    ? `/unauthorized?${queryString}`
+    : '/unauthorized';
+  location.replace(redirectUrl);
+}
+
+function updateCsrfToken(token: string): void {
+  csrfToken = token;
+  csrfEnabled = true;
+}
+
+export function updateCsrfDisabled(): void {
+  csrfToken = null;
+  csrfEnabled = false;
+}
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -33,6 +200,22 @@ export const api = ky.create({
     methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
   },
   hooks: {
+    beforeRequest: [
+      async (request) => {
+        if (isCsrfBootstrap(request.url)) {
+          return;
+        }
+
+        if (!CSRF_METHODS.has(request.method.toUpperCase())) {
+          return;
+        }
+
+        const token = await ensureCsrfToken();
+        if (token) {
+          request.headers.set(CSRF_HEADER_NAME, token);
+        }
+      },
+    ],
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying
       async ({ request }) => {
@@ -43,6 +226,22 @@ export const api = ky.create({
     ],
     afterResponse: [
       async (req, options, res) => {
+        // Extract CSRF token from refresh response
+        if (isRefresh(req.url) && res.status === 200) {
+          try {
+            const data = (await res.clone().json()) as {
+              csrf_token?: string | null;
+            };
+            if (typeof data.csrf_token === 'string') {
+              updateCsrfToken(data.csrf_token);
+            } else if (data.csrf_token === null) {
+              updateCsrfDisabled();
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+
         if (res.status === 401) {
           if (isRefresh(req.url)) {
             // If refresh returns 401, let it pass through and be handled by
@@ -86,137 +285,38 @@ export const api = ky.create({
             });
             location.replace(loginPageName);
           }
-        } else if (res.status === 403) {
-          // Parse permission error details from response body
-          let permissionDetails: {
-            path?: string;
-            action?: string;
-            message?: string;
-          } = {};
+        }
+        if (res.status === 403) {
+          let errorResponse: {
+            error?: string;
+            detail?: string;
+            reason?: string;
+          } | null = null;
 
           try {
-            // Clone the response to read the body without consuming it
             const clonedResponse = res.clone();
-            let responseBody: { detail?: string } | null = null;
-
             if (!clonedResponse.bodyUsed) {
               try {
-                responseBody = (await clonedResponse.json()) as {
+                errorResponse = (await clonedResponse.json()) as {
+                  error?: string;
                   detail?: string;
+                  reason?: string;
                 };
               } catch (jsonError) {
-                // Response might not be JSON
                 console.warn(
                   'Failed to parse error response as JSON:',
                   jsonError,
                 );
               }
             }
-
-            // Extract detail from response body
-            const errorDetail = responseBody?.detail || 'Permission denied';
-
-            // Try to parse permission path and action from error message
-            // Pattern: "Permission denied: {path}.{action} required"
-            const permissionDeniedMatch = errorDetail.match(
-              /Permission denied:\s*(.+)/i,
-            );
-            if (permissionDeniedMatch) {
-              const reasonText = permissionDeniedMatch[1].trim();
-              const pathActionMatch = reasonText.match(
-                /^([a-z0-9_.]+)\.([a-z]+)\s+required$/i,
-              );
-              if (pathActionMatch) {
-                permissionDetails = {
-                  path: pathActionMatch[1],
-                  action: pathActionMatch[2],
-                  message: errorDetail,
-                };
-              } else {
-                permissionDetails = {
-                  message: errorDetail,
-                };
-              }
-            } else {
-              permissionDetails = {
-                message: errorDetail,
-              };
-            }
           } catch (parseError) {
-            console.warn('Failed to parse permission error:', parseError);
+            console.warn('Failed to parse error response:', parseError);
           }
 
-          // Build query params for the unauthorized page
-          const queryParams = new URLSearchParams();
-          if (permissionDetails.path) {
-            queryParams.set('permission', permissionDetails.path);
-          }
-          if (permissionDetails.action) {
-            queryParams.set('action', permissionDetails.action);
-          }
-
-          // Show toast notification before redirecting
-          const toastMessage = permissionDetails.message || 'Access denied';
-          Notify.create({
-            color: 'negative',
-            message: toastMessage,
-            position: 'top',
-            timeout: 3000,
-            actions: [{ icon: 'close', color: 'white' }],
-          });
-
-          // Redirect immediately - toast will remain visible during navigation
-          const queryString = queryParams.toString();
-          const redirectUrl = queryString
-            ? `/unauthorized?${queryString}`
-            : '/unauthorized';
-          location.replace(redirectUrl);
-        } else if (!res.ok) {
-          // Capture 5xx in Sentry. 4xx is usually client/business-logic
-          // (validation, "not found", etc.) and not worth exception noise;
-          // 5xx means our backend or infra failed and we want to know.
-          //
-          // Dynamic import so the @sentry/vue chunk stays lazy (the boot
-          // file uses dynamic import too — see boot/sentry.ts). On the first
-          // 5xx of a session this incurs one async chunk load; subsequent
-          // captures hit cache. A fast no-op when no DSN is configured.
-          if (res.status >= 500) {
-            let body: string | undefined;
-            try {
-              body = await res.clone().text();
-            } catch {
-              // Body already consumed elsewhere; not fatal for the report.
-            }
-            void import('@sentry/vue').then(({ captureMessage }) => {
-              captureMessage(`HTTP ${res.status} ${req.method} ${req.url}`, {
-                level: 'error',
-                extra: {
-                  status: res.status,
-                  statusText: res.statusText,
-                  url: req.url,
-                  method: req.method,
-                  // Truncate to keep events small; full body rarely fits in
-                  // GlitchTip's payload limit and isn't usually needed for
-                  // triage.
-                  body: body?.slice(0, 2000),
-                },
-              });
-            });
-          }
-
-          const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
-          if (!skipCodes.includes(res.status)) {
-            // For other errors, show a generic error toast
-            Notify.create({
-              color: 'negative',
-              message: i18n.global.t('http_error_occurred', {
-                status: res.status,
-                text: res.statusText,
-              }),
-              position: 'top',
-              timeout: 3000,
-              actions: [{ icon: 'close', color: 'white' }],
-            });
+          if (errorResponse?.error === 'csrf_validation_failed') {
+            return await handleCsrfError(req, options);
+          } else {
+            await handlePermissionError(res, errorResponse);
           }
         }
       },

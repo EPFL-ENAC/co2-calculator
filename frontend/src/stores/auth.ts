@@ -5,6 +5,7 @@ import {
   API_LOGIN_URL,
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
+  clearCsrfToken,
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
@@ -83,10 +84,11 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout(router: Router) {
     try {
       loading.value = true;
-      await api.post(API_LOGOUT_URL);
+      await api.post(API_LOGOUT_URL).json();
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
+      clearCsrfToken();
       // Check server-issued is_user_test flag to determine routing.
       if (user.value?.is_user_test) {
         // For test users, just go to home login-test page
