@@ -980,3 +980,157 @@ async def test_get_current_pipeline_ids_for_modules_filters_by_year(
     repo = DataIngestionRepository(db_session)
     result = await repo.get_current_pipeline_ids_for_modules([5], year=2025)
     assert result == {}
+
+
+# ======================================================================
+# list_pipelines_paginated Tests (#1234 — pipeline ops console)
+# ======================================================================
+
+
+def _pipeline_job(
+    *,
+    pipeline_id,
+    job_type: str,
+    state: IngestionState = IngestionState.FINISHED,
+    result: IngestionResult | None = IngestionResult.SUCCESS,
+    module_type_id: int = 4,
+    year: int = 2026,
+    started_at=None,
+    status_message: str | None = None,
+    meta: dict | None = None,
+) -> DataIngestionJob:
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_PER_YEAR,
+        module_type_id=module_type_id,
+        data_entry_type_id=None,
+        year=year,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        provider=UserProvider.DEFAULT,
+        state=state,
+        result=result,
+        is_current=False,
+        pipeline_id=pipeline_id,
+        job_type=job_type,
+        started_at=started_at,
+        status_message=status_message,
+        meta=meta or {},
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_groups_by_pipeline_id(db_session: AsyncSession):
+    """Two pipelines → two groups, jobs id-ascending within each."""
+    repo = DataIngestionRepository(db_session)
+    p1, p2 = uuid4(), uuid4()
+    for j in (
+        _pipeline_job(pipeline_id=p1, job_type="csv_ingest"),
+        _pipeline_job(pipeline_id=p1, job_type="emission_recalc"),
+        _pipeline_job(pipeline_id=p2, job_type="csv_ingest"),
+    ):
+        db_session.add(j)
+    await db_session.flush()
+
+    groups, total = await repo.list_pipelines_paginated()
+
+    assert total == 2
+    assert {g["pipeline_id"] for g in groups} == {p1, p2}
+    for g in groups:
+        ids = [j.id for j in g["jobs"]]
+        assert ids == sorted(ids)
+        assert g["is_orphan"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_paginates_by_pipeline_not_job(
+    db_session: AsyncSession,
+):
+    """limit=2 over 3 pipelines → 2 groups, total=3, children not split."""
+    repo = DataIngestionRepository(db_session)
+    pids = [uuid4() for _ in range(3)]
+    for pid in pids:
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="emission_recalc"))
+    await db_session.flush()
+
+    page1, total = await repo.list_pipelines_paginated(limit=2, offset=0)
+    page2, _ = await repo.list_pipelines_paginated(limit=2, offset=2)
+
+    assert total == 3
+    assert len(page1) == 2
+    assert len(page2) == 1
+    # Every returned group keeps BOTH its jobs (no split across pages).
+    for g in page1 + page2:
+        assert len(g["jobs"]) == 2
+    # Newest-first by latest job id: page1[0] is the last-inserted pipeline.
+    assert page1[0]["pipeline_id"] == pids[2]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_filters(db_session: AsyncSession):
+    """job_type / module / year / state filters select matching pipelines."""
+    repo = DataIngestionRepository(db_session)
+    keep, drop = uuid4(), uuid4()
+    db_session.add(_pipeline_job(pipeline_id=keep, job_type="csv_ingest", year=2026))
+    db_session.add(_pipeline_job(pipeline_id=drop, job_type="factor_ingest", year=2025))
+    await db_session.flush()
+
+    by_year, _ = await repo.list_pipelines_paginated(year=2026)
+    by_type, _ = await repo.list_pipelines_paginated(job_type="factor_ingest")
+
+    assert [g["pipeline_id"] for g in by_year] == [keep]
+    assert [g["pipeline_id"] for g in by_type] == [drop]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_has_errors_filter(db_session: AsyncSession):
+    """has_errors keeps only pipelines with a FINISHED+ERROR job."""
+    repo = DataIngestionRepository(db_session)
+    ok, bad = uuid4(), uuid4()
+    db_session.add(_pipeline_job(pipeline_id=ok, job_type="csv_ingest"))
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=bad,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+        )
+    )
+    await db_session.flush()
+
+    errored, _ = await repo.list_pipelines_paginated(has_errors=True)
+    clean, _ = await repo.list_pipelines_paginated(has_errors=False)
+
+    assert [g["pipeline_id"] for g in errored] == [bad]
+    assert [g["pipeline_id"] for g in clean] == [ok]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_orphans_are_pipelines_of_one(
+    db_session: AsyncSession,
+):
+    """A pipeline_id IS NULL parent surfaces as is_orphan with one job."""
+    repo = DataIngestionRepository(db_session)
+    db_session.add(
+        uuid4_pid := _pipeline_job(pipeline_id=uuid4(), job_type="csv_ingest")
+    )  # noqa: E501
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=None,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="InFailedSqlTransaction",
+        )
+    )
+    await db_session.flush()
+    assert uuid4_pid.id is not None
+
+    groups, total = await repo.list_pipelines_paginated()
+
+    assert total == 2
+    orphans = [g for g in groups if g["is_orphan"]]
+    assert len(orphans) == 1
+    assert orphans[0]["pipeline_id"] is None
+    assert len(orphans[0]["jobs"]) == 1
+    assert orphans[0]["jobs"][0].status_message == "InFailedSqlTransaction"
