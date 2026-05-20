@@ -95,10 +95,34 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       (DB dropped between deploys); migration applies on the next
       clean-DB deploy. 1385 unit tests still green (SQLite metadata
       build accepts the FK).
-- [ ] **Phase 3**: flip reads (console #1234, `GET /pipelines/{id}`,
-      progress) to the `pipelines` table; `compute_pipeline_progress`
-      becomes writer-side only. Schedule the reconciliation sweep on a
-      cron _before_ flipping. Verify: golden-output diff before/after.
+- ✅ **Phase 3 (`d8c3c682`)**: flipped pipeline reads to
+      `pipelines.status` (durable, recompute-and-stored).
+      - `compute_pipeline_progress(jobs, *, pipeline=None)` — `done`
+        / `has_error` derive from `pipeline.status` when present;
+        `phase` stays job-derived (UX granularity).
+      - `GET /sync/pipelines`: `state=` URL param pivots to
+        `PipelineStatus` (NOT_STARTED/RUNNING/SUCCESS/PARTIAL/FAILED);
+        `result=` dropped (subsumed). `has_errors=true` ↔ `status IN
+        (PARTIAL, FAILED)`. Orphans fall back to job-derived.
+      - Single + SSE endpoints pass the Pipeline row through.
+      - Frontend filter UI: `stateOptions` swap to the 5 values, the
+        result dropdown is removed.
+      - **60s reconciliation cron** wired into the lifespan via
+        `app/tasks/_pipeline_reconciler.py`. Same hygiene as the
+        poller (session-per-iteration, broad except, cancellation).
+        Settings: `RUN_PIPELINE_RECONCILER=true`,
+        `PIPELINE_RECONCILER_INTERVAL_SECONDS=60`.
+      - **🐞 FK-ordering bug surfaced + fixed**: Phase 2 FK fired on
+        stage; three mint sites violated the Pipeline-first
+        invariant: (1) `year_configuration.create_year_configuration`
+        had **no** `ensure_pipeline_exists` call, (2)
+        `data_sync.recalculate_emissions` and (3)
+        `data_sync.recalculate_module_emissions` called it **after**
+        `create_ingestion_job` (whose flush already triggered the
+        FK). All three fixed to ensure→create order. Regression test
+        in `test_pipeline_fk_ordering_regression.py` uses SQLite with
+        `PRAGMA foreign_keys=ON` so neither bug shape can recur
+        silently.
 - ✅ **VERIFY (Phase 4 gate) — answered:** aggregation handler is
       scoped at `(module_type_id, year)`. The 2231 number is
       per-unit module rows, not all reports. Collision source is
@@ -167,7 +191,8 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       SUCCESS/FAILED; `PARTIAL` reserved, undefined.
 - [ ] Aggregation coalescing key: `(carbon_report scope, year)`? how
       `unit_sync` (year-level, also rewrites `carbon_reports`) folds in.
-- [ ] Phase-3 sweep cron cadence / trigger.
+- ✅ Phase-3 sweep cron cadence: **60s** (configurable via
+      `PIPELINE_RECONCILER_INTERVAL_SECONDS`).
 - [ ] Remove the now-unused `pipeops_status_partial` i18n key? (left
       in to avoid churn.)
 
