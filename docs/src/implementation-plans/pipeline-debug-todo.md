@@ -101,7 +101,7 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
   `phase` stays job-derived (UX granularity). - `GET /sync/pipelines`: `state=` URL param pivots to
   `PipelineStatus` (NOT_STARTED/RUNNING/SUCCESS/PARTIAL/FAILED);
   `result=` dropped (subsumed). `has_errors=true` ↔ `status IN
-    (PARTIAL, FAILED)`. Orphans fall back to job-derived. - Single + SSE endpoints pass the Pipeline row through. - Frontend filter UI: `stateOptions` swap to the 5 values, the
+(PARTIAL, FAILED)`. Orphans fall back to job-derived. - Single + SSE endpoints pass the Pipeline row through. - Frontend filter UI: `stateOptions` swap to the 5 values, the
   result dropdown is removed. - **60s reconciliation cron** wired into the lifespan via
   `app/tasks/_pipeline_reconciler.py`. Same hygiene as the
   poller (session-per-iteration, broad except, cancellation).
@@ -126,7 +126,7 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 - ✅ **Phase 4A — done (3 commits):** - `73ec4d64` 4A.1 in-pipeline coalesce — last emission_recalc
   sibling chains aggregation; others skip. Race-safe via
   fresh-session `SELECT … FOR UPDATE` on parent + `meta
-    .recalc_work_complete` flag. 3 sequential aggregations per
+.recalc_work_complete` flag. 3 sequential aggregations per
   upload → 1. - `718cdd01` 4A.2 per-year `pg_advisory_xact_lock` in
   `aggregation_handler` — serialises cross-pipeline
   aggregations of the same year against shared
@@ -152,7 +152,7 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
   Eliminates the silent-wrong-numbers race where a recalc reads
   half-written factors during a concurrent factor_ingest.
 - ✅ **Phase 4B**: shipped as `1bd26748` (advisory lock at `(module,
-  year)` scope, not `(module, det, year)` — broader but
+year)` scope, not `(module, det, year)` — broader but
   drop-hazard-free; see Done).
 - ✅ **#2 (unit_sync sub-tasks visibility)** — shipped as: - `4ee30046` #2A generic `status_history` (append+capped at 50) - `87a9d14d` #2B `meta.phases` checklist on `unit_sync` handler - `046f48e0` #2D console renders timeline + phase checklist - **#2C deferred**: real chained sub-jobs (heavy refactor of the
   year-creation critical path) — #2B+#2D already provides the
@@ -204,13 +204,13 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
   `64760c85` (handler `require_factor_to_match=True` empty
   factors → raise at setup) + `c306b3a4` (per-module-type
   `_FACTOR_INFERRED_MODULES = {equipment_electric_consumption,
-  purchase}` check: empty `factors_map` raises before the row
+purchase}` check: empty `factors_map` raises before the row
   loop). User-reported 50k row-error log spam → one terminal
   error with the cause in `status_message`.
 - ✅ **Units bulk_upsert race + global unit_sync lock (`1a637165`)**
   — parallel year creation (2025+2026) crashed on
   `ix_units_institutional_code`. Two-layer fix: 1. `UnitRepository.bulk_upsert` uses `INSERT … ON CONFLICT
-     (institutional_code) DO UPDATE` on Postgres (race-safe by
+(institutional_code) DO UPDATE` on Postgres (race-safe by
   construction); SQLite fixture keeps legacy SELECT/merge. 2. `unit_sync_handler` acquires a GLOBAL 1-int advisory lock
   (category `1239`) BEFORE the per-year aggregation lock —
   serializes ALL unit_syncs regardless of year. Category
@@ -228,10 +228,10 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       shape as the old units path. Currently safe because the global
       unit*sync lock serialises the ONE production caller; the seed
       script has no concurrency. Fix shape: `INSERT … ON CONFLICT
-  (institutional_id) DO UPDATE` mirroring `unit_repo`. Do it
+(institutional_id) DO UPDATE` mirroring `unit_repo`. Do it
       \_when* a second caller appears.
 - [ ] `reference_data` CSV ingest does `DELETE BuildingRoom; INSERT
-  rooms` (year-agnostic, like units). Single-operator upload
+rooms` (year-agnostic, like units). Single-operator upload
       today so the race is latent; if multiple ops ever ingest
       reference data concurrently, port the global-lock pattern from
       `unit_sync`.
