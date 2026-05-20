@@ -617,6 +617,23 @@ class DataIngestionRepository:
         jobs = await self.list_jobs_by_pipeline_id(pipeline_id)
         if not jobs:
             return None
+
+        # Phase 5A (#1236) — populate ``pipelines.expected_recalc`` from
+        # the live job count.  Replaces ``meta.recalc_jobs_chained`` on
+        # the parent job (which Phase 5B then stops reading).  Cheap
+        # idempotent UPDATE; runs on every recompute so the column tracks
+        # the actual fan-out as recalcs are dispatched, not just at the
+        # parent's terminal event.  Dedup-skipped recalcs aren't in
+        # ``jobs`` (they live under another ``pipeline_id``) so the
+        # count matches the old ``chained`` accumulator by construction
+        # — no Fix-2b equivalent needed.
+        expected_recalc = sum(1 for j in jobs if j.job_type == "emission_recalc")
+        await self.session.execute(
+            update(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .values(expected_recalc=expected_recalc, updated_at=func.now())
+        )
+
         progress = compute_pipeline_progress(jobs)
         if not progress["done"]:
             return None  # not the last child — skip (option a)

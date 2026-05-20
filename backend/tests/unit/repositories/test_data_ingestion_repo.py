@@ -1358,6 +1358,59 @@ async def test_reconcile_heals_drift(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_recompute_writes_expected_recalc_unconditionally(
+    db_session: AsyncSession,
+):
+    """#1236 Phase 5A — ``pipelines.expected_recalc`` mirrors the live
+    ``emission_recalc`` count for the pipeline, written on every
+    recompute call (NOT gated on ``progress.done``).  Lets the read
+    path (Phase 5B) source the counter from the column instead of
+    ``meta.recalc_jobs_chained`` on the parent job.
+
+    Dedup-skipped recalcs (which live under a different ``pipeline_id``)
+    are excluded by construction — the SELECT filters on this pipeline.
+    """
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    # Parent + 3 recalc children (one finished, one running, one queued)
+    # — the count tracks the structural fan-out, not their state.
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="emission_recalc"))
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.RUNNING,
+            result=None,
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.NOT_STARTED,
+            result=None,
+        )
+    )
+    await db_session.flush()
+
+    # Non-terminal call — recompute_pipeline_status returns None (skip
+    # the status write) but MUST still have written expected_recalc.
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+    assert written is None  # not done — status not written
+
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.expected_recalc == 3, (
+        f"expected_recalc should track live emission_recalc count, "
+        f"got {row.expected_recalc}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_recompute_last_error_skips_success_message(
     db_session: AsyncSession,
 ):
