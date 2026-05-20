@@ -118,16 +118,13 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       Combined: amplification killed (4A.1), cross-pipeline deadlock
       eliminated (4A.2), per-aggregation write set shrunk (4A.3).
 - ✅ **Phase 4A**: shipped as 4A.1/4A.2/4A.3 (see Done section).
-- [ ] **4A.4 (race fix on 4A.3)**: the LAST recalc sibling chains the
-      aggregation before its own runner-`finish_job` commits, so its
-      `affected_module_ids` are not visible to the aggregation's
-      sibling-query. The aggregation misses the last sibling's modules.
-      Fix: at chain time the last sibling builds the union locally
-      (sibling-query + its own `stats["affected_module_ids"]`) and
-      passes it via `chain_job(config={...})` so the aggregation reads
-      it from its own meta. Surfaced by Guilbert "all aggregations are
-      0s" on 2026-05-20 — mostly that observation is the optimization
-      working (empty-affected recalcs), but the race is real.
+- ✅ **4A.4 (`53625315`)**: race fix on 4A.3. The last sibling builds
+      the full `affected_module_ids` union (own `stats` ∪ FINISHED
+      siblings' meta) at chain time and passes it via
+      `chain_job(config={...})`; `aggregation_handler` reads from its
+      own `meta.config` first (race-free), sibling-query stays as
+      4A.3 legacy fallback. Guards `isinstance(pipeline_id, UUID)` to
+      keep mock-driven unit tests off the production `SessionLocal`.
 - ✅ **Phase 4B (`1bd26748`)**: per-`(module, year)`
       `pg_advisory_xact_lock` in `factor_ingest_handler`,
       `emission_recalc_handler`, `module_emission_recalc_handler`.
