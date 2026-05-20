@@ -98,7 +98,7 @@ erDiagram
     INTEGER max_attempts
     JSON meta
     INTEGER module_type_id "indexed"
-    UUID pipeline_id
+    UUID pipeline_id FK
     VARCHAR provider
     VARCHAR result
     DATETIME run_after "indexed"
@@ -196,6 +196,7 @@ erDiagram
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
+  pipelines ||--}o data_ingestion_jobs : "pipeline_id"
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"

@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import JSON, Column, Index, Integer, String, text
+from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, text
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
@@ -294,9 +294,16 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     )
 
     # Grouping / dispatch (Plan 310A)
+    # FK to pipelines.id enforced by migration ``c4d5e6f7a8b9`` (#1236 Phase 2)
+    # — declared here so SQLAlchemy's schema view matches Postgres.  Index is
+    # explicit because Postgres does not auto-index the referencing column.
     pipeline_id: Optional[UUID] = Field(
         default=None,
-        sa_column=Column(SAUUID),
+        sa_column=Column(
+            SAUUID,
+            ForeignKey("pipelines.id"),
+            index=True,
+        ),
         description="UUID grouping jobs belonging to the same multi-step pipeline run",
     )
     job_type: Optional[str] = Field(
@@ -402,8 +409,9 @@ class Pipeline(SQLModel, table=True):
     Phase 1: the row is created at parent creation via
     ``ensure_pipeline_exists``; ``status`` is advanced by the runner
     post-``finish_job`` (recompute-and-store, last-child oracle,
-    isolated log-and-skip).  ``data_ingestion_jobs.pipeline_id`` stays
-    a plain UUID — the FK is added post-backfill in Phase 2.
+    isolated log-and-skip).  Phase 2: ``data_ingestion_jobs.pipeline_id``
+    gains the FK to ``pipelines.id`` (migration ``c4d5e6f7a8b9``) —
+    no backfill in v0.x (DB drops between deploys).
     """
 
     __tablename__ = "pipelines"
