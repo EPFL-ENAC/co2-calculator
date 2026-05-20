@@ -159,6 +159,14 @@ const energyCombustionFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_local_fire_department',
     hideIn: { form: false },
+    optionOrder: [
+      'buildings_combustion_type_natural_gas',
+      'buildings_combustion_type_heating_oil',
+      'buildings_combustion_type_biomethane',
+      'buildings_combustion_type_pellets',
+      'buildings_combustion_type_forest_chips',
+      'buildings_combustion_type_wood_logs',
+    ],
   },
   {
     id: 'unit',

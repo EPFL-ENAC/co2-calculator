@@ -318,6 +318,7 @@ interface Option {
 }
 type FieldValue = string | number | boolean | null | Option;
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
+import { sortByOrder } from 'src/utils/options';
 
 const props = withDefaults(
   defineProps<{
@@ -442,9 +443,13 @@ const filteredOptionsMap = computed(() => {
             value: o.value,
           })) ?? []);
 
+    const orderedBaseOptions = inp.optionOrder
+      ? sortByOrder(baseOptions, inp.optionOrder)
+      : baseOptions;
+
     // If no conditionalOptions, return base options
     if (!inp.conditionalOptions) {
-      map[inp.id] = baseOptions;
+      map[inp.id] = orderedBaseOptions;
       return;
     }
 
@@ -461,7 +466,7 @@ const filteredOptionsMap = computed(() => {
 
       // If condition matches, filter to only show specified options
       if (fieldValue === when.value) {
-        map[inp.id] = baseOptions.filter((opt) =>
+        map[inp.id] = orderedBaseOptions.filter((opt) =>
           showOptions.includes(opt.value),
         );
         matched = true;
@@ -471,7 +476,7 @@ const filteredOptionsMap = computed(() => {
 
     // If no condition matches, show all options
     if (!matched) {
-      map[inp.id] = baseOptions;
+      map[inp.id] = orderedBaseOptions;
     }
   });
 

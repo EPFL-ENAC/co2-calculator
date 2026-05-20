@@ -483,7 +483,7 @@ export default {
   },
   'charts-pellets-subcategory': {
     en: 'Pellets',
-    fr: 'Pellets',
+    fr: 'Granulés de bois',
   },
   'charts-forest-chips-subcategory': {
     en: 'Forest Chips',
@@ -491,7 +491,7 @@ export default {
   },
   'charts-wood-logs-subcategory': {
     en: 'Wood Logs',
-    fr: 'Bûches',
+    fr: 'Bois bûche',
   },
   'charts-ln2-subcategory': {
     en: 'LN2',
