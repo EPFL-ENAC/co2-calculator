@@ -156,7 +156,7 @@ Most of this extends primitives already built.
 > history to synthesise. On any fresh v0.x DB every `pipeline_id`
 > originates from `ensure_pipeline_exists`, so the FK is not
 > backfill-gated — it can be enforced once a clean DB is running
-> Phase-1 code (i.e. the deploy *after* Phase 1 ships, which in v0.x
+> Phase-1 code (i.e. the deploy _after_ Phase 1 ships, which in v0.x
 > is a DB drop). The mid-DB-life window (Phase 1 deployed onto a DB
 > that already has pre-Phase-1 pipeline_id rows) is the only reason
 > the FK isn't in the Phase-1 migration itself.
