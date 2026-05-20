@@ -22,7 +22,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.core.policy import check_module_permission, get_module_permission_decision
+from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
@@ -1097,27 +1097,22 @@ async def get_active_pipelines(
             detail="modules must be a comma-separated list of integers",
         ) from exc
 
-    # Per-module scope filter: drop entries the caller can't view rather than
-    # 403-ing the whole batch.  The global ``backoffice.data_management.view``
-    # gate above proves the user is a backoffice user; this loop additionally
-    # verifies they have view access to each specific module.  Without it, a
-    # backoffice user scoped to a sub-perimeter could enumerate active
-    # pipeline UUIDs across modules they otherwise can't read.
-    # TODO(#459): once sub-perimeter scoping ships, also pass institutional_id.
-    allowed_module_ids: list[int] = []
-    for module_type_id in module_type_ids:
-        decision = await get_module_permission_decision(
-            current_user, module_type_id, "view"
-        )
-        if decision.get("allow"):
-            allowed_module_ids.append(module_type_id)
-
-    if not allowed_module_ids:
-        return {}
-
+    # Permission: the global ``backoffice.data_management.view`` gate
+    # (dependency above) is sufficient — the back-office data-management
+    # page is global-scope for ``calco2.backoffice.metier`` (and
+    # SuperAdmin) by design.  The previous per-module OPA check
+    # (``modules.{name}.view``) filtered out every module for
+    # ``BackOfficeMetier`` users because that role grants
+    # ``backoffice.data_management.view`` but not the per-module
+    # ``modules.X.view`` perms, leaving the "Recalculating…" badge
+    # silently broken on the configuration page.  Matches the
+    # sibling year-level endpoint's gate (see
+    # ``get_active_year_level_pipelines``).
+    # TODO(#459): when sub-perimeter scoping ships, re-introduce
+    # filtering — but by sub-perimeter, not by module enumeration.
     pipeline_by_module = await DataIngestionRepository(
         db
-    ).get_current_pipeline_ids_for_modules(allowed_module_ids, year=year)
+    ).get_current_pipeline_ids_for_modules(module_type_ids, year=year)
     return {module_id: str(pid) for module_id, pid in pipeline_by_module.items()}
 
 
