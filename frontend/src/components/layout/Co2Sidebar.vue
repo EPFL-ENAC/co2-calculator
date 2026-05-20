@@ -30,7 +30,13 @@ const hasSuperAdminRole = computed(() => {
 });
 
 function isItemDisabled(item: NavItem): boolean {
-  if (item.superAdminOnly === true && !hasSuperAdminRole.value) return true;
+  // Super-admin trumps all gates — SA sees every menu item.  Applies
+  // to ``limitedAccess`` items too (Pipeline Operations, Data
+  // Management, User Management), not just plain unrestricted ones —
+  // there is no scenario where a SA should be locked out of a
+  // back-office page.
+  if (hasSuperAdminRole.value) return false;
+  if (item.superAdminOnly === true) return true;
   if (item.limitedAccess === true && !hasBackOfficeEditPermission.value)
     return true;
   return false;
