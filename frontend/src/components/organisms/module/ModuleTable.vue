@@ -140,6 +140,7 @@
               :field-id="col.field"
               :options-id="col.optionsId"
               :option-label-key="col.optionLabelKey"
+              :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -750,6 +751,7 @@ type TableViewColumn = {
   readOnlyDisplayField?: string;
   optionLabelsAreKeys?: boolean;
   optionLabelPrefix?: string;
+  optionOrder?: string[];
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -803,6 +805,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             readOnlyDisplayField: f.readOnlyDisplayField,
             optionLabelsAreKeys: f.optionLabelsAreKeys,
             optionLabelPrefix: f.optionLabelPrefix,
+            optionOrder: f.optionOrder,
           });
         });
       } else {
@@ -838,6 +841,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           readOnlyDisplayField: f.readOnlyDisplayField,
           optionLabelsAreKeys: f.optionLabelsAreKeys,
           optionLabelPrefix: f.optionLabelPrefix,
+          optionOrder: f.optionOrder,
         });
       }
     });

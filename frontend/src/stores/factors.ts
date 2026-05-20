@@ -45,7 +45,7 @@ export const useFactorsStore = defineStore('factors', () => {
     submodule: AllSubmoduleTypes,
   ): Promise<Option[]> {
     const optionMap = await ensureSubclassOptionMap(submodule);
-    const classes = Object.keys(optionMap).sort();
+    const classes = Object.keys(optionMap);
     return classes.map((c) => ({ label: c, value: c }));
   }
 

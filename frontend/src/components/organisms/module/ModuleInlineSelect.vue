@@ -33,6 +33,7 @@ import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
+import { sortByOrder } from 'src/utils/options';
 
 const moduleStore = useModuleStore();
 
@@ -55,6 +56,7 @@ type CommonProps = {
   fieldId: string;
   optionsId: string;
   optionLabelKey?: string;
+  optionOrder?: string[];
   hint?: string;
   cols: TableViewColumnSubset[];
   unitId: number;
@@ -88,7 +90,7 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
 const classOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = dynamicOptions['kind'] ?? [];
-  return opts.map((opt) => {
+  const mapped = opts.map((opt) => {
     if (props.optionLabelKey) {
       return {
         value: opt.value,
@@ -106,6 +108,7 @@ const classOptions = computed(() => {
       label: kindNode ? kindNode.label : opt.label || opt.value,
     };
   });
+  return props.optionOrder ? sortByOrder(mapped, props.optionOrder) : mapped;
 });
 const subClassOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];

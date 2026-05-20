@@ -60,6 +60,7 @@ export interface ModuleField {
   defaultFrom?: 'total_fte';
   options?: Array<{ value: string; label: string }>;
   optionsId?: string; // ID to fetch options from store (kind or subkind)
+  optionOrder?: string[]; // Explicit ordering of options by value
   optionLabelKey?: string; // i18n key template; use {value} as placeholder, e.g. 'process-emissions.category.{value}', where {value} matches the normalized option value used by the translation keys
   appendFromFieldId?: string;
   // Flat configuration (preferred): used by both table and form where relevant
