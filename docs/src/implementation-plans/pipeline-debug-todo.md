@@ -172,9 +172,30 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
         per-phase visibility. Keep in mind if real chained semantics
         ever become needed (independent retry per phase, separate
         locking, etc.).
-- [ ] **Phase 5**: retire `meta` threading
-      (`recalc_jobs_chained` / `aggregation_job_id` / `parent_job_id`
-      read paths) once nothing consumes them.
+- ✅ **Phase 5 (2 commits)**: retired the meta threading.
+      - `6c3e762b` **Phase 5A** — `recompute_pipeline_status` now writes
+        `pipelines.expected_recalc` on every recompute call (cheap UPDATE;
+        not gated on `progress.done` so the column tracks live fan-out).
+        Sets up 5B's read flip; purely additive.
+      - `a5f08a56` **Phase 5B** — flipped reads + dropped meta writes:
+        * `compute_pipeline_progress._find_root` → `min(jobs, key=id)`
+          (dropped `_ROOT_JOB_TYPES` which omitted `unit_sync` /
+          `reference_ingest` parents).
+        * `expected_recalc` reads `pipeline.expected_recalc`; falls
+          back to live job count for orphans / writer-side recompute.
+        * Phase-3 aggregation check: "all aggregation rows FINISHED"
+          (no more `meta.aggregation_job_id` set lookup). Docstring
+          names the 4A.1 single-aggregation dependency.
+        * `_is_last_recalc_sibling` — lock target moved to
+          `pipelines` row (was `data_ingestion_jobs` parent); reads
+          `pipeline.expected_recalc`. Lock-down test
+          (`test_concurrent_siblings_yield_exactly_one_last`) asserts
+          exactly one sibling returns True — guards 4A.1's single-
+          aggregation guarantee from the lock-target move.
+        * Dropped writes: `meta.parent_job_id` (`_chain.py` ×2,
+          `emission_recalculation_tasks.py`), `meta.aggregation_job_id`
+          (×2), `meta.recalc_jobs_chained` (`ingestion_tasks.py` ×3).
+        * `_PIPELINE_META_ALLOW`: 3 keys retired.
 
 ## 🔧 To DO — smaller follow-ups
 
