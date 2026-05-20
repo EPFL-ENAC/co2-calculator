@@ -80,4 +80,4 @@ Tracing is implemented with:
 - Request span propagation
 - Service dependency mapping
 
-For detailed observability information, see [Infrastructure Monitoring](../infra/01-overview.md#monitoring--observability).
+For detailed observability information, see [Infrastructure Monitoring](../infra/01-overview.md#monitoring--observability). For client-side error tracking via self-hosted GlitchTip, see [Frontend Error Monitoring](../frontend/error-monitoring.md).
