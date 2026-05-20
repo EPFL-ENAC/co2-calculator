@@ -219,8 +219,14 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       ships `status` in the progress payload so the frontend can
       tell PARTIAL from FAILED (both set `has_error=True`).
       `pipeops_status_partial` i18n key finally has a renderer.
-- [ ] Aggregation coalescing key: `(carbon_report scope, year)`? how
-      `unit_sync` (year-level, also rewrites `carbon_reports`) folds in.
+- ✅ Aggregation coalescing — `unit_sync` ↔ aggregation
+      concurrency safety **shipped (`e2b6ed77`)**: `unit_sync_handler`
+      now acquires the same `pg_advisory_xact_lock(1236, year)` that
+      `aggregation_handler` takes (4A.2). Both rewrite `carbon_reports`
+      for the same (unit, year) slice; sharing the category means they
+      mutually exclude. `test_unit_sync_lock_category_matches_aggregation`
+      pins the invariant so a future refactor can't silently split the
+      categories.
 - ✅ Phase-3 sweep cron cadence: **60s** (configurable via
       `PIPELINE_RECONCILER_INTERVAL_SECONDS`).
 - ✅ `pipeops_status_partial` i18n key — kept (now rendered by the
