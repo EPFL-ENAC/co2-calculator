@@ -15,7 +15,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -341,6 +341,17 @@ class PipelineJobResponse(BaseModel):
     data_entry_type_id: Optional[int] = None
     year: Optional[int] = None
 
+    # See ``PipelineJobListEntry`` for the rationale — serialize
+    # ``state`` and ``result`` as the enum NAME so the frontend's
+    # string comparisons (``j.state === 'FINISHED'``) work.
+    @field_serializer("state")
+    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+        return v.name if v is not None else None
+
+    @field_serializer("result")
+    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+        return v.name if v is not None else None
+
 
 class PipelineProgressResponse(BaseModel):
     """Server-authoritative pipeline phase/done/error (Issue #1219).
@@ -450,7 +461,14 @@ class PipelineJobListEntry(BaseModel):
 
     Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
     carries timing for per-step duration and an **allow-listed** ``meta``
-    (never the big ``error_details`` / ``affected_module_ids`` arrays)."""
+    (never the big ``error_details`` / ``affected_module_ids`` arrays).
+
+    ``state`` and ``result`` serialize as the enum NAME (string), not
+    the int value — Pydantic's int-enum default would ship ``3`` for
+    ``FINISHED`` which mismatches every frontend consumer (the TS
+    interface declares ``string | null`` and renders comparisons like
+    ``j.state === 'FINISHED'``).  The field_serializers below pin the
+    contract."""
 
     job_id: int
     job_type: Optional[str] = None
@@ -467,6 +485,14 @@ class PipelineJobListEntry(BaseModel):
     finished_at: Optional[datetime] = None
     attempts: Optional[int] = None
     meta: dict = {}
+
+    @field_serializer("state")
+    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+        return v.name if v is not None else None
+
+    @field_serializer("result")
+    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+        return v.name if v is not None else None
 
 
 class PipelineListItem(BaseModel):
@@ -1465,8 +1491,12 @@ async def pipeline_stream_by_id(
                 {
                     "id": job.id,
                     "job_type": job.job_type,
-                    "state": (job.state.value if job.state is not None else None),
-                    "result": (job.result.value if job.result is not None else None),
+                    # Enum NAME so the frontend's string comparisons
+                    # (``j.state === 'FINISHED'``) work uniformly across
+                    # the list endpoint, single endpoint, and this SSE
+                    # stream.  See ``PipelineJobListEntry`` serializers.
+                    "state": (job.state.name if job.state is not None else None),
+                    "result": (job.result.name if job.result is not None else None),
                     "status_message": job.status_message,
                     "started_at": (
                         job.started_at.isoformat() if job.started_at else None

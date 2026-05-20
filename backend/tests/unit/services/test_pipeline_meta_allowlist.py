@@ -108,3 +108,65 @@ def test_resolve_enum_name_accepts_pipeline_status():
     assert _resolve_enum_name(PipelineStatus, "Failed", "state") is (
         PipelineStatus.FAILED
     )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline job state/result serialize as enum NAME, not int value.
+# User-reported 2026-05-20: Jobs column read "0/4 ✓" because the
+# frontend compared ``j.state === 'FINISHED'`` but the API serialized
+# the int-Enum as ``3``.  Pinned via field_serializer; this test makes
+# sure a future refactor that loses the serializer fails loudly.
+# ---------------------------------------------------------------------------
+
+
+def test_pipeline_job_list_entry_serializes_state_as_name():
+    """``PipelineJobListEntry.state`` and ``result`` must serialize as
+    the enum NAME (string), not the int VALUE.  Frontend code compares
+    against string names; the int default would silently break the
+    Jobs column count + the job-color rendering in the DAG."""
+    import json
+
+    from app.api.v1.data_sync import PipelineJobListEntry
+
+    entry = PipelineJobListEntry(
+        job_id=1,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+    )
+
+    payload = json.loads(entry.model_dump_json())
+    assert payload["state"] == "FINISHED", (
+        f"state must serialize as enum NAME 'FINISHED', got {payload['state']!r}"
+    )
+    assert payload["result"] == "SUCCESS", (
+        f"result must serialize as enum NAME 'SUCCESS', got {payload['result']!r}"
+    )
+
+
+def test_pipeline_job_list_entry_serializes_none_as_null():
+    """Nullable fields must remain null when unset (no ``"None"`` string)."""
+    import json
+
+    from app.api.v1.data_sync import PipelineJobListEntry
+
+    entry = PipelineJobListEntry(job_id=1)
+    payload = json.loads(entry.model_dump_json())
+    assert payload["state"] is None
+    assert payload["result"] is None
+
+
+def test_pipeline_job_response_serializes_state_as_name():
+    """``PipelineJobResponse`` (single-pipeline endpoint) shares the
+    same contract — same serializer, same expectation."""
+    import json
+
+    from app.api.v1.data_sync import PipelineJobResponse
+
+    response = PipelineJobResponse(
+        job_id=42,
+        state=IngestionState.RUNNING,
+        result=IngestionResult.WARNING,
+    )
+    payload = json.loads(response.model_dump_json())
+    assert payload["state"] == "RUNNING"
+    assert payload["result"] == "WARNING"
