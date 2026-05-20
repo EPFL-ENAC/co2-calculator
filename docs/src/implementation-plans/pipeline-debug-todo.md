@@ -35,6 +35,13 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 - [ ] One clean **hook-driven** commit (commitlint + lint-staged +
       `make type-check`) — merges/commits used `--no-verify`; confirm
       the gate passes for real before any promotion.
+      **Concrete finding (2026-05-20):** commitlint rejects scopes
+      like `docs(pipeline-debug):` (commit `71bfe301` blocked,
+      `rtk git commit` printed `ok` anyway — the "ok" lies; verify
+      with `git ls-tree`/`git show HEAD:` per
+      `[[project_pipeline_debug_integration_branch]]`). Either widen
+      the commitlint scope-enum to include `pipeline-debug`, or use
+      issue-numbered scopes (`docs(#1234)`, `docs(#1236)`).
 - [ ] Sibling `"status_message": "Success"` hardcodes in
       `base_provider.py:186` and
       `base_reduction_objective_csv_provider.py:169`: trace whether any
