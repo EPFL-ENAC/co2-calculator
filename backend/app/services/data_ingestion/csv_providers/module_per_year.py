@@ -10,6 +10,7 @@ from app.services.data_ingestion.base_csv_provider import (
     BaseCSVProvider,
     StatsDict,
     _get_expected_columns_from_handlers,
+    _guard_factors_required,
 )
 
 logger = get_logger(__name__)
@@ -104,6 +105,18 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                 f"Setup for MODULE_PER_YEAR with multiple data_entry_types: "
                 f"{valid_entry_types}"
             )
+
+        # Fail fast when the module's handler requires a matched factor
+        # but the factors map is empty for this (module, year) — otherwise
+        # every CSV row would record an identical "no matching factor"
+        # error and the operator has to dig through 50 k rows to see that
+        # the real problem is the missing factor upload.
+        _guard_factors_required(
+            factors_map=factors_map,
+            handlers=handlers,
+            module_label=module_type.name,
+            year=self.year,
+        )
 
         # Get expected and required columns
         expected_columns = _get_expected_columns_from_handlers(handlers)

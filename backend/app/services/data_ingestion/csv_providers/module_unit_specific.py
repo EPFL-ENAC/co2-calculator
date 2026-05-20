@@ -10,6 +10,7 @@ from app.services.data_ingestion.base_csv_provider import (
     StatsDict,
     _get_expected_columns_from_handlers,
     _get_required_columns_from_handler,
+    _guard_factors_required,
 )
 
 logger = get_logger(__name__)
@@ -63,6 +64,18 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         # Get the single handler for this data_entry_type
         handler = BaseModuleHandler.get_by_type(configured_data_entry_type)
         handlers = [handler]
+
+        # Fail fast when the handler requires a matched factor but none
+        # were loaded — same rationale as MODULE_PER_YEAR (see
+        # ``_guard_factors_required`` docstring); avoids the operator
+        # scrolling through 50 k identical row errors to find out the
+        # real fix is to upload factors first.
+        _guard_factors_required(
+            factors_map=factors_map,
+            handlers=handlers,
+            module_label=configured_data_entry_type.name,
+            year=self.year,
+        )
 
         # Get expected and required columns
         expected_columns = _get_expected_columns_from_handlers(handlers)
