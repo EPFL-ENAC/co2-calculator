@@ -15,6 +15,32 @@ told otherwise). Last updated 2026-05-19.
   `_run_ingest` (csv/api/factor) **and** `reference_ingest`.
 - Console table: clickable full message + copy, server-resolved
   module/det names, distinct amber WARNING tier.
+- **🐞 Guilbert #1**: year-config gate (`13616a35` backend, `c1e9ef01`
+  frontend) — `YearConfiguration.configuration_completed` stamped by
+  `unit_sync_handler` on SUCCESS; `/dispatch` 409s when null;
+  data-management page's `yearSyncInFlight` extended with the durable
+  refresh-surviving check.
+- **🐞 Guilbert #3**: SSE live-update on the ops page (`645b4799`) —
+  page subscribes to visible RUNNING pipelines via `usePipelineStream`,
+  debounced refetch on any SSE update.
+- **VERIFY (Phase 4 gate) — answered:** aggregation handler is
+  **already scoped** at `(module_type_id, year)` via
+  `svc.list_modules_for(...)`. The `modules_refreshed: 2231` in the
+  data is 2231 `carbon_report_modules` (one per unit) for ONE
+  module-year slice, not a full-table rewrite. The collision /
+  amplification comes from `recompute_stats`'s **side-effect** that
+  also rewrites the parent `carbon_report.stats` rollup — that row is
+  shared across all modules of a unit-year, so 3 concurrent
+  aggregations for different modules of the same year deadlock on
+  `carbon_reports`. Phase 4A's right lever is **coalescing** (one
+  trailing aggregation per scope), not narrower scoping — scoping is
+  already done.
+- **Sibling hardcode trace — answered:** `base_provider.py:186` is a
+  base-class default; every concrete subclass overrides `ingest()`,
+  so it's unreachable. `base_reduction_objective_csv_provider.py:169`
+  belongs to a class with no `@register`'d handler — never invoked by
+  the runner. Both are dead-code paths today; `finalize_ingest_meta`
+  covers every LIVE handler.
 
 ## 🔎 To CHECK (verified at type/lint/unit level only — NOT runtime)
 
@@ -42,33 +68,22 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       `[[project_pipeline_debug_integration_branch]]`). Either widen
       the commitlint scope-enum to include `pipeline-debug`, or use
       issue-numbered scopes (`docs(#1234)`, `docs(#1236)`).
-- [ ] Sibling `"status_message": "Success"` hardcodes in
-      `base_provider.py:186` and
-      `base_reduction_objective_csv_provider.py:169`: trace whether any
-      handler path uses them and bypasses `finalize_ingest_meta`; fix
-      or confirm unreachable.
+- ✅ Sibling `"status_message": "Success"` hardcodes traced — both
+      unreachable (base default overridden by every concrete provider;
+      reduction-objective class has no registered handler). See Done.
 
 ## 🐞 Newly discovered (Guilbert, 2026-05-20)
 
-- [ ] **Year-config pipeline doesn't block same-year uploads.** With a
-      `unit_sync` / year-configuration pipeline running for year Y,
-      after a page refresh the "loading" indicator is gone — nothing
-      blocks the user from uploading data for Y while the year is
-      still being provisioned. Suggested shape: a
-      `configuration_completed` flag (with timestamp) on
-      `year_configuration`; gate upload on it. Adjacent to #1236
-      Problem B (scoped ordering correctness) but at the **year**
-      grain, not `(module, det)`.
-- [ ] **`unit_sync` collapses to one aggregated task per year.**
-      Individual sub-tasks aren't exposed in the ops UI. Show them so
-      operators can see what's actually running inside the year-level
-      pipeline.
-- [ ] **No SSE on the pipeline ops page.** The table doesn't
-      live-update; pipeline progress doesn't stream into the open
-      page or the message dialog. `usePipelineStream` +
-      `GET /pipelines/{id}/stream` exist and were deferred in #1234
-      — wire them (per-row for visible items, or a page-level
-      subscription to the running pipelines on the current page).
+- ✅ #1 Year-config gate — backend `13616a35`, frontend `c1e9ef01`.
+- ✅ #3 SSE on the ops page — `645b4799`.
+- [ ] **#2 `unit_sync` collapses to one aggregated task per year.**
+      Individual sub-tasks aren't exposed in the ops UI. Investigate
+      whether the sub-tasks are not created (backend collapses
+      everything into the `unit_sync` handler internally) or are
+      created but filtered out by the ops endpoint; expose them so
+      operators can see what's running inside the year-level
+      pipeline. **Investigation pending** before picking
+      backend-vs-frontend fix.
 
 ## 🔧 To DO — #1236 remaining phases
 
@@ -80,9 +95,12 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       progress) to the `pipelines` table; `compute_pipeline_progress`
       becomes writer-side only. Schedule the reconciliation sweep on a
       cron _before_ flipping. Verify: golden-output diff before/after.
-- [ ] **VERIFY (gates Phase 4)**: does the aggregation handler
-      full-rewrite all ~2231 `carbon_reports`, or is it already
-      scoped? Confirm before designing the scoping change.
+- ✅ **VERIFY (Phase 4 gate) — answered:** aggregation handler is
+      scoped at `(module_type_id, year)`. The 2231 number is
+      per-unit module rows, not all reports. Collision source is
+      `recompute_stats`'s side-effect rewrite of the parent
+      `carbon_report.stats` synthesis (shared row). Phase 4A lever is
+      **coalescing**, not narrower scoping.
 - [ ] **Phase 4A**: aggregation coalesce + scope to
       `affected_module_ids` (extend `AGGREGATION_DEDUP`).
 - [ ] **Phase 4B**: scoped `(module,det,year)` factor→data ordering
