@@ -766,8 +766,8 @@ export default {
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+    en: "These emissions are calculated based on EPFL's general assumptions and use only headcount and buildings information as unit-specific data.",
+    fr: "Ces émissions sont calculées sur la base des hypothèses générales de l’EPFL et utilisent uniquement les données de l'unité: personnel et bâtiments.",
   },
   results_additional_headcount_card_title: {
     en: 'Commuting, food and waste',
