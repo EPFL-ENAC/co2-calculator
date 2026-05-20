@@ -50,6 +50,19 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Name',
     fr: 'Nom',
   },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`]:
+    {
+      en: 'e.g., Agitator, Centrifuge',
+      fr: 'ex. : Agitateur, Centrifugeuse',
+    },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`]: {
+    en: 'e.g., Laptop, Monitor',
+    fr: 'ex. : Ordinateur portable, Moniteur',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`]: {
+    en: 'e.g., Freezer, Fridge',
+    fr: 'ex. : Congélateur, Réfrigérateur',
+  },
   [`${MODULES.EquipmentElectricConsumption}.inputs.class`]: {
     en: 'Class',
     fr: 'Classe',
