@@ -726,6 +726,14 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
   return {
     year,
     is_started: isStarted,
+    // Year-config gate (#1234 follow-up `13616a35`): the
+    // "Open year for users" button has ``v-if="!yearSyncInFlight"``,
+    // and ``yearSyncInFlight`` is true while
+    // ``configuration_completed == null`` (durable refresh-survival
+    // signal).  These tests assume the year is fully provisioned —
+    // the button should be present, just enabled/disabled depending
+    // on ``is_started`` — so stamp the field.
+    configuration_completed: '2024-01-01T00:00:00Z',
     config: {
       modules: {
         '1': disabledModule,
