@@ -199,10 +199,14 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 
 ## 🔧 To DO — smaller follow-ups
 
-- [ ] Lone-orphan `last_error`: when a job's only message is
-      `"Success"` (the real reason is in `meta.stats.row_errors`),
-      surface that reason instead. (Deeper than Phase 1; pairs with
-      v1.x backfill quality.)
+- ✅ **Lone-orphan `last_error` (`918f70d0`)**: `finalize_ingest_meta`
+      now appends a sample reason from `stats.row_errors` when the
+      summary path fires. Operators see *"first error: No matching
+      factor found in factors map (kind=Monitors, …)"* instead of just
+      *"0 inserted, 50 072 skipped"*. Capped at 200 chars + ellipsis
+      so a long reason can't bloat `status_message`. 4 regression
+      tests cover the enrich path, the cap, the no-row-errors fallback,
+      and the SUCCESS-path preservation.
       _(Live SSE on the console moved up to "Newly discovered" — same
       issue, more specific framing.)_
 
