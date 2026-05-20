@@ -209,6 +209,49 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       and the SUCCESS-path preservation.
       _(Live SSE on the console moved up to "Newly discovered" — same
       issue, more specific framing.)_
+- ✅ **Autoflush FK bug (`23e47698`)** — `data_sync._stamp_job_type_and_meta`
+      and `_chain.chain_job` assigned `row.pipeline_id = X` *before*
+      `ensure_pipeline_exists`; the SELECT inside the latter
+      triggered autoflush which fired the FK on the half-set row.
+      Both reordered; regression test extended (5 cases) to cover
+      the autoflush shape.
+- ✅ **Equipment / "common" upload fail-fast guards** —
+      `64760c85` (handler `require_factor_to_match=True` empty
+      factors → raise at setup) + `c306b3a4` (per-module-type
+      `_FACTOR_INFERRED_MODULES = {equipment_electric_consumption,
+      purchase}` check: empty `factors_map` raises before the row
+      loop). User-reported 50k row-error log spam → one terminal
+      error with the cause in `status_message`.
+- ✅ **Units bulk_upsert race + global unit_sync lock (`1a637165`)**
+      — parallel year creation (2025+2026) crashed on
+      `ix_units_institutional_code`. Two-layer fix:
+      1. `UnitRepository.bulk_upsert` uses `INSERT … ON CONFLICT
+         (institutional_code) DO UPDATE` on Postgres (race-safe by
+         construction); SQLite fixture keeps legacy SELECT/merge.
+      2. `unit_sync_handler` acquires a GLOBAL 1-int advisory lock
+         (category `1239`) BEFORE the per-year aggregation lock —
+         serializes ALL unit_syncs regardless of year. Category
+         distinctness pinned by test.
+- ✅ **Pipeline Operations menu reorder + SA trump (`232ca077`)** —
+      `BACKOFFICE_PIPELINE_OPERATIONS` moved below `BACKOFFICE_LOGS`.
+      `Co2Sidebar.isItemDisabled` now short-circuits SuperAdmin past
+      all gates (no scenario where SA should be locked out of a
+      back-office page) — applies to User Management, Data
+      Management, and Pipeline Operations symmetrically.
+
+### Latent (documented, fix shape known, not yet shipped)
+
+- [ ] `UserRepository.bulk_upsert` — same SELECT-then-merge race
+      shape as the old units path. Currently safe because the global
+      unit_sync lock serialises the ONE production caller; the seed
+      script has no concurrency. Fix shape: `INSERT … ON CONFLICT
+      (institutional_id) DO UPDATE` mirroring `unit_repo`. Do it
+      *when* a second caller appears.
+- [ ] `reference_data` CSV ingest does `DELETE BuildingRoom; INSERT
+      rooms` (year-agnostic, like units). Single-operator upload
+      today so the race is latent; if multiple ops ever ingest
+      reference data concurrently, port the global-lock pattern from
+      `unit_sync`.
 
 ## ❓ Needs a decision (yours)
 
