@@ -109,6 +109,13 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
   return {
     year: options.year,
     is_started: false,
+    // Year-config gate (#1234 follow-up `13616a35`): the data-management
+    // page refuses to render the upload UI until ``configuration_completed``
+    // is non-null (set by ``unit_sync_handler`` on SUCCESS).  Default
+    // satisfies the gate so upload/dispatch happy-path tests aren't
+    // blocked; tests that want to exercise the unprovisioned state
+    // can pass an explicit override via ``onGetYearConfig``.
+    configuration_completed: '2024-01-01T00:00:00Z',
     config: {
       modules: options.modulesOverride ?? { '1': baseHeadcount },
       reduction_objectives: {

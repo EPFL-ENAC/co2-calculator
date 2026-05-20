@@ -25,6 +25,7 @@ contract narrow (parent + child shape + dispatch).
 
 import json
 import warnings
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Optional
 from uuid import uuid4
@@ -45,6 +46,77 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._background import fire_and_forget
 
 logger = get_logger(__name__)
+
+
+# Post-commit dispatch queue (#1236) — chain_job must NOT fire children
+# until the parent's ``data_session`` is committed.  The race that drove
+# this:
+#   1. csv_ingest_handler writes DELETE old + INSERT new data_entries to
+#      data_session (uncommitted — runner commits AFTER handler returns).
+#   2. _chain_emission_recalc_for_data_ingest calls chain_job for each
+#      target (module, det) pair.
+#   3. chain_job creates the child row in job_session (committed via
+#      job_session.commit) and would normally fire_and_forget(run_job).
+#   4. The recalc child starts on a NEW session BEFORE the parent
+#      commits data_session → snapshot pre-dates the parent's
+#      DELETE/INSERT → recalc reads STALE data_entries (the ones about
+#      to be deleted).
+#   5. Recalc tries to INSERT data_entry_emissions referencing those
+#      stale ids; meanwhile the parent's commit lands → DELETE takes
+#      effect → FK violation on data_entry_emissions_data_entry_id_fkey.
+#
+# Fix: chain_job appends to this ContextVar instead of fire_and_forget.
+# The runner drains the queue ONLY AFTER ``data_session.commit()`` and
+# ``finish_job``, so the children's first read sees the parent's
+# committed state.  ContextVar (not a plain list) so concurrent
+# handlers in the same process get independent queues — asyncio Tasks
+# get their own context copy by default.
+#
+# Fallback: if no context is set up (ad-hoc calls outside the runner),
+# we still fire_and_forget immediately and log a warning — that path
+# preserves the legacy behavior for one-off callers / tests that
+# haven't migrated.
+_PENDING_DISPATCHES: ContextVar[Optional[list[int]]] = ContextVar(
+    "_pending_dispatches_after_commit", default=None
+)
+
+
+def reset_pending_dispatches() -> None:
+    """Initialize the pending-dispatch list for the current asyncio context.
+
+    Called by the runner at the start of ``run_job`` so the handler's
+    ``chain_job`` calls accumulate here instead of firing immediately.
+    """
+    _PENDING_DISPATCHES.set([])
+
+
+def drain_pending_dispatches() -> None:
+    """Fire every chain_job dispatch the handler accumulated.
+
+    Called by the runner AFTER ``data_session.commit()`` so the
+    children's first read of data_entries / data_entry_emissions sees
+    the parent's committed writes (#1236 race fix).
+    """
+    pending = _PENDING_DISPATCHES.get()
+    if not pending:
+        return
+    from app.tasks.runner import run_job
+
+    for child_id in pending:
+        fire_and_forget(run_job(child_id), name=f"run_job-{child_id}")
+    pending.clear()
+
+
+def discard_pending_dispatches() -> None:
+    """Drop every queued chain_job dispatch without firing.
+
+    Called by the runner on handler failure / preempt — the parent's
+    ``data_session`` was rolled back, so the children would operate on
+    a view of the world that no longer reflects the parent's intent.
+    """
+    pending = _PENDING_DISPATCHES.get()
+    if pending:
+        pending.clear()
 
 
 @dataclass(frozen=True)
@@ -154,6 +226,25 @@ async def chain_job(
     pipeline_id = parent.pipeline_id
     if pipeline_id is None:
         pipeline_id = uuid4()
+        # #1236 Phase 2 FK — Pipeline row MUST exist before we make
+        # ``parent.pipeline_id`` dirty.  Otherwise the SELECT inside
+        # ``ensure_pipeline_exists`` would autoflush an UPDATE on
+        # data_ingestion_jobs that references a pipeline that doesn't
+        # exist yet → FK violation.
+        await repo.ensure_pipeline_exists(
+            pipeline_id,
+            kind=parent.job_type,
+            entity_type=(
+                parent.entity_type.value if parent.entity_type is not None else None
+            ),
+            ingestion_method=(
+                parent.ingestion_method.value
+                if parent.ingestion_method is not None
+                else None
+            ),
+            module_type_id=parent.module_type_id,
+            year=parent.year,
+        )
         parent.pipeline_id = pipeline_id
         session.add(parent)
         await session.commit()
@@ -240,7 +331,10 @@ async def chain_job(
             # treats NULL run_after as eligible.  Matches the existing
             # ingestion_tasks.py recalc-job creation pattern.
             run_after=None,
-            meta={"config": config or {}, "parent_job_id": parent.id},
+            # Phase 5B (#1236) — ``parent_job_id`` dropped from meta;
+            # the parent is identifiable as the lowest-id job in the
+            # pipeline (see ``compute_pipeline_progress._find_root``).
+            meta={"config": config or {}},
         )
         created = await repo.create_ingestion_job(child)
         await session.commit()
@@ -265,14 +359,28 @@ async def chain_job(
         )
         return None
 
-    # Lazy import: runner imports nothing from this module, so a
-    # top-level ``from app.tasks.runner import run_job`` would be safe
-    # for the static graph — but lazy here documents that ``chain_job``
-    # only needs ``run_job`` for the dispatch call, not for typing or
-    # construction.
-    from app.tasks.runner import run_job
+    # Defer dispatch — see ``_PENDING_DISPATCHES`` docstring for the
+    # race that motivated this.  In the normal runner-invoked path the
+    # ContextVar is initialised by ``reset_pending_dispatches()`` and
+    # drained by ``drain_pending_dispatches()`` AFTER the parent's
+    # ``data_session.commit()``.  Outside the runner (ad-hoc / tests
+    # that don't reset the context), fall back to immediate fire so
+    # the legacy behavior is preserved — logged so the fallback is
+    # visible.
+    pending = _PENDING_DISPATCHES.get()
+    if pending is None:
+        from app.tasks.runner import run_job
 
-    fire_and_forget(run_job(child_id), name=f"run_job-{child_id}")
+        logger.warning(
+            "chain_job: _PENDING_DISPATCHES not initialised — firing "
+            "run_job(%s) immediately. This is safe outside the runner "
+            "(tests, ad-hoc dispatch) but risks the data_session race "
+            "if called from a handler that hasn't yet committed.",
+            child_id,
+        )
+        fire_and_forget(run_job(child_id), name=f"run_job-{child_id}")
+    else:
+        pending.append(child_id)
     return child_id
 
 
@@ -321,7 +429,9 @@ async def _insert_child_with_dedup(
     # asyncpg accepts UUID objects directly via type adapters, but
     # raw text SQL coerces best when stringified.
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
-    meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
+    # Phase 5B (#1236) — ``parent_job_id`` dropped from meta (see sibling
+    # call above); reading paths use lowest-id-in-pipeline instead.
+    meta_json = json.dumps({"config": config or {}})
 
     # The chain_job entry guard already rejected NULL scope values,
     # so simple equality is sufficient here — no ``(:col IS NULL AND

@@ -1,8 +1,9 @@
 import asyncio
+import enum
 import json
 from datetime import datetime
-from typing import Optional
-from uuid import UUID
+from typing import Optional, TypeVar
+from uuid import UUID, uuid4
 
 from fastapi import (
     APIRouter,
@@ -14,14 +15,14 @@ from fastapi import (
     status,
 )
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlmodel import select
+from pydantic import BaseModel, field_serializer
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.core.policy import check_module_permission, get_module_permission_decision
+from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
@@ -32,11 +33,13 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    PipelineStatus,
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
@@ -79,6 +82,7 @@ async def _stamp_job_type_and_meta(
     job_type: str,
     provider_name: Optional[str] = None,
     extra_meta: Optional[dict] = None,
+    pipeline_id: Optional[UUID] = None,
 ) -> None:
     """After ``provider.create_job`` returns, stamp ``job_type`` and
     extend ``meta`` so the runner's registry lookup hits the right
@@ -103,6 +107,31 @@ async def _stamp_job_type_and_meta(
     if extra_meta:
         merged_meta.update(extra_meta)
     row.meta = merged_meta
+    # Issue #1219 — stamp the pipeline_id eagerly when the caller
+    # supplies one.  ``chain_job`` only generates a UUID when
+    # ``parent.pipeline_id is None`` (_chain.py:154-157), so a
+    # pre-set value is honored and inherited by every child — and it
+    # closes the pod-crash-then-recovery orphan window the lazy path
+    # explicitly worries about.
+    if pipeline_id is not None:
+        # #1236 Phase 2 FK — the Pipeline row MUST exist *before* we
+        # assign ``row.pipeline_id``.  Otherwise the SELECT inside
+        # ``ensure_pipeline_exists`` triggers SQLAlchemy autoflush,
+        # which writes UPDATE data_ingestion_jobs SET pipeline_id=…
+        # while ``pipelines`` is still empty → FK violation.
+        await repo.ensure_pipeline_exists(
+            pipeline_id,
+            kind=job_type,
+            entity_type=(
+                row.entity_type.value if row.entity_type is not None else None
+            ),
+            ingestion_method=(
+                row.ingestion_method.value if row.ingestion_method is not None else None
+            ),
+            module_type_id=row.module_type_id,
+            year=row.year,
+        )
+        row.pipeline_id = pipeline_id
     db.add(row)
 
 
@@ -243,6 +272,14 @@ class SyncStatusResponse(BaseModel):
     state: IngestionState
     message: str
     progress: Optional[dict] = None
+    # Issue #1219 — the parent's pipeline_id, assigned eagerly at
+    # creation (not lazily at first fan-out) so the frontend can seed
+    # its pipeline-state store and subscribe to the SSE stream from
+    # the moment the job is dispatched.  Without this the card only
+    # discovers the pipeline after the upload job already FINISHED,
+    # so phase 1 ("Inserting data…") is never visible and fast
+    # chains complete inside the discovery gap, showing nothing.
+    pipeline_id: Optional[str] = None
 
 
 class SyncJobResponse(BaseModel):
@@ -304,6 +341,17 @@ class PipelineJobResponse(BaseModel):
     data_entry_type_id: Optional[int] = None
     year: Optional[int] = None
 
+    # See ``PipelineJobListEntry`` for the rationale — serialize
+    # ``state`` and ``result`` as the enum NAME so the frontend's
+    # string comparisons (``j.state === 'FINISHED'``) work.
+    @field_serializer("state")
+    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+        return v.name if v is not None else None
+
+    @field_serializer("result")
+    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+        return v.name if v is not None else None
+
 
 class PipelineProgressResponse(BaseModel):
     """Server-authoritative pipeline phase/done/error (Issue #1219).
@@ -317,6 +365,14 @@ class PipelineProgressResponse(BaseModel):
     phase_label: PhaseLabel
     done: bool
     has_error: bool
+    # PARTIAL tier (#1236) — the authoritative ``pipelines.status``
+    # name so the console can render PARTIAL (amber) vs FAILED (red).
+    status: Optional[str] = None
+    # Parent ``job_type`` so frontend cards (UploadCardData /
+    # UploadCardFactors / UploadCardReferences) can decide whether
+    # the phase indicator applies to *their* target — a factor
+    # ingest's progress shouldn't surface on the data card.
+    kind: Optional[str] = None
 
 
 class PipelineResponse(BaseModel):
@@ -326,6 +382,168 @@ class PipelineResponse(BaseModel):
     pipeline_id: UUID
     jobs: list[PipelineJobResponse]
     progress: PipelineProgressResponse
+
+
+# Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
+# Everything else (esp. ``error_details`` / ``affected_module_ids``,
+# which are KB-scale per row) is stripped server-side so the list
+# payload stays small.
+#
+# Phase 5B (#1236) retired three keys from this list:
+# ``parent_job_id``, ``recalc_jobs_chained``, ``aggregation_job_id``.
+# They were used to thread the DAG and drive
+# ``compute_pipeline_progress``; that data now lives on the
+# ``pipelines`` row (``expected_recalc``) or is derived from the
+# job rows directly (root = lowest-id; aggregation_done = all
+# aggregation rows FINISHED).
+_PIPELINE_META_ALLOW = (
+    "provider_name",
+    "filters",
+    # #2A / #2B — generic status_history timeline + unit_sync phase
+    # checklist. Both are bounded (status_history capped at 50;
+    # phases is ≤4 for unit_sync, empty for other job_types) so the
+    # per-job payload stays tractable in the list view.
+    "status_history",
+    "phases",
+)
+
+
+def _project_pipeline_meta(meta: Optional[dict]) -> dict:
+    m = meta or {}
+    return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+
+
+def _module_label(value: Optional[int]) -> Optional[str]:
+    """Resolve a module_type_id int to its enum name (#1234) — done
+    server-side so the table shows names with no frontend int→label
+    map to drift. Unknown/legacy ints degrade to ``None``."""
+    if value is None:
+        return None
+    try:
+        return ModuleTypeEnum(value).name
+    except ValueError:
+        return None
+
+
+def _det_label(value: Optional[int]) -> Optional[str]:
+    """Resolve a data_entry_type_id int to its enum name (#1234)."""
+    if value is None:
+        return None
+    try:
+        return DataEntryTypeEnum(value).name
+    except ValueError:
+        return None
+
+
+_EnumT = TypeVar("_EnumT", bound=enum.Enum)
+
+
+def _resolve_enum_name(
+    enum_cls: type[_EnumT], value: Optional[str], field: str
+) -> Optional[_EnumT]:
+    """Resolve a query param to an enum member by *name* (#1234).
+
+    ``IngestionState`` / ``IngestionResult`` are int enums, so FastAPI's
+    built-in coercion expects the integer value and 422s on the
+    human-readable name the UI sends (``RUNNING``, ``ERROR`` …).  This
+    accepts the name case-insensitively and 422s only on a genuinely
+    unknown value.
+
+    Iterates via ``__members__.values()`` rather than ``for m in
+    enum_cls`` so CodeQL's "Non-iterable used in for loop" check sees
+    a plain ``dict_values`` (it doesn't model ``EnumMeta.__iter__``
+    through ``type[_EnumT]``).
+    """
+    if value is None:
+        return None
+    needle = value.strip().lower()
+    members = enum_cls.__members__.values()
+    for member in members:
+        if member.name.lower() == needle:
+            return member
+    valid = ", ".join(m.name for m in members)
+    raise HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail=f"Invalid {field} '{value}'. Expected one of: {valid}",
+    )
+
+
+class PipelineJobListEntry(BaseModel):
+    """One job inside a pipeline, as shown in the ops-console DAG (#1234).
+
+    Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
+    carries timing for per-step duration and an **allow-listed** ``meta``
+    (never the big ``error_details`` / ``affected_module_ids`` arrays).
+
+    ``state`` and ``result`` serialize as the enum NAME (string), not
+    the int value — Pydantic's int-enum default would ship ``3`` for
+    ``FINISHED`` which mismatches every frontend consumer (the TS
+    interface declares ``string | null`` and renders comparisons like
+    ``j.state === 'FINISHED'``).  The field_serializers below pin the
+    contract."""
+
+    job_id: int
+    job_type: Optional[str] = None
+    state: Optional[IngestionState] = None
+    result: Optional[IngestionResult] = None
+    status_message: Optional[str] = None
+    module_type_id: Optional[int] = None
+    data_entry_type_id: Optional[int] = None
+    # #1234 — human label (resolved from the int enum server-side so
+    # the table shows names, not integers, with no frontend drift).
+    data_entry_type_label: Optional[str] = None
+    year: Optional[int] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    attempts: Optional[int] = None
+    meta: dict = {}
+
+    @field_serializer("state")
+    def _state_name(self, v: Optional[IngestionState]) -> Optional[str]:
+        return v.name if v is not None else None
+
+    @field_serializer("result")
+    def _result_name(self, v: Optional[IngestionResult]) -> Optional[str]:
+        return v.name if v is not None else None
+
+
+class PipelineListItem(BaseModel):
+    """One pipeline row in the ops console (#1234).
+
+    ``pipeline_id`` is ``None`` for an orphan — a parent that failed
+    before fan-out so it never minted a pipeline (``is_orphan=True``);
+    it still appears as a pipeline-of-one.  Rollups (job_type, module,
+    year, status_message) come from the root/parent job; timing spans
+    the whole chain."""
+
+    pipeline_id: Optional[UUID] = None
+    is_orphan: bool
+    progress: PipelineProgressResponse
+    job_type: Optional[str] = None
+    module_type_id: Optional[int] = None
+    # #1234 — human label for the related module (server-resolved).
+    module_label: Optional[str] = None
+    year: Optional[int] = None
+    status_message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    latest_job_id: int
+    job_count: int
+    error_count: int
+    jobs: list[PipelineJobListEntry]
+
+
+class PipelineListResponse(BaseModel):
+    """Page of pipelines for the ops console (#1234).
+
+    ``total`` is the full match count *before* the per-module
+    permission drop (see endpoint docstring), so a page may contain
+    fewer than ``limit`` items for a scope-limited operator."""
+
+    items: list[PipelineListItem]
+    total: int
+    limit: int
+    offset: int
 
 
 class StaleStatsEntry(BaseModel):
@@ -390,6 +608,32 @@ async def sync_module_data_entries(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="year is required for factor CSV ingestion",
         )
+
+    # #1234-followup (Guilbert 2026-05-20): block dispatch when the
+    # target year's ``unit_sync`` hasn't finished SUCCESS — uploads
+    # would race the provisioning (carbon_reports/modules creation) and
+    # silently lose rows. ``configuration_completed`` is stamped by
+    # ``unit_sync_handler`` on success. UI-side disable is best-effort;
+    # this server gate cannot be bypassed.  ``unit_sync`` itself goes
+    # through ``run_job`` (not ``/dispatch``), so it doesn't gate
+    # itself.
+    if syncRequest.year is not None:
+        year_cfg = (
+            await db.execute(
+                select(YearConfiguration).where(
+                    col(YearConfiguration.year) == syncRequest.year
+                )
+            )
+        ).scalar_one_or_none()
+        if year_cfg is None or year_cfg.configuration_completed is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Year {syncRequest.year} is not yet provisioned — "
+                    "wait for the unit_sync pipeline to complete before "
+                    "uploading data for this year."
+                ),
+            )
 
     # Prepare config with file_path and carbon_report_module_id if provided
     config = syncRequest.config.model_dump() if syncRequest.config else {}
@@ -457,12 +701,14 @@ async def sync_module_data_entries(
     # NOTE: file_path validation happens in provider.__init__() via
     # _validate_file_path() to prevent directory traversal attacks
     # (e.g., /../../../etc/passwd).
+    pipeline_id = uuid4()
     await _stamp_job_type_and_meta(
         db,
         job_id,
         job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
         provider_name=provider.__class__.__name__,
         extra_meta={"filters": syncRequest.filters or {}},
+        pipeline_id=pipeline_id,
     )
     await db.commit()
 
@@ -473,6 +719,7 @@ async def sync_module_data_entries(
         "state": IngestionState.NOT_STARTED,
         "message": f"""Sync initiated using {syncRequest.ingestion_method}""",
         "progress": None,
+        "pipeline_id": str(pipeline_id),
     }
 
 
@@ -557,12 +804,14 @@ async def sync_module_factors(
             "route_payload": await extract_route_payload(request),
         },
     )
+    pipeline_id = uuid4()
     await _stamp_job_type_and_meta(
         db,
         job_id,
         job_type=_job_type_for(syncRequest.target_type, syncRequest.ingestion_method),
         provider_name=provider.__class__.__name__,
         extra_meta={"filters": syncRequest.filters or {}},
+        pipeline_id=pipeline_id,
     )
     await db.commit()
 
@@ -573,6 +822,7 @@ async def sync_module_factors(
         "state": IngestionState.NOT_STARTED,
         "message": f"Sync initiated using {syncRequest.ingestion_method}",
         "progress": None,
+        "pipeline_id": str(pipeline_id),
     }
 
 
@@ -859,27 +1109,22 @@ async def get_active_pipelines(
             detail="modules must be a comma-separated list of integers",
         ) from exc
 
-    # Per-module scope filter: drop entries the caller can't view rather than
-    # 403-ing the whole batch.  The global ``backoffice.data_management.view``
-    # gate above proves the user is a backoffice user; this loop additionally
-    # verifies they have view access to each specific module.  Without it, a
-    # backoffice user scoped to a sub-perimeter could enumerate active
-    # pipeline UUIDs across modules they otherwise can't read.
-    # TODO(#459): once sub-perimeter scoping ships, also pass institutional_id.
-    allowed_module_ids: list[int] = []
-    for module_type_id in module_type_ids:
-        decision = await get_module_permission_decision(
-            current_user, module_type_id, "view"
-        )
-        if decision.get("allow"):
-            allowed_module_ids.append(module_type_id)
-
-    if not allowed_module_ids:
-        return {}
-
+    # Permission: the global ``backoffice.data_management.view`` gate
+    # (dependency above) is sufficient — the back-office data-management
+    # page is global-scope for ``calco2.backoffice.metier`` (and
+    # SuperAdmin) by design.  The previous per-module OPA check
+    # (``modules.{name}.view``) filtered out every module for
+    # ``BackOfficeMetier`` users because that role grants
+    # ``backoffice.data_management.view`` but not the per-module
+    # ``modules.X.view`` perms, leaving the "Recalculating…" badge
+    # silently broken on the configuration page.  Matches the
+    # sibling year-level endpoint's gate (see
+    # ``get_active_year_level_pipelines``).
+    # TODO(#459): when sub-perimeter scoping ships, re-introduce
+    # filtering — but by sub-perimeter, not by module enumeration.
     pipeline_by_module = await DataIngestionRepository(
         db
-    ).get_current_pipeline_ids_for_modules(allowed_module_ids, year=year)
+    ).get_current_pipeline_ids_for_modules(module_type_ids, year=year)
     return {module_id: str(pid) for module_id, pid in pipeline_by_module.items()}
 
 
@@ -976,6 +1221,139 @@ async def get_recalculation_status(
     ]
 
 
+@router.get("/pipelines", response_model=PipelineListResponse)
+async def list_pipelines(
+    state: Optional[str] = None,
+    job_type: Optional[str] = None,
+    module_type_id: Optional[int] = None,
+    year: Optional[int] = None,
+    has_errors: Optional[bool] = None,
+    since: Optional[datetime] = None,
+    until: Optional[datetime] = None,
+    q: Optional[str] = None,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> PipelineListResponse:
+    """Paginated, filtered list of ingestion/recalc pipelines (#1234).
+
+    **Required Permission**: ``backoffice.data_management.view``
+
+    Backs the back-office pipeline-operations console — a global view
+    complementary to the per-module data-management page.  The unit is
+    the *pipeline* (one ``pipeline_id`` = parent + fan-out children);
+    pagination never splits a pipeline's jobs across pages.  Orphans
+    (a parent that failed before minting a ``pipeline_id``) appear as
+    pipelines-of-one with ``is_orphan=True``.
+
+    Declared before ``/pipelines/{pipeline_id}`` so the static path
+    wins routing.  Drill-down/live stays on the existing
+    ``GET /pipelines/{id}`` (+ ``/stream``) — not rebuilt here.
+
+    **Phase 3 read-flip (#1236):** ``state`` is the
+    ``pipelines.status`` name (case-insensitive: ``NOT_STARTED``,
+    ``RUNNING``, ``SUCCESS``, ``PARTIAL``, ``FAILED``) — the
+    pipeline-level status the runner recompute-and-stores.  The
+    previous job-level ``result`` URL param is dropped; its
+    semantics are subsumed by ``state`` (FAILED / PARTIAL =
+    error).  ``has_errors=true`` also pivots to ``status IN
+    (PARTIAL, FAILED)``.
+
+    Permission model matches the single-pipeline endpoint
+    (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
+    *non-raising*: the global ``backoffice.data_management.view`` gate
+    (dependency above) covers cross-unit ``MODULE_PER_YEAR`` pipelines
+    (recalc/aggregation) and unscoped runs (unit_sync); a pipeline is
+    *dropped* (not 403) only when it is unit-pinned
+    (``MODULE_UNIT_SPECIFIC``) and the operator lacks the
+    ``modules.{name}`` scope for that unit.  ``total`` is the pre-drop
+    match count, so a unit-scoped operator may see a short page —
+    acceptable for an internal ops tool; the alternative (exact
+    post-filter pagination) would require loading every pipeline,
+    defeating the SQL-side pagination.
+    """
+    resolved_status = _resolve_enum_name(PipelineStatus, state, "state")
+    groups, total = await DataIngestionRepository(db).list_pipelines_paginated(
+        pipeline_status=resolved_status,
+        job_type=job_type,
+        module_type_id=module_type_id,
+        year=year,
+        has_errors=has_errors,
+        since=since,
+        until=until,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
+
+    items: list[PipelineListItem] = []
+    for group in groups:
+        jobs = group["jobs"]
+        if not jobs:
+            continue
+        # Same scope gate as the single-pipeline read endpoint, made
+        # non-fatal: cross-unit MODULE_PER_YEAR pipelines and unscoped
+        # runs pass on the global backoffice gate; only a unit-pinned
+        # pipeline the operator can't view is dropped (not 403).
+        try:
+            await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="view")
+        except HTTPException:
+            continue
+        # Root/parent = lowest id (repo returns jobs id-ascending; the
+        # ingest parent is created before its fan-out children).
+        root = jobs[0]
+        started = [j.started_at for j in jobs if j.started_at is not None]
+        finished = [j.finished_at for j in jobs if j.finished_at is not None]
+        items.append(
+            PipelineListItem(
+                pipeline_id=group["pipeline_id"],
+                is_orphan=group["is_orphan"],
+                progress=PipelineProgressResponse(
+                    **compute_pipeline_progress(jobs, pipeline=group["pipeline"])
+                ),
+                job_type=root.job_type,
+                module_type_id=root.module_type_id,
+                module_label=_module_label(root.module_type_id),
+                year=root.year,
+                status_message=root.status_message,
+                started_at=min(started) if started else None,
+                finished_at=max(finished) if finished else None,
+                latest_job_id=max(j.id for j in jobs if j.id is not None),
+                job_count=len(jobs),
+                error_count=sum(
+                    1
+                    for j in jobs
+                    if j.state == IngestionState.FINISHED
+                    and j.result == IngestionResult.ERROR
+                ),
+                jobs=[
+                    PipelineJobListEntry(
+                        job_id=j.id,
+                        job_type=j.job_type,
+                        state=j.state,
+                        result=j.result,
+                        status_message=j.status_message,
+                        module_type_id=j.module_type_id,
+                        data_entry_type_id=j.data_entry_type_id,
+                        data_entry_type_label=_det_label(j.data_entry_type_id),
+                        year=j.year,
+                        started_at=j.started_at,
+                        finished_at=j.finished_at,
+                        attempts=j.attempts,
+                        meta=_project_pipeline_meta(j.meta),
+                    )
+                    for j in jobs
+                    if j.id is not None
+                ],
+            )
+        )
+
+    return PipelineListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
 @router.get("/pipelines/{pipeline_id}", response_model=PipelineResponse)
 async def get_pipeline_jobs(
     pipeline_id: UUID,
@@ -997,7 +1375,8 @@ async def get_pipeline_jobs(
     the convention of other lookup endpoints in this module
     (``cancel_job``, ``recover_job``).
     """
-    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
+    repo = DataIngestionRepository(db)
+    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
     if not jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1005,6 +1384,9 @@ async def get_pipeline_jobs(
         )
     # TODO(#459): tighten when sub-perimeter scoping ships
     await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="view")
+
+    # Phase 3 read-flip (#1236): authoritative status from pipelines table.
+    pipeline = await repo.get_pipeline_by_id(pipeline_id)
 
     return PipelineResponse(
         pipeline_id=pipeline_id,
@@ -1023,7 +1405,9 @@ async def get_pipeline_jobs(
             for job in jobs
             if job.id is not None
         ],
-        progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
+        progress=PipelineProgressResponse(
+            **compute_pipeline_progress(jobs, pipeline=pipeline)
+        ),
     )
 
 
@@ -1099,9 +1483,13 @@ async def pipeline_stream_by_id(
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
             # one slot per subscriber for the whole stream (minutes).
             async with db_module.SessionLocal() as session:
-                jobs = await DataIngestionRepository(session).list_jobs_by_pipeline_id(
-                    pipeline_id
-                )
+                repo = DataIngestionRepository(session)
+                jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+                # Phase 3 read-flip (#1236): pull the pipelines row each
+                # tick so ``progress.done`` reflects the runner's most
+                # recent post-finish_job status write (or the cron sweep
+                # if that write log-and-skipped).
+                pipeline_row = await repo.get_pipeline_by_id(pipeline_id)
 
             # Snapshot the columns the spec calls out for the dashboard:
             # only these fields trigger a re-emit, so meta-only mutations
@@ -1110,8 +1498,12 @@ async def pipeline_stream_by_id(
                 {
                     "id": job.id,
                     "job_type": job.job_type,
-                    "state": (job.state.value if job.state is not None else None),
-                    "result": (job.result.value if job.result is not None else None),
+                    # Enum NAME so the frontend's string comparisons
+                    # (``j.state === 'FINISHED'``) work uniformly across
+                    # the list endpoint, single endpoint, and this SSE
+                    # stream.  See ``PipelineJobListEntry`` serializers.
+                    "state": (job.state.name if job.state is not None else None),
+                    "result": (job.result.name if job.result is not None else None),
                     "status_message": job.status_message,
                     "started_at": (
                         job.started_at.isoformat() if job.started_at else None
@@ -1124,14 +1516,13 @@ async def pipeline_stream_by_id(
                 if job.id is not None
             ]
 
-            # Issue #1219 — server-authoritative completion.  The old
-            # "every job in the snapshot is FINISHED" test fired in the
-            # window where the parent upload was FINISHED but its
-            # recalc/aggregation children had not been INSERTed yet, so
-            # the UI flashed green on a half-done pipeline.  Derive
-            # phase/done from the expected fan-out recorded in meta
-            # instead, and ship it so the client trusts the same truth.
-            progress = compute_pipeline_progress(jobs)
+            # Issue #1219 — server-authoritative completion.  Phase 3
+            # (#1236) further: ``done``/``has_error`` derive from
+            # ``pipelines.status`` (durable, recompute-and-stored)
+            # rather than from the possibly-stale job snapshot.  Orphans
+            # (no pipelines row) fall back to job-derived inside
+            # compute_pipeline_progress.
+            progress = compute_pipeline_progress(jobs, pipeline=pipeline_row)
 
             if snapshot != last_snapshot:
                 payload = {
@@ -1197,6 +1588,8 @@ async def recalculate_emissions_for_type(
         data_entry_type_id: The data entry type to recalculate.
         year: The report year (required).
     """
+    # Issue #1219 — eager pipeline_id (see SyncStatusResponse / _chain.py:154).
+    pipeline_id = uuid4()
     job = DataIngestionJob(
         job_type="emission_recalc",
         module_type_id=module_type_id.value,
@@ -1206,9 +1599,21 @@ async def recalculate_emissions_for_type(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
-    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    repo = DataIngestionRepository(db)
+    # #1236 — pipeline aggregate row MUST exist before the
+    # data_ingestion_jobs INSERT flushes (Phase 2 FK).  Idempotent.
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="emission_recalc",
+        entity_type=EntityType.MODULE_PER_YEAR.value,
+        ingestion_method=IngestionMethod.computed.value,
+        module_type_id=module_type_id.value,
+        year=year,
+    )
+    created_job = await repo.create_ingestion_job(job)
     await db.commit()
     if created_job.id is None:
         raise HTTPException(
@@ -1221,6 +1626,7 @@ async def recalculate_emissions_for_type(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
         message="Emission recalculation scheduled",
+        pipeline_id=str(pipeline_id),
     )
 
 
@@ -1276,6 +1682,8 @@ async def recalculate_emissions_for_module(
     else:
         det_ids = all_det_ids
 
+    # Issue #1219 — eager pipeline_id (see SyncStatusResponse / _chain.py:154).
+    pipeline_id = uuid4()
     job = DataIngestionJob(
         job_type="module_emission_recalc",
         module_type_id=module_type_id.value,
@@ -1285,6 +1693,7 @@ async def recalculate_emissions_for_module(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
         meta={
             "config": {
                 "year": year,
@@ -1293,7 +1702,18 @@ async def recalculate_emissions_for_module(
             }
         },
     )
-    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    repo = DataIngestionRepository(db)
+    # #1236 — pipeline aggregate row MUST exist before the
+    # data_ingestion_jobs INSERT flushes (Phase 2 FK).  Idempotent.
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="module_emission_recalc",
+        entity_type=EntityType.MODULE_PER_YEAR.value,
+        ingestion_method=IngestionMethod.computed.value,
+        module_type_id=module_type_id.value,
+        year=year,
+    )
+    created_job = await repo.create_ingestion_job(job)
     await db.commit()
     if created_job.id is None:
         raise HTTPException(
@@ -1307,6 +1727,7 @@ async def recalculate_emissions_for_module(
         job_id=created_job.id,
         state=IngestionState.NOT_STARTED,
         message=f"Module emission recalculation scheduled for {n} data entry types",
+        pipeline_id=str(pipeline_id),
     )
 
 

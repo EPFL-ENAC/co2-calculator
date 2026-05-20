@@ -19,6 +19,8 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
     TargetType,
 )
 from app.models.user import UserProvider
@@ -980,3 +982,666 @@ async def test_get_current_pipeline_ids_for_modules_filters_by_year(
     repo = DataIngestionRepository(db_session)
     result = await repo.get_current_pipeline_ids_for_modules([5], year=2025)
     assert result == {}
+
+
+# ======================================================================
+# list_pipelines_paginated Tests (#1234 — pipeline ops console)
+# ======================================================================
+
+
+def _pipeline_job(
+    *,
+    pipeline_id,
+    job_type: str,
+    state: IngestionState = IngestionState.FINISHED,
+    result: IngestionResult | None = IngestionResult.SUCCESS,
+    module_type_id: int = 4,
+    year: int = 2026,
+    started_at=None,
+    status_message: str | None = None,
+    meta: dict | None = None,
+) -> DataIngestionJob:
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_PER_YEAR,
+        module_type_id=module_type_id,
+        data_entry_type_id=None,
+        year=year,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        provider=UserProvider.DEFAULT,
+        state=state,
+        result=result,
+        is_current=False,
+        pipeline_id=pipeline_id,
+        job_type=job_type,
+        started_at=started_at,
+        status_message=status_message,
+        meta=meta or {},
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_groups_by_pipeline_id(db_session: AsyncSession):
+    """Two pipelines → two groups, jobs id-ascending within each."""
+    repo = DataIngestionRepository(db_session)
+    p1, p2 = uuid4(), uuid4()
+    for j in (
+        _pipeline_job(pipeline_id=p1, job_type="csv_ingest"),
+        _pipeline_job(pipeline_id=p1, job_type="emission_recalc"),
+        _pipeline_job(pipeline_id=p2, job_type="csv_ingest"),
+    ):
+        db_session.add(j)
+    await db_session.flush()
+
+    groups, total = await repo.list_pipelines_paginated()
+
+    assert total == 2
+    assert {g["pipeline_id"] for g in groups} == {p1, p2}
+    for g in groups:
+        ids = [j.id for j in g["jobs"]]
+        assert ids == sorted(ids)
+        assert g["is_orphan"] is False
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_paginates_by_pipeline_not_job(
+    db_session: AsyncSession,
+):
+    """limit=2 over 3 pipelines → 2 groups, total=3, children not split."""
+    repo = DataIngestionRepository(db_session)
+    pids = [uuid4() for _ in range(3)]
+    for pid in pids:
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="emission_recalc"))
+    await db_session.flush()
+
+    page1, total = await repo.list_pipelines_paginated(limit=2, offset=0)
+    page2, _ = await repo.list_pipelines_paginated(limit=2, offset=2)
+
+    assert total == 3
+    assert len(page1) == 2
+    assert len(page2) == 1
+    # Every returned group keeps BOTH its jobs (no split across pages).
+    for g in page1 + page2:
+        assert len(g["jobs"]) == 2
+    # Newest-first by latest job id: page1[0] is the last-inserted pipeline.
+    assert page1[0]["pipeline_id"] == pids[2]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_filters(db_session: AsyncSession):
+    """job_type / module / year / state filters select matching pipelines."""
+    repo = DataIngestionRepository(db_session)
+    keep, drop = uuid4(), uuid4()
+    db_session.add(_pipeline_job(pipeline_id=keep, job_type="csv_ingest", year=2026))
+    db_session.add(_pipeline_job(pipeline_id=drop, job_type="factor_ingest", year=2025))
+    await db_session.flush()
+
+    by_year, _ = await repo.list_pipelines_paginated(year=2026)
+    by_type, _ = await repo.list_pipelines_paginated(job_type="factor_ingest")
+
+    assert [g["pipeline_id"] for g in by_year] == [keep]
+    assert [g["pipeline_id"] for g in by_type] == [drop]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_has_errors_filter(db_session: AsyncSession):
+    """has_errors keeps only pipelines with status IN (PARTIAL, FAILED).
+
+    Phase 3 read-flip (#1236): error-ness is read from ``pipelines.status``
+    (the durable authoritative source), not inferred per-job.
+    """
+    repo = DataIngestionRepository(db_session)
+    ok, bad = uuid4(), uuid4()
+    db_session.add(_pipeline_job(pipeline_id=ok, job_type="csv_ingest"))
+    db_session.add(_pipeline_job(pipeline_id=bad, job_type="csv_ingest"))
+    db_session.add(
+        Pipeline(id=ok, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        Pipeline(id=bad, kind="csv_ingest", status=PipelineStatus.FAILED.value)
+    )
+    await db_session.flush()
+
+    errored, _ = await repo.list_pipelines_paginated(has_errors=True)
+    clean, _ = await repo.list_pipelines_paginated(has_errors=False)
+
+    assert [g["pipeline_id"] for g in errored] == [bad]
+    assert [g["pipeline_id"] for g in clean] == [ok]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_status_filter(db_session: AsyncSession):
+    """pipeline_status filters on ``pipelines.status`` directly (#1236 Phase 3).
+
+    The URL ``?state=RUNNING`` maps to this filter via the endpoint —
+    the test exercises the repo layer's pivot.
+    """
+    repo = DataIngestionRepository(db_session)
+    running, success, failed = uuid4(), uuid4(), uuid4()
+    for pid in (running, success, failed):
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(
+        Pipeline(id=running, kind="csv_ingest", status=PipelineStatus.RUNNING.value)
+    )
+    db_session.add(
+        Pipeline(id=success, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        Pipeline(id=failed, kind="csv_ingest", status=PipelineStatus.FAILED.value)
+    )
+    await db_session.flush()
+
+    only_running, _ = await repo.list_pipelines_paginated(
+        pipeline_status=PipelineStatus.RUNNING
+    )
+    only_failed, _ = await repo.list_pipelines_paginated(
+        pipeline_status=PipelineStatus.FAILED
+    )
+
+    assert [g["pipeline_id"] for g in only_running] == [running]
+    assert [g["pipeline_id"] for g in only_failed] == [failed]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_returns_pipeline_row(db_session: AsyncSession):
+    """Groups carry the ``Pipeline`` row (#1236 Phase 3) so the endpoint
+    can pass it into ``compute_pipeline_progress``.  Orphans have no
+    Pipeline row, so ``pipeline`` is None."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(
+        Pipeline(id=pid, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=None,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+        )
+    )
+    await db_session.flush()
+
+    groups, _ = await repo.list_pipelines_paginated()
+
+    pl_group = next(g for g in groups if g["pipeline_id"] == pid)
+    orphan_group = next(g for g in groups if g["is_orphan"])
+    assert pl_group["pipeline"] is not None
+    assert pl_group["pipeline"].status == PipelineStatus.SUCCESS.value
+    assert orphan_group["pipeline"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_orphans_are_pipelines_of_one(
+    db_session: AsyncSession,
+):
+    """A pipeline_id IS NULL parent surfaces as is_orphan with one job."""
+    repo = DataIngestionRepository(db_session)
+    db_session.add(
+        uuid4_pid := _pipeline_job(pipeline_id=uuid4(), job_type="csv_ingest")
+    )  # noqa: E501
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=None,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="InFailedSqlTransaction",
+        )
+    )
+    await db_session.flush()
+    assert uuid4_pid.id is not None
+
+    groups, total = await repo.list_pipelines_paginated()
+
+    assert total == 2
+    orphans = [g for g in groups if g["is_orphan"]]
+    assert len(orphans) == 1
+    assert orphans[0]["pipeline_id"] is None
+    assert len(orphans[0]["jobs"]) == 1
+    assert orphans[0]["jobs"][0].status_message == "InFailedSqlTransaction"
+
+
+# ======================================================================
+# Pipeline aggregate (#1236 Phase 1): ensure / recompute / reconcile
+# ======================================================================
+
+
+async def _count_pipelines(db_session: AsyncSession, pid) -> int:
+    rows = await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    return len(rows.scalars().all())
+
+
+@pytest.mark.asyncio
+async def test_ensure_pipeline_exists_is_idempotent(db_session: AsyncSession):
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+
+    await repo.ensure_pipeline_exists(
+        pid,
+        kind="csv_ingest",
+        entity_type=1,
+        ingestion_method=1,
+        module_type_id=4,
+        year=2026,
+    )
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")  # second call
+    await db_session.flush()
+
+    assert await _count_pipelines(db_session, pid) == 1
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.NOT_STARTED.value
+    assert row.kind == "csv_ingest"
+    assert row.module_type_id == 4
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_success_on_done(db_session: AsyncSession):
+    """Parent FINISHED+SUCCESS, no expected recalc → progress.done →
+    status SUCCESS, counts set (recompute-and-store, last-child)."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.SUCCESS.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.SUCCESS.value
+    assert row.job_count == 1
+    assert row.error_count == 0
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_failed_on_error(db_session: AsyncSession):
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="InFailedSqlTransaction",
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.FAILED.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.FAILED.value
+    assert row.error_count == 1
+    assert row.last_error == "InFailedSqlTransaction"
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_partial_when_root_ok_child_errored(
+    db_session: AsyncSession,
+):
+    """PARTIAL tier (#1236) — root ingest succeeded (data landed) but a
+    downstream child errored.  The pipeline is NOT 'FAILED' (that
+    implies data didn't land), it is 'PARTIAL' (data landed, chain had
+    issues).  Amber badge in the console, distinct from red FAILED.
+    """
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    # Root: csv_ingest succeeded (the 50 k rows landed).
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+        )
+    )
+    # Child: a downstream emission_recalc errored.
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="DeadlockDetected: data_entry_emissions",
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.PARTIAL.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.PARTIAL.value
+    assert row.error_count == 1
+    # last_error still surfaces the informative downstream message.
+    assert row.last_error == "DeadlockDetected: data_entry_emissions"
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_partial_when_root_warning_child_errored(
+    db_session: AsyncSession,
+):
+    """Root with ``result=WARNING`` (data landed with caveats — e.g.
+    99/100 rows succeeded) + downstream ERROR → PARTIAL.  WARNING at
+    root counts as 'data landed' for the FAILED vs PARTIAL boundary —
+    only an ERROR root flips to FAILED."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.WARNING,  # data landed, with caveats
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    assert written == PipelineStatus.PARTIAL.value
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_failed_when_root_errored_regardless_of_descendants(
+    db_session: AsyncSession,
+):
+    """When the root itself errored, the pipeline is FAILED — even if a
+    descendant (created speculatively before root's ERROR was committed)
+    happens to be SUCCESS.  Defensive: ``data didn't land'' is the
+    invariant the FAILED badge promises."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="ProviderCrash: kaboom",
+        )
+    )
+    # Unlikely but defensible: a stale descendant from a retry that
+    # succeeded before its parent was finally marked ERROR.
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    assert written == PipelineStatus.FAILED.value
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_skips_when_not_done(db_session: AsyncSession):
+    """Last-child oracle: a non-terminal call must NOT write
+    (compute_pipeline_progress.done is False) — status stays default."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.RUNNING,  # parent not finished → not done
+            result=None,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+
+    assert written is None  # skipped
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.NOT_STARTED.value
+
+
+@pytest.mark.asyncio
+async def test_reconcile_heals_drift(db_session: AsyncSession):
+    """A done pipeline whose stored status was never advanced (runner
+    skipped) is corrected by the sweep; afterwards zero drift."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+            meta={"recalc_jobs_chained": 0},
+        )
+    )
+    await db_session.flush()
+    # Simulated drift: row still NOT_STARTED though the pipeline is done.
+    pre = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert pre.status == PipelineStatus.NOT_STARTED.value
+
+    summary = await repo.reconcile_pipeline_statuses()
+
+    assert summary["checked"] >= 1
+    assert summary["corrected"] >= 1
+    healed = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert healed.status == PipelineStatus.SUCCESS.value
+
+
+@pytest.mark.asyncio
+async def test_recompute_writes_expected_recalc_unconditionally(
+    db_session: AsyncSession,
+):
+    """#1236 Phase 5A — ``pipelines.expected_recalc`` mirrors the live
+    ``emission_recalc`` count for the pipeline, written on every
+    recompute call (NOT gated on ``progress.done``).  Lets the read
+    path (Phase 5B) source the counter from the column instead of
+    ``meta.recalc_jobs_chained`` on the parent job.
+
+    Dedup-skipped recalcs (which live under a different ``pipeline_id``)
+    are excluded by construction — the SELECT filters on this pipeline.
+    """
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    # Parent + 3 recalc children (one finished, one running, one queued)
+    # — the count tracks the structural fan-out, not their state.
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="emission_recalc"))
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.RUNNING,
+            result=None,
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.NOT_STARTED,
+            result=None,
+        )
+    )
+    await db_session.flush()
+
+    # Non-terminal call — recompute_pipeline_status returns None (skip
+    # the status write) but MUST still have written expected_recalc.
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+    assert written is None  # not done — status not written
+
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.expected_recalc == 3, (
+        f"expected_recalc should track live emission_recalc count, "
+        f"got {row.expected_recalc}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_recompute_last_error_skips_success_message(
+    db_session: AsyncSession,
+):
+    """#1236 / advisor blocker: a csv_ingest that succeeded then
+    poisoned downstream has result=ERROR but status_message='Success'.
+    last_error must carry the informative sibling error, not 'Success'
+    (this logic is reused by Phase-2 backfill across all history)."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="Success",  # the misleading #1219 shape
+            meta={"recalc_jobs_chained": 1},
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="DeadlockDetected: data_entry_emissions",
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.FAILED.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.last_error == "DeadlockDetected: data_entry_emissions"
+    assert row.last_error != "Success"
+
+
+# ======================================================================
+# #1236 #2A — status_history timeline (generic, all jobs)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_appends_status_history(
+    db_session: AsyncSession,
+):
+    """Each update_ingestion_job call appends {message, ts} to
+    meta.status_history. The latest status_message column reflects the
+    final value (overwrite); the history preserves every step."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    await repo.update_ingestion_job(
+        job_id=job.id, status_message="Fetching", metadata={}
+    )
+    await repo.update_ingestion_job(
+        job_id=job.id, status_message="Upserting", metadata={}
+    )
+    await repo.update_ingestion_job(job_id=job.id, status_message="Done", metadata={})
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.status_message == "Done"
+    history = (refreshed.meta or {}).get("status_history") or []
+    assert [h["message"] for h in history] == ["Fetching", "Upserting", "Done"]
+    # Every entry carries a timestamp (ISO-8601 string).
+    for h in history:
+        assert isinstance(h.get("ts"), str) and "T" in h["ts"]
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_status_history_capped(
+    db_session: AsyncSession,
+):
+    """status_history is bounded to the last 50 entries — a flood of
+    progress updates on a long retry chain doesn't grow meta unbounded."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    for i in range(60):
+        await repo.update_ingestion_job(
+            job_id=job.id, status_message=f"step {i}", metadata={}
+        )
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    history = (refreshed.meta or {}).get("status_history") or []
+    assert len(history) == 50
+    # Head was trimmed — first kept entry is "step 10".
+    assert history[0]["message"] == "step 10"
+    assert history[-1]["message"] == "step 59"

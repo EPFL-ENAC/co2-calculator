@@ -16,6 +16,8 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
     TargetType,
 )
 
@@ -123,6 +125,26 @@ class DataIngestionRepository:
                     )
                 ),
             }
+            # #1236 #2A — generic status_history timeline: append every
+            # status_message update (with timestamp) to a bounded list
+            # so the ops console can show "what happened, when" for
+            # every job_type — not just the latest status_message that
+            # this same UPDATE overwrites above. Bounded to keep meta
+            # payloads tractable on long-lived / retried jobs.
+            history = list(merged_meta.get("status_history") or [])
+            if status_message:
+                history.append(
+                    {
+                        "message": status_message,
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                # Cap to last N to bound the meta payload. 50 covers
+                # the busiest job (multi-phase unit_sync, retries) with
+                # margin; trim from the head when exceeded.
+                if len(history) > 50:
+                    history = history[-50:]
+                merged_meta["status_history"] = history
             result_job.meta = merged_meta
             await self.session.flush()
             await self.session.refresh(result_job)
@@ -320,6 +342,395 @@ class DataIngestionRepository:
         )
         exec_result = await self.session.execute(stmt)
         return list(exec_result.scalars().all())
+
+    async def list_pipelines_paginated(
+        self,
+        *,
+        pipeline_status: Optional[PipelineStatus] = None,
+        job_type: Optional[str] = None,
+        module_type_id: Optional[int] = None,
+        year: Optional[int] = None,
+        has_errors: Optional[bool] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        q: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list["PipelineGroup"], int]:
+        """Paginated, filtered list of pipelines for the ops console (#1234).
+
+        The pagination unit is the *pipeline* (one ``pipeline_id`` = a
+        parent + its fan-out children), never the job row — children
+        must not split across pages.  A pipeline qualifies when it has
+        at least one row matching the row-level filters; ``has_errors``
+        is evaluated at the pipeline level.
+
+        **Phase 3 read-flip (#1236):** ``pipeline_status`` filters on
+        ``pipelines.status`` (the authoritative, durable status the
+        runner recompute-and-stores).  This replaced the previous
+        ``state``/``result`` job-level filters; the URL contract and
+        the response's ``progress.done`` now share one source of
+        truth.  ``has_errors`` likewise pivots: True ⇔ ``status IN
+        (PARTIAL, FAILED)``; False ⇔ ``status NOT IN (...)``.
+
+        Rows with ``pipeline_id IS NULL`` (a parent that failed before
+        fan-out, so it never minted a pipeline) surface as synthetic
+        *pipelines-of-one* so operators still see them.  Orphans have
+        no ``Pipeline`` row to filter on, so a ``pipeline_status``
+        filter excludes them entirely; ``has_errors`` for orphans
+        falls back to job-derived (FINISHED+ERROR).
+
+        Grouping is done in SQL with ``GROUP BY`` + ``MAX(id)`` (no
+        ``DISTINCT ON`` — not portable to the SQLite unit-test fixture),
+        then the per-page rows are fetched in one ``IN`` query and
+        grouped in Python.
+
+        Returns ``(groups, total)`` where ``groups`` is the requested
+        page ordered newest-first by latest job id and ``total`` is the
+        full match count for pagination.
+        """
+        # Row-level filters (still applied per-job — these describe the
+        # pipeline's scope/provenance, which lives on the parent row).
+        conds = []
+        if job_type is not None:
+            conds.append(col(DataIngestionJob.job_type) == job_type)
+        if module_type_id is not None:
+            conds.append(col(DataIngestionJob.module_type_id) == module_type_id)
+        if year is not None:
+            conds.append(col(DataIngestionJob.year) == year)
+        if since is not None:
+            conds.append(col(DataIngestionJob.started_at) >= since)
+        if until is not None:
+            conds.append(col(DataIngestionJob.started_at) <= until)
+        if q:
+            conds.append(col(DataIngestionJob.status_message).ilike(f"%{q}%"))
+
+        # Pipeline-level status filter (Phase 3 read-flip): collect the
+        # set of pipeline_ids whose ``pipelines.status`` matches the
+        # caller's filter.  Cheap (indexed on status) and short-circuits
+        # the rest of the query when no pipeline qualifies.
+        status_pids: Optional[set[UUID]] = None
+        error_pids: Optional[set[UUID]] = None
+        if pipeline_status is not None:
+            pst_stmt = select(Pipeline.id).where(
+                col(Pipeline.status) == pipeline_status.value
+            )
+            status_pids = {r[0] for r in (await self.session.execute(pst_stmt)).all()}
+        if has_errors is not None:
+            err_stmt = select(Pipeline.id).where(
+                col(Pipeline.status).in_(
+                    [PipelineStatus.PARTIAL.value, PipelineStatus.FAILED.value]
+                )
+            )
+            error_pids = {r[0] for r in (await self.session.execute(err_stmt)).all()}
+
+        # Grouped pipelines: (pipeline_id, latest job id).
+        grouped_stmt = (
+            select(
+                DataIngestionJob.pipeline_id,
+                func.max(col(DataIngestionJob.id)).label("latest_id"),
+            )
+            .where(col(DataIngestionJob.pipeline_id).isnot(None), *conds)
+            .group_by(col(DataIngestionJob.pipeline_id))
+        )
+        grouped = (await self.session.execute(grouped_stmt)).all()
+
+        # Orphans: each NULL-pipeline row is its own pipeline-of-one.
+        # A pipeline_status filter excludes them by construction (no
+        # ``Pipeline`` row to match).  ``has_errors`` for orphans falls
+        # back to the job-derived oracle since they never minted a row.
+        if pipeline_status is not None:
+            orphan_ids: list[int] = []
+        else:
+            orphan_conds = list(conds)
+            if has_errors is True:
+                orphan_conds += [
+                    col(DataIngestionJob.state) == IngestionState.FINISHED,
+                    col(DataIngestionJob.result) == IngestionResult.ERROR,
+                ]
+            elif has_errors is False:
+                orphan_conds.append(
+                    or_(
+                        col(DataIngestionJob.state) != IngestionState.FINISHED,
+                        col(DataIngestionJob.result) != IngestionResult.ERROR,
+                        col(DataIngestionJob.result).is_(None),
+                    )
+                )
+            orphan_stmt = select(col(DataIngestionJob.id)).where(
+                col(DataIngestionJob.pipeline_id).is_(None), *orphan_conds
+            )
+            orphan_ids = [r[0] for r in (await self.session.execute(orphan_stmt)).all()]
+
+        # Merge + order newest-first by latest id, then paginate.
+        merged: list[tuple[int, Optional[UUID], int]] = []
+        for pid, latest_id in grouped:
+            if status_pids is not None and pid not in status_pids:
+                continue
+            if error_pids is not None:
+                in_errors = pid in error_pids
+                if has_errors is True and not in_errors:
+                    continue
+                if has_errors is False and in_errors:
+                    continue
+            merged.append((latest_id, pid, latest_id))
+        for oid in orphan_ids:
+            merged.append((oid, None, oid))
+        merged.sort(key=lambda t: t[0], reverse=True)
+        total = len(merged)
+        page = merged[offset : offset + limit]
+
+        page_pids = [pid for _, pid, _ in page if pid is not None]
+        page_orphan_ids = [k for _, pid, k in page if pid is None]
+
+        by_pid: dict[UUID, list[DataIngestionJob]] = {}
+        if page_pids:
+            jstmt = (
+                select(DataIngestionJob)
+                .where(col(DataIngestionJob.pipeline_id).in_(page_pids))
+                .order_by(col(DataIngestionJob.id).asc())
+            )
+            for job in (await self.session.execute(jstmt)).scalars().all():
+                by_pid.setdefault(job.pipeline_id, []).append(job)
+
+        # Phase 3 read-flip: bulk-fetch the matching ``Pipeline`` rows so
+        # the endpoint can pass ``pipeline.status`` into
+        # ``compute_pipeline_progress`` without N+1 queries.
+        by_pl: dict[UUID, Pipeline] = {}
+        if page_pids:
+            pstmt = select(Pipeline).where(col(Pipeline.id).in_(page_pids))
+            for pl in (await self.session.execute(pstmt)).scalars().all():
+                by_pl[pl.id] = pl
+
+        by_orphan: dict[int, DataIngestionJob] = {}
+        if page_orphan_ids:
+            ostmt = select(DataIngestionJob).where(
+                col(DataIngestionJob.id).in_(page_orphan_ids)
+            )
+            for job in (await self.session.execute(ostmt)).scalars().all():
+                by_orphan[job.id] = job
+
+        groups: list[PipelineGroup] = []
+        for _, pid, key in page:
+            if pid is not None:
+                groups.append(
+                    PipelineGroup(
+                        pipeline_id=pid,
+                        is_orphan=False,
+                        jobs=by_pid.get(pid, []),
+                        pipeline=by_pl.get(pid),
+                    )
+                )
+            else:
+                job = by_orphan.get(key)
+                groups.append(
+                    PipelineGroup(
+                        pipeline_id=None,
+                        is_orphan=True,
+                        jobs=[job] if job is not None else [],
+                        pipeline=None,
+                    )
+                )
+        return groups, total
+
+    async def get_pipeline_by_id(self, pipeline_id: UUID) -> Optional[Pipeline]:
+        """Phase 3 read-flip (#1236): fetch the ``pipelines`` row by id.
+
+        ``compute_pipeline_progress`` uses this for authoritative
+        done/has_error.  Returns ``None`` when no row exists (orphan or
+        legacy pre-Phase-1 pipeline); callers fall back to job-derived.
+
+        ``populate_existing=True`` so the SSE stream sees the runner's
+        post-``finish_job`` status writes — same reasoning as
+        ``list_jobs_by_pipeline_id`` above.
+        """
+        stmt = (
+            select(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .execution_options(populate_existing=True)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def ensure_pipeline_exists(
+        self,
+        pipeline_id: UUID,
+        *,
+        kind: Optional[str] = None,
+        entity_type: Optional[int] = None,
+        ingestion_method: Optional[int] = None,
+        module_type_id: Optional[int] = None,
+        year: Optional[int] = None,
+    ) -> None:
+        """Idempotently create the `pipelines` row (#1236 Phase 1).
+
+        Called from the parent-creation mint sites (not the runner —
+        the runner is a terminal actor). Fast-path SELECT skips the
+        common already-exists case; the SAVEPOINT around the INSERT
+        contains a concurrent-creator ``IntegrityError`` so it never
+        poisons the caller's transaction (the #1225 discipline; mirrors
+        ``claim_job``'s ``begin_nested`` use here).
+        """
+        existing = await self.session.execute(
+            select(Pipeline.id).where(col(Pipeline.id) == pipeline_id)
+        )
+        if existing.first() is not None:
+            return
+        try:
+            async with self.session.begin_nested():
+                self.session.add(
+                    Pipeline(
+                        id=pipeline_id,
+                        kind=kind,
+                        entity_type=entity_type,
+                        ingestion_method=ingestion_method,
+                        module_type_id=module_type_id,
+                        year=year,
+                        status=PipelineStatus.NOT_STARTED.value,
+                    )
+                )
+                await self.session.flush()
+        except IntegrityError:
+            # A concurrent creator won the race — idempotent no-op.
+            pass
+
+    async def recompute_pipeline_status(self, pipeline_id: UUID) -> Optional[str]:
+        """Recompute-and-store the pipeline's authoritative status (#1236).
+
+        The single source of truth is the pure
+        ``compute_pipeline_progress`` over the pipeline's jobs — never
+        an incremental accumulator (drift = the #1219 bug class).
+
+        Option (a) — last-child oracle: only writes when
+        ``progress.done`` (the terminal that flips it is, by
+        definition, the last expected child); a non-terminal call is a
+        cheap read + skip. Self-healing: a skipped/lost write is
+        recovered by the next terminal or the reconciliation sweep.
+
+        Does NOT commit — the caller owns the transaction boundary
+        (the runner wraps this in its post-``finish_job`` isolated
+        try/except; the sweep batches). Returns the written status, or
+        ``None`` when skipped (no jobs / not done).
+        """
+        # Local import: pure function, models-only deps; avoids a
+        # module-level service→repo edge.
+        from app.services.pipeline_progress import compute_pipeline_progress
+
+        jobs = await self.list_jobs_by_pipeline_id(pipeline_id)
+        if not jobs:
+            return None
+
+        # Phase 5A (#1236) — populate ``pipelines.expected_recalc`` from
+        # the live job count.  Replaces ``meta.recalc_jobs_chained`` on
+        # the parent job (which Phase 5B then stops reading).  Cheap
+        # idempotent UPDATE; runs on every recompute so the column tracks
+        # the actual fan-out as recalcs are dispatched, not just at the
+        # parent's terminal event.  Dedup-skipped recalcs aren't in
+        # ``jobs`` (they live under another ``pipeline_id``) so the
+        # count matches the old ``chained`` accumulator by construction
+        # — no Fix-2b equivalent needed.
+        expected_recalc = sum(1 for j in jobs if j.job_type == "emission_recalc")
+        await self.session.execute(
+            update(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .values(expected_recalc=expected_recalc, updated_at=func.now())
+        )
+
+        progress = compute_pipeline_progress(jobs)
+        if not progress["done"]:
+            return None  # not the last child — skip (option a)
+
+        errored = [
+            j
+            for j in jobs
+            if j.state == IngestionState.FINISHED and j.result == IngestionResult.ERROR
+        ]
+        # PARTIAL tier (#1236) — the PM/PO contract for ingest results:
+        #   * No errors anywhere → SUCCESS (green badge).
+        #   * Root (parent ingest) itself FINISHED+ERROR → FAILED (red);
+        #     the data did not land, the chain is broken.
+        #   * Root succeeded (SUCCESS or WARNING) and at least one
+        #     descendant FINISHED+ERROR → PARTIAL (amber); data DID
+        #     land, but a downstream step (emission_recalc /
+        #     aggregation / module_emission_recalc) had errors.
+        # The root is the lowest-id job in the pipeline (chain_job
+        # creates children after the parent, by construction — same
+        # rule ``compute_pipeline_progress._find_root`` uses).
+        if not errored:
+            new_status = PipelineStatus.SUCCESS.value
+        else:
+            root = min(jobs, key=lambda j: j.id or 0)
+            root_failed = (
+                root.state == IngestionState.FINISHED
+                and root.result == IngestionResult.ERROR
+            )
+            new_status = (
+                PipelineStatus.FAILED.value
+                if root_failed
+                else PipelineStatus.PARTIAL.value
+            )
+        # ``last_error`` must carry signal, not the #1219 lie: a
+        # ``csv_ingest`` that succeeded then poisoned downstream has
+        # ``result=ERROR`` but ``status_message="Success"`` (jobs
+        # 2/47/49/74 shape). Prefer an errored job whose message is
+        # NOT "Success"; fall back to the first errored only if every
+        # one is uninformative. (Phase 2 backfill reuses this logic
+        # across all history — must not write "last_error: Success".)
+        last_error: Optional[str] = None
+        if errored:
+            informative = [
+                j
+                for j in errored
+                if (j.status_message or "").strip().lower() != "success"
+            ]
+            last_error = (informative or errored)[0].status_message
+        started = [j.started_at for j in jobs if j.started_at is not None]
+        finished = [j.finished_at for j in jobs if j.finished_at is not None]
+        await self.session.execute(
+            update(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .values(
+                status=new_status,
+                job_count=len(jobs),
+                error_count=len(errored),
+                started_at=min(started) if started else None,
+                finished_at=max(finished) if finished else None,
+                last_error=last_error,
+                updated_at=func.now(),
+            )
+        )
+        return new_status
+
+    async def reconcile_pipeline_statuses(self) -> dict:
+        """Phase-1 standalone reconciliation sweep (#1236).
+
+        The durable backstop for the runner's isolated post-finish
+        write: that write log-and-skips on any DB error, so status can
+        lag. This recomputes-and-stores every pipeline that has jobs
+        (idempotent; commits per pipeline so a mid-sweep failure keeps
+        prior fixes). Phase 3 schedules this on a cron before flipping
+        reads; Phase 1 just ships it callable.
+
+        Returns ``{"checked": n, "corrected": m}``.
+        """
+        pid_rows = await self.session.execute(
+            select(col(DataIngestionJob.pipeline_id))
+            .where(col(DataIngestionJob.pipeline_id).isnot(None))
+            .distinct()
+        )
+        pids = [r[0] for r in pid_rows.all()]
+        checked = 0
+        corrected = 0
+        for pid in pids:
+            checked += 1
+            before = (
+                await self.session.execute(
+                    select(col(Pipeline.status)).where(col(Pipeline.id) == pid)
+                )
+            ).scalar_one_or_none()
+            after = await self.recompute_pipeline_status(pid)
+            await self.session.commit()
+            if after is not None and after != before:
+                corrected += 1
+        return {"checked": checked, "corrected": corrected}
 
     async def get_current_pipeline_id_for_module(
         self,
@@ -1278,3 +1689,21 @@ class StaleStatsRow(TypedDict):
     last_finished_aggregation_at: Optional[datetime]
     why_stale: WhyStaleLiteral
     last_aggregation_job_id: Optional[int]
+
+
+class PipelineGroup(TypedDict):
+    """One pipeline returned by ``list_pipelines_paginated`` (#1234).
+
+    ``jobs`` are the raw ORM rows (id-ascending) so the endpoint can run
+    ``compute_pipeline_progress`` on them and project the meta allow-list
+    at serialization.  ``is_orphan`` flags a ``pipeline_id IS NULL``
+    parent that failed before fan-out (rendered as a pipeline-of-one).
+    ``pipeline`` is the matching ``pipelines`` row when one exists — the
+    Phase-3 read-flip (#1236) reads ``status`` from it for authoritative
+    done/has_error; ``None`` for orphans.
+    """
+
+    pipeline_id: Optional[UUID]
+    is_orphan: bool
+    jobs: list[DataIngestionJob]
+    pipeline: Optional[Pipeline]

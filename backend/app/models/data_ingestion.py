@@ -3,7 +3,7 @@ from enum import Enum
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import JSON, Column, Index, Integer, String, text
+from sqlalchemy import JSON, Column, ForeignKey, Index, Integer, String, text
 from sqlalchemy import UUID as SAUUID
 from sqlalchemy import DateTime as SADateTime
 from sqlalchemy import Enum as SAEnum
@@ -294,9 +294,16 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     )
 
     # Grouping / dispatch (Plan 310A)
+    # FK to pipelines.id enforced by migration ``c4d5e6f7a8b9`` (#1236 Phase 2)
+    # — declared here so SQLAlchemy's schema view matches Postgres.  Index is
+    # explicit because Postgres does not auto-index the referencing column.
     pipeline_id: Optional[UUID] = Field(
         default=None,
-        sa_column=Column(SAUUID),
+        sa_column=Column(
+            SAUUID,
+            ForeignKey("pipelines.id"),
+            index=True,
+        ),
         description="UUID grouping jobs belonging to the same multi-step pipeline run",
     )
     job_type: Optional[str] = Field(
@@ -370,4 +377,96 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             f"<DataIngestionJob id={self.id} "
             f"provider={self.provider} status={self.state} "
             f"result={self.result} is_current={self.is_current}>"
+        )
+
+
+# ==========================================
+# 3. PIPELINE AGGREGATE ROOT (Issue #1236)
+# ==========================================
+
+
+class PipelineStatus(str, Enum):
+    """Authoritative pipeline status (#1236).
+
+    Stored as text (no PG enum type — keeps the migration and the
+    SQLite test fixture trivial).  Derived by the runner via
+    ``compute_pipeline_progress`` (recompute-and-store), never an
+    incremental accumulator.
+    """
+
+    NOT_STARTED = "NOT_STARTED"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"  # chain completed, some children errored
+    FAILED = "FAILED"  # chain broken (a job FINISHED+ERROR)
+
+
+class Pipeline(SQLModel, table=True):
+    """First-class pipeline (#1236) — the aggregate root for a
+    multi-step run that today is only an emergent ``pipeline_id`` tag
+    on ``data_ingestion_jobs``.
+
+    Phase 1: the row is created at parent creation via
+    ``ensure_pipeline_exists``; ``status`` is advanced by the runner
+    post-``finish_job`` (recompute-and-store, last-child oracle,
+    isolated log-and-skip).  Phase 2: ``data_ingestion_jobs.pipeline_id``
+    gains the FK to ``pipelines.id`` (migration ``c4d5e6f7a8b9``) —
+    no backfill in v0.x (DB drops between deploys).
+    """
+
+    __tablename__ = "pipelines"
+
+    id: UUID = Field(sa_column=Column(SAUUID, primary_key=True))
+    # = parent job_type (csv_ingest / factor_ingest / unit_sync / …)
+    kind: Optional[str] = Field(default=None, sa_column=Column(String(100)))
+    status: str = Field(
+        default=PipelineStatus.NOT_STARTED.value,
+        sa_column=Column(String(32), nullable=False, server_default="NOT_STARTED"),
+    )
+    # scope / provenance — int-enum values mirrored from the parent job
+    entity_type: Optional[int] = Field(default=None)
+    ingestion_method: Optional[int] = Field(default=None)
+    module_type_id: Optional[int] = Field(default=None)
+    year: Optional[int] = Field(default=None)
+    # owned recalc count (was meta.recalc_jobs_chained) — kept for the
+    # Phase-3 console; the last-child oracle uses compute_pipeline_progress,
+    # not this counter.
+    expected_recalc: Optional[int] = Field(default=None)
+    job_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    error_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default="0"),
+    )
+    started_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True))
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(SADateTime(timezone=True))
+    )
+    last_error: Optional[str] = Field(default=None, sa_column=Column(String))
+    created_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(
+            SADateTime(timezone=True),
+            nullable=False,
+            server_default=text("CURRENT_TIMESTAMP"),
+        ),
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(
+            SADateTime(timezone=True),
+            nullable=False,
+            server_default=text("CURRENT_TIMESTAMP"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Pipeline id={self.id} kind={self.kind} "
+            f"status={self.status} jobs={self.job_count} "
+            f"errors={self.error_count}>"
         )

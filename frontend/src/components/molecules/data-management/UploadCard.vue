@@ -85,20 +85,68 @@ const apiRowsInserted = computed<number | undefined>(() => {
   return typeof inserted === 'number' ? inserted : undefined;
 });
 
-// Issue #1219 — live recalc-pipeline phase for this card. The pipeline
-// is module-scoped, so every card in the module reflects the same
-// phase while it runs (Data → Emissions → Aggregation). Hidden once
-// the pipeline is done or errored (the error surfaces via lastJob).
+// Issue #1219 — live recalc-pipeline phase for this card.
+//
+// Pipeline progress is module-scoped (provided by ModuleConfig as the
+// single SSE subscriber) AND kind-scoped: a factor_ingest pipeline
+// shouldn't surface its phase on the data card and vice versa.
+// ``pipelineAppliesToCard`` gates rendering on ``progress.kind``
+// matching this card's ``targetType`` — empty kind (orphan / unknown
+// root) falls back to "don't render" rather than risk showing on the
+// wrong card.
 const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {
   data: 'data_management_pipeline_phase_data',
   emissions: 'data_management_pipeline_phase_emissions',
   aggregation: 'data_management_pipeline_phase_aggregation',
 };
 
+const TARGET_TO_KINDS: Record<number, ReadonlyArray<string>> = {
+  // TargetType.DATA_ENTRIES = 0 — every pipeline whose work targets
+  // the data-entries domain belongs on the data card:
+  //   * csv_ingest / api_ingest — user uploads or admin sync.
+  //   * emission_recalc / module_emission_recalc — pipelines minted by
+  //     POST /sync/recalculate-emissions/{module}[/{det}] when the
+  //     operator clicks the "Recalculate" button on the data card.
+  //     Their kind is set at the parent's ensure_pipeline_exists call
+  //     in data_sync.py:1610 + :1710.  Without these the recalc
+  //     pipeline runs but the data card stays blank — confusing
+  //     because the button that triggered it IS on the data card.
+  [TargetType.DATA_ENTRIES]: [
+    'csv_ingest',
+    'api_ingest',
+    'emission_recalc',
+    'module_emission_recalc',
+  ],
+  // TargetType.FACTORS = 1 — the parent is always factor_ingest.
+  [TargetType.FACTORS]: ['factor_ingest'],
+  // TargetType.REFERENCE_DATA = 3 — reference uploads (building rooms,
+  // travel reference) chain through reference_ingest.
+  [TargetType.REFERENCE_DATA]: ['reference_ingest'],
+};
+
+const pipelineAppliesToCard = computed<boolean>(() => {
+  const p = props.pipelineProgress;
+  if (!p) return false;
+  if (props.targetType === undefined) return false;
+  const allowedKinds = TARGET_TO_KINDS[props.targetType];
+  if (!allowedKinds || !p.kind) return false;
+  return allowedKinds.includes(p.kind);
+});
+
 const pipelinePhaseLabelKey = computed<string | null>(() => {
+  if (!pipelineAppliesToCard.value) return null;
   const p = props.pipelineProgress;
   if (!p || p.done || p.has_error) return null;
   return PIPELINE_PHASE_LABEL_KEYS[p.phase_label] ?? null;
+});
+
+// Pipeline-in-progress flag for the "validated" ✓ indicator below.
+// Same card-scoping rule: a factor upload's running pipeline shouldn't
+// turn the data card's ✓ amber.  Gated on ``pipelineAppliesToCard``.
+const pipelineStillRunning = computed<boolean>(() => {
+  if (!pipelineAppliesToCard.value) return false;
+  const p = props.pipelineProgress;
+  return !!(p && !p.done);
 });
 
 function handleUpload() {
@@ -191,7 +239,21 @@ function handleCancel() {
       >
         <div class="column">
           <div class="row items-center text-body2 text-weight-medium">
-            <span class="text-positive q-mr-xs">✓</span>
+            <!-- Green ✓ only when the FULL pipeline is done — while
+                 emission_recalc / aggregation children are still
+                 running, show an amber ⋯ so the config page tells the
+                 same story as the pipeline-ops console.  Previously
+                 the ✓ appeared the moment csv_ingest finished and
+                 read as "all done" even though downstream was still
+                 in flight. -->
+            <span
+              v-if="pipelineStillRunning"
+              class="text-warning q-mr-xs"
+              :title="$t('data_management_pipeline_running_tooltip')"
+            >
+              ⋯
+            </span>
+            <span v-else class="text-positive q-mr-xs">✓</span>
             {{ jobInfo.fileName }}
           </div>
           <div class="text-caption text-grey-7">
@@ -239,37 +301,38 @@ function handleCancel() {
           </q-tooltip>
         </q-icon>
       </div>
-
-      <!-- Stuck job: cancel button -->
-      <div
-        v-if="isJobStuck"
-        class="row items-center no-wrap"
-        style="gap: 0.5rem"
-      >
-        <q-spinner-rings color="grey" size="sm" />
-        <span class="text-caption text-grey-7">{{
-          $t('data_management_job_in_progress')
-        }}</span>
-        <q-btn
-          color="negative"
-          outline
-          icon="cancel"
-          size="sm"
-          :label="$t('data_management_cancel_job')"
-          class="text-weight-medium"
-          @click="handleCancel"
-        />
-      </div>
     </div>
 
-    <!-- Issue #1219 — live recalc-pipeline phase (module-scoped) -->
+    <!-- Issue #1219 + UX consolidation — ONE in-progress indicator
+         covering both the live csv_ingest (``isJobStuck``) and the
+         downstream recalc/aggregation phases (``pipelinePhaseLabelKey``).
+         Previously each rendered its own spinner-and-text row; during
+         phase 1 BOTH showed simultaneously ("Job in progress…" + "Step
+         1/3 · Inserting data…"), giving three loading icons on a single
+         card.  Now: one spinner, phase-label when available, plus the
+         cancel button when the parent job is the active running one. -->
     <div
-      v-if="pipelinePhaseLabelKey"
+      v-if="isJobStuck || pipelinePhaseLabelKey"
       class="row items-center text-caption q-mt-xs text-grey-7"
+      style="gap: 0.5rem"
       data-testid="pipeline-phase"
     >
-      <q-spinner-rings color="grey" size="sm" class="q-mr-xs" />
-      <span>{{ $t(pipelinePhaseLabelKey) }}</span>
+      <q-spinner-rings color="grey" size="sm" />
+      <span>{{
+        pipelinePhaseLabelKey
+          ? $t(pipelinePhaseLabelKey)
+          : $t('data_management_job_in_progress')
+      }}</span>
+      <q-btn
+        v-if="isJobStuck"
+        color="negative"
+        outline
+        icon="cancel"
+        size="sm"
+        :label="$t('data_management_cancel_job')"
+        class="text-weight-medium q-ml-sm"
+        @click="handleCancel"
+      />
     </div>
 
     <!-- API ingestion status (success: small inline line; error: banner below) -->

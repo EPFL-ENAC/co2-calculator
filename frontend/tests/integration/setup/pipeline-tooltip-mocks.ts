@@ -214,6 +214,12 @@ export function buildYearConfigResponse(year: number): unknown {
   return {
     year,
     is_started: false,
+    // Year-config gate (#1234 follow-up): non-null
+    // ``configuration_completed`` is required for the data-management
+    // page to render its module cards.  Without it the page sits in
+    // the "year not yet provisioned" state and the badge tests never
+    // see the modules section — Unit-11 expects a normal mount.
+    configuration_completed: new Date(year, 0, 1).toISOString(),
     config: {
       modules: {
         '1': {

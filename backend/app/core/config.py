@@ -337,6 +337,32 @@ class Settings(BaseSettings):
         description="Whether to run the in-process safety poller",
     )
 
+    # #1236 Phase 3 — pipeline status reconciliation cron.
+    RUN_PIPELINE_RECONCILER: bool = Field(
+        default=True,
+        description=(
+            "Whether to run the in-process pipeline-status reconciliation "
+            "sweep.  The sweep is the durable backstop for the runner's "
+            "post-finish_job isolated status write — that write log-and-"
+            "skips on any DB error, so without this cron a missed write "
+            "leaves a pipeline showing the wrong status until the next "
+            "manual reconcile.  Keep on in production; flip off only for "
+            "diagnostic single-process runs where you want the table to "
+            "lag visibly."
+        ),
+    )
+    PIPELINE_RECONCILER_INTERVAL_SECONDS: int = Field(
+        default=60,
+        ge=10,
+        description=(
+            "Seconds between pipeline reconciliation sweeps.  60s = "
+            "stale window ≤ ~1 minute for the rare case where the "
+            "runner's isolated write log-and-skipped.  The sweep is "
+            "indexed on ``pipelines.status`` and commits per pipeline; "
+            "tighter cadence has no measured benefit."
+        ),
+    )
+
     # Plan 310-D — bulk-path pure async cutover
     BULK_PATH_PURE_ASYNC: bool = Field(
         default=True,

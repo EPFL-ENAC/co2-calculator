@@ -4,6 +4,7 @@ Re-runs emission calculations for all DataEntries of a given
 (data_entry_type_id, year) combination using the latest factors.
 """
 
+from sqlalchemy.exc import DBAPIError, InvalidRequestError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -158,36 +159,71 @@ class EmissionRecalculationWorkflow:
             entry_kind_field: str | None = handler.kind_field
             old_data = entry.data
             try:
-                if entry_kind_field is not None and entry_kind_field in entry.data:
-                    new_factor_id = self._lookup_factor_id(
-                        entry_data=entry.data,
-                        kind_field=entry_kind_field,
-                        subkind_field=handler.subkind_field,
-                        factor_lookup=factor_lookup,
-                    )
-                    if new_factor_id != entry.data.get("primary_factor_id"):
-                        # Tentative swap so DataEntryResponse + upsert
-                        # see the refreshed factor (or ``None`` on a
-                        # drop).  Rolled back below if the upsert fails,
-                        # so partial-failure runs don't leave entry.data
-                        # pointing at the new factor while
-                        # data_entry_emissions is still computed against
-                        # the old one.
-                        entry.data = {
-                            **entry.data,
-                            "primary_factor_id": new_factor_id,
-                        }
+                # Per-entry SAVEPOINT: a failed upsert must roll back
+                # ONLY this entry's writes — not poison the shared
+                # session for every remaining entry.  Without this, one
+                # bad row left ``self.session`` in an aborted state and
+                # every subsequent iteration re-raised the same
+                # "transaction is aborted / can't reconnect" error,
+                # spamming the log and failing the whole job (the
+                # comment below used to claim a rollback that never
+                # actually happened).
+                async with self.session.begin_nested():
+                    if entry_kind_field is not None and entry_kind_field in entry.data:
+                        new_factor_id = self._lookup_factor_id(
+                            entry_data=entry.data,
+                            kind_field=entry_kind_field,
+                            subkind_field=handler.subkind_field,
+                            factor_lookup=factor_lookup,
+                        )
+                        if new_factor_id != entry.data.get("primary_factor_id"):
+                            # Tentative swap so DataEntryResponse + upsert
+                            # see the refreshed factor (or ``None`` on a
+                            # drop).  The SAVEPOINT rolls this back on the
+                            # DB side if the upsert fails; the ``except``
+                            # also reverts ``entry.data`` in memory.
+                            entry.data = {
+                                **entry.data,
+                                "primary_factor_id": new_factor_id,
+                            }
 
-                entry_response = DataEntryResponse.model_validate(entry)
-                await emission_svc.upsert_by_data_entry(entry_response)
+                    entry_response = DataEntryResponse.model_validate(entry)
+                    await emission_svc.upsert_by_data_entry(entry_response)
                 recalculated += 1
                 if entry.carbon_report_module_id is not None:
                     affected_module_ids.add(entry.carbon_report_module_id)
             except Exception as exc:
-                # Roll back the in-memory mutation so the outer
-                # data_session.commit() does not persist a stale link
-                # alongside an old emissions row.
+                # Revert the in-memory factor swap (the SAVEPOINT already
+                # rolled back the DB side) so the outer commit doesn't
+                # persist a stale link next to an old emissions row.
                 entry.data = old_data
+                # Session/connection-fatal errors can't be contained by
+                # a SAVEPOINT — the session is unusable for every
+                # remaining entry.  Two shapes seen on stage:
+                #   * ``DBAPIError`` with ``connection_invalidated`` —
+                #     the raw connection dropped (server restart / LB
+                #     reset).
+                #   * ``InvalidRequestError`` (incl.
+                #     ``PendingRollbackError`` and "Can't reconnect
+                #     until invalid transaction is rolled back") — the
+                #     session needs a full rollback before any
+                #     statement, so even ``begin_nested()``'s SAVEPOINT
+                #     enter fails on the next entry.
+                # Continuing logs one identical fatal error per
+                # remaining entry (masking the first cause) and the job
+                # fails anyway.  Stop now and re-raise so the runner
+                # records FINISHED+ERROR with the real error.
+                connection_dead = (
+                    isinstance(exc, DBAPIError) and exc.connection_invalidated
+                )
+                if connection_dead or isinstance(exc, InvalidRequestError):
+                    logger.error(
+                        f"emission recalc: session/connection unusable at "
+                        f"data_entry_id={entry.id} ({type(exc).__name__}); "
+                        f"aborting batch ({recalculated} recalculated, "
+                        f"{errors} errored, {len(entries)} total)"
+                    )
+                    raise
                 errors += 1
                 error_details.append(
                     {
