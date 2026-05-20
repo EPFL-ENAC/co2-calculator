@@ -762,46 +762,64 @@ const getUncertainty = (
                         }}</template>
                       </BigNumber>
                       <BigNumber
-                        :title="
-                          $t('results_module_carbon_footprint', {
-                            module: $t(module),
-                          })
-                        "
+                        :title="$t('results_unit_carbon_footprint')"
                         :number="
                           formatPercentChange(
                             getModuleResult(module)!.year_comparison_percentage,
                           )
                         "
                         :unit="
-                          $t('results_compared_to', {
-                            year: (currentYear - 1).toString(),
-                          })
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? $t('results_no_comparison_year_available')
+                            : $t('results_compared_to', {
+                                year: (currentYear - 1).toString(),
+                              })
                         "
                         :color="
-                          getModuleResult(module)!.year_comparison_percentage ==
-                          null
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
                             ? undefined
-                            : getModuleResult(module)!
-                                  .year_comparison_percentage! < 0
+                            : resultsSummary.unit_totals
+                                  .year_comparison_percentage < 0
                               ? 'positive'
                               : 'negative'
                         "
                         :comparison="
-                          $t('results_compared_to_value_of', {
-                            value: `${getModuleConfig(module)?.totalFormatter(
-                              getModuleResult(module)!
-                                .previous_year_total_tonnes_co2eq,
-                            )}${$t('results_units_tonnes')}`,
-                          })
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? undefined
+                            : $t('results_compared_to_value_of', {
+                                value: `${$nOrDash(
+                                  resultsSummary.unit_totals
+                                    .previous_year_total_tonnes_co2eq,
+                                  {
+                                    options: {
+                                      minimumFractionDigits: 1,
+                                      maximumFractionDigits: 1,
+                                    },
+                                  },
+                                )}${$t('results_units_tonnes')}`,
+                              })
                         "
-                        :comparison-highlight="`${getModuleConfig(
-                          module,
-                        ).totalFormatter(
-                          getModuleResult(module)!
-                            .previous_year_total_tonnes_co2eq,
-                        )}${$t('results_units_tonnes')}`"
+                        :comparison-highlight="
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? undefined
+                            : `${$nOrDash(
+                                resultsSummary.unit_totals
+                                  .previous_year_total_tonnes_co2eq,
+                                {
+                                  options: {
+                                    minimumFractionDigits: 1,
+                                    maximumFractionDigits: 1,
+                                  },
+                                },
+                              )}${$t('results_units_tonnes')}`
+                        "
                       >
                       </BigNumber>
+
                       <BigNumber
                         :title="
                           resultsSummary.unit_totals.total_fte == null
