@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { copyToClipboard, Notify } from 'quasar';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { copyToClipboard, debounce, Notify } from 'quasar';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import { usePipelineStream } from 'src/composables/usePipelineStream';
+import { usePipelineStreamStore } from 'src/stores/pipelineStream';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
@@ -106,6 +108,56 @@ const jobTypeOptions = [
 
 onMounted(() => {
   void store.fetch();
+});
+
+// 🐞#3 (Guilbert 2026-05-20) — SSE live-update on the ops page.
+//
+// Strategy: subscribe to every visible RUNNING pipeline's SSE stream;
+// on any update, the canonical list endpoint is the source of truth so
+// we refetch (debounced) and the table re-renders. This keeps state
+// consistent (jobs, counts, status_message) without per-cell merging.
+const { subscribe, unsubscribe } = usePipelineStream();
+const pipelineStreamStore = usePipelineStreamStore();
+const subscribedIds = new Set<string>();
+
+const debouncedRefetch = debounce(() => {
+  void store.fetch();
+}, 500);
+
+function syncSubscriptions(): void {
+  // Desired set: visible pipelines that are NOT done and have a real
+  // pipeline_id (orphans have none — nothing to subscribe to).
+  const desired = new Set<string>();
+  for (const p of store.items) {
+    if (p.pipeline_id && !p.progress.done) {
+      desired.add(p.pipeline_id);
+    }
+  }
+  // Subscribe newcomers.
+  for (const id of desired) {
+    if (!subscribedIds.has(id)) {
+      void subscribe(id);
+      subscribedIds.add(id);
+    }
+  }
+  // Unsubscribe pipelines that left the page or finished.
+  for (const id of [...subscribedIds]) {
+    if (!desired.has(id)) {
+      unsubscribe(id);
+      subscribedIds.delete(id);
+    }
+  }
+}
+
+watch(() => store.items, syncSubscriptions, { deep: false });
+
+// Any SSE update for any subscribed pipeline → refetch the list
+// (debounced so a burst of child terminals doesn't thrash the API).
+watch(() => pipelineStreamStore.entries, debouncedRefetch, { deep: true });
+
+onUnmounted(() => {
+  for (const id of subscribedIds) unsubscribe(id);
+  subscribedIds.clear();
 });
 </script>
 
