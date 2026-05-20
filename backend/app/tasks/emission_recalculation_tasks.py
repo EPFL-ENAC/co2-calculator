@@ -28,6 +28,7 @@ from app.models.data_ingestion import (
 )
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._chain import AGGREGATION_DEDUP, chain_job
+from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
@@ -169,6 +170,19 @@ async def emission_recalc_handler(
     )
     await job_session.commit()
 
+    # 4B — per-``(module, year)`` advisory lock: blocks while any
+    # concurrent ``factor_ingest`` for the same scope is mid-write,
+    # so this recalc reads complete factor values instead of the
+    # half-loaded state. Held until ``data_session`` commits (runner
+    # does that after this handler returns) — covers the whole
+    # factor-read window inside the workflow.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"emission_recalc job {job.id}",
+    )
+
     logger.info(
         f"emission_recalc handler (job {job.id}): "
         f"running workflow for det={data_entry_type.name}/year={job.year}"
@@ -278,6 +292,18 @@ async def module_emission_recalc_handler(
         )
 
     job_repo = DataIngestionRepository(job_session)
+
+    # 4B — same per-``(module, year)`` advisory lock as the per-det
+    # recalc handler: held until ``data_session`` commits so every
+    # det in the bulk loop reads factors that are not mid-write by a
+    # concurrent ``factor_ingest`` for the same scope.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"module_emission_recalc job {job.id}",
+    )
+
     svc = EmissionRecalculationWorkflow(data_session)
     n = len(data_entry_type_ids)
     per_type_stats: dict[int, dict] = {}

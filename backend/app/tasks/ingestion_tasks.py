@@ -28,6 +28,7 @@ from app.models.data_ingestion import (
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
+from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
@@ -115,6 +116,19 @@ async def factor_ingest_handler(
     - Both NULL → consult ``get_recalculation_status_by_year`` for
       anything stale (admin-style trigger).
     """
+    # 4B — per-``(module, year)`` advisory lock acquired BEFORE the
+    # factor write begins, so any concurrent ``emission_recalc`` for
+    # the same scope blocks at its own lock-acquisition (in
+    # ``emission_recalc_handler``) instead of reading half-written
+    # factor values. Lock released when the runner commits
+    # ``data_session`` after this handler returns.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"factor_ingest job {job.id}",
+    )
+
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
         # Skip fan-out on failure — there's nothing to recalc against.
@@ -160,11 +174,7 @@ def finalize_ingest_meta(result: dict) -> dict:
     if ingestion_result != IngestionResult.SUCCESS and (
         not status_message or status_message.strip().lower() == "success"
     ):
-        rec = (
-            "ERROR"
-            if ingestion_result == IngestionResult.ERROR
-            else "WARNING"
-        )
+        rec = "ERROR" if ingestion_result == IngestionResult.ERROR else "WARNING"
         status_message = (
             f"{rec}: {data.get('inserted', 0)} inserted, "
             f"{data.get('skipped', 0)} skipped"
