@@ -79,11 +79,6 @@ const isJobStuck = computed(
 const apiJobInfo = computed(() => getJobInfo(props.apiJob));
 const hasApiErrorOrWarn = computed(() => hasErrorOrWarning(props.apiJob));
 const apiErrorDetails = computed(() => getErrorDetails(props.apiJob));
-const apiRowsInserted = computed<number | undefined>(() => {
-  const meta = props.apiJob?.meta as Record<string, unknown> | undefined;
-  const inserted = meta?.inserted;
-  return typeof inserted === 'number' ? inserted : undefined;
-});
 
 // Issue #1219 — live recalc-pipeline phase for this card.
 //
@@ -343,8 +338,8 @@ function handleCancel() {
     >
       <span class="text-positive q-mr-xs">✓</span>
       <span>{{ $t('data_management_api_ingestion') }}:</span>
-      <span v-if="apiRowsInserted !== undefined" class="q-ml-xs">
-        {{ apiRowsInserted }}
+      <span v-if="apiJobInfo.rowsProcessed !== undefined" class="q-ml-xs">
+        {{ apiJobInfo.rowsProcessed }}
         {{ $t('data_management_rows_imported') }}
       </span>
       <span v-if="apiJobInfo.timestamp" class="q-ml-xs">
