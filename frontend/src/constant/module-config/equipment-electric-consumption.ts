@@ -11,18 +11,22 @@ import {
   SUBMODULE_EQUIPMENT_TYPES,
 } from 'src/constant/modules';
 
+const nameField: ModuleField = {
+  id: 'name',
+  label: 'Equipment Name',
+  labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.name`,
+  type: 'text',
+  required: true,
+  sortable: true,
+  align: 'left',
+  readOnly: false,
+  ratio: '1/1',
+};
+
 const baseModuleFields: ModuleField[] = [
   {
-    id: 'name',
-    label: 'Equipment Name',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.name`,
-    type: 'text',
-    required: true,
-    placeholder: 'e.g., Agitator, Centrifuge',
-    sortable: true,
-    align: 'left',
-    readOnly: false,
-    ratio: '1/1',
+    ...nameField,
+    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`,
   },
   {
     id: 'equipment_class',
@@ -157,10 +161,22 @@ const baseModuleFields: ModuleField[] = [
   },
 ];
 
-// remove subclass field for equipment-electric-consumption module
-const itmodulefields: ModuleField[] = baseModuleFields.filter(
-  (field) => field.id !== 'sub_class',
-);
+const otherModuleFields: ModuleField[] = [
+  {
+    ...nameField,
+    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`,
+  },
+  ...baseModuleFields.slice(1),
+];
+
+// remove subclass field for IT equipment
+const itmodulefields: ModuleField[] = [
+  {
+    ...nameField,
+    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`,
+  },
+  ...baseModuleFields.slice(1).filter((field) => field.id !== 'sub_class'),
+];
 
 export const equipmentElectricConsumption: ModuleConfig = {
   id: 'module_elec_001',
@@ -208,7 +224,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       tableNameKey:
         'equipment-electric-consumption-other-equipment-table-title',
       count: 4,
-      moduleFields: baseModuleFields,
+      moduleFields: otherModuleFields,
       hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-other-form-title-info-tooltip`,
     },
   ],
