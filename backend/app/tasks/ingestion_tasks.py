@@ -16,7 +16,7 @@ the job.  Endpoints stamp the matching ``job_type`` so the runner's
 registry lookup hits the right handler.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -154,6 +154,33 @@ async def factor_ingest_handler(
 # ---------------------------------------------------------------------------
 
 
+#: Cap on the per-row reason embedded in ``status_message`` so the
+#: column stays tractable when row_errors carries a long Postgres
+#: traceback.  200 chars is enough for the operator to recognise the
+#: failure class without expanding the timeline.
+_STATUS_MESSAGE_REASON_CAP = 200
+
+
+def _sample_row_error_reason(row_errors: list) -> Optional[str]:
+    """Pick a representative reason from ``stats.row_errors`` (#1236).
+
+    Row errors are recorded in order; the first one is usually
+    representative when the failure mode is uniform (missing factors,
+    wrong CSV columns, unknown category).  Capped at
+    ``_STATUS_MESSAGE_REASON_CAP`` chars so the status_message column
+    doesn't blow up when a reason carries a stack trace.
+    """
+    if not row_errors:
+        return None
+    first = row_errors[0]
+    reason = first.get("reason") if isinstance(first, dict) else None
+    if not reason:
+        return None
+    if len(reason) > _STATUS_MESSAGE_REASON_CAP:
+        reason = reason[: _STATUS_MESSAGE_REASON_CAP - 1] + "…"
+    return reason
+
+
 def finalize_ingest_meta(result: dict) -> dict:
     """Flatten a provider ``ingest()`` return into the handler's meta,
     making ``status_message`` honest (#1236).
@@ -165,9 +192,12 @@ def finalize_ingest_meta(result: dict) -> dict:
     claim "Success" — that lie is what pipeline status / ``last_error``
     then propagate (#1219). When result != SUCCESS and the message is
     the generic "Success", replace it with an honest summary from the
-    counts the provider already returned. A real exception-path
-    message ("failed: …") never reaches here (it raises upstream), so
-    it is preserved.
+    counts the provider already returned, plus a sample reason from
+    ``stats.row_errors`` so a lone-orphan parent (pipeline-of-one with
+    no ``pipelines.last_error`` to enrich it) carries the real cause
+    instead of just "0 inserted, 50 072 skipped".  A real exception-
+    path message ("failed: …") never reaches here (it raises upstream),
+    so it is preserved.
 
     Shared by ``_run_ingest`` (csv/api/factor) and
     ``reference_ingest_handler`` — they had two identical copies of
@@ -184,6 +214,9 @@ def finalize_ingest_meta(result: dict) -> dict:
             f"{rec}: {data.get('inserted', 0)} inserted, "
             f"{data.get('skipped', 0)} skipped"
         )
+        sample_reason = _sample_row_error_reason(data.get("row_errors") or [])
+        if sample_reason:
+            status_message += f" — first error: {sample_reason}"
     return {
         "status_message": status_message,
         "result": ingestion_result,

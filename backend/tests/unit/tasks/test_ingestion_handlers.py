@@ -159,6 +159,103 @@ async def test_csv_ingest_error_result_does_not_report_success():
     assert meta["status_message"] == "ERROR: 0 inserted, 50072 skipped"
 
 
+# ---------------------------------------------------------------------------
+# Lone-orphan ``last_error`` improvement (#1236 follow-up) —
+# ``finalize_ingest_meta`` enriches the honest summary with the first
+# row_error's reason so a pipeline-of-one parent doesn't surface as just
+# "ERROR: 0 inserted, 50 072 skipped" with no clue WHY.
+# ---------------------------------------------------------------------------
+
+
+def test_finalize_ingest_meta_enriches_with_first_row_error_reason():
+    """Every row failed with the same reason → status_message carries
+    a sample of that reason so the operator doesn't have to expand the
+    timeline to find the cause."""
+    result = {
+        "status_message": "Success",  # the ingest() lie
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 50072,
+            "row_errors": [
+                {
+                    "row": 1,
+                    "reason": (
+                        "No matching factor found in factors map "
+                        "(kind=Monitors, subkind=None)"
+                    ),
+                },
+                {"row": 2, "reason": "same"},
+            ],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+
+    assert meta["status_message"].startswith(
+        "ERROR: 0 inserted, 50072 skipped — first error: "
+    )
+    assert "kind=Monitors" in meta["status_message"]
+
+
+def test_finalize_ingest_meta_caps_long_reason():
+    """A 600-char reason (e.g. a Postgres traceback) must not bloat the
+    status_message column — capped at ~200 chars with an ellipsis."""
+    long_reason = "x" * 600
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 50000,
+            "row_errors": [{"row": 1, "reason": long_reason}],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+    suffix = meta["status_message"].split("first error: ", 1)[1]
+
+    # 200-char cap (199 chars + "…"); proves the message stays small
+    # even when the underlying reason is multi-KB.
+    assert len(suffix) <= 201
+    assert suffix.endswith("…")
+
+
+def test_finalize_ingest_meta_no_row_errors_keeps_short_summary():
+    """When row_errors is absent (e.g. setup-time fail-fast guard fired
+    before the row loop), the message keeps the count-only summary —
+    no spurious 'first error: None' appended."""
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 0,
+        },
+    }
+    meta = ingest_mod.finalize_ingest_meta(result)
+    assert meta["status_message"] == "ERROR: 0 inserted, 0 skipped"
+    assert "first error" not in meta["status_message"]
+
+
+def test_finalize_ingest_meta_success_path_preserved():
+    """A genuine SUCCESS keeps its original status_message regardless
+    of row_errors content (defensive: row_errors should be empty on
+    SUCCESS, but if a provider still recorded warnings we don't lie
+    about a failure)."""
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.SUCCESS,
+            "inserted": 100,
+            "skipped": 0,
+            "row_errors": [{"row": 99, "reason": "warn"}],
+        },
+    }
+    meta = ingest_mod.finalize_ingest_meta(result)
+    assert meta["status_message"] == "Success"
+
+
 @pytest.mark.asyncio
 async def test_api_ingest_handler_uses_same_path():
     """``api_ingest_handler`` shares ``_run_ingest`` — same contract."""
