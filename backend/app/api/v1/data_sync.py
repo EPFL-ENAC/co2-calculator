@@ -368,6 +368,11 @@ class PipelineProgressResponse(BaseModel):
     # PARTIAL tier (#1236) — the authoritative ``pipelines.status``
     # name so the console can render PARTIAL (amber) vs FAILED (red).
     status: Optional[str] = None
+    # Parent ``job_type`` so frontend cards (UploadCardData /
+    # UploadCardFactors / UploadCardReferences) can decide whether
+    # the phase indicator applies to *their* target — a factor
+    # ingest's progress shouldn't surface on the data card.
+    kind: Optional[str] = None
 
 
 class PipelineResponse(BaseModel):

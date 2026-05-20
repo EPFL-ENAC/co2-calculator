@@ -61,6 +61,14 @@ export interface PipelineProgress {
    * ``PARTIAL`` | ``FAILED`` | null (orphans without a Pipeline row).
    */
   status?: string | null;
+  /**
+   * Parent job_type (``csv_ingest`` / ``api_ingest`` / ``factor_ingest``
+   * / ``reference_ingest`` / ``unit_sync``).  Used by per-target
+   * UploadCard variants to scope the phase indicator to *their* card:
+   * a factor upload pipeline should not surface its phase on the data
+   * card, and vice versa.  ``null`` for orphans / unidentified roots.
+   */
+  kind?: string | null;
 }
 
 /**

@@ -85,30 +85,53 @@ const apiRowsInserted = computed<number | undefined>(() => {
   return typeof inserted === 'number' ? inserted : undefined;
 });
 
-// Issue #1219 — live recalc-pipeline phase for this card. The pipeline
-// is module-scoped, so every card in the module reflects the same
-// phase while it runs (Data → Emissions → Aggregation). Hidden once
-// the pipeline is done or errored (the error surfaces via lastJob).
+// Issue #1219 — live recalc-pipeline phase for this card.
+//
+// Pipeline progress is module-scoped (provided by ModuleConfig as the
+// single SSE subscriber) AND kind-scoped: a factor_ingest pipeline
+// shouldn't surface its phase on the data card and vice versa.
+// ``pipelineAppliesToCard`` gates rendering on ``progress.kind``
+// matching this card's ``targetType`` — empty kind (orphan / unknown
+// root) falls back to "don't render" rather than risk showing on the
+// wrong card.
 const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {
   data: 'data_management_pipeline_phase_data',
   emissions: 'data_management_pipeline_phase_emissions',
   aggregation: 'data_management_pipeline_phase_aggregation',
 };
 
+const TARGET_TO_KINDS: Record<number, ReadonlyArray<string>> = {
+  // TargetType.DATA_ENTRIES = 0 — the parent of a data-pipeline is
+  // csv_ingest (file upload) or api_ingest (admin-triggered sync).
+  [TargetType.DATA_ENTRIES]: ['csv_ingest', 'api_ingest'],
+  // TargetType.FACTORS = 1 — the parent is always factor_ingest.
+  [TargetType.FACTORS]: ['factor_ingest'],
+  // TargetType.REFERENCE_DATA = 3 — reference uploads (building rooms,
+  // travel reference) chain through reference_ingest.
+  [TargetType.REFERENCE_DATA]: ['reference_ingest'],
+};
+
+const pipelineAppliesToCard = computed<boolean>(() => {
+  const p = props.pipelineProgress;
+  if (!p) return false;
+  if (props.targetType === undefined) return false;
+  const allowedKinds = TARGET_TO_KINDS[props.targetType];
+  if (!allowedKinds || !p.kind) return false;
+  return allowedKinds.includes(p.kind);
+});
+
 const pipelinePhaseLabelKey = computed<string | null>(() => {
+  if (!pipelineAppliesToCard.value) return null;
   const p = props.pipelineProgress;
   if (!p || p.done || p.has_error) return null;
   return PIPELINE_PHASE_LABEL_KEYS[p.phase_label] ?? null;
 });
 
 // Pipeline-in-progress flag for the "validated" ✓ indicator below.
-// The green ✓ next to the filename used to appear as soon as the
-// upload job finished — even when emission_recalc / aggregation
-// children were still running.  Operators read that as "all done"
-// and were surprised to see RUNNING tasks on the pipeline-ops page.
-// Now the ✓ stays amber (⋯) until the WHOLE pipeline finishes,
-// matching what the pipeline-ops console shows.
+// Same card-scoping rule: a factor upload's running pipeline shouldn't
+// turn the data card's ✓ amber.  Gated on ``pipelineAppliesToCard``.
 const pipelineStillRunning = computed<boolean>(() => {
+  if (!pipelineAppliesToCard.value) return false;
   const p = props.pipelineProgress;
   return !!(p && !p.done);
 });

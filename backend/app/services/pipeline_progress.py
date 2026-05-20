@@ -75,6 +75,14 @@ class PipelineProgress(TypedDict):
     # ``None`` for orphans whose Pipeline row was never minted; the
     # frontend falls back to has_error/done in that case.
     status: Optional[str]
+    # Parent ``job_type`` ("csv_ingest" / "api_ingest" / "factor_ingest"
+    # / "unit_sync" / "reference_ingest").  Used by the frontend to
+    # decide *which* per-target card the phase indicator applies to:
+    # a factor upload pipeline (``kind=factor_ingest``) should not
+    # render its phase on the data card, and vice versa.  Sourced
+    # from ``pipeline.kind`` when present; falls back to the root
+    # job's ``job_type`` for orphan / pre-Phase-1 cases.
+    kind: Optional[str]
 
 
 def _is_finished(job: DataIngestionJob) -> bool:
@@ -165,10 +173,16 @@ def compute_pipeline_progress(
         has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
         is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
         status_str: Optional[str] = pipeline.status
+        # ``pipeline.kind`` is the parent job_type (set at
+        # ``ensure_pipeline_exists`` time).  Prefer it over the root
+        # job's ``job_type`` so a legacy data-shape mismatch (e.g.
+        # a meta backfill that doesn't reach jobs) still resolves.
+        kind: Optional[str] = pipeline.kind
     else:
         has_error = has_error_jobs
         is_done = None  # sentinel: compute from jobs below
         status_str = None  # orphan — frontend falls back to has_error/done
+        kind = None  # populated below from root.job_type when available
 
     root = _find_root(jobs)
     if root is None:
@@ -181,7 +195,13 @@ def compute_pipeline_progress(
             done=is_done if is_done is not None else has_error,
             has_error=has_error,
             status=status_str,
+            kind=kind,
         )
+
+    # Fallback for the no-pipeline-row case: root's job_type IS the
+    # parent's job_type by construction (lowest-id is the parent).
+    if kind is None:
+        kind = root.job_type
 
     recalc_jobs = [j for j in jobs if j.job_type == "emission_recalc"]
     aggregation_jobs = [j for j in jobs if j.job_type == "aggregation"]
@@ -237,4 +257,5 @@ def compute_pipeline_progress(
         done=done,
         has_error=has_error,
         status=status_str,
+        kind=kind,
     )
