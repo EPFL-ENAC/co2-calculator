@@ -173,3 +173,105 @@ async def test_legacy_no_parent_job_id_falls_back_to_true(
     await db_session.flush()
 
     assert await _is_last_recalc_sibling(recalc, helper_session=db_session) is True
+
+
+# ---------------------------------------------------------------------------
+# 4A.4 — _build_aggregation_scope_config
+# ---------------------------------------------------------------------------
+
+from app.tasks.emission_recalculation_tasks import (  # noqa: E402
+    _build_aggregation_scope_config,
+)
+
+
+@pytest.mark.asyncio
+async def test_scope_config_unions_own_and_siblings(db_session: AsyncSession):
+    """Last sibling's own affected_module_ids (from local stats) + siblings'
+    finished contributions → full union in the aggregation config."""
+    pid = uuid4()
+    parent = _parent(pipeline_id=pid, recalc_jobs_chained=3)
+    db_session.add(parent)
+    await db_session.flush()
+    # Two FINISHED siblings with their affected_module_ids recorded.
+    sibling_a = _recalc(pipeline_id=pid, parent_id=parent.id, data_entry_type_id=10)
+    sibling_a.state = IngestionState.FINISHED
+    sibling_a.meta = {
+        **(sibling_a.meta or {}),
+        "recalculation": {"affected_module_ids": [101, 202]},
+    }
+    sibling_b = _recalc(pipeline_id=pid, parent_id=parent.id, data_entry_type_id=11)
+    sibling_b.state = IngestionState.FINISHED
+    sibling_b.meta = {
+        **(sibling_b.meta or {}),
+        "recalculation": {"affected_module_ids": [202, 303]},
+    }
+    me = _recalc(pipeline_id=pid, parent_id=parent.id, data_entry_type_id=12)
+    db_session.add_all([sibling_a, sibling_b, me])
+    await db_session.flush()
+
+    cfg = await _build_aggregation_scope_config(
+        me, my_affected_module_ids=[303, 404], helper_session=db_session
+    )
+
+    assert cfg is not None
+    assert cfg["affected_module_ids"] == [101, 202, 303, 404]
+
+
+@pytest.mark.asyncio
+async def test_scope_config_returns_empty_list_when_all_empty(
+    db_session: AsyncSession,
+):
+    """Siblings exist but all reported empty affected; own also empty →
+    returns {"affected_module_ids": []} (precise 'nothing to do', NOT
+    the legacy fallback)."""
+    pid = uuid4()
+    parent = _parent(pipeline_id=pid, recalc_jobs_chained=2)
+    db_session.add(parent)
+    await db_session.flush()
+    sib = _recalc(pipeline_id=pid, parent_id=parent.id, data_entry_type_id=10)
+    sib.state = IngestionState.FINISHED
+    sib.meta = {**(sib.meta or {}), "recalculation": {"affected_module_ids": []}}
+    me = _recalc(pipeline_id=pid, parent_id=parent.id, data_entry_type_id=11)
+    db_session.add_all([sib, me])
+    await db_session.flush()
+
+    cfg = await _build_aggregation_scope_config(
+        me, my_affected_module_ids=[], helper_session=db_session
+    )
+
+    assert cfg == {"affected_module_ids": []}
+
+
+@pytest.mark.asyncio
+async def test_scope_config_returns_none_when_no_info(db_session: AsyncSession):
+    """No siblings, no own ids, no pipeline_id → returns None so the
+    aggregation falls back to the full slice (legacy behavior)."""
+    me = _recalc(pipeline_id=None, parent_id=1, data_entry_type_id=10)
+    me.meta = {}  # no parent_job_id either
+    db_session.add(me)
+    await db_session.flush()
+
+    cfg = await _build_aggregation_scope_config(
+        me, my_affected_module_ids=[], helper_session=db_session
+    )
+
+    assert cfg is None
+
+
+@pytest.mark.asyncio
+async def test_scope_config_uses_only_own_when_no_real_pipeline(
+    db_session: AsyncSession,
+):
+    """Mock-style pipeline_id (not a real UUID) → helper short-circuits
+    using just the caller's local affected_module_ids. Keeps mock-driven
+    unit tests off the real SessionLocal path in production code."""
+    # Simulate a non-UUID pipeline_id (e.g., test mock).
+    me = _recalc(pipeline_id=None, parent_id=1)  # pipeline_id=None → same code path
+    db_session.add(me)
+    await db_session.flush()
+
+    cfg = await _build_aggregation_scope_config(
+        me, my_affected_module_ids=[7, 8, 9], helper_session=db_session
+    )
+
+    assert cfg == {"affected_module_ids": [7, 8, 9]}

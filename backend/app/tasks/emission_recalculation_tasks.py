@@ -12,6 +12,9 @@ preemption check, and the FINISHED-state write — these handlers
 only contain the work itself.
 """
 
+from typing import Optional
+from uuid import UUID
+
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -132,6 +135,86 @@ async def _is_last_recalc_sibling(
         return decision
 
 
+async def _build_aggregation_scope_config(
+    job: DataIngestionJob,
+    my_affected_module_ids: list[int],
+    *,
+    helper_session: AsyncSession | None = None,
+) -> Optional[dict]:
+    """4A.4 — build the chain config for the trailing aggregation job.
+
+    The last recalc sibling chains the aggregation BEFORE the runner
+    commits its own ``finish_job``. So a sibling-query made by the
+    aggregation later would miss THIS recalc's ``affected_module_ids``
+    (not yet visible in the DB). Sidestep the race by building the
+    full union here — earlier FINISHED siblings (visible) **plus**
+    our own ids (from local ``stats``, since the in-memory recalc
+    workflow just produced them) — and embedding it in the
+    aggregation's ``meta.config``. The aggregation reads from its own
+    meta first; the sibling-query stays as a legacy fallback.
+
+    Returns ``None`` when the union is empty AND there are no
+    FINISHED siblings to consult — preserves the legacy "full slice"
+    behavior for ad-hoc / single-det runs without a meaningful scope.
+    Returns ``{"affected_module_ids": [...]}`` otherwise (empty list
+    is meaningful: "no modules touched, do nothing" — which is the
+    optimized correct behavior, not the legacy fallback).
+    """
+    union: set[int] = {i for i in (my_affected_module_ids or []) if isinstance(i, int)}
+    # ``isinstance(..., UUID)`` is the production-vs-mock gate: real
+    # rows carry a UUID; unit-test ``MagicMock`` doesn't. Without this
+    # the helper would open ``SessionLocal`` against the production
+    # engine in mock-driven tests and emit psycopg errors trying to
+    # bind a MagicMock to ``pipeline_id_1``.
+    if (
+        not isinstance(job.pipeline_id, UUID)
+        or job.id is None
+        or not isinstance(job.id, int)
+    ):
+        return {"affected_module_ids": sorted(union)} if union else None
+
+    async def _gather(helper: AsyncSession) -> bool:
+        """Returns True if at least one FINISHED sibling was seen
+        (so we know an empty union means 'truly nothing to do')."""
+        siblings = (
+            (
+                await helper.execute(
+                    select(DataIngestionJob).where(
+                        DataIngestionJob.pipeline_id == job.pipeline_id,
+                        DataIngestionJob.job_type == "emission_recalc",
+                        DataIngestionJob.id != job.id,
+                        DataIngestionJob.state == IngestionState.FINISHED,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for s in siblings:
+            recalc = (s.meta or {}).get("recalculation") or {}
+            ids = recalc.get("affected_module_ids")
+            if isinstance(ids, list):
+                for i in ids:
+                    if isinstance(i, int):
+                        union.add(i)
+        return bool(siblings)
+
+    if helper_session is not None:
+        had_siblings = await _gather(helper_session)
+    else:
+        async with SessionLocal() as helper:
+            had_siblings = await _gather(helper)
+
+    # If we saw FINISHED siblings OR we have our own affected ids, the
+    # caller should scope precisely (even if the union is empty —
+    # "nothing to do" is a real answer). Only return None when there's
+    # nothing useful at all, so the aggregation falls back to the full
+    # slice — preserves the legacy / ad-hoc behavior.
+    if had_siblings or my_affected_module_ids is not None:
+        return {"affected_module_ids": sorted(union)}
+    return None
+
+
 @register("emission_recalc")
 async def emission_recalc_handler(
     job: DataIngestionJob,
@@ -231,11 +314,21 @@ async def emission_recalc_handler(
         # the (rare) race where two siblings both observe themselves
         # as last.
         if await _is_last_recalc_sibling(job):
+            # 4A.4 — embed the FULL affected_module_ids union (including
+            # MY contribution, taken from local ``stats`` since my
+            # runner-``finish_job`` hasn't committed my meta yet) in
+            # the aggregation job's config. The aggregation handler
+            # reads from its OWN meta first (no sibling-query race) —
+            # see ``aggregation_tasks.aggregation_handler``.
+            agg_config = await _build_aggregation_scope_config(
+                job, stats.get("affected_module_ids") or []
+            )
             chained_aggregation_id = await chain_job(
                 job,
                 job_type="aggregation",
                 module_type_id=job.module_type_id,
                 year=job.year,
+                config=agg_config,
                 session=job_session,
                 dedup_config=AGGREGATION_DEDUP,
             )

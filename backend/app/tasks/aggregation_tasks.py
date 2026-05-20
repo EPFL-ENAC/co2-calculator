@@ -145,10 +145,29 @@ async def aggregation_handler(
         module_type_id=job.module_type_id, year=job.year
     )
 
-    # 4A.3 — narrow to modules the recalc siblings actually touched
-    # (when available). Avoids the 2231-row full-slice rewrite when
-    # only a handful of carbon_report_modules need fresh stats.
-    affected_scope = await _collect_affected_module_ids(job.pipeline_id, data_session)
+    # 4A.4 — read the precise union from OUR OWN ``meta.config`` first
+    # (set by the last recalc sibling at chain time so the last
+    # sibling's own contribution is included — sibling-query couldn't
+    # see it yet, runner-``finish_job`` is pending). Falls back to
+    # the sibling-query helper (4A.3) for legacy aggregations that
+    # weren't passed an explicit scope at chain time.
+    own_config = (job.meta or {}).get("config") or {}
+    own_scope = own_config.get("affected_module_ids")
+    affected_scope: Optional[set[int]]
+    if isinstance(own_scope, list):
+        scope_set: set[int] = {int(i) for i in own_scope if isinstance(i, int)}
+        logger.debug(
+            f"aggregation handler (job {job.id}): scope from own "
+            f"meta.config.affected_module_ids ({len(scope_set)} ids)"
+        )
+        affected_scope = scope_set
+    else:
+        # 4A.3 fallback — sibling-query. Misses the last sibling's
+        # contribution when the chain happens before that sibling's
+        # finish_job commit, but better than full-slice for legacy.
+        affected_scope = await _collect_affected_module_ids(
+            job.pipeline_id, data_session
+        )
     if affected_scope is not None:
         affected = [m for m in candidates if m.id in affected_scope]
         logger.info(
