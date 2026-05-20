@@ -346,8 +346,7 @@ class DataIngestionRepository:
     async def list_pipelines_paginated(
         self,
         *,
-        state: Optional[IngestionState] = None,
-        result: Optional[IngestionResult] = None,
+        pipeline_status: Optional[PipelineStatus] = None,
         job_type: Optional[str] = None,
         module_type_id: Optional[int] = None,
         year: Optional[int] = None,
@@ -364,28 +363,35 @@ class DataIngestionRepository:
         parent + its fan-out children), never the job row — children
         must not split across pages.  A pipeline qualifies when it has
         at least one row matching the row-level filters; ``has_errors``
-        is evaluated at the pipeline level (any FINISHED+ERROR job).
+        is evaluated at the pipeline level.
+
+        **Phase 3 read-flip (#1236):** ``pipeline_status`` filters on
+        ``pipelines.status`` (the authoritative, durable status the
+        runner recompute-and-stores).  This replaced the previous
+        ``state``/``result`` job-level filters; the URL contract and
+        the response's ``progress.done`` now share one source of
+        truth.  ``has_errors`` likewise pivots: True ⇔ ``status IN
+        (PARTIAL, FAILED)``; False ⇔ ``status NOT IN (...)``.
 
         Rows with ``pipeline_id IS NULL`` (a parent that failed before
         fan-out, so it never minted a pipeline) surface as synthetic
-        *pipelines-of-one* so operators still see them.
+        *pipelines-of-one* so operators still see them.  Orphans have
+        no ``Pipeline`` row to filter on, so a ``pipeline_status``
+        filter excludes them entirely; ``has_errors`` for orphans
+        falls back to job-derived (FINISHED+ERROR).
 
         Grouping is done in SQL with ``GROUP BY`` + ``MAX(id)`` (no
         ``DISTINCT ON`` — not portable to the SQLite unit-test fixture),
         then the per-page rows are fetched in one ``IN`` query and
-        grouped in Python.  Matches the in-memory-pick precedent of
-        ``get_current_pipeline_ids_for_modules`` (realistic input size:
-        a few thousand pipelines at most).
+        grouped in Python.
 
         Returns ``(groups, total)`` where ``groups`` is the requested
         page ordered newest-first by latest job id and ``total`` is the
         full match count for pagination.
         """
+        # Row-level filters (still applied per-job — these describe the
+        # pipeline's scope/provenance, which lives on the parent row).
         conds = []
-        if state is not None:
-            conds.append(col(DataIngestionJob.state) == state)
-        if result is not None:
-            conds.append(col(DataIngestionJob.result) == result)
         if job_type is not None:
             conds.append(col(DataIngestionJob.job_type) == job_type)
         if module_type_id is not None:
@@ -399,18 +405,22 @@ class DataIngestionRepository:
         if q:
             conds.append(col(DataIngestionJob.status_message).ilike(f"%{q}%"))
 
-        # Pipeline-level error set (FINISHED+ERROR anywhere in the
-        # group) — only computed when the caller filters on it.
-        error_pids: set[UUID] = set()
+        # Pipeline-level status filter (Phase 3 read-flip): collect the
+        # set of pipeline_ids whose ``pipelines.status`` matches the
+        # caller's filter.  Cheap (indexed on status) and short-circuits
+        # the rest of the query when no pipeline qualifies.
+        status_pids: Optional[set[UUID]] = None
+        error_pids: Optional[set[UUID]] = None
+        if pipeline_status is not None:
+            pst_stmt = select(Pipeline.id).where(
+                col(Pipeline.status) == pipeline_status.value
+            )
+            status_pids = {r[0] for r in (await self.session.execute(pst_stmt)).all()}
         if has_errors is not None:
-            err_stmt = (
-                select(DataIngestionJob.pipeline_id)
-                .where(
-                    col(DataIngestionJob.pipeline_id).isnot(None),
-                    col(DataIngestionJob.state) == IngestionState.FINISHED,
-                    col(DataIngestionJob.result) == IngestionResult.ERROR,
+            err_stmt = select(Pipeline.id).where(
+                col(Pipeline.status).in_(
+                    [PipelineStatus.PARTIAL.value, PipelineStatus.FAILED.value]
                 )
-                .distinct()
             )
             error_pids = {r[0] for r in (await self.session.execute(err_stmt)).all()}
 
@@ -426,32 +436,42 @@ class DataIngestionRepository:
         grouped = (await self.session.execute(grouped_stmt)).all()
 
         # Orphans: each NULL-pipeline row is its own pipeline-of-one.
-        orphan_conds = list(conds)
-        if has_errors is True:
-            orphan_conds += [
-                col(DataIngestionJob.state) == IngestionState.FINISHED,
-                col(DataIngestionJob.result) == IngestionResult.ERROR,
-            ]
-        elif has_errors is False:
-            orphan_conds.append(
-                or_(
-                    col(DataIngestionJob.state) != IngestionState.FINISHED,
-                    col(DataIngestionJob.result) != IngestionResult.ERROR,
-                    col(DataIngestionJob.result).is_(None),
+        # A pipeline_status filter excludes them by construction (no
+        # ``Pipeline`` row to match).  ``has_errors`` for orphans falls
+        # back to the job-derived oracle since they never minted a row.
+        if pipeline_status is not None:
+            orphan_ids: list[int] = []
+        else:
+            orphan_conds = list(conds)
+            if has_errors is True:
+                orphan_conds += [
+                    col(DataIngestionJob.state) == IngestionState.FINISHED,
+                    col(DataIngestionJob.result) == IngestionResult.ERROR,
+                ]
+            elif has_errors is False:
+                orphan_conds.append(
+                    or_(
+                        col(DataIngestionJob.state) != IngestionState.FINISHED,
+                        col(DataIngestionJob.result) != IngestionResult.ERROR,
+                        col(DataIngestionJob.result).is_(None),
+                    )
                 )
+            orphan_stmt = select(col(DataIngestionJob.id)).where(
+                col(DataIngestionJob.pipeline_id).is_(None), *orphan_conds
             )
-        orphan_stmt = select(col(DataIngestionJob.id)).where(
-            col(DataIngestionJob.pipeline_id).is_(None), *orphan_conds
-        )
-        orphan_ids = [r[0] for r in (await self.session.execute(orphan_stmt)).all()]
+            orphan_ids = [r[0] for r in (await self.session.execute(orphan_stmt)).all()]
 
         # Merge + order newest-first by latest id, then paginate.
         merged: list[tuple[int, Optional[UUID], int]] = []
         for pid, latest_id in grouped:
-            if has_errors is True and pid not in error_pids:
+            if status_pids is not None and pid not in status_pids:
                 continue
-            if has_errors is False and pid in error_pids:
-                continue
+            if error_pids is not None:
+                in_errors = pid in error_pids
+                if has_errors is True and not in_errors:
+                    continue
+                if has_errors is False and in_errors:
+                    continue
             merged.append((latest_id, pid, latest_id))
         for oid in orphan_ids:
             merged.append((oid, None, oid))
@@ -472,6 +492,15 @@ class DataIngestionRepository:
             for job in (await self.session.execute(jstmt)).scalars().all():
                 by_pid.setdefault(job.pipeline_id, []).append(job)
 
+        # Phase 3 read-flip: bulk-fetch the matching ``Pipeline`` rows so
+        # the endpoint can pass ``pipeline.status`` into
+        # ``compute_pipeline_progress`` without N+1 queries.
+        by_pl: dict[UUID, Pipeline] = {}
+        if page_pids:
+            pstmt = select(Pipeline).where(col(Pipeline.id).in_(page_pids))
+            for pl in (await self.session.execute(pstmt)).scalars().all():
+                by_pl[pl.id] = pl
+
         by_orphan: dict[int, DataIngestionJob] = {}
         if page_orphan_ids:
             ostmt = select(DataIngestionJob).where(
@@ -488,6 +517,7 @@ class DataIngestionRepository:
                         pipeline_id=pid,
                         is_orphan=False,
                         jobs=by_pid.get(pid, []),
+                        pipeline=by_pl.get(pid),
                     )
                 )
             else:
@@ -497,9 +527,28 @@ class DataIngestionRepository:
                         pipeline_id=None,
                         is_orphan=True,
                         jobs=[job] if job is not None else [],
+                        pipeline=None,
                     )
                 )
         return groups, total
+
+    async def get_pipeline_by_id(self, pipeline_id: UUID) -> Optional[Pipeline]:
+        """Phase 3 read-flip (#1236): fetch the ``pipelines`` row by id.
+
+        ``compute_pipeline_progress`` uses this for authoritative
+        done/has_error.  Returns ``None`` when no row exists (orphan or
+        legacy pre-Phase-1 pipeline); callers fall back to job-derived.
+
+        ``populate_existing=True`` so the SSE stream sees the runner's
+        post-``finish_job`` status writes — same reasoning as
+        ``list_jobs_by_pipeline_id`` above.
+        """
+        stmt = (
+            select(Pipeline)
+            .where(col(Pipeline.id) == pipeline_id)
+            .execution_options(populate_existing=True)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def ensure_pipeline_exists(
         self,
@@ -1614,8 +1663,12 @@ class PipelineGroup(TypedDict):
     ``compute_pipeline_progress`` on them and project the meta allow-list
     at serialization.  ``is_orphan`` flags a ``pipeline_id IS NULL``
     parent that failed before fan-out (rendered as a pipeline-of-one).
+    ``pipeline`` is the matching ``pipelines`` row when one exists — the
+    Phase-3 read-flip (#1236) reads ``status`` from it for authoritative
+    done/has_error; ``None`` for orphans.
     """
 
     pipeline_id: Optional[UUID]
     is_orphan: bool
     jobs: list[DataIngestionJob]
+    pipeline: Optional[Pipeline]

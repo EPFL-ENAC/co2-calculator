@@ -13,7 +13,7 @@ from app.api.v1.data_sync import (
     _project_pipeline_meta,
     _resolve_enum_name,
 )
-from app.models.data_ingestion import IngestionResult, IngestionState
+from app.models.data_ingestion import IngestionResult, IngestionState, PipelineStatus
 
 
 def test_project_strips_big_arrays_keeps_allow_list():
@@ -78,3 +78,25 @@ def test_resolve_enum_name_rejects_unknown_with_422():
     # exact 422 the user hit with ?state=NOT_STARTED on the int enum).
     with pytest.raises(HTTPException):
         _resolve_enum_name(IngestionState, "0", "state")
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 read-flip (#1236) — ``?state=`` resolves to ``PipelineStatus``.
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_enum_name_accepts_pipeline_status():
+    """``state`` URL param now means PipelineStatus (#1236 Phase 3).
+
+    The 5 values (NOT_STARTED / RUNNING / SUCCESS / PARTIAL / FAILED)
+    must all resolve case-insensitively.
+    """
+    assert _resolve_enum_name(PipelineStatus, "RUNNING", "state") is (
+        PipelineStatus.RUNNING
+    )
+    assert _resolve_enum_name(PipelineStatus, "partial", "state") is (
+        PipelineStatus.PARTIAL
+    )
+    assert _resolve_enum_name(PipelineStatus, "Failed", "state") is (
+        PipelineStatus.FAILED
+    )

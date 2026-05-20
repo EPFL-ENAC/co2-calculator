@@ -95,8 +95,10 @@ function fmtWhen(s: string | null): string {
 
 const counters = computed(() => store.counters);
 
-const stateOptions = ['NOT_STARTED', 'QUEUED', 'RUNNING', 'FINISHED'];
-const resultOptions = ['SUCCESS', 'WARNING', 'ERROR'];
+// #1236 Phase 3 read-flip: ``state`` is the pipeline-level
+// ``pipelines.status`` (server-authoritative), not the job-level state.
+// The 5 values match the backend ``PipelineStatus`` enum.
+const stateOptions = ['NOT_STARTED', 'RUNNING', 'SUCCESS', 'PARTIAL', 'FAILED'];
 const jobTypeOptions = [
   'csv_ingest',
   'factor_ingest',
@@ -250,7 +252,7 @@ onUnmounted(() => {
         <!-- Filters -->
         <div class="row q-col-gutter-md q-mb-md items-end">
           <q-select
-            class="col-12 col-md-2"
+            class="col-12 col-md-3"
             dense
             outlined
             clearable
@@ -260,17 +262,7 @@ onUnmounted(() => {
             @update:model-value="(v) => store.applyFilters({ state: v })"
           />
           <q-select
-            class="col-12 col-md-2"
-            dense
-            outlined
-            clearable
-            :label="$t('pipeops_filter_result')"
-            :model-value="store.filters.result"
-            :options="resultOptions"
-            @update:model-value="(v) => store.applyFilters({ result: v })"
-          />
-          <q-select
-            class="col-12 col-md-2"
+            class="col-12 col-md-3"
             dense
             outlined
             clearable

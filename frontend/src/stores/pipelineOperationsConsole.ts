@@ -55,9 +55,15 @@ export interface PipelineListResponse {
   offset: number;
 }
 
+/**
+ * Console filters.  #1236 Phase 3 read-flip: ``state`` now means
+ * ``pipelines.status`` (NOT_STARTED / RUNNING / SUCCESS / PARTIAL /
+ * FAILED) — the pipeline-level status, not a per-job state.  The
+ * previous ``result`` filter is dropped (its semantics, success vs
+ * error, are subsumed by status).
+ */
 export interface PipelineFilters {
   state: string | null;
-  result: string | null;
   job_type: string | null;
   year: number | null;
   has_errors: boolean | null;
@@ -66,7 +72,6 @@ export interface PipelineFilters {
 
 const DEFAULT_FILTERS = (): PipelineFilters => ({
   state: null,
-  result: null,
   job_type: null,
   year: null,
   has_errors: null,
@@ -114,7 +119,6 @@ export const usePipelineOperationsConsole = defineStore(
         };
         const f = filters.value;
         if (f.state) params.state = f.state;
-        if (f.result) params.result = f.result;
         if (f.job_type) params.job_type = f.job_type;
         if (f.year != null) params.year = String(f.year);
         if (f.has_errors != null) params.has_errors = String(f.has_errors);

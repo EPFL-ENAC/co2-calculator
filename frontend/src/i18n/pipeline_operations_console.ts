@@ -41,8 +41,11 @@ export default {
   },
 
   // Filters
+  // Phase 3 read-flip (#1236): ``state`` filters pipeline-level
+  // ``pipelines.status`` now (NOT_STARTED / RUNNING / SUCCESS /
+  // PARTIAL / FAILED).  ``pipeops_filter_result`` is dropped along
+  // with the URL param it labelled.
   pipeops_filter_state: { en: 'State', fr: 'État' },
-  pipeops_filter_result: { en: 'Result', fr: 'Résultat' },
   pipeops_filter_job_type: { en: 'Job type', fr: 'Type de job' },
   pipeops_filter_year: { en: 'Year', fr: 'Année' },
   pipeops_filter_has_errors: { en: 'Errors only', fr: 'Erreurs uniquement' },

@@ -33,6 +33,7 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    PipelineStatus,
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
@@ -1181,7 +1182,6 @@ async def get_recalculation_status(
 @router.get("/pipelines", response_model=PipelineListResponse)
 async def list_pipelines(
     state: Optional[str] = None,
-    result: Optional[str] = None,
     job_type: Optional[str] = None,
     module_type_id: Optional[int] = None,
     year: Optional[int] = None,
@@ -1211,12 +1211,14 @@ async def list_pipelines(
     wins routing.  Drill-down/live stays on the existing
     ``GET /pipelines/{id}`` (+ ``/stream``) — not rebuilt here.
 
-    ``state`` / ``result`` filters take the enum **name**
-    (case-insensitive: ``RUNNING``, ``FINISHED``, ``SUCCESS``,
-    ``ERROR`` …).  ``IngestionState``/``IngestionResult`` are int
-    enums, so FastAPI's native enum coercion would demand the integer
-    value and 422 on the readable name the UI sends — hence the
-    explicit name resolution here.
+    **Phase 3 read-flip (#1236):** ``state`` is the
+    ``pipelines.status`` name (case-insensitive: ``NOT_STARTED``,
+    ``RUNNING``, ``SUCCESS``, ``PARTIAL``, ``FAILED``) — the
+    pipeline-level status the runner recompute-and-stores.  The
+    previous job-level ``result`` URL param is dropped; its
+    semantics are subsumed by ``state`` (FAILED / PARTIAL =
+    error).  ``has_errors=true`` also pivots to ``status IN
+    (PARTIAL, FAILED)``.
 
     Permission model matches the single-pipeline endpoint
     (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
@@ -1231,11 +1233,9 @@ async def list_pipelines(
     post-filter pagination) would require loading every pipeline,
     defeating the SQL-side pagination.
     """
-    resolved_state = _resolve_enum_name(IngestionState, state, "state")
-    resolved_result = _resolve_enum_name(IngestionResult, result, "result")
+    resolved_status = _resolve_enum_name(PipelineStatus, state, "state")
     groups, total = await DataIngestionRepository(db).list_pipelines_paginated(
-        state=resolved_state,
-        result=resolved_result,
+        pipeline_status=resolved_status,
         job_type=job_type,
         module_type_id=module_type_id,
         year=year,
@@ -1269,7 +1269,9 @@ async def list_pipelines(
             PipelineListItem(
                 pipeline_id=group["pipeline_id"],
                 is_orphan=group["is_orphan"],
-                progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
+                progress=PipelineProgressResponse(
+                    **compute_pipeline_progress(jobs, pipeline=group["pipeline"])
+                ),
                 job_type=root.job_type,
                 module_type_id=root.module_type_id,
                 module_label=_module_label(root.module_type_id),
@@ -1331,7 +1333,8 @@ async def get_pipeline_jobs(
     the convention of other lookup endpoints in this module
     (``cancel_job``, ``recover_job``).
     """
-    jobs = await DataIngestionRepository(db).list_jobs_by_pipeline_id(pipeline_id)
+    repo = DataIngestionRepository(db)
+    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
     if not jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -1339,6 +1342,9 @@ async def get_pipeline_jobs(
         )
     # TODO(#459): tighten when sub-perimeter scoping ships
     await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="view")
+
+    # Phase 3 read-flip (#1236): authoritative status from pipelines table.
+    pipeline = await repo.get_pipeline_by_id(pipeline_id)
 
     return PipelineResponse(
         pipeline_id=pipeline_id,
@@ -1357,7 +1363,9 @@ async def get_pipeline_jobs(
             for job in jobs
             if job.id is not None
         ],
-        progress=PipelineProgressResponse(**compute_pipeline_progress(jobs)),
+        progress=PipelineProgressResponse(
+            **compute_pipeline_progress(jobs, pipeline=pipeline)
+        ),
     )
 
 
@@ -1433,9 +1441,13 @@ async def pipeline_stream_by_id(
             # ``Depends(get_db)`` for the entire generator lifetime, pinning
             # one slot per subscriber for the whole stream (minutes).
             async with db_module.SessionLocal() as session:
-                jobs = await DataIngestionRepository(session).list_jobs_by_pipeline_id(
-                    pipeline_id
-                )
+                repo = DataIngestionRepository(session)
+                jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+                # Phase 3 read-flip (#1236): pull the pipelines row each
+                # tick so ``progress.done`` reflects the runner's most
+                # recent post-finish_job status write (or the cron sweep
+                # if that write log-and-skipped).
+                pipeline_row = await repo.get_pipeline_by_id(pipeline_id)
 
             # Snapshot the columns the spec calls out for the dashboard:
             # only these fields trigger a re-emit, so meta-only mutations
@@ -1458,14 +1470,13 @@ async def pipeline_stream_by_id(
                 if job.id is not None
             ]
 
-            # Issue #1219 — server-authoritative completion.  The old
-            # "every job in the snapshot is FINISHED" test fired in the
-            # window where the parent upload was FINISHED but its
-            # recalc/aggregation children had not been INSERTed yet, so
-            # the UI flashed green on a half-done pipeline.  Derive
-            # phase/done from the expected fan-out recorded in meta
-            # instead, and ship it so the client trusts the same truth.
-            progress = compute_pipeline_progress(jobs)
+            # Issue #1219 — server-authoritative completion.  Phase 3
+            # (#1236) further: ``done``/``has_error`` derive from
+            # ``pipelines.status`` (durable, recompute-and-stored)
+            # rather than from the possibly-stale job snapshot.  Orphans
+            # (no pipelines row) fall back to job-derived inside
+            # compute_pipeline_progress.
+            progress = compute_pipeline_progress(jobs, pipeline=pipeline_row)
 
             if snapshot != last_snapshot:
                 payload = {
@@ -1546,8 +1557,8 @@ async def recalculate_emissions_for_type(
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
     repo = DataIngestionRepository(db)
-    created_job = await repo.create_ingestion_job(job)
-    # #1236 — pipeline aggregate row, atomic with the job creation.
+    # #1236 — pipeline aggregate row MUST exist before the
+    # data_ingestion_jobs INSERT flushes (Phase 2 FK).  Idempotent.
     await repo.ensure_pipeline_exists(
         pipeline_id,
         kind="emission_recalc",
@@ -1556,6 +1567,7 @@ async def recalculate_emissions_for_type(
         module_type_id=module_type_id.value,
         year=year,
     )
+    created_job = await repo.create_ingestion_job(job)
     await db.commit()
     if created_job.id is None:
         raise HTTPException(
@@ -1645,8 +1657,8 @@ async def recalculate_emissions_for_module(
         },
     )
     repo = DataIngestionRepository(db)
-    created_job = await repo.create_ingestion_job(job)
-    # #1236 — pipeline aggregate row, atomic with the job creation.
+    # #1236 — pipeline aggregate row MUST exist before the
+    # data_ingestion_jobs INSERT flushes (Phase 2 FK).  Idempotent.
     await repo.ensure_pipeline_exists(
         pipeline_id,
         kind="module_emission_recalc",
@@ -1655,6 +1667,7 @@ async def recalculate_emissions_for_module(
         module_type_id=module_type_id.value,
         year=year,
     )
+    created_job = await repo.create_ingestion_job(job)
     await db.commit()
     if created_job.id is None:
         raise HTTPException(

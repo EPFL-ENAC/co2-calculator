@@ -27,15 +27,32 @@ The model is 3 fixed phases:
 
 from __future__ import annotations
 
-from typing import Iterable, Literal, TypedDict
+from typing import Iterable, Literal, Optional, TypedDict
 
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
 )
 
 PhaseLabel = Literal["data", "emissions", "aggregation"]
+
+#: Terminal ``pipelines.status`` values — Phase-3 read-flip uses these for
+#: ``done``/``has_error`` instead of inferring from a possibly-incomplete
+#: job snapshot.  PARTIAL = chain completed with some children erroring;
+#: FAILED = chain broken (a job FINISHED+ERROR aborted the fan-out).
+_TERMINAL_PIPELINE_STATUSES = frozenset(
+    {
+        PipelineStatus.SUCCESS.value,
+        PipelineStatus.PARTIAL.value,
+        PipelineStatus.FAILED.value,
+    }
+)
+_ERROR_PIPELINE_STATUSES = frozenset(
+    {PipelineStatus.PARTIAL.value, PipelineStatus.FAILED.value}
+)
 
 #: Job types that can be the root of a pipeline (no parent_job_id).
 _ROOT_JOB_TYPES = {"csv_ingest", "api_ingest", "factor_ingest"}
@@ -89,12 +106,26 @@ def _find_root(jobs: list[DataIngestionJob]) -> DataIngestionJob | None:
 
 def compute_pipeline_progress(
     jobs: Iterable[DataIngestionJob],
+    *,
+    pipeline: Optional[Pipeline] = None,
 ) -> PipelineProgress:
     """Compute the authoritative phase/done/error for a pipeline.
 
     ``jobs`` is every row sharing one ``pipeline_id`` (any order).
 
-    Completion rules:
+    **Phase-3 read-flip (#1236):** when a ``pipeline`` row is passed,
+    ``done`` and ``has_error`` derive from ``pipeline.status`` — the
+    durable, recompute-and-stored truth the runner writes
+    post-``finish_job`` and the reconciliation cron heals.  Without
+    it, both flags fall back to job-derived (the legacy path; used
+    for orphans that never minted a ``Pipeline`` row).
+
+    The ``phase`` field stays job-derived in both modes — ``phase`` is
+    UX granularity (which step is currently running) and has no single
+    column in ``pipelines`` to read it from.  Phase 5 will revisit
+    once ``expected_recalc`` migrates off ``meta.recalc_jobs_chained``.
+
+    Completion rules (legacy job-derived fallback):
 
     - **Phase 1 (data)** done ⇔ parent FINISHED.
     - **Phase 2 (emissions)** done ⇔ parent FINISHED *and* the number
@@ -113,7 +144,17 @@ def compute_pipeline_progress(
       terminal — the UI must stop the spinner and surface failure).
     """
     jobs = list(jobs)
-    has_error = any(_is_finished_error(j) for j in jobs)
+    has_error_jobs = any(_is_finished_error(j) for j in jobs)
+
+    # Phase 3 read-flip: pipeline.status is authoritative when present.
+    # has_error / done come from the table; phase still derives from
+    # jobs (no column to read it from yet).
+    if pipeline is not None:
+        has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
+        is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
+    else:
+        has_error = has_error_jobs
+        is_done = None  # sentinel: compute from jobs below
 
     root = _find_root(jobs)
     if root is None:
@@ -123,7 +164,7 @@ def compute_pipeline_progress(
             phase=1,
             phases_total=3,
             phase_label="data",
-            done=has_error,
+            done=is_done if is_done is not None else has_error,
             has_error=has_error,
         )
 
@@ -169,10 +210,17 @@ def compute_pipeline_progress(
     else:
         phase = 3
 
+    # Phase-3 read-flip: pipeline.status carries ``done`` when present;
+    # otherwise fall back to the job-derived oracle (phase3 OR error).
+    if is_done is None:
+        done = phase3_done or has_error
+    else:
+        done = is_done
+
     return PipelineProgress(
         phase=phase,
         phases_total=3,
         phase_label=_PHASE_LABELS[phase],
-        done=phase3_done or has_error,
+        done=done,
         has_error=has_error,
     )

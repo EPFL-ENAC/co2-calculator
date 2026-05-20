@@ -1086,17 +1086,20 @@ async def test_list_pipelines_filters(db_session: AsyncSession):
 
 @pytest.mark.asyncio
 async def test_list_pipelines_has_errors_filter(db_session: AsyncSession):
-    """has_errors keeps only pipelines with a FINISHED+ERROR job."""
+    """has_errors keeps only pipelines with status IN (PARTIAL, FAILED).
+
+    Phase 3 read-flip (#1236): error-ness is read from ``pipelines.status``
+    (the durable authoritative source), not inferred per-job.
+    """
     repo = DataIngestionRepository(db_session)
     ok, bad = uuid4(), uuid4()
     db_session.add(_pipeline_job(pipeline_id=ok, job_type="csv_ingest"))
+    db_session.add(_pipeline_job(pipeline_id=bad, job_type="csv_ingest"))
     db_session.add(
-        _pipeline_job(
-            pipeline_id=bad,
-            job_type="csv_ingest",
-            state=IngestionState.FINISHED,
-            result=IngestionResult.ERROR,
-        )
+        Pipeline(id=ok, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        Pipeline(id=bad, kind="csv_ingest", status=PipelineStatus.FAILED.value)
     )
     await db_session.flush()
 
@@ -1105,6 +1108,69 @@ async def test_list_pipelines_has_errors_filter(db_session: AsyncSession):
 
     assert [g["pipeline_id"] for g in errored] == [bad]
     assert [g["pipeline_id"] for g in clean] == [ok]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_status_filter(db_session: AsyncSession):
+    """pipeline_status filters on ``pipelines.status`` directly (#1236 Phase 3).
+
+    The URL ``?state=RUNNING`` maps to this filter via the endpoint —
+    the test exercises the repo layer's pivot.
+    """
+    repo = DataIngestionRepository(db_session)
+    running, success, failed = uuid4(), uuid4(), uuid4()
+    for pid in (running, success, failed):
+        db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(
+        Pipeline(id=running, kind="csv_ingest", status=PipelineStatus.RUNNING.value)
+    )
+    db_session.add(
+        Pipeline(id=success, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        Pipeline(id=failed, kind="csv_ingest", status=PipelineStatus.FAILED.value)
+    )
+    await db_session.flush()
+
+    only_running, _ = await repo.list_pipelines_paginated(
+        pipeline_status=PipelineStatus.RUNNING
+    )
+    only_failed, _ = await repo.list_pipelines_paginated(
+        pipeline_status=PipelineStatus.FAILED
+    )
+
+    assert [g["pipeline_id"] for g in only_running] == [running]
+    assert [g["pipeline_id"] for g in only_failed] == [failed]
+
+
+@pytest.mark.asyncio
+async def test_list_pipelines_returns_pipeline_row(db_session: AsyncSession):
+    """Groups carry the ``Pipeline`` row (#1236 Phase 3) so the endpoint
+    can pass it into ``compute_pipeline_progress``.  Orphans have no
+    Pipeline row, so ``pipeline`` is None."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    db_session.add(_pipeline_job(pipeline_id=pid, job_type="csv_ingest"))
+    db_session.add(
+        Pipeline(id=pid, kind="csv_ingest", status=PipelineStatus.SUCCESS.value)
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=None,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+        )
+    )
+    await db_session.flush()
+
+    groups, _ = await repo.list_pipelines_paginated()
+
+    pl_group = next(g for g in groups if g["pipeline_id"] == pid)
+    orphan_group = next(g for g in groups if g["is_orphan"])
+    assert pl_group["pipeline"] is not None
+    assert pl_group["pipeline"].status == PipelineStatus.SUCCESS.value
+    assert orphan_group["pipeline"] is None
 
 
 @pytest.mark.asyncio
