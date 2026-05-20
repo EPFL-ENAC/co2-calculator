@@ -150,7 +150,6 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         </div>
       </q-item-section>
     </template>
-    <q-separator class="q-mb-xs" />
 
     <template v-if="!submodule.factorsOnly">
       <q-card flat class="col q-px-lg q-pt-lg q-pb-md">

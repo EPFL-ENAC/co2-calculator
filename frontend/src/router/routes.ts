@@ -182,7 +182,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry (edit permission required)',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -192,7 +192,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Consolidated overview across all modules',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -202,7 +202,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -212,7 +212,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -222,7 +222,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Plan a simulation',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -232,7 +232,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Documentation - Main application guide',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
             ],

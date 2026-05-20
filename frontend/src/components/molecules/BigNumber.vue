@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -11,6 +12,7 @@ const props = withDefaults(
     comparison?: string;
     comparisonHighlight?: string;
     color?: string;
+    colorStyle?: string;
     tooltipPlacement?: 'title' | 'comparison';
     printMode?: boolean;
   }>(),
@@ -21,12 +23,23 @@ const props = withDefaults(
     comparison: undefined,
     comparisonHighlight: undefined,
     color: undefined,
+    colorStyle: undefined,
     tooltipPlacement: 'title',
     printMode: false,
   },
 );
 
+const { t } = useI18n();
+
 const tooltipPlacement = computed(() => props.tooltipPlacement);
+
+const displayUnit = computed(() => props.unit ?? t('results_units_tonnes'));
+
+const valueClass = computed(() => (props.color ? `text-${props.color}` : ''));
+
+const valueStyle = computed(() =>
+  props.colorStyle ? { color: props.colorStyle } : {},
+);
 
 const comparisonParts = computed(() => {
   if (!props.comparison) {
@@ -62,6 +75,7 @@ const comparisonParts = computed(() => {
       'container',
       'container--pa-none',
       'big-number',
+      { 'big-number--borderless': !bordered },
       { 'big-number--print': printMode },
     ]"
   >
@@ -90,12 +104,13 @@ const comparisonParts = computed(() => {
       <div class="big-number__value">
         <div
           class="text-h1 text-weight-medium q-mb-none"
-          :class="color ? `text-${color}` : ''"
+          :class="valueClass"
+          :style="valueStyle"
         >
           {{ number }}
         </div>
         <div v-if="!hideUnit" class="text-secondary text-body2 q-mb-none">
-          {{ unit ? unit : $t('results_units_tonnes') }}
+          {{ displayUnit }}
         </div>
       </div>
 
@@ -130,10 +145,16 @@ const comparisonParts = computed(() => {
 </template>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
 .big-number {
   height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+.big-number--borderless {
+  border: none !important;
 }
 
 .big-number__content {
@@ -153,32 +174,32 @@ const comparisonParts = computed(() => {
 
 @media print {
   .big-number.q-card--bordered {
-    outline: 1px solid rgba(0, 0, 0, 0.2) !important;
-    border-radius: 4px !important;
+    outline: 1px solid tokens.$print-outline-color !important;
+    border-radius: tokens.$radius-default !important;
   }
 }
 
 .big-number--print {
   :deep(.q-card-section) {
-    padding: 8px 10px 4px;
+    padding: tokens.$spacing-sm tokens.$spacing-md tokens.$spacing-xs;
   }
 
   .big-number__value :deep(.text-h1) {
-    font-size: 1.4rem !important;
+    font-size: tokens.$print-big-number-font-size !important;
     line-height: 1.2 !important;
   }
 
   .text-body1 {
-    font-size: 0.75rem !important;
+    font-size: tokens.$print-title-font-size !important;
     line-height: 1.2 !important;
   }
 
   .text-body2 {
-    font-size: 0.7rem !important;
+    font-size: tokens.$print-unit-font-size !important;
   }
 
   .text-caption {
-    font-size: 0.65rem !important;
+    font-size: tokens.$print-caption-font-size !important;
   }
 }
 </style>

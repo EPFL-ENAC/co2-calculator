@@ -11,6 +11,10 @@ $color-text: opt.$tokens-colors-base-black !default;
 $color-text-muted: opt.$tokens-colors-grey-scale-grey-600 !default;
 $color-text-on-primary: opt.$tokens-colors-base-white !default;
 
+// Breakpoints
+$breakpoint-mobile-max: 599px !default;
+$breakpoint-desktop-min: 1024px !default;
+
 // Status Colors
 $color-validated: opt.$tokens-colors-canard !default;
 $color-status-success: opt.$tokens-colors-status-green !default;
@@ -43,6 +47,7 @@ $text-size-lg: opt.$tokens-typography-font-size-lg !default;
 $text-size-xl: opt.$tokens-typography-font-size-xl !default;
 $text-size-2xl: opt.$tokens-typography-font-size-2xl !default;
 $text-size-3xl: opt.$tokens-typography-font-size-3xl !default;
+$text-line-height-none: opt.$tokens-typography-line-height-none !default;
 $text-line-height-2xs: opt.$tokens-typography-line-height-2xs !default;
 $text-line-height-xs: opt.$tokens-typography-line-height-xs !default;
 $text-line-height-sm: opt.$tokens-typography-line-height-sm !default;
@@ -54,7 +59,9 @@ $text-line-height-3xl: opt.$tokens-typography-line-height-3xl !default;
 $text-line-height-4xl: opt.$tokens-typography-line-height-4xl !default;
 $text-weight-regular: opt.$tokens-typography-font-weight-regular !default;
 $text-weight-medium: opt.$tokens-typography-font-weight-medium !default;
+$text-weight-semibold: opt.$tokens-typography-font-weight-semibold !default;
 $text-weight-bold: opt.$tokens-typography-font-weight-bold !default;
+$text-weight-extrabold: opt.$tokens-typography-font-weight-extrabold !default;
 
 // Layout
 $layout-page-width: opt.$tokens-layout-page-width !default;
@@ -80,6 +87,36 @@ $shadow-default: opt.$tokens-box-shadow !default;
 // Transitions
 $transition-default: opt.$tokens-transitions-default !default;
 
+// Opacity
+$opacity-muted: 0.75 !default;
+
+// Z-Index
+// Prefer staying below tooltips/notify layers.
+$z-index-floating: 7000 !default;
+
+// Print mode
+$print-card-padding: 0.75rem 0.75rem 0.625rem !default;
+$print-card-padding-chart: 0.625rem 0.625rem 0.5rem !default;
+$print-report-container-padding: 1.25rem 0 !default;
+$print-grid-gap: opt.$tokens-spacing-16 !default;
+$print-toolbar-z-index: 1000 !default;
+$print-border-color: opt.$tokens-colors-grey-scale-grey-300 !default;
+$print-outline-color: opt.$tokens-colors-grey-scale-grey-500 !default;
+$print-shadow-subtle: 0 1px 0 opt.$tokens-colors-grey-scale-grey-200 !default;
+$print-big-number-font-size: 1.4rem !default;
+$print-title-font-size: opt.$tokens-typography-font-size-xs !default;
+$print-unit-font-size: 0.7rem !default;
+$print-caption-font-size: 0.65rem !default;
+
+// Home
+$home-status-badge-font-size: 0.65rem !default;
+$home-status-badge-font-weight: 600 !default;
+$home-status-badge-padding-y: 0.1rem !default;
+$home-status-badge-padding-x: opt.$tokens-spacing-8 !default;
+$home-status-badge-gap: opt.$tokens-spacing-4 !default;
+$home-status-badge-bg-opacity-validated: 0.12 !default;
+$home-status-badge-bg-opacity-progress: 0.15 !default;
+
 // Tooltip
 $tooltip-color: opt.$tokens-colors-base-black !default;
 $tooltip-background: opt.$tokens-colors-base-white !default;
@@ -90,6 +127,13 @@ $tooltip-padding-y: opt.$tokens-spacing-48 !default;
 $tooltip-max-width: opt.$tokens-layout-md-modal-width !default;
 $tooltip-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $tooltip-box-shadow: opt.$tokens-box-shadow !default;
+
+// Sidebar tooltip
+$sidebar-tooltip-padding-y: 0.3rem !default;
+$sidebar-tooltip-padding-x: 0.6rem !default;
+$sidebar-tooltip-font-size: opt.$tokens-typography-font-size-xs !default;
+$sidebar-tooltip-arrow-size: 5px !default;
+$sidebar-tooltip-arrow-offset-x: -5px !default;
 
 // Link
 $link-color: opt.$tokens-colors-red-red-100 !default;

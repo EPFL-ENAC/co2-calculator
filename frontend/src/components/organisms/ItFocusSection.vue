@@ -269,7 +269,7 @@ const segmentLabelMap = computed(() => {
 
 const chartHeight = computed(() => {
   // Always 4 rows (IT_FOCUS_CATEGORY_ORDER), validated or not
-  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 50 + 160);
+  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 50 + 90);
 });
 
 const barChartOption = computed<EChartsOption>(() => {
@@ -390,7 +390,7 @@ const barChartOption = computed<EChartsOption>(() => {
 <template>
   <div>
     <template v-if="!printMode">
-      <div class="q-pt-xl q-px-lg">
+      <div class="q-pt-lg q-px-lg q-pb-md">
         <h2 class="text-h2 text-weight-medium">
           {{ $t('it-title') }}
         </h2>
@@ -398,24 +398,21 @@ const barChartOption = computed<EChartsOption>(() => {
           $t('it-subtitle', { year: year ?? '' })
         }}</span>
       </div>
-      <q-separator class="q-mt-xl" />
+      <q-separator />
     </template>
 
     <!-- Summary numbers -->
-    <q-card
-      v-if="data"
-      flat
-      class="grid-2-col q-mt-lg q-mb-lg"
-      :class="{ 'q-px-lg': !printMode }"
-    >
+    <div v-if="data" class="it-stats-row" :class="{ 'q-px-lg': !printMode }">
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
         comparison=""
-        color="accent"
+        color="info"
+        :bordered="false"
         :print-mode="printMode"
       >
       </BigNumber>
+      <q-separator vertical />
       <BigNumber
         :title="$t('it-focus-share-of-total')"
         :number="
@@ -425,18 +422,19 @@ const barChartOption = computed<EChartsOption>(() => {
         "
         :comparison="$t('it-focus-share-of-total-hint')"
         hide-unit
-        color="accent"
+        color="info"
+        :bordered="false"
         :print-mode="printMode"
       />
-    </q-card>
+    </div>
 
     <template v-if="!loading && data">
-      <q-separator v-if="!printMode" class="q-mt-xl" />
+      <q-separator v-if="!printMode" />
       <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->
 
-      <q-card v-if="hasData" flat :bordered="printMode" class="q-mb-lg q-px-lg">
+      <q-card v-if="hasData" flat :bordered="printMode" class="q-px-lg">
         <div
-          class="flex items-center no-wrap text-h5 text-weight-medium q-my-xl"
+          class="flex items-center no-wrap text-h5 text-weight-medium q-my-md"
         >
           <q-icon
             name="o_info"
@@ -496,3 +494,19 @@ const barChartOption = computed<EChartsOption>(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped lang="scss">
+.it-stats-row {
+  display: flex;
+  align-items: stretch;
+
+  > :not(.q-separator) {
+    flex: 1;
+  }
+
+  :deep(.q-card) {
+    border: none !important;
+    box-shadow: none !important;
+  }
+}
+</style>

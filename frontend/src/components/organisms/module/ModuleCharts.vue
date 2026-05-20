@@ -1,23 +1,23 @@
 <template>
   <q-card-section class="text-left module-charts q-px-none">
     <template v-if="type === 'headcount'">
-      <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
-        {{ $t('headcount-charts-title') }}
-      </h2>
-      <headCountBarChart
-        v-if="hasStats"
-        :stats="moduleStore?.state?.data?.stats"
-      />
-      <span v-else class="text-body2 text-secondary">
-        {{ $t(`${type}-charts-no-data-message`) }}
-      </span>
+      <div class="q-px-lg q-mx-sm">
+        <h2 class="text-h5 text-weight-medium q-mb-md text-bold text-black">
+          {{ $t('headcount-charts-title') }}
+        </h2>
+        <headCountBarChart
+          v-if="hasStats"
+          :stats="moduleStore?.state?.data?.stats"
+        />
+        <span v-else class="text-body2 text-secondary">
+          {{ $t(`${type}-charts-no-data-message`) }}
+        </span>
+      </div>
     </template>
     <template v-else>
       <template v-if="!isPrintMode">
         <div class="flex w-full items-center justify-between q-mx-lg">
-          <div
-            class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black"
-          >
+          <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
             {{ carbonFootprintTitle }}
           </div>
           <div
@@ -48,8 +48,8 @@
               <q-btn
                 unelevated
                 dense
-                :style="moduleChartView === 'type' ? activeButtonStyle : {}"
-                :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
+                :style="typeButtonStyle"
+                :class="typeButtonClass"
                 icon="stacked_bar_chart"
                 size="sm"
                 @click="moduleChartView = 'type'"
@@ -57,12 +57,8 @@
               <q-btn
                 unelevated
                 dense
-                :style="
-                  moduleChartView === 'breakdown' ? activeButtonStyle : {}
-                "
-                :class="
-                  moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''
-                "
+                :style="breakdownButtonStyle"
+                :class="breakdownButtonClass"
                 icon="grid_view"
                 size="sm"
                 @click="moduleChartView = 'breakdown'"
@@ -77,7 +73,6 @@
       >
         {{ carbonFootprintSubtitle }}
       </div>
-      <q-separator class="q-my-lg" />
       <div class="q-mx-lg">
         <template v-if="moduleChartView === 'breakdown'">
           <generic-emission-tree-map-chart
@@ -216,6 +211,19 @@ const activeColor = computed(() => {
     ];
   return scale?.darker ?? '#00a79f';
 });
+
+const typeButtonStyle = computed(() =>
+  moduleChartView.value === 'type' ? activeButtonStyle.value : {},
+);
+const typeButtonClass = computed(() =>
+  moduleChartView.value !== 'type' ? 'toggle-inactive' : '',
+);
+const breakdownButtonStyle = computed(() =>
+  moduleChartView.value === 'breakdown' ? activeButtonStyle.value : {},
+);
+const breakdownButtonClass = computed(() =>
+  moduleChartView.value !== 'breakdown' ? 'toggle-inactive' : '',
+);
 
 const activeButtonStyle = computed((): Record<string, string> => {
   if (props.type === MODULES.Buildings) {

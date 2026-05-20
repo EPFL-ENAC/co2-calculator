@@ -359,7 +359,7 @@ async function ensureYearConfigFetched(): Promise<void> {
 }
 
 onMounted(async () => {
-  accentColorHex.value = readCssVarHex('--q-accent');
+  accentColorHex.value = readCssVarHex('--q-info');
   await ensureYearConfigFetched();
 });
 

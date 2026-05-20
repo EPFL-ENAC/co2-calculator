@@ -129,8 +129,16 @@ export default {
     },
   },
   module_total_result_placeholder: {
-    en: 'Work in progress, validate to see the results.',
-    fr: "En cours jusqu'à validation.",
+    en: 'Validate to see the results.',
+    fr: 'Validez pour voir les résultats.',
+  },
+  module_status_validated: {
+    en: 'Validated',
+    fr: 'Validé',
+  },
+  module_status_in_progress: {
+    en: 'In progress',
+    fr: 'En cours',
   },
   common_filter_all: {
     en: 'All',
@@ -288,6 +296,10 @@ export default {
     en: 'Validate Module',
     fr: 'Valider le module',
   },
+  common_validate_short: {
+    en: 'Validate',
+    fr: 'Valider',
+  },
   common_or: {
     en: 'or',
     fr: 'ou',
@@ -295,6 +307,10 @@ export default {
   common_unvalidate: {
     en: 'Edit Module',
     fr: 'Éditer le module',
+  },
+  common_unvalidate_short: {
+    en: 'Edit',
+    fr: 'Éditer',
   },
   common_delete_dialog_title: {
     en: 'Delete {item}',
