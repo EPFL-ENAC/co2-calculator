@@ -217,7 +217,6 @@ export const MODULE_COMMON_UPLOADS: Partial<
       key: 'equipment',
       labelKey: `${MODULES.EquipmentElectricConsumption}-common`,
       moduleTypeId: 4,
-      noData: true,
       headerIcon: 'o_folder_shared',
       descriptionKey: 'data_management_equipment_common_description',
     },
