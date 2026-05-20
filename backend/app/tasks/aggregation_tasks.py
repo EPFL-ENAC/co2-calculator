@@ -12,11 +12,18 @@ PR (`emission_recalc_handler` chains here, providers stop calling
 ``recompute_stats`` directly) lands next in the Plan-D Tier-2 sequence.
 """
 
+from typing import Optional
+
 from sqlalchemy import text
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_ingestion import DataIngestionJob, IngestionResult
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    IngestionResult,
+    IngestionState,
+)
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.tasks.registry import register
 
@@ -25,6 +32,53 @@ from app.tasks.registry import register
 # space is namespaced and can't collide with unrelated advisory-lock
 # users in the same DB.
 _AGGREGATION_LOCK_CATEGORY = 1236
+
+
+async def _collect_affected_module_ids(
+    pipeline_id, session: AsyncSession
+) -> Optional[set[int]]:
+    """4A.3 — union of ``affected_module_ids`` from FINISHED recalc siblings.
+
+    Each ``emission_recalc`` records the precise ``carbon_report_module``
+    ids whose ``data_entry_emissions`` it touched (in
+    ``meta.recalculation.affected_module_ids``). With Phase 4A.1
+    in-pipeline coalescing, the aggregation runs once after every
+    recalc sibling has finished — so every contributor's affected-ids
+    list is already durably committed and the union is the *precise*
+    set of modules whose stats are stale.
+
+    Returns ``None`` when no recalc sibling carries that metadata
+    (legacy / orphan / pipeline_id missing) so the caller falls back
+    to the full ``(module_type_id, year)`` module list — preserves
+    prior behavior on legacy paths.
+    """
+    if pipeline_id is None:
+        return None
+    siblings = (
+        (
+            await session.execute(
+                select(DataIngestionJob).where(
+                    DataIngestionJob.pipeline_id == pipeline_id,
+                    DataIngestionJob.job_type == "emission_recalc",
+                    DataIngestionJob.state == IngestionState.FINISHED,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    union: set[int] = set()
+    any_meta = False
+    for s in siblings:
+        recalc = (s.meta or {}).get("recalculation") or {}
+        ids = recalc.get("affected_module_ids")
+        if isinstance(ids, list):
+            any_meta = True
+            for i in ids:
+                if isinstance(i, int):
+                    union.add(i)
+    return union if any_meta else None
+
 
 logger = get_logger(__name__)
 
@@ -87,15 +141,28 @@ async def aggregation_handler(
         )
 
     svc = CarbonReportModuleService(data_session)
-    affected = await svc.list_modules_for(
+    candidates = await svc.list_modules_for(
         module_type_id=job.module_type_id, year=job.year
     )
 
-    logger.info(
-        f"aggregation handler (job {job.id}): recomputing stats for "
-        f"{len(affected)} module(s) "
-        f"in scope module_type_id={job.module_type_id}/year={job.year}"
-    )
+    # 4A.3 — narrow to modules the recalc siblings actually touched
+    # (when available). Avoids the 2231-row full-slice rewrite when
+    # only a handful of carbon_report_modules need fresh stats.
+    affected_scope = await _collect_affected_module_ids(job.pipeline_id, data_session)
+    if affected_scope is not None:
+        affected = [m for m in candidates if m.id in affected_scope]
+        logger.info(
+            f"aggregation handler (job {job.id}): scoped to "
+            f"{len(affected)}/{len(candidates)} module(s) via recalc "
+            f"affected_module_ids"
+        )
+    else:
+        affected = candidates
+        logger.info(
+            f"aggregation handler (job {job.id}): recomputing stats for "
+            f"{len(affected)} module(s) "
+            f"in scope module_type_id={job.module_type_id}/year={job.year}"
+        )
 
     for module in affected:
         if module.id is None:

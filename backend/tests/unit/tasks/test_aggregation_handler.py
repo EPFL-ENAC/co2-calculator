@@ -41,6 +41,7 @@ def _make_job(
     module_type_id: int | None = 11,
     year: int | None = 2025,
     meta: dict | None = None,
+    pipeline_id=None,
 ) -> MagicMock:
     job = MagicMock()
     job.id = job_id
@@ -48,6 +49,9 @@ def _make_job(
     job.module_type_id = module_type_id
     job.year = year
     job.meta = meta or {}
+    # 4A.3: helper falls back when pipeline_id is None — keep that as
+    # the default so existing tests exercise the legacy/full-slice path.
+    job.pipeline_id = pipeline_id
     return job
 
 
@@ -214,3 +218,58 @@ async def test_aggregation_skips_advisory_lock_on_non_postgres():
     # No advisory-lock SQL issued.
     for call in data_session.execute.await_args_list:
         assert "pg_advisory_xact_lock" not in str(call.args[0])
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A.3 — affected_module_ids scoping
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aggregation_scopes_to_affected_module_ids():
+    """When recalc siblings recorded affected_module_ids, the aggregation
+    recomputes ONLY those modules, not the full (module, year) slice."""
+    job = _make_job(pipeline_id="dummy")
+    modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=modules)
+    svc.recompute_stats = AsyncMock()
+
+    with (
+        patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
+        patch.object(
+            aggregation_mod,
+            "_collect_affected_module_ids",
+            new=AsyncMock(return_value={101, 303}),
+        ),
+    ):
+        meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+    assert svc.recompute_stats.await_count == 2
+    svc.recompute_stats.assert_any_await(101)
+    svc.recompute_stats.assert_any_await(303)
+    assert meta["modules_refreshed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
+    """Helper returns None (legacy / no recalc meta) → preserves prior
+    behavior of recomputing every module in the (module, year) slice."""
+    job = _make_job(pipeline_id="dummy")
+    modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=modules)
+    svc.recompute_stats = AsyncMock()
+
+    with (
+        patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
+        patch.object(
+            aggregation_mod,
+            "_collect_affected_module_ids",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+    assert svc.recompute_stats.await_count == 3
+    assert meta["modules_refreshed"] == 3
