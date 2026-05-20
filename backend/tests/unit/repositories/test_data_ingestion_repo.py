@@ -1299,6 +1299,121 @@ async def test_recompute_status_failed_on_error(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_recompute_status_partial_when_root_ok_child_errored(
+    db_session: AsyncSession,
+):
+    """PARTIAL tier (#1236) — root ingest succeeded (data landed) but a
+    downstream child errored.  The pipeline is NOT 'FAILED' (that
+    implies data didn't land), it is 'PARTIAL' (data landed, chain had
+    issues).  Amber badge in the console, distinct from red FAILED.
+    """
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    # Root: csv_ingest succeeded (the 50 k rows landed).
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+        )
+    )
+    # Child: a downstream emission_recalc errored.
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="DeadlockDetected: data_entry_emissions",
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    await db_session.flush()
+
+    assert written == PipelineStatus.PARTIAL.value
+    row = (
+        await db_session.execute(select(Pipeline).where(Pipeline.id == pid))
+    ).scalar_one()
+    assert row.status == PipelineStatus.PARTIAL.value
+    assert row.error_count == 1
+    # last_error still surfaces the informative downstream message.
+    assert row.last_error == "DeadlockDetected: data_entry_emissions"
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_partial_when_root_warning_child_errored(
+    db_session: AsyncSession,
+):
+    """Root with ``result=WARNING`` (data landed with caveats — e.g.
+    99/100 rows succeeded) + downstream ERROR → PARTIAL.  WARNING at
+    root counts as 'data landed' for the FAILED vs PARTIAL boundary —
+    only an ERROR root flips to FAILED."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.WARNING,  # data landed, with caveats
+        )
+    )
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    assert written == PipelineStatus.PARTIAL.value
+
+
+@pytest.mark.asyncio
+async def test_recompute_status_failed_when_root_errored_regardless_of_descendants(
+    db_session: AsyncSession,
+):
+    """When the root itself errored, the pipeline is FAILED — even if a
+    descendant (created speculatively before root's ERROR was committed)
+    happens to be SUCCESS.  Defensive: ``data didn't land'' is the
+    invariant the FAILED badge promises."""
+    repo = DataIngestionRepository(db_session)
+    pid = uuid4()
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest")
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="csv_ingest",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.ERROR,
+            status_message="ProviderCrash: kaboom",
+        )
+    )
+    # Unlikely but defensible: a stale descendant from a retry that
+    # succeeded before its parent was finally marked ERROR.
+    db_session.add(
+        _pipeline_job(
+            pipeline_id=pid,
+            job_type="emission_recalc",
+            state=IngestionState.FINISHED,
+            result=IngestionResult.SUCCESS,
+        )
+    )
+    await db_session.flush()
+
+    written = await repo.recompute_pipeline_status(pid)
+    assert written == PipelineStatus.FAILED.value
+
+
+@pytest.mark.asyncio
 async def test_recompute_status_skips_when_not_done(db_session: AsyncSession):
     """Last-child oracle: a non-terminal call must NOT write
     (compute_pipeline_progress.done is False) — status stays default."""

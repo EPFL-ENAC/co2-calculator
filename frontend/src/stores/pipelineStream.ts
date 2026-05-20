@@ -53,6 +53,14 @@ export interface PipelineProgress {
   phase_label: 'data' | 'emissions' | 'aggregation';
   done: boolean;
   has_error: boolean;
+  /**
+   * PARTIAL tier (#1236) — authoritative ``pipelines.status`` name so
+   * the UI can render PARTIAL (amber) vs FAILED (red); both set
+   * ``has_error=true`` so a boolean alone can't distinguish them.
+   * Possible values: ``NOT_STARTED`` | ``RUNNING`` | ``SUCCESS`` |
+   * ``PARTIAL`` | ``FAILED`` | null (orphans without a Pipeline row).
+   */
+  status?: string | null;
 }
 
 /**

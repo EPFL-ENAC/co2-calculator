@@ -45,16 +45,23 @@ function toggle(p: PipelineListItem): void {
   expanded.value = new Set(expanded.value);
 }
 
-type StatusKind = 'failed' | 'running' | 'warning' | 'done';
+type StatusKind = 'failed' | 'partial' | 'running' | 'warning' | 'done';
 
 function hasWarning(p: PipelineListItem): boolean {
   return p.jobs.some((j) => j.state === 'FINISHED' && j.result === 'WARNING');
 }
 
-// UI3 — WARNING is amber, distinct from ERROR red: a chain that
-// completed with only WARNING children is not a failure.
+// PARTIAL tier (#1236) — when the root ingest succeeded (data landed)
+// but a downstream child errored, the backend writes
+// ``pipelines.status = PARTIAL``.  Render it as amber, not red:
+// FAILED is "data didn't land", PARTIAL is "data landed, chain had
+// issues" — different operator action.  Falls back to has_error/done
+// for orphans whose Pipeline row was never minted (progress.status
+// is null).
 function statusOf(p: PipelineListItem): StatusKind {
-  if (p.progress.has_error) return 'failed';
+  if (p.progress.status === 'PARTIAL') return 'partial';
+  if (p.progress.status === 'FAILED') return 'failed';
+  if (p.progress.has_error) return 'failed'; // orphan / legacy fallback
   if (!p.progress.done) return 'running';
   if (hasWarning(p)) return 'warning';
   return 'done';
@@ -65,6 +72,14 @@ const STATUS_META: Record<
   { color: string; icon: string; key: string }
 > = {
   failed: { color: 'negative', icon: 'error', key: 'pipeops_status_failed' },
+  // PARTIAL shares the amber color with WARNING (both mean "needs
+  // attention, not catastrophic") but uses a distinct icon + label
+  // so the operator can tell the two apart at a glance.
+  partial: {
+    color: 'warning',
+    icon: 'report_problem',
+    key: 'pipeops_status_partial',
+  },
   running: { color: 'primary', icon: 'sync', key: 'pipeops_status_running' },
   warning: { color: 'warning', icon: 'warning', key: 'pipeops_status_warning' },
   done: { color: 'positive', icon: 'check_circle', key: 'pipeops_status_done' },

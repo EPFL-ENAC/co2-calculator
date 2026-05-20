@@ -354,6 +354,9 @@ class PipelineProgressResponse(BaseModel):
     phase_label: PhaseLabel
     done: bool
     has_error: bool
+    # PARTIAL tier (#1236) — the authoritative ``pipelines.status``
+    # name so the console can render PARTIAL (amber) vs FAILED (red).
+    status: Optional[str] = None
 
 
 class PipelineResponse(BaseModel):

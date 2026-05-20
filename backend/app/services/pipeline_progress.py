@@ -69,6 +69,12 @@ class PipelineProgress(TypedDict):
     phase_label: PhaseLabel
     done: bool
     has_error: bool
+    # PARTIAL tier (#1236) — the actual ``pipelines.status`` value so
+    # the frontend can render PARTIAL (amber, "data landed but chain
+    # had issues") distinctly from FAILED (red, "data didn't land").
+    # ``None`` for orphans whose Pipeline row was never minted; the
+    # frontend falls back to has_error/done in that case.
+    status: Optional[str]
 
 
 def _is_finished(job: DataIngestionJob) -> bool:
@@ -151,13 +157,18 @@ def compute_pipeline_progress(
 
     # Phase 3 read-flip: pipeline.status is authoritative when present.
     # has_error / done come from the table; phase still derives from
-    # jobs (no column to read it from yet).
+    # jobs (no column to read it from yet).  ``status_str`` is exposed
+    # in the progress dict so the frontend can distinguish PARTIAL
+    # (amber) from FAILED (red) — both set has_error=True so a single
+    # boolean can't tell them apart.
     if pipeline is not None:
         has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
         is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
+        status_str: Optional[str] = pipeline.status
     else:
         has_error = has_error_jobs
         is_done = None  # sentinel: compute from jobs below
+        status_str = None  # orphan — frontend falls back to has_error/done
 
     root = _find_root(jobs)
     if root is None:
@@ -169,6 +180,7 @@ def compute_pipeline_progress(
             phase_label="data",
             done=is_done if is_done is not None else has_error,
             has_error=has_error,
+            status=status_str,
         )
 
     recalc_jobs = [j for j in jobs if j.job_type == "emission_recalc"]
@@ -224,4 +236,5 @@ def compute_pipeline_progress(
         phase_label=_PHASE_LABELS[phase],
         done=done,
         has_error=has_error,
+        status=status_str,
     )

@@ -643,12 +643,30 @@ class DataIngestionRepository:
             for j in jobs
             if j.state == IngestionState.FINISHED and j.result == IngestionResult.ERROR
         ]
-        # Phase-1 mapping. PARTIAL is reserved (model enum) but not
-        # emitted until the FAILED-vs-PARTIAL boundary open question is
-        # decided — do not invent a definition here.
-        new_status = (
-            PipelineStatus.FAILED.value if errored else PipelineStatus.SUCCESS.value
-        )
+        # PARTIAL tier (#1236) — the PM/PO contract for ingest results:
+        #   * No errors anywhere → SUCCESS (green badge).
+        #   * Root (parent ingest) itself FINISHED+ERROR → FAILED (red);
+        #     the data did not land, the chain is broken.
+        #   * Root succeeded (SUCCESS or WARNING) and at least one
+        #     descendant FINISHED+ERROR → PARTIAL (amber); data DID
+        #     land, but a downstream step (emission_recalc /
+        #     aggregation / module_emission_recalc) had errors.
+        # The root is the lowest-id job in the pipeline (chain_job
+        # creates children after the parent, by construction — same
+        # rule ``compute_pipeline_progress._find_root`` uses).
+        if not errored:
+            new_status = PipelineStatus.SUCCESS.value
+        else:
+            root = min(jobs, key=lambda j: j.id or 0)
+            root_failed = (
+                root.state == IngestionState.FINISHED
+                and root.result == IngestionResult.ERROR
+            )
+            new_status = (
+                PipelineStatus.FAILED.value
+                if root_failed
+                else PipelineStatus.PARTIAL.value
+            )
         # ``last_error`` must carry signal, not the #1219 lie: a
         # ``csv_ingest`` that succeeded then poisoned downstream has
         # ``result=ERROR`` but ``status_message="Success"`` (jobs
