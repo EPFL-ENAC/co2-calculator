@@ -118,9 +118,26 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       Combined: amplification killed (4A.1), cross-pipeline deadlock
       eliminated (4A.2), per-aggregation write set shrunk (4A.3).
 - ✅ **Phase 4A**: shipped as 4A.1/4A.2/4A.3 (see Done section).
-- [ ] **Phase 4B**: scoped `(module,det,year)` factor→data ordering
-      (correctness — stale-factor recalc); reuse
-      `uq_emission_recalc_active`.
+- [ ] **4A.4 (race fix on 4A.3)**: the LAST recalc sibling chains the
+      aggregation before its own runner-`finish_job` commits, so its
+      `affected_module_ids` are not visible to the aggregation's
+      sibling-query. The aggregation misses the last sibling's modules.
+      Fix: at chain time the last sibling builds the union locally
+      (sibling-query + its own `stats["affected_module_ids"]`) and
+      passes it via `chain_job(config={...})` so the aggregation reads
+      it from its own meta. Surfaced by Guilbert "all aggregations are
+      0s" on 2026-05-20 — mostly that observation is the optimization
+      working (empty-affected recalcs), but the race is real.
+- ✅ **Phase 4B (`1bd26748`)**: per-`(module, year)`
+      `pg_advisory_xact_lock` in `factor_ingest_handler`,
+      `emission_recalc_handler`, `module_emission_recalc_handler`.
+      Shared helper `acquire_factor_recalc_lock` in `app/tasks/_locks.py`,
+      dedicated category `1237` (distinct from 4A.2's `1236`).
+      Eliminates the silent-wrong-numbers race where a recalc reads
+      half-written factors during a concurrent factor_ingest.
+- ✅ **Phase 4B**: shipped as `1bd26748` (advisory lock at `(module,
+      year)` scope, not `(module, det, year)` — broader but
+      drop-hazard-free; see Done).
 - [ ] **Phase 5**: retire `meta` threading
       (`recalc_jobs_chained` / `aggregation_job_id` / `parent_job_id`
       read paths) once nothing consumes them.
