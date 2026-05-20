@@ -1154,8 +1154,12 @@ async def test_ensure_pipeline_exists_is_idempotent(db_session: AsyncSession):
     pid = uuid4()
 
     await repo.ensure_pipeline_exists(
-        pid, kind="csv_ingest", entity_type=1, ingestion_method=1,
-        module_type_id=4, year=2026,
+        pid,
+        kind="csv_ingest",
+        entity_type=1,
+        ingestion_method=1,
+        module_type_id=4,
+        year=2026,
     )
     await repo.ensure_pipeline_exists(pid, kind="csv_ingest")  # second call
     await db_session.flush()
@@ -1328,3 +1332,82 @@ async def test_recompute_last_error_skips_success_message(
     ).scalar_one()
     assert row.last_error == "DeadlockDetected: data_entry_emissions"
     assert row.last_error != "Success"
+
+
+# ======================================================================
+# #1236 #2A — status_history timeline (generic, all jobs)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_appends_status_history(
+    db_session: AsyncSession,
+):
+    """Each update_ingestion_job call appends {message, ts} to
+    meta.status_history. The latest status_message column reflects the
+    final value (overwrite); the history preserves every step."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    assert job.id is not None
+
+    await repo.update_ingestion_job(
+        job_id=job.id, status_message="Fetching", metadata={}
+    )
+    await repo.update_ingestion_job(
+        job_id=job.id, status_message="Upserting", metadata={}
+    )
+    await repo.update_ingestion_job(job_id=job.id, status_message="Done", metadata={})
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.status_message == "Done"
+    history = (refreshed.meta or {}).get("status_history") or []
+    assert [h["message"] for h in history] == ["Fetching", "Upserting", "Done"]
+    # Every entry carries a timestamp (ISO-8601 string).
+    for h in history:
+        assert isinstance(h.get("ts"), str) and "T" in h["ts"]
+
+
+@pytest.mark.asyncio
+async def test_update_ingestion_job_status_history_capped(
+    db_session: AsyncSession,
+):
+    """status_history is bounded to the last 50 entries — a flood of
+    progress updates on a long retry chain doesn't grow meta unbounded."""
+    repo = DataIngestionRepository(db_session)
+    job = _make_job(
+        module_type_id=1,
+        data_entry_type_id=20,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.NOT_STARTED,
+        result=None,
+        is_current=False,
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    for i in range(60):
+        await repo.update_ingestion_job(
+            job_id=job.id, status_message=f"step {i}", metadata={}
+        )
+
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    history = (refreshed.meta or {}).get("status_history") or []
+    assert len(history) == 50
+    # Head was trimmed — first kept entry is "step 10".
+    assert history[0]["message"] == "step 10"
+    assert history[-1]["message"] == "step 59"

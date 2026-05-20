@@ -125,6 +125,26 @@ class DataIngestionRepository:
                     )
                 ),
             }
+            # #1236 #2A — generic status_history timeline: append every
+            # status_message update (with timestamp) to a bounded list
+            # so the ops console can show "what happened, when" for
+            # every job_type — not just the latest status_message that
+            # this same UPDATE overwrites above. Bounded to keep meta
+            # payloads tractable on long-lived / retried jobs.
+            history = list(merged_meta.get("status_history") or [])
+            if status_message:
+                history.append(
+                    {
+                        "message": status_message,
+                        "ts": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                # Cap to last N to bound the meta payload. 50 covers
+                # the busiest job (multi-phase unit_sync, retries) with
+                # margin; trim from the head when exceeded.
+                if len(history) > 50:
+                    history = history[-50:]
+                merged_meta["status_history"] = history
             result_job.meta = merged_meta
             await self.session.flush()
             await self.session.refresh(result_job)
@@ -523,9 +543,7 @@ class DataIngestionRepository:
             # A concurrent creator won the race — idempotent no-op.
             pass
 
-    async def recompute_pipeline_status(
-        self, pipeline_id: UUID
-    ) -> Optional[str]:
+    async def recompute_pipeline_status(self, pipeline_id: UUID) -> Optional[str]:
         """Recompute-and-store the pipeline's authoritative status (#1236).
 
         The single source of truth is the pure
@@ -557,16 +575,13 @@ class DataIngestionRepository:
         errored = [
             j
             for j in jobs
-            if j.state == IngestionState.FINISHED
-            and j.result == IngestionResult.ERROR
+            if j.state == IngestionState.FINISHED and j.result == IngestionResult.ERROR
         ]
         # Phase-1 mapping. PARTIAL is reserved (model enum) but not
         # emitted until the FAILED-vs-PARTIAL boundary open question is
         # decided — do not invent a definition here.
         new_status = (
-            PipelineStatus.FAILED.value
-            if errored
-            else PipelineStatus.SUCCESS.value
+            PipelineStatus.FAILED.value if errored else PipelineStatus.SUCCESS.value
         )
         # ``last_error`` must carry signal, not the #1219 lie: a
         # ``csv_ingest`` that succeeded then poisoned downstream has
@@ -624,9 +639,7 @@ class DataIngestionRepository:
             checked += 1
             before = (
                 await self.session.execute(
-                    select(col(Pipeline.status)).where(
-                        col(Pipeline.id) == pid
-                    )
+                    select(col(Pipeline.status)).where(col(Pipeline.id) == pid)
                 )
             ).scalar_one_or_none()
             after = await self.recompute_pipeline_status(pid)
