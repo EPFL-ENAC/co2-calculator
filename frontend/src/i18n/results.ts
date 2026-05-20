@@ -762,7 +762,7 @@ export default {
     fr: "Type d'émission",
   },
   results_additional_title: {
-    en: 'Additional Categories',
+    en: 'Additional categories',
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
