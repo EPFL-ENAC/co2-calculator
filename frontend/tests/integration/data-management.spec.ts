@@ -553,6 +553,83 @@ test.describe('back-office data-management — happy paths', () => {
     await expect(apiBanner).toContainText(/Travel API ingestion failed/i);
   });
 
+  test('9b — UploadCardData renders rows_processed for a SUCCESSFUL api job (regression)', async ({
+    page,
+  }) => {
+    // Regression: the API success line previously read ``meta.inserted``
+    // via a local ``apiRowsInserted`` computed, but the backend's API
+    // ingest writes ``meta.rows_processed`` (same key as the CSV path's
+    // ``getJobInfo``).  Result: the rows count was always blank on a
+    // successful API ingestion.  The fix drops the local computed and
+    // reuses ``apiJobInfo.rowsProcessed``; this test pins the visible
+    // text so a regression re-surfaces loudly.
+    const apiSuccess = {
+      job_id: 300,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 0, // API
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: { rows_processed: 10475, timestamp: '2024-01-15T00:00:00Z' },
+    };
+
+    const yearConfigApiOnly = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: apiSuccess,
+                latest_api_data_job: apiSuccess,
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigApiOnly(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    const apiSuccessLine = page.getByTestId('api-status-success').first();
+    await expect(apiSuccessLine).toBeVisible({ timeout: 10000 });
+    // The exact number must surface — proves the field-name fix
+    // (meta.rows_processed, not meta.inserted) is in place.
+    await expect(apiSuccessLine).toContainText(/10475/);
+    await expect(apiSuccessLine).toContainText(
+      /rows imported|lignes importées/i,
+    );
+  });
+
   test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
     page,
   }) => {
