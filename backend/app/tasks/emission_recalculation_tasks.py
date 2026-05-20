@@ -12,9 +12,11 @@ preemption check, and the FINISHED-state write — these handlers
 only contain the work itself.
 """
 
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     DataIngestionJob,
@@ -36,6 +38,97 @@ logger = get_logger(__name__)
 # Plan 310-C registered handlers (additive — coexist with the legacy
 # functions below until the endpoint+poller cutover PR removes them).
 # ---------------------------------------------------------------------------
+
+
+async def _is_last_recalc_sibling(
+    job: DataIngestionJob,
+    *,
+    helper_session: AsyncSession | None = None,
+) -> bool:
+    """In-pipeline aggregation coalesce gate (#1236 Phase 4A.1).
+
+    Returns ``True`` only for the LAST ``emission_recalc`` sibling of a
+    pipeline (where "last" = exactly ``parent.meta.recalc_jobs_chained``
+    siblings have stamped ``meta.recalc_work_complete=True``). Others
+    return ``False`` so they skip the aggregation chain.
+
+    Why: today every recalc child chains its own aggregation. Because
+    ``AGGREGATION_DEDUP`` only blocks concurrently-active rows, the
+    aggregations run *sequentially* (3× per upload in real data) and
+    the early ones see partial ``data_entry_emissions`` state. The
+    single trailing aggregation chained by the last sibling sees the
+    final post-all-recalcs state — correct and 3× fewer aggregations.
+
+    Falls back to ``True`` (always chain — preserves prior behavior)
+    when: no ``pipeline_id``, no ``parent_job_id`` in meta, no parent
+    row, or parent lacks ``recalc_jobs_chained``. Legacy/orphan jobs
+    keep working.
+
+    Race safety: a *fresh* session opens, ``SELECT … FOR UPDATE`` on
+    the parent row serialises the count-and-decide section across
+    siblings; each sibling flushes its own ``recalc_work_complete=True``
+    inside that lock, then commits — making the increment durably
+    visible to the next sibling. The lock is narrow (single short
+    transaction), independent of the outer handler's data_session, so
+    a recalc that takes a minute does not hold the lock for a minute.
+    """
+    if job.pipeline_id is None or job.id is None:
+        return True
+    parent_id = (job.meta or {}).get("parent_job_id")
+    if parent_id is None:
+        return True
+
+    async def _decide(helper: AsyncSession) -> bool:
+        parent = (
+            await helper.execute(
+                select(DataIngestionJob)
+                .where(DataIngestionJob.id == parent_id)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if parent is None:
+            return True
+        expected = (parent.meta or {}).get("recalc_jobs_chained")
+        if expected is None:
+            return True
+
+        # Stamp our own row's meta with the work-complete flag so the
+        # NEXT sibling's count sees us.
+        my_row = (
+            await helper.execute(
+                select(DataIngestionJob).where(DataIngestionJob.id == job.id)
+            )
+        ).scalar_one_or_none()
+        if my_row is None:
+            return True
+        my_row.meta = {**(my_row.meta or {}), "recalc_work_complete": True}
+        helper.add(my_row)
+        await helper.flush()
+
+        siblings = (
+            (
+                await helper.execute(
+                    select(DataIngestionJob).where(
+                        DataIngestionJob.pipeline_id == job.pipeline_id,
+                        DataIngestionJob.job_type == "emission_recalc",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        done = sum(1 for s in siblings if (s.meta or {}).get("recalc_work_complete"))
+        return done >= int(expected)
+
+    # Production path: own short-lived session keeps the lock narrow.
+    # Tests inject ``helper_session`` to use the SQLite fixture without
+    # touching the real engine.
+    if helper_session is not None:
+        return await _decide(helper_session)
+    async with SessionLocal() as helper:
+        decision = await _decide(helper)
+        await helper.commit()
+        return decision
 
 
 @register("emission_recalc")
@@ -115,14 +208,29 @@ async def emission_recalc_handler(
     # via the dashboard's "stats stale" badge if they need it.
     chained_aggregation_id = None
     if job.module_type_id is not None and result != IngestionResult.ERROR:
-        chained_aggregation_id = await chain_job(
-            job,
-            job_type="aggregation",
-            module_type_id=job.module_type_id,
-            year=job.year,
-            session=job_session,
-            dedup_config=AGGREGATION_DEDUP,
-        )
+        # #1236 Phase 4A.1 — only the LAST emission_recalc sibling of
+        # a pipeline chains the aggregation. Earlier siblings stamp
+        # ``meta.recalc_work_complete=True`` and skip; the last one
+        # sees the final ``data_entry_emissions`` state and runs one
+        # trailing aggregation (was 3 sequential aggregations per
+        # upload). ``AGGREGATION_DEDUP`` remains the safety net for
+        # the (rare) race where two siblings both observe themselves
+        # as last.
+        if await _is_last_recalc_sibling(job):
+            chained_aggregation_id = await chain_job(
+                job,
+                job_type="aggregation",
+                module_type_id=job.module_type_id,
+                year=job.year,
+                session=job_session,
+                dedup_config=AGGREGATION_DEDUP,
+            )
+        else:
+            logger.info(
+                f"emission_recalc job {job.id}: not the last sibling — "
+                "skipping aggregation chain (coalesced to the trailing "
+                "sibling per Phase 4A.1)"
+            )
     elif job.module_type_id is None:
         logger.warning(
             f"emission_recalc job {job.id}: no module_type_id — "
