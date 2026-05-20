@@ -447,14 +447,21 @@ def _resolve_enum_name(
     built-in coercion expects the integer value and 422s on the
     human-readable name the UI sends (``RUNNING``, ``ERROR`` …).  This
     accepts the name case-insensitively and 422s only on a genuinely
-    unknown value."""
+    unknown value.
+
+    Iterates via ``__members__.values()`` rather than ``for m in
+    enum_cls`` so CodeQL's "Non-iterable used in for loop" check sees
+    a plain ``dict_values`` (it doesn't model ``EnumMeta.__iter__``
+    through ``type[_EnumT]``).
+    """
     if value is None:
         return None
     needle = value.strip().lower()
-    for member in enum_cls:
+    members = enum_cls.__members__.values()
+    for member in members:
         if member.name.lower() == needle:
             return member
-    valid = ", ".join(m.name for m in enum_cls)
+    valid = ", ".join(m.name for m in members)
     raise HTTPException(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         detail=f"Invalid {field} '{value}'. Expected one of: {valid}",
