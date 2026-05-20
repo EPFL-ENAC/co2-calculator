@@ -157,3 +157,60 @@ async def test_aggregation_raises_on_missing_job_id():
     job = _make_job(job_id=None)
     with pytest.raises(ValueError, match="job has no id"):
         await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A.2 — per-year pg_advisory_xact_lock
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aggregation_acquires_advisory_lock_on_postgres():
+    """Postgres backend → handler calls ``pg_advisory_xact_lock(cat, year)``
+    before doing work. Serialises cross-pipeline aggregations of the
+    same year against the shared ``carbon_reports.stats`` row."""
+    job = _make_job(year=2026)
+    data_session = MagicMock()
+    data_session.get_bind = MagicMock(
+        return_value=MagicMock(dialect=MagicMock(name="postgresql"))
+    )
+    # name= kwarg to MagicMock() is special — set explicitly so it's a str.
+    data_session.get_bind.return_value.dialect.name = "postgresql"
+    data_session.execute = AsyncMock()
+
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=[])
+    svc.recompute_stats = AsyncMock()
+
+    with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
+        await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
+
+    # First execute call is the advisory-lock SQL.
+    assert data_session.execute.await_count >= 1
+    first_call = data_session.execute.await_args_list[0]
+    sql_text = str(first_call.args[0])
+    assert "pg_advisory_xact_lock" in sql_text
+    params = first_call.args[1]
+    assert params["year"] == 2026
+    assert params["cat"] == aggregation_mod._AGGREGATION_LOCK_CATEGORY
+
+
+@pytest.mark.asyncio
+async def test_aggregation_skips_advisory_lock_on_non_postgres():
+    """SQLite / other backends → no advisory-lock attempt (skipped
+    cleanly, single-writer model serialises tests)."""
+    job = _make_job(year=2026)
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "sqlite"
+    data_session.execute = AsyncMock()
+
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=[])
+    svc.recompute_stats = AsyncMock()
+
+    with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
+        await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
+
+    # No advisory-lock SQL issued.
+    for call in data_session.execute.await_args_list:
+        assert "pg_advisory_xact_lock" not in str(call.args[0])

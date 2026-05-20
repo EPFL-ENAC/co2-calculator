@@ -12,12 +12,19 @@ PR (`emission_recalc_handler` chains here, providers stop calling
 ``recompute_stats`` directly) lands next in the Plan-D Tier-2 sequence.
 """
 
+from sqlalchemy import text
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_ingestion import DataIngestionJob, IngestionResult
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.tasks.registry import register
+
+# #1236 Phase 4A.2 — per-year advisory-lock namespace. Using the
+# 2-int variant ``pg_advisory_xact_lock(category, year)`` so the lock
+# space is namespaced and can't collide with unrelated advisory-lock
+# users in the same DB.
+_AGGREGATION_LOCK_CATEGORY = 1236
 
 logger = get_logger(__name__)
 
@@ -49,6 +56,35 @@ async def aggregation_handler(
         raise ValueError("aggregation: job has no id")
     if job.module_type_id is None or job.year is None:
         raise ValueError(f"aggregation job {job.id} missing module_type_id or year")
+
+    # #1236 Phase 4A.2 — per-year transaction-scoped advisory lock.
+    # Cross-pipeline aggregations of the SAME year all touch the same
+    # ``carbon_reports.stats`` rows (one per unit) as a side-effect of
+    # ``recompute_stats``; without serialisation Postgres deadlocks
+    # them (the exact pattern in jobs 44/90/101 of the localhost
+    # dump). ``pg_advisory_xact_lock`` serialises them at the lock,
+    # not at the dedup index — so no drop-hazard (the existing
+    # AGGREGATION_DEDUP partial unique index would silently cancel
+    # the loser if widened to year-only scope; this approach avoids
+    # that). The lock is held until ``data_session`` commits or rolls
+    # back (the runner does that after the handler returns).
+    #
+    # Dialect-gated so the SQLite test fixture (and mock-driven unit
+    # tests) skip cleanly — SQLite's single-writer model already
+    # serialises any concurrent writers, so the lock is a no-op there.
+    try:
+        dialect_name = data_session.get_bind().dialect.name
+    except Exception:
+        dialect_name = ""
+    if dialect_name == "postgresql":
+        await data_session.execute(
+            text("SELECT pg_advisory_xact_lock(:cat, :year)"),
+            {"cat": _AGGREGATION_LOCK_CATEGORY, "year": int(job.year)},
+        )
+        logger.debug(
+            f"aggregation handler (job {job.id}): acquired "
+            f"pg_advisory_xact_lock({_AGGREGATION_LOCK_CATEGORY}, {job.year})"
+        )
 
     svc = CarbonReportModuleService(data_session)
     affected = await svc.list_modules_for(
