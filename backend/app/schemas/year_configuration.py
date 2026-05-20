@@ -473,6 +473,11 @@ class YearConfigurationResponse(BaseModel):
 
     year: int
     is_started: bool
+    # #1234-followup — None until the unit_sync pipeline for this year
+    # finishes SUCCESS; dispatch refuses uploads while None. The UI
+    # uses this to disable upload buttons + show a "year is being
+    # provisioned" tooltip.
+    configuration_completed: Optional[datetime] = None
     config: Dict[str, Any]
     recalculation_status: List[ModuleRecalculationStatusEntry] = Field(
         default_factory=list,
@@ -508,6 +513,8 @@ class YearConfigurationListItem(BaseModel):
 
     year: int
     is_started: bool
+    # #1234-followup — see YearConfigurationResponse.
+    configuration_completed: Optional[datetime] = None
     updated_at: datetime
 
     class Config:

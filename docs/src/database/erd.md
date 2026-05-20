@@ -185,6 +185,7 @@ erDiagram
   }
   year_configuration {
     JSON config
+    DATETIME configuration_completed
     BOOLEAN is_started
     DATETIME updated_at
     INTEGER year PK

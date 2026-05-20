@@ -131,9 +131,26 @@ class TestCSVUploadBasic:
         self,
         test_user: User,
         get_test_client,
+        db_session,
     ):
         """Test that the CSV ingestion endpoint exists and validates files."""
         client = get_test_client()
+
+        # #1234-followup: dispatch now gates on year_configuration
+        # .configuration_completed; seed a ready year so the endpoint
+        # passes the precondition.
+        from datetime import datetime, timezone
+
+        from app.models.year_configuration import YearConfiguration
+
+        db_session.add(
+            YearConfiguration(
+                year=2025,
+                is_started=True,
+                configuration_completed=datetime.now(timezone.utc),
+            )
+        )
+        await db_session.flush()
 
         # Upload a real CSV file first
         csv_path = FIXTURES_DIR / "valid_module_per_year.csv"

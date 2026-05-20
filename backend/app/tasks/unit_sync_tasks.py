@@ -6,7 +6,10 @@ unit_sync, entity_type=GLOBAL_PER_YEAR).  Plan 310-C cutover: the
 ``run_job(id)``; the runner drives claim, heartbeat, and FINISHED state.
 """
 
+from datetime import datetime, timezone
+
 from pydantic import BaseModel
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
@@ -15,6 +18,7 @@ from app.models.data_ingestion import (
     IngestionResult,
 )
 from app.models.user import UserProvider
+from app.models.year_configuration import YearConfiguration
 from app.providers.role_provider import get_role_provider
 from app.providers.unit_provider import get_unit_provider
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -116,6 +120,28 @@ async def unit_sync_handler(
     await job_session.commit()
 
     await carbon_report_service.ensure_modules_for_reports(new_carbon_reports)
+
+    # #1234-followup (Guilbert 2026-05-20): mark the year as provisioned
+    # so /dispatch can gate uploads while a unit_sync is still running
+    # or before it ever ran. data_session is the right session — the
+    # runner commits it on handler success; failure paths raise and
+    # data_session is rolled back so this stamp is atomic with the
+    # carbon-reports/modules creation above.
+    year_cfg_row = (
+        await data_session.execute(
+            select(YearConfiguration).where(col(YearConfiguration.year) == target_year)
+        )
+    ).scalar_one_or_none()
+    if year_cfg_row is not None:
+        year_cfg_row.configuration_completed = datetime.now(timezone.utc)
+        data_session.add(year_cfg_row)
+    else:
+        logger.warning(
+            "unit_sync: no YearConfiguration row for year=%s — "
+            "configuration_completed stamp skipped (year-config row "
+            "should exist; was the year created via /year-configurations?)",
+            target_year,
+        )
 
     return {
         "status_message": "Unit sync completed",

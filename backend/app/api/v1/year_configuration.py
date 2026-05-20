@@ -468,6 +468,7 @@ async def get_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
@@ -732,6 +733,7 @@ async def update_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,

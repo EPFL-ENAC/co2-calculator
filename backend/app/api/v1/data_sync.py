@@ -16,7 +16,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
@@ -38,6 +38,7 @@ from app.models.data_ingestion import (
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
@@ -122,9 +123,7 @@ async def _stamp_job_type_and_meta(
                 row.entity_type.value if row.entity_type is not None else None
             ),
             ingestion_method=(
-                row.ingestion_method.value
-                if row.ingestion_method is not None
-                else None
+                row.ingestion_method.value if row.ingestion_method is not None else None
             ),
             module_type_id=row.module_type_id,
             year=row.year,
@@ -555,6 +554,32 @@ async def sync_module_data_entries(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="year is required for factor CSV ingestion",
         )
+
+    # #1234-followup (Guilbert 2026-05-20): block dispatch when the
+    # target year's ``unit_sync`` hasn't finished SUCCESS — uploads
+    # would race the provisioning (carbon_reports/modules creation) and
+    # silently lose rows. ``configuration_completed`` is stamped by
+    # ``unit_sync_handler`` on success. UI-side disable is best-effort;
+    # this server gate cannot be bypassed.  ``unit_sync`` itself goes
+    # through ``run_job`` (not ``/dispatch``), so it doesn't gate
+    # itself.
+    if syncRequest.year is not None:
+        year_cfg = (
+            await db.execute(
+                select(YearConfiguration).where(
+                    col(YearConfiguration.year) == syncRequest.year
+                )
+            )
+        ).scalar_one_or_none()
+        if year_cfg is None or year_cfg.configuration_completed is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Year {syncRequest.year} is not yet provisioned — "
+                    "wait for the unit_sync pipeline to complete before "
+                    "uploading data for this year."
+                ),
+            )
 
     # Prepare config with file_path and carbon_report_module_id if provided
     config = syncRequest.config.model_dump() if syncRequest.config else {}

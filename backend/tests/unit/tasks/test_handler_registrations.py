@@ -402,6 +402,13 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
     job_session = MagicMock()
     job_session.commit = AsyncMock()
     data_session = MagicMock()
+    # #1234-followup: handler now stamps configuration_completed via a
+    # data_session.execute(select(YearConfiguration)…); stub it to
+    # return "no row" so the handler hits its log-and-skip branch and
+    # the rest of the test exercises the unit-sync chain as before.
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
 
     repo = MagicMock()
     repo.update_ingestion_job = AsyncMock()
@@ -458,6 +465,13 @@ async def test_unit_sync_handler_falls_back_to_job_year_when_config_missing():
     job_session = MagicMock()
     job_session.commit = AsyncMock()
     data_session = MagicMock()
+    # #1234-followup: handler now stamps configuration_completed via a
+    # data_session.execute(select(YearConfiguration)…); stub it to
+    # return "no row" so the handler hits its log-and-skip branch and
+    # the rest of the test exercises the unit-sync chain as before.
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
 
     repo = MagicMock()
     repo.update_ingestion_job = AsyncMock()
