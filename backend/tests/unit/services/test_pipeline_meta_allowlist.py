@@ -23,6 +23,9 @@ def test_project_strips_big_arrays_keeps_allow_list():
         "aggregation_job_id": 14,
         "provider_name": "ModulePerYearCSVProvider",
         "filters": {},
+        # #2A/#2B — bounded timeline + checklist included in the list view.
+        "status_history": [{"message": "x", "ts": "2026-05-20T00:00:00+00:00"}],
+        "phases": [{"name": "fetch_units", "state": "finished"}],
         # Must be dropped — these are the multi-KB offenders.
         "error_details": [{"data_entry_id": i, "error": "x" * 200} for i in range(50)],
         "affected_module_ids": list(range(2231)),
@@ -36,6 +39,8 @@ def test_project_strips_big_arrays_keeps_allow_list():
     assert "error_details" not in projected
     assert "affected_module_ids" not in projected
     assert projected["aggregation_job_id"] == 14
+    assert projected["status_history"] == meta["status_history"]
+    assert projected["phases"] == meta["phases"]
 
 
 def test_project_handles_none_and_partial_meta():

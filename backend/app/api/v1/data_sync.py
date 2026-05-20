@@ -373,6 +373,12 @@ _PIPELINE_META_ALLOW = (
     "aggregation_job_id",
     "provider_name",
     "filters",
+    # #2A / #2B — generic status_history timeline + unit_sync phase
+    # checklist. Both are bounded (status_history capped at 50;
+    # phases is ≤4 for unit_sync, empty for other job_types) so the
+    # per-job payload stays tractable in the list view.
+    "status_history",
+    "phases",
 )
 
 

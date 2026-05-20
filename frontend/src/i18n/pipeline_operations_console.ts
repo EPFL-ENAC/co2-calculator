@@ -75,6 +75,13 @@ export default {
   pipeops_msg_title: { en: 'Message', fr: 'Message' },
   pipeops_msg_copy: { en: 'Copy', fr: 'Copier' },
 
+  // #2D — phase checklist + status_history timeline rendering
+  pipeops_history_toggle: { en: 'Show timeline', fr: 'Voir la chronologie' },
+  pipeops_history_count: {
+    en: '{n} entries',
+    fr: '{n} entrées',
+  },
+
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },
   pipeops_live: { en: 'live', fr: 'live' },
   pipeops_empty: {

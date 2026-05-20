@@ -106,6 +106,49 @@ const jobTypeOptions = [
   'unit_sync',
 ];
 
+// #2D — phase checklist + status_history rendering
+interface PhaseEntry {
+  name: string;
+  state: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  error?: string | null;
+}
+interface HistoryEntry {
+  message: string;
+  ts: string;
+}
+
+function jobPhases(j: { meta: Record<string, unknown> }): PhaseEntry[] {
+  const raw = j.meta?.phases;
+  return Array.isArray(raw) ? (raw as PhaseEntry[]) : [];
+}
+
+function jobHistory(j: { meta: Record<string, unknown> }): HistoryEntry[] {
+  const raw = j.meta?.status_history;
+  return Array.isArray(raw) ? (raw as HistoryEntry[]) : [];
+}
+
+function phaseColor(p: PhaseEntry): string {
+  if (p.state === 'finished') return 'positive';
+  if (p.state === 'running') return 'primary';
+  if (p.state === 'failed' || p.error) return 'negative';
+  return 'grey';
+}
+
+function phaseIcon(p: PhaseEntry): string {
+  if (p.state === 'finished') return 'check_circle';
+  if (p.state === 'running') return 'sync';
+  if (p.state === 'failed' || p.error) return 'error';
+  return 'radio_button_unchecked';
+}
+
+function fmtTs(s: string | null | undefined): string {
+  if (!s) return '—';
+  const d = new Date(s);
+  return d.toLocaleTimeString();
+}
+
 onMounted(() => {
   void store.fetch();
 });
@@ -372,40 +415,86 @@ onUnmounted(() => {
               <tr v-if="expanded.has(rowKey(p))">
                 <td colspan="8" class="bg-grey-1">
                   <div class="q-pa-sm">
-                    <div
-                      v-for="j in p.jobs"
-                      :key="j.job_id"
-                      class="row items-center q-py-xs no-wrap"
-                    >
-                      <q-badge
-                        :color="jobColor(j)"
-                        text-color="white"
-                        class="q-mr-sm"
+                    <div v-for="j in p.jobs" :key="j.job_id" class="q-py-sm">
+                      <!-- Main job row -->
+                      <div class="row items-center no-wrap">
+                        <q-badge
+                          :color="jobColor(j)"
+                          text-color="white"
+                          class="q-mr-sm"
+                        >
+                          {{ j.state ?? '?'
+                          }}{{ j.result ? ' · ' + j.result : '' }}
+                        </q-badge>
+                        <span class="text-weight-medium q-mr-sm">
+                          #{{ j.job_id }} {{ j.job_type ?? '—' }}
+                        </span>
+                        <span class="text-caption text-grey-7 q-mr-sm">
+                          {{
+                            j.data_entry_type_label ??
+                            (j.data_entry_type_id != null
+                              ? 'det ' + j.data_entry_type_id
+                              : '—')
+                          }}
+                          · {{ fmtDuration(j.started_at, j.finished_at) }}
+                        </span>
+                        <span
+                          v-if="j.status_message"
+                          class="text-caption text-grey-8 ellipsis cursor-pointer"
+                          style="max-width: 520px"
+                          :title="$t('pipeops_msg_click_hint')"
+                          @click.stop="openMsg(j.status_message)"
+                        >
+                          {{ j.status_message }}
+                        </span>
+                      </div>
+
+                      <!-- #2B — phase checklist (unit_sync etc.) -->
+                      <div
+                        v-if="jobPhases(j).length"
+                        class="row items-center q-mt-xs q-gutter-xs q-pl-md"
                       >
-                        {{ j.state ?? '?'
-                        }}{{ j.result ? ' · ' + j.result : '' }}
-                      </q-badge>
-                      <span class="text-weight-medium q-mr-sm">
-                        #{{ j.job_id }} {{ j.job_type ?? '—' }}
-                      </span>
-                      <span class="text-caption text-grey-7 q-mr-sm">
-                        {{
-                          j.data_entry_type_label ??
-                          (j.data_entry_type_id != null
-                            ? 'det ' + j.data_entry_type_id
-                            : '—')
-                        }}
-                        · {{ fmtDuration(j.started_at, j.finished_at) }}
-                      </span>
-                      <span
-                        v-if="j.status_message"
-                        class="text-caption text-grey-8 ellipsis cursor-pointer"
-                        style="max-width: 520px"
-                        :title="$t('pipeops_msg_click_hint')"
-                        @click.stop="openMsg(j.status_message)"
+                        <q-chip
+                          v-for="ph in jobPhases(j)"
+                          :key="ph.name"
+                          :color="phaseColor(ph)"
+                          text-color="white"
+                          :icon="phaseIcon(ph)"
+                          size="sm"
+                          dense
+                        >
+                          {{ ph.name }}
+                          <q-tooltip v-if="ph.error">{{ ph.error }}</q-tooltip>
+                        </q-chip>
+                      </div>
+
+                      <!-- #2A — status_history timeline -->
+                      <q-expansion-item
+                        v-if="jobHistory(j).length"
+                        dense
+                        dense-toggle
+                        class="q-mt-xs"
+                        header-class="text-caption text-grey-7 q-pl-md"
+                        :label="$t('pipeops_history_toggle')"
+                        :caption="
+                          $t('pipeops_history_count', {
+                            n: jobHistory(j).length,
+                          })
+                        "
                       >
-                        {{ j.status_message }}
-                      </span>
+                        <div class="q-pl-lg">
+                          <div
+                            v-for="(h, idx) in jobHistory(j)"
+                            :key="idx"
+                            class="text-caption text-grey-8 q-py-xs"
+                          >
+                            <span class="text-grey-5 q-mr-xs">
+                              {{ fmtTs(h.ts) }}
+                            </span>
+                            — {{ h.message }}
+                          </div>
+                        </div>
+                      </q-expansion-item>
                     </div>
                   </div>
                 </td>
