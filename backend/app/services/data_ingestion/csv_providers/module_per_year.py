@@ -16,6 +16,24 @@ from app.services.data_ingestion.base_csv_provider import (
 logger = get_logger(__name__)
 
 
+# Module types whose CSV ingest INFERS the per-row ``data_entry_type_id``
+# from a matched Factor (the row carries a kind/sub-kind, not a DET name,
+# so the resolver looks up the factor table to disambiguate which DET
+# the row belongs to).  An empty factors_map for these modules means
+# every row's resolution will fail with "no matching factor found in
+# factors map" — the operator gains nothing from grinding through
+# 50 000 rows of the same error; refuse the ingest up front.
+#
+# Other modules (e.g. ``buildings``, ``professional_travel``,
+# ``headcount``) carry the DET in a category column that maps directly
+# to ``DataEntryTypeEnum`` names, so an empty factors_map is a
+# legitimate state (they ingest rows with ``primary_factor_id=None``).
+_FACTOR_INFERRED_MODULES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.equipment_electric_consumption,
+    ModuleTypeEnum.purchase,
+}
+
+
 class ModulePerYearCSVProvider(BaseCSVProvider):
     """
     CSV provider for MODULE_PER_YEAR entity type.
@@ -106,11 +124,30 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                 f"{valid_entry_types}"
             )
 
-        # Fail fast when the module's handler requires a matched factor
-        # but the factors map is empty for this (module, year) — otherwise
-        # every CSV row would record an identical "no matching factor"
-        # error and the operator has to dig through 50 k rows to see that
-        # the real problem is the missing factor upload.
+        # Fail fast for "common" uploads — modules that infer the per-row
+        # data_entry_type_id by looking up the row's kind/sub-kind in the
+        # factors map (equipment, purchase).  An empty factors_map
+        # guarantees every row will fail with "no matching factor found";
+        # surfacing that as one terminal error beats 50 000 row-level
+        # errors that all point at the same missing-factors fix.  Other
+        # modules (whose category column maps directly to DET names) are
+        # legitimately allowed an empty map and are covered by the
+        # narrower ``_guard_factors_required`` check below.
+        if module_type in _FACTOR_INFERRED_MODULES and not factors_map:
+            year_str = (
+                f"year={self.year}" if self.year is not None else "the configured year"
+            )
+            raise ValueError(
+                f"No factors available for module={module_type.name} {year_str}. "
+                "This module infers the per-row data_entry_type from a matched "
+                "Factor, so an empty factors table guarantees every row will "
+                "fail. Upload factors for this module/year before ingesting data."
+            )
+
+        # Catch the orthogonal "handler requires a matched factor" invariant
+        # — fires for modules where data_entry_type IS resolved (configured
+        # or via category_field) but the row-level loop still needs a
+        # Factor match per the handler's contract.
         _guard_factors_required(
             factors_map=factors_map,
             handlers=handlers,

@@ -93,3 +93,25 @@ def test_year_none_message_degrades_cleanly():
     msg = str(exc.value)
     assert "year=None" not in msg
     assert "configured year" in msg
+
+
+# ---------------------------------------------------------------------------
+# Targeted fail-early for "common" uploads — modules that INFER
+# data_entry_type from factors (equipment, purchase).  An empty factors
+# map is fatal regardless of the handler's ``require_factor_to_match``
+# flag.  Lives in ``module_per_year.py`` but tested here for proximity.
+# ---------------------------------------------------------------------------
+
+
+def test_factor_inferred_modules_set_contains_equipment_and_purchase():
+    """Both 'common' upload module types must be in the set — these are
+    the empirical cases the user hit (50 000 rows of identical
+    'no matching factor' errors).  If a third such module appears,
+    add it to the set in the same PR as the new handler."""
+    from app.models.module_type import ModuleTypeEnum
+    from app.services.data_ingestion.csv_providers.module_per_year import (
+        _FACTOR_INFERRED_MODULES,
+    )
+
+    assert ModuleTypeEnum.equipment_electric_consumption in _FACTOR_INFERRED_MODULES
+    assert ModuleTypeEnum.purchase in _FACTOR_INFERRED_MODULES
