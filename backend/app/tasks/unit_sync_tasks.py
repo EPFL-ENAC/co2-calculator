@@ -45,6 +45,19 @@ logger = get_logger(__name__)
 # aggregation_tasks.
 _AGGREGATION_LOCK_CATEGORY = 1236
 
+# Distinct category for the GLOBAL unit_sync mutual-exclusion lock
+# (#1236) — taken via the 1-int variant ``pg_advisory_xact_lock(cat)``
+# so two ``unit_sync`` jobs for DIFFERENT years still block each
+# other.  The per-year ``_AGGREGATION_LOCK_CATEGORY`` lock partitions
+# by year, so two unit_syncs for distinct years would NOT serialise
+# there — but they BOTH write the global ``units`` table (a 2231-row
+# Accred dump, same set for every year).  Without a global lock,
+# parallel ``unit_sync`` jobs race on ``ix_units_institutional_code``.
+# The ON CONFLICT path in ``UnitRepository.bulk_upsert`` is the
+# data-layer safety net; this lock is the belt that prevents the
+# race from ever reaching it.
+_UNIT_SYNC_GLOBAL_LOCK_CATEGORY = 1239
+
 
 class SyncUnitRequest(BaseModel):
     target_year: int
@@ -77,24 +90,46 @@ async def unit_sync_handler(
             f"unit_sync job {job.id} missing config.target_year (and job.year)"
         )
 
-    # #1236 — per-year advisory lock against the aggregation handler.
-    # Held on ``data_session`` (the domain-data session that writes
-    # ``carbon_reports``); the runner commits/rolls back after this
-    # handler returns, releasing the lock.  Dialect-gated so the SQLite
-    # test fixture (single-writer model already serialises) is a no-op;
-    # production Postgres serialises unit_sync's carbon_reports writes
-    # against any concurrent aggregation for the same year.
+    # #1236 — TWO advisory locks for unit_sync, both transaction-scoped
+    # on ``data_session`` (the runner commits/rolls back after this
+    # handler returns, releasing both):
+    #
+    # 1.  GLOBAL unit_sync lock (1-int variant) — prevents parallel
+    #     unit_sync jobs for DIFFERENT years from racing on the global
+    #     ``units`` table (every unit_sync re-fetches the full 2231-row
+    #     Accred dump; concurrent bulk_upserts hit
+    #     ``ix_units_institutional_code`` if both observe the same
+    #     missing code).  Belt against the data-layer ON CONFLICT braces.
+    #
+    # 2.  Per-year unit_sync ↔ aggregation lock (2-int variant) —
+    #     prevents an in-flight aggregation for THIS year from
+    #     overlapping our ``carbon_reports`` rewrite.
+    #
+    # Order: global first, then per-year.  A unit_sync that's waiting
+    # on the global lock isn't holding the per-year lock, so an
+    # aggregation for that year can still proceed unblocked.
+    #
+    # Dialect-gated so the SQLite test fixture (single-writer model
+    # already serialises) is a no-op.
     try:
         dialect_name = data_session.get_bind().dialect.name
     except Exception:
         dialect_name = ""
     if dialect_name == "postgresql":
         await data_session.execute(
+            text("SELECT pg_advisory_xact_lock(:cat)"),
+            {"cat": _UNIT_SYNC_GLOBAL_LOCK_CATEGORY},
+        )
+        logger.debug(
+            f"unit_sync handler (job {job.id}): acquired global "
+            f"pg_advisory_xact_lock({_UNIT_SYNC_GLOBAL_LOCK_CATEGORY})"
+        )
+        await data_session.execute(
             text("SELECT pg_advisory_xact_lock(:cat, :year)"),
             {"cat": _AGGREGATION_LOCK_CATEGORY, "year": int(target_year)},
         )
         logger.debug(
-            f"unit_sync handler (job {job.id}): acquired "
+            f"unit_sync handler (job {job.id}): acquired per-year "
             f"pg_advisory_xact_lock({_AGGREGATION_LOCK_CATEGORY}, "
             f"{target_year}) — shared with aggregation_handler"
         )

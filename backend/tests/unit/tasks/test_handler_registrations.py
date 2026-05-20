@@ -603,20 +603,22 @@ async def test_unit_sync_acquires_advisory_lock_on_postgres():
     ):
         await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
 
-    # The advisory lock is the FIRST data_session.execute call; the
-    # year-config lookup follows.
-    assert data_session.execute.await_count >= 1
-    first_call = data_session.execute.await_args_list[0]
-    sql_text = str(first_call.args[0])
-    assert "pg_advisory_xact_lock" in sql_text
-    params = first_call.args[1]
-    assert params["year"] == 2026
+    # Look up the per-year lock call (the global lock fires first; this
+    # test pins the per-year one — the order is locked down separately
+    # in ``test_unit_sync_acquires_global_lock_before_per_year_lock``).
+    per_year_call = next(
+        call
+        for call in data_session.execute.await_args_list
+        if "pg_advisory_xact_lock" in str(call.args[0])
+        and "year" in (call.args[1] if len(call.args) > 1 else {})
+    )
+    assert per_year_call.args[1]["year"] == 2026
     # Must share the aggregation handler's category — that's the
     # whole point of this commit.  Pin it as 1236 explicitly so a
     # future refactor that splits the categories has to update this
     # test, not silently break the mutual exclusion.
-    assert params["cat"] == 1236
-    assert params["cat"] == unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+    assert per_year_call.args[1]["cat"] == 1236
+    assert per_year_call.args[1]["cat"] == unit_sync_mod._AGGREGATION_LOCK_CATEGORY
 
 
 @pytest.mark.asyncio
@@ -668,6 +670,83 @@ def test_unit_sync_lock_category_matches_aggregation():
     assert (
         unit_sync_mod._AGGREGATION_LOCK_CATEGORY
         == aggregation_tasks._AGGREGATION_LOCK_CATEGORY
+    )
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_acquires_global_lock_before_per_year_lock():
+    """User-reported 2026-05-20: creating year 2026 + 2025 in parallel
+    crashed the second handler with ``UniqueViolation`` on
+    ``ix_units_institutional_code`` (code 14270).  ``units`` is a
+    GLOBAL table; the per-year lock partitions by year, so different
+    years didn't mutually exclude — both transactions raced on the
+    ``units`` bulk_upsert.  Fix: a GLOBAL 1-int advisory lock takes
+    precedence over the per-year lock.
+
+    This test pins the order (global → per-year) and the category
+    distinctness so a refactor can't silently break the mutual
+    exclusion."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "postgresql"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    # Two advisory locks in order: global first, per-year second.
+    lock_calls = [
+        call
+        for call in data_session.execute.await_args_list
+        if "pg_advisory_xact_lock" in str(call.args[0])
+    ]
+    assert len(lock_calls) == 2, (
+        f"expected 2 advisory-lock calls (global + per-year), got {len(lock_calls)}"
+    )
+    # Global lock fires FIRST and uses the 1-int variant (no year param).
+    first_params = lock_calls[0].args[1]
+    assert first_params["cat"] == 1239
+    assert first_params["cat"] == unit_sync_mod._UNIT_SYNC_GLOBAL_LOCK_CATEGORY
+    assert "year" not in first_params, (
+        "global lock must use the 1-int variant — passing a year would "
+        "partition the keyspace and break mutual exclusion across years"
+    )
+    # Per-year lock follows with the year-2026 key.
+    second_params = lock_calls[1].args[1]
+    assert second_params["cat"] == 1236
+    assert second_params["year"] == 2026
+
+
+def test_unit_sync_global_lock_category_distinct_from_aggregation():
+    """Global unit_sync lock MUST live in a different category from the
+    per-year aggregation lock — they protect different invariants and
+    must not partition each other's keyspace."""
+    assert (
+        unit_sync_mod._UNIT_SYNC_GLOBAL_LOCK_CATEGORY
+        != unit_sync_mod._AGGREGATION_LOCK_CATEGORY
     )
 
 
