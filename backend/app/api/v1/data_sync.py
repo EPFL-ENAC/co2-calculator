@@ -368,13 +368,16 @@ class PipelineResponse(BaseModel):
 # Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
 # Everything else (esp. ``error_details`` / ``affected_module_ids``,
 # which are KB-scale per row) is stripped server-side so the list
-# payload stays small.  These five are exactly what threads the DAG /
-# drives ``compute_pipeline_progress`` plus the provenance the table
-# shows.
+# payload stays small.
+#
+# Phase 5B (#1236) retired three keys from this list:
+# ``parent_job_id``, ``recalc_jobs_chained``, ``aggregation_job_id``.
+# They were used to thread the DAG and drive
+# ``compute_pipeline_progress``; that data now lives on the
+# ``pipelines`` row (``expected_recalc``) or is derived from the
+# job rows directly (root = lowest-id; aggregation_done = all
+# aggregation rows FINISHED).
 _PIPELINE_META_ALLOW = (
-    "parent_job_id",
-    "recalc_jobs_chained",
-    "aggregation_job_id",
     "provider_name",
     "filters",
     # #2A / #2B — generic status_history timeline + unit_sync phase

@@ -151,9 +151,7 @@ async def test_csv_ingest_error_result_does_not_report_success():
         ),
         patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
     ):
-        meta = await ingest_mod.csv_ingest_handler(
-            job, MagicMock(), MagicMock()
-        )
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
 
     assert meta["result"] == IngestionResult.ERROR
     assert meta["status_message"] != "Success"
@@ -257,7 +255,7 @@ async def test_factor_ingest_handler_chains_recalc_for_single_type():
     assert chain_kwargs["module_type_id"] == 5
     assert chain_kwargs["data_entry_type_id"] == 11
     assert chain_kwargs["year"] == 2025
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["upsert_count"] == 3
 
 
@@ -309,7 +307,7 @@ async def test_factor_ingest_handler_chains_per_det_for_multitype_upload():
     assert mock_chain.await_count == len(expected_dets)
     chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
     assert chained_dets == set(expected_dets)
-    assert meta["recalc_jobs_chained"] == len(expected_dets)
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -450,7 +448,7 @@ async def test_factor_ingest_handler_consults_repo_when_module_and_det_both_null
     chain_kwargs = mock_chain.await_args.kwargs
     assert chain_kwargs["module_type_id"] == 1
     assert chain_kwargs["data_entry_type_id"] == 10
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -545,7 +543,7 @@ async def test_csv_ingest_handler_chains_recalc_for_single_det():
     assert chain_kwargs["module_type_id"] == 5
     assert chain_kwargs["data_entry_type_id"] == 11
     assert chain_kwargs["year"] == 2025
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -580,7 +578,7 @@ async def test_csv_ingest_handler_chains_per_det_for_multitype_upload():
     assert mock_chain.await_count == len(expected_dets)
     chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
     assert chained_dets == set(expected_dets)
-    assert meta["recalc_jobs_chained"] == len(expected_dets)
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -627,7 +625,7 @@ async def test_api_ingest_handler_chains_recalc_on_success():
         meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
 
     mock_chain.assert_awaited_once()
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -697,7 +695,7 @@ async def test_csv_ingest_handler_skips_fan_out_when_module_type_id_missing():
         meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
 
     mock_chain.assert_not_awaited()
-    assert meta["recalc_jobs_chained"] == 0
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS
 
 
@@ -777,5 +775,5 @@ async def test_csv_ingest_fan_out_counts_only_owned_children():
 
     # All dets attempted, but only the one owned child counts.
     assert mock_chain.await_count == len(expected_dets)
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS

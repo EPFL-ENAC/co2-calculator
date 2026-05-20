@@ -57,8 +57,8 @@ def _make_repo_for_chain(parent: MagicMock) -> MagicMock:
 @pytest.mark.asyncio
 async def test_chain_job_inherits_pipeline_id_and_fires_run_job():
     """Child created NOT_STARTED, inherits parent's pipeline_id,
-    parent_job_id stamped in meta, run_job scheduled via
-    fire_and_forget."""
+    run_job scheduled via fire_and_forget.  Phase 5B retired
+    ``parent_job_id`` from meta — see assertion below."""
     parent = _make_parent(job_id=100)
     parent.pipeline_id = uuid4()
 
@@ -99,7 +99,9 @@ async def test_chain_job_inherits_pipeline_id_and_fires_run_job():
     created = repo.create_ingestion_job.await_args.args[0]
     assert created.pipeline_id == parent.pipeline_id
     assert created.state == IngestionState.NOT_STARTED
-    assert created.meta["parent_job_id"] == 100
+    # Phase 5B (#1236) retired ``parent_job_id`` from meta; readers
+    # identify the parent as the lowest-id job in the pipeline now.
+    assert "parent_job_id" not in (created.meta or {})
     assert created.module_type_id == parent.module_type_id  # inherited
     assert created.year == parent.year  # inherited
 

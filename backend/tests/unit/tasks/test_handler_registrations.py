@@ -171,7 +171,7 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
     # for the dedup INSERT lives on the job-progress session, not the
     # data_session that the workflow scrubbed and committed).
     assert chain_kwargs["session"] is job_session
-    assert meta["aggregation_job_id"] == 999
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
     crm_svc_factory.assert_not_called()
 
 
@@ -218,7 +218,7 @@ async def test_emission_recalc_handler_chains_aggregation_on_warning():
     assert chain_kwargs["year"] == job.year
     assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] == 777
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -324,7 +324,7 @@ async def test_module_emission_recalc_iterates_all_types():
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["total_recalculated"] == 6
     assert meta["total_errors"] == 0
-    assert meta["aggregation_job_id"] == 555
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio

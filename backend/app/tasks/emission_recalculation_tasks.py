@@ -27,6 +27,7 @@ from app.models.data_ingestion import (
     IngestionMethod,
     IngestionResult,
     IngestionState,
+    Pipeline,
     TargetType,
 )
 from app.repositories.data_ingestion import DataIngestionRepository
@@ -52,7 +53,7 @@ async def _is_last_recalc_sibling(
     """In-pipeline aggregation coalesce gate (#1236 Phase 4A.1).
 
     Returns ``True`` only for the LAST ``emission_recalc`` sibling of a
-    pipeline (where "last" = exactly ``parent.meta.recalc_jobs_chained``
+    pipeline (where "last" = exactly ``pipeline.expected_recalc``
     siblings have stamped ``meta.recalc_work_complete=True``). Others
     return ``False`` so they skip the aggregation chain.
 
@@ -63,36 +64,46 @@ async def _is_last_recalc_sibling(
     single trailing aggregation chained by the last sibling sees the
     final post-all-recalcs state — correct and 3× fewer aggregations.
 
-    Falls back to ``True`` (always chain — preserves prior behavior)
-    when: no ``pipeline_id``, no ``parent_job_id`` in meta, no parent
-    row, or parent lacks ``recalc_jobs_chained``. Legacy/orphan jobs
-    keep working.
+    Phase 5B (#1236): the expected count moved from
+    ``parent.meta.recalc_jobs_chained`` to ``pipeline.expected_recalc``
+    (the ``pipelines`` row column written by ``recompute_pipeline_status``).
+    The lock target moved correspondingly — ``SELECT … FOR UPDATE``
+    on the ``pipelines`` row serialises siblings.  If the lock had
+    stayed on the parent ``data_ingestion_jobs`` row while the read
+    moved, two concurrent siblings could both see "I'm last" and
+    chain 2 aggregations — silently regressing 4A.1.
 
-    Race safety: a *fresh* session opens, ``SELECT … FOR UPDATE`` on
-    the parent row serialises the count-and-decide section across
-    siblings; each sibling flushes its own ``recalc_work_complete=True``
-    inside that lock, then commits — making the increment durably
-    visible to the next sibling. The lock is narrow (single short
-    transaction), independent of the outer handler's data_session, so
-    a recalc that takes a minute does not hold the lock for a minute.
+    Falls back to ``True`` (always chain — preserves prior behavior)
+    when: no ``pipeline_id``, no ``Pipeline`` row, or
+    ``pipeline.expected_recalc`` is NULL (never written, e.g. legacy
+    pipelines pre-Phase-5A).  Legacy/orphan jobs keep working.
+
+    Race safety: a *fresh* session opens, ``SELECT pipelines … FOR
+    UPDATE`` serialises the count-and-decide section across siblings;
+    each sibling flushes its own ``recalc_work_complete=True`` inside
+    that lock, then commits — making the increment durably visible to
+    the next sibling.  The lock is narrow (single short transaction),
+    independent of the outer handler's data_session.
     """
     if job.pipeline_id is None or job.id is None:
         return True
-    parent_id = (job.meta or {}).get("parent_job_id")
-    if parent_id is None:
+    # Same mock-vs-prod gate as ``_build_aggregation_scope_config`` —
+    # MagicMock ``pipeline_id``s used by mock-driven unit tests must
+    # not reach the real ``SessionLocal``/asyncpg path; treat as
+    # "fall back to chain" so existing handler tests don't open a
+    # Postgres connection with an unadaptable MagicMock UUID.
+    if not isinstance(job.pipeline_id, UUID):
         return True
 
     async def _decide(helper: AsyncSession) -> bool:
-        parent = (
+        pipeline = (
             await helper.execute(
-                select(DataIngestionJob)
-                .where(DataIngestionJob.id == parent_id)
-                .with_for_update()
+                select(Pipeline).where(Pipeline.id == job.pipeline_id).with_for_update()
             )
         ).scalar_one_or_none()
-        if parent is None:
+        if pipeline is None:
             return True
-        expected = (parent.meta or {}).get("recalc_jobs_chained")
+        expected = pipeline.expected_recalc
         if expected is None:
             return True
 
@@ -303,7 +314,6 @@ async def emission_recalc_handler(
     # than crashing the parent's FINISHED write.  The recalc itself
     # already succeeded; the operator sees the missing aggregation
     # via the dashboard's "stats stale" badge if they need it.
-    chained_aggregation_id = None
     if job.module_type_id is not None and result != IngestionResult.ERROR:
         # #1236 Phase 4A.1 — only the LAST emission_recalc sibling of
         # a pipeline chains the aggregation. Earlier siblings stamp
@@ -323,7 +333,7 @@ async def emission_recalc_handler(
             agg_config = await _build_aggregation_scope_config(
                 job, stats.get("affected_module_ids") or []
             )
-            chained_aggregation_id = await chain_job(
+            await chain_job(
                 job,
                 job_type="aggregation",
                 module_type_id=job.module_type_id,
@@ -344,11 +354,13 @@ async def emission_recalc_handler(
             "skipping aggregation chain"
         )
 
+    # Phase 5B (#1236) — ``aggregation_job_id`` dropped from meta;
+    # ``compute_pipeline_progress`` reads aggregation completion
+    # directly from the aggregation job rows in this pipeline.
     return {
         "status_message": "Emission recalculation completed",
         "result": result,
         "recalculation": stats,
-        "aggregation_job_id": chained_aggregation_id,
     }
 
 
@@ -453,7 +465,9 @@ async def module_emission_recalc_handler(
             state=IngestionState.FINISHED,
             result=type_result,
             status_message=f"Bulk recalculation via module job {job.id}",
-            meta={"parent_job_id": job.id, "recalculation": stats},
+            # Phase 5B (#1236) — ``parent_job_id`` dropped from meta;
+            # readers identify parents as the lowest-id job per pipeline.
+            meta={"recalculation": stats},
         )
         created = await job_repo.create_ingestion_job(type_job)
         await job_repo.mark_job_as_current(created)
@@ -473,9 +487,8 @@ async def module_emission_recalc_handler(
     # also collapse concurrent fan-outs to the same scope, but in this
     # handler we only ever issue one chain so it's primarily a
     # safety net.
-    chained_aggregation_id = None
     if final_result != IngestionResult.ERROR:
-        chained_aggregation_id = await chain_job(
+        await chain_job(
             job,
             job_type="aggregation",
             module_type_id=job.module_type_id,
@@ -484,11 +497,12 @@ async def module_emission_recalc_handler(
             dedup_config=AGGREGATION_DEDUP,
         )
 
+    # Phase 5B (#1236) — ``aggregation_job_id`` dropped from meta;
+    # progress derivation reads aggregation rows from the job table.
     return {
         "status_message": "Module emission recalculation completed",
         "result": final_result,
         "recalculation": per_type_stats,
         "total_recalculated": total_recalculated,
         "total_errors": total_errors,
-        "aggregation_job_id": chained_aggregation_id,
     }

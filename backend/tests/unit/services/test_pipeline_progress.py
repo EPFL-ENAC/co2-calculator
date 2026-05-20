@@ -55,9 +55,16 @@ def test_parent_only_snapshot_does_not_prematurely_complete():
     """THE core UX bug: parent FINISHED, children not yet INSERTed.
 
     Old "all snapshot jobs FINISHED" logic flashed the module green
-    here. The expected-fan-out contract keeps it at phase 2.
+    here. Phase 5B carries the expected count via
+    ``pipeline.expected_recalc`` (the writer sets it from the live
+    job count in ``recompute_pipeline_status``); the test pins the
+    expectation explicitly so the snapshot's missing children don't
+    flip phase 2 vacuously satisfied.
     """
-    p = compute_pipeline_progress([_parent(S.FINISHED, recalc_chained=2)])
+    p = compute_pipeline_progress(
+        [_parent(S.FINISHED)],
+        pipeline=_pl(PipelineStatus.RUNNING.value, expected_recalc=2),
+    )
     assert p["phase"] == 2
     assert p["done"] is False
 
@@ -176,9 +183,13 @@ def test_empty_pipeline_is_safe():
 # ---------------------------------------------------------------------------
 
 
-def _pl(status):
-    """Minimal duck-typed Pipeline row for the read-flip branch."""
-    return SimpleNamespace(status=status)
+def _pl(status, *, expected_recalc=None):
+    """Minimal duck-typed Pipeline row for the read-flip branch.
+
+    Phase 5B (#1236): ``expected_recalc`` is the authoritative count;
+    when None, the function falls back to the live job count.
+    """
+    return SimpleNamespace(status=status, expected_recalc=expected_recalc)
 
 
 def test_pipeline_status_success_marks_done_even_if_jobs_lag():

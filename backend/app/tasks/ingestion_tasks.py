@@ -66,8 +66,12 @@ async def csv_ingest_handler(
         # — nothing to recalc against.  Runner will mark FINISHED+ERROR.
         return meta
 
-    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    # Phase 5B (#1236) — chained count no longer threaded through
+    # ``meta.recalc_jobs_chained``; ``recompute_pipeline_status``
+    # derives the same value from the live job count and writes it to
+    # ``pipelines.expected_recalc``.  The call remains for its
+    # side-effect of dispatching the recalc fan-out.
+    await _chain_emission_recalc_for_data_ingest(job, job_session)
     return meta
 
 
@@ -89,8 +93,7 @@ async def api_ingest_handler(
     if meta.get("result") == IngestionResult.ERROR:
         return meta
 
-    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    await _chain_emission_recalc_for_data_ingest(job, job_session)
     return meta
 
 
@@ -139,8 +142,10 @@ async def factor_ingest_handler(
         )
         return meta
 
-    chained = await _chain_recalc_for_stale(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    # Phase 5B (#1236) — see csv_ingest_handler; chained count derived
+    # from job rows via ``recompute_pipeline_status``, not threaded
+    # through meta.
+    await _chain_recalc_for_stale(job, job_session)
     return meta
 
 

@@ -259,7 +259,10 @@ async def chain_job(
             # treats NULL run_after as eligible.  Matches the existing
             # ingestion_tasks.py recalc-job creation pattern.
             run_after=None,
-            meta={"config": config or {}, "parent_job_id": parent.id},
+            # Phase 5B (#1236) — ``parent_job_id`` dropped from meta;
+            # the parent is identifiable as the lowest-id job in the
+            # pipeline (see ``compute_pipeline_progress._find_root``).
+            meta={"config": config or {}},
         )
         created = await repo.create_ingestion_job(child)
         await session.commit()
@@ -340,7 +343,9 @@ async def _insert_child_with_dedup(
     # asyncpg accepts UUID objects directly via type adapters, but
     # raw text SQL coerces best when stringified.
     pipeline_id_str = str(pipeline_id) if pipeline_id is not None else None
-    meta_json = json.dumps({"config": config or {}, "parent_job_id": parent.id})
+    # Phase 5B (#1236) — ``parent_job_id`` dropped from meta (see sibling
+    # call above); reading paths use lowest-id-in-pipeline instead.
+    meta_json = json.dumps({"config": config or {}})
 
     # The chain_job entry guard already rejected NULL scope values,
     # so simple equality is sufficient here — no ``(:col IS NULL AND

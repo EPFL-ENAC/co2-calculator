@@ -18,6 +18,9 @@ from app.models.data_ingestion import IngestionResult, IngestionState, PipelineS
 
 def test_project_strips_big_arrays_keeps_allow_list():
     meta = {
+        # Phase 5B (#1236) — these three meta keys were retired; the
+        # allow-list must NOT carry them, and a legacy pipeline that
+        # still has them on its meta gets them stripped.
         "parent_job_id": 9,
         "recalc_jobs_chained": 3,
         "aggregation_job_id": 14,
@@ -38,7 +41,10 @@ def test_project_strips_big_arrays_keeps_allow_list():
     assert set(projected) == set(_PIPELINE_META_ALLOW)
     assert "error_details" not in projected
     assert "affected_module_ids" not in projected
-    assert projected["aggregation_job_id"] == 14
+    # Retired keys MUST NOT be projected even if legacy meta carries them.
+    assert "parent_job_id" not in projected
+    assert "recalc_jobs_chained" not in projected
+    assert "aggregation_job_id" not in projected
     assert projected["status_history"] == meta["status_history"]
     assert projected["phases"] == meta["phases"]
 
@@ -46,7 +52,9 @@ def test_project_strips_big_arrays_keeps_allow_list():
 def test_project_handles_none_and_partial_meta():
     assert _project_pipeline_meta(None) == {}
     assert _project_pipeline_meta({}) == {}
-    assert _project_pipeline_meta({"parent_job_id": 1, "x": 2}) == {"parent_job_id": 1}
+    # ``parent_job_id`` retired post-5B → stripped; ``x`` not in
+    # allow-list → also stripped; result is empty.
+    assert _project_pipeline_meta({"parent_job_id": 1, "x": 2}) == {}
 
 
 # ---------------------------------------------------------------------------
