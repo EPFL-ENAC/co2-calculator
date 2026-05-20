@@ -83,10 +83,18 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 
 ## 🔧 To DO — #1236 remaining phases
 
-- [ ] **Phase 2**: enforce `data_ingestion_jobs.pipeline_id` →
-      `pipelines(id)` FK. v0.x = no backfill (DB dropped between
-      deploys); add the FK migration to run on a clean DB already on
-      Phase-1 code. Real backfill is a **v1.x** concern.
+- ✅ **Phase 2 (`acceae13`)**: enforced
+      `data_ingestion_jobs.pipeline_id` → `pipelines(id)` FK via
+      migration `c4d5e6f7a8b9` (chains on `a3b8c9d0e1f2`). Adds
+      `ix_data_ingestion_jobs_pipeline_id` (Postgres doesn't
+      auto-index the referencing column; console + recalc fan-out
+      query by `pipeline_id` constantly). `ON DELETE RESTRICT`
+      (default) — pipelines are append-only ledger today. Model's
+      `sa_column` updated with `ForeignKey("pipelines.id")` so
+      SQLAlchemy schema view matches Postgres. v0.x = no backfill
+      (DB dropped between deploys); migration applies on the next
+      clean-DB deploy. 1385 unit tests still green (SQLite metadata
+      build accepts the FK).
 - [ ] **Phase 3**: flip reads (console #1234, `GET /pipelines/{id}`,
       progress) to the `pipelines` table; `compute_pipeline_progress`
       becomes writer-side only. Schedule the reconciliation sweep on a
