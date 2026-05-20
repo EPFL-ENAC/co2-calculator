@@ -288,7 +288,6 @@ function handleCancel() {
           </q-tooltip>
         </q-icon>
       </div>
-
     </div>
 
     <!-- Issue #1219 + UX consolidation — ONE in-progress indicator
