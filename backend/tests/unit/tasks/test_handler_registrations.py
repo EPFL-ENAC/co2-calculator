@@ -525,6 +525,153 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
 
 
 # ---------------------------------------------------------------------------
+# unit_sync ↔ aggregation concurrency safety (#1236) — both rewrite
+# ``carbon_reports`` for the same (unit, year); the SAME advisory-lock
+# category (1236) makes them mutually exclude on the year key.
+# ---------------------------------------------------------------------------
+
+
+def _stub_unit_sync_deps():
+    """Minimal stub bundle to drive ``unit_sync_handler`` through to
+    completion in a test — same shape as the full-chain test above,
+    pared down so the lock tests stay focused on the lock SQL."""
+    unit_provider = MagicMock()
+    unit_provider.fetch_all_units = AsyncMock(return_value=([], []))
+    unit_provider.map_api_unit = MagicMock(side_effect=lambda u: MagicMock())
+
+    role_provider = MagicMock()
+    role_provider.map_api_user = MagicMock(return_value=MagicMock())
+
+    unit_service = MagicMock()
+    unit_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+
+    user_service = MagicMock()
+    user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+
+    carbon_report_service = MagicMock()
+    carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
+    carbon_report_service.ensure_modules_for_reports = AsyncMock()
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    return {
+        "unit_provider": unit_provider,
+        "role_provider": role_provider,
+        "unit_service": unit_service,
+        "user_service": user_service,
+        "carbon_report_service": carbon_report_service,
+        "repo": repo,
+    }
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_acquires_advisory_lock_on_postgres():
+    """Postgres backend → handler calls
+    ``pg_advisory_xact_lock(_AGGREGATION_LOCK_CATEGORY, year)`` BEFORE
+    any carbon_reports write.  Shared category with the aggregation
+    handler (same number, 1236) so the two mutually exclude on the
+    same year key."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "postgresql"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    # The advisory lock is the FIRST data_session.execute call; the
+    # year-config lookup follows.
+    assert data_session.execute.await_count >= 1
+    first_call = data_session.execute.await_args_list[0]
+    sql_text = str(first_call.args[0])
+    assert "pg_advisory_xact_lock" in sql_text
+    params = first_call.args[1]
+    assert params["year"] == 2026
+    # Must share the aggregation handler's category — that's the
+    # whole point of this commit.  Pin it as 1236 explicitly so a
+    # future refactor that splits the categories has to update this
+    # test, not silently break the mutual exclusion.
+    assert params["cat"] == 1236
+    assert params["cat"] == unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_skips_advisory_lock_on_non_postgres():
+    """SQLite / other → no advisory-lock attempt (single-writer model
+    serialises tests; lock is a no-op).  Mirrors the aggregation
+    handler's dialect-gate."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "sqlite"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    for call in data_session.execute.await_args_list:
+        assert "pg_advisory_xact_lock" not in str(call.args[0])
+
+
+def test_unit_sync_lock_category_matches_aggregation():
+    """Pin the invariant: unit_sync and aggregation MUST share the same
+    category number, otherwise their advisory locks live in disjoint
+    keyspaces and the mutual exclusion is silently broken."""
+    from app.tasks import aggregation_tasks
+
+    assert (
+        unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+        == aggregation_tasks._AGGREGATION_LOCK_CATEGORY
+    )
+
+
+# ---------------------------------------------------------------------------
 # bootstrap.py — every shipped handler MUST be registered after bootstrap
 # ---------------------------------------------------------------------------
 

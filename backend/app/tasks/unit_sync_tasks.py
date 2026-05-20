@@ -9,6 +9,7 @@ unit_sync, entity_type=GLOBAL_PER_YEAR).  Plan 310-C cutover: the
 from datetime import datetime, timezone
 
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -29,6 +30,20 @@ from app.services.user_service import UserService
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
+
+
+# #1236 — share the aggregation handler's per-year advisory-lock
+# category (1236) so unit_sync and aggregation serialise against each
+# other on the same year key.  unit_sync rewrites ``carbon_reports`` /
+# ``carbon_report_modules`` for every unit-year; aggregation rewrites
+# ``carbon_reports.stats`` as a rollup of the same rows.  Concurrent
+# writers race on the same key set — unit_sync inserting a new
+# unit-year row while aggregation is mid-rollup means the rollup misses
+# the new row (or worse, the rollup reads a half-inserted state).
+# Sharing the category guarantees they mutually exclude.  Imported by
+# value here to avoid a service-to-service edge between unit_sync and
+# aggregation_tasks.
+_AGGREGATION_LOCK_CATEGORY = 1236
 
 
 class SyncUnitRequest(BaseModel):
@@ -60,6 +75,28 @@ async def unit_sync_handler(
     if target_year is None:
         raise ValueError(
             f"unit_sync job {job.id} missing config.target_year (and job.year)"
+        )
+
+    # #1236 — per-year advisory lock against the aggregation handler.
+    # Held on ``data_session`` (the domain-data session that writes
+    # ``carbon_reports``); the runner commits/rolls back after this
+    # handler returns, releasing the lock.  Dialect-gated so the SQLite
+    # test fixture (single-writer model already serialises) is a no-op;
+    # production Postgres serialises unit_sync's carbon_reports writes
+    # against any concurrent aggregation for the same year.
+    try:
+        dialect_name = data_session.get_bind().dialect.name
+    except Exception:
+        dialect_name = ""
+    if dialect_name == "postgresql":
+        await data_session.execute(
+            text("SELECT pg_advisory_xact_lock(:cat, :year)"),
+            {"cat": _AGGREGATION_LOCK_CATEGORY, "year": int(target_year)},
+        )
+        logger.debug(
+            f"unit_sync handler (job {job.id}): acquired "
+            f"pg_advisory_xact_lock({_AGGREGATION_LOCK_CATEGORY}, "
+            f"{target_year}) — shared with aggregation_handler"
         )
 
     job_repo = DataIngestionRepository(job_session)
