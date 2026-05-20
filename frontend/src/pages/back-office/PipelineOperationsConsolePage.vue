@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { copyToClipboard, debounce, Notify } from 'quasar';
+import { useI18n } from 'vue-i18n';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
@@ -9,6 +10,8 @@ import {
   usePipelineOperationsConsole,
   type PipelineListItem,
 } from 'src/stores/pipelineOperationsConsole';
+
+const { t } = useI18n();
 
 const store = usePipelineOperationsConsole();
 
@@ -92,11 +95,56 @@ function jobColor(j: { state: string | null; result: string | null }): string {
   return 'positive';
 }
 
+/**
+ * Count of jobs in FINISHED state — the right denominator for the
+ * "X/N ✓" column.  ``job_count`` is the total; ``finished`` is how
+ * many are actually done (FINISHED state regardless of result).
+ */
+function jobsFinishedCount(p: PipelineListItem): number {
+  return p.jobs.filter((j) => j.state === 'FINISHED').length;
+}
+
+/**
+ * Pipeline-level message for the "Message" column — replaces the
+ * root job's ``status_message`` which was misleading while the chain
+ * was still running ("Success" displayed even though
+ * emission_recalc / aggregation children were RUNNING).
+ *
+ * Rules:
+ * - Pipeline DONE (success/partial/failed): show the root's
+ *   status_message verbatim (carries the cause for errors via the
+ *   #1219 ``finalize_ingest_meta`` enrichment).
+ * - Pipeline RUNNING and progress carries a phase: show
+ *   ``Phase {n}/3 · {phase_label}`` (the same phrasing the
+ *   data-management page uses, just inline).
+ * - Otherwise: dash.
+ */
+function pipelineMessage(p: PipelineListItem): string | null {
+  if (p.progress.done) return p.status_message ?? null;
+  if (p.progress.phase && p.progress.phase_label) {
+    const phaseI18n: Record<string, string> = {
+      data: 'pipeops_phase_data',
+      emissions: 'pipeops_phase_emissions',
+      aggregation: 'pipeops_phase_aggregation',
+    };
+    const key = phaseI18n[p.progress.phase_label];
+    const label = key ? t(key) : p.progress.phase_label;
+    return `${t('pipeops_phase_prefix')} ${p.progress.phase}/${p.progress.phases_total} · ${label}`;
+  }
+  return null;
+}
+
 function fmtDuration(a: string | null, b: string | null): string {
   if (!a) return '—';
   const start = new Date(a).getTime();
   const end = b ? new Date(b).getTime() : Date.now();
-  const s = Math.max(0, Math.round((end - start) / 1000));
+  const ms = Math.max(0, end - start);
+  // Sub-second jobs render "<1s" instead of "0s" — common for the
+  // trailing aggregation after 4A.3 scoped the write set down to just
+  // the affected modules.  "0s" read as "didn't run"; "<1s" says
+  // "ran, was just fast".
+  if (ms < 1000) return ms === 0 && !b ? '—' : '<1s';
+  const s = Math.round(ms / 1000);
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
@@ -402,7 +450,12 @@ onUnmounted(() => {
                   {{ p.year ?? '—' }}
                 </td>
                 <td>
-                  {{ p.job_count - p.error_count }}/{{ p.job_count }} ✓
+                  <!-- ``finished/total`` (FINISHED state count over total
+                       job count).  Previously rendered
+                       ``(total - errors)/total`` which always read "all
+                       done" while jobs were still RUNNING.  Errors are
+                       a separate suffix below. -->
+                  {{ jobsFinishedCount(p) }}/{{ p.job_count }} ✓
                   <span v-if="p.error_count" class="text-negative">
                     · {{ p.error_count }}✗
                   </span>
@@ -411,12 +464,12 @@ onUnmounted(() => {
                 <td>{{ fmtWhen(p.started_at) }}</td>
                 <td
                   class="text-grey-8 ellipsis"
-                  :class="{ 'cursor-pointer': !!p.status_message }"
+                  :class="{ 'cursor-pointer': !!pipelineMessage(p) }"
                   style="max-width: 320px"
                   :title="$t('pipeops_msg_click_hint')"
-                  @click.stop="openMsg(p.status_message)"
+                  @click.stop="openMsg(pipelineMessage(p))"
                 >
-                  {{ p.status_message ?? '—' }}
+                  {{ pipelineMessage(p) ?? '—' }}
                 </td>
               </tr>
               <tr v-if="expanded.has(rowKey(p))">

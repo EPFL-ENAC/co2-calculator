@@ -101,6 +101,18 @@ const pipelinePhaseLabelKey = computed<string | null>(() => {
   return PIPELINE_PHASE_LABEL_KEYS[p.phase_label] ?? null;
 });
 
+// Pipeline-in-progress flag for the "validated" ✓ indicator below.
+// The green ✓ next to the filename used to appear as soon as the
+// upload job finished — even when emission_recalc / aggregation
+// children were still running.  Operators read that as "all done"
+// and were surprised to see RUNNING tasks on the pipeline-ops page.
+// Now the ✓ stays amber (⋯) until the WHOLE pipeline finishes,
+// matching what the pipeline-ops console shows.
+const pipelineStillRunning = computed<boolean>(() => {
+  const p = props.pipelineProgress;
+  return !!(p && !p.done);
+});
+
 function handleUpload() {
   if (props.row && props.targetType !== undefined) {
     emit('upload', props.row, props.targetType);
@@ -191,7 +203,21 @@ function handleCancel() {
       >
         <div class="column">
           <div class="row items-center text-body2 text-weight-medium">
-            <span class="text-positive q-mr-xs">✓</span>
+            <!-- Green ✓ only when the FULL pipeline is done — while
+                 emission_recalc / aggregation children are still
+                 running, show an amber ⋯ so the config page tells the
+                 same story as the pipeline-ops console.  Previously
+                 the ✓ appeared the moment csv_ingest finished and
+                 read as "all done" even though downstream was still
+                 in flight. -->
+            <span
+              v-if="pipelineStillRunning"
+              class="text-warning q-mr-xs"
+              :title="$t('data_management_pipeline_running_tooltip')"
+            >
+              ⋯
+            </span>
+            <span v-else class="text-positive q-mr-xs">✓</span>
             {{ jobInfo.fileName }}
           </div>
           <div class="text-caption text-grey-7">

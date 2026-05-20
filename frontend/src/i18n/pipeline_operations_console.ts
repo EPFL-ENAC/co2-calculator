@@ -93,4 +93,19 @@ export default {
   },
   pipeops_loading: { en: 'Loading…', fr: 'Chargement…' },
   pipeops_refresh: { en: 'Refresh', fr: 'Actualiser' },
+
+  // Inline phase hints rendered in the "Message" column while a
+  // pipeline is still running (replaces the root job's misleading
+  // ``status_message="Success"`` during the lag between csv_ingest
+  // FINISHED and the chain completing).
+  pipeops_phase_prefix: { en: 'Phase', fr: 'Phase' },
+  pipeops_phase_data: { en: 'Data inserted', fr: 'Données insérées' },
+  pipeops_phase_emissions: {
+    en: 'Emissions recalculating',
+    fr: 'Recalcul des émissions',
+  },
+  pipeops_phase_aggregation: {
+    en: 'Aggregating',
+    fr: 'Agrégation',
+  },
 };
