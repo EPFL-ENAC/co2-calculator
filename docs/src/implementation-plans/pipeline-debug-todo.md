@@ -101,8 +101,23 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
       `recompute_stats`'s side-effect rewrite of the parent
       `carbon_report.stats` synthesis (shared row). Phase 4A lever is
       **coalescing**, not narrower scoping.
-- [ ] **Phase 4A**: aggregation coalesce + scope to
-      `affected_module_ids` (extend `AGGREGATION_DEDUP`).
+- ✅ **Phase 4A — done (3 commits):**
+      - `73ec4d64` 4A.1 in-pipeline coalesce — last emission_recalc
+        sibling chains aggregation; others skip. Race-safe via
+        fresh-session `SELECT … FOR UPDATE` on parent + `meta
+        .recalc_work_complete` flag. 3 sequential aggregations per
+        upload → 1.
+      - `718cdd01` 4A.2 per-year `pg_advisory_xact_lock` in
+        `aggregation_handler` — serialises cross-pipeline
+        aggregations of the same year against shared
+        `carbon_reports.stats` rows; no drop-hazard. Dialect-gated
+        (SQLite skip).
+      - `1b20f967` 4A.3 scope to `affected_module_ids` union —
+        aggregation rewrites only modules the recalc siblings
+        actually touched (typically 432 vs 2231).
+      Combined: amplification killed (4A.1), cross-pipeline deadlock
+      eliminated (4A.2), per-aggregation write set shrunk (4A.3).
+- ✅ **Phase 4A**: shipped as 4A.1/4A.2/4A.3 (see Done section).
 - [ ] **Phase 4B**: scoped `(module,det,year)` factor→data ordering
       (correctness — stale-factor recalc); reuse
       `uq_emission_recalc_active`.
