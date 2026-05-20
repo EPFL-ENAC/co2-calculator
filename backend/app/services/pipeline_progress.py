@@ -27,18 +27,32 @@ The model is 3 fixed phases:
 
 from __future__ import annotations
 
-from typing import Iterable, Literal, TypedDict
+from typing import Iterable, Literal, Optional, TypedDict
 
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionResult,
     IngestionState,
+    Pipeline,
+    PipelineStatus,
 )
 
 PhaseLabel = Literal["data", "emissions", "aggregation"]
 
-#: Job types that can be the root of a pipeline (no parent_job_id).
-_ROOT_JOB_TYPES = {"csv_ingest", "api_ingest", "factor_ingest"}
+#: Terminal ``pipelines.status`` values — Phase-3 read-flip uses these for
+#: ``done``/``has_error`` instead of inferring from a possibly-incomplete
+#: job snapshot.  PARTIAL = chain completed with some children erroring;
+#: FAILED = chain broken (a job FINISHED+ERROR aborted the fan-out).
+_TERMINAL_PIPELINE_STATUSES = frozenset(
+    {
+        PipelineStatus.SUCCESS.value,
+        PipelineStatus.PARTIAL.value,
+        PipelineStatus.FAILED.value,
+    }
+)
+_ERROR_PIPELINE_STATUSES = frozenset(
+    {PipelineStatus.PARTIAL.value, PipelineStatus.FAILED.value}
+)
 
 _PHASE_LABELS: dict[int, PhaseLabel] = {
     1: "data",
@@ -55,6 +69,20 @@ class PipelineProgress(TypedDict):
     phase_label: PhaseLabel
     done: bool
     has_error: bool
+    # PARTIAL tier (#1236) — the actual ``pipelines.status`` value so
+    # the frontend can render PARTIAL (amber, "data landed but chain
+    # had issues") distinctly from FAILED (red, "data didn't land").
+    # ``None`` for orphans whose Pipeline row was never minted; the
+    # frontend falls back to has_error/done in that case.
+    status: Optional[str]
+    # Parent ``job_type`` ("csv_ingest" / "api_ingest" / "factor_ingest"
+    # / "unit_sync" / "reference_ingest").  Used by the frontend to
+    # decide *which* per-target card the phase indicator applies to:
+    # a factor upload pipeline (``kind=factor_ingest``) should not
+    # render its phase on the data card, and vice versa.  Sourced
+    # from ``pipeline.kind`` when present; falls back to the root
+    # job's ``job_type`` for orphan / pre-Phase-1 cases.
+    kind: Optional[str]
 
 
 def _is_finished(job: DataIngestionJob) -> bool:
@@ -72,48 +100,89 @@ def _meta(job: DataIngestionJob) -> dict:
 
 
 def _find_root(jobs: list[DataIngestionJob]) -> DataIngestionJob | None:
-    """The pipeline's parent: the row with no ``parent_job_id``.
+    """The pipeline's parent: the lowest-id job.
 
-    Falls back to the lowest-id root-typed job when meta is absent
-    (legacy rows / defensive — every chained child records
-    ``parent_job_id``, so a row lacking it is the root).
+    ``chain_job`` creates every fan-out child AFTER the parent, so the
+    lowest id is the parent by construction.  Phase 5 dropped the
+    previous ``meta.parent_job_id`` and ``_ROOT_JOB_TYPES`` filter — the
+    set omitted ``unit_sync`` and ``reference_ingest`` parents, leaving
+    those pipelines with no root.  The id-based pick is type-agnostic
+    and works for every root job_type.
+
+    ``id`` can be None only for unpersisted rows (never here); the
+    ``or 0`` keeps mypy happy and is harmless for real rows.
     """
-    rootless = [j for j in jobs if _meta(j).get("parent_job_id") is None]
-    candidates = rootless or [j for j in jobs if (j.job_type or "") in _ROOT_JOB_TYPES]
-    if not candidates:
+    if not jobs:
         return None
-    # ``id`` can be None only for unpersisted rows (never here); the
-    # ``or 0`` keeps mypy happy and is harmless for real rows.
-    return min(candidates, key=lambda j: j.id or 0)
+    return min(jobs, key=lambda j: j.id or 0)
 
 
 def compute_pipeline_progress(
     jobs: Iterable[DataIngestionJob],
+    *,
+    pipeline: Optional[Pipeline] = None,
 ) -> PipelineProgress:
     """Compute the authoritative phase/done/error for a pipeline.
 
     ``jobs`` is every row sharing one ``pipeline_id`` (any order).
 
+    **Phase-3 read-flip (#1236):** when a ``pipeline`` row is passed,
+    ``done`` and ``has_error`` derive from ``pipeline.status`` — the
+    durable, recompute-and-stored truth the runner writes
+    post-``finish_job`` and the reconciliation cron heals.  Without
+    it, both flags fall back to job-derived (the legacy path; used
+    for orphans that never minted a ``Pipeline`` row).
+
+    **Phase 5B (#1236):** all three meta keys (``parent_job_id``,
+    ``recalc_jobs_chained``, ``aggregation_job_id``) are retired.
+    ``expected_recalc`` comes from ``pipeline.expected_recalc``
+    (written by ``recompute_pipeline_status`` from the live job
+    count); the root is the lowest-id job (``chain_job`` creates
+    parents before children by construction); aggregation phase3 is
+    derived from the aggregation rows directly.
+
     Completion rules:
 
-    - **Phase 1 (data)** done ⇔ parent FINISHED.
+    - **Phase 1 (data)** done ⇔ parent (lowest-id job) FINISHED.
     - **Phase 2 (emissions)** done ⇔ parent FINISHED *and* the number
-      of FINISHED ``emission_recalc`` children ≥ the parent's
-      ``meta.recalc_jobs_chained`` (the count of children this
-      pipeline actually *owns* — dedup-skipped targets are owned by an
-      earlier pipeline and intentionally excluded, so 0 ⇒ phase 2 is
-      vacuously satisfied).  When the parent is FINISHED but the
-      counter is absent (legacy / non-ingest root), fall back to
-      "every recalc row present is FINISHED".
+      of FINISHED ``emission_recalc`` children ≥ the pipeline's
+      expected recalc count (``pipeline.expected_recalc`` when
+      present, else the live job count — which matches the writer's
+      own derivation).  Dedup-skipped targets live under another
+      pipeline's id and aren't in ``jobs``, so 0 expected ⇒ phase 2
+      vacuously satisfied.
     - **Phase 3 (aggregation)** done ⇔ phase 2 done *and* every
-      aggregation referenced by a FINISHED recalc
-      (``meta.aggregation_job_id``) is itself present and FINISHED.
-    - ``done`` ⇔ phase 3 done **or** any job is FINISHED+ERROR (a
-      broken chain spawns no further children, so an error anywhere is
-      terminal — the UI must stop the spinner and surface failure).
+      aggregation row in this pipeline is FINISHED.  Relies on
+      4A.1's invariant that the last recalc sibling chains exactly
+      one aggregation per pipeline; if that ever changes, this check
+      stays semantically correct only by counting ALL aggregation
+      rows (any new fan-out must preserve that).
+    - ``done`` / ``has_error`` ← ``pipeline.status`` when provided
+      (Phase 3 read-flip); fall back to job-derived otherwise.
     """
     jobs = list(jobs)
-    has_error = any(_is_finished_error(j) for j in jobs)
+    has_error_jobs = any(_is_finished_error(j) for j in jobs)
+
+    # Phase 3 read-flip: pipeline.status is authoritative when present.
+    # has_error / done come from the table; phase still derives from
+    # jobs (no column to read it from yet).  ``status_str`` is exposed
+    # in the progress dict so the frontend can distinguish PARTIAL
+    # (amber) from FAILED (red) — both set has_error=True so a single
+    # boolean can't tell them apart.
+    if pipeline is not None:
+        has_error = pipeline.status in _ERROR_PIPELINE_STATUSES
+        is_done = pipeline.status in _TERMINAL_PIPELINE_STATUSES
+        status_str: Optional[str] = pipeline.status
+        # ``pipeline.kind`` is the parent job_type (set at
+        # ``ensure_pipeline_exists`` time).  Prefer it over the root
+        # job's ``job_type`` so a legacy data-shape mismatch (e.g.
+        # a meta backfill that doesn't reach jobs) still resolves.
+        kind: Optional[str] = pipeline.kind
+    else:
+        has_error = has_error_jobs
+        is_done = None  # sentinel: compute from jobs below
+        status_str = None  # orphan — frontend falls back to has_error/done
+        kind = None  # populated below from root.job_type when available
 
     root = _find_root(jobs)
     if root is None:
@@ -123,43 +192,48 @@ def compute_pipeline_progress(
             phase=1,
             phases_total=3,
             phase_label="data",
-            done=has_error,
+            done=is_done if is_done is not None else has_error,
             has_error=has_error,
+            status=status_str,
+            kind=kind,
         )
 
+    # Fallback for the no-pipeline-row case: root's job_type IS the
+    # parent's job_type by construction (lowest-id is the parent).
+    if kind is None:
+        kind = root.job_type
+
     recalc_jobs = [j for j in jobs if j.job_type == "emission_recalc"]
-    aggregation_jobs = {
-        j.id: j for j in jobs if j.job_type == "aggregation" and j.id is not None
-    }
+    aggregation_jobs = [j for j in jobs if j.job_type == "aggregation"]
 
     phase1_done = _is_finished(root)
 
-    # Expected owned recalc children. ``recalc_jobs_chained`` is
-    # written by the parent handler's return meta (merged on
-    # finish_job); absent until the parent is FINISHED.
-    expected_recalc = _meta(root).get("recalc_jobs_chained")
+    # Phase 5B (#1236) — expected recalc count.  Primary source:
+    # ``pipeline.expected_recalc`` (Phase 5A writes it on every
+    # recompute).  Fallback for callers that don't pass ``pipeline``
+    # (orphans, tests, the writer-side ``recompute_pipeline_status``
+    # which can't read its own output): derive from the live job
+    # count.  Matches the value the writer would produce by the same
+    # rule, so the two paths agree.
     finished_recalc = [j for j in recalc_jobs if _is_finished(j)]
-    if expected_recalc is None:
-        # Legacy / non-ingest root: best-effort — done when every
-        # recalc row we can see is FINISHED (and at least the parent
-        # is FINISHED so the fan-out has been issued).
-        phase2_done = phase1_done and len(finished_recalc) == len(recalc_jobs)
+    if pipeline is not None and pipeline.expected_recalc is not None:
+        expected_recalc = int(pipeline.expected_recalc)
     else:
-        phase2_done = phase1_done and len(finished_recalc) >= int(expected_recalc)
+        expected_recalc = len(recalc_jobs)
+    phase2_done = phase1_done and len(finished_recalc) >= expected_recalc
 
-    # Aggregations are only expected for recalc children that actually
-    # chained one (success/warning, module known). A FINISHED recalc
-    # records ``aggregation_job_id`` (None when it dedup-skipped or
-    # skipped on error) in its meta.
-    expected_agg_ids = {
-        agg_id
-        for j in finished_recalc
-        if (agg_id := _meta(j).get("aggregation_job_id")) is not None
-    }
-    aggregations_done = all(
-        agg_id in aggregation_jobs and _is_finished(aggregation_jobs[agg_id])
-        for agg_id in expected_agg_ids
-    )
+    # Phase 5B — aggregation phase3 derived from job rows directly,
+    # not ``meta.aggregation_job_id``.  4A.1's in-pipeline coalesce
+    # chains EXACTLY ONE aggregation per pipeline (the last recalc
+    # sibling is the chainer), so "all aggregation rows FINISHED" is
+    # the right oracle: 0 aggregations ⇒ vacuously satisfied (every
+    # recalc dedup-skipped its aggregation or errored before chaining);
+    # 1+ aggregations ⇒ they must all be FINISHED.
+    # CAVEAT: if 4A.1's single-aggregation guarantee ever changes
+    # (e.g. per-recalc aggregations come back), this check stays
+    # correct only because we count ALL aggregation rows — anyone
+    # adding fan-out must keep that invariant or update this check.
+    aggregations_done = all(_is_finished(j) for j in aggregation_jobs)
     phase3_done = phase2_done and aggregations_done
 
     if not phase1_done:
@@ -169,10 +243,19 @@ def compute_pipeline_progress(
     else:
         phase = 3
 
+    # Phase-3 read-flip: pipeline.status carries ``done`` when present;
+    # otherwise fall back to the job-derived oracle (phase3 OR error).
+    if is_done is None:
+        done = phase3_done or has_error
+    else:
+        done = is_done
+
     return PipelineProgress(
         phase=phase,
         phases_total=3,
         phase_label=_PHASE_LABELS[phase],
-        done=phase3_done or has_error,
+        done=done,
         has_error=has_error,
+        status=status_str,
+        kind=kind,
     )

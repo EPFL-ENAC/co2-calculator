@@ -468,6 +468,7 @@ async def get_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
@@ -575,7 +576,18 @@ async def create_year_configuration(
         pipeline_id=pipeline_id,
         meta={"config": {"target_year": year}},
     )
-    created_job = await DataIngestionRepository(db).create_ingestion_job(job)
+    # #1236 Phase 2 — Pipeline row MUST exist before the
+    # data_ingestion_jobs INSERT flushes, else the FK rejects.
+    # ``ensure_pipeline_exists`` is idempotent.
+    repo = DataIngestionRepository(db)
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="unit_sync",
+        entity_type=EntityType.GLOBAL_PER_YEAR.value,
+        ingestion_method=IngestionMethod.api.value,
+        year=year,
+    )
+    created_job = await repo.create_ingestion_job(job)
 
     await db.commit()
     await db.refresh(new_config)
@@ -732,6 +744,7 @@ async def update_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,

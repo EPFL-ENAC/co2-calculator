@@ -50,6 +50,19 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Name',
     fr: 'Nom',
   },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`]:
+    {
+      en: 'e.g., Agitator, Centrifuge',
+      fr: 'ex. : Agitateur, Centrifugeuse',
+    },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`]: {
+    en: 'e.g., Laptop, Monitor',
+    fr: 'ex. : Ordinateur portable, Moniteur',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`]: {
+    en: 'e.g., Freezer, Fridge',
+    fr: 'ex. : Congélateur, Réfrigérateur',
+  },
   [`${MODULES.EquipmentElectricConsumption}.inputs.class`]: {
     en: 'Class',
     fr: 'Classe',
@@ -92,11 +105,11 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
       fr: 'Équipement scientifique ({count}) | Équipements scientifiques ({count})',
     },
   [`${MODULES.EquipmentElectricConsumption}-it-equipment-table-title`]: {
-    en: 'IT Equipment ({count}) | IT Equipments ({count})',
+    en: 'IT equipment ({count}) | IT equipments ({count})',
     fr: 'Équipement informatique ({count}) | Équipements informatiques ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-other-equipment-table-title`]: {
-    en: 'Other Equipment ({count}) | Other Equipments ({count})',
+    en: 'Other equipment ({count}) | Other equipments ({count})',
     fr: 'Autre équipement ({count}) | Autres équipements ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-form-title`]: {

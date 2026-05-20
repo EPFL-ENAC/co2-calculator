@@ -409,12 +409,12 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-buildings-room-category': {
-    en: 'Buildings room',
-    fr: 'Salles des bâtiments',
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
   'charts-buildings-energy-combustion-category': {
-    en: 'Energy combustion emissions',
-    fr: 'Emissions de combustion d’énergie',
+    en: 'Thermal energy emissions',
+    fr: 'Emissions d’énergie thermique',
   },
   // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
@@ -483,7 +483,7 @@ export default {
   },
   'charts-pellets-subcategory': {
     en: 'Pellets',
-    fr: 'Pellets',
+    fr: 'Granulés de bois',
   },
   'charts-forest-chips-subcategory': {
     en: 'Forest Chips',
@@ -491,7 +491,7 @@ export default {
   },
   'charts-wood-logs-subcategory': {
     en: 'Wood Logs',
-    fr: 'Bûches',
+    fr: 'Bois bûche',
   },
   'charts-ln2-subcategory': {
     en: 'LN2',
@@ -507,7 +507,7 @@ export default {
   },
   'charts-commuting-category': {
     en: 'Commuting',
-    fr: 'Déplacements domicile-travail',
+    fr: 'Pendularité',
   },
   'charts-food-category': {
     en: 'Food',
@@ -542,8 +542,8 @@ export default {
     fr: 'Équipement',
   },
   'charts-external-cloud-category': {
-    en: 'External cloud',
-    fr: 'Cloud externe',
+    en: 'External clouds & AI',
+    fr: 'Clouds externes & IA',
   },
   'emission-type-breakdown-info-equipment': {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
@@ -762,12 +762,12 @@ export default {
     fr: "Type d'émission",
   },
   results_additional_title: {
-    en: 'Additional Categories',
+    en: 'Additional categories',
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+    en: "These emissions are calculated based on EPFL's general assumptions and use only headcount and buildings information as unit-specific data.",
+    fr: "Ces émissions sont calculées sur la base des hypothèses générales de l’EPFL et utilisent uniquement les données de l'unité: personnel et bâtiments.",
   },
   results_additional_headcount_card_title: {
     en: 'Commuting, food and waste',

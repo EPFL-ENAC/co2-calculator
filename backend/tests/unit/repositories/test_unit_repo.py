@@ -192,4 +192,109 @@ async def test_count(repo):
     result = await repo.count()
 
     assert result == 42
-    repo.session.execute.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# bulk_upsert race-safety (#1236) — Postgres path uses INSERT … ON
+# CONFLICT DO UPDATE so two parallel unit_sync jobs no longer crash on
+# ``ix_units_institutional_code``.  User-reported 2026-05-20: creating
+# year 2025 + 2026 in parallel had the second handler fail with
+# ``UniqueViolation`` on code 14270.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_postgresql_uses_on_conflict():
+    """Postgres backend → bulk_upsert issues an INSERT statement that
+    carries ON CONFLICT (institutional_code) DO UPDATE.  Race-safe by
+    construction: two concurrent transactions both INSERT, the loser
+    gets the DO UPDATE branch instead of a UniqueViolation."""
+    session = MagicMock()
+    session.get_bind.return_value.dialect.name = "postgresql"
+
+    # First execute(): SELECT existing codes (used for created/updated
+    # count).  Returns an empty result so every unit looks "new".
+    pre_select_result = MagicMock()
+    pre_select_result.all = MagicMock(return_value=[])
+    # Second execute(): the INSERT … ON CONFLICT itself.  RETURNING
+    # bounces the inserted/updated row back.
+    upsert_result = MagicMock()
+    upsert_result.scalars.return_value.all.return_value = [MagicMock(id=1)]
+
+    session.execute = AsyncMock(side_effect=[pre_select_result, upsert_result])
+
+    repo = UnitRepository(session)
+    unit = Unit(
+        provider=UserProvider.DEFAULT,
+        institutional_code="14270",
+        name="180C",
+        level=4,
+    )
+
+    res = await repo.bulk_upsert([unit])
+
+    # Two execute() calls: SELECT for created-count, INSERT…ON CONFLICT.
+    assert session.execute.await_count == 2
+    insert_sql = str(session.execute.await_args_list[1].args[0])
+    assert "ON CONFLICT" in insert_sql.upper()
+    assert "institutional_code" in insert_sql
+    assert res.total == 1
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_sqlite_uses_legacy_select_merge():
+    """SQLite test fixture (single-writer) → no race possible, keep the
+    legacy SELECT-then-merge path.  Pinned so a refactor doesn't break
+    the test fixture by forcing ON CONFLICT (which SQLAlchemy's
+    sqlite dialect supports but the existing tests don't expect)."""
+    session = MagicMock()
+    session.get_bind.return_value.dialect.name = "sqlite"
+
+    rows_result = MagicMock()
+    rows_result.all = MagicMock(return_value=[("X1", 1), ("X2", 2)])
+    session.exec = AsyncMock(return_value=rows_result)
+    session.merge = AsyncMock(side_effect=lambda u: u)
+
+    repo = UnitRepository(session)
+    units = [
+        Unit(
+            provider=UserProvider.DEFAULT,
+            institutional_code="X1",
+            name="A",
+            level=4,
+        ),
+        Unit(
+            provider=UserProvider.DEFAULT,
+            institutional_code="NEW",
+            name="C",
+            level=4,
+        ),
+    ]
+
+    res = await repo.bulk_upsert(units)
+
+    # Legacy path uses session.exec (not session.execute) for the SELECT.
+    session.exec.assert_awaited_once()
+    # No ON CONFLICT statement on this path.
+    for call in session.execute.await_args_list:
+        assert "ON CONFLICT" not in str(call.args[0]).upper()
+    assert res.created == 1  # NEW
+    assert res.updated == 1  # X1 matched
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_empty_input_short_circuits():
+    """Defensive — empty input must short-circuit BEFORE the dialect
+    check (no DB queries) so a no-op upsert is free."""
+    session = MagicMock()
+    session.execute = AsyncMock()
+    session.exec = AsyncMock()
+    repo = UnitRepository(session)
+
+    res = await repo.bulk_upsert([])
+
+    assert res.total == 0
+    assert res.data == []
+    # No DB queries on the no-op path.
+    session.execute.assert_not_awaited()
+    session.exec.assert_not_awaited()
