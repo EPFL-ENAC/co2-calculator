@@ -101,9 +101,22 @@ const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {
 };
 
 const TARGET_TO_KINDS: Record<number, ReadonlyArray<string>> = {
-  // TargetType.DATA_ENTRIES = 0 — the parent of a data-pipeline is
-  // csv_ingest (file upload) or api_ingest (admin-triggered sync).
-  [TargetType.DATA_ENTRIES]: ['csv_ingest', 'api_ingest'],
+  // TargetType.DATA_ENTRIES = 0 — every pipeline whose work targets
+  // the data-entries domain belongs on the data card:
+  //   * csv_ingest / api_ingest — user uploads or admin sync.
+  //   * emission_recalc / module_emission_recalc — pipelines minted by
+  //     POST /sync/recalculate-emissions/{module}[/{det}] when the
+  //     operator clicks the "Recalculate" button on the data card.
+  //     Their kind is set at the parent's ensure_pipeline_exists call
+  //     in data_sync.py:1610 + :1710.  Without these the recalc
+  //     pipeline runs but the data card stays blank — confusing
+  //     because the button that triggered it IS on the data card.
+  [TargetType.DATA_ENTRIES]: [
+    'csv_ingest',
+    'api_ingest',
+    'emission_recalc',
+    'module_emission_recalc',
+  ],
   // TargetType.FACTORS = 1 — the parent is always factor_ingest.
   [TargetType.FACTORS]: ['factor_ingest'],
   // TargetType.REFERENCE_DATA = 3 — reference uploads (building rooms,

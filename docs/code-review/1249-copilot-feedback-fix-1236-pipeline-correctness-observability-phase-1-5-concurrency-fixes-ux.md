@@ -92,6 +92,14 @@ Copilot reviewed 63 out of 63 changed files in this pull request and generated 3
 
 ---
 
+### Summary Feedback (copilot-pull-request-reviewer)
+
+## Pull request overview
+
+Copilot reviewed 66 out of 66 changed files in this pull request and generated 6 comments.
+
+---
+
 ### File: `backend/app/api/v1/data_sync.py` (Line null) — github-advanced-security[bot]
 
 ## CodeQL / Non-iterable used in for loop
@@ -129,20 +137,44 @@ Import of module [app.tasks.ingestion_tasks](1) begins an import cycle.
 
 ## New inline imports were introduced inside run_job() for \_chain helpers. These don’t appear to be required for avoiding a circular dependency (runner already imports from app.tasks.\_chain elsewhere), and they make dependencies harder to audit and can hide import-time errors until runtime. Prefer moving these imports to the module top (or at least the top of run_job alongside the existing bootstrap_handlers import) so they’re explicit and consistent.
 
+### File: `frontend/src/components/molecules/data-management/UploadCard.vue` (Line 107) — Copilot
+
+## `TARGET_TO_KINDS[TargetType.DATA_ENTRIES]` only allows `csv_ingest`/`api_ingest`, but backend also creates pipelines with kind `emission_recalc` and `module_emission_recalc` for the “Recalculate” actions (see `POST /sync/recalculate-emissions/...`). With the current mapping, those pipelines won’t show phase progress / the amber in-progress indicator on the data cards, which contradicts the intent of seeding `pipeline_id` from the recalc responses. Add the recalc kinds to the DATA_ENTRIES allowed list (or switch to a broader rule for DATA_ENTRIES pipelines).
+
+### File: `docs/src/implementation-plans/1236-pipelines-table-aggregate-root.md` (Line 5) — Copilot
+
+## This new implementation plan is missing the required YAML frontmatter (`---` block with at least `status`, `issue`, `last_updated`, `summary`). `docs/gen_indexes.py` groups implementation plans using that frontmatter; without it this page will fall under “Uncategorized” in the generated Implementation Plans index.
+
+### File: `docs/src/implementation-plans/1234-pipeline-operations-console.md` (Line 4) — Copilot
+
+## This new implementation plan is missing the required YAML frontmatter (`---` block with at least `status`, `issue`, `last_updated`, `summary`). `docs/gen_indexes.py` groups implementation plans using that frontmatter; without it this page will fall under “Uncategorized” in the generated Implementation Plans index.
+
+### File: `backend/app/tasks/runner.py` (Line 173) — Copilot
+
+## Inline imports were introduced for `_chain` helpers inside `run_job()`. This makes dependencies harder to audit and conflicts with the project’s “no inline imports” guideline; here it also isn’t necessary to break a cycle (runner already depends on `_chain` at runtime). Prefer moving these imports to module top (or refactor to remove the need for importing `_chain` from within the function).
+
+### File: `backend/app/tasks/runner.py` (Line 298) — Copilot
+
+## `discard_pending_dispatches` is imported inline in the error path. This adds another hidden dependency inside `run_job()` and conflicts with the project’s “no inline imports” guideline. Prefer importing `_chain` helpers once at module top (or refactor dispatch-queue helpers into a module that doesn’t require importing from inside control-flow branches).
+
+### File: `backend/app/tasks/_chain.py` (Line 107) — Copilot
+
+## `drain_pending_dispatches()` imports `run_job` from `app.tasks.runner` inside the function. This creates a runtime-level import edge back to the runner and is already flagged by CodeQL as a cyclic-import risk; it also violates the project’s “no inline imports” guideline. Consider breaking the `_chain ↔ runner` dependency by moving dispatch-queue utilities into a neutral module and injecting a dispatcher callback, so `_chain` never imports `runner`.
+
 ## Action Items
 
 ### Critical: logic, security, correctness
 
-_None — the only CodeQL error (data_sync.py "Non-iterable used in for loop") is already addressed in commit `18f051d4` (`_resolve_enum_name` now iterates `enum_cls.__members__.values()`)._
+- [ ] **`frontend/src/components/molecules/data-management/UploadCard.vue:107`** — `TARGET_TO_KINDS[TargetType.DATA_ENTRIES]` is missing `emission_recalc` and `module_emission_recalc`. The two `/sync/recalculate-emissions*` endpoints (verified at `app/api/v1/data_sync.py:1610` and `:1710`) call `ensure_pipeline_exists(kind="emission_recalc"|"module_emission_recalc")`, so clicking the data card's "Recalculate" button creates a pipeline whose `kind` doesn't match the card's allowed list → `pipelineAppliesToCard` returns false → no phase indicator, no amber ⋯, even though the operator triggered the recalc _from_ the data card. Fix: change the mapping to `[TargetType.DATA_ENTRIES]: ['csv_ingest', 'api_ingest', 'emission_recalc', 'module_emission_recalc']`. Bot's diagnosis is exactly right; apply the suggested fix.
 
 ### Maintainability / refactoring
 
-- [ ] **`backend/app/tasks/_dispatch.py`** _(new module)_ — extract the deferred-dispatch ContextVar + `reset_pending_dispatches` / `drain_pending_dispatches` / `discard_pending_dispatches` out of `_chain.py` into a neutral module that imports nothing from `runner` or `_chain`. Then: (1) `runner.py` imports those three at module top (closes Copilot's runner.py:172 audit concern — the inline imports were OK but module-top is cleaner since no cycle prevents it); (2) `_chain.py` imports them at module top too; (3) move `_chain`'s lazy `from app.tasks.runner import run_job` inside `drain_pending_dispatches` into the new module — but invert the dependency: runner registers a dispatcher callback (`set_dispatcher(_dispatch_child)` at module load) and `_dispatch.drain()` calls the registered callback. That breaks `_chain ↔ runner` (CodeQL note at `_chain.py:103`) entirely, not just delaying it. **Note on Copilot's diagnosis:** runner does NOT already import from `_chain` at module top — bot misread. Skip the trivial "move to top of run_job" patch; do the extraction instead.
+- [ ] **`backend/app/tasks/_dispatch.py`** _(new module)_ — extract the deferred-dispatch ContextVar + `reset_pending_dispatches` / `drain_pending_dispatches` / `discard_pending_dispatches` out of `_chain.py` into a neutral module that imports nothing from `runner` or `_chain`. Invert the runner dependency: `runner.py` calls `set_dispatcher(_dispatch_child)` at module load (where `_dispatch_child` wraps `fire_and_forget(run_job(...))`), and `_dispatch.drain()` calls the registered callback instead of importing `run_job`. After: `runner.py` imports `_dispatch` at module top (closes Copilot's three inline-import comments on lines 172, 173, 298 — bot's "runner already imports from \_chain elsewhere" diagnosis is wrong, runner currently has NO module-top \_chain import, but the suggestion is sound once `_dispatch` exists). `_chain.py` also imports `_dispatch` at top, no lazy `run_job` import (closes the CodeQL `_chain.py:103/107` cyclic-import note). One refactor closes 5 bot comments.
 
-- [ ] **`backend/app/tasks/_ingest_meta.py`** _(new module, or move `finalize_ingest_meta` into `app/services/data_ingestion/`)_ — `reference_ingest_tasks.py:15` imports `finalize_ingest_meta` from `ingestion_tasks`, and `ingestion_tasks` transitively reaches `reference_ingest_tasks` via `runner` → `bootstrap_handlers` (CodeQL note at `reference_ingest_tasks.py:15`). Move `finalize_ingest_meta` (already extracted in `40542049`) into a leaf module that depends only on `app.models.data_ingestion`. Both ingest handler modules then import from there — no cycle. Same priority as the `_dispatch.py` extraction; pairs naturally.
+- [ ] **`backend/app/tasks/_ingest_meta.py`** _(new module — or move `finalize_ingest_meta` into `app/services/data_ingestion/`)_ — break the `reference_ingest_tasks ↔ ingestion_tasks` cycle CodeQL flagged at `reference_ingest_tasks.py:15`. The cycle path is `reference_ingest → ingestion_tasks → _chain → runner → bootstrap_handlers → reference_ingest` (all lazy past `_chain` so harmless at runtime, but CodeQL flags the static graph). Move `finalize_ingest_meta` to a leaf module that depends only on `app.models.data_ingestion`; both handler modules then import from there. Pairs naturally with the `_dispatch.py` extraction.
 
-- [ ] **`docs/src/implementation-plans/1236-pipelines-table-aggregate-root.md`** and **`docs/src/implementation-plans/1234-pipeline-operations-console.md`** — both start with `# 1236 — …` / `# 1234 — …` directly, no YAML frontmatter. `docs/gen_indexes.py` keys on `status` / `issue` / `last_updated` / `summary` to group entries; without frontmatter these end up in "Uncategorized" in the rendered MkDocs index. Match the shape used by `1219-stuck-jobs-and-pipeline-progress.md` and `220-csv-upload-implementation-summary.md` — add the `---\nstatus: delivered\nissue: <id>\nlast_updated: 2026-05-20\nsummary: …\n---` block at the top of each. One-line edits per file.
+- [ ] **`docs/src/implementation-plans/1236-pipelines-table-aggregate-root.md`** and **`docs/src/implementation-plans/1234-pipeline-operations-console.md`** — both lack the YAML frontmatter block (Copilot flagged twice each, lines 5/7 and 4/6 — same root cause across re-scans). `docs/gen_indexes.py` reads `status` / `issue` / `last_updated` / `summary` from frontmatter to group entries; without it both end up in "Uncategorized" in the rendered MkDocs index. Match the shape used by `1219-stuck-jobs-and-pipeline-progress.md` and `220-csv-upload-implementation-summary.md`: add the `---\nstatus: delivered\nissue: <id>\nlast_updated: 2026-05-20\nsummary: …\n---` block at the top of each. One-line edit per file.
 
 ### Dropped after verification
 
-- **CodeQL non-iterable for-loop in `_resolve_enum_name`** — already-fixed in `18f051d4`. CI pending re-run will clear it.
+- **CodeQL "Non-iterable used in for loop" on `data_sync.py`** — already-fixed in commit `18f051d4`. The loop now reads `enum_cls.__members__.values()` (verified at `app/api/v1/data_sync.py:460`). CodeQL hasn't re-scanned or the alert hasn't cleared in the dashboard, but the code is correct.
