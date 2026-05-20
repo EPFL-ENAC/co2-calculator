@@ -409,12 +409,12 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-buildings-room-category': {
-    en: 'Buildings room',
-    fr: 'Salles des bâtiments',
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
   'charts-buildings-energy-combustion-category': {
-    en: 'Energy combustion emissions',
-    fr: 'Emissions de combustion d’énergie',
+    en: 'Thermal energy emissions',
+    fr: 'Emissions d’énergie thermique',
   },
   // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
@@ -507,7 +507,7 @@ export default {
   },
   'charts-commuting-category': {
     en: 'Commuting',
-    fr: 'Déplacements domicile-travail',
+    fr: 'Pendularité',
   },
   'charts-food-category': {
     en: 'Food',
@@ -542,8 +542,8 @@ export default {
     fr: 'Équipement',
   },
   'charts-external-cloud-category': {
-    en: 'External cloud',
-    fr: 'Cloud externe',
+    en: 'External clouds & AI',
+    fr: 'Clouds externes & IA',
   },
   'emission-type-breakdown-info-equipment': {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
