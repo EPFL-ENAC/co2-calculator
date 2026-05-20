@@ -846,9 +846,6 @@ const getUncertainty = (
                         :comparison-highlight="`${$nOrDash(2)}${$t('results_units_tonnes')}`"
                         color="negative"
                       >
-                        <template #tooltip>{{
-                          $t('results_paris_agreement_tooltip')
-                        }}</template>
                       </BigNumber>
                     </q-card>
                   </template>
