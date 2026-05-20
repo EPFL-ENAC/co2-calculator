@@ -212,14 +212,19 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 
 ## ❓ Needs a decision (yours)
 
-- [ ] `PARTIAL` vs `FAILED` boundary — Phase 1 emits only
-      SUCCESS/FAILED; `PARTIAL` reserved, undefined.
+- ✅ `PARTIAL` vs `FAILED` boundary — **shipped (`04786254`)**.
+      Rule: root SUCCESS/WARNING + any descendant ERROR → PARTIAL
+      (amber, "data landed, chain had issues"); root ERROR → FAILED
+      (red, "data didn't land"). `compute_pipeline_progress` now
+      ships `status` in the progress payload so the frontend can
+      tell PARTIAL from FAILED (both set `has_error=True`).
+      `pipeops_status_partial` i18n key finally has a renderer.
 - [ ] Aggregation coalescing key: `(carbon_report scope, year)`? how
       `unit_sync` (year-level, also rewrites `carbon_reports`) folds in.
 - ✅ Phase-3 sweep cron cadence: **60s** (configurable via
       `PIPELINE_RECONCILER_INTERVAL_SECONDS`).
-- [ ] Remove the now-unused `pipeops_status_partial` i18n key? (left
-      in to avoid churn.)
+- ✅ `pipeops_status_partial` i18n key — kept (now rendered by the
+      PARTIAL tier; see `04786254`).
 
 ## ⚙️ Process / integration
 
