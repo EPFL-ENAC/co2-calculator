@@ -266,36 +266,38 @@ function handleCancel() {
         </q-icon>
       </div>
 
-      <!-- Stuck job: cancel button -->
-      <div
-        v-if="isJobStuck"
-        class="row items-center no-wrap"
-        style="gap: 0.5rem"
-      >
-        <q-spinner-rings color="grey" size="sm" />
-        <span class="text-caption text-grey-7">{{
-          $t('data_management_job_in_progress')
-        }}</span>
-        <q-btn
-          color="negative"
-          outline
-          icon="cancel"
-          size="sm"
-          :label="$t('data_management_cancel_job')"
-          class="text-weight-medium"
-          @click="handleCancel"
-        />
-      </div>
     </div>
 
-    <!-- Issue #1219 — live recalc-pipeline phase (module-scoped) -->
+    <!-- Issue #1219 + UX consolidation — ONE in-progress indicator
+         covering both the live csv_ingest (``isJobStuck``) and the
+         downstream recalc/aggregation phases (``pipelinePhaseLabelKey``).
+         Previously each rendered its own spinner-and-text row; during
+         phase 1 BOTH showed simultaneously ("Job in progress…" + "Step
+         1/3 · Inserting data…"), giving three loading icons on a single
+         card.  Now: one spinner, phase-label when available, plus the
+         cancel button when the parent job is the active running one. -->
     <div
-      v-if="pipelinePhaseLabelKey"
+      v-if="isJobStuck || pipelinePhaseLabelKey"
       class="row items-center text-caption q-mt-xs text-grey-7"
+      style="gap: 0.5rem"
       data-testid="pipeline-phase"
     >
-      <q-spinner-rings color="grey" size="sm" class="q-mr-xs" />
-      <span>{{ $t(pipelinePhaseLabelKey) }}</span>
+      <q-spinner-rings color="grey" size="sm" />
+      <span>{{
+        pipelinePhaseLabelKey
+          ? $t(pipelinePhaseLabelKey)
+          : $t('data_management_job_in_progress')
+      }}</span>
+      <q-btn
+        v-if="isJobStuck"
+        color="negative"
+        outline
+        icon="cancel"
+        size="sm"
+        :label="$t('data_management_cancel_job')"
+        class="text-weight-medium q-ml-sm"
+        @click="handleCancel"
+      />
     </div>
 
     <!-- API ingestion status (success: small inline line; error: banner below) -->

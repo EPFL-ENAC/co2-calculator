@@ -423,3 +423,153 @@ async def test_chain_job_no_dedup_does_not_require_scope_keys():
         )
 
     assert child_id == 200
+
+
+# ---------------------------------------------------------------------------
+# Deferred-dispatch contract (#1236) — chain_job must NOT fire children
+# until the runner drains, so children's first read sees the parent's
+# committed data_session writes.  User-reported 2026-05-20:
+# data_entry_emissions FK violation on data_entry_id after a re-upload
+# (DELETE old + INSERT new races the child recalc's snapshot).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_chain_job_defers_dispatch_when_context_initialised():
+    """When ``reset_pending_dispatches`` has been called (the
+    runner-driven path), ``chain_job`` must enqueue the child_id and
+    NOT fire run_job until ``drain_pending_dispatches`` is called.
+
+    Pins the contract that closes the data_session race: csv_ingest's
+    DELETE/INSERT against data_entries lives in the parent's
+    data_session.  Until the runner commits that session, the recalc
+    child must NOT run — otherwise the child's fresh session reads a
+    stale snapshot and the recalc's emission INSERT trips the
+    ``data_entry_emissions_data_entry_id_fkey`` FK once the parent's
+    commit lands.
+    """
+    parent = _make_parent()
+    parent.pipeline_id = uuid4()
+    repo = _make_repo_for_chain(parent)
+
+    created = MagicMock(id=777)
+    repo.create_ingestion_job = AsyncMock(return_value=created)
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    chain_mod.reset_pending_dispatches()
+    fire_calls: list[str] = []
+
+    with (
+        patch.object(chain_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(
+            chain_mod,
+            "fire_and_forget",
+            side_effect=lambda coro, *, name=None: (
+                fire_calls.append(name or "") or (coro.close(), MagicMock())[1]
+            ),
+        ),
+    ):
+        child_id = await chain_mod.chain_job(
+            parent,
+            job_type="emission_recalc",
+            session=session,
+        )
+
+    assert child_id == 777
+    # Critical: ``fire_and_forget`` MUST NOT be called during chain_job
+    # when the deferred-dispatch context is initialised — otherwise the
+    # FK race re-opens.
+    assert fire_calls == []
+    # The child id sits in the deferred queue waiting for the runner's
+    # post-commit drain.
+    pending = chain_mod._PENDING_DISPATCHES.get()
+    assert pending == [777]
+
+
+@pytest.mark.asyncio
+async def test_drain_pending_dispatches_fires_queued_children():
+    """``drain_pending_dispatches`` fires every queued child id via
+    ``fire_and_forget``.  Called by the runner after
+    ``data_session.commit()``."""
+    chain_mod.reset_pending_dispatches()
+    pending = chain_mod._PENDING_DISPATCHES.get()
+    assert pending is not None
+    pending.extend([101, 102, 103])
+
+    fired_names: list[str] = []
+    with patch.object(
+        chain_mod,
+        "fire_and_forget",
+        side_effect=lambda coro, *, name=None: (
+            fired_names.append(name or "") or (coro.close(), MagicMock())[1]
+        ),
+    ):
+        chain_mod.drain_pending_dispatches()
+
+    assert fired_names == ["run_job-101", "run_job-102", "run_job-103"]
+    # Queue cleared so a subsequent drain is a no-op (no double-fire).
+    assert chain_mod._PENDING_DISPATCHES.get() == []
+
+
+@pytest.mark.asyncio
+async def test_discard_pending_dispatches_clears_without_firing():
+    """On handler failure / preempt the runner calls this to drop the
+    queue — children must NOT run on a rolled-back parent's data."""
+    chain_mod.reset_pending_dispatches()
+    pending = chain_mod._PENDING_DISPATCHES.get()
+    assert pending is not None
+    pending.extend([201, 202])
+
+    fired_names: list[str] = []
+    with patch.object(
+        chain_mod,
+        "fire_and_forget",
+        side_effect=lambda coro, *, name=None: fired_names.append(name or ""),
+    ):
+        chain_mod.discard_pending_dispatches()
+
+    assert fired_names == []
+    assert chain_mod._PENDING_DISPATCHES.get() == []
+
+
+@pytest.mark.asyncio
+async def test_chain_job_fallback_fires_immediately_when_no_context():
+    """When the deferred-dispatch context is NOT initialised (ad-hoc
+    callers / legacy tests that haven't migrated), ``chain_job`` falls
+    back to immediate fire so the legacy contract is preserved.  Logs
+    a warning so the fallback is visible in operational logs."""
+    parent = _make_parent()
+    parent.pipeline_id = uuid4()
+    repo = _make_repo_for_chain(parent)
+
+    created = MagicMock(id=999)
+    repo.create_ingestion_job = AsyncMock(return_value=created)
+
+    session = MagicMock()
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    # Force the context to None to simulate "outside runner".
+    chain_mod._PENDING_DISPATCHES.set(None)
+
+    fire_calls: list[str] = []
+    with (
+        patch.object(chain_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(
+            chain_mod,
+            "fire_and_forget",
+            side_effect=lambda coro, *, name=None: (
+                fire_calls.append(name or "") or (coro.close(), MagicMock())[1]
+            ),
+        ),
+    ):
+        await chain_mod.chain_job(
+            parent,
+            job_type="emission_recalc",
+            session=session,
+        )
+
+    assert fire_calls == ["run_job-999"]

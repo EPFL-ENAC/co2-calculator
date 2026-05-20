@@ -160,6 +160,17 @@ async def run_job(job_id: int) -> None:
 
         try:
             handler_aborted = False
+            # #1236 — initialise the chain_job deferred-dispatch queue
+            # for this handler.  ``chain_job`` appends child_ids here
+            # instead of firing immediately; we drain after
+            # ``data_session.commit()`` so child handlers see the
+            # parent's committed writes.
+            from app.tasks._chain import (
+                drain_pending_dispatches,
+                reset_pending_dispatches,
+            )
+
+            reset_pending_dispatches()
             try:
                 handler = get_handler(job_type)
                 # mypy: handlers return ``Awaitable[dict]`` (registry-typed),
@@ -269,8 +280,22 @@ async def run_job(job_id: int) -> None:
 
             if handler_succeeded:
                 await data_session.commit()
+                # #1236 — drain chain_job's deferred dispatches NOW
+                # that ``data_session`` is committed.  Children opened
+                # fresh sessions for their reads; firing them earlier
+                # races the parent's commit and they'd see stale
+                # data_entries (the ones a re-upload just DELETEd) →
+                # FK violation on data_entry_emissions when the
+                # parent's commit lands mid-recalc.
+                drain_pending_dispatches()
             else:
                 await data_session.rollback()
+                # Parent's writes rolled back → don't fire children
+                # against a view of the world that no longer reflects
+                # the parent's intent.
+                from app.tasks._chain import discard_pending_dispatches
+
+                discard_pending_dispatches()
             # Plan 310 review finding B-C1: the FINISHED write must be a
             # compare-and-set on ``(locked_by=POD_ID AND state=RUNNING)``,
             # not a blind UPDATE.  The pre-handler preempt-check at line
@@ -310,9 +335,7 @@ async def run_job(job_id: int) -> None:
             # does, give the status write its own session.
             if pipeline_id_for_status is not None:
                 try:
-                    await repo.recompute_pipeline_status(
-                        pipeline_id_for_status
-                    )
+                    await repo.recompute_pipeline_status(pipeline_id_for_status)
                     await job_session.commit()
                 except Exception:
                     logger.exception(
