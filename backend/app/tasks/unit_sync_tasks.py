@@ -64,10 +64,32 @@ async def unit_sync_handler(
 
     job_repo = DataIngestionRepository(job_session)
 
+    # #2B — phase checklist. ``phases`` is the canonical timeline the
+    # console renders for unit_sync: each entry tracks start/finish
+    # timestamps + state. ``_start_phase`` closes the previous one and
+    # opens the next; ``_finish_last_phase`` closes the trailing one
+    # before the handler returns (the runner's ``finish_job`` merges
+    # this into ``meta.phases`` alongside ``status_history`` from
+    # ``update_ingestion_job``).
+    phases: list[dict] = []
+
+    def _start_phase(name: str) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        if phases and phases[-1].get("state") == "running":
+            phases[-1]["state"] = "finished"
+            phases[-1]["finished_at"] = now
+        phases.append({"name": name, "state": "running", "started_at": now})
+
+    def _finish_last_phase() -> None:
+        if phases and phases[-1].get("state") == "running":
+            phases[-1]["state"] = "finished"
+            phases[-1]["finished_at"] = datetime.now(timezone.utc).isoformat()
+
+    _start_phase("fetch_units")
     await job_repo.update_ingestion_job(
         job_id=job.id,
         status_message="Fetching units from Accred…",
-        metadata={},
+        metadata={"phases": phases},
     )
     await job_session.commit()
 
@@ -78,12 +100,13 @@ async def unit_sync_handler(
     units = [unit_provider.map_api_unit(u) for u in units_raw]
     principal_users = [role_provider.map_api_user(u) for u in principal_users_raw]
 
+    _start_phase("upsert_units_and_users")
     await job_repo.update_ingestion_job(
         job_id=job.id,
         status_message=(
             f"Upserting {len(units)} units and {len(principal_users)} principal users…"
         ),
-        metadata={},
+        metadata={"phases": phases},
     )
     await job_session.commit()
 
@@ -95,10 +118,11 @@ async def unit_sync_handler(
     user_upsert_result = await user_service.bulk_upsert(principal_users)
     principal_users = user_upsert_result.data
 
+    _start_phase("create_carbon_reports")
     await job_repo.update_ingestion_job(
         job_id=job.id,
         status_message=f"Creating carbon reports for year {target_year}…",
-        metadata={},
+        metadata={"phases": phases},
     )
     await job_session.commit()
 
@@ -110,16 +134,18 @@ async def unit_sync_handler(
     ]
     new_carbon_reports = await carbon_report_service.bulk_upsert(report_create_data)
 
+    _start_phase("ensure_modules")
     await job_repo.update_ingestion_job(
         job_id=job.id,
         status_message=(
             f"Ensuring modules for {len(new_carbon_reports)} carbon reports…"
         ),
-        metadata={},
+        metadata={"phases": phases},
     )
     await job_session.commit()
 
     await carbon_report_service.ensure_modules_for_reports(new_carbon_reports)
+    _finish_last_phase()
 
     # #1234-followup (Guilbert 2026-05-20): mark the year as provisioned
     # so /dispatch can gate uploads while a unit_sync is still running
@@ -146,6 +172,7 @@ async def unit_sync_handler(
     return {
         "status_message": "Unit sync completed",
         "result": IngestionResult.SUCCESS,
+        "phases": phases,
         "units_synced": len(units),
         "users_synced": len(principal_users),
         "unit_results": str(unit_upsert_result),

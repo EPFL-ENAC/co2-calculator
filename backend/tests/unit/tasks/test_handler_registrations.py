@@ -454,6 +454,16 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
     assert meta["units_synced"] == 2
     assert meta["carbon_reports_created"] == 2
     assert meta["carbon_report_year"] == 2025
+    # #2B — phase checklist: 4 phases recorded, all finished.
+    phases = meta.get("phases") or []
+    assert [p["name"] for p in phases] == [
+        "fetch_units",
+        "upsert_units_and_users",
+        "create_carbon_reports",
+        "ensure_modules",
+    ]
+    assert all(p["state"] == "finished" for p in phases)
+    assert all("started_at" in p and "finished_at" in p for p in phases)
 
 
 @pytest.mark.asyncio
