@@ -76,14 +76,10 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 
 - ✅ #1 Year-config gate — backend `13616a35`, frontend `c1e9ef01`.
 - ✅ #3 SSE on the ops page — `645b4799`.
-- [ ] **#2 `unit_sync` collapses to one aggregated task per year.**
-      Individual sub-tasks aren't exposed in the ops UI. Investigate
-      whether the sub-tasks are not created (backend collapses
-      everything into the `unit_sync` handler internally) or are
-      created but filtered out by the ops endpoint; expose them so
-      operators can see what's running inside the year-level
-      pipeline. **Investigation pending** before picking
-      backend-vs-frontend fix.
+- ✅ **#2** shipped (see Done). Real chained sub-jobs (#2C) deferred —
+      the phases checklist + status_history timeline already provide
+      per-phase visibility in the console; revisit only if the project
+      needs independent retry/locking per phase.
 
 ## 🔧 To DO — #1236 remaining phases
 
@@ -135,6 +131,15 @@ Honest gap: green `ruff`/`mypy`/`eslint`/`vue-tsc`/unit ≠ "works live".
 - ✅ **Phase 4B**: shipped as `1bd26748` (advisory lock at `(module,
       year)` scope, not `(module, det, year)` — broader but
       drop-hazard-free; see Done).
+- ✅ **#2 (unit_sync sub-tasks visibility)** — shipped as:
+      - `4ee30046` #2A generic `status_history` (append+capped at 50)
+      - `87a9d14d` #2B `meta.phases` checklist on `unit_sync` handler
+      - `046f48e0` #2D console renders timeline + phase checklist
+      - **#2C deferred**: real chained sub-jobs (heavy refactor of the
+        year-creation critical path) — #2B+#2D already provides the
+        per-phase visibility. Keep in mind if real chained semantics
+        ever become needed (independent retry per phase, separate
+        locking, etc.).
 - [ ] **Phase 5**: retire `meta` threading
       (`recalc_jobs_chained` / `aggregation_job_id` / `parent_job_id`
       read paths) once nothing consumes them.
