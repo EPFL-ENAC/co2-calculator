@@ -114,9 +114,11 @@ async def _stamp_job_type_and_meta(
     # closes the pod-crash-then-recovery orphan window the lazy path
     # explicitly worries about.
     if pipeline_id is not None:
-        row.pipeline_id = pipeline_id
-        # #1236 — create the pipeline aggregate row at parent creation
-        # (idempotent; the runner only advances status, never creates).
+        # #1236 Phase 2 FK — the Pipeline row MUST exist *before* we
+        # assign ``row.pipeline_id``.  Otherwise the SELECT inside
+        # ``ensure_pipeline_exists`` triggers SQLAlchemy autoflush,
+        # which writes UPDATE data_ingestion_jobs SET pipeline_id=…
+        # while ``pipelines`` is still empty → FK violation.
         await repo.ensure_pipeline_exists(
             pipeline_id,
             kind=job_type,
@@ -129,6 +131,7 @@ async def _stamp_job_type_and_meta(
             module_type_id=row.module_type_id,
             year=row.year,
         )
+        row.pipeline_id = pipeline_id
     db.add(row)
 
 

@@ -1,4 +1,4 @@
-"""Regression: every ``data_ingestion_jobs`` insert that carries a
+"""Regression: every ``data_ingestion_jobs`` write that carries a
 ``pipeline_id`` MUST be preceded by an ``ensure_pipeline_exists`` call
 on the same session (#1236 Phase 2 FK enforcement).
 
@@ -6,7 +6,7 @@ History — bugs this test guards against:
 
 1.  ``app/api/v1/year_configuration.py:create_year_configuration``
     shipped with no ``ensure_pipeline_exists`` call.  On stage the
-    Phase-2 FK rejected the resulting INSERT with
+    Phase-2 FK rejected the INSERT with
     ``ForeignKeyViolation: ... fk_data_ingestion_jobs_pipeline_id``.
 
 2.  Two ``data_sync.py`` sites
@@ -15,10 +15,18 @@ History — bugs this test guards against:
     — but ``create_ingestion_job`` flushes, so the FK fired before the
     parent row was inserted.
 
-Both shapes pre-Phase-2 (when there was no FK) wrote a
+3.  ``data_sync._stamp_job_type_and_meta`` and ``_chain.chain_job``
+    assigned ``row.pipeline_id = X`` *before* calling
+    ``ensure_pipeline_exists``.  The SELECT inside
+    ``ensure_pipeline_exists`` triggers SQLAlchemy's autoflush, which
+    writes an UPDATE that sets ``pipeline_id`` while ``pipelines`` is
+    still empty → FK violation.  This shape is sneakier than (1)/(2):
+    no explicit flush call, the autoflush is implicit.
+
+All three shapes pre-Phase-2 (when there was no FK) wrote a
 ``data_ingestion_jobs`` row with a ``pipeline_id`` that pointed at
 nothing in ``pipelines``, leaving the join unreliable.  The test
-exercises the FK directly so any regression of either shape fails
+exercises the FK directly so any regression of any shape fails
 loudly.
 
 SQLite defaults to FKs *off*; we enable the PRAGMA on the test engine
@@ -150,3 +158,67 @@ async def test_wrong_order_create_then_ensure_raises(
         await repo.create_ingestion_job(_job_with_pipeline(pid))
         # Unreachable — the flush above already raised.
         await repo.ensure_pipeline_exists(pid, kind="unit_sync", year=2026)
+
+
+# ---------------------------------------------------------------------------
+# Bug shape (3) — assigning ``row.pipeline_id`` BEFORE ``ensure_pipeline_exists``
+# lets autoflush write the UPDATE while ``pipelines`` is empty.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_dirty_pipeline_id_then_ensure_raises_via_autoflush(
+    fk_db_session: AsyncSession,
+):
+    """Negative control for the ``_stamp_job_type_and_meta`` / chain_job
+    bug.  A pre-existing job has ``pipeline_id = None``.  The bug
+    assigns ``row.pipeline_id = pid`` first, then calls
+    ``ensure_pipeline_exists`` — whose SELECT triggers autoflush,
+    which writes UPDATE … pipeline_id=pid while ``pipelines`` is
+    empty.  FK fires.
+    """
+    from uuid import uuid4
+
+    pid = uuid4()
+    repo = DataIngestionRepository(fk_db_session)
+
+    # Step 1: create a job with NO pipeline_id (allowed; FK is nullable).
+    job = _job_with_pipeline(None)
+    created = await repo.create_ingestion_job(job)
+    assert created.id is not None
+
+    # Step 2: the BUGGY ordering — mark the row dirty FIRST.
+    created.pipeline_id = pid
+    fk_db_session.add(created)
+
+    # Step 3: ``ensure_pipeline_exists`` SELECT triggers autoflush →
+    # UPDATE fires before the Pipeline row INSERT → FK rejects.
+    with pytest.raises(IntegrityError):
+        await repo.ensure_pipeline_exists(pid, kind="csv_ingest", year=2026)
+
+
+@pytest.mark.asyncio
+async def test_ensure_then_dirty_pipeline_id_succeeds(
+    fk_db_session: AsyncSession,
+):
+    """The supported ordering for the stamp/chain pattern: create the
+    Pipeline row FIRST, then assign ``row.pipeline_id``.  The caller's
+    eventual commit (or next autoflush) writes the UPDATE with the
+    parent row already present → FK ok.
+    """
+    from uuid import uuid4
+
+    pid = uuid4()
+    repo = DataIngestionRepository(fk_db_session)
+
+    job = _job_with_pipeline(None)
+    created = await repo.create_ingestion_job(job)
+    assert created.id is not None
+
+    # Correct order: pipelines row FIRST.
+    await repo.ensure_pipeline_exists(pid, kind="csv_ingest", year=2026)
+    created.pipeline_id = pid
+    fk_db_session.add(created)
+    await fk_db_session.flush()
+
+    assert created.pipeline_id == pid

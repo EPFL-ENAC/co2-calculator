@@ -154,17 +154,16 @@ async def chain_job(
     pipeline_id = parent.pipeline_id
     if pipeline_id is None:
         pipeline_id = uuid4()
-        parent.pipeline_id = pipeline_id
-        session.add(parent)
-        # #1236 — back-fill the pipeline aggregate row for ad-hoc runs
-        # that mint lazily (idempotent; atomic with the parent update).
+        # #1236 Phase 2 FK — Pipeline row MUST exist before we make
+        # ``parent.pipeline_id`` dirty.  Otherwise the SELECT inside
+        # ``ensure_pipeline_exists`` would autoflush an UPDATE on
+        # data_ingestion_jobs that references a pipeline that doesn't
+        # exist yet → FK violation.
         await repo.ensure_pipeline_exists(
             pipeline_id,
             kind=parent.job_type,
             entity_type=(
-                parent.entity_type.value
-                if parent.entity_type is not None
-                else None
+                parent.entity_type.value if parent.entity_type is not None else None
             ),
             ingestion_method=(
                 parent.ingestion_method.value
@@ -174,6 +173,8 @@ async def chain_job(
             module_type_id=parent.module_type_id,
             year=parent.year,
         )
+        parent.pipeline_id = pipeline_id
+        session.add(parent)
         await session.commit()
 
     resolved_module_type_id = (
