@@ -27,9 +27,77 @@ import asyncio
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
+from app.models.data_ingestion import IngestionMethod, TargetType
 from app.repositories.data_ingestion import DataIngestionRepository
+from app.tasks._chain import AGGREGATION_DEDUP, chain_job
 
 logger = get_logger(__name__)
+
+
+async def _recover_orphan_aggregations() -> int:
+    """Backfill aggregation jobs for pipelines whose coalescing gate
+    stalled.
+
+    See ``DataIngestionRepository.find_orphan_aggregation_pipelines``
+    for the precise definition.  This function pairs the discovery
+    with the dispatch: for each orphan, pick any recalc sibling as
+    the parent, call ``chain_job`` (which writes the aggregation row
+    and fire-and-forgets ``run_job``), and commit.  Each orphan is
+    its own transaction so a mid-sweep failure keeps earlier fixes.
+
+    Returns the number of aggregation jobs actually dispatched.
+    """
+    fired = 0
+    async with SessionLocal() as session:
+        repo = DataIngestionRepository(session)
+        orphans = await repo.find_orphan_aggregation_pipelines()
+        for pid in orphans:
+            # Pick a sibling as the chain parent. ``chain_job`` only
+            # reads its ``pipeline_id`` / ``module_type_id`` / ``year``
+            # — any FINISHED recalc sibling carries the same values.
+            siblings = await repo.list_jobs_by_pipeline_id(pid)
+            recalc_siblings = [s for s in siblings if s.job_type == "emission_recalc"]
+            if not recalc_siblings:
+                continue
+            parent = recalc_siblings[0]
+            try:
+                # ``dedup_config=AGGREGATION_DEDUP`` is the safety net
+                # if two pods race the sweep on the same pipeline —
+                # the partial unique index covers NOT_STARTED/QUEUED/
+                # RUNNING aggregation rows so only the first INSERT
+                # wins; the second is dropped by the dedup pre-check
+                # or the IntegrityError it surfaces.
+                child_id = await chain_job(
+                    parent,
+                    job_type="aggregation",
+                    module_type_id=parent.module_type_id,
+                    year=parent.year,
+                    ingestion_method=IngestionMethod.computed,
+                    target_type=TargetType.DATA_ENTRIES,
+                    session=session,
+                    dedup_config=AGGREGATION_DEDUP,
+                )
+                await session.commit()
+                if child_id is not None:
+                    fired += 1
+                    logger.info(
+                        "Pipeline reconciler backfilled orphan aggregation: "
+                        "pipeline_id=%s parent_recalc_id=%s child_id=%s",
+                        pid,
+                        parent.id,
+                        child_id,
+                    )
+            except Exception:
+                # Per-pipeline isolation: one orphan's failure (e.g.
+                # transient FK violation, dedup race) mustn't block
+                # the others.
+                logger.exception(
+                    "Pipeline reconciler failed to backfill orphan "
+                    "aggregation for pipeline_id=%s",
+                    pid,
+                )
+                await session.rollback()
+    return fired
 
 
 async def reconcile_pipeline_statuses_loop() -> None:
@@ -54,6 +122,17 @@ async def reconcile_pipeline_statuses_loop() -> None:
                     "Pipeline reconciler healed %s/%s pipeline(s)",
                     summary["corrected"],
                     summary["checked"],
+                )
+            # Orphan-aggregation backfill (#1080 follow-up, 2026-05-21
+            # stuck-recalc bug).  Independent of the status recompute —
+            # it fixes a DIFFERENT class of stall (the coalescing-gate
+            # gap), and the two healing actions naturally compose on
+            # the same sweep cadence.
+            fired = await _recover_orphan_aggregations()
+            if fired:
+                logger.info(
+                    "Pipeline reconciler backfilled %s orphan aggregation(s)",
+                    fired,
                 )
         except Exception as exc:
             logger.warning(

@@ -699,6 +699,90 @@ class DataIngestionRepository:
         )
         return new_status
 
+    async def find_orphan_aggregation_pipelines(self) -> list[UUID]:
+        """Identify pipelines whose trailing aggregation never fired.
+
+        Durable backstop for the
+        ``emission_recalc_handler._is_last_recalc_sibling`` coalescing
+        gate's known failure modes (see the gate's own docstring for
+        the full enumeration; load-bearing summary: an errored or
+        pod-killed sibling never advances the counter, so the
+        survivor that *would* have been "last" sees N-1/N and
+        declines to fan out).
+
+        A pipeline is an orphan when ALL of:
+
+        - ``Pipeline.status == RUNNING`` (not already terminal — once
+          status is SUCCESS / PARTIAL / FAILED the chain is closed
+          and an aggregation rerun would be redundant or unwanted).
+        - ``Pipeline.expected_recalc`` is set (Phase 5A wrote it; if
+          NULL the pipeline never had recalc fan-out planned and
+          there's nothing to recover).
+        - Every ``emission_recalc`` sibling is ``FINISHED`` (any
+          result) AND the count >= ``expected_recalc``.
+        - Zero ``aggregation`` job rows for the pipeline.
+
+        Returns the pipeline_ids only — the caller fires the
+        aggregation via ``chain_job`` so the dispatch + post-commit
+        run_job lifecycle stays in one place (importing ``chain_job``
+        from the repo would re-introduce the cycle ``_chain`` was
+        extracted to break).
+        """
+        # Step 1: every pipeline_id that has any emission_recalc job.
+        recalc_pids = (
+            await self.session.execute(
+                select(col(DataIngestionJob.pipeline_id))
+                .where(
+                    col(DataIngestionJob.pipeline_id).isnot(None),
+                    col(DataIngestionJob.job_type) == "emission_recalc",
+                )
+                .distinct()
+            )
+        ).all()
+        candidate_pids = [r[0] for r in recalc_pids if r[0] is not None]
+
+        orphans: list[UUID] = []
+        for pid in candidate_pids:
+            pipeline = (
+                await self.session.execute(
+                    select(Pipeline).where(col(Pipeline.id) == pid)
+                )
+            ).scalar_one_or_none()
+            if pipeline is None:
+                continue
+            if pipeline.status != PipelineStatus.RUNNING:
+                continue
+            if pipeline.expected_recalc is None:
+                continue
+            siblings = (
+                (
+                    await self.session.execute(
+                        select(DataIngestionJob).where(
+                            col(DataIngestionJob.pipeline_id) == pid,
+                            col(DataIngestionJob.job_type) == "emission_recalc",
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if len(siblings) < int(pipeline.expected_recalc):
+                continue
+            if any(s.state != IngestionState.FINISHED for s in siblings):
+                continue
+            agg_count = (
+                await self.session.execute(
+                    select(func.count(col(DataIngestionJob.id))).where(
+                        col(DataIngestionJob.pipeline_id) == pid,
+                        col(DataIngestionJob.job_type) == "aggregation",
+                    )
+                )
+            ).scalar_one()
+            if agg_count and int(agg_count) > 0:
+                continue
+            orphans.append(pid)
+        return orphans
+
     async def reconcile_pipeline_statuses(self) -> dict:
         """Phase-1 standalone reconciliation sweep (#1236).
 
