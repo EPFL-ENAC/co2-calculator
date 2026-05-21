@@ -61,7 +61,10 @@ const emit = defineEmits<{
   (e: 'download', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
-  (e: 'cancel', jobId: number): void;
+  // Stops the whole pipeline this card is bound to (replaces the
+  // legacy per-job ``cancel`` — see backofficeDataManagement.abortPipeline
+  // for the why).  Parent resolves the pipeline_id via inject.
+  (e: 'abort'): void;
 }>();
 
 const { cardStyle, getJobInfo, hasErrorOrWarning, getErrorDetails } =
@@ -164,10 +167,8 @@ function handleComputeFactors() {
   }
 }
 
-function handleCancel() {
-  if (props.lastJob?.job_id) {
-    emit('cancel', props.lastJob.job_id);
-  }
+function handleAbort() {
+  emit('abort');
 }
 </script>
 
@@ -326,7 +327,7 @@ function handleCancel() {
         size="sm"
         :label="$t('data_management_cancel_job')"
         class="text-weight-medium q-ml-sm"
-        @click="handleCancel"
+        @click="handleAbort"
       />
     </div>
 

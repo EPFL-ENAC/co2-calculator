@@ -1085,50 +1085,82 @@ async def get_latest_jobs_by_year(
     ]
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=SyncJobResponse)
-async def cancel_job(
-    job_id: int,
+class AbortPipelineResponse(BaseModel):
+    """Summary of an abort operation — how many jobs flipped, who did it.
+
+    The flipped jobs themselves are observable through the existing
+    pipeline SSE stream (``GET /sync/pipelines/{id}/stream``) on the
+    next poll, so this response stays terse: clients use it to render
+    a toast and re-read state from the stream they're already
+    subscribed to.
+    """
+
+    pipeline_id: str
+    aborted_job_ids: list[int]
+    aborted_by: str
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/abort",
+    response_model=AbortPipelineResponse,
+)
+async def abort_pipeline(
+    pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("backoffice.data_management", "sync")
     ),
 ):
-    """
-    Cancel a stuck ingestion job.
+    """Abort every non-terminal job of a pipeline.
 
-    Sets the job to FINISHED/ERROR and unsets is_current so the user
-    can re-upload. Only jobs in NOT_STARTED, QUEUED, or RUNNING state
-    can be cancelled.
+    Replaces the legacy ``POST /jobs/{job_id}/cancel``. Single-job
+    cancel was structurally wrong after the pipeline-debug refactor
+    (#1236): a typical chain has csv_ingest → emission_recalc(N) →
+    aggregation, and stopping one link leaves the rest orphaned.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    The endpoint marks each ``NOT_STARTED / QUEUED / RUNNING`` job
+    as ``FINISHED + ERROR`` with ``meta.aborted = True`` and **clears
+    the lock**, so an in-flight handler's preemption check trips,
+    rolls back its data writes, and exits without overwriting the
+    abort marker.  ``pipelines.status`` is recomputed inline so the
+    SSE stream surfaces the terminal state on its next ~2s tick.
+
+    Returns:
+        - 200 with summary on success.
+        - 404 if ``pipeline_id`` has no jobs (unknown pipeline).
+        - 409 if every job is already terminal (nothing to abort).
+
+    **Required Permission**: ``backoffice.data_management.sync``
+    (same as dispatch — abort is the inverse user action).
     """
     repo = DataIngestionRepository(db)
-    existing = await repo.get_job_by_id(job_id)
-    if existing is None:
+    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+    if not jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found or not cancellable",
+            detail=f"Pipeline {pipeline_id} not found",
         )
-    # TODO(#459): tighten when sub-perimeter scoping ships
-    await _check_job_scope(existing, current_user, db, action="sync")
-    job = await repo.cancel_job(job_id)
-    if not job or job.id is None:
+    # Per-job scope check using the parent (matches the SSE stream's
+    # gate at ``_check_pipeline_scope_from_jobs``).  TODO(#459):
+    # sub-perimeter scoping.
+    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="sync")
+
+    aborted = await repo.abort_pipeline(
+        pipeline_id, user_email=current_user.email or str(current_user.id)
+    )
+    if not aborted:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found or not cancellable",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Pipeline {pipeline_id} has no non-terminal jobs to abort "
+                "(every job is already FINISHED)."
+            ),
         )
     await db.commit()
-    return SyncJobResponse(
-        job_id=job.id,
-        module_type_id=job.module_type_id,
-        data_entry_type_id=job.data_entry_type_id,
-        year=job.year,
-        ingestion_method=job.ingestion_method,
-        target_type=job.target_type,
-        state=job.state,
-        result=job.result,
-        status_message=job.status_message,
-        meta=job.meta,
+    return AbortPipelineResponse(
+        pipeline_id=str(pipeline_id),
+        aborted_job_ids=[j.id for j in aborted if j.id is not None],
+        aborted_by=current_user.email or str(current_user.id),
     )
 
 
@@ -1531,7 +1563,7 @@ async def get_pipeline_jobs(
 
     Returns 404 when no jobs share the given ``pipeline_id`` — matches
     the convention of other lookup endpoints in this module
-    (``cancel_job``, ``recover_job``).
+    (``abort_pipeline``, ``recover_job``).
     """
     repo = DataIngestionRepository(db)
     jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)

@@ -32,7 +32,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
-  (e: 'cancel', jobId: number): void;
+  (e: 'abort'): void;
 }>();
 
 const { dataButtonColor, dataButtonLabel } = useUploadCard();
@@ -82,6 +82,6 @@ function handleRecalculate(item: ImportRow) {
     @upload="handleUpload"
     @download="handleDownload"
     @recalculate="handleRecalculate"
-    @cancel="emit('cancel', $event)"
+    @abort="emit('abort')"
   />
 </template>

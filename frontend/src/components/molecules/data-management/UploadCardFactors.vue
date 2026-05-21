@@ -35,7 +35,7 @@ const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
-  (e: 'cancel', jobId: number): void;
+  (e: 'abort'): void;
 }>();
 
 const { t } = useI18n();
@@ -102,6 +102,6 @@ function handleComputeFactors(item: ImportRow) {
     @download="handleDownload"
     @recalculate="handleRecalculate"
     @compute-factors="handleComputeFactors"
-    @cancel="emit('cancel', $event)"
+    @abort="emit('abort')"
   />
 </template>

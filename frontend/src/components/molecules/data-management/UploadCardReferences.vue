@@ -160,9 +160,18 @@ function downloadLastCsv(): void {
   document.body.removeChild(a);
 }
 
-async function handleCancelJob() {
-  if (!lastJob.value?.job_id) return;
-  await backofficeDataManagement.cancelJob(lastJob.value.job_id, props.year);
+// Module-scoped pipeline_id (provided by ModuleConfig — single SSE
+// subscriber).  References uploads run under their own pipeline kind
+// (``reference_ingest``) but live inside the same ModuleConfig provide
+// scope, so this resolves to the active reference pipeline when one is
+// in flight.
+const currentPipelineId =
+  inject<ComputedRef<string | null>>('currentPipelineId');
+
+async function handleAbortPipeline() {
+  const pipelineId = currentPipelineId?.value;
+  if (!pipelineId) return;
+  await backofficeDataManagement.abortPipeline(pipelineId);
   localJob.value = undefined;
 }
 
@@ -380,7 +389,7 @@ function isErrorOrWarning(): boolean {
           size="sm"
           :label="$t('data_management_cancel_job')"
           class="text-weight-medium"
-          @click="handleCancelJob"
+          @click="handleAbortPipeline"
         />
       </div>
 

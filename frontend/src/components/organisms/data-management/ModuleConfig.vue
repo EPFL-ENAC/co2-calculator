@@ -278,6 +278,11 @@ provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
 provide('pipelineProgress', pipelineProgress);
 provide('livePipelineJobsById', livePipelineJobsById);
+// Exposed for the abort-pipeline flow: cards / sections that own a
+// "Cancel/Abort" button read this to know which pipeline to stop.
+// Replaces the legacy per-job cancel (single-job operation went away
+// with the pipeline-debug refactor, #1236).
+provide('currentPipelineId', currentPipelineId);
 </script>
 
 <template>
