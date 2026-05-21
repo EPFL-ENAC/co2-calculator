@@ -256,18 +256,46 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         destination_iata = data_entry.data.get("destination_iata")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_iata is None or destination_iata is None:
+            # Entry persists but produces no emission leaves —
+            # "skip, don't default" semantic.  Log so an operator
+            # tracking missing-IATA uploads can find them without
+            # querying the DB directly.
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — missing "
+                "origin_iata or destination_iata (origin=%r, destination=%r)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                destination_iata,
+            )
             return {}
 
         loc_service = LocationService(session)
         origin = await loc_service.get_location_by_iata(origin_iata)
         dest = await loc_service.get_location_by_iata(destination_iata)
         if not origin or not dest:
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — IATA not found "
+                "in locations table (origin_iata=%r resolved=%s, "
+                "destination_iata=%r resolved=%s)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                origin is not None,
+                destination_iata,
+                dest is not None,
+            )
             return {}
         distance_one_trip_km = calculate_plane_distance(
             origin_airport=origin,
             dest_airport=dest,
         )
         if distance_one_trip_km is None:
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — distance "
+                "calculation returned None (origin_iata=%r, destination_iata=%r)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                destination_iata,
+            )
             return {}
         # TODO: find factors depending on distance not get_haul_category
         haul_category = get_haul_category(distance_one_trip_km)
@@ -377,6 +405,13 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         destination_natural_key = data_entry.data.get("destination_natural_key")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_name is None or destination_name is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — missing "
+                "origin_name or destination_name (origin=%r, destination=%r)",
+                getattr(data_entry, "id", None),
+                origin_name,
+                destination_name,
+            )
             return {}
         if not origin_natural_key or not destination_natural_key:
             # Should not happen on the CSV path — ``enrich_csv_row`` fills these
@@ -397,12 +432,30 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         dest = await loc_service.get_location_by_natural_key(destination_natural_key)
 
         if origin is None or dest is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — natural_key "
+                "not found in locations table (origin_key=%r resolved=%s, "
+                "destination_key=%r resolved=%s)",
+                getattr(data_entry, "id", None),
+                origin_natural_key,
+                origin is not None,
+                destination_natural_key,
+                dest is not None,
+            )
             return {}
         distance_one_trip_km = calculate_train_distance(
             origin_station=origin,
             dest_station=dest,
         )
         if distance_one_trip_km is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — distance "
+                "calculation returned None (origin_natural_key=%r, "
+                "destination_natural_key=%r)",
+                getattr(data_entry, "id", None),
+                origin_natural_key,
+                destination_natural_key,
+            )
             return {}
         distance_km = distance_one_trip_km * number_of_trips
 

@@ -99,6 +99,15 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
     ModuleTypeEnum.purchase: [EmissionType.purchases],
     ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
     ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
+    # Both research_facilities leaves
+    # (``research_facilities__facilities`` + ``research_facilities__animal``)
+    # roll up to ``EmissionType.research_facilities`` per the
+    # ``EMISSION_TYPE_PARENT_MAP`` declaration above.  Without this
+    # entry ``CarbonReportModuleService.recompute_stats`` early-returns
+    # for the module — stats stayed None on every research_facilities
+    # module, breaking the dashboard's per-module totals.  Reported by
+    # the past LLM-session review as item #1.
+    ModuleTypeEnum.research_facilities: [EmissionType.research_facilities],
 }
 
 
