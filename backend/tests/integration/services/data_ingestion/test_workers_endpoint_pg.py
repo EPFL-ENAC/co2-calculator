@@ -237,3 +237,55 @@ async def test_workers_endpoint_returns_empty_when_no_pods(pg_app):
 
     assert resp.status_code == 200, resp.text
     assert resp.json() == []
+
+
+@pytest.mark.asyncio
+async def test_workers_endpoint_tolerates_tz_naive_rows(pg_app):
+    """Defensive: a pre-existing ``pods`` table created with plain
+    ``TIMESTAMP`` (no TZ) — which a long-lived dev DB will have
+    because ``SQLModel.metadata.create_all`` doesn't ALTER existing
+    tables — must not 500 the endpoint.
+
+    Reproduces the original report (2026-05-21 user-reported 500 on
+    localhost): INSERTing a tz-naive ``last_heartbeat_at`` and
+    expecting the endpoint to coerce-on-read.  The fix treats naive
+    rows as UTC (matches what the heartbeat writer was always
+    producing on the wire — only the column type was different).
+    """
+    from sqlalchemy import text
+
+    Sf = pg_app["factory"]
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Bypass the ORM (which would coerce on write) and write the
+    # naive value at the SQL layer — matches what a TIMESTAMP-WITHOUT-
+    # TZ column would round-trip on read.
+    async with Sf() as s:
+        await s.execute(
+            text(
+                "INSERT INTO pods (pod_id, git_sha, app_version, "
+                "started_at, last_heartbeat_at) VALUES "
+                "(:pod_id, :sha, :ver, :start, :hb)"
+            ),
+            {
+                "pod_id": "pod-naive",
+                "sha": "deadbeef",
+                "ver": "1.0.0",
+                "start": now_naive,
+                "hb": now_naive,
+            },
+        )
+        await s.commit()
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        resp = await client.get(WORKERS_URL)
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert {r["pod_id"] for r in body} == {"pod-naive"}
+    # The naive row should still be considered live (heartbeat age
+    # within 2× interval), confirming the coercion path matched the
+    # tz-aware filter result.
+    assert body[0]["heartbeat_age_seconds"] < 2 * _interval_seconds()

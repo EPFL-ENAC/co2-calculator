@@ -1215,18 +1215,33 @@ async def list_workers(
 
     # Live pods only — pods whose process crashed leave a row behind
     # until the next deploy, and we don't want them showing as
-    # "claiming work".
-    pods = (
-        (
-            await db.execute(
-                select(Pod)
-                .where(col(Pod.last_heartbeat_at) >= cutoff)
-                .order_by(col(Pod.last_heartbeat_at).desc())
-            )
-        )
+    # "claiming work".  Skipping the SQL-level cutoff WHERE in favour
+    # of an in-Python filter so a schema-drift dev DB (``pods``
+    # column still ``TIMESTAMP`` without TZ from before the model
+    # moved to ``DateTime(timezone=True)``) doesn't explode the
+    # comparison — see ``_as_utc`` below.  Production never serves
+    # naive rows; this is purely defensive for long-lived dev DBs.
+    pods_all = (
+        (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
         .scalars()
         .all()
     )
+
+    def _as_utc(dt: datetime) -> datetime:
+        """Coerce tz-naive datetimes to UTC.
+
+        Defends against the schema-drift case where ``pods`` was
+        created with plain ``TIMESTAMP`` (no TZ) before the model
+        moved to ``DateTime(timezone=True)`` — ``SQLModel.metadata.
+        create_all`` doesn't ALTER existing tables, so a long-lived
+        dev DB still serves naive values.  Treating naive rows as
+        UTC matches what the heartbeat writer was always producing
+        (``datetime.now(timezone.utc)``) and keeps the subtraction
+        below from blowing up.
+        """
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+    pods = [p for p in pods_all if _as_utc(p.last_heartbeat_at) >= cutoff]
     if not pods:
         return []
 
@@ -1254,9 +1269,11 @@ async def list_workers(
             pod_id=p.pod_id,
             git_sha=p.git_sha,
             app_version=p.app_version,
-            started_at=p.started_at,
-            last_heartbeat_at=p.last_heartbeat_at,
-            heartbeat_age_seconds=int((now - p.last_heartbeat_at).total_seconds()),
+            started_at=_as_utc(p.started_at),
+            last_heartbeat_at=_as_utc(p.last_heartbeat_at),
+            heartbeat_age_seconds=int(
+                (now - _as_utc(p.last_heartbeat_at)).total_seconds()
+            ),
             claimed_job_count=claimed_by_pod.get(p.pod_id, 0),
         )
         for p in pods
