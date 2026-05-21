@@ -45,6 +45,61 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
+async def _stamp_recalc_work_complete(
+    job: DataIngestionJob,
+    *,
+    helper_session: AsyncSession | None = None,
+) -> None:
+    """Stamp ``meta.recalc_work_complete=True`` on this emission_recalc
+    row, idempotently, from a fresh isolated session.
+
+    Closes the trailing-aggregation stall reported 2026-05-21: an
+    emission_recalc sibling that errored never reached the
+    success-path stamp inside ``_is_last_recalc_sibling``, so the
+    coalescing counter stayed stuck at ``N-1/N`` and the surviving
+    siblings all declined to chain the aggregation.  Called from the
+    handler's outer ``try/except`` so success, error, AND mid-handler
+    raise paths all advance the counter.
+
+    Idempotent: re-stamping an already-stamped row is a no-op
+    (necessary because the success path's locked counter ALSO stamps
+    inside its own session; both stamps must be reconcilable).
+    Isolated session: a poisoned ``data_session`` mustn't roll back
+    this write — the runner's own ``rollback`` runs on the outer
+    session, not on the helper.
+
+    No-op on jobs without ``pipeline_id`` (legacy/orphan rows that
+    never participated in the coalescing gate) or non-UUID
+    ``pipeline_id`` (mock-driven unit tests — see the same gate in
+    ``_is_last_recalc_sibling``).
+    """
+    if job.pipeline_id is None or job.id is None:
+        return
+    if not isinstance(job.pipeline_id, UUID):
+        return
+
+    async def _stamp(helper: AsyncSession) -> None:
+        row = (
+            await helper.execute(
+                select(DataIngestionJob).where(DataIngestionJob.id == job.id)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return
+        if (row.meta or {}).get("recalc_work_complete"):
+            return
+        row.meta = {**(row.meta or {}), "recalc_work_complete": True}
+        helper.add(row)
+        await helper.flush()
+
+    if helper_session is not None:
+        await _stamp(helper_session)
+        return
+    async with SessionLocal() as helper:
+        await _stamp(helper)
+        await helper.commit()
+
+
 async def _is_last_recalc_sibling(
     job: DataIngestionJob,
     *,
@@ -282,7 +337,20 @@ async def emission_recalc_handler(
         f"running workflow for det={data_entry_type.name}/year={job.year}"
     )
     svc = EmissionRecalculationWorkflow(data_session)
-    stats = await svc.recalculate_for_data_entry_type(data_entry_type, job.year)
+    try:
+        stats = await svc.recalculate_for_data_entry_type(data_entry_type, job.year)
+    except Exception:
+        # Stamp the coalescing flag BEFORE re-raising so surviving
+        # siblings can still discover themselves as "last" and fire
+        # the trailing aggregation.  Without this, an errored sibling
+        # stalls the chain at N-1/N forever (the
+        # ``recover_orphan_aggregations`` sweep is the eventual
+        # backstop, but the latency is whole minutes — this keeps the
+        # common case sub-second).  Uses an isolated session so the
+        # in-progress poisoned ``data_session`` rollback can't undo
+        # the stamp.
+        await _stamp_recalc_work_complete(job)
+        raise
 
     result = (
         IngestionResult.SUCCESS if stats["errors"] == 0 else IngestionResult.WARNING

@@ -1,7 +1,9 @@
 import asyncio
 import enum
+import io
 import json
-from datetime import datetime
+import time
+from datetime import datetime, timedelta, timezone
 from typing import Optional, TypeVar
 from uuid import UUID, uuid4
 
@@ -12,15 +14,18 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_serializer
+from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
+from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
@@ -37,6 +42,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.pod import Pod
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
@@ -133,6 +139,125 @@ async def _stamp_job_type_and_meta(
         )
         row.pipeline_id = pipeline_id
     db.add(row)
+
+
+async def _resolve_source_job_to_file_path(
+    db: AsyncSession,
+    source_job_id: int,
+    *,
+    requested_target_type: TargetType,
+    requested_module_type_id: Optional[ModuleTypeEnum],
+) -> str:
+    """Resolve a ``source_job_id`` (copy-from-previous-year flow) to a
+    fresh ``tmp/copy-*`` ``file_path`` the CSV provider can consume.
+
+    The frontend's ``copyFromPreviousYear`` flow sends ``config.source_job_id``
+    instead of ``file_path`` so the operator doesn't have to re-upload an
+    identical CSV.  This helper looks up the source job, validates that
+    copying it makes sense, and stages a fresh copy of the source's
+    ``meta.processed_file_path`` under ``tmp/`` so the existing CSV
+    provider path-validation
+    (``base_csv_provider._validate_file_path``) accepts it as a normal
+    upload.
+
+    Validation:
+
+    - Source job exists (else 404).
+    - Source job is ``FINISHED + SUCCESS`` — failed/in-flight jobs may
+      not have run far enough to stamp ``processed_file_path``; API
+      providers never do.  Surface 422 with a clear message rather than
+      a confusing 503 down the line.
+    - ``target_type`` matches — copying a factors CSV into a
+      data-entries dispatch (or vice-versa) would silently
+      mis-process every row.
+    - ``module_type_id`` matches when both sides set one — defense in
+      depth against the operator picking a job from the wrong module
+      in the dropdown.
+    - ``meta.processed_file_path`` is set (else 422).
+
+    The fresh path is ``tmp/copy-{source_job_id}-{ms_epoch}/{filename}``.
+    The source file is read via ``files_store.get_file`` and written
+    via ``files_store.write_file`` so the operation works against both
+    ``LocalFilesStore`` and ``S3FilesStore`` (no backend-specific copy
+    API).  The original processed file is left in place — subsequent
+    copies must still be able to read it.
+    """
+    src = await DataIngestionRepository(db).get_job_by_id(source_job_id)
+    if src is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source job {source_job_id} not found",
+        )
+    if src.state != IngestionState.FINISHED or src.result != IngestionResult.SUCCESS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} is not in a copyable state "
+                f"(state={src.state}, result={src.result}); only "
+                "FINISHED+SUCCESS jobs can be copied."
+            ),
+        )
+    if src.target_type != requested_target_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source job {source_job_id} target_type={src.target_type} "
+                f"does not match request target_type={requested_target_type}"
+            ),
+        )
+    # ``module_type_id`` on the request comes from ``SyncRequestConfig``
+    # as ``ModuleTypeEnum``; on the job as a raw ``int``.  Normalise
+    # before comparing to avoid a false mismatch from enum vs int.
+    if (
+        requested_module_type_id is not None
+        and src.module_type_id is not None
+        and int(src.module_type_id) != int(requested_module_type_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source job {source_job_id} module_type_id={src.module_type_id} "
+                f"does not match request module_type_id={int(requested_module_type_id)}"
+            ),
+        )
+    src_meta = src.meta or {}
+    src_path = src_meta.get("processed_file_path")
+    if not src_path:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} has no processed file to "
+                "copy (failed before the processed/ move, or used an "
+                "API provider that doesn't stage a CSV)."
+            ),
+        )
+    files_store = make_files_store()
+    try:
+        content, _mime = await files_store.get_file(src_path)
+    except Exception as exc:  # noqa: BLE001 — surface storage failures as 422
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} processed file is no longer "
+                f"available at {src_path!r}: {exc}"
+            ),
+        ) from exc
+    # ``processed_file_path`` is ``processed/{src_job_id}/{filename}`` —
+    # keep the leaf so the new tmp upload reads naturally in logs and
+    # in the new job's own ``processed_file_path`` after fan-out.
+    filename = src_path.rsplit("/", 1)[-1] or "copied.csv"
+    folder = f"tmp/copy-{source_job_id}-{int(time.time() * 1000)}"
+    # ``LocalFilesStore.write_file`` only reads ``.filename`` and
+    # ``await .read()`` — it derives mime_type via
+    # ``mimetypes.guess_type`` itself, so we don't need to construct
+    # ``Headers`` on the upload.  Keep it minimal.
+    upload = UploadFile(
+        file=io.BytesIO(content),
+        size=len(content),
+        filename=filename,
+    )
+    await files_store.write_file(upload, folder=folder)
+    return f"{folder}/{filename}"
 
 
 async def _institutional_id_for_job(
@@ -256,6 +381,13 @@ class SyncRequestConfig(BaseModel):
     data_entry_type_id: Optional[int] = None
     reduction_objective_type_id: Optional[int] = None
     module_type_id: Optional[ModuleTypeEnum] = None
+    # "Copy from previous year" flow: when set, the dispatch endpoint
+    # looks up the source job's ``meta.processed_file_path``, copies
+    # that file into a fresh ``tmp/copy-*`` location, and injects the
+    # new path as ``file_path`` so the CSV provider re-processes the
+    # same payload under the requested year.  No source_job_id ⇒
+    # normal upload path.  See ``_resolve_source_job_to_file_path``.
+    source_job_id: Optional[int] = None
 
 
 class SyncRequest(BaseModel):
@@ -640,6 +772,34 @@ async def sync_module_data_entries(
     if syncRequest.file_path:
         config["file_path"] = syncRequest.file_path
 
+    # Copy-from-previous-year resolution.  ``copyFromPreviousYear`` in
+    # the frontend sends ``config.source_job_id`` (not ``file_path``);
+    # without this step the CSV provider sees no source file and
+    # ``validate_connection`` returns False, producing a misleading 503
+    # ("Cannot connect to IngestionMethod.csv").  Resolve the source
+    # job's processed file into a fresh ``tmp/copy-*`` upload so the
+    # rest of the dispatch path is identical to a normal re-upload.
+    # Gated to CSV ingestion because only CSV providers consume
+    # ``file_path``; API/computed providers don't.
+    source_job_id = config.get("source_job_id")
+    if (
+        source_job_id is not None
+        and not config.get("file_path")
+        and syncRequest.ingestion_method == IngestionMethod.csv
+    ):
+        resolved_path = await _resolve_source_job_to_file_path(
+            db,
+            source_job_id,
+            requested_target_type=syncRequest.target_type,
+            requested_module_type_id=(
+                syncRequest.config.module_type_id if syncRequest.config else None
+            ),
+        )
+        config["file_path"] = resolved_path
+        # Provenance trail — surfaces in the new job's meta so support
+        # can answer "where did this row of numbers come from?".
+        config["copied_from_job_id"] = source_job_id
+
     # Determine entity_type early based on carbon_report_module_id presence
     entity_type = (
         EntityType.MODULE_UNIT_SPECIFIC
@@ -927,51 +1087,197 @@ async def get_latest_jobs_by_year(
     ]
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=SyncJobResponse)
-async def cancel_job(
-    job_id: int,
+class AbortPipelineResponse(BaseModel):
+    """Summary of an abort operation — how many jobs flipped, who did it.
+
+    The flipped jobs themselves are observable through the existing
+    pipeline SSE stream (``GET /sync/pipelines/{id}/stream``) on the
+    next poll, so this response stays terse: clients use it to render
+    a toast and re-read state from the stream they're already
+    subscribed to.
+    """
+
+    pipeline_id: str
+    aborted_job_ids: list[int]
+    aborted_by: str
+
+
+@router.post(
+    "/pipelines/{pipeline_id}/abort",
+    response_model=AbortPipelineResponse,
+)
+async def abort_pipeline(
+    pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
         require_permission("backoffice.data_management", "sync")
     ),
 ):
-    """
-    Cancel a stuck ingestion job.
+    """Abort every non-terminal job of a pipeline.
 
-    Sets the job to FINISHED/ERROR and unsets is_current so the user
-    can re-upload. Only jobs in NOT_STARTED, QUEUED, or RUNNING state
-    can be cancelled.
+    Replaces the legacy ``POST /jobs/{job_id}/cancel``. Single-job
+    cancel was structurally wrong after the pipeline-debug refactor
+    (#1236): a typical chain has csv_ingest → emission_recalc(N) →
+    aggregation, and stopping one link leaves the rest orphaned.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    The endpoint marks each ``NOT_STARTED / QUEUED / RUNNING`` job
+    as ``FINISHED + ERROR`` with ``meta.aborted = True`` and **clears
+    the lock**, so an in-flight handler's preemption check trips,
+    rolls back its data writes, and exits without overwriting the
+    abort marker.  ``pipelines.status`` is recomputed inline so the
+    SSE stream surfaces the terminal state on its next ~2s tick.
+
+    Returns:
+        - 200 with summary on success.
+        - 404 if ``pipeline_id`` has no jobs (unknown pipeline).
+        - 409 if every job is already terminal (nothing to abort).
+
+    **Required Permission**: ``backoffice.data_management.sync``
+    (same as dispatch — abort is the inverse user action).
     """
     repo = DataIngestionRepository(db)
-    existing = await repo.get_job_by_id(job_id)
-    if existing is None:
+    jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
+    if not jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found or not cancellable",
+            detail=f"Pipeline {pipeline_id} not found",
         )
-    # TODO(#459): tighten when sub-perimeter scoping ships
-    await _check_job_scope(existing, current_user, db, action="sync")
-    job = await repo.cancel_job(job_id)
-    if not job or job.id is None:
+    # Per-job scope check using the parent (matches the SSE stream's
+    # gate at ``_check_pipeline_scope_from_jobs``).  TODO(#459):
+    # sub-perimeter scoping.
+    await _check_pipeline_scope_from_jobs(jobs, current_user, db, action="sync")
+
+    aborted = await repo.abort_pipeline(
+        pipeline_id, user_email=current_user.email or str(current_user.id)
+    )
+    if not aborted:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found or not cancellable",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Pipeline {pipeline_id} has no non-terminal jobs to abort "
+                "(every job is already FINISHED)."
+            ),
         )
     await db.commit()
-    return SyncJobResponse(
-        job_id=job.id,
-        module_type_id=job.module_type_id,
-        data_entry_type_id=job.data_entry_type_id,
-        year=job.year,
-        ingestion_method=job.ingestion_method,
-        target_type=job.target_type,
-        state=job.state,
-        result=job.result,
-        status_message=job.status_message,
-        meta=job.meta,
+    return AbortPipelineResponse(
+        pipeline_id=str(pipeline_id),
+        aborted_job_ids=[j.id for j in aborted if j.id is not None],
+        aborted_by=current_user.email or str(current_user.id),
     )
+
+
+class WorkerResponse(BaseModel):
+    """One live pod entry for the workers view.
+
+    Returned by ``GET /v1/sync/workers``.  Joins ``pods`` with a
+    cheap count over ``data_ingestion_jobs.locked_by`` so the
+    operator can see "this pod has 3 claimed jobs right now".
+    """
+
+    pod_id: str
+    git_sha: Optional[str] = None
+    app_version: Optional[str] = None
+    started_at: datetime
+    last_heartbeat_at: datetime
+    heartbeat_age_seconds: int
+    claimed_job_count: int
+
+
+@router.get("/workers", response_model=list[WorkerResponse])
+async def list_workers(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list[WorkerResponse]:
+    """Return the set of live worker pods.
+
+    A pod is "live" when its ``last_heartbeat_at`` is within
+    ``2 × POD_HEARTBEAT_INTERVAL_SECONDS`` of now.  The double
+    window absorbs one missed tick (transient DB hiccup) without
+    declaring the pod dead — see ``app.tasks._pod_heartbeat``.
+
+    Motivating incident (2026-05-21): a dev ran a local branch
+    against the stage DB while the deployed stage app was also
+    running.  Two pods on different code revisions both polled
+    ``data_ingestion_jobs``, both held claims, and the trailing-
+    sibling oracle stalled silently because each pod observed a
+    half-applied view of the other's state.  Surfacing the pods
+    list with ``git_sha`` makes "two-pods-on-different-code"
+    visible in one screen.
+
+    **Required Permission**: ``backoffice.data_management.view``.
+    """
+    settings = get_settings()
+    live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=live_window)
+
+    # Live pods only — pods whose process crashed leave a row behind
+    # until the next deploy, and we don't want them showing as
+    # "claiming work".  Skipping the SQL-level cutoff WHERE in favour
+    # of an in-Python filter so a schema-drift dev DB (``pods``
+    # column still ``TIMESTAMP`` without TZ from before the model
+    # moved to ``DateTime(timezone=True)``) doesn't explode the
+    # comparison — see ``_as_utc`` below.  Production never serves
+    # naive rows; this is purely defensive for long-lived dev DBs.
+    pods_all = (
+        (await db.execute(select(Pod).order_by(col(Pod.last_heartbeat_at).desc())))
+        .scalars()
+        .all()
+    )
+
+    def _as_utc(dt: datetime) -> datetime:
+        """Coerce tz-naive datetimes to UTC.
+
+        Defends against the schema-drift case where ``pods`` was
+        created with plain ``TIMESTAMP`` (no TZ) before the model
+        moved to ``DateTime(timezone=True)`` — ``SQLModel.metadata.
+        create_all`` doesn't ALTER existing tables, so a long-lived
+        dev DB still serves naive values.  Treating naive rows as
+        UTC matches what the heartbeat writer was always producing
+        (``datetime.now(timezone.utc)``) and keeps the subtraction
+        below from blowing up.
+        """
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+    pods = [p for p in pods_all if _as_utc(p.last_heartbeat_at) >= cutoff]
+    if not pods:
+        return []
+
+    # Per-pod claimed-job count: how many ``data_ingestion_jobs``
+    # rows are RUNNING with ``locked_by = pod_id``.  One GROUP BY
+    # query covers all pods so we're not N+1'ing on the workers
+    # list (which is small but principled).
+    claimed_rows = await db.execute(
+        select(
+            DataIngestionJob.locked_by,
+            func.count(col(DataIngestionJob.id)),
+        )
+        .where(
+            col(DataIngestionJob.state) == IngestionState.RUNNING,
+            col(DataIngestionJob.locked_by).in_([p.pod_id for p in pods]),
+        )
+        .group_by(col(DataIngestionJob.locked_by))
+    )
+    claimed_by_pod: dict[str, int] = {
+        row[0]: int(row[1]) for row in claimed_rows.all() if row[0] is not None
+    }
+
+    return [
+        WorkerResponse(
+            pod_id=p.pod_id,
+            git_sha=p.git_sha,
+            app_version=p.app_version,
+            started_at=_as_utc(p.started_at),
+            last_heartbeat_at=_as_utc(p.last_heartbeat_at),
+            heartbeat_age_seconds=int(
+                (now - _as_utc(p.last_heartbeat_at)).total_seconds()
+            ),
+            claimed_job_count=claimed_by_pod.get(p.pod_id, 0),
+        )
+        for p in pods
+    ]
 
 
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}
@@ -1373,7 +1679,7 @@ async def get_pipeline_jobs(
 
     Returns 404 when no jobs share the given ``pipeline_id`` — matches
     the convention of other lookup endpoints in this module
-    (``cancel_job``, ``recover_job``).
+    (``abort_pipeline``, ``recover_job``).
     """
     repo = DataIngestionRepository(db)
     jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)

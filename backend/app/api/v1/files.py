@@ -2,6 +2,7 @@
 
 import base64
 import datetime
+import urllib.parse
 from typing import List
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -232,11 +233,39 @@ async def get_file(
         (body, content_type) = await files_store.get_file(file_path)
         if body:
             if download:
-                # download file
-                return Response(content=body, media_type=content_type)
+                # Force a real download with the original filename.
+                # Without ``Content-Disposition: attachment; filename="..."``,
+                # Safari (and to a lesser extent Firefox) ignores the
+                # ``<a download>`` attribute set on the client side
+                # and saves the file by sniffing the URL/Content-Type,
+                # which can strip the extension when the sniff
+                # disagrees with the URL.  User-reported regression
+                # 2026-05-21: ``processed/152/equipments_data.csv``
+                # was being saved as ``equipments_data`` (no .csv).
+                # ``filename*`` encoding via RFC 5987 handles
+                # non-ASCII names; ``filename`` is the ASCII fallback
+                # for older clients.
+                basename = file_path.rsplit("/", 1)[-1] or "download"
+                ascii_basename = basename.encode("ascii", "replace").decode("ascii")
+                quoted = urllib.parse.quote(basename, safe="")
+                disposition = (
+                    f'attachment; filename="{ascii_basename}"; '
+                    f"filename*=UTF-8''{quoted}"
+                )
+                return Response(
+                    content=body,
+                    media_type=content_type or "application/octet-stream",
+                    headers={"Content-Disposition": disposition},
+                )
             else:
-                # inline image
-                return Response(content=body)
+                # Inline display (images / preview).  Still set
+                # ``Content-Type`` so the browser doesn't sniff a CSV
+                # as ``text/html`` and run script-injection on any
+                # malformed row.
+                return Response(
+                    content=body,
+                    media_type=content_type or "application/octet-stream",
+                )
         else:
             raise HTTPException(status_code=404, detail="File not found")
     except FileNotFoundError:

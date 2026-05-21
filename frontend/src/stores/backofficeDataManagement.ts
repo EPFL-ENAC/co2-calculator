@@ -117,6 +117,13 @@ export enum FactorType {
   MODULE_FACTOR = 1,
 }
 
+// NOTE: ``src/composables/mergeLivePipelineJob.ts`` hardcodes these
+// numeric values to keep the leaf helper free of runtime store imports
+// (its regression test under Playwright can't follow the i18n boot
+// chain).  If you renumber these enums you MUST update the maps in
+// that file or the per-row spinner rehydrate on page reload will
+// silently mis-map states — the unit test mirrors the literals so it
+// won't catch you either.
 export enum IngestionState {
   NOT_STARTED = 0,
   QUEUED = 1,
@@ -687,31 +694,31 @@ provider_type
       return response.job_id;
     }
 
-    async function cancelJob(jobId: number, year: number): Promise<void> {
-      try {
-        const response = (await api
-          .post(`sync/jobs/${jobId}/cancel`)
-          .json()) as SyncJobResponse;
+    /** Wire shape of POST /sync/pipelines/{pipeline_id}/abort. */
+    interface AbortPipelineResponse {
+      pipeline_id: string;
+      aborted_job_ids: number[];
+      aborted_by: string;
+    }
 
-        if (year !== null && syncJobs.value[year]) {
-          const jobIndex = syncJobs.value[year].findIndex(
-            (j: DataIngestionJob) => j.job_id === jobId,
-          );
-          if (jobIndex !== -1) {
-            syncJobs.value[year].splice(jobIndex, 1, {
-              ...syncJobs.value[year][jobIndex],
-              state: response.state,
-              result: response.result,
-              status_message: response.status_message || '',
-              meta: response.meta,
-            });
-          }
-        }
+    async function abortPipeline(pipelineId: string): Promise<void> {
+      // Replaces the legacy ``cancelJob(jobId, year)``.  Single-job
+      // cancel went away with the pipeline-debug refactor (#1236): a
+      // chain has csv_ingest → emission_recalc(N) → aggregation, and
+      // cancelling one link orphaned the rest.  Abort marks every
+      // non-terminal job of the pipeline FINISHED+ERROR server-side;
+      // the existing pipeline SSE picks up the new state on its next
+      // poll, so we don't have to splice ``syncJobs`` locally — the
+      // ``pipelineStream`` store already covers re-render.
+      try {
+        await api
+          .post(`sync/pipelines/${pipelineId}/abort`)
+          .json<AbortPipelineResponse>();
       } catch (err: unknown) {
         if (err instanceof Error) {
-          error.value = err.message ?? 'Failed to cancel job';
+          error.value = err.message ?? 'Failed to abort pipeline';
         } else {
-          error.value = 'Failed to cancel job';
+          error.value = 'Failed to abort pipeline';
         }
         throw err;
       }
@@ -749,7 +756,7 @@ provider_type
       initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
-      cancelJob,
+      abortPipeline,
       reset,
     };
   },

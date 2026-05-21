@@ -237,7 +237,7 @@ async def unit_sync_handler(
         logger.warning(
             "unit_sync: no YearConfiguration row for year=%s — "
             "configuration_completed stamp skipped (year-config row "
-            "should exist; was the year created via /year-configurations?)",
+            "should exist; was the year created via /year-configuration?)",
             target_year,
         )
 
