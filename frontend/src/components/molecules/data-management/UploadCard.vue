@@ -306,7 +306,13 @@ function handleAbort() {
          phase 1 BOTH showed simultaneously ("Job in progress…" + "Step
          1/3 · Inserting data…"), giving three loading icons on a single
          card.  Now: one spinner, phase-label when available, plus the
-         cancel button when the parent job is the active running one. -->
+         abort button for the WHOLE time the pipeline is in flight on
+         this card — including phase 2 (emissions) and phase 3
+         (aggregation), where the operator most wants to stop a long
+         recalc.  Pre-abort-refactor this button was gated on
+         ``isJobStuck`` alone (i.e. only while the PARENT was running)
+         and disappeared once phase 1 finished, leaving no way to stop
+         a misfired chain mid-fanout. -->
     <div
       v-if="isJobStuck || pipelinePhaseLabelKey"
       class="row items-center text-caption q-mt-xs text-grey-7"
@@ -320,7 +326,6 @@ function handleAbort() {
           : $t('data_management_job_in_progress')
       }}</span>
       <q-btn
-        v-if="isJobStuck"
         color="negative"
         outline
         icon="cancel"
