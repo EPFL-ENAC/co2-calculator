@@ -44,7 +44,9 @@ const { factorButtonColor, factorButtonLabel } = useUploadCard();
 // Live pipeline-SSE jobs keyed by job_id (provided by ``ModuleConfig``).
 // See ``mergeLivePipelineJob`` — rehydrates the row spinner after page
 // reload when the per-job SSE in ``useDataEntryDialog`` is gone.
-const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+const livePipelineJobsById = inject<
+  ComputedRef<ReadonlyMap<number, PipelineJob>>
+>(
   'livePipelineJobsById',
   computed(() => new Map()),
 );

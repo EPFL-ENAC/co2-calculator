@@ -115,7 +115,10 @@ test('returns the snapshot untouched when no matching live job exists', () => {
 });
 
 test('returns the snapshot untouched when snapshot is undefined', () => {
-  const merged = mergeLivePipelineJob(undefined, new Map([[42, makeLiveJob()]]));
+  const merged = mergeLivePipelineJob(
+    undefined,
+    new Map([[42, makeLiveJob()]]),
+  );
   expect(merged).toBeUndefined();
 });
 
@@ -124,10 +127,7 @@ test('returns the snapshot untouched when snapshot has no job_id', () => {
   // cases (e.g. empty stub rows); guard against an accidental match on
   // ``undefined`` keys.
   const snapshot = makeSnapshot({ job_id: undefined as unknown as number });
-  const merged = mergeLivePipelineJob(
-    snapshot,
-    new Map([[42, makeLiveJob()]]),
-  );
+  const merged = mergeLivePipelineJob(snapshot, new Map([[42, makeLiveJob()]]));
   expect(merged).toBe(snapshot);
 });
 

@@ -53,7 +53,9 @@ const localJob = ref<SyncJobResponse | undefined>(undefined);
 // freeze on ``props.row.lastReferenceJob``'s snapshot.  Falls back to
 // the snapshot when no live entry exists (steady state).  See
 // ``mergeLivePipelineJob`` for the merge semantics.
-const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+const livePipelineJobsById = inject<
+  ComputedRef<ReadonlyMap<number, PipelineJob>>
+>(
   'livePipelineJobsById',
   computed(() => new Map()),
 );
@@ -61,7 +63,10 @@ const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>
 const lastJob = computed<SyncJobResponse | undefined>(
   () =>
     localJob.value ??
-    mergeLivePipelineJob(props.row.lastReferenceJob, livePipelineJobsById.value),
+    mergeLivePipelineJob(
+      props.row.lastReferenceJob,
+      livePipelineJobsById.value,
+    ),
 );
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isJobStuck = computed(

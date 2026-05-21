@@ -41,7 +41,9 @@ const { dataButtonColor, dataButtonLabel } = useUploadCard();
 // Empty map when no pipeline is active OR when this card is rendered
 // outside a ``ModuleConfig`` (e.g. in a fixture / preview).  See
 // ``mergeLivePipelineJob`` for the overlay rationale.
-const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+const livePipelineJobsById = inject<
+  ComputedRef<ReadonlyMap<number, PipelineJob>>
+>(
   'livePipelineJobsById',
   computed(() => new Map()),
 );

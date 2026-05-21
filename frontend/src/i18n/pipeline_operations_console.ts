@@ -113,7 +113,10 @@ export default {
   pipeops_workers_col_pod: { en: 'Pod', fr: 'Pod' },
   pipeops_workers_col_sha: { en: 'Commit', fr: 'Commit' },
   pipeops_workers_col_version: { en: 'Version', fr: 'Version' },
-  pipeops_workers_col_heartbeat: { en: 'Last heartbeat', fr: 'Dernier heartbeat' },
+  pipeops_workers_col_heartbeat: {
+    en: 'Last heartbeat',
+    fr: 'Dernier heartbeat',
+  },
   pipeops_workers_col_jobs: { en: 'Claimed jobs', fr: 'Jobs réservés' },
   pipeops_workers_ago: { en: 'ago', fr: '' },
   pipeops_workers_empty: {

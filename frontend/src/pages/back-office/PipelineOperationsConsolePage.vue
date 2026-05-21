@@ -743,9 +743,7 @@ onUnmounted(() => {
                        the button hides since there's nothing to
                        abort. -->
                   <q-btn
-                    v-if="
-                      statusOf(p) === 'running' && p.pipeline_id !== null
-                    "
+                    v-if="statusOf(p) === 'running' && p.pipeline_id !== null"
                     flat
                     dense
                     round
