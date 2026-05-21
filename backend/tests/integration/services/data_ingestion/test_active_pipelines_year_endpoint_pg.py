@@ -33,6 +33,8 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 
+from .conftest import seed_jobs_with_pipelines
+
 
 @pytest_asyncio.fixture
 async def pg_app(pg_dsn, monkeypatch):
@@ -109,7 +111,9 @@ async def test_year_level_active_pipelines_returns_running_pipeline_id(pg_app):
     pipeline = uuid4()
 
     async with Sf() as session:
-        session.add(_make_year_level_job(year=2025, pipeline_id=pipeline))
+        await seed_jobs_with_pipelines(
+            session, _make_year_level_job(year=2025, pipeline_id=pipeline)
+        )
         await session.commit()
 
     async with httpx.AsyncClient(
@@ -130,12 +134,13 @@ async def test_year_level_active_pipelines_omits_finished(pg_app):
     Sf = pg_app["factory"]
 
     async with Sf() as session:
-        session.add(
+        await seed_jobs_with_pipelines(
+            session,
             _make_year_level_job(
                 year=2025,
                 pipeline_id=uuid4(),
                 state=IngestionState.FINISHED,
-            )
+            ),
         )
         await session.commit()
 
@@ -157,7 +162,9 @@ async def test_year_level_active_pipelines_filters_by_year(pg_app):
     Sf = pg_app["factory"]
 
     async with Sf() as session:
-        session.add(_make_year_level_job(year=2024, pipeline_id=uuid4()))
+        await seed_jobs_with_pipelines(
+            session, _make_year_level_job(year=2024, pipeline_id=uuid4())
+        )
         await session.commit()
 
     async with httpx.AsyncClient(
@@ -216,7 +223,8 @@ async def test_year_level_active_pipelines_omits_module_scoped(pg_app):
     Sf = pg_app["factory"]
 
     async with Sf() as session:
-        session.add(
+        await seed_jobs_with_pipelines(
+            session,
             DataIngestionJob(
                 entity_type=EntityType.MODULE_PER_YEAR,
                 module_type_id=1,
@@ -229,7 +237,7 @@ async def test_year_level_active_pipelines_omits_module_scoped(pg_app):
                 pipeline_id=uuid4(),
                 job_type="aggregation",
                 meta={},
-            )
+            ),
         )
         await session.commit()
 
@@ -253,13 +261,14 @@ async def test_year_level_active_pipelines_dedupes_pipeline_ids(pg_app):
 
     async with Sf() as session:
         # Two jobs in the same pipeline (e.g. parent + a fan-out child).
-        session.add(_make_year_level_job(year=2025, pipeline_id=shared_pipeline))
-        session.add(
+        await seed_jobs_with_pipelines(
+            session,
+            _make_year_level_job(year=2025, pipeline_id=shared_pipeline),
             _make_year_level_job(
                 year=2025,
                 pipeline_id=shared_pipeline,
                 state=IngestionState.QUEUED,
-            )
+            ),
         )
         await session.commit()
 

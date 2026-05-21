@@ -141,11 +141,22 @@ def test_admin_sees_all_years(client, monkeypatch, db_with_two_years):
 
 def test_response_excludes_heavy_config_blob(client, monkeypatch, db_with_two_years):
     """List rows are intentionally lightweight — no ``config`` or
-    ``recalculation_status`` payload (callers use ``GET /{year}`` for those)."""
+    ``recalculation_status`` payload (callers use ``GET /{year}`` for those).
+
+    ``configuration_completed`` (a scalar timestamp added by #1234-followup
+    so the dispatch gate can read it without a follow-up call) is in
+    scope — it's the lightweight marker, not the heavy blob this test
+    guards against.
+    """
     _, factory = db_with_two_years
     _wire(monkeypatch, factory, is_admin=True)
 
     r = client.get(URL)
     assert r.status_code == 200, r.text
     row = r.json()[0]
-    assert set(row.keys()) == {"year", "is_started", "updated_at"}
+    assert set(row.keys()) == {
+        "year",
+        "is_started",
+        "configuration_completed",
+        "updated_at",
+    }

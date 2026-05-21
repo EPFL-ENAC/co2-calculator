@@ -88,6 +88,7 @@ from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
+from app.repositories.data_ingestion import DataIngestionRepository
 
 PG_IMAGE = "postgres:16-alpine"
 PG_CONTAINER_NAME = "test-data-ingestion-postgres"
@@ -267,6 +268,52 @@ class SeededYear:
     reports_by_unit: dict[int, CarbonReport] = field(default_factory=dict)
     modules_by_unit_and_type: dict[tuple[int, int], CarbonReportModule] = field(
         default_factory=dict
+    )
+
+
+async def seed_jobs_with_pipelines(
+    session: AsyncSession, *jobs: DataIngestionJob
+) -> None:
+    """Seed one or more ``DataIngestionJob`` rows + their ``pipelines`` parents.
+
+    Convenience wrapper for tests that ``session.add(DataIngestionJob(...))``
+    directly (i.e. bypass the repo).  Calls ``ensure_pipeline_for_job`` for
+    each job first so the FK constraint (#1236 Phase 2) is satisfied, then
+    adds each job to the session.  Does NOT commit — the caller still owns
+    the transaction boundary.
+    """
+    for job in jobs:
+        await ensure_pipeline_for_job(session, job)
+    for job in jobs:
+        session.add(job)
+
+
+async def ensure_pipeline_for_job(session: AsyncSession, job: DataIngestionJob) -> None:
+    """Idempotently seed the ``pipelines`` row matching ``job.pipeline_id``.
+
+    Mirrors what the production mint sites do via
+    ``DataIngestionRepository.ensure_pipeline_exists`` — required since
+    #1236 Phase 2 added the FK ``data_ingestion_jobs.pipeline_id →
+    pipelines.id``.  Tests that hand-build a ``DataIngestionJob`` with a
+    ``pipeline_id`` and ``session.add`` it directly (i.e. bypassing the
+    repo) must seed the parent row first, else the INSERT trips
+    ``ForeignKeyViolationError``.
+
+    No-op when ``job.pipeline_id is None`` (legacy / not-yet-stamped
+    jobs are still allowed by the column).
+    """
+    if job.pipeline_id is None:
+        return
+    repo = DataIngestionRepository(session)
+    await repo.ensure_pipeline_exists(
+        job.pipeline_id,
+        kind=job.job_type,
+        entity_type=job.entity_type.value if job.entity_type is not None else None,
+        ingestion_method=(
+            job.ingestion_method.value if job.ingestion_method is not None else None
+        ),
+        module_type_id=job.module_type_id,
+        year=job.year,
     )
 
 
@@ -664,6 +711,11 @@ async def dispatch_csv_and_wait(
                 "year": year,
             },
         )
+        # #1236 Phase 2 — the FK forces the ``pipelines`` row to exist
+        # before the ``data_ingestion_jobs`` INSERT flushes.  Mirrors the
+        # production mint-site discipline (see
+        # ``ensure_pipeline_exists`` callers in ``app/api/v1/data_sync.py``).
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -694,8 +746,14 @@ async def dispatch_csv_and_wait(
         row.  Without the data-session commit, every chained handler
         would silently drop its domain writes — Units 2-11's
         ``assert_stats_match`` calls would then read pre-handler state.
-        On exception we roll back the data session and re-raise; the
-        helper's caller is the test, which should fail loudly.
+
+        On handler exception we mirror production ``app.tasks.runner``:
+        roll back the data session, then write FINISHED+ERROR with the
+        exception string as ``status_message``.  This is the
+        fail-fast path #1236 adds for ``_guard_factors_required`` etc.
+        — tests that exercise it (``test_csv_ingest_matrix_pg.py``
+        ``factors_state=absent``) need to see the FINISHED+ERROR row
+        rather than an exception bubbling out of the helper.
         """
         async with session_factory() as job_session:
             row = await job_session.get(DataIngestionJob, job_id)
@@ -703,18 +761,26 @@ async def dispatch_csv_and_wait(
                 return
             handler = get_handler(row.job_type)
             async with session_factory() as data_session:
+                handler_failed = False
                 try:
                     meta = await handler(row, job_session, data_session)
-                except Exception:
+                except Exception as exc:
                     await data_session.rollback()
-                    raise
-                await data_session.commit()
+                    await job_session.rollback()
+                    handler_failed = True
+                    meta = {
+                        "status_message": str(exc),
+                        "result": IngestionResult.ERROR,
+                    }
+                else:
+                    await data_session.commit()
             row.state = IngestionState.FINISHED
             row.result = meta.get("result", IngestionResult.SUCCESS)
             row.status_message = meta.get("status_message", "")
-            existing_meta = dict(row.meta or {})
-            existing_meta.update({k: v for k, v in meta.items() if k != "result"})
-            row.meta = existing_meta
+            if not handler_failed:
+                existing_meta = dict(row.meta or {})
+                existing_meta.update({k: v for k, v in meta.items() if k != "result"})
+                row.meta = existing_meta
             job_session.add(row)
             await job_session.commit()
 
