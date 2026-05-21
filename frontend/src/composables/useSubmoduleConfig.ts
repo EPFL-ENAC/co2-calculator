@@ -86,7 +86,9 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
     const filePath = jobMeta?.processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
+    // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
+    // strips the extension without backend Content-Disposition).
+    a.href = `/api/v1/files/${filePath}?d=true`;
     a.download = filePath.split('/').pop() || filePath;
     document.body.appendChild(a);
     a.click();
