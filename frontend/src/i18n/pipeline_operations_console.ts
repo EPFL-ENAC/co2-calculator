@@ -106,6 +106,24 @@ export default {
   },
 
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },
+
+  // Workers panel (#1080 sprint-9 observability).
+  pipeops_workers_title: { en: 'Workers', fr: 'Workers' },
+  pipeops_workers_count_suffix: { en: 'live', fr: 'actifs' },
+  pipeops_workers_col_pod: { en: 'Pod', fr: 'Pod' },
+  pipeops_workers_col_sha: { en: 'Commit', fr: 'Commit' },
+  pipeops_workers_col_version: { en: 'Version', fr: 'Version' },
+  pipeops_workers_col_heartbeat: { en: 'Last heartbeat', fr: 'Dernier heartbeat' },
+  pipeops_workers_col_jobs: { en: 'Claimed jobs', fr: 'Jobs réservés' },
+  pipeops_workers_ago: { en: 'ago', fr: '' },
+  pipeops_workers_empty: {
+    en: 'No live workers.',
+    fr: 'Aucun worker actif.',
+  },
+  pipeops_workers_multi_sha_warning: {
+    en: 'Multiple workers are running different commits — this can cause silent stalls (e.g. two pods racing the same job queue with mismatched logic). Verify intentional before debugging further.',
+    fr: 'Plusieurs workers exécutent des commits différents — cela peut provoquer des blocages silencieux (par ex. deux pods en compétition sur la même file avec une logique divergente). Vérifier si c’est intentionnel avant d’investiguer.',
+  },
   pipeops_live: { en: 'live', fr: 'live' },
   pipeops_empty: {
     en: 'No pipelines match the current filters.',
