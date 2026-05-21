@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
+import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
 import {
   TargetType,
   IngestionState,
 } from 'src/stores/backofficeDataManagement';
 import type { ImportRow } from 'src/stores/backofficeDataManagement';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
 
 interface Props {
@@ -39,6 +40,18 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const { factorButtonColor, factorButtonLabel } = useUploadCard();
+
+// Live pipeline-SSE jobs keyed by job_id (provided by ``ModuleConfig``).
+// See ``mergeLivePipelineJob`` — rehydrates the row spinner after page
+// reload when the per-job SSE in ``useDataEntryDialog`` is gone.
+const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+  'livePipelineJobsById',
+  computed(() => new Map()),
+);
+
+const effectiveFactorJob = computed(() =>
+  mergeLivePipelineJob(props.row.lastFactorJob, livePipelineJobsById.value),
+);
 
 const description = computed(() => {
   if (props.module === 'headcount') {
@@ -77,8 +90,8 @@ function handleComputeFactors(item: ImportRow) {
     :button-color="factorButtonColor(row)"
     :button-label="factorButtonLabel(row)"
     :is-disabled="isDisabled || row.isDisabled"
-    :is-loading="row.lastFactorJob?.state === IngestionState.RUNNING"
-    :last-job="row.lastFactorJob"
+    :is-loading="effectiveFactorJob?.state === IngestionState.RUNNING"
+    :last-job="effectiveFactorJob"
     :target-type="TargetType.FACTORS"
     :has-recalc-button="true"
     :pipeline-progress="pipelineProgress"

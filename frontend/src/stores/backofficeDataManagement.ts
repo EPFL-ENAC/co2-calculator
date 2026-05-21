@@ -117,6 +117,13 @@ export enum FactorType {
   MODULE_FACTOR = 1,
 }
 
+// NOTE: ``src/composables/mergeLivePipelineJob.ts`` hardcodes these
+// numeric values to keep the leaf helper free of runtime store imports
+// (its regression test under Playwright can't follow the i18n boot
+// chain).  If you renumber these enums you MUST update the maps in
+// that file or the per-row spinner rehydrate on page reload will
+// silently mis-map states — the unit test mirrors the literals so it
+// won't catch you either.
 export enum IngestionState {
   NOT_STARTED = 0,
   QUEUED = 1,

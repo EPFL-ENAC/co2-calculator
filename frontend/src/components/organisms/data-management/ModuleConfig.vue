@@ -6,7 +6,7 @@ import { useRecalculation } from 'src/composables/useRecalculation';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 import {
   TargetType,
   type ImportRow,
@@ -39,8 +39,14 @@ const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
 // unified ``pipelineStateStore`` keyed by ``(module_type_id, year)``
 // — the SSE composable is responsible for the live state of that
 // pipeline once we know its id.
-const { subscribe, unsubscribe, isFinishedFor, progressFor, hasErrorFor } =
-  usePipelineStream();
+const {
+  subscribe,
+  unsubscribe,
+  isFinishedFor,
+  progressFor,
+  hasErrorFor,
+  jobsFor,
+} = usePipelineStream();
 
 const currentPipelineId = computed<string | null>(() =>
   pipelineStateStore.getPipelineId(
@@ -244,6 +250,26 @@ async function handleJobProgressing() {
   ]);
 }
 
+// Live SSE jobs of the in-flight pipeline keyed by ``job_id`` — empty
+// map when no pipeline is active.  Cards inject this and prefer the
+// live state over their snapshot's ``row.last*Job.state`` so the
+// per-row spinner rehydrates after a hard reload (the per-job SSE
+// opened by ``useDataEntryDialog`` is in-memory and dies on reload;
+// the pipeline SSE re-subscribes on mount via ``currentPipelineId``,
+// so its jobs[] payload — which includes the csv_ingest /
+// factor_ingest / reference_ingest parent — IS the durable source of
+// truth for in-flight upload state.  See ``mergeLivePipelineJob`` in
+// ``useModuleConfig.ts``.).
+const livePipelineJobsById = computed<ReadonlyMap<number, PipelineJob>>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return new Map();
+  // ``jobsFor`` returns ``PipelineJob[]`` directly (not a ``ComputedRef``)
+  // — the reactivity flows through the underlying ``entries[id].jobs``
+  // proxy access inside the helper, so this ``computed`` re-runs on
+  // every ``applyUpdate``.
+  return new Map(jobsFor(id).map((j) => [j.id, j]));
+});
+
 provide('openDataEntryDialog', openDataEntryDialog);
 provide('getRecalcStatus', yearConfigStore.getRecalcStatus);
 provide('handleJobCompleted', handleJobCompleted);
@@ -251,6 +277,7 @@ provide('handleJobProgressing', handleJobProgressing);
 provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
 provide('pipelineProgress', pipelineProgress);
+provide('livePipelineJobsById', livePipelineJobsById);
 </script>
 
 <template>

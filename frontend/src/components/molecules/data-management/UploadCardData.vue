@@ -1,12 +1,14 @@
 <script setup lang="ts">
+import { computed, inject, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
+import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
 import {
   TargetType,
   IngestionState,
 } from 'src/stores/backofficeDataManagement';
 import type { ImportRow } from 'src/stores/backofficeDataManagement';
 import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
 
 interface Props {
@@ -35,6 +37,19 @@ const emit = defineEmits<{
 
 const { dataButtonColor, dataButtonLabel } = useUploadCard();
 
+// Live pipeline-SSE jobs keyed by job_id (provided by ``ModuleConfig``).
+// Empty map when no pipeline is active OR when this card is rendered
+// outside a ``ModuleConfig`` (e.g. in a fixture / preview).  See
+// ``mergeLivePipelineJob`` for the overlay rationale.
+const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+  'livePipelineJobsById',
+  computed(() => new Map()),
+);
+
+const effectiveDataJob = computed(() =>
+  mergeLivePipelineJob(props.row.lastDataJob, livePipelineJobsById.value),
+);
+
 function handleUpload() {
   emit('upload', props.row, TargetType.DATA_ENTRIES);
 }
@@ -56,8 +71,8 @@ function handleRecalculate(item: ImportRow) {
     :button-color="dataButtonColor(row)"
     :button-label="dataButtonLabel(row)"
     :is-disabled="isDisabled || row.isDisabled"
-    :is-loading="row.lastDataJob?.state === IngestionState.RUNNING"
-    :last-job="row.lastDataJob"
+    :is-loading="effectiveDataJob?.state === IngestionState.RUNNING"
+    :last-job="effectiveDataJob"
     :api-job="row.lastApiDataJob"
     :target-type="TargetType.DATA_ENTRIES"
     :has-recalc-button="row.hasFactors"

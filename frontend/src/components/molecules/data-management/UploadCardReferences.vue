@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, inject, ref, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
+import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
 import {
   useBackofficeDataManagement,
@@ -14,6 +15,7 @@ import type {
   JobUpdatePayload,
   InitiateSyncParams,
 } from 'src/stores/backofficeDataManagement';
+import type { PipelineJob } from 'src/stores/pipelineStream';
 import { useFilesStore, type FileObject } from 'src/stores/files';
 import { Notify } from 'quasar';
 
@@ -43,8 +45,23 @@ const isLoading = ref(false);
 // authoritative "last successful upload" lives on the parent year-config row
 // (``row.lastReferenceJob``).  We read whichever is more recent.
 const localJob = ref<SyncJobResponse | undefined>(undefined);
+
+// Live pipeline-SSE jobs keyed by job_id (provided by ``ModuleConfig``).
+// On a hard reload mid-upload the ``localJob`` ref is empty (no upload
+// click happened this session) AND the per-job SSE in
+// ``useDataEntryDialog`` is gone — without this overlay the row would
+// freeze on ``props.row.lastReferenceJob``'s snapshot.  Falls back to
+// the snapshot when no live entry exists (steady state).  See
+// ``mergeLivePipelineJob`` for the merge semantics.
+const livePipelineJobsById = inject<ComputedRef<ReadonlyMap<number, PipelineJob>>>(
+  'livePipelineJobsById',
+  computed(() => new Map()),
+);
+
 const lastJob = computed<SyncJobResponse | undefined>(
-  () => localJob.value ?? props.row.lastReferenceJob,
+  () =>
+    localJob.value ??
+    mergeLivePipelineJob(props.row.lastReferenceJob, livePipelineJobsById.value),
 );
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isJobStuck = computed(
