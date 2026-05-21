@@ -313,8 +313,8 @@ export default {
   // and their fake ``setTimeout`` success toast — the success / error
   // notifications below are now driven by the real SSE stream.
   data_management_year_sync_in_progress: {
-    en: 'Setting up year {year}: syncing units from Accred…',
-    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred…",
+    en: 'Setting up year {year}: syncing units from Accred and creating carbon reports …',
+    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred et création de rapports de carbone…",
   },
   data_management_year_sync_in_progress_caption: {
     en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
