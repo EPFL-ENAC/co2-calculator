@@ -6,14 +6,94 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
+  type PipelineJobListEntry,
 } from 'src/stores/pipelineOperationsConsole';
 
 const { t } = useI18n();
 
 const store = usePipelineOperationsConsole();
+const backofficeStore = useBackofficeDataManagement();
+
+// Abort dialog — one-step confirmation so an accidental click on a
+// row doesn't kill a long-running chain mid-flight.  Mirrors the
+// data-management abort flow (which doesn't confirm because it's
+// scoped to a single visible card; on the ops page an operator
+// may be looking at a list and click the wrong row).
+const abortDialog = ref(false);
+const abortTarget = ref<PipelineListItem | null>(null);
+const aborting = ref(false);
+
+function openAbortDialog(p: PipelineListItem): void {
+  abortTarget.value = p;
+  abortDialog.value = true;
+}
+
+async function confirmAbort(): Promise<void> {
+  const target = abortTarget.value;
+  if (!target?.pipeline_id) return;
+  aborting.value = true;
+  try {
+    await backofficeStore.abortPipeline(target.pipeline_id);
+    Notify.create({
+      type: 'positive',
+      message: t('pipeops_abort_success'),
+      timeout: 1800,
+    });
+    abortDialog.value = false;
+    abortTarget.value = null;
+    // Re-fetch immediately so the row reflects FAILED status without
+    // waiting for the SSE refresh — the abort wrote terminal state
+    // server-side and the SSE will deliver the same eventually, but
+    // an explicit refetch makes the UI feel decisive.
+    await store.fetch();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : t('pipeops_abort_failed');
+    Notify.create({ type: 'negative', message: msg });
+  } finally {
+    aborting.value = false;
+  }
+}
+
+// Processed-CSV download — surfaces ``meta.processed_file_path``
+// straight from the pipeline row so an operator triaging a stalled
+// or failed chain can grab the source CSV in one click.  Mirrors
+// the data-management ``downloadLastCsv`` flow:
+//
+// * ``?d=true`` flips the backend into download mode (sets
+//   ``Content-Disposition: attachment; filename="…"`` so Safari /
+//   Chrome both save with the original extension — see
+//   ``backend/app/api/v1/files.py``).
+// * ``a.download`` is a belt-and-braces fallback for older browsers.
+function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
+  // Pick the FIRST job in id order that carries a processed_file_path.
+  // For a typical chain that's the parent csv_ingest / factor_ingest
+  // / reference_ingest — the operator's actual source CSV.  Downstream
+  // ``emission_recalc`` / ``aggregation`` rows don't stage CSVs, so
+  // they're naturally skipped.
+  for (const j of p.jobs) {
+    const path = (j.meta as Record<string, unknown> | undefined)
+      ?.processed_file_path;
+    if (typeof path === 'string' && path.length > 0) return j;
+  }
+  return null;
+}
+
+function downloadProcessedCsv(p: PipelineListItem): void {
+  const j = processedCsvJob(p);
+  if (!j) return;
+  const filePath = (j.meta as Record<string, unknown>)
+    .processed_file_path as string;
+  const a = document.createElement('a');
+  a.href = `/api/v1/files/${filePath}?d=true`;
+  a.download = filePath.split('/').pop() || filePath;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
 const expanded = ref<Set<string>>(new Set());
 
@@ -401,16 +481,19 @@ onUnmounted(() => {
               <th class="text-left">{{ $t('pipeops_col_duration') }}</th>
               <th class="text-left">{{ $t('pipeops_col_when') }}</th>
               <th class="text-left">{{ $t('pipeops_col_message') }}</th>
+              <th class="text-right" style="width: 96px">
+                {{ $t('pipeops_col_actions') }}
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="store.loading && !store.items.length">
-              <td colspan="8" class="text-center text-grey-7">
+              <td colspan="9" class="text-center text-grey-7">
                 {{ $t('pipeops_loading') }}
               </td>
             </tr>
             <tr v-else-if="!store.items.length">
-              <td colspan="8" class="text-center text-grey-7">
+              <td colspan="9" class="text-center text-grey-7">
                 {{ $t('pipeops_empty') }}
               </td>
             </tr>
@@ -471,9 +554,55 @@ onUnmounted(() => {
                 >
                   {{ pipelineMessage(p) ?? '—' }}
                 </td>
+                <td class="text-right">
+                  <!-- Processed-CSV download.  Visible whenever the
+                       pipeline's parent ingest job has staged a
+                       processed CSV — operator can grab the source
+                       file to triage a failed/stalled run.  No
+                       affordance when no job has the path (orphans,
+                       API-only chains, in-flight chains before
+                       phase 1 finalize). -->
+                  <q-btn
+                    v-if="processedCsvJob(p)"
+                    flat
+                    dense
+                    round
+                    color="positive"
+                    icon="o_download"
+                    size="sm"
+                    @click.stop="downloadProcessedCsv(p)"
+                  >
+                    <q-tooltip>
+                      {{ $t('pipeops_action_download_csv') }}
+                    </q-tooltip>
+                  </q-btn>
+                  <!-- Abort the whole pipeline.  Mirrors the
+                       data-management Cancel button (same backend
+                       endpoint, same outcome) but gated behind a
+                       confirmation dialog — the ops list shows many
+                       rows and a misclick should be recoverable.
+                       Only enabled while the pipeline is in flight
+                       (statusOf === 'running'); on terminal rows
+                       the button hides since there's nothing to
+                       abort. -->
+                  <q-btn
+                    v-if="
+                      statusOf(p) === 'running' && p.pipeline_id !== null
+                    "
+                    flat
+                    dense
+                    round
+                    color="negative"
+                    icon="cancel"
+                    size="sm"
+                    @click.stop="openAbortDialog(p)"
+                  >
+                    <q-tooltip>{{ $t('pipeops_action_abort') }}</q-tooltip>
+                  </q-btn>
+                </td>
               </tr>
               <tr v-if="expanded.has(rowKey(p))">
-                <td colspan="8" class="bg-grey-1">
+                <td colspan="9" class="bg-grey-1">
                   <div class="q-pa-sm">
                     <div v-for="j in p.jobs" :key="j.job_id" class="q-py-sm">
                       <!-- Main job row -->
@@ -587,6 +716,42 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- Abort confirmation — one-click guard against misfire on a long
+         chain.  The data-management page button skips this because
+         it's scoped to a single visible card; the ops list shows
+         many rows and a misclick is easy. -->
+    <q-dialog v-model="abortDialog" persistent>
+      <q-card style="min-width: 360px">
+        <q-card-section>
+          <div class="text-h6">{{ $t('pipeops_abort_title') }}</div>
+          <div class="text-body2 text-grey-8 q-mt-sm">
+            {{ $t('pipeops_abort_body') }}
+          </div>
+          <div v-if="abortTarget" class="q-mt-sm text-caption text-grey-7">
+            #{{ abortTarget.latest_job_id }} ·
+            {{ abortTarget.job_type ?? '—' }} ·
+            {{ abortTarget.module_label ?? abortTarget.module_type_id ?? '—' }}
+            / {{ abortTarget.year ?? '—' }}
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            :label="$t('pipeops_abort_cancel')"
+            :disable="aborting"
+            @click="abortDialog = false"
+          />
+          <q-btn
+            color="negative"
+            unelevated
+            :label="$t('pipeops_abort_confirm')"
+            :loading="aborting"
+            @click="confirmAbort"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <!-- UI1 — full message + copy to clipboard -->
     <q-dialog v-model="msgDialog">

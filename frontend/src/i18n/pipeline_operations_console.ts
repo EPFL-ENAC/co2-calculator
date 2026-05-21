@@ -64,6 +64,26 @@ export default {
   pipeops_col_duration: { en: 'Duration', fr: 'Durée' },
   pipeops_col_when: { en: 'Started', fr: 'Démarré' },
   pipeops_col_message: { en: 'Message', fr: 'Message' },
+  pipeops_col_actions: { en: 'Actions', fr: 'Actions' },
+
+  // Per-row abort + processed-CSV download (#1080 sprint-9).
+  pipeops_action_abort: { en: 'Abort pipeline', fr: 'Annuler le pipeline' },
+  pipeops_action_download_csv: {
+    en: 'Download processed CSV',
+    fr: 'Télécharger le CSV traité',
+  },
+  pipeops_abort_title: { en: 'Abort pipeline?', fr: 'Annuler le pipeline ?' },
+  pipeops_abort_body: {
+    en: 'Every non-terminal job of this pipeline will be marked FINISHED + ERROR. In-flight handlers cooperatively stop on their next checkpoint.',
+    fr: 'Chaque job non terminal de ce pipeline sera marqué FINISHED + ERROR. Les handlers en cours s’arrêtent coopérativement à leur prochain point de contrôle.',
+  },
+  pipeops_abort_cancel: { en: 'Cancel', fr: 'Annuler' },
+  pipeops_abort_confirm: { en: 'Abort', fr: 'Confirmer' },
+  pipeops_abort_success: { en: 'Pipeline aborted', fr: 'Pipeline annulé' },
+  pipeops_abort_failed: {
+    en: 'Failed to abort pipeline',
+    fr: 'Échec de l’annulation du pipeline',
+  },
 
   pipeops_status_running: { en: 'Running', fr: 'En cours' },
   pipeops_status_done: { en: 'Done', fr: 'Terminé' },
