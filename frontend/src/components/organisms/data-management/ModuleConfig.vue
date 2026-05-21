@@ -244,10 +244,21 @@ async function handleJobCompleted() {
 }
 
 async function handleJobProgressing() {
-  await Promise.all([
-    yearConfigStore.fetchConfig(props.selectedYear),
-    refreshPipelineState(),
-  ]);
+  // No-op since the pipeline-SSE + ``mergeLivePipelineJob`` work
+  // (commit 4a5d0c43): the live state of every job in the chain is
+  // already delivered through ``livePipelineJobsById`` (provided by
+  // this component, consumed by cards) and overlaid onto the row
+  // snapshot reactively.  Previously this fired ``fetchConfig`` +
+  // ``loadFor`` on every per-job SSE tick (~2s), producing a stream
+  // of redundant ``GET /year-configuration/{year}`` and
+  // ``GET /sync/active-pipelines?...`` requests during a single
+  // upload's phase 1.  The snapshot-only fields (``meta.file_name``,
+  // ``meta.rows_processed``) land in the row via ``handleJobCompleted``,
+  // which still fires once when the parent reaches FINISHED; the
+  // ``isFinishedFor`` watcher below covers the whole-pipeline
+  // terminal case.  Kept as a function (not removed) so the
+  // provide/inject contract with children stays stable — useful if a
+  // future feature actually needs a per-tick hook here.
 }
 
 // Live SSE jobs of the in-flight pipeline keyed by ``job_id`` — empty

@@ -199,7 +199,7 @@ function handleAbort() {
       style="margin-top: auto"
     >
       <div class="row q-mr-xs items-center" style="gap: 0.5rem">
-        <q-spinner-rings v-if="isLoading" color="grey" />
+        <!-- <q-spinner-rings v-if="isLoading" color="grey" /> -->
         <q-btn
           :color="buttonColor"
           :icon="buttonIcon"
