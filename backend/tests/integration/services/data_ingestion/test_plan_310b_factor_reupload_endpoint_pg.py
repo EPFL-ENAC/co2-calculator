@@ -32,6 +32,7 @@ Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 
 import asyncio
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -58,6 +59,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.models.year_configuration import YearConfiguration
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
@@ -191,18 +193,26 @@ async def _wait_for_child_recalc_job(
     Sf, parent_job_id: int, *, timeout: float = POLL_TIMEOUT_SECONDS
 ) -> DataIngestionJob:
     """Find the recalc child job spawned by the factor_ingest handler's
-    fan-out (Plan 310-C: ``_chain.chain_job`` stamps ``parent_job_id``
-    at ``meta.parent_job_id``).  Falls back to the legacy
-    ``meta.config.parent_job_id`` location for backward-compatibility
-    with rows pre-310C."""
+    fan-out.
+
+    Phase 5B (#1236) retired ``meta.parent_job_id`` — children are now
+    tied to their parent only by the shared ``pipeline_id``.  Look the
+    parent up by ``parent_job_id`` to read its ``pipeline_id``, then
+    match the emission_recalc child by that.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         async with Sf() as s:
+            parent = await s.get(DataIngestionJob, parent_job_id)
+            if parent is None or parent.pipeline_id is None:
+                await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                continue
             rows = (
                 (
                     await s.execute(
                         select(DataIngestionJob).where(
-                            col(DataIngestionJob.job_type) == "emission_recalc"
+                            col(DataIngestionJob.job_type) == "emission_recalc",
+                            col(DataIngestionJob.pipeline_id) == parent.pipeline_id,
                         )
                     )
                 )
@@ -210,14 +220,10 @@ async def _wait_for_child_recalc_job(
                 .all()
             )
             for row in rows:
-                meta = row.meta or {}
-                if (
-                    meta.get("parent_job_id") == parent_job_id
-                    or meta.get("config", {}).get("parent_job_id") == parent_job_id
-                ):
-                    if row.state == IngestionState.FINISHED:
-                        return row
-                    break  # found the row but not done yet
+                if row.state == IngestionState.FINISHED:
+                    return row
+                # Found the row but not done yet — fall through to the sleep
+                # so we re-poll instead of giving up.
         await asyncio.sleep(POLL_INTERVAL_SECONDS)
     raise AssertionError(
         f"Child recalc job for parent={parent_job_id} did not reach FINISHED "
@@ -244,6 +250,22 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
     tmp_path: Path = pg_app["tmp_path"]
 
     # ── 1. Seed the carbon-report graph + factor v1 + data entry ───────
+    # ``/v1/sync/dispatch`` (#1234-followup) refuses uploads for a year
+    # whose ``unit_sync`` pipeline hasn't finished SUCCESS — gated by
+    # ``year_configuration.configuration_completed``.  This test stages
+    # the post-provisioned graph by hand (CarbonReports / CRMs already
+    # exist below), so we stamp the marker explicitly to mirror what
+    # ``unit_sync_handler`` would have written on a real run.
+    async with Sf() as s:
+        s.add(
+            YearConfiguration(
+                year=2025,
+                is_started=True,
+                configuration_completed=datetime.now(timezone.utc),
+            )
+        )
+        await s.commit()
+
     async with Sf() as s:
         unit = Unit(
             institutional_code="TEST-310B",

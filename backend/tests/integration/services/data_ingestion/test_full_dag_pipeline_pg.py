@@ -34,6 +34,8 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 
+from .conftest import ensure_pipeline_for_job
+
 
 async def _install_dedup_index(engine) -> None:
     """Install ``uq_aggregation_active`` so the aggregation chain's
@@ -95,6 +97,7 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
     # 1. Persist the parent csv_ingest job.
     async with Sf() as session:
         parent = _csv_ingest_parent()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -293,6 +296,7 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
     #    here).
     async with Sf() as session:
         parent = _emission_recalc_parent()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -337,7 +341,11 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
 
     # Sanity: the handler reported WARNING (the branch the bug skipped).
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] is not None
+    # Phase 5B (#1236) — ``aggregation_job_id`` is no longer threaded
+    # through meta; the aggregation row is the source of truth.  The
+    # contract asserted here is "aggregation chained" — checked below
+    # by the row count under the parent's pipeline_id.
+    assert "aggregation_job_id" not in meta
 
     # The aggregation child exists in the DB, carries the parent's
     # pipeline_id, and is module-scoped to (module=5, year=2025).
@@ -351,7 +359,6 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
 
     assert len(aggregation_rows) == 1
     aggregation = aggregation_rows[0]
-    assert aggregation.id == meta["aggregation_job_id"]
     assert aggregation.module_type_id == 5
     assert aggregation.data_entry_type_id is None
     assert aggregation.year == 2025

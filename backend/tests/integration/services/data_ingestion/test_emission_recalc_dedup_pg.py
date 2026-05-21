@@ -32,6 +32,8 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
 
+from .conftest import ensure_pipeline_for_job
+
 
 async def _install_emission_recalc_dedup_index(engine) -> None:
     """Create the ``uq_emission_recalc_active`` partial unique index that
@@ -100,6 +102,7 @@ async def test_back_to_back_factor_reuploads_collapse_to_one_recalc(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -168,6 +171,7 @@ async def test_dedup_releases_after_first_recalc_finishes(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -236,6 +240,8 @@ async def test_dedup_does_not_collide_across_dets_or_years(pg_dsn):
         parent_c = _parent_factor_job(
             module_type_id=5, data_entry_type_id=11, year=2026
         )  # different year
+        for parent in (parent_a, parent_b, parent_c):
+            await ensure_pipeline_for_job(session, parent)
         session.add_all([parent_a, parent_b, parent_c])
         await session.commit()
         await session.refresh(parent_a)
@@ -278,6 +284,7 @@ async def test_dedup_skips_run_job_dispatch_on_collision(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -331,6 +338,7 @@ async def test_dedup_config_rejects_null_scope_keys(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
