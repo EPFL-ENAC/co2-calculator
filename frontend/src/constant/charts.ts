@@ -1,4 +1,5 @@
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
+import { useColorblindStore } from 'src/stores/colorblind';
 import { MODULES, type Module } from './modules';
 
 /** Interpolate between two `#RRGGBB` colours. */
@@ -12,12 +13,6 @@ function lerpHex(a: string, b: string, t: number): string {
   };
   return '#' + mix(1) + mix(3) + mix(5);
 }
-
-// Plain ref kept in sync by App.vue via a watch on useColorblindStore.
-// Using a module-level useColorblindStore() call or getActivePinia() computed
-// does not work because Pinia is not yet active at module-load time and
-// computed() caches the result without a reactive dependency on the store.
-export const colorblindMode = ref(false);
 
 // Color definitions with default and colorblind variants
 const colorDefinitions = {
@@ -312,7 +307,7 @@ const colorDefinitions = {
 
 // Single computed that returns colors based on colorblind mode
 export const colors = computed(() => {
-  const mode = colorblindMode.value ? 'colorblind' : 'default';
+  const mode = useColorblindStore().enabled ? 'colorblind' : 'default';
   return {
     yellow: colorDefinitions.yellow[mode],
     peach: colorDefinitions.peach[mode],
