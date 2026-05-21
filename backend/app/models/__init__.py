@@ -11,6 +11,7 @@ from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
 from .factor import Factor
 from .location import Location
+from .pod import Pod
 from .unit import Unit
 from .unit_user import UnitUser
 from .user import User
@@ -61,5 +62,6 @@ __all__ = [
     "Location",
     "DataEntry",
     "DataEntryEmission",
+    "Pod",
     "YearConfiguration",
 ]

@@ -3,7 +3,7 @@ import enum
 import io
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Optional, TypeVar
 from uuid import UUID, uuid4
 
@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_serializer
+from sqlalchemy import func
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -41,6 +42,7 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.pod import Pod
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
@@ -1162,6 +1164,103 @@ async def abort_pipeline(
         aborted_job_ids=[j.id for j in aborted if j.id is not None],
         aborted_by=current_user.email or str(current_user.id),
     )
+
+
+class WorkerResponse(BaseModel):
+    """One live pod entry for the workers view.
+
+    Returned by ``GET /v1/sync/workers``.  Joins ``pods`` with a
+    cheap count over ``data_ingestion_jobs.locked_by`` so the
+    operator can see "this pod has 3 claimed jobs right now".
+    """
+
+    pod_id: str
+    git_sha: Optional[str] = None
+    app_version: Optional[str] = None
+    started_at: datetime
+    last_heartbeat_at: datetime
+    heartbeat_age_seconds: int
+    claimed_job_count: int
+
+
+@router.get("/workers", response_model=list[WorkerResponse])
+async def list_workers(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.data_management", "view")
+    ),
+) -> list[WorkerResponse]:
+    """Return the set of live worker pods.
+
+    A pod is "live" when its ``last_heartbeat_at`` is within
+    ``2 × POD_HEARTBEAT_INTERVAL_SECONDS`` of now.  The double
+    window absorbs one missed tick (transient DB hiccup) without
+    declaring the pod dead — see ``app.tasks._pod_heartbeat``.
+
+    Motivating incident (2026-05-21): a dev ran a local branch
+    against the stage DB while the deployed stage app was also
+    running.  Two pods on different code revisions both polled
+    ``data_ingestion_jobs``, both held claims, and the trailing-
+    sibling oracle stalled silently because each pod observed a
+    half-applied view of the other's state.  Surfacing the pods
+    list with ``git_sha`` makes "two-pods-on-different-code"
+    visible in one screen.
+
+    **Required Permission**: ``backoffice.data_management.view``.
+    """
+    settings = get_settings()
+    live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=live_window)
+
+    # Live pods only — pods whose process crashed leave a row behind
+    # until the next deploy, and we don't want them showing as
+    # "claiming work".
+    pods = (
+        (
+            await db.execute(
+                select(Pod)
+                .where(col(Pod.last_heartbeat_at) >= cutoff)
+                .order_by(col(Pod.last_heartbeat_at).desc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if not pods:
+        return []
+
+    # Per-pod claimed-job count: how many ``data_ingestion_jobs``
+    # rows are RUNNING with ``locked_by = pod_id``.  One GROUP BY
+    # query covers all pods so we're not N+1'ing on the workers
+    # list (which is small but principled).
+    claimed_rows = await db.execute(
+        select(
+            DataIngestionJob.locked_by,
+            func.count(col(DataIngestionJob.id)),
+        )
+        .where(
+            col(DataIngestionJob.state) == IngestionState.RUNNING,
+            col(DataIngestionJob.locked_by).in_([p.pod_id for p in pods]),
+        )
+        .group_by(col(DataIngestionJob.locked_by))
+    )
+    claimed_by_pod: dict[str, int] = {
+        row[0]: int(row[1]) for row in claimed_rows.all() if row[0] is not None
+    }
+
+    return [
+        WorkerResponse(
+            pod_id=p.pod_id,
+            git_sha=p.git_sha,
+            app_version=p.app_version,
+            started_at=p.started_at,
+            last_heartbeat_at=p.last_heartbeat_at,
+            heartbeat_age_seconds=int((now - p.last_heartbeat_at).total_seconds()),
+            claimed_job_count=claimed_by_pod.get(p.pod_id, 0),
+        )
+        for p in pods
+    ]
 
 
 # SSE endpoint to stream a single job by ID - MUST be before /jobs/{job_id}

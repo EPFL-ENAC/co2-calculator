@@ -363,6 +363,41 @@ class Settings(BaseSettings):
         ),
     )
 
+    # #1080 sprint-9 — pod heartbeat for the workers view.
+    RUN_POD_HEARTBEAT: bool = Field(
+        default=True,
+        description=(
+            "Whether to run the in-process pod heartbeat writer.  The "
+            "loop INSERTs (or UPDATEs on conflict) a ``pods`` row for "
+            "the current pod's POD_ID and refreshes ``last_heartbeat_at`` "
+            "every ``POD_HEARTBEAT_INTERVAL_SECONDS``.  Backs the "
+            "``GET /v1/sync/workers`` endpoint that surfaces 'who's "
+            "claiming work right now' — the diagnostic gap that let a "
+            "local branch + stage DB conflict silently stall recalcs "
+            "(2026-05-21)."
+        ),
+    )
+    POD_HEARTBEAT_INTERVAL_SECONDS: int = Field(
+        default=30,
+        ge=5,
+        description=(
+            "Seconds between pod heartbeat refreshes.  The workers "
+            "endpoint considers a pod live when its "
+            "``last_heartbeat_at`` is within ``2 ×`` this interval, so "
+            "30s = dead pods drop off the live list within ~1 minute."
+        ),
+    )
+    # Build provenance — populated by CI on deploy.  Optional in dev.
+    GIT_SHA: Optional[str] = Field(
+        default=None,
+        description=(
+            "Commit SHA the running code was built from.  Surfaced via "
+            "the workers view so an operator can see at a glance when "
+            "two pods are on different revisions — the local+stage "
+            "scenario that motivated this telemetry."
+        ),
+    )
+
     # Plan 310-D — bulk-path pure async cutover
     BULK_PATH_PURE_ASYNC: bool = Field(
         default=True,
