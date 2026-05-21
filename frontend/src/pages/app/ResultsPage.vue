@@ -699,12 +699,9 @@ const getUncertainty = (
                   <!-- Module has results in the summary -->
                   <template v-if="getModuleResult(module)">
                     <!-- Per-module treemap -->
-                    <ModuleCharts
-                      :type="module"
-                      :show-evolution-chart="
-                        module === MODULES.ProfessionalTravel
-                      "
-                    />
+                    <template v-if="isModuleValidated(module)">
+                      <ModuleCharts :type="module" />
+                    </template>
                     <q-card flat class="grid-3-col q-mb-lg q-px-lg">
                       <BigNumber
                         :title="

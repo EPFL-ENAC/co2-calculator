@@ -797,13 +797,6 @@ class DataEntryEmissionService:
             emission_type_ids=emission_type_ids,
         )
 
-    async def get_travel_evolution_over_time(
-        self,
-        unit_id: int,
-    ) -> list[dict]:
-        """Get travel emissions aggregated by year and category."""
-        return await self.repo.get_travel_evolution_over_time(unit_id)
-
     # # Dict of dataEntryTypeEnum , func to calculation formulas
     # FORMULAS: dict[EmissionType, Callable] = {}
 

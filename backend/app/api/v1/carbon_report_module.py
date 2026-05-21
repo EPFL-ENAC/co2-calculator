@@ -475,31 +475,6 @@ async def get_top_class_breakdown(
 
 
 @router.get(
-    "/{unit_id}/evolution-over-time",
-)
-async def get_evolution_over_time(
-    unit_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> List:
-    """
-    Get travel emissions aggregated by year and category for a unit.
-    """
-    await _check_module_permission_for_unit(
-        current_user=current_user,
-        module_id="professional-travel",
-        action="view",
-        db=db,
-        unit_id=unit_id,
-    )
-
-    stats = await DataEntryEmissionService(db).get_travel_evolution_over_time(
-        unit_id=unit_id,
-    )
-    return stats
-
-
-@router.get(
     "/{unit_id}/{year}/headcount/members",
     response_model=List[HeadcountMemberDropdownItem],
 )

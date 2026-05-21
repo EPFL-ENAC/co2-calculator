@@ -84,9 +84,6 @@
             v-if="moduleTreemapData.length"
             :key="type"
             :data="moduleTreemapData"
-            :show-evolution-dialog="
-              type === MODULES.ProfessionalTravel && showEvolutionChart
-            "
             :print-mode="printMode"
           />
           <span v-else class="text-body2 text-secondary">
