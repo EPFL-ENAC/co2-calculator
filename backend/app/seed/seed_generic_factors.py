@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import TargetType
 from app.models.module_type import get_module_type_for_data_entry_type
 from app.modules.external_cloud_and_ai import (
     schemas as schemas,
@@ -25,6 +26,7 @@ from app.modules.research_facilities import (
     common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
 )
 from app.schemas.factor import BaseFactorHandler
+from app.seed._stub_jobs import create_seed_stub_job
 from app.services.data_ingestion.csv_providers.local_seed import LocalFactorCSVProvider
 
 logger = get_logger(__name__)
@@ -212,6 +214,31 @@ async def seed_factors(session: AsyncSession, config: FactorSeedConfig) -> None:
     inserted = result.get("inserted", 0)
     skipped = result.get("skipped", 0)
     print(f"Created {inserted} factors for [{label}] ({skipped} skipped)")
+
+    # Plant a stub ``factor_ingest`` job so the data-management
+    # cards show the seed.  Mirror the real dispatch path's
+    # ``data_entry_type_id`` resolution: single-DET seed → set DET;
+    # multi-DET seed (column-routed) → NULL so the card's
+    # ``latest_common_factor_job`` fallback picks it up across every
+    # affected submodule.  Without this stub the seeded factors
+    # live in the DB but the cards stay blank — see
+    # ``app.seed._stub_jobs``.
+    await create_seed_stub_job(
+        session,
+        module_type_id=module_type.value,
+        data_entry_type_id=(
+            config.data_entry_types[0].value
+            if config.data_entry_type_column is None
+            else None
+        ),
+        year=YEAR,
+        target_type=TargetType.FACTORS,
+        job_type="factor_ingest",
+        file_path=config.path,
+        rows_processed=inserted,
+        rows_skipped=skipped,
+    )
+
     await session.commit()
     logger.info(f"Seeded factors for [{label}].")
 
