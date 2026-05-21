@@ -1,6 +1,8 @@
 import asyncio
 import enum
+import io
 import json
+import time
 from datetime import datetime
 from typing import Optional, TypeVar
 from uuid import UUID, uuid4
@@ -12,6 +14,7 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
+    UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -21,6 +24,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
+from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
@@ -133,6 +137,125 @@ async def _stamp_job_type_and_meta(
         )
         row.pipeline_id = pipeline_id
     db.add(row)
+
+
+async def _resolve_source_job_to_file_path(
+    db: AsyncSession,
+    source_job_id: int,
+    *,
+    requested_target_type: TargetType,
+    requested_module_type_id: Optional[ModuleTypeEnum],
+) -> str:
+    """Resolve a ``source_job_id`` (copy-from-previous-year flow) to a
+    fresh ``tmp/copy-*`` ``file_path`` the CSV provider can consume.
+
+    The frontend's ``copyFromPreviousYear`` flow sends ``config.source_job_id``
+    instead of ``file_path`` so the operator doesn't have to re-upload an
+    identical CSV.  This helper looks up the source job, validates that
+    copying it makes sense, and stages a fresh copy of the source's
+    ``meta.processed_file_path`` under ``tmp/`` so the existing CSV
+    provider path-validation
+    (``base_csv_provider._validate_file_path``) accepts it as a normal
+    upload.
+
+    Validation:
+
+    - Source job exists (else 404).
+    - Source job is ``FINISHED + SUCCESS`` — failed/in-flight jobs may
+      not have run far enough to stamp ``processed_file_path``; API
+      providers never do.  Surface 422 with a clear message rather than
+      a confusing 503 down the line.
+    - ``target_type`` matches — copying a factors CSV into a
+      data-entries dispatch (or vice-versa) would silently
+      mis-process every row.
+    - ``module_type_id`` matches when both sides set one — defense in
+      depth against the operator picking a job from the wrong module
+      in the dropdown.
+    - ``meta.processed_file_path`` is set (else 422).
+
+    The fresh path is ``tmp/copy-{source_job_id}-{ms_epoch}/{filename}``.
+    The source file is read via ``files_store.get_file`` and written
+    via ``files_store.write_file`` so the operation works against both
+    ``LocalFilesStore`` and ``S3FilesStore`` (no backend-specific copy
+    API).  The original processed file is left in place — subsequent
+    copies must still be able to read it.
+    """
+    src = await DataIngestionRepository(db).get_job_by_id(source_job_id)
+    if src is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Source job {source_job_id} not found",
+        )
+    if src.state != IngestionState.FINISHED or src.result != IngestionResult.SUCCESS:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} is not in a copyable state "
+                f"(state={src.state}, result={src.result}); only "
+                "FINISHED+SUCCESS jobs can be copied."
+            ),
+        )
+    if src.target_type != requested_target_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source job {source_job_id} target_type={src.target_type} "
+                f"does not match request target_type={requested_target_type}"
+            ),
+        )
+    # ``module_type_id`` on the request comes from ``SyncRequestConfig``
+    # as ``ModuleTypeEnum``; on the job as a raw ``int``.  Normalise
+    # before comparing to avoid a false mismatch from enum vs int.
+    if (
+        requested_module_type_id is not None
+        and src.module_type_id is not None
+        and int(src.module_type_id) != int(requested_module_type_id)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source job {source_job_id} module_type_id={src.module_type_id} "
+                f"does not match request module_type_id={int(requested_module_type_id)}"
+            ),
+        )
+    src_meta = src.meta or {}
+    src_path = src_meta.get("processed_file_path")
+    if not src_path:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} has no processed file to "
+                "copy (failed before the processed/ move, or used an "
+                "API provider that doesn't stage a CSV)."
+            ),
+        )
+    files_store = make_files_store()
+    try:
+        content, _mime = await files_store.get_file(src_path)
+    except Exception as exc:  # noqa: BLE001 — surface storage failures as 422
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Source job {source_job_id} processed file is no longer "
+                f"available at {src_path!r}: {exc}"
+            ),
+        ) from exc
+    # ``processed_file_path`` is ``processed/{src_job_id}/{filename}`` —
+    # keep the leaf so the new tmp upload reads naturally in logs and
+    # in the new job's own ``processed_file_path`` after fan-out.
+    filename = src_path.rsplit("/", 1)[-1] or "copied.csv"
+    folder = f"tmp/copy-{source_job_id}-{int(time.time() * 1000)}"
+    # ``LocalFilesStore.write_file`` only reads ``.filename`` and
+    # ``await .read()`` — it derives mime_type via
+    # ``mimetypes.guess_type`` itself, so we don't need to construct
+    # ``Headers`` on the upload.  Keep it minimal.
+    upload = UploadFile(
+        file=io.BytesIO(content),
+        size=len(content),
+        filename=filename,
+    )
+    await files_store.write_file(upload, folder=folder)
+    return f"{folder}/{filename}"
 
 
 async def _institutional_id_for_job(
@@ -256,6 +379,13 @@ class SyncRequestConfig(BaseModel):
     data_entry_type_id: Optional[int] = None
     reduction_objective_type_id: Optional[int] = None
     module_type_id: Optional[ModuleTypeEnum] = None
+    # "Copy from previous year" flow: when set, the dispatch endpoint
+    # looks up the source job's ``meta.processed_file_path``, copies
+    # that file into a fresh ``tmp/copy-*`` location, and injects the
+    # new path as ``file_path`` so the CSV provider re-processes the
+    # same payload under the requested year.  No source_job_id ⇒
+    # normal upload path.  See ``_resolve_source_job_to_file_path``.
+    source_job_id: Optional[int] = None
 
 
 class SyncRequest(BaseModel):
@@ -639,6 +769,34 @@ async def sync_module_data_entries(
     config = syncRequest.config.model_dump() if syncRequest.config else {}
     if syncRequest.file_path:
         config["file_path"] = syncRequest.file_path
+
+    # Copy-from-previous-year resolution.  ``copyFromPreviousYear`` in
+    # the frontend sends ``config.source_job_id`` (not ``file_path``);
+    # without this step the CSV provider sees no source file and
+    # ``validate_connection`` returns False, producing a misleading 503
+    # ("Cannot connect to IngestionMethod.csv").  Resolve the source
+    # job's processed file into a fresh ``tmp/copy-*`` upload so the
+    # rest of the dispatch path is identical to a normal re-upload.
+    # Gated to CSV ingestion because only CSV providers consume
+    # ``file_path``; API/computed providers don't.
+    source_job_id = config.get("source_job_id")
+    if (
+        source_job_id is not None
+        and not config.get("file_path")
+        and syncRequest.ingestion_method == IngestionMethod.csv
+    ):
+        resolved_path = await _resolve_source_job_to_file_path(
+            db,
+            source_job_id,
+            requested_target_type=syncRequest.target_type,
+            requested_module_type_id=(
+                syncRequest.config.module_type_id if syncRequest.config else None
+            ),
+        )
+        config["file_path"] = resolved_path
+        # Provenance trail — surfaces in the new job's meta so support
+        # can answer "where did this row of numbers come from?".
+        config["copied_from_job_id"] = source_job_id
 
     # Determine entity_type early based on carbon_report_module_id presence
     entity_type = (
