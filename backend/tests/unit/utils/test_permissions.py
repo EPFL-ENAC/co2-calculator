@@ -540,15 +540,36 @@ class TestPermissionInvariants:
                 )
 
     @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
-    def test_backoffice_and_system_keys_never_scoped(self, roles):
-        """``backoffice.*`` and ``system.*`` permissions are flat (un-scoped).
-        Adding a unit suffix to them would silently break un-scoped lookups."""
+    def test_system_keys_never_scoped(self, roles):
+        """``system.*`` permissions are flat — adding a unit suffix would
+        silently break un-scoped lookups. (``backoffice.*`` is scoped by
+        affiliation for sub-perimeter managers since #459; see the dedicated
+        backoffice tests below.)"""
         perms = calculate_user_permissions(roles)
         for key in perms:
-            if key.startswith(("backoffice.", "system.")):
+            if key.startswith("system."):
                 assert "/" not in key, (
-                    f"Scoped non-module key found: {key!r} (roles={roles})"
+                    f"Scoped system key found: {key!r} (roles={roles})"
                 )
+
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_backoffice_keys_only_scoped_by_affiliation(self, roles):
+        """Backoffice keys are either bare (GlobalScope / superadmin / principal
+        side-grant) or carry an affiliation suffix ``/<aff>`` (#459). A unit-id
+        suffix on a backoffice key would mean a wrongly-shaped scope leaked
+        through ``as_scope_key``."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if not key.startswith("backoffice."):
+                continue
+            if "/" not in key:
+                continue
+            suffix = key.split("/", 1)[1]
+            # Affiliations are name-like tokens (e.g. "SV", "Engineering") —
+            # never the all-digit institutional_id shape ("0184", "10208").
+            assert not suffix.isdigit(), (
+                f"Backoffice key carries unit-id suffix: {key!r} (roles={roles})"
+            )
 
     def test_principal_subsumes_std_for_same_unit(self):
         """``[std, principal]`` for the same unit yields the same key-set as
@@ -574,23 +595,77 @@ class TestPermissionInvariants:
             )
 
 
-class TestBackofficeScopingCurrentBehavior:
-    """Pin current backoffice-permission scoping behaviour.
+class TestBackofficeAffiliationScoping:
+    """Backoffice sub-perimeter scoping by ACCRED affiliation (#459).
 
-    Backoffice metier permissions are ALWAYS stored un-scoped today, even when
-    the role itself carries a ``RoleScope`` (institutional_id or affiliation).
-    Issue #459 will introduce a sub-perimeter (per-affiliation) scoping for
-    backoffice managers (e.g. "Anna can only see SV"). When that lands, these
-    tests are expected to fail — that's the signal to update the contract.
-
-    NOTE: Affiliation-based roles are intentionally only meaningful for
-    backoffice; we do not test affiliation on ``user.*`` roles because the
-    role-assignment layer is responsible for never producing that shape.
+    Affiliation-scoped backoffice users hold ``backoffice.X/<affiliation>``
+    keys; GlobalScope users keep the bare ``backoffice.X`` keys. The two
+    shapes coexist via the ``any_scope=True`` lookup mode on endpoints.
     """
 
-    def test_backoffice_with_iid_role_scope_keys_stay_unscoped(self):
-        # TODO(#459): backoffice scoping by sub-perimeter — replace this with
-        # a scoped assertion once the new key shape is decided.
+    _BACKOFFICE_BARE = (
+        "backoffice.reporting",
+        "backoffice.users",
+        "backoffice.data_management",
+        "backoffice.documentation",
+    )
+
+    def test_affiliation_scope_emits_scoped_keys_only(self):
+        """Anna (affiliation=SV) should only hold ``backoffice.X/SV`` keys."""
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="SV"),
+            )
+        ]
+        perms = calculate_user_permissions(roles)
+        expected = {f"{p}/SV" for p in self._BACKOFFICE_BARE}
+        assert set(perms) == expected
+        # Action sets must be preserved on the scoped keys.
+        assert set(perms["backoffice.users/SV"]) == {"view", "edit", "export"}
+        assert set(perms["backoffice.reporting/SV"]) == {"view", "export"}
+
+    def test_global_scope_keeps_bare_keys(self):
+        """Regression guard: GlobalScope backoffice stays un-scoped."""
+        roles = [Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())]
+        perms = calculate_user_permissions(roles)
+        for path in self._BACKOFFICE_BARE:
+            assert path in perms, f"missing bare key {path}"
+            assert f"{path}/" not in " ".join(perms), (
+                f"GlobalScope leaked a scoped variant of {path}"
+            )
+
+    def test_multi_affiliation_unions(self):
+        """Two backoffice roles on SV and STI → both scoped keys present."""
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="SV"),
+            ),
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="STI"),
+            ),
+        ]
+        perms = calculate_user_permissions(roles)
+        assert "backoffice.users/SV" in perms
+        assert "backoffice.users/STI" in perms
+        assert "backoffice.users" not in perms
+
+    def test_affiliation_scope_via_dict_role(self):
+        """Roles deserialized from JSON come in as dicts — the dict branch of
+        ``as_scope_key`` must produce the same ``/<affiliation>`` suffix."""
+        role_dict = {
+            "role": RoleName.CO2_BACKOFFICE_METIER.value,
+            "on": {"affiliation": "SV"},
+        }
+        perms = calculate_user_permissions([Role(**role_dict)])
+        assert "backoffice.users/SV" in perms
+
+    def test_iid_role_scope_falls_back_to_unscoped(self):
+        """Defensive: ACCRED never produces this shape for backoffice today,
+        but if it ever leaks through we degrade gracefully to un-scoped keys
+        rather than emitting a meaningless ``backoffice.users/0184``."""
         roles = [
             Role(
                 role=RoleName.CO2_BACKOFFICE_METIER,
@@ -602,25 +677,25 @@ class TestBackofficeScopingCurrentBehavior:
             assert key.startswith("backoffice."), (
                 f"unexpected non-backoffice key: {key!r}"
             )
-            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+            assert "/" not in key, f"unexpected scope suffix: {key!r}"
 
-    def test_backoffice_with_affiliation_role_scope_keys_stay_unscoped(self):
-        # TODO(#459): this is exactly the case the new sub-perimeter scoping
-        # is meant to address — Anna with affiliation "SV" should only see
-        # data for SV. Update this test then.
-        roles = [
-            Role(
-                role=RoleName.CO2_BACKOFFICE_METIER,
-                on=RoleScope(affiliation="SV"),
-            )
-        ]
-        perms = calculate_user_permissions(roles)
-        assert perms, "backoffice on affiliation should currently grant flat perms"
-        for key in perms:
-            assert key.startswith("backoffice."), (
-                f"unexpected non-backoffice key: {key!r}"
-            )
-            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+
+class TestHasPermissionAnyScopeAffiliation:
+    """``has_permission(..., any_scope=True)`` must match affiliation keys.
+
+    This pins the rationale for swapping ``require_permission`` for an inline
+    ``any_scope=True`` check on the backoffice endpoints (#459).
+    """
+
+    def test_any_scope_matches_affiliation_key(self):
+        perms = {"backoffice.users/SV": ["view", "edit", "export"]}
+        assert has_permission(perms, "backoffice.users", "view", any_scope=True) is True
+
+    def test_default_lookup_misses_affiliation_key(self):
+        """A bare-path lookup against an affiliation-only user must return
+        False — this is exactly why the endpoints need ``any_scope=True``."""
+        perms = {"backoffice.users/SV": ["view"]}
+        assert has_permission(perms, "backoffice.users", "view") is False
 
 
 class TestHasPermissionAgainstRealPermissions:
