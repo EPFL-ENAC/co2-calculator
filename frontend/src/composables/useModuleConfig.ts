@@ -36,7 +36,12 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
   const { t: $t } = useI18n();
   const yearConfigStore = useYearConfigStore();
 
-  const { isModuleEnabled, isModuleIncomplete, getModule } = yearConfigStore;
+  const { isModuleEnabled, getModule } = yearConfigStore;
+
+  /** Issue #1215 — backend-computed "Incomplete" flag. */
+  function isModuleIncomplete(module: string): boolean {
+    return !!getModule(module as Module)?.incomplete;
+  }
 
   type UncertaintyTag = ModuleConfigType['uncertainty_tag'];
 
