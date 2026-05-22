@@ -7,6 +7,32 @@ Permissions are calculated dynamically from roles and returned as a structured d
 from typing import Optional
 
 
+def derive_backoffice_affiliations(
+    permissions: Optional[dict],
+    anchor_path: str = "backoffice.users",
+) -> tuple[bool, set[str]]:
+    """Inspect permission keys for backoffice sub-perimeter scoping (#459).
+
+    Returns ``(is_global, affiliations)``:
+    - ``is_global`` is True iff the bare ``anchor_path`` key is present, meaning
+      the user holds a ``GlobalScope`` (or superadmin) backoffice grant and
+      should NOT be narrowed.
+    - ``affiliations`` is the set of sub-perimeter labels parsed from
+      ``{anchor_path}/<aff>`` keys (multi-affiliation users yield multiple
+      entries — natural union semantics).
+
+    ``backoffice.users`` is the canonical anchor because all four backoffice
+    permission groups are emitted in lockstep by ``calculate_user_permissions``
+    for ``CO2_BACKOFFICE_METIER``.
+    """
+    if not permissions:
+        return False, set()
+    is_global = anchor_path in permissions
+    prefix = f"{anchor_path}/"
+    affiliations = {k.removeprefix(prefix) for k in permissions if k.startswith(prefix)}
+    return is_global, affiliations
+
+
 def has_permission(
     permissions: Optional[dict],
     path: str,

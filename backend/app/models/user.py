@@ -124,23 +124,31 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
             return "institutional_id" in s or "affiliation" in s
         return False
 
+    # Helper to check if a scope carries an affiliation (and no institutional_id).
+    # Used to gate backoffice sub-perimeter scoping (#459).
+    def is_affiliation_scope(s):
+        if isinstance(s, RoleScope):
+            return bool(s.affiliation) and s.institutional_id is None
+        if isinstance(s, dict):
+            return bool(s.get("affiliation")) and s.get("institutional_id") is None
+        return False
+
     def as_scope_key(s):
-        # Note: affiliation-based permissions are not implemented yet,
-        # so we return empty string for now to avoid granting permissions
-        # based on unrecognized scope formats, but this can be updated in
-        # the future when affiliation-based permissions are implemented
+        # GlobalScope → no suffix; RoleScope → "/{institutional_id}" or
+        # "/{affiliation}". Affiliation-based scoping (#459) narrows
+        # backoffice.* permissions to a sub-perimeter (ACCRED sortpath).
         if is_global_scope(s):
             return ""
         if isinstance(s, RoleScope):
-            if s.institutional_id and s.institutional_id is not None:
+            if s.institutional_id is not None:
                 return f"/{s.institutional_id}"
             if s.affiliation:
-                return ""
+                return f"/{s.affiliation}"
         elif isinstance(s, dict):
-            if "institutional_id" in s and s["institutional_id"] is not None:
+            if s.get("institutional_id") is not None:
                 return f"/{s['institutional_id']}"
-            if "affiliation" in s:
-                return ""
+            if s.get("affiliation"):
+                return f"/{s['affiliation']}"
         # Default to no scope if unrecognized format (should not grant permissions)
         return "/?"
 
@@ -162,18 +170,23 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
         if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
-            # to stream sync/jobs
-            # Backoffice metier can have either global scope or affiliation scope
-            # Grants full backoffice access for reporting, docs, and data updates
+            # GlobalScope → un-scoped keys (full backoffice reach).
+            # RoleScope(affiliation=...) → scoped keys "backoffice.X/{affiliation}"
+            # so endpoints can narrow results to the user's sub-perimeter (#459).
+            # RoleScope(institutional_id=...) is not produced by ACCRED today; if
+            # it ever appears it falls through to the un-scoped branch.
+            bo_key = scope_key if is_affiliation_scope(scope) else ""
             if is_global_scope(scope) or is_role_scope(scope):
-                permissions["backoffice.reporting"] = merge_actions(
-                    permissions.get("backoffice.reporting"), ["view", "export"]
+                permissions[f"backoffice.reporting{bo_key}"] = merge_actions(
+                    permissions.get(f"backoffice.reporting{bo_key}"),
+                    ["view", "export"],
                 )
-                permissions["backoffice.users"] = merge_actions(
-                    permissions.get("backoffice.users"), ["view", "edit", "export"]
+                permissions[f"backoffice.users{bo_key}"] = merge_actions(
+                    permissions.get(f"backoffice.users{bo_key}"),
+                    ["view", "edit", "export"],
                 )
-                permissions["backoffice.data_management"] = merge_actions(
-                    permissions.get("backoffice.data_management"),
+                permissions[f"backoffice.data_management{bo_key}"] = merge_actions(
+                    permissions.get(f"backoffice.data_management{bo_key}"),
                     [
                         "view",
                         "edit",
@@ -181,8 +194,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                         "sync",
                     ],
                 )
-                permissions["backoffice.documentation"] = merge_actions(
-                    permissions.get("backoffice.documentation"), ["view", "edit"]
+                permissions[f"backoffice.documentation{bo_key}"] = merge_actions(
+                    permissions.get(f"backoffice.documentation{bo_key}"),
+                    ["view", "edit"],
                 )
 
         # USER ROLES - Only affect modules.* permissions
