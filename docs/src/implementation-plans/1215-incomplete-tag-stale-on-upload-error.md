@@ -1,5 +1,5 @@
 ---
-status: draft
+status: delivered
 issue: 1215
 last_updated: 2026-05-22
 title: "Move 'Incomplete' tag computation to backend"
@@ -362,3 +362,48 @@ with how this codebase has shaped it. Recommendation: keep
 co-located in the router file for this PR; refactor both helpers to
 the service in a follow-up if size becomes an issue (the router is
 already 1006 lines).
+
+## 8. Delivery notes (2026-05-22)
+
+- **(a)** Resolved: mandatoriness moved to `backend/app/core/submodule_mandatoriness.py`
+  (single-file module beside the existing `backend/app/core/constants.py`,
+  not a new `app/constants/` package). Exposes
+  `SUBMODULE_MANDATORINESS` (keyed by `(module_type_id, data_entry_type_id)`),
+  `MODULES_REQUIRING_COMMON_FACTOR = {4, 5}`, and a `get_submodule_mandatoriness`
+  lookup with a defensive default (unknown pair → no mandatory uploads).
+- **(b)** Verified against `MODULE_SUBMODULES` / `MODULE_COMMON_UPLOADS`
+  in `frontend/src/constant/backoffice-module-config.ts`:
+  `mandatoryReference` matches train (21), plane (20), and building (30);
+  `noFactors` matches the Equipment (4, *) and Purchase (5, *) submodules
+  except `additional_purchases` (5, 67). Common-factor modules are exactly 4 and 5.
+- **(c)** Applied as proposed — backend honours the legacy fallback:
+  a submodule's mandatory factor is satisfied by either its own
+  `latest_factor_job` **or** the module's `latest_common_factor_job`.
+- **(d)** Applied as proposed — module-level surfaces `incomplete: bool` only.
+  No `incomplete_reasons` at module level.
+- **(e)** Kept the helper co-located in
+  `backend/app/api/v1/year_configuration.py`. Single `_annotate_module_incomplete`
+  helper does one pass (annotate submodules + roll up the module flag) instead
+  of two separate functions.
+
+**Files changed:**
+
+Backend:
+- `backend/app/core/submodule_mandatoriness.py` (new)
+- `backend/app/api/v1/year_configuration.py` (+helper, +2 call sites)
+- `backend/app/schemas/year_configuration.py` (+`incomplete`/`incomplete_reasons` fields)
+- `backend/tests/unit/v1/test_year_configuration_incomplete_flag.py` (new, 19 tests)
+
+Frontend:
+- `frontend/src/stores/yearConfig.ts` (deleted `isSubmoduleIncomplete`/`isModuleIncomplete`;
+  `anyModuleIncomplete` reads backend flags; added `incomplete`/`incomplete_reasons` to
+  `SubmoduleConfig`/`ModuleConfig` types)
+- `frontend/src/composables/useModuleConfig.ts` (thin `isModuleIncomplete` reading backend flag)
+- `frontend/src/composables/useSubmoduleConfig.ts` (thin `isSubmoduleIncomplete` reading backend flag)
+- `frontend/src/components/organisms/data-management/ModuleConfig.vue` (comment refresh)
+- `frontend/tests/integration/data-management.spec.ts` (+2 regression tests: 1215a, 1215b)
+- `frontend/tests/integration/setup/data-management-mocks.ts` (stub includes `incomplete: false`)
+
+**Disabled-module gate moved to the backend** — `_annotate_module_incomplete`
+short-circuits `module.incomplete = False` when `module.enabled` is false,
+so the frontend no longer needs the `isModuleEnabled` guard.
