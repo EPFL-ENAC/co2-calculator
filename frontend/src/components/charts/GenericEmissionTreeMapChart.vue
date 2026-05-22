@@ -37,7 +37,9 @@ const LABEL_KEY_MAP: Record<string, string> = {
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerant',
   // buildings
+  combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
+  heating_elec: 'charts-heating-elec-subcategory',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
@@ -64,7 +66,11 @@ const LABEL_KEY_MAP: Record<string, string> = {
   additional: 'charts-additional-purchases-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
+  it_facilities: 'charts-research-it-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
+  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
+  mice: 'charts-animal-mice-subcategory',
+  fish: 'charts-animal-fish-subcategory',
   // professional travel
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
@@ -129,7 +135,7 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: cat.color,
         borderColor: '#fff',
-        borderWidth: 0,
+        borderWidth: 1,
       },
       label: {
         show: pct >= 0.09,

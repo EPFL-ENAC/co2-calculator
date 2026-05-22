@@ -760,6 +760,7 @@ class DataEntryEmissionRepository:
         top_n: int = 3,
         label_field: str | None = None,
         report_year: int | None = None,
+        emission_type_ids: List[int] | None = None,
     ) -> List[Dict[str, Any]]:
         """Aggregate emissions by data entry type and a grouping field.
 
@@ -816,6 +817,11 @@ class DataEntryEmissionRepository:
                 ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 col(DataEntryEmission.kg_co2eq) > 0,
+                *(
+                    [col(DataEntryEmission.emission_type_id).in_(emission_type_ids)]
+                    if emission_type_ids is not None
+                    else []
+                ),
             )
             .group_by(*group_by_columns)
             .cte("ranked")

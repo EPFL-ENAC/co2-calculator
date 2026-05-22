@@ -208,6 +208,7 @@ const activeButtonStyle = computed((): Record<string, string> => {
 const TOP_CLASS_MODULES: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.Purchase,
+  MODULES.ResearchFacilities,
 ];
 
 const moduleStore = useModuleStore();

@@ -172,12 +172,12 @@ export default {
   },
   // Class keys
   class_1: {
-    en: 'Class 1',
-    fr: 'Classe 1',
+    en: '1st class',
+    fr: '1ère classe',
   },
   class_2: {
-    en: 'Class 2',
-    fr: 'Classe 2',
+    en: '2nd class',
+    fr: '2ème classe',
   },
   first: {
     en: 'First',

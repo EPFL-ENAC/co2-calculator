@@ -49,12 +49,12 @@ const roomFields: ModuleField[] = [
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
     options: [
-      { value: 'office', label: 'buildings-room-type-office' },
-      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
       { value: 'laboratories', label: 'buildings-room-type-laboratories' },
+      { value: 'office', label: 'buildings-room-type-office' },
       { value: 'archives', label: 'buildings-room-type-archives' },
       { value: 'libraries', label: 'buildings-room-type-libraries' },
       { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
+      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
     ],
   },
   {

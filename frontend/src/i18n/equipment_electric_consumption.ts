@@ -89,15 +89,15 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific`]: {
     en: 'Scientific Equipment',
-    fr: 'Équipement scientifique',
+    fr: 'Équipements scientifiques',
   },
   [`${MODULES.EquipmentElectricConsumption}-it`]: {
     en: 'IT Equipment',
-    fr: 'Équipement informatique',
+    fr: 'Équipements IT',
   },
   [`${MODULES.EquipmentElectricConsumption}-other`]: {
     en: 'Other Equipment',
-    fr: 'Autre équipement',
+    fr: 'Autres équipements',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-equipment-table-title`]:
     {
@@ -106,11 +106,11 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     },
   [`${MODULES.EquipmentElectricConsumption}-it-equipment-table-title`]: {
     en: 'IT equipment ({count}) | IT equipments ({count})',
-    fr: 'Équipement informatique ({count}) | Équipements informatiques ({count})',
+    fr: 'Équipements IT ({count}) | Équipements IT ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-other-equipment-table-title`]: {
     en: 'Other equipment ({count}) | Other equipments ({count})',
-    fr: 'Autre équipement ({count}) | Autres équipements ({count})',
+    fr: 'Autres équipements ({count}) | Autres équipements ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-form-title`]: {
     en: 'Add Scientific Equipment',
