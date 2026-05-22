@@ -5,7 +5,7 @@ import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import type { ModuleResult } from 'src/api/modules';
 import type { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULES, type Module } from 'src/constant/modules';
+import type { Module } from 'src/constant/modules';
 
 interface Props {
   module: Module;
@@ -150,7 +150,6 @@ function getTotalModuleCarbonFootprintTitle(): string {
         </div>
         <ModuleCharts
           :type="module"
-          :show-evolution-chart="module === MODULES.ProfessionalTravel"
           forced-view="type"
           :show-controls="false"
         />
@@ -162,7 +161,6 @@ function getTotalModuleCarbonFootprintTitle(): string {
         </div>
         <ModuleCharts
           :type="module"
-          :show-evolution-chart="module === MODULES.ProfessionalTravel"
           forced-view="breakdown"
           :show-controls="false"
         />

@@ -11,7 +11,6 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
-from app.models.module_type import ModuleTypeEnum
 from app.utils.data_entry_emission_type_map import ROLLUP_EMISSION_TYPE_IDS
 from app.utils.it_breakdown import ITSqlTotals
 
@@ -876,74 +875,4 @@ class DataEntryEmissionRepository:
         for group in result_list:
             group.pop("data_entry_type_id", None)
 
-        return result_list
-
-    async def get_travel_evolution_over_time(
-        self,
-        unit_id: int,
-    ) -> List[Dict[str, Any]]:
-        """
-        Aggregate travel emissions by year and category across all years
-        for a given unit.
-
-        Returns:
-        [
-            {"year": 2023, "category": "plane", "kg_co2eq": 15000.0},
-            {"year": 2023, "category": "train", "kg_co2eq": 8000.0},
-            ...
-        ]
-        """
-        year_expr = col(CarbonReport.year)
-        category_expr = col(DataEntry.data_entry_type_id)
-
-        query: Select[Any] = (
-            select(
-                year_expr.label("year"),
-                category_expr.label("category"),
-                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
-            )
-            .join(
-                DataEntry,
-                col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
-            )
-            .join(
-                CarbonReportModule,
-                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
-            )
-            .join(
-                CarbonReport,
-                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
-            )
-            .where(
-                CarbonReport.unit_id == unit_id,
-                CarbonReportModule.module_type_id
-                == ModuleTypeEnum.professional_travel.value,
-                col(DataEntry.data_entry_type_id).in_(
-                    [DataEntryTypeEnum.plane.value, DataEntryTypeEnum.train.value]
-                ),
-                col(DataEntryEmission.kg_co2eq).isnot(None),
-                col(DataEntryEmission.kg_co2eq) > 0,
-            )
-            .group_by(year_expr, category_expr)
-            .order_by(year_expr.asc(), category_expr.asc())
-        )
-
-        result = await self.session.execute(query)
-        rows = result.all()
-
-        result_list: List[Dict[str, Any]] = []
-        for row in rows:
-            if row.category == DataEntryTypeEnum.plane.value:
-                category = "plane"
-            elif row.category == DataEntryTypeEnum.train.value:
-                category = "train"
-            else:
-                continue
-            result_list.append(
-                {
-                    "year": row.year,
-                    "category": category,
-                    "kg_co2eq": row.kg_co2eq or None,
-                }
-            )
         return result_list
