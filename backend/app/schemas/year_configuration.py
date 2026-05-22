@@ -372,6 +372,19 @@ class SubmoduleConfig(BaseModel):
         default=None,
         description="Latest reference data sync job (read-only, injected by API)",
     )
+    # Issue #1215 — true iff a mandatory upload (factor or reference)
+    # is missing. Errored jobs do NOT count as missing.
+    incomplete: bool = Field(
+        default=False,
+        description="True when a mandatory upload is missing (read-only, injected by API)",
+    )
+    incomplete_reasons: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Reasons the submodule is incomplete, e.g. "
+            '["missing_factor", "missing_reference"] (read-only, injected by API)'
+        ),
+    )
 
     @field_validator("threshold")
     @classmethod
@@ -392,6 +405,15 @@ class ModuleConfig(BaseModel):
     submodules: Dict[str, SubmoduleConfig] = Field(
         default_factory=dict,
         description="Configuration for each data entry type under this module",
+    )
+    # Issue #1215 — module-level rollup over enabled submodules + the
+    # common-factor mandatoriness signal (modules 4 and 5 today).
+    incomplete: bool = Field(
+        default=False,
+        description=(
+            "True when any enabled submodule is incomplete or a required "
+            "common upload is missing (read-only, injected by API)"
+        ),
     )
 
 
