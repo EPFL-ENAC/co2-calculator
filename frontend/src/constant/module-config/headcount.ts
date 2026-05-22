@@ -69,6 +69,7 @@ const memberFields: ModuleField[] = [
     labelKey: 'headcount-member-form-field-user-institutional-id-label',
     type: 'text',
     sortable: false,
+    required: true,
     ratio: '1/4',
   },
   {
