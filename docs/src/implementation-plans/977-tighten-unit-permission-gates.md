@@ -1,9 +1,9 @@
 ---
-status: draft
+status: delivered
 issue: 977
 last_updated: 2026-05-22
 title: "Tighten unit-scoped permission gates"
-summary: "Close three pre-existing permission soft-spots: 6 carbon_report endpoints + 3 unit_results endpoints get unit gating; remove the coarse modules.* fallback in files.py and data_sync.py."
+summary: "Close three pre-existing permission soft-spots: 2 carbon_report endpoints + 3 unit_results endpoints get unit gating; remove the coarse modules.* fallback in files.py and data_sync.py."
 ---
 
 ## Problem
@@ -302,28 +302,54 @@ reviewers can confirm the gates landed.
 ## Open questions
 
 - **(a) Module-level vs unit-level for `carbon_report.py` / `unit_results.py`** —
-  recommendation is `require_unit_access` (justified in §4.2). If reviewers
-  prefer a module-level check, the question becomes *which* `ModuleType`
-  bucket anchors a unit-scoped report. There is no `carbon_report` bucket
-  today. Default to `require_unit_access` unless an alternative is raised
-  in the implementation PR.
-- **(b) Routes relying only on the `modules.*` fallback** — confirm during
-  implementation that no production usage flows through a scoped user
-  without `backoffice.data_management.*`. If any does, the answer is either
-  promotion to `check_module_permission_for_unit` (with route-specific
-  module-id resolution) or accepting the route is backoffice-only. Decision
-  belongs in the implementation PR.
-- **(c) Rename on lift** — `_check_module_permission_for_unit` is a poor
-  name for a helper that now also serves non-module unit checks via its
-  re-use sites. Proposal: name the lifted version
-  `check_module_permission_for_unit` (drop the underscore, keep the
-  `module_` because the helper still takes a `module_id` arg). If the
-  implementation phase decides to also use the helper for non-module unit
-  checks, rename further.
-- **(d) Restrict `is_permitted` glob support entirely** — separate refactor,
-  out of scope for #977. The function's glob behavior is not itself broken
-  (it does what it advertises); only the call-site usage of `"modules.*"`
-  was semantically wrong. File a follow-up issue if the team wants to
-  retire glob support.
+  **resolved**: used `require_unit_access` for all 5 endpoints. Mirrors the
+  4 already-gated `carbon_report.py` routes; avoids picking an arbitrary
+  `ModuleType` bucket for unit-scoped reports.
+- **(b) Routes relying only on the `modules.*` fallback** — **resolved**:
+  all 6 sites (`files.py:129/207/300/348`, `data_sync.py:728/1309`) keep
+  their existing `backoffice.data_management.{view,edit,sync}` primary
+  gate after the fallback is dropped. None are promoted to
+  `check_module_permission_for_unit`: these are backoffice-only file-store
+  / sync endpoints with no unit identity in the request path. A scoped
+  principal who was previously admitted via the glob fallback now
+  correctly hits 403 — pinned by the four
+  `TestFilesPermissionFallbackRemoved` and two
+  `TestDataSyncPermissionFallbackRemoved` regression tests.
+- **(c) Rename on lift** — **resolved**: lifted as
+  `check_module_permission_for_unit` (no leading underscore). Signature
+  unchanged. The 9 existing call sites in
+  `backend/app/api/v1/carbon_report_module.py` rebind to the public name.
+- **(d) Restrict `is_permitted` glob support entirely** — still out of
+  scope. The function's glob behavior is not itself broken; only the
+  call-site usage of `"modules.*"` was semantically wrong, and that is
+  fixed by this PR. File a follow-up issue if the team wants to retire
+  glob support.
+
+## Delivered
+
+- `backend/app/core/policy.py` — public `check_module_permission_for_unit`
+  added next to `require_unit_access`.
+- `backend/app/api/v1/carbon_report_module.py` — local helper deleted; 9
+  call sites rebound to the lifted public name; unused alias import
+  removed by ruff.
+- `backend/app/api/v1/carbon_report.py` — `list_carbon_report_modules`
+  and `update_carbon_report_module_status` now load the report's unit and
+  call `require_unit_access` before delegating.
+- `backend/app/api/v1/unit_results.py` — `get_unit_results` gains the
+  missing `unit_id: int` path param; all three endpoints gate via
+  `require_unit_access`.
+- `backend/app/api/v1/files.py` — `modules.*` fallback removed from all
+  4 sites (list, get, upload, delete). Docstrings and HTTPException
+  details updated.
+- `backend/app/api/v1/data_sync.py` — `modules.*` fallback removed from
+  the dispatch (sync) and job-stream (view) handlers; HTTPException
+  details updated.
+- `backend/tests/integration/v1/test_unit_gating_e2e.py` — 19 new tests
+  (3-actor matrix per gated endpoint + scoped-principal regression
+  asserts on the 4 files / 2 sync endpoints).
+- `backend/tests/unit/v1/test_carbon_report.py` — existing unit tests for
+  `list_carbon_report_modules` / `update_carbon_report_module_status`
+  updated to patch `require_unit_access` (mirrors the same pattern used
+  by the 4 already-gated endpoints in the same file).
 
 [#977]: https://github.com/EPFL-ENAC/co2-calculator/issues/977
