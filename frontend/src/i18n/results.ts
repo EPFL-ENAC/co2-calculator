@@ -220,8 +220,8 @@ export default {
     fr: 'Résultats par catégorie',
   },
   results_by_category_subtitle: {
-    en: 'Annual carbon footprint {year}',
-    fr: 'Bilan CO₂ annuel {year}',
+    en: 'Carbon footprint {year}',
+    fr: 'Empreinte carbone {year}',
   },
   results_equipment_distribution_title: {
     en: 'Equipment distribution',
