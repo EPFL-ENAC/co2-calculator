@@ -1906,6 +1906,7 @@ async def recalculate_emissions_for_type(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
@@ -2000,6 +2001,7 @@ async def recalculate_emissions_for_module(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={
             "config": {

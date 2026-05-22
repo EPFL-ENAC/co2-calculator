@@ -327,6 +327,12 @@ async def chain_job(
             state=IngestionState.NOT_STARTED,
             is_current=False,
             pipeline_id=pipeline_id,
+            # Inherit the parent's provider scope — every job in a
+            # pipeline shares the same provider (the user who triggered
+            # the root upload). Without this children default to DEFAULT
+            # and downstream provider-scoped reads (year_configuration,
+            # carbon_reports) miss the right rows.
+            provider=parent.provider,
             # ``None`` means "runnable immediately" — claim_job's WHERE
             # treats NULL run_after as eligible.  Matches the existing
             # ingestion_tasks.py recalc-job creation pattern.
