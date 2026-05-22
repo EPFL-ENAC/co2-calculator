@@ -121,9 +121,11 @@ async def _seed_year_unit_and_module(
     foundation helper's ``SEED-{suffix}-{i}`` shape.
     """
     # YearConfiguration may already exist if multiple tests share a session.
-    existing = await session.get(YearConfiguration, year)
+    existing = await session.get(YearConfiguration, (year, UserProvider.DEFAULT))
     if existing is None:
-        session.add(YearConfiguration(year=year, is_started=True))
+        session.add(
+            YearConfiguration(year=year, provider=UserProvider.DEFAULT, is_started=True)
+        )
         await session.flush()
 
     unit = Unit(

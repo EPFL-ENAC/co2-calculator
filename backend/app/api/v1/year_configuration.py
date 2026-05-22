@@ -335,14 +335,15 @@ async def create_audit_entry(
 ) -> None:
     """Create audit entry for year configuration change.
 
-    Args:
-        session: Database session.
-        year: Configuration year.
-        change_type: Type of change (CREATE/UPDATE/DELETE).
-        user: User making the change.
-        data_snapshot: Full configuration snapshot.
-        data_diff: Optional diff between old and new config.
+    ``YearConfiguration`` is keyed by ``(year, provider)``; the audit chain
+    must mirror that so two providers don't interleave their version
+    counters. Encode ``entity_id`` as ``year * 10 + provider.value`` —
+    ``UserProvider`` is 0/1/2 so this stays collision-free with adjacent
+    years. The ``data_snapshot`` always includes ``provider`` so the
+    encoded id is recoverable.
     """
+    entity_id = year * 10 + int(user.provider)
+
     # Calculate hash for integrity chain
     snapshot_str = str(data_snapshot)
     current_hash = hashlib.sha256(snapshot_str.encode()).hexdigest()
@@ -352,7 +353,7 @@ async def create_audit_entry(
     stmt = (
         select(AuditDocument)
         .where(col(AuditDocument.entity_type) == "year_configuration")
-        .where(col(AuditDocument.entity_id) == year)
+        .where(col(AuditDocument.entity_id) == entity_id)
         .where(col(AuditDocument.is_current))
         .order_by(col(AuditDocument.version).desc())
     )
@@ -370,7 +371,7 @@ async def create_audit_entry(
     # Create new audit entry
     audit_entry = AuditDocument(
         entity_type="year_configuration",
-        entity_id=year,
+        entity_id=entity_id,
         version=new_version,
         is_current=True,
         data_snapshot=data_snapshot,
@@ -400,16 +401,20 @@ async def list_year_configurations(
 ):
     """List year configurations available to the caller.
 
-    Backoffice data managers see every row (admin-equivalent for this purpose);
-    everyone else only sees years where ``is_started`` is true. This is what
-    drives the workspace year selector — closed years stay hidden from regular
-    users until backoffice opens them.
+    Results are always scoped to ``current_user.provider`` — a TEST user
+    never sees ACCRED rows and vice versa. Backoffice data managers
+    additionally bypass the ``is_started`` filter (regular users only
+    see opened years). This is what drives the workspace year selector
+    — closed years stay hidden from regular users until backoffice
+    opens them.
 
     Sorted by year descending (latest first).
     """
     is_admin = await is_permitted(current_user, "backoffice.data_management", "view")
 
-    stmt = select(YearConfiguration)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.provider) == current_user.provider
+    )
     if not is_admin:
         stmt = stmt.where(col(YearConfiguration.is_started).is_(True))
     stmt = stmt.order_by(col(YearConfiguration.year).desc())
@@ -446,7 +451,10 @@ async def get_year_configuration(
     Returns:
         Year configuration enriched with latest sync job per submodule.
     """
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -506,12 +514,18 @@ async def create_year_configuration(
             detail="Only backoffice data managers can create year configurations",
         )
 
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     existing = (await db.exec(stmt)).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Configuration for year {year} already exists",
+            detail=(
+                f"Configuration for year {year} provider "
+                f"{current_user.provider.name} already exists"
+            ),
         )
 
     config_data = (
@@ -530,6 +544,7 @@ async def create_year_configuration(
     # ``is_started: true``).  Callers may still override here.
     new_config = YearConfiguration(
         year=year,
+        provider=current_user.provider,
         is_started=payload.is_started
         if payload and payload.is_started is not None
         else False,
@@ -538,6 +553,7 @@ async def create_year_configuration(
     db.add(new_config)
 
     snapshot = {
+        "provider": current_user.provider.name,
         "is_started": new_config.is_started,
         "config": new_config.config,
     }
@@ -573,6 +589,7 @@ async def create_year_configuration(
         target_type=TargetType.REFERENCE_DATA,
         entity_type=EntityType.GLOBAL_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={"config": {"target_year": year}},
     )
@@ -682,7 +699,10 @@ async def update_year_configuration(
                     ),
                 )
 
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -693,6 +713,7 @@ async def update_year_configuration(
 
     # Get old snapshot for audit
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -705,6 +726,7 @@ async def update_year_configuration(
     db.add(result)
 
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -823,7 +845,10 @@ async def upload_reduction_objective_file(
     config_key = category_map[category]
 
     # Update configuration
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -838,6 +863,7 @@ async def upload_reduction_objective_file(
     # Capture old state for audit diff before any mutation
     old_config = copy.deepcopy(result.config)
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": old_config,
     }
@@ -882,6 +908,7 @@ async def upload_reduction_objective_file(
 
     # Create audit entry with diff
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -945,7 +972,10 @@ async def check_emission_threshold(
         Whether threshold is exceeded and threshold value.
     """
     # Get configuration
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     config = result.config if result else generate_default_year_config()

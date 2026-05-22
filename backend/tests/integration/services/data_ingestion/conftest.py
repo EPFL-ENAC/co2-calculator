@@ -354,9 +354,11 @@ async def seeded_year_with_units(
 
     # ── 1. Year configuration row (idempotent — a previous test on the
     #       same session may already have laid this year down).
-    existing_year = await session.get(YearConfiguration, year)
+    existing_year = await session.get(YearConfiguration, (year, UserProvider.DEFAULT))
     if existing_year is None:
-        session.add(YearConfiguration(year=year, is_started=True))
+        session.add(
+            YearConfiguration(year=year, provider=UserProvider.DEFAULT, is_started=True)
+        )
         await session.flush()
 
     units: list[Unit] = []

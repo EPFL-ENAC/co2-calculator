@@ -194,6 +194,7 @@ erDiagram
     JSON config
     DATETIME configuration_completed
     BOOLEAN is_started
+    VARCHAR provider PK
     DATETIME updated_at
     INTEGER year PK
   }

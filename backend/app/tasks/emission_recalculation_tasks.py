@@ -533,6 +533,7 @@ async def module_emission_recalc_handler(
             state=IngestionState.FINISHED,
             result=type_result,
             status_message=f"Bulk recalculation via module job {job.id}",
+            provider=job.provider,
             # Phase 5B (#1236) — ``parent_job_id`` dropped from meta;
             # readers identify parents as the lowest-id job per pipeline.
             meta={"recalculation": stats},

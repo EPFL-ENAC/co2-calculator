@@ -59,6 +59,7 @@ from app.models.data_ingestion import (
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -114,6 +115,7 @@ async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
     fake_user.id = 1
     fake_user.email = "test@example.com"
     fake_user.institutional_id = "TEST-310B"
+    fake_user.provider = UserProvider.DEFAULT
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user

@@ -82,6 +82,7 @@ async def pg_app(pg_dsn, monkeypatch, tmp_path):
     fake_user.id = 1
     fake_user.email = "test@example.com"
     fake_user.institutional_id = "TEST-COPY-FROM-PREV"
+    fake_user.provider = UserProvider.DEFAULT
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user

@@ -753,7 +753,8 @@ async def sync_module_data_entries(
         year_cfg = (
             await db.execute(
                 select(YearConfiguration).where(
-                    col(YearConfiguration.year) == syncRequest.year
+                    col(YearConfiguration.year) == syncRequest.year,
+                    col(YearConfiguration.provider) == current_user.provider,
                 )
             )
         ).scalar_one_or_none()
@@ -761,9 +762,9 @@ async def sync_module_data_entries(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    f"Year {syncRequest.year} is not yet provisioned — "
-                    "wait for the unit_sync pipeline to complete before "
-                    "uploading data for this year."
+                    f"Year {syncRequest.year} is not yet provisioned for "
+                    f"provider {current_user.provider.name} — wait for the "
+                    "unit_sync pipeline to complete before uploading data."
                 ),
             )
 
@@ -1905,6 +1906,7 @@ async def recalculate_emissions_for_type(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={"config": {"year": year, "data_entry_type_id": data_entry_type_id.value}},
     )
@@ -1999,6 +2001,7 @@ async def recalculate_emissions_for_module(
         target_type=TargetType.DATA_ENTRIES,
         entity_type=EntityType.MODULE_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={
             "config": {
@@ -2048,12 +2051,14 @@ async def sync_units_from_accred(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Sync units from Accred API.
+    Sync units from the caller's provider (Accred for ACCRED users,
+    fixture-backed for TEST users).
 
     Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
     unit_sync, entity_type=GLOBAL_PER_YEAR) so progress is observable via
     the SSE stream and the job is recoverable on pod crash via the safety
-    poller.
+    poller. Provider is resolved from ``current_user.provider`` and stamped
+    on the job (#1266).
 
     **Required Permission**: `backoffice.data_management.sync`
 
@@ -2069,6 +2074,7 @@ async def sync_units_from_accred(
         target_type=TargetType.REFERENCE_DATA,
         entity_type=EntityType.GLOBAL_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         meta={"config": {"target_year": syncRequest.target_year}},
     )
     created = await DataIngestionRepository(db).create_ingestion_job(job)
@@ -2092,7 +2098,7 @@ async def sync_units_from_accred(
     return SyncStatusResponse(
         job_id=created.id,
         state=IngestionState.NOT_STARTED,
-        message="Unit sync from Accred API scheduled",
+        message=f"Unit sync from {current_user.provider.name} scheduled",
     )
 
 
