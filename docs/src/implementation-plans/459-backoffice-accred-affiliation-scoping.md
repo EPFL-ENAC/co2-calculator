@@ -1,0 +1,151 @@
+---
+status: draft
+issue: 459
+last_updated: 2026-05-22
+title: "Backoffice ACCRED affiliation scoping"
+summary: "Scope backoffice.* permissions by ACCRED-provided affiliation so each backoffice manager sees only their sub-perimeter."
+---
+
+## Problem
+
+`RoleScope.affiliation` exists on the user model (`backend/app/models/user.py:31`) and the ACCRED provider already populates it from the `reason.resource.sortpath` field of each `calco2.backoffice.metier` authorization (`backend/app/providers/role_provider.py:544-554`). However, the affiliation is currently ignored downstream:
+
+- `as_scope_key()` returns `""` for any `RoleScope` with only an affiliation set (`backend/app/models/user.py:137-138, 142-143`), with an inline comment acknowledging the gap.
+- `calculate_user_permissions()` emits a fixed, **unscoped** key set for `CO2_BACKOFFICE_METIER` — `backoffice.reporting`, `backoffice.users`, `backoffice.data_management`, `backoffice.documentation` — regardless of whether the role is `GlobalScope` or `RoleScope(affiliation=...)` (`backend/app/models/user.py:164-186`).
+- `/backoffice/affiliations` and `/backoffice/units` (`backend/app/api/v1/backoffice_reporting.py:20-108`) gate on `require_permission("backoffice.users", "view")` and return **all active units** with no per-caller filtering.
+
+Concrete impact: Anna, a Faculty SV backoffice manager whose ACCRED `sortpath` is `"SV"`, has the same blast radius as a global backoffice admin. She sees STI, IC, ENAC, CDH, CDM units in the affiliation/unit dropdowns and reporting tables. This violates the EPFL accreditation model and the explicit ACCRED contract that backoffice roles are sub-perimeter-bound.
+
+## Decision applied
+
+Backoffice "sub-perimeter" comes from **ACCRED-provided affiliation(s) on the user**. Populate `RoleScope.affiliation` from ACCRED (already done); emit `backoffice.*/{affiliation}` keys; filter `/backoffice/affiliations`, `/backoffice/units`, and any backoffice reporting endpoints by the user's affiliations.
+
+`GlobalScope` (superadmin, plus any backoffice role explicitly granted globally) continues to bypass affiliation filtering. Affiliation acts purely as a narrowing predicate on top of the existing permission gate.
+
+## Files to change
+
+- `backend/app/models/user.py`
+  - `as_scope_key()` (lines 127-145): return `f"/{s.affiliation}"` instead of `""` when only `affiliation` is set.
+  - `calculate_user_permissions()` (lines 164-186): for `CO2_BACKOFFICE_METIER` with `RoleScope(affiliation=...)`, emit `backoffice.reporting/{affiliation}`, `backoffice.users/{affiliation}`, `backoffice.data_management/{affiliation}`, `backoffice.documentation/{affiliation}`. `GlobalScope` keeps the bare keys.
+- `backend/app/api/v1/backoffice_reporting.py`
+  - `list_affiliations()` (lines 20-59): swap `require_permission("backoffice.users", "view")` for an inline gate that uses `has_permission(..., any_scope=True)`, then filter by the caller's affiliation set.
+  - `list_units()` (lines 62-108): same gate change + same affiliation filter.
+- `backend/tests/unit/models/test_user.py` (or the existing matching test file — locate during impl): add cases for `as_scope_key(RoleScope(affiliation="SV"))` → `"/SV"` and `calculate_user_permissions([backoffice_metier @ affiliation=SV])` emitting only the four `backoffice.*/SV` keys.
+- `backend/tests/integration/v1/test_permission_scope_e2e.py`: add `_backoffice_scoped(affiliation)` helper and three new test methods (see Tests section).
+
+Files explicitly **not** changed:
+
+- `backend/app/providers/role_provider.py` — ACCRED → `RoleScope.affiliation` mapping is already in place (verified at lines 544-554; covered by `test_role_provider.py:301-335`).
+- `backend/app/utils/permissions.py` — `has_permission(..., any_scope=True)` already supports the lookup pattern we need; no signature change.
+- `backend/app/core/security.py` — `require_permission`/`is_permitted` keep their current shape; the backoffice endpoints simply stop using `require_permission` and inline a scoped check, mirroring the taxonomy-route precedent already documented in `utils/permissions.py:32-38`.
+- `frontend/src/components/organisms/backoffice/reporting/` — backend-side narrowing is sufficient; the existing dropdowns already render whatever the API returns.
+
+## Approach
+
+1. **Fix `as_scope_key`** (`backend/app/models/user.py:127-145`). Replace the two `if s.affiliation: return ""` branches with `return f"/{s.affiliation}"`. Both the `RoleScope` and `dict` branches need updating. This is a single-line semantic change but it is load-bearing for everything downstream.
+
+2. **Branch `calculate_user_permissions` on scope type for backoffice** (`backend/app/models/user.py:164-186`). The current code emits the same four bare keys whether `is_global_scope(scope)` or `is_role_scope(scope)`. Split the branch:
+   - If `is_global_scope(scope)`: keep emitting the bare keys (`backoffice.reporting`, `backoffice.users`, `backoffice.data_management`, `backoffice.documentation`) — global backoffice keeps cross-affiliation reach.
+   - If `is_role_scope(scope)` and `scope_key` (from `as_scope_key`) is non-empty: emit `backoffice.reporting{scope_key}`, `backoffice.users{scope_key}`, `backoffice.data_management{scope_key}`, `backoffice.documentation{scope_key}`. A user with two `CO2_BACKOFFICE_METIER` roles on `SV` and `STI` ends up with both `backoffice.users/SV` and `backoffice.users/STI` (natural union via the merge_actions pattern).
+   - The `CO2_SUPERADMIN` branch (line 275-303) already requires `is_global_scope`, no change.
+
+3. **Swap the endpoint gate** in `backend/app/api/v1/backoffice_reporting.py`. Replace `current_user: User = Depends(require_permission("backoffice.users", "view"))` on both endpoints with `current_user: User = Depends(get_current_active_user)` and call `has_permission(current_user.calculate_permissions(), "backoffice.users", "view", any_scope=True)` at the top of each handler — raise `HTTPException(403)` on miss. Rationale: `require_permission` does a literal-path lookup via `is_permitted` → `fnmatch` (`backend/app/core/security.py:210-217`) which fails for users whose only key is `backoffice.users/SV`. The `any_scope=True` path on `has_permission` (`backend/app/utils/permissions.py:55-67`) is the exact mechanism we need and matches the taxonomy precedent.
+
+4. **Derive the caller's affiliation set** inside each handler. Pseudocode:
+
+   ```python
+   perms = current_user.calculate_permissions()
+   is_global = "backoffice.users" in perms  # bare key only emitted for GlobalScope
+   affiliations = {
+       k.removeprefix("backoffice.users/")
+       for k in perms
+       if k.startswith("backoffice.users/")
+   }
+   ```
+
+   If `is_global` is true, skip the affiliation predicate entirely. Otherwise apply it. (Use `backoffice.users` as the canonical anchor because both endpoints already gate on that key; the four backoffice keys are emitted in lockstep so any one would work.)
+
+5. **Apply the affiliation predicate to the SQL queries.** Both endpoints already build a `select(Unit)` (lines 41, 77). For affiliation-scoped callers, add an `OR`-joined `path_name ILIKE` clause per affiliation. The recommended shape (see Open Questions for the field choice):
+
+   ```python
+   from sqlalchemy import or_
+   if not is_global and affiliations:
+       query = query.where(
+           or_(*[col(Unit.path_name).ilike(f"% {aff} %") for aff in affiliations])
+       )
+   elif not is_global and not affiliations:
+       return []  # defence-in-depth: scoped user with no affiliations sees nothing
+   ```
+
+   Whitespace boundaries (`% {aff} %`) avoid `SV` matching `SVOPS` etc. The `path_name` column is space-separated (`"EHE ASSOCIATIONS SCIENC-CULT 180C"`, see `backend/app/models/unit.py:76-79`).
+
+6. **Multi-affiliation users (multiple `CO2_BACKOFFICE_METIER` roles)** are handled as a union: the permissions dict naturally accumulates one scoped key per affiliation, and the SQL predicate is an `OR` across the set. A user with affiliations `{SV, STI}` sees the union of SV's and STI's units.
+
+7. **`GlobalScope` backoffice / superadmin** keep the bare `backoffice.users` key, so the `is_global` short-circuit in step 4 skips filtering and they see everything as today.
+
+## Tests
+
+### Backend unit tests (`backend/tests/unit/models/test_user.py` and `backend/tests/unit/utils/test_permissions.py`)
+
+- `test_as_scope_key_affiliation_returns_prefixed_string`: `as_scope_key(RoleScope(affiliation="SV"))` → `"/SV"`, both via the `RoleScope` object branch and via the `dict` branch.
+- `test_as_scope_key_global_still_returns_empty`: regression guard for `GlobalScope()` → `""`.
+- `test_calculate_user_permissions_backoffice_metier_with_affiliation_emits_scoped_keys`: a single `CO2_BACKOFFICE_METIER @ affiliation=SV` role yields exactly `{backoffice.reporting/SV, backoffice.users/SV, backoffice.data_management/SV, backoffice.documentation/SV}` with correct action lists, and **no** bare `backoffice.*` keys.
+- `test_calculate_user_permissions_backoffice_metier_global_unchanged`: regression guard — `GlobalScope` still emits bare keys.
+- `test_calculate_user_permissions_backoffice_multi_affiliation_unions`: two `CO2_BACKOFFICE_METIER` roles on `SV` and `STI` yield both `backoffice.users/SV` and `backoffice.users/STI`.
+- `test_has_permission_any_scope_matches_affiliation_keys`: `has_permission({"backoffice.users/SV": ["view"]}, "backoffice.users", "view", any_scope=True)` → `True`; same call with `any_scope=False` → `False` (pins the rationale for the endpoint change in step 3).
+
+### Backend integration tests (`backend/tests/integration/v1/test_permission_scope_e2e.py`)
+
+Add a helper alongside the existing `_principal`/`_std`/`_backoffice`/`_superadmin`:
+
+```python
+def _backoffice_scoped(affiliation: str) -> Role:
+    return Role(role=RoleName.CO2_BACKOFFICE_METIER, on=RoleScope(affiliation=affiliation))
+```
+
+Add a new test class `TestBackofficeAffiliationScopeEndToEnd` covering `/api/v1/backoffice/units` (and the same shape for `/affiliations` if convenient):
+
+- `test_global_backoffice_sees_all_units`: caller with `_backoffice()` (GlobalScope) → 200, full unit list. Pins the global short-circuit.
+- `test_scoped_backoffice_sees_only_in_affiliation_units`: caller with `_backoffice_scoped("SV")` against a fixture that returns one SV unit and one STI unit → 200, response contains only the SV unit.
+- `test_scoped_backoffice_cross_affiliation_returns_empty`: same caller against an STI-only fixture → 200 with empty list (the request is permitted — the user has `backoffice.users/SV` — but the predicate filters everything out). This is the cross-affiliation isolation guarantee.
+- `test_scoped_backoffice_no_affiliations_denied_or_empty`: caller with role wired but affiliation set empty (defence-in-depth from step 5) → 200 empty. Document the chosen semantic in the assertion.
+- `test_unscoped_request_denied_for_non_backoffice`: caller with only `_std(UNIT_IID)` → 403. Confirms the gate still rejects non-backoffice callers.
+- `test_superadmin_sees_all_units`: regression guard, mirrors the pattern at line 174.
+
+Use the existing `_wire` pattern for dependency overrides; supplement with a unit-list fixture function rather than reusing `_ALL_MEMBERS` (which is headcount-specific).
+
+## Verification
+
+```bash
+cd backend
+uv run pytest tests/unit/utils/test_permissions.py tests/unit/models/test_user.py -xvs
+uv run pytest tests/integration/v1/test_permission_scope_e2e.py -xvs
+make backend-dev   # then curl /api/v1/backoffice/units with a scoped backoffice token, verify filtered result
+```
+
+Sanity-check the full backoffice suite as well — `uv run pytest tests/integration/v1/test_backoffice_reporting.py -xvs` if such a file exists; otherwise run the broader integration sweep `uv run pytest tests/integration/v1/ -xvs`.
+
+Manual e2e (post-deploy):
+
+1. Log in as a known SV-scoped backoffice user.
+2. Open the Reporting page, inspect the affiliation dropdown — should only list SV-tree units (Faculty SV + its institutes).
+3. Open the Units table — only SV units should appear.
+4. Repeat as a global backoffice / superadmin — every active unit should appear.
+
+## Open questions
+
+1. **Which `Unit` field matches ACCRED `sortpath`?** The test fixture uses `"Engineering"` (a school-name-shaped string); production values are unconfirmed. Candidates:
+   - `path_name` (e.g. `"EHE ASSOCIATIONS SCIENC-CULT 180C"`) — human-readable, space-separated, supports `ILIKE` boundary matching. **Recommended** unless evidence shows otherwise.
+   - `path_institutional_code` (numeric, space-separated) — would require an `affiliation→code` lookup table; not justified by current data.
+   - A new dedicated column populated during ACCRED unit sync — overkill for v0.x.
+     Confirm the production `sortpath` shape against a real ACCRED payload before locking step 5.
+
+2. **ACCRED `sortpath` shape: single string or list?** Read of `role_provider.py:544-554` and the existing test (`test_role_provider.py:312`) shows a single string per authorization. A user with multiple sub-perimeters has multiple `CO2_BACKOFFICE_METIER` authorizations, each with its own `sortpath`, which our union-via-key-accumulation handles cleanly. Confirm with a real ACCRED payload that `sortpath` never returns a list/comma-string.
+
+3. **Union vs intersection across affiliations.** The plan assumes union (a user with `{SV, STI}` sees both). This matches the natural multi-role semantics of every other role in the system and the implicit ACCRED contract (each authorization is an additive grant). Confirm with the product owner that no scenario calls for intersection.
+
+4. **`backoffice.documentation` scoping.** Should documentation editing also be sub-perimeter-bound, or is documentation a shared corpus across the whole calculator (in which case `backoffice.documentation` stays unscoped even for affiliation-scoped backoffice users)? Plan currently treats it the same as the other three — scope it. Easy to reverse before merge if product disagrees.
+
+5. **Endpoints beyond `/affiliations` and `/units`.** Issue title mentions "Reporting" generically. Audit `backend/app/api/v1/` for any other route gated on `backoffice.*` that returns unit-keyed data (e.g. backoffice carbon-report listings, export endpoints). If any exist, they need the same `any_scope=True` + predicate treatment; list them in the implementation PR description.
+
+6. **Empty-affiliation scoped user — 200 with `[]` or 403?** Plan picks `200 []` (defence-in-depth: gate passes, predicate filters everything). Alternative is 403. Pick one explicitly during implementation and pin with the test from the Tests section.
