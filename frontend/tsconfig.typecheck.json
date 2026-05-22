@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["src/**/*", "tests/**/*", "storybook/.storybook/"],
+  "include": ["src/**/*", "tests/**/*"],
   "skipLibCheck": true,
   "exclude": [
     "**/*.css",
@@ -8,7 +8,9 @@
     "**/*.sass",
     "**/*.less",
     "src/css",
-    "src/assets"
+    "src/assets",
+    "**/*.stories.ts",
+    "**/*.stories.tsx"
   ],
 
   "compilerOptions": {
