@@ -30,6 +30,7 @@ $spacing-page: opt.$tokens-spacing-48 !default;
 // Radii
 $radius-default: opt.$tokens-border-radius-generic-border-radius !default;
 $radius-default-px: opt.$tokens-border-radius-generic-border-radius-px !default;
+$radius-lg: opt.$tokens-border-radius-lg-border-radius !default;
 $radius-pill: opt.$tokens-border-radius-full-border-radius !default;
 
 // Typography
@@ -72,6 +73,12 @@ $modal-width-sm: opt.$tokens-layout-sm-modal-width !default;
 $icon-size-sm: opt.$tokens-icon-size-sm !default;
 $icon-size-md: opt.$tokens-icon-size-md !default;
 $icon-size-lg: opt.$tokens-icon-size-lg !default;
+
+// Shadows
+$shadow-default: opt.$tokens-box-shadow !default;
+
+// Transitions
+$transition-default: opt.$tokens-transitions-default !default;
 
 // Tooltip
 $tooltip-color: opt.$tokens-colors-base-black !default;
