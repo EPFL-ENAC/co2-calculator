@@ -1,9 +1,34 @@
 ---
-status: draft
+status: delivered
 issue: 459
 last_updated: 2026-05-22
 title: "Backoffice ACCRED affiliation scoping"
 summary: "Scope backoffice.* permissions by ACCRED-provided affiliation so each backoffice manager sees only their sub-perimeter."
+---
+
+## Delivered
+
+Shipped in PR #1271 on `feat/459-backoffice-accred-affiliation-scoping`. Divergences from the original plan:
+
+- **URL prefix**: the affected endpoints are mounted at `/api/v1/backoffice-reporting/{affiliations,units}` (not `/api/v1/backoffice/...`). The plan referenced the file path `backend/app/api/v1/backoffice_reporting.py` correctly; only the public URL was misstated.
+- **`as_scope_key` branching**: backoffice metier with `RoleScope(institutional_id=...)` falls back to un-scoped keys rather than emitting a meaningless `backoffice.users/<iid>`. ACCRED never produces this shape today (only `GlobalScope` or `RoleScope(affiliation=...)`), so the defensive un-scoped degrade is safer than introducing a key shape no consumer matches.
+- **Permission helper**: added `derive_backoffice_affiliations(permissions, anchor_path)` in `backend/app/utils/permissions.py` to parse `(is_global, affiliations)` from the permission dict — both endpoints share it via `_gate_backoffice_users_view` in `backend/app/api/v1/backoffice_reporting.py`.
+- **`path_name` predicate**: implemented as `concat(' ', coalesce(path_name, ''), ' ') ILIKE '% <aff> %'`, which covers both observed separators (`' > '` and plain space) in a single clause, handles NULL `path_name`, and avoids the `SV ↔ SVOPS` boundary bug.
+- **Empty-affiliation semantic** (open question #6): chose `200 []` — the gate accepts (the user is a backoffice manager) and the predicate filters everything out.
+- **Cross-endpoint blast radius** (open question #5): the broader `/api/v1/backoffice/*` surface (`backend/app/api/v1/backoffice.py`: list reporting units, exports; `backend/app/api/v1/data_sync.py`: sync endpoints; `backend/app/api/v1/factors.py`) still gates via `require_permission`, so affiliation-scoped users will now 403 on those routes. This is the security-correct posture (an SV manager has no business exporting global user lists or triggering global syncs) and is left explicit. Follow-up scoping for these endpoints, if needed, can reuse `_gate_backoffice_users_view` + `_affiliation_predicate`.
+
+The four pinning tests in `TestBackofficeScopingCurrentBehavior` were replaced by `TestBackofficeAffiliationScoping` + `TestHasPermissionAnyScopeAffiliation` in `backend/tests/unit/utils/test_permissions.py`. The `test_backoffice_and_system_keys_never_scoped` invariant was split into a strict `system.*` invariant and a relaxed `backoffice.*` rule that allows non-digit (affiliation) suffixes. End-to-end coverage lives in `TestBackofficeAffiliationScopeEndToEnd` in `backend/tests/integration/v1/test_permission_scope_e2e.py`.
+
+## Known follow-up (frontend)
+
+`frontend/src/utils/permission.ts:hasPermission()` does a strict `path in permissions` lookup. After this PR, an affiliation-scoped backoffice user holds only `backoffice.users/<aff>` keys (no bare `backoffice.users`), so the following call sites will hide menu items and block navigation for them:
+
+- `frontend/src/components/layout/Co2Header.vue:53` — backoffice header entry.
+- `frontend/src/components/layout/Co2Sidebar.vue:23` — backoffice sidebar entry.
+- `frontend/src/router/routes.ts` (8 occurrences) — backoffice route guards.
+
+This is out of scope for this PR (backend-only per the issue scope), but is a hard prerequisite for affiliation-scoped backoffice users to actually USE the affiliation-filtered endpoints. Recommended fix: extend `hasPermission()` (or add a sibling `hasAnyScopePermission()`) to fall back to `path/<*>` keys when the bare key is absent, mirroring the backend `any_scope=True` mode. Track as a follow-up issue.
+
 ---
 
 ## Problem
