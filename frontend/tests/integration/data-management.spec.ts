@@ -630,6 +630,152 @@ test.describe('back-office data-management — happy paths', () => {
     );
   });
 
+  test('1215a — Incomplete badge renders when backend sets module.incomplete=true', async ({
+    page,
+  }) => {
+    // Issue #1215: the badge is now driven by the backend-emitted
+    // ``incomplete`` flag, not by a frontend derivation. This test
+    // pins the new contract: backend says incomplete → badge visible.
+    const yearConfigIncomplete = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: true,
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: null,
+                latest_data_job: null,
+                incomplete: true,
+                incomplete_reasons: ['missing_factor'],
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigIncomplete(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Module-level Incomplete badge is part of the collapsed module
+    // header — visible without expanding.
+    const badge = page
+      .getByText(/incomplete|incomplet/i)
+      .first();
+    await expect(badge).toBeVisible({ timeout: 10000 });
+  });
+
+  test('1215b — no Incomplete badge when backend says complete despite errored jobs (regression)', async ({
+    page,
+  }) => {
+    // Issue #1215 regression: previously the frontend treated
+    // ``result === 2`` (errored job) as "Incomplete", leaving the
+    // badge stuck on after a user re-uploaded successfully. With the
+    // backend now owning the flag, an errored job that still exists
+    // means "present" — the badge stays hidden. The upload-card
+    // surfaces the error inline; the module-level badge is for
+    // *missing* uploads only.
+    const erroredFactor = {
+      job_id: 999,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 1,
+      target_type: 1,
+      state: 3,
+      result: 2,
+      status_message: 'Factor ingestion failed',
+      meta: {},
+    };
+    // Reduction-objectives reuses the same "Incomplete" label — fully
+    // populate it so the only signal left is module.incomplete (= false here).
+    const fileMeta = {
+      path: '/uploads/x.csv',
+      filename: 'x.csv',
+      uploaded_at: '2024-01-01T00:00:00Z',
+    };
+    const yearConfigStaleErroredJob = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: false, // backend says complete (job exists)
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: erroredFactor, // errored but PRESENT
+                latest_data_job: null,
+                incomplete: false,
+                incomplete_reasons: [],
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: fileMeta,
+            population_projections: fileMeta,
+            unit_scenarios: fileMeta,
+          },
+          goals: [
+            { target_year: 2030, reduction_percentage: 50, reference_year: 2024 },
+          ],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigStaleErroredJob(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Wait for the page to settle before asserting absence.
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    // No "Incomplete" badge anywhere — even though latest_factor_job
+    // has result=2 (errored). Match the i18n keys ``common_filter_incomplete``
+    // would render as ("Incomplete" / "Incomplet").
+    await expect(page.getByText(/^incomplete$|^incomplet$/i)).toHaveCount(0);
+  });
+
   test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
     page,
   }) => {
@@ -782,7 +928,7 @@ async function expandHeadcountAndMember(page: Page): Promise<void> {
  * The button is disabled when `anyModuleIncomplete || is_started` —
  * `anyModuleIncomplete` iterates `MODULES_LIST` (8 modules) and checks
  * `isReductionObjectiveIncomplete`.  To reach the "enabled" branch we
- * mark every module disabled (so `isModuleIncomplete` short-circuits)
+ * mark every module disabled (so the backend-emitted `incomplete` flag stays false)
  * and supply a complete `reduction_objectives` (one goal + all 3 files).
  */
 
