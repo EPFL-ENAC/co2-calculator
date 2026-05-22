@@ -702,8 +702,10 @@ async def sync_module_data_entries(
     """
     Sync data entries for a specific module.
 
-    **Required Permission**: `system.users.edit` (Super Admin) OR `modules.*.sync`
-    (a module owner syncing their own unit's data).
+    **Required Permission**: `system.users.edit` (Super Admin only).
+    The previous `modules.*.sync` fallback was scope-blind across modules
+    and units, and was removed in #977 — module owners cannot dispatch a
+    sync directly from this endpoint.
 
     Example of request body for module_type_year:
     {
@@ -725,16 +727,10 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
-    has_permission = await is_permitted(
-        current_user, "system.users", "edit"
-    ) or await is_permitted(current_user, "modules.*", "sync")
-    if not has_permission:
+    if not await is_permitted(current_user, "system.users", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires system.users.edit "
-                "or modules.* sync permission"
-            ),
+            detail="Permission denied: requires system.users.edit",
         )
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
@@ -1302,16 +1298,10 @@ async def job_stream_by_id(
 
     TODO(#459): tighten when sub-perimeter scoping ships
     """
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "view"
-    ) or await is_permitted(current_user, "modules.*", "view")
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.view "
-                "or modules.* view permission"
-            ),
+            detail="Permission denied: requires backoffice.data_management.view",
         )
 
     # Up-front per-job scope check — drops a pool slot before the stream opens
