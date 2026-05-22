@@ -1,4 +1,5 @@
 import { reactive, ref, watch, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useFactorsStore } from 'src/stores/factors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
 
@@ -36,6 +37,8 @@ export function useEquipmentClassOptions<
   config: FieldConfig = {},
   year?: Ref<string | number | undefined>,
 ) {
+  const { t, te } = useI18n();
+
   const classFieldId = config.classFieldId ?? '';
   const subClassFieldId = config.subClassFieldId ?? '';
 
@@ -69,7 +72,11 @@ export function useEquipmentClassOptions<
     if (!sub) return;
     loadingClasses.value = true;
     try {
-      dynamicOptions[classOptionId] = await store.fetchClassOptions(sub);
+      const rawClasses = await store.fetchClassOptions(sub);
+      dynamicOptions[classOptionId] = rawClasses.map((o) => ({
+        label: te(o.label) ? t(o.label) : o.label,
+        value: o.value,
+      }));
     } catch {
       dynamicOptions[classOptionId] = [];
     } finally {
@@ -88,7 +95,11 @@ export function useEquipmentClassOptions<
     loadingSubclasses.value = true;
     subclassLoadError.value = false;
     try {
-      const options = await store.fetchSubclassOptions(sub, cls);
+      const rawOptions = await store.fetchSubclassOptions(sub, cls);
+      const options = rawOptions.map((o) => ({
+        label: te(o.label) ? t(o.label) : o.label,
+        value: o.value,
+      }));
       // Ensure the currently selected subclass (if any) is present in the
       // options, even if the backend map does not include it (for example
       // when legacy data has subclasses but no dedicated power-factor row).

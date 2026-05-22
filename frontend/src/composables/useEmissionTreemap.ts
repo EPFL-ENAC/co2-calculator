@@ -61,7 +61,7 @@ export function normalizeParentKey(
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
   process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
   buildings_energy_combustion: ['combustion', 'heating_thermal'],
-  buildings_room: ['heating_elec', 'lighting', 'cooling', 'ventilation'],
+  buildings_room: ['heating_elec', 'cooling', 'ventilation', 'lighting'],
   equipment: ['scientific', 'it', 'other'],
   external_cloud_and_ai: ['clouds', 'ai'],
   purchases: [
@@ -74,7 +74,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'other_purchases',
     'additional',
   ],
-  research_facilities: ['facilities', 'animal'],
+  research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],
 };
 

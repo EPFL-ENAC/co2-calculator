@@ -401,9 +401,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
       heating_elec: colors.value.lilac.dark,
-      lighting: colors.value.lilac.default,
-      cooling: colors.value.lilac.light,
-      ventilation: colors.value.lilac.lighter,
+      cooling: colors.value.lilac.default,
+      ventilation: colors.value.lilac.light,
+      lighting: colors.value.lilac.lighter,
       heating_thermal: colors.value.lilac.lighter,
       office: colors.value.lilac.darker,
       laboratories: colors.value.lilac.dark,
@@ -450,6 +450,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     research_facilities: {
       facilities: colors.value.paleYellowGreen.darker,
+      it_facilities: colors.value.paleYellowGreen.default,
       animal: colors.value.paleYellowGreen.dark,
     },
     purchases: (() => {

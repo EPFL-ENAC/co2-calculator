@@ -141,13 +141,13 @@ export default {
       fr: 'Ajouter un autre achat',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]: {
-    en: 'Additional Purchase | Additional Purchases',
-    fr: 'Achat supplémentaire | Achats supplémentaires',
+    en: 'Additional purchase | Additional purchases',
+    fr: 'Achats centralisés | achats centralisés',
   },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
     {
-      en: 'Additional Purchases ({count})',
-      fr: 'Achats supplémentaires ({count})',
+      en: 'Centralized purchases ({count})',
+      fr: 'Achats centralisés ({count})',
     },
 
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title-info-tooltip`]:

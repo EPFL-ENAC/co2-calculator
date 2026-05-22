@@ -127,13 +127,10 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.vehicles: [EmissionType.purchases__vehicles],
     DataEntryTypeEnum.other_purchases: [EmissionType.purchases__other],
     DataEntryTypeEnum.additional_purchases: None,
-    # --- Research Facilities -------------------------------------------------
-    DataEntryTypeEnum.research_facilities: [
-        EmissionType.research_facilities__facilities
-    ],
-    DataEntryTypeEnum.mice_and_fish_animal_facilities: [
-        EmissionType.research_facilities__animal
-    ],
+    # --- Research Facilities — resolved at runtime (researchfacility_name) --
+    DataEntryTypeEnum.research_facilities: None,  # → _resolve_research_facilities()
+    # → _resolve_animal_facilities()
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: None,
     # --- External Clouds — resolved at runtime (sub_kind key) ----------------
     DataEntryTypeEnum.external_clouds: None,  # → _resolve_clouds()
     # --- External AI ---------------------------------------------------------
@@ -284,6 +281,27 @@ def _resolve_combustion(data: dict) -> list[EmissionType] | None:
     return [EmissionType.buildings__combustion]
 
 
+# SCITAS and RCP are EPFL's IT infrastructure research facilities.
+# Their entries route to it_facilities rather than the general facilities type.
+_IT_RESEARCH_FACILITY_NAMES: frozenset[str] = frozenset({"scitas", "rcp"})
+
+
+def _resolve_research_facilities(data: dict) -> list[EmissionType]:
+    name = (data.get("researchfacility_name") or "").strip().lower()
+    if name in _IT_RESEARCH_FACILITY_NAMES:
+        return [EmissionType.research_facilities__it_facilities]
+    return [EmissionType.research_facilities__facilities]
+
+
+def _resolve_animal_facilities(data: dict) -> list[EmissionType]:
+    facility_type = (data.get("researchfacility_type") or "").strip().lower()
+    if facility_type == "mice":
+        return [EmissionType.research_facilities__animal__mice]
+    if facility_type == "fish":
+        return [EmissionType.research_facilities__animal__fish]
+    return [EmissionType.research_facilities__animal]
+
+
 _ADDITIONAL_PURCHASES_MAP: dict[str, EmissionType] = {
     "ln2": EmissionType.purchases__additional__ln2,
 }
@@ -351,6 +369,8 @@ _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.process_emissions: _resolve_process_emissions,
     DataEntryTypeEnum.member: _resolve_headcount_factor,
     DataEntryTypeEnum.student: _resolve_headcount_factor,
+    DataEntryTypeEnum.research_facilities: _resolve_research_facilities,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: _resolve_animal_facilities,
 }
 
 

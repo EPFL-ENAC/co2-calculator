@@ -511,7 +511,7 @@ export default {
   },
   data_management_submodule_it_equipment: {
     en: 'IT Equipment',
-    fr: 'Équipements informatiques',
+    fr: 'Équipements IT',
   },
   data_management_submodule_consumables_accessories: {
     en: 'Consumables & Accessories',
@@ -534,8 +534,8 @@ export default {
     fr: 'Autres achats',
   },
   data_management_submodule_additional_purchases: {
-    en: 'Additional Purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized Purchases',
+    fr: 'Achats Centralisés',
   },
   data_management_submodule_research_facilities: {
     en: 'Research Facilities',

@@ -422,8 +422,8 @@ export default {
     fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy combustion emissions',
-    fr: "Émissions de combustion d'énergie",
+    en: 'Decentralized heating',
+    fr: 'Chauffage décentralisé',
   },
   'charts-lighting-subcategory': {
     en: 'Lighting',
@@ -438,32 +438,32 @@ export default {
     fr: 'Ventilation',
   },
   'charts-heating-elec-subcategory': {
-    en: 'Heating (electric)',
+    en: 'Heating (electric.)',
     fr: 'Chauffage (électrique)',
   },
   'charts-heating-thermal-subcategory': {
-    en: 'Heating (thermal)',
-    fr: 'Chauffage (thermique)',
+    en: 'Centralized heating',
+    fr: 'Chauffage centralisé',
   },
   'charts-office-subcategory': {
     en: 'Office',
     fr: 'Bureau',
   },
   'charts-laboratories-subcategory': {
-    en: 'Laboratories',
-    fr: 'Laboratoires',
+    en: 'Laboratory',
+    fr: 'Laboratoire',
   },
   'charts-archives-subcategory': {
     en: 'Archives',
     fr: 'Archives',
   },
   'charts-libraries-subcategory': {
-    en: 'Libraries',
-    fr: 'Bibliothèques',
+    en: 'Library',
+    fr: 'Bibliothèque',
   },
   'charts-auditoriums-subcategory': {
-    en: 'Auditoriums',
-    fr: 'Auditoires',
+    en: 'Auditorium',
+    fr: 'Auditoire',
   },
   'charts-miscellaneous-subcategory': {
     en: 'Miscellaneous',
@@ -570,8 +570,8 @@ export default {
     fr: 'Achat',
   },
   'charts-bio-chemicals-subcategory': {
-    en: 'Bio-chemicals',
-    fr: 'Bio-chimiques',
+    en: 'Bio & chemical products',
+    fr: 'Produits biologiques et chimiques',
   },
   'charts-consumables-subcategory': {
     en: 'Consumables',
@@ -590,12 +590,12 @@ export default {
     fr: 'Véhicules',
   },
   'charts-additional-purchases-subcategory': {
-    en: 'Additional purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized purchases',
+    fr: 'Achats centralisés',
   },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
-    fr: 'Autre équipement',
+    fr: 'Autres équipements',
   },
   'charts-other-purchases-subcategory': {
     en: 'Other purchases',
@@ -618,12 +618,12 @@ export default {
     fr: 'Avion',
   },
   'charts-class-1-subcategory': {
-    en: 'Class 1',
-    fr: 'Classe 1',
+    en: '1st class',
+    fr: '1ère classe',
   },
   'charts-class-2-subcategory': {
-    en: 'Class 2',
-    fr: 'Classe 2',
+    en: '2nd class',
+    fr: '2ème classe',
   },
   'charts-first-class-subcategory': {
     en: 'First',
@@ -638,8 +638,8 @@ export default {
     fr: 'Éco',
   },
   'charts-clouds-subcategory': {
-    en: 'Clouds',
-    fr: 'Clouds',
+    en: 'External clouds',
+    fr: 'Clouds externes',
   },
   'charts-ai-subcategory': {
     en: 'AI',
@@ -651,7 +651,7 @@ export default {
   },
   'charts-scientific-subcategory': {
     en: 'Scientific equipment',
-    fr: 'Équipement scientifique',
+    fr: 'Équipements scientifiques',
   },
   'charts-stockage-subcategory': {
     en: 'Cloud storage',
@@ -699,7 +699,19 @@ export default {
   },
   'charts-research-animal-subcategory': {
     en: 'Animal facilities',
-    fr: 'Infrastructures pour animaux',
+    fr: 'Animalerie',
+  },
+  'charts-research-it-facilities-subcategory': {
+    en: 'IT facilities',
+    fr: 'Infrastructures IT',
+  },
+  'charts-animal-mice-subcategory': {
+    en: 'Mice',
+    fr: 'Souris',
+  },
+  'charts-animal-fish-subcategory': {
+    en: 'Fish',
+    fr: 'Poisson',
   },
   'charts-rest-subcategory': {
     en: 'Rest',
@@ -707,7 +719,7 @@ export default {
   },
   'charts-equipment-it': {
     en: 'IT Equipment',
-    fr: 'IT Équipement',
+    fr: 'Équipements IT',
   },
   'charts-buildings-it': {
     en: 'IT',

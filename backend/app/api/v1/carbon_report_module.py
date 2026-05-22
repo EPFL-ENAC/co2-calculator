@@ -409,6 +409,7 @@ async def get_stats_by_class(
 _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
     ModuleTypeEnum.purchase: "purchase_institutional_code",
+    ModuleTypeEnum.research_facilities: "researchfacility_name",
 }
 
 # Maps module type → JSON data field to use as the human-readable label
