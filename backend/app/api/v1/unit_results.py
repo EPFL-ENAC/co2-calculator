@@ -6,6 +6,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.policy import require_unit_access
+from app.models.unit import Unit
 from app.models.user import User
 from app.services.unit_totals_service import UnitTotalsService
 
@@ -44,6 +46,7 @@ unit_results = {
 
 @router.get("/{unit_id}/results", response_model=dict)
 async def get_unit_results(
+    unit_id: int,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
         100, ge=1, le=1000, description="Maximum number of records to return"
@@ -51,6 +54,8 @@ async def get_unit_results(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    unit = await db.get(Unit, unit_id)
+    require_unit_access(current_user, unit)
     return unit_results
 
 
@@ -76,6 +81,9 @@ async def get_unit_totals(
     """
     logger.info(f"GET unit totals: unit_id={sanitize(unit_id)}, year={sanitize(year)}")
 
+    unit = await db.get(Unit, unit_id)
+    require_unit_access(current_user, unit)
+
     service = UnitTotalsService(db)
     totals = await service.get_unit_totals(
         unit_id=unit_id, year=year, user=current_user
@@ -95,6 +103,8 @@ async def get_validated_emissions(
     Returns:
         [{"year": 2023, "total_tonnes_co2eq": 61.7}, ...]
     """
+    unit = await db.get(Unit, unit_id)
+    require_unit_access(current_user, unit)
     rows = await UnitTotalsService(db).get_validated_emissions_by_unit(unit_id=unit_id)
     return [
         {
