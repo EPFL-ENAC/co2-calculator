@@ -154,6 +154,12 @@ async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
     # Patching here covers both the parent factor_ingest run AND the
     # chained emission_recalc child (same runner, same module).
     monkeypatch.setattr("app.tasks.runner.SessionLocal", Sf)
+    # emission_recalc opens its OWN short-lived helper sessions via
+    # ``SessionLocal()`` (siblings query + recalc_work_complete stamp +
+    # affected-modules scope build).  Without this patch they hit the
+    # default engine (SQLite in CI) and crash with
+    # "no such table: pipelines".
+    monkeypatch.setattr("app.tasks.emission_recalculation_tasks.SessionLocal", Sf)
 
     yield {"factory": Sf, "dsn": pg_dsn_with_310b, "tmp_path": tmp_path}
 

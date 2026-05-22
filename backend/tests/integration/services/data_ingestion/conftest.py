@@ -786,6 +786,16 @@ async def dispatch_csv_and_wait(
 
     deadline = time.time() + timeout_seconds
 
+    # Redirect every ``from app.db import SessionLocal`` site that
+    # background handlers reach into to the test PG session_factory.
+    # Without these, ``emission_recalc`` opens its sibling-query +
+    # recalc_work_complete-stamp + aggregation-scope-build helpers
+    # against the default engine (SQLite in CI) and crashes with
+    # ``no such table: pipelines`` — the rows it expects only exist
+    # in the test PG.
+    from app.tasks import emission_recalculation_tasks as recalc_mod
+    from app.tasks import runner as runner_mod
+
     with contextlib.ExitStack() as stack:
         stack.enter_context(
             patch.object(
@@ -801,6 +811,8 @@ async def dispatch_csv_and_wait(
                 return_value=provider_class,
             )
         )
+        stack.enter_context(patch.object(runner_mod, "SessionLocal", session_factory))
+        stack.enter_context(patch.object(recalc_mod, "SessionLocal", session_factory))
 
         # 1. Drive the parent csv_ingest.
         await _run_one_job(parent_id)

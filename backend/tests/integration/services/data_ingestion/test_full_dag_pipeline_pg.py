@@ -194,6 +194,11 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
             aggregation_mod, "CarbonReportModuleService", return_value=crm_svc
         ),
         patch.object(chain_mod, "fire_and_forget", side_effect=_sync_fire_and_forget),
+        # emission_recalc opens its sibling-query + recalc_work_complete
+        # stamp + aggregation-scope helpers via ``SessionLocal()``.  Point
+        # them at the test PG so they don't crash on SQLite's missing
+        # ``pipelines`` table.
+        patch.object(recalc_mod, "SessionLocal", Sf),
     ):
         # 3. Run the parent handler.  It awaits chain_job, which our
         #    patched fire_and_forget queues; we then drain the queue
@@ -330,6 +335,8 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
         patch.object(chain_mod, "fire_and_forget", side_effect=_drop_fire_and_forget),
+        # emission_recalc helpers open ``SessionLocal()`` — point at PG.
+        patch.object(recalc_mod, "SessionLocal", Sf),
     ):
         async with Sf() as session:
             row = await session.get(DataIngestionJob, parent_id)

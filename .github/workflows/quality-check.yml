@@ -37,10 +37,7 @@ jobs:
         run: npx quasar prepare
 
       - name: Type Check
-        run: npx tsc --noEmit
-
-      - name: Type Check
-        run: npx vue-tsc --noEmit
+        run: make type-check
 
 
   backend-quality:
