@@ -401,10 +401,12 @@ async def list_year_configurations(
 ):
     """List year configurations available to the caller.
 
-    Backoffice data managers see every row (admin-equivalent for this purpose);
-    everyone else only sees years where ``is_started`` is true. This is what
-    drives the workspace year selector — closed years stay hidden from regular
-    users until backoffice opens them.
+    Results are always scoped to ``current_user.provider`` — a TEST user
+    never sees ACCRED rows and vice versa. Backoffice data managers
+    additionally bypass the ``is_started`` filter (regular users only
+    see opened years). This is what drives the workspace year selector
+    — closed years stay hidden from regular users until backoffice
+    opens them.
 
     Sorted by year descending (latest first).
     """
@@ -551,6 +553,7 @@ async def create_year_configuration(
     db.add(new_config)
 
     snapshot = {
+        "provider": current_user.provider.name,
         "is_started": new_config.is_started,
         "config": new_config.config,
     }
@@ -710,6 +713,7 @@ async def update_year_configuration(
 
     # Get old snapshot for audit
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -722,6 +726,7 @@ async def update_year_configuration(
     db.add(result)
 
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -858,6 +863,7 @@ async def upload_reduction_objective_file(
     # Capture old state for audit diff before any mutation
     old_config = copy.deepcopy(result.config)
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": old_config,
     }
@@ -902,6 +908,7 @@ async def upload_reduction_objective_file(
 
     # Create audit entry with diff
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }

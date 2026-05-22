@@ -63,7 +63,16 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Downgrade schema."""
+    """Downgrade schema.
+
+    After this migration runs, the table can hold multiple rows per
+    ``year`` (one per provider). Re-creating a PK on ``year`` alone
+    would fail with a duplicate-key error. Drop every non-DEFAULT row
+    first so the surviving set is unique on ``year``. v0.x drops the
+    DB between deploys, so the data loss is acceptable on a
+    downgrade-then-redeploy.
+    """
+    op.execute("DELETE FROM year_configuration WHERE provider <> 'DEFAULT'")
     op.drop_constraint("year_configuration_pkey", "year_configuration", type_="primary")
     op.create_primary_key("year_configuration_pkey", "year_configuration", ["year"])
     op.drop_column("year_configuration", "provider")

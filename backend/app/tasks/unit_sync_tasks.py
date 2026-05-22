@@ -166,7 +166,7 @@ async def unit_sync_handler(
     _start_phase("fetch_units")
     await job_repo.update_ingestion_job(
         job_id=job.id,
-        status_message="Fetching units from Accred…",
+        status_message=f"Fetching units from {job.provider.name}…",
         metadata={"phases": phases},
     )
     await job_session.commit()

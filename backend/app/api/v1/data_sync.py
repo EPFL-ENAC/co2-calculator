@@ -2051,12 +2051,14 @@ async def sync_units_from_accred(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Sync units from Accred API.
+    Sync units from the caller's provider (Accred for ACCRED users,
+    fixture-backed for TEST users).
 
     Plan 310B Part 5 — creates a tracked DataIngestionJob (job_type=
     unit_sync, entity_type=GLOBAL_PER_YEAR) so progress is observable via
     the SSE stream and the job is recoverable on pod crash via the safety
-    poller.
+    poller. Provider is resolved from ``current_user.provider`` and stamped
+    on the job (#1266).
 
     **Required Permission**: `backoffice.data_management.sync`
 
@@ -2096,7 +2098,7 @@ async def sync_units_from_accred(
     return SyncStatusResponse(
         job_id=created.id,
         state=IngestionState.NOT_STARTED,
-        message="Unit sync from Accred API scheduled",
+        message=f"Unit sync from {current_user.provider.name} scheduled",
     )
 
 
