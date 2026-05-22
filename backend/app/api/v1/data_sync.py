@@ -753,7 +753,8 @@ async def sync_module_data_entries(
         year_cfg = (
             await db.execute(
                 select(YearConfiguration).where(
-                    col(YearConfiguration.year) == syncRequest.year
+                    col(YearConfiguration.year) == syncRequest.year,
+                    col(YearConfiguration.provider) == current_user.provider,
                 )
             )
         ).scalar_one_or_none()
@@ -761,9 +762,9 @@ async def sync_module_data_entries(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=(
-                    f"Year {syncRequest.year} is not yet provisioned — "
-                    "wait for the unit_sync pipeline to complete before "
-                    "uploading data for this year."
+                    f"Year {syncRequest.year} is not yet provisioned for "
+                    f"provider {current_user.provider.name} — wait for the "
+                    "unit_sync pipeline to complete before uploading data."
                 ),
             )
 
@@ -2069,6 +2070,7 @@ async def sync_units_from_accred(
         target_type=TargetType.REFERENCE_DATA,
         entity_type=EntityType.GLOBAL_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         meta={"config": {"target_year": syncRequest.target_year}},
     )
     created = await DataIngestionRepository(db).create_ingestion_job(job)

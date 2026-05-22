@@ -344,12 +344,20 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         """Write the validated CSV rows into year_configuration.config."""
         if not self.year:
             raise ValueError("year is required")
+        if self.user is None:
+            raise ValueError(
+                "user is required to resolve the provider-scoped year_configuration"
+            )
 
-        stmt = select(YearConfiguration).where(col(YearConfiguration.year) == self.year)
+        stmt = select(YearConfiguration).where(
+            col(YearConfiguration.year) == self.year,
+            col(YearConfiguration.provider) == self.user.provider,
+        )
         result = (await self.data_session.exec(stmt)).first()
         if not result:
             raise ValueError(
-                f"No year_configuration found for year {self.year}. Create it first."
+                f"No year_configuration found for year {self.year} "
+                f"provider {self.user.provider.name}. Create it first."
             )
 
         # Ensure reduction_objectives structure exists

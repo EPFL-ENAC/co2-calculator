@@ -90,6 +90,12 @@ async def unit_sync_handler(
             f"unit_sync job {job.id} missing config.target_year (and job.year)"
         )
 
+    if job.provider == UserProvider.DEFAULT:
+        raise ValueError(
+            f"unit_sync job {job.id}: UserProvider.DEFAULT has no unit "
+            f"source; check PROVIDER_PLUGIN and current_user.provider"
+        )
+
     # #1236 — TWO advisory locks for unit_sync, both transaction-scoped
     # on ``data_session`` (the runner commits/rolls back after this
     # handler returns, releasing both):
@@ -165,8 +171,8 @@ async def unit_sync_handler(
     )
     await job_session.commit()
 
-    unit_provider = get_unit_provider(UserProvider.ACCRED)
-    role_provider = get_role_provider(UserProvider.ACCRED)
+    unit_provider = get_unit_provider(job.provider)
+    role_provider = get_role_provider(job.provider)
     units_raw, principal_users_raw = await unit_provider.fetch_all_units()
 
     units = [unit_provider.map_api_unit(u) for u in units_raw]
@@ -227,7 +233,10 @@ async def unit_sync_handler(
     # carbon-reports/modules creation above.
     year_cfg_row = (
         await data_session.execute(
-            select(YearConfiguration).where(col(YearConfiguration.year) == target_year)
+            select(YearConfiguration).where(
+                col(YearConfiguration.year) == target_year,
+                col(YearConfiguration.provider) == job.provider,
+            )
         )
     ).scalar_one_or_none()
     if year_cfg_row is not None:
@@ -235,10 +244,11 @@ async def unit_sync_handler(
         data_session.add(year_cfg_row)
     else:
         logger.warning(
-            "unit_sync: no YearConfiguration row for year=%s — "
+            "unit_sync: no YearConfiguration row for year=%s provider=%s — "
             "configuration_completed stamp skipped (year-config row "
             "should exist; was the year created via /year-configuration?)",
             target_year,
+            job.provider,
         )
 
     return {
