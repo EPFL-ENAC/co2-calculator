@@ -1,12 +1,58 @@
 ---
-status: delivered
+status: in_progress
 issue: 459
-last_updated: 2026-05-22
+last_updated: 2026-05-26
 title: "Backoffice ACCRED affiliation scoping"
 summary: "Scope backoffice.* permissions by ACCRED-provided affiliation so each backoffice manager sees only their sub-perimeter."
 ---
 
-## Delivered
+## Phase 2 (2026-05-26): production sortpath shape + frontend gate
+
+Phase 1 (PR #1271) shipped against a single-token sortpath assumption ("Engineering"). The first real ACCRED payloads showed sortpath is a space-separated 4-level path (e.g. `"EPFL ENAC ENAC-SG ENAC-IT"`), so the affiliation-suffixed permission keys looked like `backoffice.users/EPFL ENAC ENAC-SG ENAC-IT` — readable but unusable as a sub-perimeter token. Phase 2 resolves Open Question #1 and closes the Phase 1 frontend follow-up.
+
+**Backend — LVL3 trim** (`backend/app/providers/role_provider.py`):
+
+- ACCRED sortpath is now split on whitespace and reduced to LVL3 (index 2, e.g. `"ENAC-SG"`) before being assigned to `RoleScope.affiliation`. The cut-off was confirmed against real EPFL payloads: LVL3 is the unit-of-interest for backoffice scoping; LVL4 is too granular and LVL1/2 are too broad.
+- Authorizations whose sortpath has fewer than 3 levels are logged at warning level and dropped (cannot resolve a meaningful affiliation). Picked "strict skip" over "use deepest token" to surface upstream data issues rather than silently miscategorise users.
+- Module-level constant `AFFILIATION_LEVEL = 3` documents the level choice; tests pin the trim (`test_accred_fetch_roles_with_backoffice_metier` uses a 4-token sortpath) and the skip path (`test_accred_backoffice_metier_short_sortpath_skipped`).
+
+**Backend — principal no longer grants backoffice.users.edit** (`backend/app/models/user.py`):
+
+- The Phase 1 plan inherited a grant where `CO2_USER_PRINCIPAL` emitted an un-scoped `backoffice.users: ["edit"]` "so principals could assign std roles." Per the current role spec (Standard/Principal are unit-area roles; Backoffice Admin/Super Admin are the only backoffice-area roles), this was a leak: a principal could pass `has_permission("backoffice.users", "edit", any_scope=True)` and reach backoffice surfaces. Removed.
+- Knock-on test updates: `test_user_principal_unit_scope` now asserts no `backoffice.*` keys leak from principal-only roles; the `TestRoleCompositionKeys` cases for `principal-A`, `std+principal-same-unit`, `principal-A+std-B` drop the `{backoffice.users}` allowance and move it to `forbidden`.
+
+**Frontend — generic back-office area gate** (`frontend/src/utils/permission.ts`, `frontend/src/stores/auth.ts`, `frontend/src/components/layout/Co2Header.vue`):
+
+- Added `hasBackOfficeAreaPermission(permissions, action)` which scans for any `backoffice.*` OR `system.*` key (bare or `/<aff>`-suffixed) granting `action`. Both prefixes are matched because the back-office area covers both `backoffice.*` features (reporting, users, data management, documentation) and `system.*` features (Super Admin tabs: configuration, pipeline operations, logs). Exposed via `authStore.hasUserBackOfficeAreaPermission(action)`.
+- `Co2Header.vue`'s `hasBackOfficeAccess` computed now calls the broader helper. Affiliation-scoped users (whose only key shape is `backoffice.X/ENAC-SG`) AND Super Admins with only `system.*` grants both see the entry button.
+- Comment fix at `backoffice_reporting.py:_affiliation_predicate` to reflect the real sortpath shape ("space-separated 4-level hierarchy; `role_provider.py` extracts LVL3").
+
+**Frontend — path-specific any-scope guard** (`frontend/src/utils/permission.ts`, `frontend/src/stores/auth.ts`, `frontend/src/router/guards/permissionGuard.ts`, `frontend/src/components/layout/Co2Sidebar.vue`):
+
+- Closes the Phase 1 frontend follow-up. Added `hasAnyScopePermission(permissions, path, action)` mirroring the backend's `has_permission(..., any_scope=True)`: matches the bare path OR any `path/<*>` variant. Exposed via `authStore.hasUserAnyScopePermission(path, action)`.
+- `requirePermission(path, action)` in `permissionGuard.ts` now uses the any-scope check, so an `ENAC-SG`-scoped backoffice admin can enter `back-office/*` routes despite holding only `backoffice.users/ENAC-SG`. The guard now also emits `console.warn` on denial — previously the unauthorized redirect was silent, making misconfigured permissions hard to diagnose.
+- `Co2Sidebar.vue`'s `hasBackOfficeEditPermission` switched to the any-scope check (same root cause).
+- Module routes are unaffected — they use `requireModuleEditPermission` (workspace-scoped), which keeps unit isolation. The any-scope mode is documented as "do not use for unit-data routes" in `permission.ts`.
+
+**Regression coverage**: `frontend/tests/unit/permission.spec.ts` — 11 cases total: 7 for `hasBackOfficeAreaPermission` (scoped/bare backoffice keys, reporting-only scoped user, `system.*` key, action mismatch, module-only user, null permissions) + 4 for `hasAnyScopePermission` (scoped edit, bare edit, path isolation against module keys, prefix isolation against `backoffice.users_other`).
+
+**Backend — open the broader `/backoffice/*` surface to scoped users** (`backend/app/api/v1/backoffice.py`, `backend/app/utils/scoping.py`):
+
+- Reverses the Phase 1 "left explicit" decision after evidence that the strict gate blocks normal navigation for ENAC-SG (and other LVL3) backoffice admins. All six endpoints — `/units`, `/export`, `/years`, `/report/usage`, `/report/detailed`, `/report/results` — drop `Depends(require_permission(...))` for `Depends(get_current_active_user)` + inline `gate_backoffice(user, action)` from the new `app.utils.scoping` module.
+- Server-side affiliation enforcement: `narrow_path_affiliation(filters.path_affiliation, is_global, affiliations)` intersects the caller-supplied `path_affiliation` query param with the caller's affiliation set; a scoped user cannot escape their scope by passing a foreign affiliation. Empty intersection → empty result (defence-in-depth, mirroring the existing `/backoffice-reporting/units` pattern).
+- `/years` had no `path_affiliation` filter at all, so the query was extended with `JOIN units ON CarbonReport.unit_id = units.id` + the affiliation predicate when the caller is scoped. Global callers keep the original distinct-year query (no join).
+- `_affiliation_predicate` and the gate helper moved out of `backoffice_reporting.py` into `app/utils/scoping.py` (`build_affiliation_predicate`, `gate_backoffice`, `narrow_path_affiliation`). `backoffice_reporting.py` now imports the shared versions; behaviour unchanged (Phase 1 e2e tests still green).
+- Regression coverage: `TestBackofficeYearsAffiliationScoping` in `backend/tests/integration/v1/test_permission_scope_e2e.py` — 5 cases pinning global/scoped/cross-affiliation/std-denied/principal-denied behavior. The principal-denied case is the explicit pin for the Phase 2 grant removal (`CO2_USER_PRINCIPAL` no longer leaks `backoffice.users.edit`).
+
+**Backend — sweep remaining `data_sync.py` strict gates + tighten data_management action set** (`backend/app/api/v1/data_sync.py`, `backend/app/utils/scoping.py`, `backend/app/models/user.py`):
+
+- Added FastAPI dependency factory `require_any_scope(action, anchor_path)` in `scoping.py` — drop-in replacement for `require_permission` for routes that only need the 403 gate (not the affiliation tuple). Converted 10 strict-gated `view`-action routes in `data_sync.py` (`/jobs/by-status`, `/jobs/year/{year}`, `/jobs/year/{year}/latest`, `/workers`, `/active-pipelines`, `/active-pipelines/year/{year}`, `/recalculation-status`, `/pipelines`, `/pipelines/{pipeline_id}`, plus a tenth view-gated endpoint). Sync-action routes (`/dispatch`, `/factor reupload`, etc., 6 total) stay on strict `require_permission` — they are Super-Admin-only per the role spec.
+- Tightened the `CO2_BACKOFFICE_METIER` permission emission: scoped backoffice metier now gets `backoffice.data_management/<aff>: ["view", "export"]` only (was `["view", "edit", "export", "sync"]`). Matches the EPFL role spec — Backoffice Administrator has read/export but not write/sync on data_management; Super Admin keeps the full set on the bare key. Closes the latent leak where opening a sync route any-scope would have inadvertently granted scoped users pipeline-trigger / factor-mutation rights.
+- Regression coverage: `TestBackofficeAffiliationScoping.test_affiliation_scope_emits_scoped_keys_only` now asserts the full action sets for all four scoped keys; new `test_scoped_backoffice_lacks_data_management_sync` and `test_superadmin_has_data_management_edit_and_sync` pin the asymmetry. The `TestActivePipelinesPerYearGate` e2e class already covers the any-scope gate pattern end-to-end.
+
+---
+
+## Delivered (Phase 1)
 
 Shipped in PR #1271 on `feat/459-backoffice-accred-affiliation-scoping`. Divergences from the original plan:
 
@@ -39,7 +85,7 @@ This is out of scope for this PR (backend-only per the issue scope), but is a ha
 - `calculate_user_permissions()` emits a fixed, **unscoped** key set for `CO2_BACKOFFICE_METIER` — `backoffice.reporting`, `backoffice.users`, `backoffice.data_management`, `backoffice.documentation` — regardless of whether the role is `GlobalScope` or `RoleScope(affiliation=...)` (`backend/app/models/user.py:164-186`).
 - `/backoffice/affiliations` and `/backoffice/units` (`backend/app/api/v1/backoffice_reporting.py:20-108`) gate on `require_permission("backoffice.users", "view")` and return **all active units** with no per-caller filtering.
 
-Concrete impact: Anna, a Faculty SV backoffice manager whose ACCRED `sortpath` is `"SV"`, has the same blast radius as a global backoffice admin. She sees STI, IC, ENAC, CDH, CDM units in the affiliation/unit dropdowns and reporting tables. This violates the EPFL accreditation model and the explicit ACCRED contract that backoffice roles are sub-perimeter-bound.
+Concrete impact: a Faculty SV backoffice manager whose ACCRED `sortpath` resolves to `"SV"` has the same blast radius as a global backoffice admin — they see STI, IC, ENAC, CDH, CDM units in the affiliation/unit dropdowns and reporting tables. This violates the EPFL accreditation model and the explicit ACCRED contract that backoffice roles are sub-perimeter-bound.
 
 ## Decision applied
 
