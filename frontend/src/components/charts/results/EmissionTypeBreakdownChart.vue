@@ -106,7 +106,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
 export interface TopClassBreakdownItem {
   name: string;
   value: number;
-  children: Array<{ name: string; value: number }>;
+  children: Array<{ name: string; value: number; translation_key?: string }>;
 }
 
 const props = defineProps<{
@@ -220,7 +220,8 @@ const chartData = computed(() => {
         // Use a numeric suffix to guarantee unique, parseable segment keys
         const segKey = `_tcb_${segCounter++}`;
         segmentKeysSet.add(segKey);
-        segmentLabelOverrides.set(segKey, child.name);
+        // Prefer translation_key (i18n key from Factor table) over raw name
+        segmentLabelOverrides.set(segKey, child.translation_key ?? child.name);
         barData[segKey] = child.value / 1000.0; // kg → tonnes
       }
       bars.push(barData);

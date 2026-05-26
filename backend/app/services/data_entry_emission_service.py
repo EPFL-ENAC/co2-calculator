@@ -797,6 +797,54 @@ class DataEntryEmissionService:
             emission_type_ids=emission_type_ids,
         )
 
+    async def enrich_breakdown_with_factor_labels(
+        self,
+        breakdown: list[dict],
+        data_entry_types: list[DataEntryTypeEnum],
+        group_by_field: str,
+        factor_label_field: str,
+    ) -> list[dict]:
+        """Add a ``translation_key`` field to each non-rest child in breakdown.
+
+        Looks up ``Factor.values[factor_label_field]`` for each unique
+        ``group_by_field`` code and attaches it to the child dict so the
+        frontend can resolve the human-readable label via i18n.
+        """
+        codes = {
+            child["name"]
+            for group in breakdown
+            for child in group.get("children", [])
+            if child.get("name") != "rest"
+        }
+        if not codes:
+            return breakdown
+
+        stmt = (
+            select(
+                Factor.classification[group_by_field].as_string().label("code"),
+                Factor.values[factor_label_field].as_string().label("label"),
+            )
+            .where(
+                col(Factor.data_entry_type_id).in_(
+                    [det.value for det in data_entry_types]
+                ),
+                Factor.classification[group_by_field].as_string().in_(list(codes)),
+            )
+            .distinct()
+        )
+        rows = (await self.session.execute(stmt)).all()
+        code_to_label: dict[str, str] = {
+            row.code: row.label for row in rows if row.code and row.label
+        }
+
+        for group in breakdown:
+            for child in group.get("children", []):
+                label = code_to_label.get(child.get("name", ""))
+                if label:
+                    child["translation_key"] = label
+
+        return breakdown
+
     # # Dict of dataEntryTypeEnum , func to calculation formulas
     # FORMULAS: dict[EmissionType, Callable] = {}
 
