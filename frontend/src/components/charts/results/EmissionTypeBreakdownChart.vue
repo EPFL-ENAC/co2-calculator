@@ -211,7 +211,12 @@ const chartData = computed(() => {
       barCategoryMap.set(compoundKey, categoryKey);
       barLabelMap.set(compoundKey, normalizedName);
 
-      for (const child of subcategory.children) {
+      const sortedChildren = [...subcategory.children].sort((a, b) => {
+        if (a.name === 'rest') return 1;
+        if (b.name === 'rest') return -1;
+        return b.value - a.value;
+      });
+      for (const child of sortedChildren) {
         // Use a numeric suffix to guarantee unique, parseable segment keys
         const segKey = `_tcb_${segCounter++}`;
         segmentKeysSet.add(segKey);

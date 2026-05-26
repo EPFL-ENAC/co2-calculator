@@ -606,6 +606,69 @@ const datasetSource = computed(() => {
   return [...main, ...additional];
 });
 
+const EQUIPMENT_SUBKEYS = ['scientific', 'it', 'other'] as const;
+const PURCHASES_SUBKEYS = [
+  'scientific_equipment',
+  'it_equipment',
+  'consumable_accessories',
+  'biological_chemical_gaseous',
+  'services',
+  'vehicles',
+  'other_purchases',
+  'additional',
+] as const;
+
+const equipPurchRankings = computed(() => {
+  const findRow = (key: string) =>
+    datasetSource.value.find((r) => String(r.category_key ?? '') === key);
+
+  const rankSubkeys = (
+    row: Record<string, unknown> | undefined,
+    keys: readonly string[],
+  ) =>
+    [...keys]
+      .map((k) => ({ key: k, value: Number(row?.[k] ?? 0) }))
+      .sort((a, b) => b.value - a.value);
+
+  const equipRanked = rankSubkeys(findRow('equipment'), EQUIPMENT_SUBKEYS);
+  const purchAllRanked = rankSubkeys(findRow('purchases'), PURCHASES_SUBKEYS);
+  const purchTop3 = purchAllRanked.slice(0, 3);
+  const purchRestValue = purchAllRanked
+    .slice(3)
+    .reduce((s, e) => s + e.value, 0);
+
+  return { equipRanked, purchTop3, purchRestValue };
+});
+
+const enrichedDatasetSource = computed(() => {
+  const { equipRanked, purchTop3, purchRestValue } = equipPurchRankings.value;
+  return datasetSource.value.map((row) => {
+    const catKey = String(row.category_key ?? '');
+    if (catKey === 'equipment') {
+      const next = { ...row };
+      EQUIPMENT_SUBKEYS.forEach((k) => {
+        next[k] = 0;
+      });
+      equipRanked.forEach((item, i) => {
+        next[`equip_rank${i + 1}`] = item.value;
+      });
+      return next;
+    }
+    if (catKey === 'purchases') {
+      const next = { ...row };
+      PURCHASES_SUBKEYS.forEach((k) => {
+        next[k] = 0;
+      });
+      purchTop3.forEach((item, i) => {
+        next[`purch_rank${i + 1}`] = item.value;
+      });
+      next['purch_rest'] = purchRestValue;
+      return next;
+    }
+    return row;
+  });
+});
+
 const additionalSeriesData = computed(() => {
   if (!effectiveToggle.value) return [];
 
@@ -866,169 +929,67 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    // Equipment — subcategories: scientific, it, other
-    {
-      name: t('charts-scientific-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'scientific' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'equipment',
-          'scientific',
-          colors.value.plum.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-equipment-it'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'it' },
-      itemStyle: {
-        color: getSubcategoryColor('equipment', 'it', colors.value.plum.dark),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-other-equipment-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'other' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'equipment',
-          'other',
-          colors.value.plum.default,
-        ),
-      },
-      label: { show: false },
-    },
-    // Purchases — YY subcategories
-    {
-      name: t('charts-scientific-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'scientific_equipment' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'scientific_equipment',
-          colors.value.lavender.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-equipment-it'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'it_equipment' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'it_equipment',
-          colors.value.lavender.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-consumables-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'consumable_accessories' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'consumable_accessories',
-          colors.value.lavender.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-bio-chemicals-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'biological_chemical_gaseous' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'biological_chemical_gaseous',
-          colors.value.lavender.light,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-services-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'services' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'services',
-          colors.value.lavender.lighter,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-vehicles-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'vehicles' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'vehicles',
-          colors.value.lavender.default,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-other-purchases-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'other_purchases' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'other_purchases',
-          colors.value.lavender.dark,
-        ),
-      },
-      label: { show: false },
-    },
-    {
-      name: t('charts-additional-purchases-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'additional' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'purchases',
-          'additional',
-          colors.value.lavender.light,
-        ),
-      },
-      label: { show: false },
-    },
+    // Equipment — top-3 subcategories sorted by emission value (descending)
+    ...(() => {
+      const equipSubcatLabels: Record<string, string> = {
+        scientific: t('charts-scientific-subcategory'),
+        it: t('charts-equipment-it'),
+        other: t('charts-other-equipment-subcategory'),
+      };
+      return equipPurchRankings.value.equipRanked.map((item, i) => ({
+        name: equipSubcatLabels[item.key] ?? item.key,
+        type: 'bar' as const,
+        stack: 'total',
+        animation: true,
+        encode: { x: 'category', y: `equip_rank${i + 1}` },
+        itemStyle: {
+          color: getSubcategoryColor(
+            'equipment',
+            item.key,
+            colors.value.plum.default,
+          ),
+        },
+        label: { show: false },
+      }));
+    })(),
+    // Purchases — top-3 subcategories sorted by emission value + rest
+    ...(() => {
+      const purchSubcatLabels: Record<string, string> = {
+        scientific_equipment: t('charts-scientific-subcategory'),
+        it_equipment: t('charts-equipment-it'),
+        consumable_accessories: t('charts-consumables-subcategory'),
+        biological_chemical_gaseous: t('charts-bio-chemicals-subcategory'),
+        services: t('charts-services-subcategory'),
+        vehicles: t('charts-vehicles-subcategory'),
+        other_purchases: t('charts-other-purchases-subcategory'),
+        additional: t('charts-additional-purchases-subcategory'),
+      };
+      const top3Series = equipPurchRankings.value.purchTop3.map((item, i) => ({
+        name: purchSubcatLabels[item.key] ?? item.key,
+        type: 'bar' as const,
+        stack: 'total',
+        animation: true,
+        encode: { x: 'category', y: `purch_rank${i + 1}` },
+        itemStyle: {
+          color: getSubcategoryColor(
+            'purchases',
+            item.key,
+            colors.value.lightGreen.default,
+          ),
+        },
+        label: { show: false },
+      }));
+      const restSeries = {
+        name: t('charts-rest-subcategory'),
+        type: 'bar' as const,
+        stack: 'total',
+        animation: true,
+        encode: { x: 'category', y: 'purch_rest' },
+        itemStyle: { color: colors.value.lightGreen.lighter },
+        label: { show: false },
+      };
+      return [...top3Series, restSeries];
+    })(),
     // External cloud & AI — YY subcategories
     {
       name: t('charts-clouds-subcategory'),
@@ -1301,6 +1262,13 @@ const chartOption = computed((): EChartsOption => {
         'vehicles',
         'other_purchases',
         'additional',
+        'equip_rank1',
+        'equip_rank2',
+        'equip_rank3',
+        'purch_rank1',
+        'purch_rank2',
+        'purch_rank3',
+        'purch_rest',
         'plane',
         'train',
         'clouds',
@@ -1317,7 +1285,7 @@ const chartOption = computed((): EChartsOption => {
         'waste',
         'embodied_energy',
       ],
-      source: datasetSource.value as Array<Record<string, unknown>>,
+      source: enrichedDatasetSource.value as Array<Record<string, unknown>>,
     },
     series: seriesArray as echarts.SeriesOption[],
   };
