@@ -702,7 +702,8 @@ async def sync_module_data_entries(
     """
     Sync data entries for a specific module.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    **Required Permission**: `system.users.edit` (Super Admin) OR `modules.*.sync`
+    (a module owner syncing their own unit's data).
 
     Example of request body for module_type_year:
     {
@@ -725,13 +726,13 @@ async def sync_module_data_entries(
     }
     """
     has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "sync"
+        current_user, "system.users", "edit"
     ) or await is_permitted(current_user, "modules.*", "sync")
     if not has_permission:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Permission denied: requires backoffice.data_management.sync "
+                "Permission denied: requires system.users.edit "
                 "or modules.* sync permission"
             ),
         )
@@ -895,14 +896,12 @@ async def sync_module_factors(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """
     Sync (recompute) factors for a specific module and data-entry type.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    **Required Permission**: `system.users.edit` (Super Admin only)
 
     ``year`` is **mandatory** for this endpoint — factor updates are always
     year-scoped.
@@ -1111,9 +1110,7 @@ class AbortPipelineResponse(BaseModel):
 async def abort_pipeline(
     pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """Abort every non-terminal job of a pipeline.
 
@@ -1134,7 +1131,7 @@ async def abort_pipeline(
         - 404 if ``pipeline_id`` has no jobs (unknown pipeline).
         - 409 if every job is already terminal (nothing to abort).
 
-    **Required Permission**: ``backoffice.data_management.sync``
+    **Required Permission**: ``system.users.edit`` (Super Admin only)
     (same as dispatch — abort is the inverse user action).
     """
     repo = DataIngestionRepository(db)
@@ -1881,13 +1878,11 @@ async def recalculate_emissions_for_type(
     year: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
 ) -> SyncStatusResponse:
     """Trigger emission recalculation for a single data entry type.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    **Required Permission**: `system.users.edit` (Super Admin only)
 
     Creates a background job and streams progress via
     ``GET /sync/jobs/{job_id}/stream``.
@@ -1950,15 +1945,13 @@ async def recalculate_emissions_for_module(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     only_stale: bool = True,
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
 ) -> SyncStatusResponse:
     """Trigger bulk emission recalculation for all (or only stale) data entry types.
 
     Bulk recalculation for a module.
 
-    **Required Permission**: `backoffice.data_management.sync`
+    **Required Permission**: `system.users.edit` (Super Admin only)
 
     When ``only_stale=True`` (default), only data entry types where
     ``needs_recalculation=True`` are included.  Returns 400 if no types qualify.
@@ -2047,9 +2040,7 @@ async def sync_units_from_accred(
     syncRequest: SyncUnitRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -2062,7 +2053,7 @@ async def sync_units_from_accred(
     poller. Provider is resolved from ``current_user.provider`` and stamped
     on the job (#1266).
 
-    **Required Permission**: `backoffice.data_management.sync`
+    **Required Permission**: `system.users.edit` (Super Admin only)
 
     Returns:
         SyncStatusResponse with the persistent job_id and initial state.
@@ -2108,9 +2099,7 @@ async def sync_units_from_accred(
 async def recover_job(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_permission("backoffice.data_management", "sync")
-    ),
+    current_user: User = Depends(require_permission("system.users", "edit")),
 ):
     """
     Recover a job stuck in RUNNING after a pod crash.
@@ -2118,7 +2107,7 @@ async def recover_job(
     Resets the job to NOT_STARTED and clears the lock. Only allowed
     when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
 
-    **Required Permission**: ``backoffice.data_management.sync``
+    **Required Permission**: ``system.users.edit`` (Super Admin only)
     """
     settings = get_settings()
     repo = DataIngestionRepository(db)
