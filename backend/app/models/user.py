@@ -79,11 +79,11 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
-    - CO2_BACKOFFICE_METIER: Full backoffice access including:
+    - CO2_BACKOFFICE_METIER: Backoffice access excluding Configuration/Pipeline tabs:
       * backoffice.reporting: view, export (view reports, generate exports)
       * backoffice.users: view, edit (view user list, assign roles)
-      * backoffice.data_management: view, edit, export, sync
-        (upload/download CSV, trigger sync)
+      * backoffice.data_management: view, export (read-only; edit/sync
+      reserved for SuperAdmin)
       * backoffice.documentation: view, edit (view/edit documentation)
 
     User Roles (affect modules.* ONLY):
@@ -162,9 +162,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
         if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
-            # to stream sync/jobs
             # Backoffice metier can have either global scope or affiliation scope
-            # Grants full backoffice access for reporting, docs, and data updates
+            # Grants backoffice access for reporting, docs, and read-only data access.
+            # edit and sync on backoffice.data_management are reserved for SuperAdmin.
             if is_global_scope(scope) or is_role_scope(scope):
                 permissions["backoffice.reporting"] = merge_actions(
                     permissions.get("backoffice.reporting"), ["view", "export"]
@@ -176,9 +176,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                     permissions.get("backoffice.data_management"),
                     [
                         "view",
-                        "edit",
                         "export",
-                        "sync",
                     ],
                 )
                 permissions["backoffice.documentation"] = merge_actions(
