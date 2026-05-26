@@ -22,7 +22,7 @@ dependencies = [
     "email-validator==2.3.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
-    "joserfc>=1.6.5",
+    "joserfc>=1.6.7",
     "types-passlib>=1.7.7.20250602",
     "sqlmodel>=0.0.38",
     "enacit4r-files",
@@ -93,7 +93,7 @@ dev = [
     "faker>=40.18.0",
     "docker>=7.1.0",
     "asyncpg>=0.31.0",
-    "types-pyyaml>=6.0.12.20260510",
+    "types-pyyaml>=6.0.12.20260518",
 ]
 
 [tool.mypy]
