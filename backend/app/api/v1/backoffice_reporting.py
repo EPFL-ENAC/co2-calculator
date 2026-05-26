@@ -1,9 +1,7 @@
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, or_
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import aliased
-from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -13,48 +11,11 @@ from app.core.security import get_current_active_user
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.unit import UnitRead
-from app.utils.permissions import derive_backoffice_affiliations, has_permission
+from app.utils.scoping import build_affiliation_predicate, gate_backoffice
 
 # Services
 logger = get_logger(__name__)
 router = APIRouter()
-
-
-def _affiliation_predicate(affiliations: set[str]) -> ColumnElement[bool]:
-    """Build the SQL predicate matching ``Unit.path_name`` against affiliations.
-
-    ACCRED ``sortpath`` is a single token (e.g. ``"SV"``, ``"STI"``,
-    ``"Engineering"``); ``Unit.path_name`` is a separator-joined ancestor list
-    (observed shapes: ``"EPFL > STI > LMSC"`` and ``"EPFL ENAC IT4R-TEST"``).
-    Padding the column with leading/trailing spaces lets a single
-    ``% <aff> %`` ILIKE catch tokens at any position regardless of separator
-    (` > ` or plain space) and avoids false positives like ``SV`` matching
-    ``SVOPS``.
-    """
-    # ``coalesce`` keeps the predicate well-defined when ``path_name`` is NULL
-    # (NULL rows simply never match).
-    padded = func.concat(" ", func.coalesce(col(Unit.path_name), ""), " ")
-    return or_(*[padded.ilike(f"% {aff} %") for aff in affiliations])
-
-
-def _gate_backoffice_users_view(user: User) -> tuple[bool, set[str]]:
-    """Authorize ``backoffice.users.view`` and return the caller's scope.
-
-    Raises 403 if the user holds neither the bare ``backoffice.users`` key nor
-    any ``backoffice.users/<aff>`` key. Returns ``(is_global, affiliations)``;
-    callers apply the affiliation predicate when ``is_global`` is False.
-
-    Uses ``has_permission(..., any_scope=True)`` because affiliation-scoped
-    users only hold ``backoffice.users/<aff>`` keys — ``require_permission``'s
-    literal-path lookup would 403 them.
-    """
-    perms = user.calculate_permissions()
-    if not has_permission(perms, "backoffice.users", "view", any_scope=True):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied",
-        )
-    return derive_backoffice_affiliations(perms)
 
 
 @router.get("/affiliations", response_model=List[UnitRead])
@@ -80,7 +41,7 @@ async def list_affiliations(
     Affiliation-scoped backoffice users (#459) only see units whose
     ``path_name`` contains one of their affiliations.
     """
-    is_global, affiliations = _gate_backoffice_users_view(current_user)
+    is_global, affiliations = gate_backoffice(current_user)
 
     # Defence-in-depth: a non-global caller with no affiliations sees nothing.
     if not is_global and not affiliations:
@@ -101,7 +62,7 @@ async def list_affiliations(
 
     # 4. Affiliation scoping (#459)
     if not is_global:
-        query = query.where(_affiliation_predicate(affiliations))
+        query = query.where(build_affiliation_predicate(affiliations))
 
     # 5. Sorting and Pagination
     offset = (page - 1) * page_size
@@ -126,7 +87,7 @@ async def list_units(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    is_global, affiliations = _gate_backoffice_users_view(current_user)
+    is_global, affiliations = gate_backoffice(current_user)
 
     # Defence-in-depth: a non-global caller with no affiliations sees nothing.
     if not is_global and not affiliations:
@@ -160,7 +121,7 @@ async def list_units(
 
     # 4. Affiliation scoping (#459)
     if not is_global:
-        query = query.where(_affiliation_predicate(affiliations))
+        query = query.where(build_affiliation_predicate(affiliations))
 
     # 5. Sorting and Pagination
     offset = (page - 1) * page_size

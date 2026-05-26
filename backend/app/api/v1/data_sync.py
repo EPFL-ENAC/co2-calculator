@@ -53,6 +53,7 @@ from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.request_context import extract_ip_address, extract_route_payload
+from app.utils.scoping import require_any_scope
 
 
 def _job_type_for(target_type: TargetType, ingestion_method: IngestionMethod) -> str:
@@ -992,7 +993,7 @@ async def get_jobs_by_status(
     filter_type: str = "completed",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list:
     """
@@ -1015,7 +1016,7 @@ async def get_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list:
     """
@@ -1054,7 +1055,7 @@ async def get_latest_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list:
     """
@@ -1188,7 +1189,7 @@ class WorkerResponse(BaseModel):
 async def list_workers(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list[WorkerResponse]:
     """Return the set of live worker pods.
@@ -1382,7 +1383,7 @@ async def get_active_pipelines(
     modules: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> dict[int, str]:
     """Return the active pipeline_id (if any) for each requested module.
@@ -1440,12 +1441,20 @@ async def get_active_year_level_pipelines(
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list[str]:
     """Return active **year-level** pipeline_ids (``entity_type=GLOBAL_PER_YEAR``).
 
-    **Required Permission**: ``backoffice.data_management.view``
+    **Required Permission**: ``backoffice.data_management:view`` under any scope.
+    Both the back-office Data Management page (Backoffice Administrators) and
+    the Logs page (Super Admin only) read from this endpoint, so the gate
+    accepts affiliation-scoped backoffice grants alongside the bare superadmin
+    key (#459 follow-up).
+
+    Year-level pipelines are not affiliation-bound, so the returned list is
+    not filtered by the caller's affiliation — the data is shared across the
+    back-office area.
 
     Issue #867 — back-office data-management page reload reattach.  The
     sibling ``GET /active-pipelines`` only sees module-scoped pipelines
@@ -1460,13 +1469,6 @@ async def get_active_year_level_pipelines(
     ``entity_type=GLOBAL_PER_YEAR`` and the given ``year``.  Order is
     most-recent-first by job id; the frontend treats the list as a
     set, but a stable order makes assertion-based tests trivial.
-
-    The endpoint applies only the global ``backoffice.data_management.view``
-    gate — there is no per-module decision loop here because year-level
-    pipelines are not module-scoped (the per-module security guard on
-    the sibling endpoint defends against pipeline_id enumeration across
-    *modules* a backoffice user can't read; year-level pipelines have
-    no equivalent sub-perimeter today).
 
     Empty result is the steady state — both "no active year-level
     pipelines" and "U1's pipeline-stamping for unit_sync hasn't shipped
@@ -1484,7 +1486,7 @@ async def get_recalculation_status(
     year: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list[ModuleRecalculationStatus]:
     """Return per-module recalculation status for the given year.
@@ -1542,7 +1544,7 @@ async def list_pipelines(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> PipelineListResponse:
     """Paginated, filtered list of ingestion/recalc pipelines (#1234).
@@ -1666,7 +1668,7 @@ async def get_pipeline_jobs(
     pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> PipelineResponse:
     """Return every job in a multi-step pipeline run, ordered by id.
@@ -1723,7 +1725,7 @@ async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
@@ -2184,7 +2186,7 @@ async def get_stale_stats(
     ),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_any_scope("view", "backoffice.data_management")
     ),
 ) -> list[StaleStatsEntry]:
     """Read-only backstop for the aggregation pipeline (Plan 310-D Follow-up 1

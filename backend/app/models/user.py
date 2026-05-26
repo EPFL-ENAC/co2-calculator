@@ -48,11 +48,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     This function maps role-based access control to permission-based access control.
     It processes all user roles and generates a comprehensive permissions structure.
 
-    IMPORTANT: Role domains are generally independent, with some exceptions:
+    IMPORTANT: Role domains are independent, with one exception:
     - Backoffice roles (CO2_BACKOFFICE_METIER) ONLY grant backoffice.* permissions
-    - User roles (CO2_USER_*) primarily grant modules.* permissions
-      Exception: CO2_USER_PRINCIPAL also grants backoffice.users.edit for unit-scoped
-      role assignment (to assign co2.user.std to unit members)
+    - User roles (CO2_USER_*) ONLY grant modules.* permissions
     - System roles (CO2_SUPERADMIN) grant system.* permissions
       Exception: CO2_SUPERADMIN also grants full backoffice.* access
     - A person can have multiple roles, and permissions combine
@@ -87,8 +85,7 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
       * backoffice.documentation: view, edit (view/edit documentation)
 
     User Roles (affect modules.* ONLY):
-    - CO2_USER_PRINCIPAL: Full module access (view + edit) + can assign co2.user.std
-      role to unit members (backoffice.users.edit for unit scope)
+    - CO2_USER_PRINCIPAL: Full module access (view + edit) for the unit
     - CO2_USER_STD: View and edit access to professional_travel module
       (own trips only - enforced via resource-level policy)
 
@@ -170,32 +167,32 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
         if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
-            # GlobalScope → un-scoped keys (full backoffice reach).
-            # RoleScope(affiliation=...) → scoped keys "backoffice.X/{affiliation}"
-            # so endpoints can narrow results to the user's sub-perimeter (#459).
-            # RoleScope(institutional_id=...) is not produced by ACCRED today; if
-            # it ever appears it falls through to the un-scoped branch.
-            bo_key = scope_key if is_affiliation_scope(scope) else ""
-            if is_global_scope(scope) or is_role_scope(scope):
-                permissions[f"backoffice.reporting{bo_key}"] = merge_actions(
-                    permissions.get(f"backoffice.reporting{bo_key}"),
+            # CO2_BACKOFFICE_METIER is always sub-perimeter-bound: ACCRED only
+            # ever produces ``RoleScope(affiliation=LVL3)`` for this role. Only
+            # CO2_SUPERADMIN gets cross-affiliation reach (the bare backoffice.*
+            # keys below). Any other scope shape (GlobalScope, institutional_id)
+            # is unconfigured and emits nothing — gate_backoffice will 403 the
+            # caller, surfacing the misconfiguration rather than masking it.
+            if is_affiliation_scope(scope):
+                permissions[f"backoffice.reporting{scope_key}"] = merge_actions(
+                    permissions.get(f"backoffice.reporting{scope_key}"),
                     ["view", "export"],
                 )
-                permissions[f"backoffice.users{bo_key}"] = merge_actions(
-                    permissions.get(f"backoffice.users{bo_key}"),
+                permissions[f"backoffice.users{scope_key}"] = merge_actions(
+                    permissions.get(f"backoffice.users{scope_key}"),
                     ["view", "edit", "export"],
                 )
-                permissions[f"backoffice.data_management{bo_key}"] = merge_actions(
-                    permissions.get(f"backoffice.data_management{bo_key}"),
-                    [
-                        "view",
-                        "edit",
-                        "export",
-                        "sync",
-                    ],
+                # Backoffice Administrator only gets view + export on
+                # data_management. edit + sync are Super Admin only
+                # (Configuration write + Pipeline Operations) — granting them
+                # here would let a scoped backoffice user trigger syncs or
+                # mutate factor data the moment a route is opened any-scope.
+                permissions[f"backoffice.data_management{scope_key}"] = merge_actions(
+                    permissions.get(f"backoffice.data_management{scope_key}"),
+                    ["view", "export"],
                 )
-                permissions[f"backoffice.documentation{bo_key}"] = merge_actions(
-                    permissions.get(f"backoffice.documentation{bo_key}"),
+                permissions[f"backoffice.documentation{scope_key}"] = merge_actions(
+                    permissions.get(f"backoffice.documentation{scope_key}"),
                     ["view", "edit"],
                 )
 
@@ -259,11 +256,6 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                         "edit",
                         "sync",
                     ],
-                )
-                # Principals can assign co2.user.std role to unit members
-                # This grants backoffice.users.edit for unit-scoped role assignment
-                permissions["backoffice.users"] = merge_actions(
-                    permissions.get("backoffice.users"), ["edit"]
                 )
 
         elif role_name == RoleName.CO2_USER_STD.value:

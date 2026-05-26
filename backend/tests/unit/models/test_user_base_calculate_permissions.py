@@ -51,13 +51,19 @@ class TestUserBaseCalculatePermissions:
         assert "export" in perms["backoffice.users"]
 
     def test_calculate_permissions_multiple_roles(self):
-        """Test calculate_permissions with multiple roles."""
+        """Test calculate_permissions with multiple roles.
+
+        CO2_BACKOFFICE_METIER is sub-perimeter-bound (affiliation-scoped);
+        combined with CO2_USER_STD it yields a scoped backoffice key plus
+        the std module key."""
         user_base = UserBase()
         user_base.roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope()),
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=RoleScope(affiliation="SV"),
+            ),
             Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")),
         ]
         perms = user_base.calculate_permissions()
-        # Should have both backoffice and module permissions
-        assert "view" in perms["backoffice.users"]
+        assert "view" in perms["backoffice.users/SV"]
         assert "view" in perms["modules.professional_travel/12345"]

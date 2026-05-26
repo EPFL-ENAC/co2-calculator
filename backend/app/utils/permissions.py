@@ -14,16 +14,17 @@ def derive_backoffice_affiliations(
     """Inspect permission keys for backoffice sub-perimeter scoping (#459).
 
     Returns ``(is_global, affiliations)``:
-    - ``is_global`` is True iff the bare ``anchor_path`` key is present, meaning
-      the user holds a ``GlobalScope`` (or superadmin) backoffice grant and
-      should NOT be narrowed.
+    - ``is_global`` is True iff the bare ``anchor_path`` key is present, which
+      in practice means the user holds CO2_SUPERADMIN (the only role that
+      emits bare backoffice.* keys; CO2_BACKOFFICE_METIER is always scoped).
     - ``affiliations`` is the set of sub-perimeter labels parsed from
       ``{anchor_path}/<aff>`` keys (multi-affiliation users yield multiple
       entries — natural union semantics).
 
     ``backoffice.users`` is the canonical anchor because all four backoffice
     permission groups are emitted in lockstep by ``calculate_user_permissions``
-    for ``CO2_BACKOFFICE_METIER``.
+    for both CO2_BACKOFFICE_METIER (scoped variant) and CO2_SUPERADMIN (bare).
+    Any one of the four keys would work; ``backoffice.users`` is historical.
     """
     if not permissions:
         return False, set()

@@ -217,7 +217,7 @@ class TestPermissionScopeEndToEnd:
 # ─────────────────────────────────────────────────────────────────────────────
 # Backoffice ACCRED affiliation scoping (#459)
 #
-# Affiliation-scoped backoffice managers (e.g. "Anna for SV") only hold
+# Affiliation-scoped backoffice managers (e.g. an SV-scoped admin) only hold
 # ``backoffice.X/<affiliation>`` permission keys. Endpoints that swap
 # ``require_permission`` for an inline ``any_scope=True`` gate must:
 #   1. let the request through (the user IS a backoffice manager),
@@ -297,8 +297,10 @@ class TestBackofficeAffiliationScopeEndToEnd:
     sub-perimeter; GlobalScope keeps full reach (#459)."""
 
     def test_global_backoffice_sees_all_units(self, client, monkeypatch):
-        """GlobalScope backoffice → bare ``backoffice.users`` key → no narrowing."""
-        user = _user("11111", [_backoffice()])
+        """Superadmin → bare ``backoffice.users`` key → no narrowing.
+        (CO2_BACKOFFICE_METIER is always sub-perimeter-bound; cross-affiliation
+        reach is exclusive to CO2_SUPERADMIN.)"""
+        user = _user("11111", [_superadmin()])
         _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 200, r.text
@@ -363,3 +365,180 @@ class TestBackofficeAffiliationScopeEndToEnd:
         assert r.status_code == 200, r.text
         names = {u["name"] for u in r.json()}
         assert names == {"SV-FAC"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /api/v1/backoffice/* (six endpoints previously gated by strict
+# ``require_permission`` — Phase 2 / #459 opened them under ``any_scope=True``
+# with server-side affiliation narrowing).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+BACKOFFICE_YEARS_URL = "/api/v1/backoffice/years"
+
+
+def _wire_backoffice_years(
+    monkeypatch, user, years_by_unit_path: dict[str, list[int]]
+) -> None:
+    """Stub the ``/backoffice/years`` query path.
+
+    ``years_by_unit_path`` maps a unit ``path_name`` → years that unit has
+    reports for. The mock inspects the compiled SQL for the affiliation
+    ILIKE literals (same trick as ``_wire_backoffice``) and returns the
+    union of years whose unit's ``path_name`` matches any literal. With
+    no literals (global caller), all years are returned.
+    """
+    app.dependency_overrides[deps_module.get_current_user] = lambda: user
+
+    async def mock_get_db():
+        db = MagicMock()
+
+        async def mock_exec(query):
+            compiled = str(query.compile(compile_kwargs={"literal_binds": True}))
+            tokens = re.findall(r"like\s+lower\('% ([^ ]+?) %'\)", compiled, re.I)
+
+            def path_matches(path: str) -> bool:
+                if not tokens:
+                    return True
+                padded = f" {(path or '').lower()} "
+                return any(f" {t.lower()} " in padded for t in tokens)
+
+            collected = sorted(
+                {
+                    y
+                    for path, years in years_by_unit_path.items()
+                    if path_matches(path)
+                    for y in years
+                },
+                reverse=True,
+            )
+            result = MagicMock()
+            result.all = lambda: collected
+            return result
+
+        db.exec = mock_exec
+        yield db
+
+    app.dependency_overrides[deps_module.get_db] = mock_get_db
+
+
+class TestBackofficeYearsAffiliationScoping:
+    """``/backoffice/years`` exposes distinct CarbonReport.year values.
+
+    For non-global callers the query joins ``Unit`` and applies the
+    affiliation predicate, so scoped users only see years for which their
+    affiliation has reports.
+    """
+
+    YEARS_BY_PATH = {
+        "EPFL > SV > SV-LAB": [2024, 2025],
+        "EPFL > STI > STI-LAB": [2023],
+    }
+
+    def test_global_backoffice_sees_all_years(self, client, monkeypatch):
+        """Superadmin (the only role with cross-affiliation reach) sees every year."""
+        user = _user("11111", [_superadmin()])
+        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        r = client.get(BACKOFFICE_YEARS_URL)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert set(body["years"]) == {"2023", "2024", "2025"}
+        assert body["latest"] == "2025"
+
+    def test_scoped_backoffice_sees_only_in_affiliation_years(
+        self, client, monkeypatch
+    ):
+        user = _user("11111", [_backoffice_scoped("SV")])
+        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        r = client.get(BACKOFFICE_YEARS_URL)
+        assert r.status_code == 200, r.text
+        body = r.json()
+        # SV has 2024 + 2025; STI's 2023 must be filtered out.
+        assert set(body["years"]) == {"2024", "2025"}
+        assert body["latest"] == "2025"
+
+    def test_scoped_backoffice_cross_affiliation_returns_empty(
+        self, client, monkeypatch
+    ):
+        user = _user("11111", [_backoffice_scoped("CDH")])
+        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        r = client.get(BACKOFFICE_YEARS_URL)
+        assert r.status_code == 200, r.text
+        assert r.json() == {"years": [], "latest": ""}
+
+    def test_no_backoffice_role_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        r = client.get(BACKOFFICE_YEARS_URL)
+        assert r.status_code == 403, r.text
+
+    def test_principal_denied_after_backoffice_grant_removal(self, client, monkeypatch):
+        """Pin the Phase 2 removal: CO2_USER_PRINCIPAL no longer grants
+        backoffice.users.edit, so a principal-only user must NOT pass the
+        backoffice gate."""
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        r = client.get(BACKOFFICE_YEARS_URL)
+        assert r.status_code == 403, r.text
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /api/v1/sync/active-pipelines/year/{year} — shared by the configuration
+# (data-management) page and the logs page. Both Backoffice Administrators
+# (scoped) and Super Admin (global) must reach it (#459 follow-up).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+ACTIVE_PIPELINES_URL = "/api/v1/sync/active-pipelines/year/2026"
+
+
+def _wire_active_pipelines(monkeypatch, user) -> None:
+    """Stub the DataIngestionRepository so the route handler can run."""
+    app.dependency_overrides[deps_module.get_current_user] = lambda: user
+
+    async def mock_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[deps_module.get_db] = mock_get_db
+
+    mock_repo = MagicMock()
+    mock_repo.get_active_year_level_pipeline_ids = AsyncMock(return_value=[])
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.DataIngestionRepository", lambda db: mock_repo
+    )
+
+
+class TestActivePipelinesPerYearGate:
+    """The route gates on ``backoffice.data_management:view`` under ANY scope.
+
+    Configuration page (Backoffice Administrator, affiliation-scoped) and
+    Logs page (Super Admin, global) both consume this endpoint — both must
+    pass.
+    """
+
+    def test_superadmin_passes(self, client, monkeypatch):
+        user = _user("11111", [_superadmin()])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 200, r.text
+
+    def test_scoped_backoffice_metier_passes(self, client, monkeypatch):
+        """Pin the bug fix: a backoffice metier with only
+        ``backoffice.data_management/<aff>`` was 403'd by the old
+        ``require_permission`` strict lookup."""
+        user = _user("11111", [_backoffice_scoped("ENAC-SG")])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 200, r.text
+
+    def test_principal_denied(self, client, monkeypatch):
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_denied(self, client, monkeypatch):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text

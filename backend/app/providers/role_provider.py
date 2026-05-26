@@ -22,6 +22,10 @@ from app.providers.test_fixtures import (
 logger = get_logger(__name__)
 settings = get_settings()
 
+# ACCRED sortpath hierarchy level used as the backoffice affiliation token.
+# Example: "EPFL ENAC ENAC-SG ENAC-IT" → level 3 = "ENAC-SG".
+AFFILIATION_LEVEL = 3
+
 
 class RoleProvider(ABC):
     """Abstract base class for role providers.
@@ -542,14 +546,30 @@ class AccredRoleProvider(RoleProvider):
                     # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
                 elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
-                    affiliations_names = (
-                        auth.get("reason").get("resource").get("sortpath")
+                    sortpath = (
+                        auth.get("reason", {}).get("resource", {}).get("sortpath") or ""
                     )
-                    # Map to affiliation scope (placeholder logic)
+                    # ACCRED sortpath is a space-separated hierarchy
+                    # ("EPFL ENAC ENAC-SG ENAC-IT"). Affiliation scoping operates
+                    # at LVL3 (e.g. "ENAC-SG"). Skip authorizations that cannot
+                    # resolve LVL3 — they cannot be scoped meaningfully.
+                    levels = sortpath.split()
+                    if len(levels) < AFFILIATION_LEVEL:
+                        logger.warning(
+                            "Backoffice metier sortpath too short; "
+                            "cannot resolve affiliation; skipping",
+                            extra={
+                                "auth_name": auth_name,
+                                "user_id": user_id,
+                                "sortpath": sortpath,
+                            },
+                        )
+                        continue
+                    affiliation = levels[AFFILIATION_LEVEL - 1]
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(affiliation=affiliations_names),
+                            on=RoleScope(affiliation=affiliation),
                         )
                     )
                 else:
