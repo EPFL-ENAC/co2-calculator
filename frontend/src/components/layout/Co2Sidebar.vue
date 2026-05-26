@@ -20,7 +20,10 @@ function navigateToRoute(routeName: string) {
 }
 
 const hasBackOfficeEditPermission = computed(() => {
-  return authStore.hasUserPermission('backoffice.users', PermissionAction.EDIT);
+  return authStore.hasUserAnyScopePermission(
+    'backoffice.users',
+    PermissionAction.EDIT,
+  );
 });
 
 const hasSuperAdminRole = computed(() => {

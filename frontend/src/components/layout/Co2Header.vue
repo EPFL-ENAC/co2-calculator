@@ -50,7 +50,7 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  return authStore.hasUserPermission('backoffice.users', PermissionAction.VIEW);
+  return authStore.hasUserBackOfficeAreaPermission(PermissionAction.VIEW);
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));

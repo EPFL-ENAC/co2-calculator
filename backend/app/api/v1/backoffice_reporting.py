@@ -7,10 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
 from app.core.logging import get_logger
-from app.core.security import require_permission
+from app.core.security import get_current_active_user
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.unit import UnitRead
+from app.utils.scoping import build_affiliation_predicate, gate_backoffice
 
 # Services
 logger = get_logger(__name__)
@@ -26,7 +27,7 @@ async def list_affiliations(
     page: int = 1,
     page_size: Annotated[int, Query(le=100)] = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     List affiliation units (Level 2 and Level 3).
@@ -36,7 +37,16 @@ async def list_affiliations(
     - Level 3: Institut
 
     Each unit includes its unit_type_label for UI distinction.
+
+    Affiliation-scoped backoffice users (#459) only see units whose
+    ``path_name`` contains one of their affiliations.
     """
+    is_global, affiliations = gate_backoffice(current_user)
+
+    # Defence-in-depth: a non-global caller with no affiliations sees nothing.
+    if not is_global and not affiliations:
+        return []
+
     # 1. Initialize query with SQLModel's select
     query = select(Unit).where(col(Unit.is_active))
 
@@ -50,11 +60,15 @@ async def list_affiliations(
     if name:
         query = query.where(col(Unit.name).ilike(f"%{name}%"))
 
-    # 4. Sorting and Pagination
+    # 4. Affiliation scoping (#459)
+    if not is_global:
+        query = query.where(build_affiliation_predicate(affiliations))
+
+    # 5. Sorting and Pagination
     offset = (page - 1) * page_size
     query = query.order_by(Unit.name).offset(offset).limit(page_size)
 
-    # 5. Execution
+    # 6. Execution
     result = await db.exec(query)
     return result.all()
 
@@ -71,8 +85,14 @@ async def list_units(
     page: int = 1,
     page_size: Annotated[int, Query(le=100)] = 100,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(get_current_active_user),
 ):
+    is_global, affiliations = gate_backoffice(current_user)
+
+    # Defence-in-depth: a non-global caller with no affiliations sees nothing.
+    if not is_global and not affiliations:
+        return []
+
     # 1. Initialize query with SQLModel's select
     query = select(Unit).where(col(Unit.is_active))
 
@@ -99,10 +119,14 @@ async def list_units(
             col(Unit.parent_institutional_code) == parent_alias.institutional_code,
         ).where(parent_alias.unit_type_label == parent_unit_type_label)
 
-    # 4. Sorting and Pagination
+    # 4. Affiliation scoping (#459)
+    if not is_global:
+        query = query.where(build_affiliation_predicate(affiliations))
+
+    # 5. Sorting and Pagination
     offset = (page - 1) * page_size
     query = query.order_by(Unit.name).offset(offset).limit(page_size)
 
-    # 5. Execution (The SQLModel way)
+    # 6. Execution (The SQLModel way)
     result = await db.exec(query)
     return result.all()

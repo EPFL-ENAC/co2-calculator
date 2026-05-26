@@ -7,11 +7,13 @@ import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 
 /**
- * Create a route guard that requires a specific permission.
+ * Create a route guard that requires a specific permission under ANY scope.
  *
- * This function returns a Vue Router navigation guard that checks if the user
- * has the required permission. If the permission is granted, navigation proceeds.
- * If not, the user is redirected to the unauthorized page.
+ * Accepts the bare path (`backoffice.users`) OR any scoped variant
+ * (`backoffice.users/ENAC-SG`, `backoffice.users/0184`). This is the
+ * right shape for back-office and system routes — affiliation-scoped
+ * users and unit-scoped users both pass. Module routes use
+ * `requireModuleEditPermission` instead (workspace-scoped).
  *
  * @param path - The permission path (e.g., 'backoffice.users')
  * @param action - The action to check (defaults to 'view')
@@ -26,12 +28,13 @@ export function requirePermission(
     if (window.__LIGHTHOUSE_BYPASS__) return true;
 
     const authStore = useAuthStore();
-    const hasRequiredPermission = authStore.hasUserPermission(path, action);
-    if (hasRequiredPermission === true) {
+    if (authStore.hasUserAnyScopePermission(path, action)) {
       return true;
-    } else {
-      return { name: 'unauthorized' };
     }
+    console.warn(
+      `[permissionGuard] denied: '${path}' (${action}); redirecting to unauthorized`,
+    );
+    return { name: 'unauthorized' };
   };
 }
 
