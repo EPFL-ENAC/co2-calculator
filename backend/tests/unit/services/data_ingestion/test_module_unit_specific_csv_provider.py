@@ -356,6 +356,10 @@ async def test_setup_returns_empty_factor_id_map_with_no_factors(monkeypatch):
 
     handler = MagicMock()
     handler.create_dto.model_fields = {}
+    # Opt out of the empty-factors guard added in #1236 — this test
+    # asserts the factor_id_to_factor mapping shape, not the
+    # require-factor invariant (covered by test_guard_factors_required).
+    handler.require_factor_to_match = False
 
     monkeypatch.setattr(
         csv_providers_module.module_unit_specific.BaseModuleHandler,
@@ -550,6 +554,9 @@ async def test_all_data_entry_types_return_factor_id_to_factor(monkeypatch):
 
         handler = MagicMock()
         handler.create_dto.model_fields = {}
+        # See sibling test — opt out of the require-factor guard so
+        # this mapping-shape assertion still runs on empty factors.
+        handler.require_factor_to_match = False
 
         monkeypatch.setattr(
             csv_providers_module.module_unit_specific.BaseModuleHandler,

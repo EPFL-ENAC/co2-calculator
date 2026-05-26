@@ -96,6 +96,43 @@ def _get_required_columns_from_handler(handler: Any) -> set[str]:
     }
 
 
+def _guard_factors_required(
+    *,
+    factors_map: Dict[str, Any],
+    handlers: list[Any],
+    module_label: str,
+    year: int | None,
+) -> None:
+    """Fail-fast when an ingest needs factors but the map is empty.
+
+    For modules whose handler declares ``require_factor_to_match=True``
+    (e.g. equipment), every row's emission record needs a matched
+    ``Factor`` to populate ``primary_factor_id``.  When the factors
+    table has nothing for this (module, year) tuple the row-level loop
+    would record one "no matching factor" error per row — a 50 000-row
+    CSV produces 50 000 identical messages and the operator has to
+    scroll past them to find out the real issue is that they forgot to
+    upload factors first.
+
+    Raised at setup time instead, so ``_setup_and_validate``'s
+    try/except wraps it into one ``FINISHED + ERROR`` with a
+    single-line ``status_message``.  Caller passes a human-readable
+    ``module_label`` (e.g. ``"Equipment"``) so the message tells the
+    operator *which* upload is missing without them having to know
+    enum ints.
+    """
+    if factors_map:
+        return
+    if not any(getattr(h, "require_factor_to_match", False) for h in handlers):
+        return
+    year_str = f"year={year}" if year is not None else "the configured year"
+    raise ValueError(
+        f"No factors available for module={module_label} {year_str}. "
+        "Upload factors for this module/year before ingesting data — "
+        "every row needs a matched Factor for primary_factor_id."
+    )
+
+
 class BaseCSVProvider(DataIngestionProvider, ABC):
     """Base class for CSV data ingestion providers"""
 

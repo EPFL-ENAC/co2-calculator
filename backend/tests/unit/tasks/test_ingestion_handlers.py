@@ -119,6 +119,144 @@ async def test_csv_ingest_handler_resolves_provider_and_returns_meta():
 
 
 @pytest.mark.asyncio
+async def test_csv_ingest_error_result_does_not_report_success():
+    """#1236 root cause: ``ingest()`` hardcodes status_message='Success'
+    when it doesn't raise, but a CSV where every row errored finishes
+    WITHOUT raising and is classified ERROR. A FINISHED job whose
+    result != SUCCESS must NOT claim 'Success' (jobs 2/49/50/51 shape).
+    """
+    job = _make_job(meta={"provider_name": "FakeCSV", "config": {}})
+    fake_provider = MagicMock()
+    fake_provider.set_job_id = AsyncMock()
+    fake_provider.ingest = AsyncMock(
+        return_value={
+            "status_message": "Success",  # the hardcoded ingest() lie
+            "data": {
+                "result": IngestionResult.ERROR,
+                "inserted": 0,
+                "skipped": 50072,
+            },
+        }
+    )
+
+    class FakeProviderClass:
+        def __new__(cls, *args, **kwargs):
+            return fake_provider
+
+    with (
+        patch.object(
+            ingest_mod.ProviderFactory,
+            "get_provider_class",
+            return_value=FakeProviderClass,
+        ),
+        patch.object(ingest_mod, "chain_job", new_callable=AsyncMock),
+    ):
+        meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
+
+    assert meta["result"] == IngestionResult.ERROR
+    assert meta["status_message"] != "Success"
+    assert "Success" not in meta["status_message"]
+    assert meta["status_message"] == "ERROR: 0 inserted, 50072 skipped"
+
+
+# ---------------------------------------------------------------------------
+# Lone-orphan ``last_error`` improvement (#1236 follow-up) —
+# ``finalize_ingest_meta`` enriches the honest summary with the first
+# row_error's reason so a pipeline-of-one parent doesn't surface as just
+# "ERROR: 0 inserted, 50 072 skipped" with no clue WHY.
+# ---------------------------------------------------------------------------
+
+
+def test_finalize_ingest_meta_enriches_with_first_row_error_reason():
+    """Every row failed with the same reason → status_message carries
+    a sample of that reason so the operator doesn't have to expand the
+    timeline to find the cause."""
+    result = {
+        "status_message": "Success",  # the ingest() lie
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 50072,
+            "row_errors": [
+                {
+                    "row": 1,
+                    "reason": (
+                        "No matching factor found in factors map "
+                        "(kind=Monitors, subkind=None)"
+                    ),
+                },
+                {"row": 2, "reason": "same"},
+            ],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+
+    assert meta["status_message"].startswith(
+        "ERROR: 0 inserted, 50072 skipped — first error: "
+    )
+    assert "kind=Monitors" in meta["status_message"]
+
+
+def test_finalize_ingest_meta_caps_long_reason():
+    """A 600-char reason (e.g. a Postgres traceback) must not bloat the
+    status_message column — capped at ~200 chars with an ellipsis."""
+    long_reason = "x" * 600
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 50000,
+            "row_errors": [{"row": 1, "reason": long_reason}],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+    suffix = meta["status_message"].split("first error: ", 1)[1]
+
+    # 200-char cap (199 chars + "…"); proves the message stays small
+    # even when the underlying reason is multi-KB.
+    assert len(suffix) <= 201
+    assert suffix.endswith("…")
+
+
+def test_finalize_ingest_meta_no_row_errors_keeps_short_summary():
+    """When row_errors is absent (e.g. setup-time fail-fast guard fired
+    before the row loop), the message keeps the count-only summary —
+    no spurious 'first error: None' appended."""
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.ERROR,
+            "inserted": 0,
+            "skipped": 0,
+        },
+    }
+    meta = ingest_mod.finalize_ingest_meta(result)
+    assert meta["status_message"] == "ERROR: 0 inserted, 0 skipped"
+    assert "first error" not in meta["status_message"]
+
+
+def test_finalize_ingest_meta_success_path_preserved():
+    """A genuine SUCCESS keeps its original status_message regardless
+    of row_errors content (defensive: row_errors should be empty on
+    SUCCESS, but if a provider still recorded warnings we don't lie
+    about a failure)."""
+    result = {
+        "status_message": "Success",
+        "data": {
+            "result": IngestionResult.SUCCESS,
+            "inserted": 100,
+            "skipped": 0,
+            "row_errors": [{"row": 99, "reason": "warn"}],
+        },
+    }
+    meta = ingest_mod.finalize_ingest_meta(result)
+    assert meta["status_message"] == "Success"
+
+
+@pytest.mark.asyncio
 async def test_api_ingest_handler_uses_same_path():
     """``api_ingest_handler`` shares ``_run_ingest`` — same contract."""
     job = _make_job(meta={"provider_name": "FakeAPI"})
@@ -214,7 +352,7 @@ async def test_factor_ingest_handler_chains_recalc_for_single_type():
     assert chain_kwargs["module_type_id"] == 5
     assert chain_kwargs["data_entry_type_id"] == 11
     assert chain_kwargs["year"] == 2025
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["upsert_count"] == 3
 
 
@@ -266,7 +404,7 @@ async def test_factor_ingest_handler_chains_per_det_for_multitype_upload():
     assert mock_chain.await_count == len(expected_dets)
     chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
     assert chained_dets == set(expected_dets)
-    assert meta["recalc_jobs_chained"] == len(expected_dets)
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -407,7 +545,7 @@ async def test_factor_ingest_handler_consults_repo_when_module_and_det_both_null
     chain_kwargs = mock_chain.await_args.kwargs
     assert chain_kwargs["module_type_id"] == 1
     assert chain_kwargs["data_entry_type_id"] == 10
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -502,7 +640,7 @@ async def test_csv_ingest_handler_chains_recalc_for_single_det():
     assert chain_kwargs["module_type_id"] == 5
     assert chain_kwargs["data_entry_type_id"] == 11
     assert chain_kwargs["year"] == 2025
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -537,7 +675,7 @@ async def test_csv_ingest_handler_chains_per_det_for_multitype_upload():
     assert mock_chain.await_count == len(expected_dets)
     chained_dets = {c.kwargs["data_entry_type_id"] for c in mock_chain.await_args_list}
     assert chained_dets == set(expected_dets)
-    assert meta["recalc_jobs_chained"] == len(expected_dets)
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -584,7 +722,7 @@ async def test_api_ingest_handler_chains_recalc_on_success():
         meta = await ingest_mod.api_ingest_handler(job, MagicMock(), MagicMock())
 
     mock_chain.assert_awaited_once()
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -654,7 +792,7 @@ async def test_csv_ingest_handler_skips_fan_out_when_module_type_id_missing():
         meta = await ingest_mod.csv_ingest_handler(job, MagicMock(), MagicMock())
 
     mock_chain.assert_not_awaited()
-    assert meta["recalc_jobs_chained"] == 0
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS
 
 
@@ -734,5 +872,5 @@ async def test_csv_ingest_fan_out_counts_only_owned_children():
 
     # All dets attempted, but only the one owned child counts.
     assert mock_chain.await_count == len(expected_dets)
-    assert meta["recalc_jobs_chained"] == 1
+    assert "recalc_jobs_chained" not in meta  # Phase 5B retired
     assert meta["result"] == IngestionResult.SUCCESS

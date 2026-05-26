@@ -38,6 +38,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.user import UserProvider
 
 
 @pytest_asyncio.fixture
@@ -54,6 +55,7 @@ async def pg_app(pg_dsn, monkeypatch):
     fake_user.id = 1
     fake_user.email = "test@example.com"
     fake_user.institutional_id = "TEST-USER"
+    fake_user.provider = UserProvider.DEFAULT
 
     app.dependency_overrides[deps_module.get_db] = override_get_db
     app.dependency_overrides[deps_module.get_current_user] = lambda: fake_user

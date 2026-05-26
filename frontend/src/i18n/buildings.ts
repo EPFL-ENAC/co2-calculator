@@ -204,15 +204,15 @@ export default {
   },
   buildings_combustion_type_pellets: {
     en: 'Pellets',
-    fr: 'Pellets',
+    fr: 'Granulés de bois',
   },
   buildings_combustion_type_forest_chips: {
     en: 'Forest chips',
-    fr: 'Copeaux de forêt',
+    fr: 'Plaquettes forestières',
   },
   buildings_combustion_type_wood_logs: {
     en: 'Wood logs',
-    fr: 'Bûches de bois',
+    fr: 'Bois bûche',
   },
 
   // Charts

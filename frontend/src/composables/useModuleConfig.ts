@@ -12,6 +12,12 @@ import {
   type ImportRow,
   type SyncJobResponse,
 } from 'src/stores/backofficeDataManagement';
+
+// Re-exported so existing call-sites that ``import { mergeLivePipelineJob }``
+// from this composable keep working.  The implementation lives in a leaf
+// file so the regression test can import it without Playwright tripping
+// over Vite's ``import.meta.glob`` in the i18n boot chain.
+export { mergeLivePipelineJob } from 'src/composables/mergeLivePipelineJob';
 import {
   MODULE_SUBMODULES,
   MODULE_COMMON_UPLOADS,
@@ -90,7 +96,9 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
       .processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
+    // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
+    // strips the extension without backend Content-Disposition).
+    a.href = `/api/v1/files/${filePath}?d=true`;
     a.download = filePath.split('/').pop() || filePath;
     document.body.appendChild(a);
     a.click();

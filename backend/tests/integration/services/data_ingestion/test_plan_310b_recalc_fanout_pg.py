@@ -39,6 +39,8 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.tasks.ingestion_tasks import _chain_recalc_for_stale
 
+from .conftest import ensure_pipeline_for_job
+
 
 def _multi_type_factor_job() -> DataIngestionJob:
     """Mirrors the production case: a finished, current FACTORS job for
@@ -73,6 +75,7 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
 
     async with Sf() as session:
         parent = _multi_type_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
 
@@ -130,9 +133,13 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
         assert landed_dets == expected_dets, (
             f"Expected one recalc per det {expected_dets}, got {landed_dets}"
         )
+        # Phase 5B (#1236) — ``meta.parent_job_id`` was retired in
+        # favour of pipeline-scoped traversal (parent = lowest-id job
+        # in the pipeline; see ``compute_pipeline_progress._find_root``).
+        # Pin the new contract: every fan-out child inherits the
+        # parent's pipeline_id.
         for r in rows:
-            assert r.meta is not None
-            assert r.meta["parent_job_id"] is not None
+            assert r.pipeline_id == parent.pipeline_id
 
     await engine.dispose()
 
@@ -148,6 +155,7 @@ async def test_fanout_creates_single_child_for_single_type_parent(pg_dsn):
     async with Sf() as session:
         parent = _multi_type_factor_job()
         parent.data_entry_type_id = DataEntryTypeEnum.it.value
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
 

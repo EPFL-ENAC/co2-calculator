@@ -171,7 +171,7 @@ async def test_emission_recalc_handler_chains_aggregation_with_dedup_on_success(
     # for the dedup INSERT lives on the job-progress session, not the
     # data_session that the workflow scrubbed and committed).
     assert chain_kwargs["session"] is job_session
-    assert meta["aggregation_job_id"] == 999
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
     crm_svc_factory.assert_not_called()
 
 
@@ -218,7 +218,7 @@ async def test_emission_recalc_handler_chains_aggregation_on_warning():
     assert chain_kwargs["year"] == job.year
     assert chain_kwargs["dedup_config"] is AGGREGATION_DEDUP
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] == 777
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -324,7 +324,7 @@ async def test_module_emission_recalc_iterates_all_types():
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["total_recalculated"] == 6
     assert meta["total_errors"] == 0
-    assert meta["aggregation_job_id"] == 555
+    assert "aggregation_job_id" not in meta  # Phase 5B retired
 
 
 @pytest.mark.asyncio
@@ -402,6 +402,13 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
     job_session = MagicMock()
     job_session.commit = AsyncMock()
     data_session = MagicMock()
+    # #1234-followup: handler now stamps configuration_completed via a
+    # data_session.execute(select(YearConfiguration)…); stub it to
+    # return "no row" so the handler hits its log-and-skip branch and
+    # the rest of the test exercises the unit-sync chain as before.
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
 
     repo = MagicMock()
     repo.update_ingestion_job = AsyncMock()
@@ -447,6 +454,16 @@ async def test_unit_sync_handler_runs_full_chain_and_returns_summary():
     assert meta["units_synced"] == 2
     assert meta["carbon_reports_created"] == 2
     assert meta["carbon_report_year"] == 2025
+    # #2B — phase checklist: 4 phases recorded, all finished.
+    phases = meta.get("phases") or []
+    assert [p["name"] for p in phases] == [
+        "fetch_units",
+        "upsert_units_and_users",
+        "create_carbon_reports",
+        "ensure_modules",
+    ]
+    assert all(p["state"] == "finished" for p in phases)
+    assert all("started_at" in p and "finished_at" in p for p in phases)
 
 
 @pytest.mark.asyncio
@@ -458,6 +475,13 @@ async def test_unit_sync_handler_falls_back_to_job_year_when_config_missing():
     job_session = MagicMock()
     job_session.commit = AsyncMock()
     data_session = MagicMock()
+    # #1234-followup: handler now stamps configuration_completed via a
+    # data_session.execute(select(YearConfiguration)…); stub it to
+    # return "no row" so the handler hits its log-and-skip branch and
+    # the rest of the test exercises the unit-sync chain as before.
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
 
     repo = MagicMock()
     repo.update_ingestion_job = AsyncMock()
@@ -498,6 +522,298 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
     job = _make_job(job_type="unit_sync", meta={}, year=None)
     with pytest.raises(ValueError, match="missing config.target_year"):
         await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_handler_rejects_default_provider():
+    """UserProvider.DEFAULT has no unit source (no API, no fixture).
+    The handler must fail loudly rather than silently fall through."""
+    from app.models.user import UserProvider
+
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
+    job.provider = UserProvider.DEFAULT
+    with pytest.raises(ValueError, match="UserProvider.DEFAULT has no unit source"):
+        await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_handler_passes_job_provider_to_factories():
+    """The handler must resolve unit/role providers from ``job.provider``,
+    not a hardcoded constant — otherwise TEST users see ACCRED units."""
+    from app.models.user import UserProvider
+
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
+    job.provider = UserProvider.TEST
+
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    unit_provider = MagicMock()
+    unit_provider.fetch_all_units = AsyncMock(return_value=([], []))
+    unit_provider.map_api_unit = MagicMock(side_effect=lambda u: MagicMock())
+    role_provider = MagicMock()
+    role_provider.map_api_user = MagicMock(return_value=MagicMock())
+
+    unit_service = MagicMock()
+    unit_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+    user_service = MagicMock()
+    user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+    carbon_report_service = MagicMock()
+    carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
+    carbon_report_service.ensure_modules_for_reports = AsyncMock()
+
+    get_unit_provider_mock = MagicMock(return_value=unit_provider)
+    get_role_provider_mock = MagicMock(return_value=role_provider)
+
+    with (
+        patch.object(unit_sync_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(unit_sync_mod, "get_unit_provider", get_unit_provider_mock),
+        patch.object(unit_sync_mod, "get_role_provider", get_role_provider_mock),
+        patch.object(unit_sync_mod, "UnitService", return_value=unit_service),
+        patch.object(unit_sync_mod, "UserService", return_value=user_service),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=carbon_report_service,
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    get_unit_provider_mock.assert_called_once_with(UserProvider.TEST)
+    get_role_provider_mock.assert_called_once_with(UserProvider.TEST)
+
+
+# ---------------------------------------------------------------------------
+# unit_sync ↔ aggregation concurrency safety (#1236) — both rewrite
+# ``carbon_reports`` for the same (unit, year); the SAME advisory-lock
+# category (1236) makes them mutually exclude on the year key.
+# ---------------------------------------------------------------------------
+
+
+def _stub_unit_sync_deps():
+    """Minimal stub bundle to drive ``unit_sync_handler`` through to
+    completion in a test — same shape as the full-chain test above,
+    pared down so the lock tests stay focused on the lock SQL."""
+    unit_provider = MagicMock()
+    unit_provider.fetch_all_units = AsyncMock(return_value=([], []))
+    unit_provider.map_api_unit = MagicMock(side_effect=lambda u: MagicMock())
+
+    role_provider = MagicMock()
+    role_provider.map_api_user = MagicMock(return_value=MagicMock())
+
+    unit_service = MagicMock()
+    unit_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+
+    user_service = MagicMock()
+    user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+
+    carbon_report_service = MagicMock()
+    carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
+    carbon_report_service.ensure_modules_for_reports = AsyncMock()
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    return {
+        "unit_provider": unit_provider,
+        "role_provider": role_provider,
+        "unit_service": unit_service,
+        "user_service": user_service,
+        "carbon_report_service": carbon_report_service,
+        "repo": repo,
+    }
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_acquires_advisory_lock_on_postgres():
+    """Postgres backend → handler calls
+    ``pg_advisory_xact_lock(_AGGREGATION_LOCK_CATEGORY, year)`` BEFORE
+    any carbon_reports write.  Shared category with the aggregation
+    handler (same number, 1236) so the two mutually exclude on the
+    same year key."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "postgresql"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    # Look up the per-year lock call (the global lock fires first; this
+    # test pins the per-year one — the order is locked down separately
+    # in ``test_unit_sync_acquires_global_lock_before_per_year_lock``).
+    per_year_call = next(
+        call
+        for call in data_session.execute.await_args_list
+        if "pg_advisory_xact_lock" in str(call.args[0])
+        and "year" in (call.args[1] if len(call.args) > 1 else {})
+    )
+    assert per_year_call.args[1]["year"] == 2026
+    # Must share the aggregation handler's category — that's the
+    # whole point of this commit.  Pin it as 1236 explicitly so a
+    # future refactor that splits the categories has to update this
+    # test, not silently break the mutual exclusion.
+    assert per_year_call.args[1]["cat"] == 1236
+    assert per_year_call.args[1]["cat"] == unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_skips_advisory_lock_on_non_postgres():
+    """SQLite / other → no advisory-lock attempt (single-writer model
+    serialises tests; lock is a no-op).  Mirrors the aggregation
+    handler's dialect-gate."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "sqlite"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    for call in data_session.execute.await_args_list:
+        assert "pg_advisory_xact_lock" not in str(call.args[0])
+
+
+def test_unit_sync_lock_category_matches_aggregation():
+    """Pin the invariant: unit_sync and aggregation MUST share the same
+    category number, otherwise their advisory locks live in disjoint
+    keyspaces and the mutual exclusion is silently broken."""
+    from app.tasks import aggregation_tasks
+
+    assert (
+        unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+        == aggregation_tasks._AGGREGATION_LOCK_CATEGORY
+    )
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_acquires_global_lock_before_per_year_lock():
+    """User-reported 2026-05-20: creating year 2026 + 2025 in parallel
+    crashed the second handler with ``UniqueViolation`` on
+    ``ix_units_institutional_code`` (code 14270).  ``units`` is a
+    GLOBAL table; the per-year lock partitions by year, so different
+    years didn't mutually exclude — both transactions raced on the
+    ``units`` bulk_upsert.  Fix: a GLOBAL 1-int advisory lock takes
+    precedence over the per-year lock.
+
+    This test pins the order (global → per-year) and the category
+    distinctness so a refactor can't silently break the mutual
+    exclusion."""
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2026}})
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    data_session.get_bind.return_value.dialect.name = "postgresql"
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    stubs = _stub_unit_sync_deps()
+
+    with (
+        patch.object(
+            unit_sync_mod, "DataIngestionRepository", return_value=stubs["repo"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_unit_provider", return_value=stubs["unit_provider"]
+        ),
+        patch.object(
+            unit_sync_mod, "get_role_provider", return_value=stubs["role_provider"]
+        ),
+        patch.object(unit_sync_mod, "UnitService", return_value=stubs["unit_service"]),
+        patch.object(unit_sync_mod, "UserService", return_value=stubs["user_service"]),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=stubs["carbon_report_service"],
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    # Two advisory locks in order: global first, per-year second.
+    lock_calls = [
+        call
+        for call in data_session.execute.await_args_list
+        if "pg_advisory_xact_lock" in str(call.args[0])
+    ]
+    assert len(lock_calls) == 2, (
+        f"expected 2 advisory-lock calls (global + per-year), got {len(lock_calls)}"
+    )
+    # Global lock fires FIRST and uses the 1-int variant (no year param).
+    first_params = lock_calls[0].args[1]
+    assert first_params["cat"] == 1239
+    assert first_params["cat"] == unit_sync_mod._UNIT_SYNC_GLOBAL_LOCK_CATEGORY
+    assert "year" not in first_params, (
+        "global lock must use the 1-int variant — passing a year would "
+        "partition the keyspace and break mutual exclusion across years"
+    )
+    # Per-year lock follows with the year-2026 key.
+    second_params = lock_calls[1].args[1]
+    assert second_params["cat"] == 1236
+    assert second_params["year"] == 2026
+
+
+def test_unit_sync_global_lock_category_distinct_from_aggregation():
+    """Global unit_sync lock MUST live in a different category from the
+    per-year aggregation lock — they protect different invariants and
+    must not partition each other's keyspace."""
+    assert (
+        unit_sync_mod._UNIT_SYNC_GLOBAL_LOCK_CATEGORY
+        != unit_sync_mod._AGGREGATION_LOCK_CATEGORY
+    )
 
 
 # ---------------------------------------------------------------------------

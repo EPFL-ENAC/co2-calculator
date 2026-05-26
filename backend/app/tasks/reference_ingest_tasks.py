@@ -10,8 +10,9 @@ fan-out chain is both unnecessary and incorrect.
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_ingestion import DataIngestionJob, IngestionResult
+from app.models.data_ingestion import DataIngestionJob
 from app.services.data_ingestion.provider_factory import ProviderFactory
+from app.tasks.ingestion_tasks import finalize_ingest_meta
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
@@ -55,13 +56,9 @@ async def reference_ingest_handler(
 
     filters = job_meta.get("filters") or {}
     result = await provider.ingest(filters)
-    data = result.get("data", {}) or {}
-    ingestion_result = data.get("result", IngestionResult.SUCCESS)
-    return {
-        "status_message": result.get("status_message", "Success"),
-        "result": ingestion_result,
-        **data,
-    }
+    # #1236 — shared honest-status join (was a duplicate of _run_ingest's;
+    # the duplication is what let the "Success"-while-ERROR lie persist).
+    return finalize_ingest_meta(result)
 
 
 __all__ = ["reference_ingest_handler"]

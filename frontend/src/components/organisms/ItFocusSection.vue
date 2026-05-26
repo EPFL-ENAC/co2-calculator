@@ -289,7 +289,7 @@ const barChartOption = computed<EChartsOption>(() => {
     itemStyle: {
       color: segmentColorMap.value[segKey] ?? '#999',
       borderColor: '#fff',
-      borderWidth: 0.5,
+      borderWidth: 1,
     },
     barWidth: 60,
     label: { show: false },

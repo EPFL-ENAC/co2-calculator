@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useColorblindStore } from 'src/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute } from 'src/router/routes';
@@ -13,6 +14,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 const workspaceStore = useWorkspaceStore();
+const colorblindStore = useColorblindStore();
 const { t } = useI18n();
 
 const unitName = computed(() => {
@@ -199,6 +201,20 @@ const logoRoute = computed(() => {
         class="q-ml-xl text-weight-medium"
       >
         <q-list>
+          <q-item>
+            <q-item-section>
+              <q-toggle
+                :model-value="colorblindStore.enabled"
+                :label="$t('results_colorblind_mode')"
+                color="accent"
+                keep-color
+                size="md"
+                class="text-weight-medium"
+                @update:model-value="colorblindStore.setEnabled"
+              />
+            </q-item-section>
+          </q-item>
+          <q-separator />
           <q-item clickable @click="handleLogout">
             <q-item-section>
               <q-item-label>{{ $t('logout') }}</q-item-label>

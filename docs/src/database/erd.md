@@ -98,7 +98,7 @@ erDiagram
     INTEGER max_attempts
     JSON meta
     INTEGER module_type_id "indexed"
-    UUID pipeline_id
+    UUID pipeline_id FK
     VARCHAR provider
     VARCHAR result
     DATETIME run_after "indexed"
@@ -130,6 +130,30 @@ erDiagram
     VARCHAR name "indexed"
     VARCHAR natural_key "indexed"
     VARCHAR transport_mode "indexed"
+  }
+  pipelines {
+    DATETIME created_at
+    INTEGER entity_type
+    INTEGER error_count
+    INTEGER expected_recalc
+    DATETIME finished_at
+    UUID id PK
+    INTEGER ingestion_method
+    INTEGER job_count
+    VARCHAR kind
+    VARCHAR last_error
+    INTEGER module_type_id
+    DATETIME started_at
+    VARCHAR status
+    DATETIME updated_at
+    INTEGER year
+  }
+  pods {
+    VARCHAR app_version
+    VARCHAR git_sha
+    DATETIME last_heartbeat_at
+    VARCHAR pod_id PK
+    DATETIME started_at
   }
   unit_users {
     VARCHAR role "indexed"
@@ -168,7 +192,9 @@ erDiagram
   }
   year_configuration {
     JSON config
+    DATETIME configuration_completed
     BOOLEAN is_started
+    VARCHAR provider PK
     DATETIME updated_at
     INTEGER year PK
   }
@@ -178,6 +204,7 @@ erDiagram
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
+  pipelines ||--}o data_ingestion_jobs : "pipeline_id"
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"

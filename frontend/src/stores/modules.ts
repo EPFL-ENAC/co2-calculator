@@ -288,9 +288,6 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: Array<Record<string, unknown>>;
     loadingTravelStatsByClass: boolean;
     errorTravelStatsByClass: string | null;
-    travelEvolutionOverTime: Array<Record<string, unknown>>;
-    loadingTravelEvolutionOverTime: boolean;
-    errorTravelEvolutionOverTime: string | null;
     topClassBreakdown: Array<Record<string, unknown>>;
     loadingTopClassBreakdown: boolean;
     errorTopClassBreakdown: string | null;
@@ -321,9 +318,6 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: [],
     loadingTravelStatsByClass: false,
     errorTravelStatsByClass: null,
-    travelEvolutionOverTime: [],
-    loadingTravelEvolutionOverTime: false,
-    errorTravelEvolutionOverTime: null,
     topClassBreakdown: [],
     loadingTopClassBreakdown: false,
     errorTopClassBreakdown: null,
@@ -776,26 +770,6 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelEvolutionOverTime(unit: number) {
-    state.loadingTravelEvolutionOverTime = true;
-    state.errorTravelEvolutionOverTime = null;
-    try {
-      const path = `modules/${encodeURIComponent(unit)}/evolution-over-time`;
-      const data = await api.get(path).json<Array<Record<string, unknown>>>();
-      state.travelEvolutionOverTime = data;
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.errorTravelEvolutionOverTime = err.message ?? 'Unknown error';
-        state.travelEvolutionOverTime = [];
-      } else {
-        state.errorTravelEvolutionOverTime = 'Unknown error';
-        state.travelEvolutionOverTime = [];
-      }
-    } finally {
-      state.loadingTravelEvolutionOverTime = false;
-    }
-  }
-
   async function getTopClassBreakdown(
     unit: number,
     year: string,
@@ -1002,7 +976,6 @@ export const useModuleStore = defineStore('modules', () => {
     patchItem,
     deleteItem,
     getTravelStatsByClass,
-    getTravelEvolutionOverTime,
     getTopClassBreakdown,
     getValidatedTotals,
     invalidateValidatedTotals,

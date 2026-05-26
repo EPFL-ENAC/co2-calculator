@@ -5,9 +5,6 @@
   "productName": "EPFL CO2 Calculator",
   "author": "Guilbert Pierre <pierre.guilbert@epfl.ch>",
   "private": true,
-  "workspaces": [
-    "storybook"
-  ],
   "scripts": {
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{js,ts,vue,scss,css,html,md,json}\" --ignore-path .gitignore",
@@ -21,15 +18,11 @@
     "preview": "npx vite preview --outDir dist/spa",
     "build": "quasar build",
     "postinstall": "quasar prepare",
-    "mock:auth": "node src/mock/mockauth.js",
-    "storybook": "npm run dev --workspace co2-calculator-storybook",
-    "storybook:build": "npm run build --workspace co2-calculator-storybook",
-    "storybook:test": "npm run test --workspace co2-calculator-storybook",
-    "storybook:test-ci": "npm run test:ci --workspace co2-calculator-storybook"
+    "mock:auth": "node src/mock/mockauth.js"
   },
   "dependencies": {
     "@quasar/extras": "=1.18.0",
-    "@sentry/vue": "=10.52.0",
+    "@sentry/vue": "=10.53.0",
     "echarts": "=6.0.0",
     "ky": "=1.14.0",
     "pinia": "=3.0.4",
@@ -43,36 +36,37 @@
   },
   "devDependencies": {
     "@eslint/js": "=10.0.1",
-    "@intlify/unplugin-vue-i18n": "=11.1.2",
+    "@intlify/unplugin-vue-i18n": "=11.2.1",
     "@playwright/experimental-ct-vue": "=1.60.0",
     "@playwright/test": "=1.60.0",
-    "@quasar/app-vite": "=2.5.4",
+    "@quasar/app-vite": "=2.6.0",
     "@types/node": "=24.12.3",
     "@typescript-eslint/eslint-plugin": "=8.59.3",
     "@typescript-eslint/parser": "=8.59.3",
     "@vue/eslint-config-typescript": "=14.7.0",
     "autoprefixer": "=10.5.0",
     "chokidar": "=4.0.3",
-    "eslint": "=10.0.2",
+    "eslint": "=10.3.0",
     "eslint-config-prettier": "=10.1.8",
-    "eslint-plugin-vue": "=10.8.0",
+    "eslint-plugin-vue": "=10.9.1",
     "globals": "=17.6.0",
     "postcss-html": "=1.8.1",
     "postcss-rtlcss": "=5.7.1",
     "prettier": "=3.8.3",
     "sass": "=1.99.0",
-    "stylelint": "=17.11.0",
+    "stylelint": "=17.11.1",
     "stylelint-config-recommended-vue": "=1.6.1",
     "stylelint-config-standard-scss": "=17.0.0",
-    "stylelint-scss": "=7.0.0",
+    "stylelint-scss": "=7.1.1",
     "typescript": "=5.9.3",
     "typescript-eslint": "=8.59.3",
     "vue-eslint-parser": "=10.4.0",
-    "vue-tsc": "=3.2.8"
+    "vue-tsc": "=3.2.9"
   },
   "overrides": {
     "minimatch": "=10.2.4",
-    "serialize-javascript": "=7.0.5"
+    "serialize-javascript": "=7.0.5",
+    "vue-i18n": "=11.4.2"
   },
   "type": "module",
   "packageManager": "npm@11.14.1",

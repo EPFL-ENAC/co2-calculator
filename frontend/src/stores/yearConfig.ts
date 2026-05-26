@@ -106,6 +106,14 @@ interface YearConfig {
 export interface YearConfigurationResponse {
   year: number;
   is_started: boolean;
+  /**
+   * #1234-followup — ISO timestamp when ``unit_sync`` finished SUCCESS
+   * for this year. ``null`` while the pipeline is still running or
+   * before it ever ran; backend ``/dispatch`` refuses uploads while
+   * ``null``. The data-management page surfaces a banner + disables
+   * upload affordances on the null state.
+   */
+  configuration_completed?: string | null;
   config: YearConfig;
   recalculation_status: ModuleRecalculationStatusEntry[];
   updated_at: string;
@@ -124,6 +132,8 @@ export interface YearConfigurationResponse {
 export interface YearConfigurationListItem {
   year: number;
   is_started: boolean;
+  /** #1234-followup — see YearConfigurationResponse.configuration_completed. */
+  configuration_completed?: string | null;
   updated_at: string;
 }
 

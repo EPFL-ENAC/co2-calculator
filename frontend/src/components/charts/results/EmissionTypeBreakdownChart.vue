@@ -74,6 +74,8 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   goods_and_services: 'charts-services-subcategory',
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
+  class_1: 'charts-class-1-subcategory',
+  class_2: 'charts-class-2-subcategory',
   clouds: 'charts-clouds-subcategory',
   ai: 'charts-ai-subcategory',
   provider: 'charts-ai-provider-subcategory',
@@ -88,7 +90,11 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   virtualisation: 'charts-virtualisation-subcategory',
   calcul: 'charts-calcul-subcategory',
   facilities: 'charts-research-facilities-subcategory',
+  it_facilities: 'charts-research-it-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
+  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
+  mice: 'charts-animal-mice-subcategory',
+  fish: 'charts-animal-fish-subcategory',
   rest: 'charts-rest-subcategory',
   'new-env': 'charts-new-env-subcategory',
   'new-tech': 'charts-new-tech-subcategory',
@@ -109,11 +115,34 @@ const props = defineProps<{
   printMode?: boolean;
 }>();
 
-const { t } = useI18n();
+const { t, te } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 
 const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
+
+// Defines left-to-right stacking order for room-type segments within each buildings bar.
+const ROOM_TYPE_SEGMENT_ORDER = [
+  'laboratories',
+  'office',
+  'archives',
+  'libraries',
+  'auditoriums',
+  'miscellaneous',
+];
+
+function sortSegmentKeys(keys: string[]): string[] {
+  return keys.slice().sort((a, b) => {
+    const aSuffix = a.split('_').pop() ?? a;
+    const bSuffix = b.split('_').pop() ?? b;
+    const aIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(aSuffix);
+    const bIdx = ROOM_TYPE_SEGMENT_ORDER.indexOf(bSuffix);
+    if (aIdx === -1 && bIdx === -1) return 0;
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+}
 
 /**
  * Build the horizontal bar chart data from the category rows.
@@ -196,7 +225,7 @@ const chartData = computed(() => {
 
     return {
       bars,
-      segmentKeys: Array.from(segmentKeysSet),
+      segmentKeys: sortSegmentKeys(Array.from(segmentKeysSet)),
       barKey: 'xx_category',
       barCategoryMap,
       barLabelMap,
@@ -259,7 +288,7 @@ const chartData = computed(() => {
 
   return {
     bars,
-    segmentKeys: Array.from(segmentKeysSet),
+    segmentKeys: sortSegmentKeys(Array.from(segmentKeysSet)),
     barKey: 'xx_category',
     barCategoryMap,
     barLabelMap,
@@ -271,7 +300,8 @@ function translateSubcategory(key: string): string {
   const override = segmentLabelOverrides.get(key);
   if (override) {
     const i18nKey = SUBCATEGORY_LABEL_MAP[override];
-    return i18nKey ? t(i18nKey) : override;
+    if (i18nKey) return t(i18nKey);
+    return te(override) ? t(override) : override;
   }
 
   // `key` is a dataset dimension name. To keep segment dimensions unique across
@@ -287,7 +317,8 @@ function translateSubcategory(key: string): string {
 
   const subcategoryKey = key.slice(categoryPrefix.length + 1);
   const i18nKey = SUBCATEGORY_LABEL_MAP[subcategoryKey];
-  return i18nKey ? t(i18nKey) : subcategoryKey;
+  if (i18nKey) return t(i18nKey);
+  return te(subcategoryKey) ? t(subcategoryKey) : subcategoryKey;
 }
 
 function translateBar(categoryKey: string, barName: string): string {

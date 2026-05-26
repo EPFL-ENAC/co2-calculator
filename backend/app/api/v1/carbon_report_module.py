@@ -409,6 +409,7 @@ async def get_stats_by_class(
 _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
     ModuleTypeEnum.purchase: "purchase_institutional_code",
+    ModuleTypeEnum.research_facilities: "researchfacility_name",
 }
 
 # Maps module type → JSON data field to use as the human-readable label
@@ -469,31 +470,6 @@ async def get_top_class_breakdown(
         data_entry_types=data_entry_types,
         group_by_field=group_field,
         report_year=int(year),
-    )
-    return stats
-
-
-@router.get(
-    "/{unit_id}/evolution-over-time",
-)
-async def get_evolution_over_time(
-    unit_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> List:
-    """
-    Get travel emissions aggregated by year and category for a unit.
-    """
-    await _check_module_permission_for_unit(
-        current_user=current_user,
-        module_id="professional-travel",
-        action="view",
-        db=db,
-        unit_id=unit_id,
-    )
-
-    stats = await DataEntryEmissionService(db).get_travel_evolution_over_time(
-        unit_id=unit_id,
     )
     return stats
 

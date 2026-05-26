@@ -9,7 +9,7 @@
  *     populated from ``GET /carbon-reports/{id}/modules/``
  *   - ``yearConfigStore.recalculationStatus[id].current_pipeline_id``
  *     keyed by numeric ``module_type_id``, populated from
- *     ``GET /year-configurations/{year}``
+ *     ``GET /year-configuration/{year}``
  *
  * Both views are now a single store keyed by ``(module_type_id, year)``
  * and fed by the dedicated bulk endpoint
@@ -110,6 +110,26 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
   }
 
   /**
+   * Issue #1219 — seed a freshly-dispatched pipeline_id synchronously,
+   * straight from the dispatch/recalc HTTP response, instead of waiting
+   * for the next ``loadFor`` (active-pipelines) poll.  The poll only
+   * runs on mount / year-change / upload-job completion, so without
+   * this the card can't discover the pipeline until *after* the upload
+   * job already FINISHED — phase 1 is invisible and a fast chain
+   * completes inside the discovery gap.  ``ModuleConfig``'s
+   * ``currentPipelineId`` computed reads this map reactively, so the
+   * existing ``watch(currentPipelineId)`` auto-subscribes to the SSE
+   * stream the moment this is set.
+   */
+  function setPipelineId(
+    moduleTypeId: number,
+    year: number,
+    pipelineId: string,
+  ): void {
+    pipelineByModuleYear[makeKey(moduleTypeId, year)] = pipelineId;
+  }
+
+  /**
    * Issue #867 — bulk-fetch active year-level pipeline_ids
    * (``entity_type=GLOBAL_PER_YEAR``) for the given year.  Backs the
    * ``DataManagementPage.vue`` reload-rehydrate path: on mount + on
@@ -157,6 +177,7 @@ export const usePipelineStateStore = defineStore('pipelineState', () => {
     loadFor,
     loadYearLevelFor,
     getPipelineId,
+    setPipelineId,
     getYearLevelPipelineIds,
     clear,
   };

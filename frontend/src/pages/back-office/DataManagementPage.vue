@@ -125,9 +125,23 @@ const activePipelineId = ref<string | null>(null);
 const activePipelineYear = ref<number | null>(null);
 
 const yearSyncInFlight = computed(() => {
+  // In-flight signal (in-memory) — covers the create-year session
+  // window before the SSE stream signals completion.
   const id = activePipelineId.value;
-  if (!id) return false;
-  return !isFinishedFor(id).value;
+  if (id && !isFinishedFor(id).value) return true;
+  // #1234-followup (Guilbert 2026-05-20): durable signal that survives
+  // a page refresh. ``configuration_completed`` is stamped by
+  // ``unit_sync_handler`` on SUCCESS; while it's ``null`` the year is
+  // still being provisioned. Without this branch, a refresh during
+  // provisioning clears ``activePipelineId`` and the inert/loader
+  // vanished prematurely — exactly the bug Guilbert reported.
+  if (
+    yearConfigStore.config &&
+    yearConfigStore.config.configuration_completed == null
+  ) {
+    return true;
+  }
+  return false;
 });
 
 watch(

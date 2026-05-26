@@ -50,6 +50,19 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Name',
     fr: 'Nom',
   },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`]:
+    {
+      en: 'e.g., Agitator, Centrifuge',
+      fr: 'ex. : Agitateur, Centrifugeuse',
+    },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`]: {
+    en: 'e.g., Laptop, Monitor',
+    fr: 'ex. : Ordinateur portable, Moniteur',
+  },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`]: {
+    en: 'e.g., Freezer, Fridge',
+    fr: 'ex. : Congélateur, Réfrigérateur',
+  },
   [`${MODULES.EquipmentElectricConsumption}.inputs.class`]: {
     en: 'Class',
     fr: 'Classe',
@@ -76,15 +89,15 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific`]: {
     en: 'Scientific Equipment',
-    fr: 'Équipement scientifique',
+    fr: 'Équipements scientifiques',
   },
   [`${MODULES.EquipmentElectricConsumption}-it`]: {
     en: 'IT Equipment',
-    fr: 'Équipement informatique',
+    fr: 'Équipements IT',
   },
   [`${MODULES.EquipmentElectricConsumption}-other`]: {
     en: 'Other Equipment',
-    fr: 'Autre équipement',
+    fr: 'Autres équipements',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-equipment-table-title`]:
     {
@@ -92,12 +105,12 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
       fr: 'Équipement scientifique ({count}) | Équipements scientifiques ({count})',
     },
   [`${MODULES.EquipmentElectricConsumption}-it-equipment-table-title`]: {
-    en: 'IT Equipment ({count}) | IT Equipments ({count})',
-    fr: 'Équipement informatique ({count}) | Équipements informatiques ({count})',
+    en: 'IT equipment ({count}) | IT equipments ({count})',
+    fr: 'Équipements IT ({count}) | Équipements IT ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-other-equipment-table-title`]: {
-    en: 'Other Equipment ({count}) | Other Equipments ({count})',
-    fr: 'Autre équipement ({count}) | Autres équipements ({count})',
+    en: 'Other equipment ({count}) | Other equipments ({count})',
+    fr: 'Autres équipements ({count}) | Autres équipements ({count})',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-form-title`]: {
     en: 'Add Scientific Equipment',

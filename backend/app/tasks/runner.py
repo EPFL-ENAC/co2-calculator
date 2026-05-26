@@ -130,6 +130,12 @@ async def run_job(job_id: int) -> None:
             logger.warning(f"run_job: job {job_id} disappeared after claim — exiting")
             return
 
+        # #1236 — capture pipeline_id as a plain value now (immutable
+        # for the job's life). Read post-``finish_job`` from a fresh /
+        # post-commit ``job_session`` would risk an expired-instance
+        # lazy load; a local value sidesteps that entirely.
+        pipeline_id_for_status = job.pipeline_id
+
         # Plain ``asyncio.create_task`` (not ``fire_and_forget``): the
         # local ``heartbeat_task`` ref keeps the task alive for the
         # lifetime of this function, and we cancel + await it in the
@@ -154,6 +160,17 @@ async def run_job(job_id: int) -> None:
 
         try:
             handler_aborted = False
+            # #1236 — initialise the chain_job deferred-dispatch queue
+            # for this handler.  ``chain_job`` appends child_ids here
+            # instead of firing immediately; we drain after
+            # ``data_session.commit()`` so child handlers see the
+            # parent's committed writes.
+            from app.tasks._chain import (
+                drain_pending_dispatches,
+                reset_pending_dispatches,
+            )
+
+            reset_pending_dispatches()
             try:
                 handler = get_handler(job_type)
                 # mypy: handlers return ``Awaitable[dict]`` (registry-typed),
@@ -263,8 +280,22 @@ async def run_job(job_id: int) -> None:
 
             if handler_succeeded:
                 await data_session.commit()
+                # #1236 — drain chain_job's deferred dispatches NOW
+                # that ``data_session`` is committed.  Children opened
+                # fresh sessions for their reads; firing them earlier
+                # races the parent's commit and they'd see stale
+                # data_entries (the ones a re-upload just DELETEd) →
+                # FK violation on data_entry_emissions when the
+                # parent's commit lands mid-recalc.
+                drain_pending_dispatches()
             else:
                 await data_session.rollback()
+                # Parent's writes rolled back → don't fire children
+                # against a view of the world that no longer reflects
+                # the parent's intent.
+                from app.tasks._chain import discard_pending_dispatches
+
+                discard_pending_dispatches()
             # Plan 310 review finding B-C1: the FINISHED write must be a
             # compare-and-set on ``(locked_by=POD_ID AND state=RUNNING)``,
             # not a blind UPDATE.  The pre-handler preempt-check at line
@@ -283,6 +314,38 @@ async def run_job(job_id: int) -> None:
             if not wrote:
                 logger.warning("preempted before FINISHED write: job_id=%s", job_id)
                 return
+
+            # #1236 — advance the pipeline aggregate's authoritative
+            # status. ``finish_job`` already COMMITTED job_session, so
+            # this is a separate post-commit transaction: a failure
+            # here CANNOT poison the durable job terminal (stronger
+            # than the SAVEPOINT ideal — there is no enclosing txn
+            # left to corrupt). Fully isolated: log-and-skip on any DB
+            # error; the reconciliation sweep or the next sibling
+            # terminal self-heals. Recompute-and-store + the
+            # last-child oracle (compute_pipeline_progress.done) live
+            # in ``recompute_pipeline_status``.
+            #
+            # NOTE for future handler authors: this write reuses
+            # ``job_session`` — the SAME connection the handler ran on.
+            # It is in a clean post-commit state here, but a handler
+            # that leaves connection-level artifacts (advisory locks,
+            # server-side temp state) would silently leak them into
+            # this write. No current handler does; if you add one that
+            # does, give the status write its own session.
+            if pipeline_id_for_status is not None:
+                try:
+                    await repo.recompute_pipeline_status(pipeline_id_for_status)
+                    await job_session.commit()
+                except Exception:
+                    logger.exception(
+                        "run_job: pipeline status recompute failed — "
+                        "skipped, sweep will heal (job_id=%s "
+                        "pipeline_id=%s)",
+                        job_id,
+                        pipeline_id_for_status,
+                    )
+                    await job_session.rollback()
         finally:
             heartbeat_task.cancel()
             try:

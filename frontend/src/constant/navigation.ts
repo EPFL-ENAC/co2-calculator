@@ -40,4 +40,15 @@ export const BACKOFFICE_NAV: Record<string, NavItem> = {
     icon: 'o_list_alt',
     superAdminOnly: true,
   },
+  // Pipeline operations sits below Logs — both back-office metier and
+  // super-admin can access (same endpoints as the data-management
+  // configuration page, so the same access rules apply).  `limitedAccess`
+  // gates on the back-office permission; the super-admin short-circuit
+  // in Co2Sidebar.isItemDisabled ensures SA always sees it too.
+  BACKOFFICE_PIPELINE_OPERATIONS: {
+    routeName: 'backoffice-pipeline-operations',
+    description: 'backoffice-pipeline-operations-description',
+    icon: 'o_account_tree',
+    limitedAccess: true,
+  },
 };

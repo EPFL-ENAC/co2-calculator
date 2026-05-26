@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 import { Module } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
+import { usePipelineStateStore } from 'src/stores/pipelineState';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -116,6 +117,13 @@ export enum FactorType {
   MODULE_FACTOR = 1,
 }
 
+// NOTE: ``src/composables/mergeLivePipelineJob.ts`` hardcodes these
+// numeric values to keep the leaf helper free of runtime store imports
+// (its regression test under Playwright can't follow the i18n boot
+// chain).  If you renumber these enums you MUST update the maps in
+// that file or the per-row spinner rehydrate on page reload will
+// silently mis-map states — the unit test mirrors the literals so it
+// won't catch you either.
 export enum IngestionState {
   NOT_STARTED = 0,
   QUEUED = 1,
@@ -389,7 +397,27 @@ provider_type
           .post(urlPath, {
             json: requestBody,
           })
-          .json()) as { job_id: number };
+          .json()) as { job_id: number; pipeline_id?: string };
+
+        // Issue #1219 — seed the pipeline_id straight from the dispatch
+        // response so the module card subscribes to the SSE stream
+        // immediately (phase 1 "Inserting data…" becomes visible),
+        // instead of only after the upload job FINISHED via the next
+        // active-pipelines poll.  Guarded: the api/carbon-report-only
+        // path may not carry a module_type_id/year to key on.
+        if (
+          response.pipeline_id &&
+          module_type_id !== undefined &&
+          module_type_id !== null &&
+          year !== undefined &&
+          year !== null
+        ) {
+          usePipelineStateStore().setPipelineId(
+            module_type_id,
+            year,
+            response.pipeline_id,
+          );
+        }
 
         // Update local state with new job
         if (year !== undefined) {
@@ -586,7 +614,18 @@ provider_type
               year,
             },
           })
-          .json()) as { job_id: number };
+          .json()) as { job_id: number; pipeline_id?: string };
+
+        // Issue #1219 — see initiateSync: seed the pipeline_id now so
+        // the card subscribes from dispatch, not from the post-finish
+        // active-pipelines poll.
+        if (response.pipeline_id) {
+          usePipelineStateStore().setPipelineId(
+            moduleTypeId,
+            year,
+            response.pipeline_id,
+          );
+        }
 
         return response.job_id;
       } catch (err: unknown) {
@@ -615,7 +654,18 @@ provider_type
         .post(`sync/recalculate-emissions/${moduleTypeId}/${dataEntryTypeId}`, {
           searchParams: { year },
         })
-        .json()) as { job_id: number };
+        .json()) as { job_id: number; pipeline_id?: string };
+      // Issue #1219 — seed the pipeline_id so the "Recalculate" button
+      // shows live phase progress on the card immediately, not after
+      // the next active-pipelines poll (which may never see a fast
+      // chain).
+      if (response.pipeline_id) {
+        usePipelineStateStore().setPipelineId(
+          moduleTypeId,
+          year,
+          response.pipeline_id,
+        );
+      }
       return response.job_id;
     }
 
@@ -632,35 +682,43 @@ provider_type
         .post(`sync/recalculate-emissions/${moduleTypeId}`, {
           searchParams: { year, only_stale: onlyStale },
         })
-        .json()) as { job_id: number };
+        .json()) as { job_id: number; pipeline_id?: string };
+      // Issue #1219 — see initiateEmissionRecalculation.
+      if (response.pipeline_id) {
+        usePipelineStateStore().setPipelineId(
+          moduleTypeId,
+          year,
+          response.pipeline_id,
+        );
+      }
       return response.job_id;
     }
 
-    async function cancelJob(jobId: number, year: number): Promise<void> {
-      try {
-        const response = (await api
-          .post(`sync/jobs/${jobId}/cancel`)
-          .json()) as SyncJobResponse;
+    /** Wire shape of POST /sync/pipelines/{pipeline_id}/abort. */
+    interface AbortPipelineResponse {
+      pipeline_id: string;
+      aborted_job_ids: number[];
+      aborted_by: string;
+    }
 
-        if (year !== null && syncJobs.value[year]) {
-          const jobIndex = syncJobs.value[year].findIndex(
-            (j: DataIngestionJob) => j.job_id === jobId,
-          );
-          if (jobIndex !== -1) {
-            syncJobs.value[year].splice(jobIndex, 1, {
-              ...syncJobs.value[year][jobIndex],
-              state: response.state,
-              result: response.result,
-              status_message: response.status_message || '',
-              meta: response.meta,
-            });
-          }
-        }
+    async function abortPipeline(pipelineId: string): Promise<void> {
+      // Replaces the legacy ``cancelJob(jobId, year)``.  Single-job
+      // cancel went away with the pipeline-debug refactor (#1236): a
+      // chain has csv_ingest → emission_recalc(N) → aggregation, and
+      // cancelling one link orphaned the rest.  Abort marks every
+      // non-terminal job of the pipeline FINISHED+ERROR server-side;
+      // the existing pipeline SSE picks up the new state on its next
+      // poll, so we don't have to splice ``syncJobs`` locally — the
+      // ``pipelineStream`` store already covers re-render.
+      try {
+        await api
+          .post(`sync/pipelines/${pipelineId}/abort`)
+          .json<AbortPipelineResponse>();
       } catch (err: unknown) {
         if (err instanceof Error) {
-          error.value = err.message ?? 'Failed to cancel job';
+          error.value = err.message ?? 'Failed to abort pipeline';
         } else {
-          error.value = 'Failed to cancel job';
+          error.value = 'Failed to abort pipeline';
         }
         throw err;
       }
@@ -698,7 +756,7 @@ provider_type
       initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
-      cancelJob,
+      abortPipeline,
       reset,
     };
   },

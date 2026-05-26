@@ -716,7 +716,7 @@ const chartOption = computed((): EChartsOption => {
   const seriesArray = [
     // Process Emissions — YY subcategories
     {
-      name: 'CO₂',
+      name: t('process-emissions.category.co2'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -731,7 +731,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: 'CH4',
+      name: t('process-emissions.category.ch4'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -746,7 +746,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: 'N2O',
+      name: t('process-emissions.category.n2o'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -761,7 +761,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: 'Refrigerants',
+      name: t('process-emissions.category.refrigerant'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -822,21 +822,6 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: t('charts-lighting-subcategory'),
-      type: 'bar' as const,
-      stack: 'total',
-      animation: true,
-      encode: { x: 'category', y: 'lighting' },
-      itemStyle: {
-        color: getSubcategoryColor(
-          'buildings_room',
-          'lighting',
-          colors.value.lilac.darker,
-        ),
-      },
-      label: { show: false },
-    },
-    {
       name: t('charts-cooling-subcategory'),
       type: 'bar' as const,
       stack: 'total',
@@ -862,6 +847,21 @@ const chartOption = computed((): EChartsOption => {
           'buildings_room',
           'ventilation',
           colors.value.lilac.default,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-lighting-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'lighting' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'buildings_room',
+          'lighting',
+          colors.value.lilac.darker,
         ),
       },
       label: { show: false },
@@ -1091,7 +1091,7 @@ const chartOption = computed((): EChartsOption => {
       },
       label: { show: false },
     },
-    // Research Facilities — subcategories: facilities, animal
+    // Research Facilities — subcategories: facilities, it_facilities, animal
     {
       name: t('charts-research-facilities-subcategory'),
       type: 'bar' as const,
@@ -1103,6 +1103,21 @@ const chartOption = computed((): EChartsOption => {
           'research_facilities',
           'facilities',
           colors.value.paleYellowGreen.darker,
+        ),
+      },
+      label: { show: false },
+    },
+    {
+      name: t('charts-research-it-facilities-subcategory'),
+      type: 'bar' as const,
+      stack: 'total',
+      animation: true,
+      encode: { x: 'category', y: 'it_facilities' },
+      itemStyle: {
+        color: getSubcategoryColor(
+          'research_facilities',
+          'it_facilities',
+          colors.value.paleYellowGreen.default,
         ),
       },
       label: { show: false },
@@ -1295,6 +1310,7 @@ const chartOption = computed((): EChartsOption => {
         'calcul',
         'ai_provider',
         'facilities',
+        'it_facilities',
         'animal',
         'commuting',
         'food',

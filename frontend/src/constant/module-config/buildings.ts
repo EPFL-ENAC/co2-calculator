@@ -49,12 +49,12 @@ const roomFields: ModuleField[] = [
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
     options: [
-      { value: 'office', label: 'buildings-room-type-office' },
-      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
       { value: 'laboratories', label: 'buildings-room-type-laboratories' },
+      { value: 'office', label: 'buildings-room-type-office' },
       { value: 'archives', label: 'buildings-room-type-archives' },
       { value: 'libraries', label: 'buildings-room-type-libraries' },
       { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
+      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
     ],
   },
   {
@@ -159,6 +159,14 @@ const energyCombustionFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_local_fire_department',
     hideIn: { form: false },
+    optionOrder: [
+      'buildings_combustion_type_natural_gas',
+      'buildings_combustion_type_heating_oil',
+      'buildings_combustion_type_biomethane',
+      'buildings_combustion_type_pellets',
+      'buildings_combustion_type_forest_chips',
+      'buildings_combustion_type_wood_logs',
+    ],
   },
   {
     id: 'unit',

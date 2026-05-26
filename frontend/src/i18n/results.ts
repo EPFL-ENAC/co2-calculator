@@ -220,8 +220,8 @@ export default {
     fr: 'Résultats par catégorie',
   },
   results_by_category_subtitle: {
-    en: 'Annual carbon footprint {year}',
-    fr: 'Bilan CO₂ annuel {year}',
+    en: 'Carbon footprint {year}',
+    fr: 'Empreinte carbone {year}',
   },
   results_equipment_distribution_title: {
     en: 'Equipment distribution',
@@ -409,12 +409,12 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-buildings-room-category': {
-    en: 'Buildings room',
-    fr: 'Salles des bâtiments',
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
   'charts-buildings-energy-combustion-category': {
-    en: 'Energy combustion emissions',
-    fr: 'Emissions de combustion d’énergie',
+    en: 'Thermal energy emissions',
+    fr: 'Emissions d’énergie thermique',
   },
   // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
@@ -422,8 +422,8 @@ export default {
     fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy combustion emissions',
-    fr: "Émissions de combustion d'énergie",
+    en: 'Decentralized heating',
+    fr: 'Chauffage décentralisé',
   },
   'charts-lighting-subcategory': {
     en: 'Lighting',
@@ -438,32 +438,32 @@ export default {
     fr: 'Ventilation',
   },
   'charts-heating-elec-subcategory': {
-    en: 'Heating (electric)',
+    en: 'Heating (electric.)',
     fr: 'Chauffage (électrique)',
   },
   'charts-heating-thermal-subcategory': {
-    en: 'Heating (thermal)',
-    fr: 'Chauffage (thermique)',
+    en: 'Centralized heating',
+    fr: 'Chauffage centralisé',
   },
   'charts-office-subcategory': {
     en: 'Office',
     fr: 'Bureau',
   },
   'charts-laboratories-subcategory': {
-    en: 'Laboratories',
-    fr: 'Laboratoires',
+    en: 'Laboratory',
+    fr: 'Laboratoire',
   },
   'charts-archives-subcategory': {
     en: 'Archives',
     fr: 'Archives',
   },
   'charts-libraries-subcategory': {
-    en: 'Libraries',
-    fr: 'Bibliothèques',
+    en: 'Library',
+    fr: 'Bibliothèque',
   },
   'charts-auditoriums-subcategory': {
-    en: 'Auditoriums',
-    fr: 'Auditoires',
+    en: 'Auditorium',
+    fr: 'Auditoire',
   },
   'charts-miscellaneous-subcategory': {
     en: 'Miscellaneous',
@@ -483,7 +483,7 @@ export default {
   },
   'charts-pellets-subcategory': {
     en: 'Pellets',
-    fr: 'Pellets',
+    fr: 'Granulés de bois',
   },
   'charts-forest-chips-subcategory': {
     en: 'Forest Chips',
@@ -491,7 +491,7 @@ export default {
   },
   'charts-wood-logs-subcategory': {
     en: 'Wood Logs',
-    fr: 'Bûches',
+    fr: 'Bois bûche',
   },
   'charts-ln2-subcategory': {
     en: 'LN2',
@@ -507,7 +507,7 @@ export default {
   },
   'charts-commuting-category': {
     en: 'Commuting',
-    fr: 'Déplacements domicile-travail',
+    fr: 'Pendularité',
   },
   'charts-food-category': {
     en: 'Food',
@@ -542,8 +542,8 @@ export default {
     fr: 'Équipement',
   },
   'charts-external-cloud-category': {
-    en: 'External cloud',
-    fr: 'Cloud externe',
+    en: 'External clouds & AI',
+    fr: 'Clouds externes & IA',
   },
   'emission-type-breakdown-info-equipment': {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
@@ -570,8 +570,8 @@ export default {
     fr: 'Achat',
   },
   'charts-bio-chemicals-subcategory': {
-    en: 'Bio-chemicals',
-    fr: 'Bio-chimiques',
+    en: 'Bio & chemical products',
+    fr: 'Produits biologiques et chimiques',
   },
   'charts-consumables-subcategory': {
     en: 'Consumables',
@@ -590,12 +590,12 @@ export default {
     fr: 'Véhicules',
   },
   'charts-additional-purchases-subcategory': {
-    en: 'Additional purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized purchases',
+    fr: 'Achats centralisés',
   },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
-    fr: 'Autre équipement',
+    fr: 'Autres équipements',
   },
   'charts-other-purchases-subcategory': {
     en: 'Other purchases',
@@ -618,12 +618,12 @@ export default {
     fr: 'Avion',
   },
   'charts-class-1-subcategory': {
-    en: 'Class 1',
-    fr: 'Classe 1',
+    en: '1st class',
+    fr: '1ère classe',
   },
   'charts-class-2-subcategory': {
-    en: 'Class 2',
-    fr: 'Classe 2',
+    en: '2nd class',
+    fr: '2ème classe',
   },
   'charts-first-class-subcategory': {
     en: 'First',
@@ -638,8 +638,8 @@ export default {
     fr: 'Éco',
   },
   'charts-clouds-subcategory': {
-    en: 'Clouds',
-    fr: 'Clouds',
+    en: 'External clouds',
+    fr: 'Clouds externes',
   },
   'charts-ai-subcategory': {
     en: 'AI',
@@ -651,7 +651,7 @@ export default {
   },
   'charts-scientific-subcategory': {
     en: 'Scientific equipment',
-    fr: 'Équipement scientifique',
+    fr: 'Équipements scientifiques',
   },
   'charts-stockage-subcategory': {
     en: 'Cloud storage',
@@ -699,7 +699,19 @@ export default {
   },
   'charts-research-animal-subcategory': {
     en: 'Animal facilities',
-    fr: 'Infrastructures pour animaux',
+    fr: 'Animalerie',
+  },
+  'charts-research-it-facilities-subcategory': {
+    en: 'IT facilities',
+    fr: 'Infrastructures IT',
+  },
+  'charts-animal-mice-subcategory': {
+    en: 'Mice',
+    fr: 'Souris',
+  },
+  'charts-animal-fish-subcategory': {
+    en: 'Fish',
+    fr: 'Poisson',
   },
   'charts-rest-subcategory': {
     en: 'Rest',
@@ -707,7 +719,7 @@ export default {
   },
   'charts-equipment-it': {
     en: 'IT Equipment',
-    fr: 'IT Équipement',
+    fr: 'Équipements IT',
   },
   'charts-buildings-it': {
     en: 'IT',
@@ -762,12 +774,12 @@ export default {
     fr: "Type d'émission",
   },
   results_additional_title: {
-    en: 'Additional Categories',
+    en: 'Additional categories',
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+    en: "These emissions are calculated based on EPFL's general assumptions and use only headcount and buildings information as unit-specific data.",
+    fr: "Ces émissions sont calculées sur la base des hypothèses générales de l’EPFL et utilisent uniquement les données de l'unité: personnel et bâtiments.",
   },
   results_additional_headcount_card_title: {
     en: 'Commuting, food and waste',
@@ -1106,6 +1118,14 @@ export default {
   'it-focus-research-facilities': {
     en: 'IT research facilities',
     fr: 'Infrastructures de recherche IT',
+  },
+  results_filter_pill_research_facilities_tooltip: {
+    en: 'These emissions are calculated based on research facilities data.',
+    fr: 'Ces émissions sont calculées à partir des données propres aux infrastructure de recherche.',
+  },
+  results_filter_pill_additional_data_tooltip: {
+    en: "These emissions are calculated based on EPFL's general assumptions.",
+    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
   },
   'it-title': {
     en: 'IT focus',

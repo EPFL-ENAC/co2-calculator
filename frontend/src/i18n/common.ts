@@ -360,14 +360,6 @@ export default {
     en: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
     fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/',
   },
-  evolution_over_time: {
-    en: 'Evolution over time',
-    fr: 'Évolution dans le temps',
-  },
-  evolution_over_time_requires_multiple_years: {
-    en: 'Evolution over time requires data from multiple years',
-    fr: "L'évolution dans le temps nécessite des données de plusieurs années",
-  },
   csv_no_files_uploaded: {
     en: 'No files uploaded',
     fr: 'Aucun fichier téléchargé',

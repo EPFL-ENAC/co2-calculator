@@ -76,7 +76,14 @@ export function useUploadCard() {
       .processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
+    // ``?d=true`` flips the backend into download mode — it sets
+    // ``Content-Disposition: attachment; filename="…"`` which is the
+    // authoritative source for the saved filename in every browser.
+    // Without it, Safari ignored ``a.download`` and saved the file
+    // with the URL's last segment stripped of its extension
+    // (regression reported 2026-05-21: ``equipments_data`` instead
+    // of ``equipments_data.csv``).
+    a.href = `/api/v1/files/${filePath}?d=true`;
     a.download = filePath.split('/').pop() || filePath;
     document.body.appendChild(a);
     a.click();

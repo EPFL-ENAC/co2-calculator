@@ -313,8 +313,8 @@ export default {
   // and their fake ``setTimeout`` success toast — the success / error
   // notifications below are now driven by the real SSE stream.
   data_management_year_sync_in_progress: {
-    en: 'Setting up year {year}: syncing units from Accred…',
-    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred…",
+    en: 'Setting up year {year}: syncing units from Accred and creating carbon reports …',
+    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred et création de rapports de carbone…",
   },
   data_management_year_sync_in_progress_caption: {
     en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
@@ -511,7 +511,7 @@ export default {
   },
   data_management_submodule_it_equipment: {
     en: 'IT Equipment',
-    fr: 'Équipements informatiques',
+    fr: 'Équipements IT',
   },
   data_management_submodule_consumables_accessories: {
     en: 'Consumables & Accessories',
@@ -534,8 +534,8 @@ export default {
     fr: 'Autres achats',
   },
   data_management_submodule_additional_purchases: {
-    en: 'Additional Purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized Purchases',
+    fr: 'Achats Centralisés',
   },
   data_management_submodule_research_facilities: {
     en: 'Research Facilities',
@@ -628,6 +628,10 @@ export default {
   data_management_pipeline_phase_aggregation: {
     en: 'Step 3/3 · Aggregating…',
     fr: 'Étape 3/3 · Agrégation…',
+  },
+  data_management_pipeline_running_tooltip: {
+    en: 'Upload accepted — recalculation still in progress',
+    fr: 'Téléchargement accepté — recalcul en cours',
   },
   data_management_recalculate_retry: {
     en: 'Retry recalculation',

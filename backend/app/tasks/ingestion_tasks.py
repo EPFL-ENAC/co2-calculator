@@ -16,7 +16,7 @@ the job.  Endpoints stamp the matching ``job_type`` so the runner's
 registry lookup hits the right handler.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -28,6 +28,7 @@ from app.models.data_ingestion import (
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
+from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
 
 logger = get_logger(__name__)
@@ -65,8 +66,12 @@ async def csv_ingest_handler(
         # — nothing to recalc against.  Runner will mark FINISHED+ERROR.
         return meta
 
-    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    # Phase 5B (#1236) — chained count no longer threaded through
+    # ``meta.recalc_jobs_chained``; ``recompute_pipeline_status``
+    # derives the same value from the live job count and writes it to
+    # ``pipelines.expected_recalc``.  The call remains for its
+    # side-effect of dispatching the recalc fan-out.
+    await _chain_emission_recalc_for_data_ingest(job, job_session)
     return meta
 
 
@@ -88,8 +93,7 @@ async def api_ingest_handler(
     if meta.get("result") == IngestionResult.ERROR:
         return meta
 
-    chained = await _chain_emission_recalc_for_data_ingest(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    await _chain_emission_recalc_for_data_ingest(job, job_session)
     return meta
 
 
@@ -115,6 +119,19 @@ async def factor_ingest_handler(
     - Both NULL → consult ``get_recalculation_status_by_year`` for
       anything stale (admin-style trigger).
     """
+    # 4B — per-``(module, year)`` advisory lock acquired BEFORE the
+    # factor write begins, so any concurrent ``emission_recalc`` for
+    # the same scope blocks at its own lock-acquisition (in
+    # ``emission_recalc_handler``) instead of reading half-written
+    # factor values. Lock released when the runner commits
+    # ``data_session`` after this handler returns.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"factor_ingest job {job.id}",
+    )
+
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
         # Skip fan-out on failure — there's nothing to recalc against.
@@ -125,14 +142,86 @@ async def factor_ingest_handler(
         )
         return meta
 
-    chained = await _chain_recalc_for_stale(job, job_session)
-    meta["recalc_jobs_chained"] = chained
+    # Phase 5B (#1236) — see csv_ingest_handler; chained count derived
+    # from job rows via ``recompute_pipeline_status``, not threaded
+    # through meta.
+    await _chain_recalc_for_stale(job, job_session)
     return meta
 
 
 # ---------------------------------------------------------------------------
 # Shared ingest helper
 # ---------------------------------------------------------------------------
+
+
+#: Cap on the per-row reason embedded in ``status_message`` so the
+#: column stays tractable when row_errors carries a long Postgres
+#: traceback.  200 chars is enough for the operator to recognise the
+#: failure class without expanding the timeline.
+_STATUS_MESSAGE_REASON_CAP = 200
+
+
+def _sample_row_error_reason(row_errors: list) -> Optional[str]:
+    """Pick a representative reason from ``stats.row_errors`` (#1236).
+
+    Row errors are recorded in order; the first one is usually
+    representative when the failure mode is uniform (missing factors,
+    wrong CSV columns, unknown category).  Capped at
+    ``_STATUS_MESSAGE_REASON_CAP`` chars so the status_message column
+    doesn't blow up when a reason carries a stack trace.
+    """
+    if not row_errors:
+        return None
+    first = row_errors[0]
+    reason = first.get("reason") if isinstance(first, dict) else None
+    if not reason:
+        return None
+    if len(reason) > _STATUS_MESSAGE_REASON_CAP:
+        reason = reason[: _STATUS_MESSAGE_REASON_CAP - 1] + "…"
+    return reason
+
+
+def finalize_ingest_meta(result: dict) -> dict:
+    """Flatten a provider ``ingest()`` return into the handler's meta,
+    making ``status_message`` honest (#1236).
+
+    The provider's ``ingest()`` hardcodes ``status_message="Success"``
+    whenever it does not *raise* — but a CSV where every row errored
+    finishes WITHOUT raising and is classified ERROR/WARNING from the
+    row-error stats. A FINISHED job whose result != SUCCESS must not
+    claim "Success" — that lie is what pipeline status / ``last_error``
+    then propagate (#1219). When result != SUCCESS and the message is
+    the generic "Success", replace it with an honest summary from the
+    counts the provider already returned, plus a sample reason from
+    ``stats.row_errors`` so a lone-orphan parent (pipeline-of-one with
+    no ``pipelines.last_error`` to enrich it) carries the real cause
+    instead of just "0 inserted, 50 072 skipped".  A real exception-
+    path message ("failed: …") never reaches here (it raises upstream),
+    so it is preserved.
+
+    Shared by ``_run_ingest`` (csv/api/factor) and
+    ``reference_ingest_handler`` — they had two identical copies of
+    this join; the duplication is what let the bug exist in one.
+    """
+    data = result.get("data", {}) or {}
+    ingestion_result = data.get("result", IngestionResult.SUCCESS)
+    status_message = result.get("status_message", "Success")
+    if ingestion_result != IngestionResult.SUCCESS and (
+        not status_message or status_message.strip().lower() == "success"
+    ):
+        rec = "ERROR" if ingestion_result == IngestionResult.ERROR else "WARNING"
+        status_message = (
+            f"{rec}: {data.get('inserted', 0)} inserted, "
+            f"{data.get('skipped', 0)} skipped"
+        )
+        sample_reason = _sample_row_error_reason(data.get("row_errors") or [])
+        if sample_reason:
+            status_message += f" — first error: {sample_reason}"
+    return {
+        "status_message": status_message,
+        "result": ingestion_result,
+        **data,
+    }
 
 
 async def _run_ingest(
@@ -193,13 +282,7 @@ async def _run_ingest(
     filters = job_meta.get("filters") or {}
     result = await provider.ingest(filters)
 
-    data = result.get("data", {}) or {}
-    ingestion_result = data.get("result", IngestionResult.SUCCESS)
-    return {
-        "status_message": result.get("status_message", "Success"),
-        "result": ingestion_result,
-        **data,
-    }
+    return finalize_ingest_meta(result)
 
 
 # ---------------------------------------------------------------------------

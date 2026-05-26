@@ -171,9 +171,10 @@ const trainFields: ModuleField[] = [
     hideIn: {
       table: true,
     },
+    optionLabelsAreKeys: true,
     options: [
-      { value: 'first', label: 'Class 1' },
-      { value: 'second', label: 'Class 2' },
+      { value: 'first', label: 'class_1' },
+      { value: 'second', label: 'class_2' },
     ],
   },
 ];

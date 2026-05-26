@@ -84,9 +84,6 @@
             v-if="moduleTreemapData.length"
             :key="type"
             :data="moduleTreemapData"
-            :show-evolution-dialog="
-              type === MODULES.ProfessionalTravel && showEvolutionChart
-            "
             :print-mode="printMode"
           />
           <span v-else class="text-body2 text-secondary">
@@ -132,13 +129,19 @@ import {
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 
-const props = defineProps<{
-  type: Module;
-  showEvolutionChart?: boolean;
-  forcedView?: 'breakdown' | 'type';
-  showControls?: boolean;
-  printMode?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    type: Module;
+    showEvolutionChart?: boolean;
+    forcedView?: 'breakdown' | 'type';
+    showControls?: boolean;
+    printMode?: boolean;
+  }>(),
+  {
+    showControls: true,
+    forcedView: 'breakdown',
+  },
+);
 
 const { t, te } = useI18n();
 
@@ -147,7 +150,7 @@ const moduleChartView = ref<'breakdown' | 'type'>(props.forcedView ?? 'type');
 const isPrintMode = usePrintMode();
 const showControls = computed(() => {
   if (isPrintMode.value) return false;
-  return props.showControls !== false && !props.forcedView;
+  return props.showControls !== false;
 });
 
 watch(
@@ -202,6 +205,7 @@ const activeButtonStyle = computed((): Record<string, string> => {
 const TOP_CLASS_MODULES: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.Purchase,
+  MODULES.ResearchFacilities,
 ];
 
 const moduleStore = useModuleStore();

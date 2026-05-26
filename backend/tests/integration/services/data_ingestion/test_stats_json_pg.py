@@ -65,7 +65,6 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import (
-    MODULE_TYPE_TO_EMISSION_ROOTS,
     ModuleTypeEnum,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
@@ -162,9 +161,7 @@ EXPECTED_MODULE_STATS_KEYS: set[str] = {
 
 # (module_type, data_entry_type, emission_type) — one shape probe per
 # module.  Picks a leaf the runtime resolver can't accidentally drop
-# (no ambiguous gas/cabin keys).  ``research_facilities`` is in the
-# enum but has no ``MODULE_TYPE_TO_EMISSION_ROOTS`` entry, so it gets
-# its own branch below.
+# (no ambiguous gas/cabin keys).
 _MODULE_SHAPE_PROBES: list[tuple[ModuleTypeEnum, DataEntryTypeEnum, EmissionType]] = [
     (
         ModuleTypeEnum.headcount,
@@ -200,6 +197,11 @@ _MODULE_SHAPE_PROBES: list[tuple[ModuleTypeEnum, DataEntryTypeEnum, EmissionType
         ModuleTypeEnum.external_cloud_and_ai,
         DataEntryTypeEnum.external_clouds,
         EmissionType.external__clouds__calcul,
+    ),
+    (
+        ModuleTypeEnum.research_facilities,
+        DataEntryTypeEnum.research_facilities,
+        EmissionType.research_facilities__facilities,
     ),
 ]
 
@@ -272,30 +274,24 @@ async def test_module_stats_shape_pins_top_level_keys(
 
 
 @pytest.mark.asyncio
-async def test_research_facilities_module_skipped_when_no_emission_roots(
+async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
     seeded,
 ) -> None:
-    """``research_facilities`` is the deliberate gap:
-    ``MODULE_TYPE_TO_EMISSION_ROOTS`` has no entry, so
-    ``recompute_stats`` returns early without writing.
+    """``research_facilities`` rolls both leaves
+    (``research_facilities__facilities`` + ``research_facilities__animal``)
+    under one root (``EmissionType.research_facilities``); both are scope 3.
 
-    Pinning this contract means a future PR that adds the missing
-    mapping has to update this test, surfacing the behaviour change
-    rather than silently flipping it.
+    Seeding both leaves pins:
+      - ``scope3 == sum of leaves``
+      - ``scope1`` and ``scope2`` stay 0
+      - ``by_emission_type`` contains both leaves AND the root rollup
+      - ``entry_count`` matches the number of ``DataEntry`` rows
     """
     seed, Sf = seeded
     unit_id = seed.units[0].id
     crm = seed.modules_by_unit_and_type[
         (unit_id, int(ModuleTypeEnum.research_facilities))
     ]
-
-    # Sanity: the gap is real.
-    assert (
-        MODULE_TYPE_TO_EMISSION_ROOTS.get(ModuleTypeEnum.research_facilities) is None
-    ), (
-        "research_facilities now has an emission_roots mapping — update this "
-        "test to cover the new shape."
-    )
 
     async with Sf() as s:
         await _seed_emission(
@@ -304,6 +300,13 @@ async def test_research_facilities_module_skipped_when_no_emission_roots(
             data_entry_type=DataEntryTypeEnum.research_facilities,
             emission_type=EmissionType.research_facilities__facilities,
             kg_co2eq=100.0,
+        )
+        await _seed_emission(
+            s,
+            crm_id=crm.id,
+            data_entry_type=DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            emission_type=EmissionType.research_facilities__animal,
+            kg_co2eq=40.0,
         )
         await s.commit()
 
@@ -315,10 +318,25 @@ async def test_research_facilities_module_skipped_when_no_emission_roots(
     async with Sf() as s:
         fresh = await s.get(CarbonReportModule, crm.id)
         assert fresh is not None
-        assert fresh.stats is None, (
-            "research_facilities has no MODULE_TYPE_TO_EMISSION_ROOTS entry; "
-            f"recompute_stats should have returned early.  Got: {fresh.stats!r}"
+        stats = fresh.stats
+        assert stats is not None, (
+            "research_facilities now has a MODULE_TYPE_TO_EMISSION_ROOTS entry; "
+            "recompute_stats must produce stats. Got None."
         )
+
+        assert stats["scope1"] == 0.0
+        assert stats["scope2"] == 0.0
+        assert stats["scope3"] == 140.0, (
+            f"scope3 should be 100+40=140; got {stats['scope3']}"
+        )
+        assert stats["total"] == 140.0
+        assert stats["entry_count"] == 2
+
+        by_et = stats["by_emission_type"]
+        assert by_et[str(int(EmissionType.research_facilities__facilities))] == 100.0
+        assert by_et[str(int(EmissionType.research_facilities__animal))] == 40.0
+        # Root rollup: both leaves' parent is EmissionType.research_facilities
+        assert by_et[str(int(EmissionType.research_facilities))] == 140.0
 
 
 # ===========================================================================

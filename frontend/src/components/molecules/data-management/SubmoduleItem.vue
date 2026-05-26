@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, type Ref } from 'vue';
+import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
 import { useSubmoduleConfig } from 'src/composables/useSubmoduleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
@@ -8,6 +8,7 @@ import {
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
 import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';
@@ -49,6 +50,19 @@ const triggerTypeRecalculation = inject<
   (sub: SubmoduleConfig) => Promise<void>
 >('triggerTypeRecalculation')!;
 
+// Issue #1219 / #1234 — share the module-scoped pipeline progress
+// from ModuleConfig (single SSE subscriber, provided up the tree).
+// Without this the per-submodule UploadCardData kept a green ✓ +
+// "N rows imported" even while emission_recalc / aggregation
+// children were still running.  Mirrors ModuleUploadsSection's
+// pattern so every per-submodule card tells the same story as the
+// module-level cards.
+const injectedPipelineProgress =
+  inject<ComputedRef<PipelineProgress | null>>('pipelineProgress');
+const pipelineProgress = computed<PipelineProgress | null>(
+  () => injectedPipelineProgress?.value ?? null,
+);
+
 const openDataEntryDialog = inject<
   (row: ImportRow, targetType: TargetType | null) => void
 >('openDataEntryDialog')!;
@@ -78,8 +92,18 @@ async function handleReferenceProgressing() {
   await handleJobProgressing();
 }
 
-async function handleCancelJob(jobId: number) {
-  await backofficeStore.cancelJob(jobId, props.selectedYear);
+// Module-scoped pipeline_id (provided by ModuleConfig — single SSE
+// subscriber).  Empty when no chain is in flight; the abort button is
+// only rendered while ``isJobStuck`` is true on a card, which itself
+// requires an active pipeline — so a null-but-button-clicked sequence
+// shouldn't happen, but we no-op defensively anyway.
+const currentPipelineId =
+  inject<ComputedRef<string | null>>('currentPipelineId');
+
+async function handleAbortPipeline() {
+  const pipelineId = currentPipelineId?.value;
+  if (!pipelineId) return;
+  await backofficeStore.abortPipeline(pipelineId);
   await handleJobCompleted();
 }
 
@@ -232,6 +256,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         :module="submodule.key"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
+        :pipeline-progress="pipelineProgress"
         :on-download="
           (e, y) => {
             downloadLastCsv(e, y);
@@ -240,7 +265,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
-        @cancel="handleCancelJob"
+        @abort="handleAbortPipeline"
       />
 
       <UploadCardData
@@ -252,10 +277,11 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
           ]
         "
         :recalc-status="getRecalcStatus(submodule)"
+        :pipeline-progress="pipelineProgress"
         :on-download="downloadLastCsv"
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
-        @cancel="handleCancelJob"
+        @abort="handleAbortPipeline"
       />
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"

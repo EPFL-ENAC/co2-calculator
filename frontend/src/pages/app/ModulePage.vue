@@ -18,10 +18,7 @@
         :module-config="staticModuleConfig"
       />
       <q-card class="container container--pa-none" flat>
-        <module-charts
-          :type="currentModuleType"
-          :show-evolution-chart="false"
-        />
+        <module-charts :type="currentModuleType" />
       </q-card>
       <!-- module tables iteration -->
       <module-table-section

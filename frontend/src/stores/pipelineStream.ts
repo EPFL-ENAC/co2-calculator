@@ -53,6 +53,22 @@ export interface PipelineProgress {
   phase_label: 'data' | 'emissions' | 'aggregation';
   done: boolean;
   has_error: boolean;
+  /**
+   * PARTIAL tier (#1236) — authoritative ``pipelines.status`` name so
+   * the UI can render PARTIAL (amber) vs FAILED (red); both set
+   * ``has_error=true`` so a boolean alone can't distinguish them.
+   * Possible values: ``NOT_STARTED`` | ``RUNNING`` | ``SUCCESS`` |
+   * ``PARTIAL`` | ``FAILED`` | null (orphans without a Pipeline row).
+   */
+  status?: string | null;
+  /**
+   * Parent job_type (``csv_ingest`` / ``api_ingest`` / ``factor_ingest``
+   * / ``reference_ingest`` / ``unit_sync``).  Used by per-target
+   * UploadCard variants to scope the phase indicator to *their* card:
+   * a factor upload pipeline should not surface its phase on the data
+   * card, and vice versa.  ``null`` for orphans / unidentified roots.
+   */
+  kind?: string | null;
 }
 
 /**

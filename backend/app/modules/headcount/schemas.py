@@ -71,8 +71,8 @@ class HeadCountCreate(DataEntryCreate):
             return v
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
-        if v < 0.1:
-            raise ValueError("FTE must be at least 0.1")
+        if v < 0:
+            raise ValueError("FTE must be at least 0")
         return v
 
     @field_validator("position_category", mode="after")
@@ -92,8 +92,8 @@ class HeadCountStudentCreate(DataEntryCreate):
     @field_validator("fte", mode="after")
     @classmethod
     def validate_fte(cls, v: float) -> float:
-        if v < 0.1:
-            raise ValueError("FTE must be at least 0.1")
+        if v < 0:
+            raise ValueError("FTE must be at least 0")
         return v
 
 
@@ -105,8 +105,8 @@ class HeadCountStudentUpdate(DataEntryUpdate):
     def validate_fte(cls, v: Optional[float]) -> Optional[float]:
         if v is None:
             return v
-        if v < 0.1:
-            raise ValueError("FTE must be at least 0.1")
+        if v < 0:
+            raise ValueError("FTE must be at least 0")
         return v
 
 
@@ -124,8 +124,8 @@ class HeadCountUpdate(DataEntryUpdate):
             return v
         if v > 1:
             raise ValueError("FTE cannot exceed 1")
-        if v < 0.1:
-            raise ValueError("FTE must be at least 0.1")
+        if v < 0:
+            raise ValueError("FTE must be at least 0")
         return v
 
     @field_validator("position_category", mode="after")

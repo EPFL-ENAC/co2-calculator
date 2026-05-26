@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.v1 import audit
 from app.main import app
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
-from app.models.user import User
+from app.models.user import User, UserProvider
 
 app.include_router(audit.router, prefix="/api/v1/audit", tags=["audit"])
 
@@ -1576,3 +1576,31 @@ class TestExportAuditLogs:
             data = json.loads(response.text)
             assert data[0]["change_type"] == "DELETE"
             assert isinstance(data[0]["change_type"], str)
+
+
+# ============================================================================
+# year_configuration audit-id encoding invariant (#1266)
+# ============================================================================
+#
+# ``year_configuration.create_audit_entry`` encodes the audit ``entity_id``
+# as ``year * 10 + provider.value`` so the hash chain stays per-(year,
+# provider) without changing ``AuditDocument``'s schema (deferred to #1268).
+# That encoding only stays collision-free with adjacent years as long as
+# every ``UserProvider`` value fits in a single decimal digit. This test
+# pins that invariant so a future provider added past value 9 fails CI
+# instead of silently corrupting the audit chain across years.
+
+
+class TestYearConfigurationAuditEncoding:
+    def test_user_provider_values_fit_audit_id_encoding(self):
+        """``entity_id = year * 10 + provider.value`` requires every
+        UserProvider value to be a single decimal digit. If this fails,
+        the encoding overflows into the next year — see #1268 for the
+        proper fix (add ``AuditDocument.provider`` column)."""
+        max_value = max(p.value for p in UserProvider)
+        assert max_value < 10, (
+            f"UserProvider grew past value 9 (max={max_value}); "
+            f"year_configuration audit encoding now collides with the "
+            f"next year. See #1268 — replace the encoding with a real "
+            f"AuditDocument.provider column."
+        )

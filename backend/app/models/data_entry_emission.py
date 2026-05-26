@@ -206,6 +206,9 @@ class EmissionType(int, Enum):
     research_facilities = 100000
     research_facilities__facilities = 100100
     research_facilities__animal = 100200
+    research_facilities__animal__mice = 10020001
+    research_facilities__animal__fish = 10020002
+    research_facilities__it_facilities = 100300
 
     # -------------------------------------------------------------------------
     # External Clouds & AI
@@ -472,6 +475,15 @@ _PARENT_MAP: dict[int, int] = {
         EmissionType.research_facilities.value
     ),
     EmissionType.research_facilities__animal.value: (
+        EmissionType.research_facilities.value
+    ),
+    EmissionType.research_facilities__animal__mice.value: (
+        EmissionType.research_facilities__animal.value
+    ),
+    EmissionType.research_facilities__animal__fish.value: (
+        EmissionType.research_facilities__animal.value
+    ),
+    EmissionType.research_facilities__it_facilities.value: (
         EmissionType.research_facilities.value
     ),
     # external
@@ -886,6 +898,18 @@ _SCOPE_CATEGORY_MAP: dict[int, EmissionMeta] = {
         "category": EmissionCategory.research_facilities,
     },
     EmissionType.research_facilities__animal.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.research_facilities,
+    },
+    EmissionType.research_facilities__it_facilities.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.research_facilities,
+    },
+    EmissionType.research_facilities__animal__mice.value: {
+        "scope": Scope.scope3,
+        "category": EmissionCategory.research_facilities,
+    },
+    EmissionType.research_facilities__animal__fish.value: {
         "scope": Scope.scope3,
         "category": EmissionCategory.research_facilities,
     },
