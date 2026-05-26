@@ -26,8 +26,8 @@ export default {
     fr: 'Description de l’article',
   },
   [`${MODULES.Purchase}.inputs.purchase_institutional_code`]: {
-    en: 'UNSPSC Code',
-    fr: 'Code UNSPSC',
+    en: 'UNSPSC description',
+    fr: 'Description UNSPSC',
   },
   [`${MODULES.Purchase}.inputs.purchase_institutional_code-hint`]: {
     en: 'To identify the corresponding UNSPSC Code, please consult the reference table.',
