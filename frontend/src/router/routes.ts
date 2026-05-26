@@ -67,6 +67,42 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Backoffice reporting print previews — own layout, no header/sidebar
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'backoffice-reporting-print',
+        component: () => import('pages/back-office/ReportingPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Backoffice Reporting – Combined PDF print preview (no chrome)',
+          breadcrumb: false,
+          isBackOffice: true,
+        },
+      },
+    ],
+  },
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/results-print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'backoffice-results-print',
+        component: () =>
+          import('pages/back-office/BackofficeResultsPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Backoffice Reporting – Results PDF print preview (no chrome)',
+          breadcrumb: false,
+          isBackOffice: true,
+        },
+      },
+    ],
+  },
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),

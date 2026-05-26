@@ -1,0 +1,36 @@
+@use 'src/css/02-tokens' as tokens;
+
+.report-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  color: tokens.$color-text;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--half-muted-color);
+  z-index: 1000;
+}
+
+@media print {
+  .print-hide,
+  .q-header,
+  .q-footer,
+  .q-drawer {
+    display: none;
+  }
+
+  .report-container {
+    display: block;
+    width: 100%;
+    padding: 0;
+  }
+
+  .print-report .q-card,
+  .print-report .q-card-section {
+    box-shadow: none;
+  }
+}
