@@ -134,15 +134,17 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
         # GlobalScope → no suffix; RoleScope → "/{institutional_id}" or
         # "/{affiliation}". Affiliation-based scoping (#459) narrows
         # backoffice.* permissions to a sub-perimeter (ACCRED sortpath).
+        # Empty-string identifiers fall through to the sentinel — defensive
+        # against upstream bugs producing ``institutional_id=""``.
         if is_global_scope(s):
             return ""
         if isinstance(s, RoleScope):
-            if s.institutional_id is not None:
+            if s.institutional_id:
                 return f"/{s.institutional_id}"
             if s.affiliation:
                 return f"/{s.affiliation}"
         elif isinstance(s, dict):
-            if s.get("institutional_id") is not None:
+            if s.get("institutional_id"):
                 return f"/{s['institutional_id']}"
             if s.get("affiliation"):
                 return f"/{s['affiliation']}"
