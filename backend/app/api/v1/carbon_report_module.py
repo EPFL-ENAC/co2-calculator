@@ -18,9 +18,7 @@ from app.api.deps import get_current_user, get_db
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import (
-    check_module_permission as _check_module_permission,
-)
-from app.core.policy import (
+    check_module_permission_for_unit,
     get_module_permission_decision,
 )
 from app.core.role_priority import pick_role_for_institutional_id
@@ -118,39 +116,6 @@ async def get_carbon_report(
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
         )
     return carbon_report_module
-
-
-async def _check_module_permission_for_unit(
-    *,
-    current_user: User,
-    module_id: str,
-    action: str,
-    db: AsyncSession,
-    unit_id: int,
-) -> Unit:
-    """Load the Unit and gate access using its ``institutional_id``.
-
-    Module permissions are stored as ``modules.{name}/{institutional_id}`` (see
-    PR #974). Routes that operate on a specific unit must look up the unit's
-    ``institutional_id`` before delegating to the policy — otherwise scoped
-    users (CO2_USER_*) are denied because the bare-path lookup misses.
-
-    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel filters
-    or principal/global checks) without re-fetching.
-    """
-    unit = await db.get(Unit, unit_id)
-    if unit is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Unit {unit_id} not found",
-        )
-    await _check_module_permission(
-        current_user,
-        module_id,
-        action,
-        institutional_id=unit.institutional_id,
-    )
-    return unit
 
 
 async def _get_professional_travel_institutional_id_filter(
@@ -285,7 +250,7 @@ async def get_module(
     )
     module_key = module_id.replace("-", "_")
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    unit = await _check_module_permission_for_unit(
+    unit = await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -381,7 +346,7 @@ async def get_stats_by_class(
     Returns treemap-format data for charts.
     """
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -437,7 +402,7 @@ async def get_top_class_breakdown(
     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
     """
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -611,7 +576,7 @@ async def get_submodule(
         SubmoduleResponse with paginated items and summary
     """
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -722,7 +687,7 @@ async def check_unique(
         ``{"unique": false}`` when a conflict exists.
     """
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -789,7 +754,7 @@ async def create(
             detail="Current user ID is required to create item",
         )
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="edit",
@@ -861,7 +826,7 @@ async def get(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="view",
@@ -912,7 +877,7 @@ async def update(
     current_user: User = Depends(get_current_user),
 ):
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="edit",
@@ -988,7 +953,7 @@ async def delete(
     current_user: User = Depends(get_current_user),
 ):
     report_type = _resolve_carbon_report_type(carbon_project_type)
-    await _check_module_permission_for_unit(
+    await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
         action="edit",

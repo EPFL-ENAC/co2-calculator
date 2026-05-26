@@ -109,11 +109,10 @@ async def list_files(
     """
     List files in the specified directory.
 
-    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
+    **Required Permission**: `backoffice.data_management.view`
 
     **Authorization**:
     - Backoffice metier: Can list all data management files
-    - User principal: Can list data management files
     - Other users: No access
 
     This endpoint lists files stored in the file storage (local or S3)
@@ -123,18 +122,10 @@ async def list_files(
         403: Missing required permission
         400: Invalid file path
     """
-    # Check for EITHER backoffice.data_management.view OR modules.* view
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "view"
-    ) or await is_permitted(current_user, "modules.*", "view")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.view "
-                "or modules.* view"
-            ),
+            detail="Permission denied: requires backoffice.data_management.view",
         )
 
     logger.info(
@@ -188,11 +179,10 @@ async def get_file(
     """
     Retrieve a file from file storage.
 
-    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
+    **Required Permission**: `backoffice.data_management.view`
 
     **Authorization**:
     - Backoffice metier: Can access all data management files
-    - User principal: Can access data management files
     - Other users: No access
 
     Raises:
@@ -201,18 +191,10 @@ async def get_file(
         400: Invalid file path
         500: Internal server error
     """
-    # Check for EITHER backoffice.data_management.view OR modules.* view
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "view"
-    ) or await is_permitted(current_user, "modules.*", "view")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.view "
-                "or modules.* view"
-            ),
+            detail="Permission denied: requires backoffice.data_management.view",
         )
 
     logger.info(
@@ -290,22 +272,14 @@ async def upload_temp_files(
     """
     Upload files to the /tmp folder in the file storage.
 
-    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
+    **Required Permission**: `backoffice.data_management.edit`
 
     Used for temporary file uploads before processing (e.g., CSV imports).
     """
-    # Check for EITHER backoffice.data_management.edit OR modules.* edit
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "edit"
-    ) or await is_permitted(current_user, "modules.*", "edit")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.edit "
-                "or modules.* edit"
-            ),
+            detail="Permission denied: requires backoffice.data_management.edit",
         )
 
     logger.info(
@@ -338,22 +312,14 @@ async def delete_temp_files(
     """
     Delete files from the /tmp folder.
 
-    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
+    **Required Permission**: `backoffice.data_management.edit`
 
     Only files in /tmp/ folder can be deleted.
     """
-    # Check for EITHER backoffice.data_management.edit OR modules.* edit
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "edit"
-    ) or await is_permitted(current_user, "modules.*", "edit")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.edit "
-                "or modules.* edit"
-            ),
+            detail="Permission denied: requires backoffice.data_management.edit",
         )
 
     logger.info(

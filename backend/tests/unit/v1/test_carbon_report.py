@@ -155,7 +155,8 @@ async def test_list_carbon_report_modules_found():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        result = await module.list_carbon_report_modules(1, db, _user())
+        with patch.object(module, "require_unit_access"):
+            result = await module.list_carbon_report_modules(1, db, _user())
         assert result == modules
     finally:
         module.CarbonReportService = orig_report
@@ -199,9 +200,10 @@ async def test_update_status_success():
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         update_payload = MagicMock()
-        result = await module.update_carbon_report_module_status(
-            1, 2, update_payload, db, _user()
-        )
+        with patch.object(module, "require_unit_access"):
+            result = await module.update_carbon_report_module_status(
+                1, 2, update_payload, db, _user()
+            )
         assert result == updated
         db.commit.assert_awaited_once()
     finally:
@@ -241,10 +243,11 @@ async def test_update_status_module_not_found():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        with pytest.raises(HTTPException) as exc:
-            await module.update_carbon_report_module_status(
-                1, 2, MagicMock(), db, _user()
-            )
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.update_carbon_report_module_status(
+                    1, 2, MagicMock(), db, _user()
+                )
         assert exc.value.status_code == 404
     finally:
         module.CarbonReportService = orig_report
@@ -265,10 +268,11 @@ async def test_update_status_value_error_raises_400():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        with pytest.raises(HTTPException) as exc:
-            await module.update_carbon_report_module_status(
-                1, 2, MagicMock(), db, _user()
-            )
+        with patch.object(module, "require_unit_access"):
+            with pytest.raises(HTTPException) as exc:
+                await module.update_carbon_report_module_status(
+                    1, 2, MagicMock(), db, _user()
+                )
         assert exc.value.status_code == 400
         assert "bad status" in exc.value.detail
     finally:
