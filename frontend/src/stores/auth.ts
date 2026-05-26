@@ -9,7 +9,12 @@ import {
 import { Router } from 'vue-router';
 import { computed } from 'vue';
 import { PermissionAction } from 'src/constant/permissions';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import {
+  hasPermission,
+  hasAnyScopePermission,
+  hasBackOfficeAreaPermission,
+  getModulePermissionPath,
+} from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
 import { useWorkspaceStore } from './workspace';
 interface User {
@@ -150,6 +155,33 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(path, action);
   }
 
+  /**
+   * Check if the current user can access the back-office area (any
+   * `backoffice.*` or `system.*` permission granting `action`). Use for
+   * generic entry points (e.g. the header button) that should appear for
+   * any back-office user regardless of role, sub-domain, or affiliation.
+   */
+  function hasUserBackOfficeAreaPermission(
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    return hasBackOfficeAreaPermission(user.value.permissions, action);
+  }
+
+  /**
+   * Check if the current user has `action` on `path` under ANY scope
+   * (bare path OR any `path/<*>` variant). Use for back-office route
+   * guards and menu gates that should accept GlobalScope, unit-scoped,
+   * and affiliation-scoped users alike.
+   */
+  function hasUserAnyScopePermission(
+    path: string,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    return hasAnyScopePermission(user.value.permissions, path, action);
+  }
+
   return {
     user,
     loading,
@@ -162,5 +194,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     hasUserPermission,
     hasUserModulePermission,
+    hasUserBackOfficeAreaPermission,
+    hasUserAnyScopePermission,
   };
 });
