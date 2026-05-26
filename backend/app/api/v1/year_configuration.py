@@ -496,7 +496,7 @@ async def create_year_configuration(
 ):
     """Create initial year configuration.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Returns 409 if a configuration already exists for the year.
 
     Args:
@@ -508,10 +508,10 @@ async def create_year_configuration(
     Returns:
         Created year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "system.users", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can create year configurations",
+            detail="Only super administrators can create year configurations",
         )
 
     stmt = select(YearConfiguration).where(
@@ -655,7 +655,7 @@ async def update_year_configuration(
 ):
     """Partially update year configuration.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Validates:
     - reduction_percentage must be between 0 and 1
     - target_year must be > year
@@ -671,10 +671,10 @@ async def update_year_configuration(
     Returns:
         Updated year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "system.users", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can update year configurations",
+            detail="Only super administrators can update year configurations",
         )
 
     # Validate reduction objectives goals if provided
@@ -787,7 +787,7 @@ async def upload_reduction_objective_file(
 ):
     """Upload file for reduction objectives.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Categories:
     - footprint: institutional_footprint
     - population: population_projections
@@ -803,10 +803,10 @@ async def upload_reduction_objective_file(
     Returns:
         File metadata.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "system.users", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can upload files",
+            detail="Only super administrators can upload files",
         )
 
     # Validate file extension
