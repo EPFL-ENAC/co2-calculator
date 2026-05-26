@@ -221,7 +221,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.data_management',
+              'backoffice.users',
               PermissionAction.EDIT,
             ),
             meta: {
@@ -237,7 +237,7 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('pages/back-office/PipelineOperationsConsolePage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.data_management',
+              'backoffice.users',
               PermissionAction.EDIT,
             ),
             meta: {
