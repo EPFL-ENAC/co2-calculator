@@ -59,7 +59,7 @@ const commonTravelFields: ModuleField[] = [
     id: 'departure_date',
     labelKey: `${MODULES.ProfessionalTravel}-field-start-date`,
     type: 'date',
-    required: true,
+    required: false,
     sortable: true,
     ratio: '1/1',
     editableInline: false,
