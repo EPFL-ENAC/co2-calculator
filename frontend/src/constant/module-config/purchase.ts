@@ -43,7 +43,7 @@ const purchaseFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/4',
     icon: 'o_category',
-    maxColumnWidth: 200,
+    columnSize: 'md',
   },
   {
     id: 'quantity',
@@ -55,6 +55,7 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     hideIn: { form: false },
     sortable: true,
+    columnSize: 'xs',
   },
   {
     id: 'total_spent_amount',
@@ -66,6 +67,7 @@ const purchaseFields: ModuleField[] = [
     ratio: '1/4',
     hideIn: { form: false },
     sortable: true,
+    columnSize: 'xs',
   },
   {
     id: 'currency',
@@ -76,6 +78,7 @@ const purchaseFields: ModuleField[] = [
     hideIn: { form: false },
     sortable: true,
     ratio: '1/4',
+    columnSize: 'xs',
     options: [
       { value: 'chf', label: 'CHF' },
       { value: 'eur', label: 'EUR' },

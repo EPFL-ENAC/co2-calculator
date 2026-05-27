@@ -71,8 +71,9 @@
           :align="col.align"
           class="q-pa-xs"
           :class="{
-            'column-max-width': col.maxColumnWidth,
-            'column-min-width': col.minColumnWidth,
+            'column-max-width': col.maxColumnWidth !== undefined,
+            'column-min-width':
+              col.minColumnWidth !== undefined || col.columnSize !== undefined,
           }"
           :style="getColumnStyle(col)"
         >
@@ -348,8 +349,12 @@
 import FilesUploadDialog from 'src/components/organisms//data-management/FilesUploadDialog.vue';
 
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
-import type { ModuleField } from 'src/constant/moduleConfig';
-import type { ModuleConfig, Submodule } from 'src/constant/moduleConfig';
+import { COLUMN_SIZES } from 'src/constant/moduleConfig';
+import type {
+  ModuleField,
+  ModuleConfig,
+  Submodule,
+} from 'src/constant/moduleConfig';
 import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
@@ -745,6 +750,7 @@ type TableViewColumn = {
   optionLabelKey?: string;
   tooltip?: string;
   type: ModuleField['type'];
+  columnSize?: ModuleField['columnSize'];
   minColumnWidth?: number;
   maxColumnWidth?: number;
   readOnlyWhen?: ModuleField['readOnlyWhen'];
@@ -799,6 +805,7 @@ const qCols = computed<TableViewColumn[]>(() => {
             options,
             tooltip: index === 0 ? tooltip : undefined, // Only first column gets tooltip
             type: f.type,
+            columnSize: f.columnSize,
             minColumnWidth: f.minColumnWidth,
             maxColumnWidth: f.maxColumnWidth,
             readOnlyWhen: f.readOnlyWhen,
@@ -835,6 +842,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           optionLabelKey: f.optionLabelKey,
           tooltip,
           type: f.type,
+          columnSize: f.columnSize,
           minColumnWidth: f.minColumnWidth,
           maxColumnWidth: f.maxColumnWidth,
           readOnlyWhen: f.readOnlyWhen,
@@ -862,6 +870,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       options: undefined,
       tooltip: undefined,
       type: 'text',
+      columnSize: 'sm',
       minColumnWidth: undefined,
       maxColumnWidth: undefined,
     });
@@ -1158,21 +1167,26 @@ function cellClasses(row: ModuleRow, col: { name: string; field: string }) {
 
 function getColumnStyle(col: TableViewColumn) {
   const style: Record<string, string> = {};
-  if (col.minColumnWidth) {
-    style['--min-column-width'] = `${col.minColumnWidth}px`;
+  const minWidth =
+    col.minColumnWidth ??
+    (col.columnSize !== undefined ? COLUMN_SIZES[col.columnSize] : undefined);
+  if (minWidth !== undefined) {
+    style['--min-column-width'] = `${minWidth}px`;
   }
-  if (col.maxColumnWidth) {
+  if (col.maxColumnWidth !== undefined) {
     style['--max-column-width'] = `${col.maxColumnWidth}px`;
   }
   return style;
 }
 
 function getColumnClasses(row: ModuleRow, col: TableViewColumn) {
+  const hasMinWidth =
+    col.minColumnWidth !== undefined || col.columnSize !== undefined;
   return [
     cellClasses(row, col),
     'table-cell',
-    { 'column-max-width': col.maxColumnWidth },
-    { 'column-min-width': col.minColumnWidth },
+    { 'column-max-width': col.maxColumnWidth !== undefined },
+    { 'column-min-width': hasMinWidth },
   ];
 }
 
