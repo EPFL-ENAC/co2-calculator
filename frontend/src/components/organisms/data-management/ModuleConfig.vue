@@ -137,13 +137,13 @@ const moduleNeedsRecalculation = computed<boolean>(
 const showRecalcButton = computed<boolean>(() => {
   // Hidden during active recalc — the badge says it all.
   if (isRecalculating.value) return false;
-  // Hidden in the "start" state where the module is missing
-  // required factors and/or data uploads.  Without those, the
-  // recalc has nothing to compute against — the operator first
-  // needs to upload the missing pieces; the recalc button there
-  // is a misleading affordance.  ``isModuleIncomplete`` already
-  // tracks "any required factor/data job is missing or errored"
-  // for the badge above; reuse it to keep the two consistent.
+  // Hidden in the "start" state where the module is missing required
+  // factor (and/or reference) uploads. Without those, the recalc has
+  // nothing to compute against — the operator first needs to upload
+  // the missing pieces; the recalc button there is a misleading
+  // affordance. Issue #1215 — ``isModuleIncomplete`` now reads the
+  // backend-computed flag (missing-mandatory only; errored jobs no
+  // longer raise it).
   if (isModuleIncomplete(props.module)) return false;
   return hasRecalcFailure.value || moduleNeedsRecalculation.value;
 });

@@ -228,9 +228,26 @@ export function buildYearConfigResponse(year: number): unknown {
           submodules: {},
           latest_common_data_job: null,
           latest_common_factor_job: null,
+          // Issue #1215 — backend now emits a module-level rollup. False
+          // here keeps these pipeline-observability tests off the
+          // "Incomplete" code path.
+          incomplete: false,
         },
       },
-      reduction_objectives: {},
+      // Mirror the real backend shape — ``isReductionObjectiveIncomplete``
+      // calls ``ro.goals.some(...)`` and ``files?.<key>``; ``goals`` must
+      // be an array or the computed throws and the page never mounts.
+      reduction_objectives: {
+        institutional_footprint: [],
+        population_projections: [],
+        unit_scenarios: [],
+        files: {
+          institutional_footprint: null,
+          population_projections: null,
+          unit_scenarios: null,
+        },
+        goals: [],
+      },
     },
     recalculation_status: [
       {

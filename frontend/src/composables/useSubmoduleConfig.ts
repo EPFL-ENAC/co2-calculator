@@ -25,11 +25,24 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   const backofficeDataManagement = useBackofficeDataManagement();
   const {
     isSubmoduleEnabled,
-    isSubmoduleIncomplete,
     isSubmoduleInputsDeactivated,
     getModule,
     getModuleNameFromSubmodule,
   } = yearConfigStore;
+
+  /**
+   * Issue #1215 — read the backend-computed flag from the enriched
+   * submodule dict. Common-uploads (no ``dataEntryTypeId``) inherit
+   * their module-level rollup since they have no per-submodule entry.
+   */
+  function isSubmoduleIncomplete(sub: SubmoduleConfig): boolean {
+    const mod =
+      yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
+    if (sub.dataEntryTypeId === undefined) {
+      return !!mod?.incomplete;
+    }
+    return !!mod?.submodules?.[String(sub.dataEntryTypeId)]?.incomplete;
+  }
 
   function toSyncJobResponse(
     job?: SyncJobSummary | null,

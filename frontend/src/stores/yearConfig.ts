@@ -3,11 +3,10 @@ import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 import {
   MODULE_SUBMODULES,
-  MODULE_COMMON_UPLOADS,
   type SubmoduleConfig as ModuleUploadConfig,
   type SubmoduleConfig as StaticSubmoduleConfig,
 } from 'src/constant/backoffice-module-config';
-import { MODULES_LIST, type Module } from 'src/constant/modules';
+import { type Module } from 'src/constant/modules';
 
 export interface FileMetadata {
   path: string;
@@ -42,6 +41,13 @@ export interface SubmoduleConfig {
   latest_api_data_job?: SyncJobSummary | null;
   latest_factor_job?: SyncJobSummary | null;
   latest_reference_job?: SyncJobSummary | null;
+  /**
+   * Issue #1215 — backend-computed "Incomplete" flag. True iff a
+   * mandatory upload (factor or reference) is missing. Frontend
+   * renders this directly instead of re-deriving from latest_* jobs.
+   */
+  incomplete?: boolean;
+  incomplete_reasons?: string[];
 }
 
 export interface SyncJobSummary {
@@ -63,6 +69,8 @@ export interface ModuleConfig {
   submodules: Record<string, SubmoduleConfig>;
   latest_common_data_job?: SyncJobSummary | null;
   latest_common_factor_job?: SyncJobSummary | null;
+  /** Issue #1215 — module-level "Incomplete" rollup (backend-computed). */
+  incomplete?: boolean;
 }
 
 export interface UnifiedModuleConfig {
@@ -71,6 +79,8 @@ export interface UnifiedModuleConfig {
   submodules: Record<string, UnifiedSubmoduleConfig>;
   latest_common_data_job?: SyncJobSummary | null;
   latest_common_factor_job?: SyncJobSummary | null;
+  /** Issue #1215 — module-level "Incomplete" rollup (backend-computed). */
+  incomplete?: boolean;
 }
 
 export interface UnifiedSubmoduleConfig extends SubmoduleConfig {
@@ -457,51 +467,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.inputs_deactivated ?? false;
   }
 
-  function isSubmoduleIncomplete(sub: ModuleUploadConfig): boolean {
-    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
-    const subConfig = sub.dataEntryTypeId
-      ? mod?.submodules?.[String(sub.dataEntryTypeId)]
-      : undefined;
-    if (!sub.noFactors) {
-      const job = subConfig?.latest_factor_job ?? mod?.latest_common_factor_job;
-      if (!job || job.result !== 0) return true;
-    }
-    if (sub.mandatoryData) {
-      const dataJob = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
-      const dataOk = !!dataJob && dataJob.result === 0;
-      if (sub.hasApi) {
-        const apiJob = subConfig?.latest_api_data_job;
-        const apiOk = !!apiJob && apiJob.result === 0;
-        if (!dataOk && !apiOk) return true;
-      } else if (!dataOk) {
-        return true;
-      }
-    }
-    if (sub.mandatoryReference) {
-      const refJob = subConfig?.latest_reference_job;
-      if (!refJob || refJob.result !== 0) return true;
-    }
-    if (!sub.noData && !sub.dataEntryTypeId) {
-      const job = mod?.latest_common_data_job;
-      if (!job || job.result !== 0) return true;
-    }
-    return false;
-  }
-
-  function isModuleIncomplete(module: string): boolean {
-    if (!isModuleEnabled(module)) return false;
-    const submodules =
-      MODULE_SUBMODULES[module as keyof typeof MODULE_SUBMODULES] ?? [];
-    const commonUploads =
-      MODULE_COMMON_UPLOADS[module as keyof typeof MODULE_COMMON_UPLOADS] ?? [];
-    if (submodules.length === 0 && commonUploads.length === 0) return false;
-    return (
-      submodules.some(
-        (sub) => isSubmoduleEnabled(sub) && isSubmoduleIncomplete(sub),
-      ) || commonUploads.some((common) => isSubmoduleIncomplete(common))
-    );
-  }
-
   /** True when reduction objectives goals or CSV files are not fully configured. */
   const isReductionObjectiveIncomplete = computed(() => {
     if (!config.value) return false;
@@ -518,13 +483,17 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return !hasGoal || !allFilesUploaded;
   });
 
-  /** True when any enabled module has mandatory uploads missing or failed. */
-  const anyModuleIncomplete = computed(
-    () =>
-      !!config.value &&
-      (MODULES_LIST.some((m) => isModuleIncomplete(m)) ||
-        isReductionObjectiveIncomplete.value),
-  );
+  /**
+   * Issue #1215 — module-level "Incomplete" comes from the backend
+   * (disabled modules carry ``incomplete=false``); OR with the
+   * still-frontend reduction-objectives flag.
+   */
+  const anyModuleIncomplete = computed(() => {
+    if (!config.value) return false;
+    const modules = config.value.config?.modules ?? {};
+    const anyModule = Object.values(modules).some((m) => !!m?.incomplete);
+    return anyModule || isReductionObjectiveIncomplete.value;
+  });
 
   function getModuleConfig(module: Module): ModuleConfig | null {
     const moduleTypeIdMap = buildModuleTypeIdMapping();
@@ -579,8 +548,6 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     isModuleEnabled,
     isSubmoduleEnabled,
     isSubmoduleInputsDeactivated,
-    isModuleIncomplete,
-    isSubmoduleIncomplete,
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,

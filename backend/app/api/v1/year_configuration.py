@@ -23,6 +23,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
 from app.core.security import is_permitted
+from app.core.submodule_mandatoriness import (
+    MODULES_REQUIRING_COMMON_FACTOR,
+    get_submodule_mandatoriness,
+)
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -155,6 +159,81 @@ def _enrich_config_with_jobs(
             common_job = _pick_latest_job(job_lookup, m_id, None, target_val)
             module_val[field_name] = common_job.model_dump() if common_job else None
     return config
+
+
+def _enrich_config_with_incomplete_flags(config: dict) -> dict:
+    """Inject backend-computed ``incomplete`` + ``incomplete_reasons`` per #1215.
+
+    A submodule is incomplete iff a *mandatory* upload (factor or
+    reference) is missing. An errored job (``result == 2``) is NOT
+    missing — the upload-card surfaces error state independently.
+    Must run after ``_enrich_config_with_jobs`` (depends on the
+    ``latest_*_job`` keys it writes).
+    """
+    for module_key, module_val in config.get("modules", {}).items():
+        if not isinstance(module_val, dict):
+            continue
+        try:
+            module_type_id = int(module_key)
+        except (ValueError, TypeError):
+            continue
+        _annotate_module_incomplete(module_val, module_type_id)
+    return config
+
+
+def _annotate_module_incomplete(module_val: dict, module_type_id: int) -> None:
+    """Annotate each submodule, then roll up to the module's ``incomplete``.
+
+    Disabled modules carry ``incomplete=False`` regardless of state —
+    matches the legacy frontend gate.
+    """
+    common_factor_present = module_val.get("latest_common_factor_job") is not None
+    any_enabled_incomplete = False
+    submodules = module_val.get("submodules", {})
+    if isinstance(submodules, dict):
+        for sub_key, sub_val in submodules.items():
+            if not isinstance(sub_val, dict):
+                continue
+            try:
+                data_entry_type_id = int(sub_key)
+            except (ValueError, TypeError):
+                continue
+            reasons = _submodule_incomplete_reasons(
+                sub_val, module_type_id, data_entry_type_id, common_factor_present
+            )
+            sub_val["incomplete"] = bool(reasons)
+            sub_val["incomplete_reasons"] = reasons
+            if reasons and sub_val.get("enabled", True):
+                any_enabled_incomplete = True
+    if not module_val.get("enabled", True):
+        module_val["incomplete"] = False
+        return
+    needs_common = (
+        module_type_id in MODULES_REQUIRING_COMMON_FACTOR and not common_factor_present
+    )
+    module_val["incomplete"] = any_enabled_incomplete or needs_common
+
+
+def _submodule_incomplete_reasons(
+    sub_val: dict,
+    module_type_id: int,
+    data_entry_type_id: int,
+    common_factor_present: bool,
+) -> list[str]:
+    """Return missing-mandatory reasons for one submodule.
+
+    A mandatory factor is satisfied by either the submodule's own
+    ``latest_factor_job`` or the module's ``latest_common_factor_job``
+    (matches the legacy frontend rule). Reference has no such fallback.
+    """
+    rules = get_submodule_mandatoriness(module_type_id, data_entry_type_id)
+    reasons: list[str] = []
+    has_factor = sub_val.get("latest_factor_job") is not None or common_factor_present
+    if rules.mandatory_factor and not has_factor:
+        reasons.append("missing_factor")
+    if rules.mandatory_reference and sub_val.get("latest_reference_job") is None:
+        reasons.append("missing_reference")
+    return reasons
 
 
 def _pick_latest_job(
@@ -469,6 +548,7 @@ async def get_year_configuration(
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
     recalculation_status = _build_recalculation_status(recalc_rows)
@@ -637,8 +717,22 @@ async def create_year_configuration(
         },
     )
 
-    response = YearConfigurationResponse.model_validate(new_config)
-    response.pipeline_id = str(pipeline_id)
+    # Issue #1215 — freshly-created years have no jobs yet; enrich so the
+    # response carries ``incomplete=True`` on every mandatory submodule.
+    # Otherwise the frontend reads ``undefined`` → false and the operator
+    # sees a deceptively-complete UI before uploading anything.
+    enriched_config = copy.deepcopy(new_config.config)
+    _enrich_config_with_jobs(enriched_config, {})
+    _enrich_config_with_incomplete_flags(enriched_config)
+    response = YearConfigurationResponse(
+        year=new_config.year,
+        is_started=new_config.is_started,
+        configuration_completed=new_config.configuration_completed,
+        config=enriched_config,
+        recalculation_status=[],
+        updated_at=new_config.updated_at,
+        pipeline_id=str(pipeline_id),
+    )
     return response
 
 
@@ -759,6 +853,7 @@ async def update_year_configuration(
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
     recalculation_status = _build_recalculation_status(recalc_rows)

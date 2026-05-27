@@ -89,19 +89,26 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
   const baseHeadcount = {
     enabled: true,
     uncertainty_tag: 'medium',
+    // Issue #1215 — backend-computed module-level "Incomplete" flag.
+    // Default: complete (factor + data both SUCCESS below).
+    incomplete: false,
     submodules: {
-      // member — required factor + data both SUCCESS so isModuleIncomplete=false
+      // member — required factor + data both SUCCESS, backend incomplete=false
       '1': {
         enabled: true,
         threshold: null,
         latest_factor_job: SUCCESS_FACTOR_JOB,
         latest_data_job: SUCCESS_DATA_JOB,
+        incomplete: false,
+        incomplete_reasons: [],
       },
       // student — noData=true, only factor required
       '2': {
         enabled: true,
         threshold: null,
         latest_factor_job: SUCCESS_FACTOR_JOB,
+        incomplete: false,
+        incomplete_reasons: [],
       },
     },
   };
