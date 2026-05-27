@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
-    "fastapi[standard]==0.136.1",
+    "fastapi[standard]==0.136.3",
     "starlette==0.52.1",
     "uvicorn[standard]==0.47.0",
     "python-multipart==0.0.29",
