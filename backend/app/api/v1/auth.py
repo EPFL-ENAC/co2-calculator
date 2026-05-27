@@ -1,4 +1,24 @@
-"""Authentication endpoints for OAuth2/OIDC with Entra ID."""
+"""Authentication endpoints for OAuth2/OIDC with Entra ID.
+
+Trust boundaries (see plan
+``docs/src/implementation-plans/458-security-authentication-integration-hardening.md``):
+
+1. IdP → backend: only the `userinfo` claims returned by
+   `oauth.co2_oauth_provider.authorize_access_token` are trusted to bind a
+   session to a real identity. Nothing else on the `/callback` request
+   (query params, headers, body) may influence the resolved
+   `institutional_id` or `provider`.
+2. backend → cookie: `_set_auth_cookies` emits JWTs signed with
+   `settings.SECRET_KEY`. These are the only artefacts the client is
+   trusted to return as evidence of identity.
+3. cookie → backend: `decode_jwt` validates signature and algorithm; any
+   identity in an `auth_token` / `refresh_token` cookie is trusted only
+   after that check passes AND the JWT `type` matches the endpoint (access
+   for `/me`, refresh for `/refresh`).
+
+`/login-test` deliberately bypasses boundary 1 and constructs a session
+from a query-string `role`. Its only gate is `settings.DEBUG`.
+"""
 
 import logging
 from datetime import timedelta

@@ -8,8 +8,9 @@ from typing import Callable, Optional
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from joserfc import jwt
-from joserfc.errors import BadSignatureError
+from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError
 from joserfc.jwk import OctKey
+from joserfc.jwt import JWTClaimsRegistry
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -61,12 +62,19 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
 
 
 def decode_jwt(token: str) -> dict:
-    """Decode and validate JWT token."""
+    """Decode and validate JWT token.
+
+    `jwt.decode` validates signature and algorithm but does NOT validate
+    payload claims. The explicit `JWTClaimsRegistry().validate` call below
+    is what enforces `exp` (expiry) — without it expired tokens remain
+    valid until SECRET_KEY rotates.
+    """
     try:
         key = OctKey.import_key(settings.SECRET_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
+        JWTClaimsRegistry().validate(payload.claims)
         return payload.claims
-    except BadSignatureError as e:
+    except (BadSignatureError, ExpiredTokenError, InvalidClaimError) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Could not validate credentials: {str(e)}",
