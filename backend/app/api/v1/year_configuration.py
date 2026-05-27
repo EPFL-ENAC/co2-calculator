@@ -209,8 +209,7 @@ def _annotate_module_incomplete(module_val: dict, module_type_id: int) -> None:
         module_val["incomplete"] = False
         return
     needs_common = (
-        module_type_id in MODULES_REQUIRING_COMMON_FACTOR
-        and not common_factor_present
+        module_type_id in MODULES_REQUIRING_COMMON_FACTOR and not common_factor_present
     )
     module_val["incomplete"] = any_enabled_incomplete or needs_common
 
@@ -229,9 +228,7 @@ def _submodule_incomplete_reasons(
     """
     rules = get_submodule_mandatoriness(module_type_id, data_entry_type_id)
     reasons: list[str] = []
-    has_factor = (
-        sub_val.get("latest_factor_job") is not None or common_factor_present
-    )
+    has_factor = sub_val.get("latest_factor_job") is not None or common_factor_present
     if rules.mandatory_factor and not has_factor:
         reasons.append("missing_factor")
     if rules.mandatory_reference and sub_val.get("latest_reference_job") is None:

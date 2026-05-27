@@ -684,9 +684,7 @@ test.describe('back-office data-management — happy paths', () => {
 
     // Module-level Incomplete badge is part of the collapsed module
     // header — visible without expanding.
-    const badge = page
-      .getByText(/incomplete|incomplet/i)
-      .first();
+    const badge = page.getByText(/incomplete|incomplet/i).first();
     await expect(badge).toBeVisible({ timeout: 10000 });
   });
 
@@ -746,7 +744,11 @@ test.describe('back-office data-management — happy paths', () => {
             unit_scenarios: fileMeta,
           },
           goals: [
-            { target_year: 2030, reduction_percentage: 50, reference_year: 2024 },
+            {
+              target_year: 2030,
+              reduction_percentage: 50,
+              reference_year: 2024,
+            },
           ],
           institutional_footprint: [],
           population_projections: [],

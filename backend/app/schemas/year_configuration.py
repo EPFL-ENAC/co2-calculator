@@ -376,13 +376,13 @@ class SubmoduleConfig(BaseModel):
     # is missing. Errored jobs do NOT count as missing.
     incomplete: bool = Field(
         default=False,
-        description="True when a mandatory upload is missing (read-only, injected by API)",
+        description="True when a mandatory upload is missing (read-only from API)",
     )
     incomplete_reasons: List[str] = Field(
         default_factory=list,
         description=(
             "Reasons the submodule is incomplete, e.g. "
-            '["missing_factor", "missing_reference"] (read-only, injected by API)'
+            '["missing_factor", "missing_reference"] (read-only fromAPI)'
         ),
     )
 
