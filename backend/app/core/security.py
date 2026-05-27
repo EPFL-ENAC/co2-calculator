@@ -18,7 +18,8 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.db import get_db
-from app.models.user import User
+from app.models.user import User, UserProvider
+from app.services.user_service import UserService
 
 settings = get_settings()
 security = HTTPBearer()
@@ -82,60 +83,77 @@ def decode_jwt(token: str) -> dict:
         )
 
 
-async def get_current_user(
-    db: AsyncSession = Depends(get_db),
-    token: str = Depends(get_jwt_from_cookie),
+async def resolve_user_by_jwt_payload(
+    payload: dict,
+    db: AsyncSession,
+    *,
+    expected_token_type: Optional[str] = None,
 ) -> User:
-    """Get current user from JWT token.
+    """Centralized JWT-payload → User resolution.
 
-    Resolves user by stable identity (institutional_id, provider) from JWT.
-    Legacy tokens with user_id will fail with authentication error.
+    Single trust-boundary check shared by /auth/me, /auth/refresh, and
+    `get_current_user`. Validates the stable (institutional_id, provider)
+    identity pair, rejects legacy user_id-only tokens, looks the user up,
+    and raises 401 on any failure. When ``expected_token_type`` is
+    supplied (used by /refresh) the payload's ``type`` field must match.
     """
-    from app.models.user import UserProvider
-    from app.services.user_service import UserService
+    if expected_token_type is not None:
+        if payload.get("type") != expected_token_type:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
 
-    payload = decode_jwt(token)
-
-    # Primary: resolve by stable identity (institutional_id, provider)
     institutional_id = payload.get("institutional_id")
     provider_str = payload.get("provider")
 
-    if institutional_id and provider_str:
-        try:
-            provider = UserProvider(int(provider_str))
-        except ValueError:
-            logger.error(
-                "Invalid provider in token",
-                extra={"provider": provider_str},
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-            )
-
-        user = await UserService(db).get_by_institutional_id_and_provider(
-            institutional_id=institutional_id,
-            provider=provider,
-        )
-    else:
-        # Legacy token with user_id - reject and force re-login
+    if not (institutional_id and provider_str):
         user_id = payload.get("user_id")
         logger.warning(
-            "Legacy token with user_id detected in get_current_user",
+            "Legacy token without institutional_id/provider detected",
             extra={"user_id": user_id},
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired. Please login again.",
+            detail=(
+                "Session expired. Please login again."
+                if user_id
+                else "Invalid token payload"
+            ),
         )
 
+    try:
+        provider = UserProvider(int(provider_str))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid provider in token",
+            extra={"provider": provider_str},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+
+    user = await UserService(db).get_by_institutional_id_and_provider(
+        institutional_id=institutional_id,
+        provider=provider,
+    )
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
-    # Re-validate to trigger deserialize_roles validator
     return user
+
+
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
+    token: str = Depends(get_jwt_from_cookie),
+) -> User:
+    """Get current user from JWT token. Thin wrapper over
+    :func:`resolve_user_by_jwt_payload`."""
+    payload = decode_jwt(token)
+    return await resolve_user_by_jwt_payload(payload, db)
 
 
 async def get_current_active_user(

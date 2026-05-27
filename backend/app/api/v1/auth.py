@@ -46,6 +46,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_jwt,
+    resolve_user_by_jwt_payload,
 )
 from app.models.audit import AuditChangeTypeEnum
 from app.models.user import UserProvider
@@ -114,7 +115,7 @@ def _set_auth_cookies(
         samesite="lax",
         max_age=int(access_token_expires.total_seconds()),
         path=settings.OAUTH_COOKIE_PATH,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
     )
 
     # Set refresh token cookie (long-lived)
@@ -125,7 +126,7 @@ def _set_auth_cookies(
         samesite="lax",
         max_age=int(refresh_token_expires.total_seconds()),
         path=settings.OAUTH_COOKIE_PATH,
-        secure=not settings.DEBUG,
+        secure=settings.COOKIE_SECURE,
     )
 
 
@@ -180,7 +181,18 @@ async def _log_auth_audit_event(
     data_snapshot: Optional[dict] = None,
     handled_ids: Optional[list[str]] = None,
     entity_id: Optional[int] = None,
+    must_succeed: bool = False,
 ) -> None:
+    """Record an auth audit event.
+
+    ``must_succeed=True`` (only the /callback success path) re-raises on
+    failure: minting a session without an audit trail is treated as a
+    security-contract violation, and the caller's outer handler will
+    convert the raise into the standard 401. /refresh and /logout pass
+    ``must_succeed=False`` — the audit failure is logged at ERROR with a
+    structured ``audit_failure`` marker for alerting, but the user-facing
+    request still succeeds.
+    """
     try:
         request_context = await _build_request_context(request)
         audit_service = AuditDocumentService(db)
@@ -200,32 +212,30 @@ async def _log_auth_audit_event(
         )
         await db.commit()
     except Exception as exc:
-        logger.warning(
+        logger.error(
             "Auth audit log failed",
-            extra={"error": str(exc), "change_type": change_type},
+            extra={
+                "error": str(exc),
+                "change_type": change_type,
+                "audit_failure": True,
+            },
         )
+        if must_succeed:
+            raise
 
 
-@router.get(
-    "/login-test",
-)
 async def login_test(
     request: Request,
     role: str = "co2.user.std",
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Test login endpoint for development.
+    """Test login endpoint for development.
 
-    Simulates a login by setting auth cookies directly.
-    Only enabled in DEBUG mode.
+    Registered on the router only when ``settings.DEBUG`` is true (see
+    bottom of this module). In a production build the route does not
+    exist — clients see 404 rather than 403, and the handler code is
+    unreachable.
     """
-    if not settings.DEBUG:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Test login is disabled in production",
-        )
-
     # Create a fake user ID and email based on role
     sanitized_role = role.replace("\r\n", "").replace("\n", "")
 
@@ -394,7 +404,7 @@ async def auth_callback(
         user = await UserService(db).upsert_user(
             id=None,
             email=provider_user.get("email", email),
-            institutional_id=provider_user.get("code", institutional_id),
+            institutional_id=institutional_id,
             display_name=provider_user.get("display_name", display_name),
             roles=provider_user.get("roles", []),
             function=provider_user.get("function", None),
@@ -440,6 +450,7 @@ async def auth_callback(
                 "institutional_id": user.institutional_id,
             },
             entity_id=user.id or 0,
+            must_succeed=True,
         )
         return response
 
@@ -529,69 +540,8 @@ async def get_me(
         )
 
     try:
-        # Decode and validate token
         payload = decode_jwt(auth_token)
-        sub = payload.get("sub")
-
-        if not sub:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
-
-        # Primary: resolve by stable identity (institutional_id, provider)
-        institutional_id = payload.get("institutional_id")
-        provider_str = payload.get("provider")
-
-        if institutional_id and provider_str:
-            try:
-                provider = UserProvider(int(provider_str))
-            except ValueError:
-                logger.warning(
-                    "Invalid provider in token",
-                    extra={"provider": provider_str},
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-
-            user = await UserService(db).get_by_institutional_id_and_provider(
-                institutional_id=institutional_id,
-                provider=provider,
-            )
-        else:
-            # Fallback for legacy tokens with user_id (temporary migration support)
-            user_id = payload.get("user_id")
-            if not user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-            logger.warning(
-                "Legacy token with user_id detected - logging out user",
-                extra={"user_id": user_id},
-            )
-            # Clear legacy cookies to force clean re-login
-            response = Response()
-            response.delete_cookie(
-                key="auth_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            response.delete_cookie(
-                key="refresh_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session expired. Please login again.",
-            )
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-            )
+        user = await resolve_user_by_jwt_payload(payload, db)
 
         if not user.email:
             raise HTTPException(
@@ -599,8 +549,7 @@ async def get_me(
                 detail="User email missing",
             )
 
-        user_read = UserRead.model_validate(user)
-        return user_read
+        return UserRead.model_validate(user)
 
     except HTTPException:
         raise
@@ -635,73 +584,11 @@ async def refresh_token(
 
     try:
         payload = decode_jwt(refresh_token)
+        user = await resolve_user_by_jwt_payload(
+            payload, db, expected_token_type="refresh"
+        )
+        sub = payload.get("sub", "")
 
-        # Verify it's actually a refresh token
-        if payload.get("type") != "refresh":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-            )
-
-        sub = payload.get("sub")
-        if not sub:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload",
-            )
-
-        # Primary: resolve by stable identity (institutional_id, provider)
-        institutional_id = payload.get("institutional_id")
-        provider_str = payload.get("provider")
-
-        if institutional_id and provider_str:
-            try:
-                provider = UserProvider(int(provider_str))
-            except ValueError:
-                logger.warning(
-                    "Invalid provider in token",
-                    extra={"provider": provider_str},
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-
-            user = await UserService(db).get_by_institutional_id_and_provider(
-                institutional_id=institutional_id,
-                provider=provider,
-            )
-        else:
-            # Fallback for legacy tokens with user_id (temporary migration support)
-            user_id = payload.get("user_id")
-            if not user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload",
-                )
-            logger.warning(
-                "Legacy token with user_id detected - logging out user",
-                extra={"user_id": user_id},
-            )
-            # Clear legacy cookies to force clean re-login
-            response.delete_cookie(
-                key="auth_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            response.delete_cookie(
-                key="refresh_token",
-                path=settings.OAUTH_COOKIE_PATH or "/",
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session expired. Please login again.",
-            )
-
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found",
-            )
         if not user.email:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -850,3 +737,10 @@ async def logout(
         except Exception as exc:
             logger.warning("Failed to log logout audit", extra={"error": str(exc)})
     return {"message": "Logged out successfully"}
+
+
+# /login-test is registered only in DEBUG builds — see the function's
+# docstring for the security rationale. In production the route does not
+# exist at all.
+if settings.DEBUG:
+    router.add_api_route("/login-test", login_test, methods=["GET"])

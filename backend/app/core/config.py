@@ -242,6 +242,14 @@ class Settings(BaseSettings):
         default="/",
         description="OAuth2/OIDC cookie path",
     )
+    COOKIE_SECURE: bool = Field(
+        default=True,
+        description=(
+            "Set the `Secure` attribute on auth cookies. Default true; "
+            "override to false only for local HTTP development. Independent "
+            "of DEBUG so a debug build can still mint Secure cookies."
+        ),
+    )
 
     # Session lifetimes — see issue #949. Tuned for an internal EPFL app
     # behind Entra SSO + httpOnly+secure+samesite cookies; 8h access / 24h

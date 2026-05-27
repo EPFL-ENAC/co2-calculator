@@ -207,6 +207,45 @@ def test_refresh_rejects_access_token_in_refresh_cookie(client, override_db):
     assert response.status_code == 401
 
 
+def test_refresh_rotates_both_auth_and_refresh_cookies(
+    client, override_db, monkeypatch
+):
+    """Pin F5: a successful /refresh re-issues BOTH the access cookie and
+    the refresh cookie. Without F6 (server-side denylist) the old refresh
+    token is still server-side valid until exp, but rotation at least keeps
+    the client side in sync with the freshest issued pair.
+    """
+    refresh = create_refresh_token(
+        data={
+            "sub": "abc",
+            "institutional_id": "123456",
+            "provider": str(UserProvider.TEST.value),
+        },
+        expires_delta=timedelta(hours=1),
+    )
+
+    mock_user = MagicMock(
+        id=42,
+        email="resolved@example.org",
+        institutional_id="123456",
+        provider=UserProvider.TEST,
+    )
+    monkeypatch.setattr(
+        auth_module.UserService,
+        "get_by_institutional_id_and_provider",
+        AsyncMock(return_value=mock_user),
+    )
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+
+    response = client.post(
+        f"{API_PREFIX}/auth/refresh", cookies={"refresh_token": refresh}
+    )
+    assert response.status_code == 200
+    set_cookies = response.headers.get_list("set-cookie")
+    assert any(c.startswith("auth_token=") for c in set_cookies)
+    assert any(c.startswith("refresh_token=") for c in set_cookies)
+
+
 def test_me_rejects_non_integer_provider(client, override_db):
     """JWT with non-integer `provider` must 401 (UserProvider(int(...)) raises)."""
     token = create_access_token(
@@ -265,39 +304,25 @@ def test_refresh_rejects_legacy_user_id_only_token(client, override_db):
 # ---------------------------------------------------------------------------
 
 
-def test_login_test_disabled_when_debug_false(client, override_db, monkeypatch):
-    """`/auth/login-test` MUST 403 when DEBUG is false. This is the only gate
-    standing between an attacker and an arbitrary-role session."""
-    monkeypatch.setattr(auth_module.settings, "DEBUG", False)
+def test_login_test_registration_matches_debug_flag():
+    """Pins F3: ``/login-test`` is added to the router only when
+    ``settings.DEBUG`` is true at import time. In a production build the
+    route does not exist — there is no in-handler 403 gate to bypass.
+    """
+    paths = {getattr(r, "path", None) for r in app.routes}
+    expected_present = auth_module.settings.DEBUG
+    actually_present = f"{API_PREFIX}/auth/login-test" in paths
+    assert actually_present == expected_present
 
+
+def test_login_test_returns_404_in_prod_build(client):
+    """Concrete behaviour the previous 403-gate did not provide: an
+    unauthenticated GET in a non-DEBUG build sees the route as absent
+    (404), not as forbidden (403)."""
+    if auth_module.settings.DEBUG:
+        pytest.skip("This test asserts non-DEBUG behaviour; DEBUG is True.")
     response = client.get(f"{API_PREFIX}/auth/login-test", follow_redirects=False)
-    assert response.status_code == 403
-
-
-def test_login_test_uses_provider_test_when_debug_true(
-    client, override_db, monkeypatch
-):
-    """When enabled, `/login-test` must record the session as provider=TEST so
-    audit can distinguish synthetic sessions from real OAuth ones."""
-    monkeypatch.setattr(auth_module.settings, "DEBUG", True)
-
-    captured: dict = {}
-
-    async def _capture_upsert(self, **kwargs):
-        captured.update(kwargs)
-        return MagicMock(
-            id=1,
-            email=kwargs.get("email"),
-            institutional_id=kwargs.get("institutional_id"),
-            provider=kwargs.get("provider"),
-        )
-
-    monkeypatch.setattr(auth_module.UserService, "upsert_user", _capture_upsert)
-    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
-
-    response = client.get(f"{API_PREFIX}/auth/login-test", follow_redirects=False)
-    assert response.status_code in (302, 307)
-    assert captured.get("provider") == UserProvider.TEST
+    assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------
@@ -305,10 +330,10 @@ def test_login_test_uses_provider_test_when_debug_true(
 # ---------------------------------------------------------------------------
 
 
-def _callback_response(client, monkeypatch, *, debug: bool):
-    """Drive a successful /callback under a chosen DEBUG value, return the
-    response so the caller can inspect Set-Cookie headers."""
-    monkeypatch.setattr(auth_module.settings, "DEBUG", debug)
+def _callback_response(client, monkeypatch, *, cookie_secure: bool):
+    """Drive a successful /callback under a chosen COOKIE_SECURE value,
+    return the response so the caller can inspect Set-Cookie headers."""
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", cookie_secure)
 
     userinfo = {
         "sub": "subject-x",
@@ -354,9 +379,10 @@ def _callback_response(client, monkeypatch, *, debug: bool):
     return client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
 
 
-def test_auth_cookies_secure_in_prod(client, override_db, monkeypatch):
-    """When DEBUG=False, both auth cookies must carry the `Secure` attribute."""
-    response = _callback_response(client, monkeypatch, debug=False)
+def test_auth_cookies_secure_when_cookie_secure_true(client, override_db, monkeypatch):
+    """COOKIE_SECURE=True ⇒ both cookies carry `Secure`. Independent of DEBUG."""
+    monkeypatch.setattr(auth_module.settings, "DEBUG", True)  # DEBUG must not matter
+    response = _callback_response(client, monkeypatch, cookie_secure=True)
     set_cookies = response.headers.get_list("set-cookie")
     auth_cookie = next(c for c in set_cookies if c.startswith("auth_token="))
     refresh_cookie = next(c for c in set_cookies if c.startswith("refresh_token="))
@@ -366,14 +392,16 @@ def test_auth_cookies_secure_in_prod(client, override_db, monkeypatch):
     assert "HttpOnly" in refresh_cookie
 
 
-def test_auth_cookies_not_secure_in_debug(client, override_db, monkeypatch):
-    """Pins the current DEBUG -> not-Secure coupling (see F2). When F2 lands
-    (independent COOKIE_SECURE setting) this test will need to be updated."""
-    response = _callback_response(client, monkeypatch, debug=True)
+def test_auth_cookies_not_secure_when_cookie_secure_false(
+    client, override_db, monkeypatch
+):
+    """COOKIE_SECURE=False ⇒ no `Secure` (local-HTTP dev only). HttpOnly stays."""
+    monkeypatch.setattr(auth_module.settings, "DEBUG", False)  # DEBUG must not matter
+    response = _callback_response(client, monkeypatch, cookie_secure=False)
     set_cookies = response.headers.get_list("set-cookie")
     auth_cookie = next(c for c in set_cookies if c.startswith("auth_token="))
     assert "Secure" not in auth_cookie
-    assert "HttpOnly" in auth_cookie  # httpOnly is unconditional
+    assert "HttpOnly" in auth_cookie  # HttpOnly is unconditional
 
 
 # ---------------------------------------------------------------------------

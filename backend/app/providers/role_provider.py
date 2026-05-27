@@ -645,12 +645,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     elif provider_type == UserProvider.TEST:
         logger.info("Using TestRoleProvider (for testing)")
         return TestRoleProvider()
-    else:
-        logger.error(
-            "Unknown role provider type, falling back to default",
-            extra={"provider_type": provider_type},
-        )
-        return DefaultRoleProvider()
+    raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):
