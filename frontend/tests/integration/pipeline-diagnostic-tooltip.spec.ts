@@ -82,12 +82,18 @@ async function dispatchPipelineUpdate(
  * the badge appearing and the pipe being available for ``dispatch``.
  */
 async function waitForSsePipe(page: Page, pipelineId: string): Promise<void> {
-  await page.waitForFunction((pipelineId) => {
-    const map = (window as Window & { __ssePipes?: Map<string, unknown> })
-      .__ssePipes;
-    if (!map) return false;
-    return map.has(`/api/v1/sync/pipelines/${pipelineId}/stream`);
-  }, pipelineId);
+  await page.waitForFunction(
+    (pipelineId) => {
+      const map = (window as Window & { __ssePipes?: Map<string, unknown> })
+        .__ssePipes;
+      if (!map) return false;
+      return map.has(`/api/v1/sync/pipelines/${pipelineId}/stream`);
+    },
+    pipelineId,
+    // Match the default expect timeout so failures surface in ~5s
+    // instead of burning the full 30s test budget.
+    { timeout: 5000 },
+  );
 }
 
 /**
