@@ -4,6 +4,14 @@ import { useI18n } from 'vue-i18n';
 import ReductionObjectiveEpflView from 'src/components/charts/results/ReductionObjectiveEpflView.vue';
 import ReductionObjectiveUnitView from 'src/components/charts/results/ReductionObjectiveUnitView.vue';
 
+const epflViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+const unitViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+
+const downloadPNG = () =>
+  moduleChartView.value === 'epfl'
+    ? epflViewRef.value?.downloadPNG()
+    : unitViewRef.value?.downloadPNG();
+
 type ModuleChartView = 'epfl' | 'unit';
 
 interface Props {
@@ -116,13 +124,29 @@ const chartTitle = computed(() =>
     <div class="q-pl-xl">
       <ReductionObjectiveEpflView
         v-if="moduleChartView === 'epfl'"
+        ref="epflViewRef"
         :hide-research-facilities="props.hideResearchFacilities"
       />
       <ReductionObjectiveUnitView
         v-else
+        ref="unitViewRef"
         :hide-research-facilities="props.hideResearchFacilities"
         :hide-additional-data="props.hideAdditionalData"
       />
     </div>
+  </q-card-section>
+  <q-separator />
+  <q-card-section class="flex justify-start q-gutter-sm">
+    <q-btn
+      unelevated
+      no-caps
+      outline
+      icon="o_download"
+      :label="$t('common_download_as_png')"
+      size="xs"
+      dense
+      class="text-weight-bold q-px-sm"
+      @click="downloadPNG"
+    />
   </q-card-section>
 </template>

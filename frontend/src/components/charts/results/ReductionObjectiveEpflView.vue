@@ -21,6 +21,7 @@ import { useEchartsTooltip } from './useEchartsTooltip';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useColorblindStore } from 'src/stores/colorblind';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
@@ -246,6 +247,11 @@ const onChartReady = async () => {
   if (!chart) return;
   attach(chart);
 };
+
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'reduction-objective-epfl');
+
+defineExpose({ downloadPNG });
 
 function tooltipAxisValueToYearLabel(rawAxisValue: unknown): string {
   // When tooltip is driven by the hidden numeric axis, axisValue can be an index

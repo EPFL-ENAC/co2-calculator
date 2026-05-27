@@ -40,6 +40,7 @@ import {
 } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
@@ -492,6 +493,11 @@ const onChartReady = async () => {
   if (!chart) return;
   attach(chart);
 };
+
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'emission-breakdown');
+
+defineExpose({ downloadPNG });
 </script>
 
 <template>

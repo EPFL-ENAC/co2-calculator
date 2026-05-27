@@ -82,6 +82,7 @@
         <template v-if="moduleChartView === 'breakdown'">
           <generic-emission-tree-map-chart
             v-if="moduleTreemapData.length"
+            ref="treemapChartRef"
             :key="type"
             :data="moduleTreemapData"
             :print-mode="printMode"
@@ -93,6 +94,7 @@
         <template v-else>
           <emission-type-breakdown-chart
             v-if="moduleCategoryRows.length"
+            ref="emissionTypeChartRef"
             :key="type"
             :category-rows="moduleCategoryRows"
             :top-class-breakdown="topClassBreakdownData"
@@ -106,6 +108,22 @@
       </div>
     </template>
   </q-card-section>
+  <template v-if="type !== 'headcount' && !isPrintMode">
+    <q-separator />
+    <q-card-section class="flex justify-start q-gutter-sm">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadPNG"
+      />
+    </q-card-section>
+  </template>
 </template>
 
 <script setup lang="ts">
@@ -146,6 +164,19 @@ const props = withDefaults(
 const { t, te } = useI18n();
 
 const moduleChartView = ref<'breakdown' | 'type'>(props.forcedView ?? 'type');
+
+const treemapChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+const emissionTypeChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(
+  null,
+);
+
+const downloadPNG = async () => {
+  if (moduleChartView.value === 'breakdown') {
+    await treemapChartRef.value?.downloadPNG();
+  } else {
+    await emissionTypeChartRef.value?.downloadPNG();
+  }
+};
 
 const isPrintMode = usePrintMode();
 const showControls = computed(() => {

@@ -19,6 +19,7 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import { downloadCompositeChartAsPng } from 'src/utils/chartDownload';
 import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
 import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 import { useColorblindStore } from 'src/stores/colorblind';
@@ -408,6 +409,34 @@ const embodiedEnergyLegend = computed(() =>
       '#B8CCEC',
   })),
 );
+
+const downloadPNG = () => {
+  if (!chartsInView.value) return;
+  return downloadCompositeChartAsPng(
+    [
+      {
+        title: t('charts-commuting-category'),
+        charts: [
+          commutingCO2Ref.value?.chart,
+          commutingPhysicalRef.value?.chart,
+        ],
+      },
+      {
+        title: t('charts-food-category'),
+        charts: [foodCO2Ref.value?.chart, foodPhysicalRef.value?.chart],
+      },
+      {
+        title: t('charts-waste-category'),
+        charts: [wasteCO2Ref.value?.chart, wastePhysicalRef.value?.chart],
+      },
+      {
+        title: t('charts-embodied-energy-category'),
+        charts: [embodiedEnergyCO2Ref.value?.chart],
+      },
+    ].filter((col) => col.charts.some(Boolean)),
+    'additional-categories',
+  );
+};
 </script>
 
 <template>
@@ -814,6 +843,22 @@ const embodiedEnergyLegend = computed(() =>
           </div>
         </div>
       </q-card>
+      <template v-if="!printMode">
+        <q-separator />
+        <q-card-section class="flex justify-start q-gutter-sm">
+          <q-btn
+            unelevated
+            no-caps
+            outline
+            icon="o_download"
+            :label="$t('common_download_as_png')"
+            size="xs"
+            dense
+            class="text-weight-bold q-px-sm"
+            @click="downloadPNG"
+          />
+        </q-card-section>
+      </template>
     </div>
     <Teleport v-if="!printMode" to="body">
       <tooltip-echarts

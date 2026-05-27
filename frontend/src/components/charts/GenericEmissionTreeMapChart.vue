@@ -15,6 +15,7 @@ import VChart from 'vue-echarts';
 import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import { useColorblindStore } from 'src/stores/colorblind';
 
 import { buildChartDecal } from 'src/constant/charts';
@@ -238,6 +239,11 @@ const onChartReady = async () => {
   if (!chart) return;
   attach(chart);
 };
+
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'emission-breakdown');
+
+defineExpose({ downloadPNG });
 </script>
 
 <template>
