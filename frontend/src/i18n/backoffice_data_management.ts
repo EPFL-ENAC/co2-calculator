@@ -422,11 +422,11 @@ export default {
   },
   data_management_uncertainty_medium: {
     en: 'Medium',
-    fr: 'Moyenne',
+    fr: 'Moyen',
   },
   data_management_uncertainty_high: {
     en: 'High',
-    fr: 'Élevée',
+    fr: 'Élevé',
   },
   data_management_equipment_common_description: {
     en: 'Upload shared equipment activity data and emission factors used across all equipment submodules.',
