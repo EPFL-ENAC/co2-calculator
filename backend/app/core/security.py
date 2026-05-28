@@ -3,7 +3,7 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
-from typing import Callable, Optional
+from typing import Callable, Final, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -30,6 +30,14 @@ logger = get_logger(__name__)
 # w.r.t. the token being validated (it carries only the global validation
 # config), so a single shared instance is safe across the process.
 _CLAIMS_REGISTRY = JWTClaimsRegistry()
+
+# Token-type discriminators used as the `type` JWT claim and as the
+# `expected_token_type` argument to resolve_user_by_jwt_payload. Defined
+# as named constants (not string literals at call sites) so bandit B106
+# doesn't false-positive: it scans kwargs whose name contains "token"
+# for hardcoded credentials, which these decidedly are not.
+TOKEN_TYPE_ACCESS: Final[str] = "access"
+TOKEN_TYPE_REFRESH: Final[str] = "refresh"
 
 
 async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
@@ -59,7 +67,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     if expires_delta is None:
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
-    to_encode["type"] = "refresh"  # Mark as refresh token
+    to_encode["type"] = TOKEN_TYPE_REFRESH
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
 
@@ -172,7 +180,9 @@ async def get_current_user(
     :func:`resolve_user_by_jwt_payload` that enforces the access-token
     contract — refresh tokens must not be accepted for protected routes."""
     payload = decode_jwt(token)
-    return await resolve_user_by_jwt_payload(payload, db, expected_token_type="access")
+    return await resolve_user_by_jwt_payload(
+        payload, db, expected_token_type=TOKEN_TYPE_ACCESS
+    )
 
 
 async def get_current_active_user(

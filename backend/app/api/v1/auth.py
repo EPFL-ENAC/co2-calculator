@@ -43,6 +43,8 @@ from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import (
+    TOKEN_TYPE_ACCESS,
+    TOKEN_TYPE_REFRESH,
     create_access_token,
     create_refresh_token,
     decode_jwt,
@@ -98,7 +100,7 @@ def _set_auth_cookies(
     }
 
     access_token = create_access_token(
-        data={**token_data, "type": "access"},
+        data={**token_data, "type": TOKEN_TYPE_ACCESS},
         expires_delta=access_token_expires,
     )
 
@@ -542,7 +544,7 @@ async def get_me(
     try:
         payload = decode_jwt(auth_token)
         user = await resolve_user_by_jwt_payload(
-            payload, db, expected_token_type="access"
+            payload, db, expected_token_type=TOKEN_TYPE_ACCESS
         )
 
         if not user.email:
@@ -587,7 +589,7 @@ async def refresh_token(
     try:
         payload = decode_jwt(refresh_token)
         user = await resolve_user_by_jwt_payload(
-            payload, db, expected_token_type="refresh"
+            payload, db, expected_token_type=TOKEN_TYPE_REFRESH
         )
         sub = payload.get("sub")
         if not sub:
