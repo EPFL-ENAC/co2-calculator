@@ -4,10 +4,13 @@ import asyncio
 import sys
 import traceback
 
-from app.seed.seed_carbon_reports import main as seed_carbon_reports
-from app.seed.seed_data_entries import main as seed_data_entries
-from app.seed.seed_factors import main as seed_factors
-from app.seed.seed_post_all import main as seed_post_all
+from app.seed.random_generator.populate_units_and_users import (
+    main as seed_units_users,
+)
+from app.seed.random_generator.seed_carbon_reports import main as seed_carbon_reports
+from app.seed.random_generator.seed_data_entries import main as seed_data_entries
+from app.seed.random_generator.seed_factors import main as seed_factors
+from app.seed.random_generator.seed_post_all import main as seed_post_all
 
 
 async def main():
@@ -15,10 +18,8 @@ async def main():
     print("Starting comprehensive data seeding...")
 
     try:
-        print("\nCleaning existing data...")
-        # await seed_clean_data()
-        # print("\n1. Seeding units and users...")
-        # await seed_units_users()
+        print("\n1. Seeding units and users...")
+        await seed_units_users()
         print("✓ Units and users seeded successfully")
 
         print("\n2. Seeding carbon reports and modules...")
@@ -33,7 +34,7 @@ async def main():
         await seed_data_entries()
         print("✓ Data entries and emissions seeded successfully")
 
-        print("\n5. creating index again for existing data...")
+        print("\n5. Re-creating indexes / FKs on data tables...")
         await seed_post_all()
         print("\nAll seeding operations completed successfully!")
 
