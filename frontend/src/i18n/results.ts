@@ -92,40 +92,40 @@ export default {
     fr: 'Empreinte carbone annuelle {year}',
   },
   results_total_unit_carbon_footprint: {
-    en: 'Total carbon footprint of the unit',
-    fr: 'Empreinte carbone totale de l’unité',
+    en: 'Unit carbon footprint',
+    fr: 'Empreinte carbone de l’unité',
   },
   results_total_module_carbon_footprint: {
-    en: 'Total {module} carbon footprint',
-    fr: 'Empreinte carbone totale de {module}',
+    en: '{module} carbon footprint',
+    fr: 'Empreinte carbone de {module}',
   },
   results_total_module_carbon_footprint_purchase: {
-    en: 'Total purchases carbon footprint',
-    fr: 'Empreinte carbone totale des achats',
+    en: 'Purchases carbon footprint',
+    fr: 'Empreinte carbone des achats',
   },
   'results_total_module_carbon_footprint_equipment-electric-consumption': {
-    en: 'Total equipment use carbon footprint',
-    fr: "Empreinte carbone totale liée à l'utilisation des équipements",
+    en: 'Equipment usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
   'results_total_module_carbon_footprint_process-emissions': {
-    en: 'Total process emission carbon footprint',
-    fr: 'Empreinte carbone totale des émissions de procédés',
+    en: 'Process emissions carbon footprint',
+    fr: 'Empreinte carbone des émissions de procédés',
   },
   'results_total_module_carbon_footprint_professional-travel': {
-    en: 'Total professional travel carbon footprint',
-    fr: 'Empreinte carbone totale des voyages professionnels',
+    en: 'Professional travel carbon footprint',
+    fr: 'Empreinte carbone des voyages professionnels',
   },
   results_total_module_carbon_footprint_buildings: {
-    en: 'Buildings total carbon footprint',
-    fr: 'Empreinte carbone totale des bâtiments',
+    en: 'Buildings carbon footprint',
+    fr: 'Empreinte carbone des bâtiments',
   },
   'results_total_module_carbon_footprint_external-cloud-and-ai': {
-    en: 'Total carbon footprint from the use of AI & external clouds',
-    fr: "Empreinte carbone totale liée à l'utilisation d'IA & des clouds externes",
+    en: 'External clouds & AI usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des clouds externes et de l'IA",
   },
   'results_total_module_carbon_footprint_research-facilities': {
-    en: 'Total research facilities carbon footprint',
-    fr: 'Empreinte carbone totale des infrastructures de recherche',
+    en: 'Research facilities usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE (total of {FTE})',
@@ -144,8 +144,8 @@ export default {
     fr: 'Empreinte carbone de {module}',
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'A km driven by car is equivalent to {value} {unit}',
-    fr: 'Un km parcouru en voiture est équivalent à {value} {unit}',
+    en: 'A km driven by car is equivalent to {value}kg CO₂-eq',
+    fr: 'Un km parcouru en voiture est équivalent à {value}kg CO₂-eq',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -156,8 +156,8 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'The value of the equivalence by car is {km}km',
-    fr: 'La valeur de l’équivalence par voiture est de {km}km',
+    en: 'This corresponds to {km}km driven by car',
+    fr: 'Cela correspond à {km}km parcourus en voiture',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
