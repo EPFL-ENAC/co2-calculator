@@ -145,7 +145,7 @@ export default {
   },
   results_total_unit_carbon_footprint_tooltip: {
     en: 'A km driven by car is equivalent to {value}kg CO₂-eq',
-    fr: 'Un km parcouru en voiture est équivalent {value}kg CO₂-eq',
+    fr: 'Un km parcouru en voiture est équivalent à {value}kg CO₂-eq',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
