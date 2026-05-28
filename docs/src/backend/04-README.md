@@ -5,7 +5,7 @@ detailed architecture information, see [Architecture](02-ARCHITECTURE.md).
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.12+
 - PostgreSQL 15+
 - Docker & Docker Compose (optional but recommended)
 
