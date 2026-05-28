@@ -422,6 +422,95 @@ def test_auth_cookies_not_secure_when_cookie_secure_false(
     assert "HttpOnly" in auth_cookie  # HttpOnly is unconditional
 
 
+def test_secure_cookie_is_dropped_over_http_breaking_followup_calls(
+    client, override_db, monkeypatch
+):
+    """Regression guard for the F2 dev-mode gotcha.
+
+    The TL;DR: if COOKIE_SECURE=True and the transport is plain HTTP, the
+    browser (Safari especially, but httpx too) will accept the Set-Cookie
+    response but refuse to send the cookie back on subsequent requests.
+    The result is a silently-broken login that looks like the user
+    authenticated but every API call 401s.
+
+    This test pins that failure mode in negative form: with
+    COOKIE_SECURE=True over `http://testserver`, the /callback step
+    succeeds and emits Set-Cookie, but the immediate /me call 401s
+    because the cookie didn't make the return trip.
+
+    If this test STARTS FAILING (i.e. /me starts returning 200), one of
+    two things has changed:
+      1. httpx (or our TestClient setup) now resends Secure cookies over
+         HTTP — re-check whether real Safari behavior matches.
+      2. The cookie attributes are no longer being honored — investigate
+         _set_auth_cookies regression.
+
+    The matching production guard is the `COOKIE_SECURE=False` line in
+    `.env.example`; if a developer ignores it the app fails exactly as
+    this test demonstrates.
+    """
+    from app.models.user import User
+
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
+
+    user = User(
+        id=99,
+        email="e2e@example.org",
+        institutional_id="E2E-INST",
+        provider=UserProvider.TEST,
+        display_name="E2E User",
+    )
+    userinfo = {
+        "sub": "e2e-sub",
+        "email": "e2e@example.org",
+        "uniqueid": "E2E-INST",
+        "name": "E2E User",
+    }
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": userinfo}),
+    )
+    fake_provider = MagicMock()
+    fake_provider.type = UserProvider.TEST
+    fake_provider.get_user_id = MagicMock(return_value="E2E-INST")
+    fake_provider.get_user_by_user_id = AsyncMock(
+        return_value={
+            "email": "e2e@example.org",
+            "display_name": "E2E User",
+            "function": None,
+            "roles": [],
+        }
+    )
+    monkeypatch.setattr(
+        auth_module, "get_role_provider", lambda *a, **kw: fake_provider
+    )
+    monkeypatch.setattr(
+        auth_module.UserService, "upsert_user", AsyncMock(return_value=user)
+    )
+    monkeypatch.setattr(
+        auth_module.UserService,
+        "get_by_institutional_id_and_provider",
+        AsyncMock(return_value=user),
+    )
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+
+    # /callback succeeds and emits Set-Cookie with `Secure`.
+    r_callback = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
+    assert r_callback.status_code in (302, 307), r_callback.text
+    set_cookies = r_callback.headers.get_list("set-cookie")
+    auth_cookie = next(c for c in set_cookies if c.startswith("auth_token="))
+    assert "Secure" in auth_cookie, "Set-Cookie should advertise Secure"
+
+    # But the next call over HTTP cannot present the cookie. /me 401s.
+    r_me = client.get(f"{API_PREFIX}/auth/me")
+    assert r_me.status_code == 401, (
+        "Expected 401: Secure cookie should not be sent over http://testserver. "
+        f"Got {r_me.status_code} body={r_me.text!r} — either httpx semantics "
+        "changed or the cookie attribute is no longer being honored."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Audit-event failure handling (F7)
 # ---------------------------------------------------------------------------

@@ -245,9 +245,12 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = Field(
         default=True,
         description=(
-            "Set the `Secure` attribute on auth cookies. Default true; "
-            "override to false only for local HTTP development. Independent "
-            "of DEBUG so a debug build can still mint Secure cookies."
+            "Set the `Secure` attribute on auth cookies. Default true (correct "
+            "for prod HTTPS). MUST be overridden to false for local HTTP dev — "
+            "Safari and httpx-based clients refuse to re-send a Secure cookie "
+            "over plain http://localhost, which silently breaks /me, /refresh, "
+            "and /login-test. See .env.example. Independent of DEBUG so a debug "
+            "build behind a TLS terminator can still mint Secure cookies."
         ),
     )
 
