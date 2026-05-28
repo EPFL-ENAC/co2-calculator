@@ -72,12 +72,19 @@ async function main() {
     }
     const inputPath = schemaText ? stagedInput : SNAPSHOT_PATH;
     console.log(`[gen-api-types] generating from ${usedSource}`);
+    // `--no-install` pins the binary to the repo's devDependency: avoids
+    // surprise downloads and the interactive install prompt in CI.
     const result = spawnSync(
       'npx',
-      ['openapi-typescript', inputPath, '-o', OUTPUT_PATH],
+      ['--no-install', 'openapi-typescript', inputPath, '-o', OUTPUT_PATH],
       { cwd: FRONTEND_ROOT, stdio: 'inherit' },
     );
     if (result.status !== 0) {
+      if (result.error || result.status === 127) {
+        console.error(
+          '[gen-api-types] openapi-typescript binary not found — did you run `npm install`?',
+        );
+      }
       process.exit(result.status ?? 1);
     }
     console.log(`[gen-api-types] wrote ${OUTPUT_PATH}`);

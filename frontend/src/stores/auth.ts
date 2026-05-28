@@ -29,12 +29,21 @@ import { useWorkspaceStore } from './workspace';
 // schema (`additionalProperties: true`, computed fields), so we keep their
 // runtime-accurate narrowing locally instead of casting at every call site.
 type GeneratedUserRead = components['schemas']['UserRead'];
-type User = Omit<GeneratedUserRead, 'permissions' | 'roles_raw'> & {
+type User = Omit<
+  GeneratedUserRead,
+  'permissions' | 'roles_raw' | 'institutional_id'
+> & {
   permissions?: FlatUserPermissions;
-  roles_raw?: Array<{
+  // `roles_raw` is normalized to `[]` at the API boundary in `getUser()`, so
+  // callers can safely `.map()` without an optional guard.
+  roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
   }>;
+  // Backend uses `response_model_exclude_none=True`, which strips
+  // `institutional_id` from the wire when null even though the generated
+  // type marks it required. Reflect runtime reality locally.
+  institutional_id?: string;
 };
 
 export const useAuthStore = defineStore('auth', () => {
@@ -48,7 +57,7 @@ export const useAuthStore = defineStore('auth', () => {
     const name =
       user.value.display_name ||
       user.value.email.split('@')[0] ||
-      user.value.id ||
+      String(user.value.id) ||
       '?';
     return name;
   });
@@ -62,7 +71,11 @@ export const useAuthStore = defineStore('auth', () => {
     inflight = (async () => {
       try {
         loading.value = true;
-        const u = await api.get(API_ME_URL).json<User>();
+        const raw = await api.get(API_ME_URL).json<User>();
+        // Backend serializes roles as `[]` or omits the field under
+        // `response_model_exclude_none=True`. Normalize once here so
+        // every call site can treat `roles_raw` as a non-optional array.
+        const u: User = { ...raw, roles_raw: raw.roles_raw ?? [] };
         user.value = u;
         return u;
       } catch {
