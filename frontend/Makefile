@@ -84,6 +84,11 @@ type-check-full:  ## Run TypeScript type checking
 	wait
 
 
+.PHONY: gen-api-types
+gen-api-types: ## Generate src/types/api/openapi.d.ts from FastAPI OpenAPI schema
+	@npm run gen-api-types
+
+
 .PHONY: test
 test: ## Run tests (component + e2e)
 	@set -e; \

@@ -10,7 +10,10 @@ import {
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
-import { PermissionAction } from 'src/constant/permissions';
+import {
+  PermissionAction,
+  type FlatUserPermissions,
+} from 'src/constant/permissions';
 import {
   hasPermission,
   hasAnyScopePermission,
@@ -18,25 +21,21 @@ import {
   getModulePermissionPath,
 } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
+import type { components } from 'src/types/api/openapi';
 import { useWorkspaceStore } from './workspace';
-interface User {
-  id: string;
-  email: string;
-  display_name?: string;
-  is_user_test?: boolean;
-  institutional_id?: string;
-  roles_raw: Array<{
+
+// `UserRead` comes from the FastAPI OpenAPI schema (issue #217 POC).
+// `permissions` and `roles_raw` are intentionally widened in the backend
+// schema (`additionalProperties: true`, computed fields), so we keep their
+// runtime-accurate narrowing locally instead of casting at every call site.
+type GeneratedUserRead = components['schemas']['UserRead'];
+type User = Omit<GeneratedUserRead, 'permissions' | 'roles_raw'> & {
+  permissions?: FlatUserPermissions;
+  roles_raw?: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
   }>;
-  permissions?: {
-    [key: string]: {
-      view?: boolean;
-      edit?: boolean;
-      export?: boolean;
-    };
-  };
-}
+};
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
