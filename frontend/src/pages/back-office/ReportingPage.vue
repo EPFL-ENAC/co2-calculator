@@ -320,7 +320,10 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
             $t('backoffice_reporting_generate_report_description')
           }}</span>
 
-          <ReportExport :unit-filters="unitFilters" />
+          <ReportExport
+            :unit-filters="unitFilters"
+            :has-data="tableTotal > 0"
+          />
         </div>
       </div>
       <UnitDialogue v-model:model-value="alert" :unit-id="selectedUnitId" />

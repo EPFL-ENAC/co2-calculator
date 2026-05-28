@@ -70,7 +70,7 @@ onMounted(async () => {
 
 <template>
   <div class="bg-grey-2 print-report">
-    <q-toolbar class="bg-ac text-primary q-py-sm toolbar print-hide">
+    <q-toolbar class="bg-ac text-primary q-py-sm print-toolbar print-hide">
       <q-space />
       <q-btn
         color="accent"
@@ -322,21 +322,6 @@ onMounted(async () => {
 </template>
 
 <style scoped lang="scss">
-.report-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px 0;
-  color: black !important;
-}
-
-.toolbar {
-  position: sticky;
-  top: 0;
-  border-bottom: 1px solid var(--half-muted-color);
-  z-index: 1000;
-}
-
 .module-page-header {
   margin-bottom: 0px;
 }
@@ -383,30 +368,12 @@ onMounted(async () => {
 }
 
 @media print {
-  .print-hide,
-  .q-header,
-  .q-footer,
-  .q-drawer {
-    display: none !important;
-  }
-
   .grid-3-col {
     grid-template-columns: repeat(3, 1fr);
   }
 
   .bg-grey-3 {
     background: white !important;
-  }
-
-  .report-container {
-    display: block !important;
-    width: 100% !important;
-    padding: 0 !important;
-  }
-
-  .print-report :deep(.q-card),
-  .print-report :deep(.q-card-section) {
-    box-shadow: none !important;
   }
 
   .print-report :deep(.big-number--print.q-card--bordered) {
