@@ -15,6 +15,7 @@ import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
 import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { useTimelineStore } from 'src/stores/modules';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import { formatTonnesCO2, formatTonnesForChart } from 'src/utils/number';
 import type { ItBreakdownResponse } from 'src/stores/modules';
 
@@ -50,6 +51,9 @@ const onChartReady = async () => {
   if (!chart) return;
   attach(chart);
 };
+
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'it-focus');
 
 function isItCategoryModuleValidated(categoryKey: string): boolean {
   const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
@@ -461,6 +465,22 @@ const barChartOption = computed<EChartsOption>(() => {
           @vue:mounted="onChartReady"
         />
       </q-card>
+      <template v-if="!printMode">
+        <q-separator />
+        <q-card-section class="flex justify-start q-gutter-sm">
+          <q-btn
+            unelevated
+            no-caps
+            outline
+            icon="o_download"
+            :label="$t('common_download_as_png')"
+            size="xs"
+            dense
+            class="text-weight-bold q-px-sm"
+            @click="downloadPNG"
+          />
+        </q-card-section>
+      </template>
     </template>
 
     <!-- Loading state -->
