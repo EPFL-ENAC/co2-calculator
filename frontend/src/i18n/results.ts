@@ -1059,8 +1059,8 @@ export default {
     fr: 'Part IT',
   },
   'it-focus-equipment-it': {
-    en: 'IT equipment - energy use',
-    fr: 'Équipements IT - consommation énergétique',
+    en: 'IT equipment',
+    fr: 'Équipements IT',
   },
   'it-focus-purchases-it': {
     en: 'IT purchases',
@@ -1122,6 +1122,14 @@ export default {
   'it-focus-research-facilities': {
     en: 'IT research facilities',
     fr: 'Infrastructures de recherche IT',
+  },
+  'it-focus-other-emissions': {
+    en: 'All other non-IT emissions',
+    fr: 'Toutes les autres émissions (hors numérique)',
+  },
+  'it-focus-waffle-caption': {
+    en: 'Each square = 0.1% of the total carbon footprint of the unit',
+    fr: "Chaque carré = 0.1% de l'empreinte carbone totale de l'unité",
   },
   results_filter_pill_research_facilities_tooltip: {
     en: 'These emissions are calculated based on research facilities data.',
