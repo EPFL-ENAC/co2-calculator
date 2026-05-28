@@ -324,18 +324,18 @@ def test_refresh_rejects_legacy_user_id_only_token(client, override_db):
 
 
 # ---------------------------------------------------------------------------
-# /oauth/login-test gating (F3)
+# /auth/login-test gating (F3)
 # ---------------------------------------------------------------------------
 
 
 def test_login_test_registration_matches_debug_flag():
-    """Pins F3: ``/oauth/login-test`` is added to the router only when
+    """Pins F3: ``/auth/login-test`` is added to the router only when
     ``settings.DEBUG`` is true at import time. In a production build the
     route does not exist — there is no in-handler 403 gate to bypass.
     """
     paths = {getattr(r, "path", None) for r in app.routes}
     expected_present = auth_module.settings.DEBUG
-    actually_present = f"{API_PREFIX}/oauth/login-test" in paths
+    actually_present = f"{API_PREFIX}/auth/login-test" in paths
     assert actually_present == expected_present
 
 
@@ -345,19 +345,19 @@ def test_login_test_returns_404_in_prod_build(client):
     (404), not as forbidden (403)."""
     if auth_module.settings.DEBUG:
         pytest.skip("This test asserts non-DEBUG behaviour; DEBUG is True.")
-    response = client.get(f"{API_PREFIX}/oauth/login-test", follow_redirects=False)
+    response = client.get(f"{API_PREFIX}/auth/login-test", follow_redirects=False)
     assert response.status_code == 404
 
 
 # ---------------------------------------------------------------------------
 # Cookie security flags (F2) — now exercised on /session/exchange because
-# /oauth/callback no longer sets cookies (BFF: cookies set on the
+# /auth/callback no longer sets cookies (BFF: cookies set on the
 # exchange POST instead).
 # ---------------------------------------------------------------------------
 
 
 def _patch_callback_chain(monkeypatch, *, user_id: int = 1):
-    """Wire OAuth + role provider + UserService mocks so /oauth/callback
+    """Wire OAuth + role provider + UserService mocks so /auth/callback
     runs end-to-end and writes an AuthExchangeCode through ``db.add``."""
     userinfo = {
         "sub": "subject-x",
@@ -401,7 +401,7 @@ def _patch_callback_chain(monkeypatch, *, user_id: int = 1):
 
 
 def _exchange_cookies_under(client, override_db, monkeypatch, *, cookie_secure: bool):
-    """Drive /oauth/callback -> capture code from Location -> exchange
+    """Drive /auth/callback -> capture code from Location -> exchange
     and return the exchange response so the caller can inspect Set-Cookie."""
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", cookie_secure)
     _patch_callback_chain(monkeypatch, user_id=1)
@@ -436,9 +436,7 @@ def _exchange_cookies_under(client, override_db, monkeypatch, *, cookie_secure: 
 
     app.dependency_overrides[auth_module.get_db] = _override
     try:
-        r_callback = client.get(
-            f"{API_PREFIX}/oauth/callback", follow_redirects=False
-        )
+        r_callback = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
         assert r_callback.status_code in (302, 307), r_callback.text
         location = r_callback.headers["location"]
         assert "#code=" in location, location
@@ -495,7 +493,7 @@ def test_auth_cookies_not_secure_when_cookie_secure_false(
 
 
 def test_callback_no_longer_sets_cookies(client, override_db, monkeypatch):
-    """Pin the BFF contract: /oauth/callback emits an exchange-code
+    """Pin the BFF contract: /auth/callback emits an exchange-code
     redirect, NOT Set-Cookie. Cookies are only emitted by
     POST /session/exchange.
     """
@@ -515,7 +513,7 @@ def test_callback_no_longer_sets_cookies(client, override_db, monkeypatch):
 
     app.dependency_overrides[auth_module.get_db] = _override
     try:
-        response = client.get(f"{API_PREFIX}/oauth/callback", follow_redirects=False)
+        response = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
     finally:
         app.dependency_overrides.clear()
 
@@ -572,11 +570,11 @@ async def test_audit_event_failure_logs_error_with_marker(monkeypatch, caplog):
 
 @pytest.mark.asyncio
 async def test_audit_event_must_succeed_propagates_failure(monkeypatch):
-    """Pins F7: when `must_succeed=True` (only the /oauth/callback success path
+    """Pins F7: when `must_succeed=True` (only the /auth/callback success path
     opts in), an audit failure re-raises so the caller can refuse to mint
     the session."""
     fake_request = MagicMock()
-    fake_request.url.path = "/v1/oauth/callback"
+    fake_request.url.path = "/v1/auth/callback"
     fake_request.headers = {}
     fake_request.client = None
 
@@ -618,7 +616,7 @@ def test_callback_state_mismatch_returns_400_and_audits(
     audit_mock = AsyncMock()
     monkeypatch.setattr(auth_module, "_log_auth_audit_event", audit_mock)
 
-    response = client.get(f"{API_PREFIX}/oauth/callback", follow_redirects=False)
+    response = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
     assert response.status_code == 400
     audit_mock.assert_awaited_once()
     call = audit_mock.await_args
@@ -685,7 +683,7 @@ def test_callback_binds_session_to_idp_institutional_id(
     # Attempt to influence identity via query string / headers — these MUST
     # be ignored by the auth path.
     response = client.get(
-        f"{API_PREFIX}/oauth/callback",
+        f"{API_PREFIX}/auth/callback",
         params={"institutional_id": "ATTACKER-ID"},
         headers={
             "X-Institutional-Id": "ATTACKER-ID",
@@ -742,9 +740,7 @@ def test_callback_binds_session_to_idp_institutional_id(
 
     app.dependency_overrides[auth_module.get_db] = _override
     try:
-        r_exchange = client.post(
-            f"{API_PREFIX}/session/exchange", json={"code": code}
-        )
+        r_exchange = client.post(f"{API_PREFIX}/session/exchange", json={"code": code})
     finally:
         app.dependency_overrides.clear()
 
@@ -782,11 +778,7 @@ class TestExchangeFlow:
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             stmt_repr = str(stmt).lower()
             if stmt_repr.startswith("update"):
-                if (
-                    row is not None
-                    and row.consumed_at is None
-                    and row.expires_at > now
-                ):
+                if row is not None and row.consumed_at is None and row.expires_at > now:
                     row.consumed_at = now
                     out.rowcount = 1
                 else:
@@ -884,7 +876,7 @@ class TestExchangeFlow:
 def test_e2e_callback_exchange_session_refresh_logout_happy_path(client, monkeypatch):
     """End-to-end happy path under the BFF flow:
 
-    1. /oauth/callback -> redirect with #code= (no cookies set)
+    1. /auth/callback -> redirect with #code= (no cookies set)
     2. /session/exchange -> sets auth_token + refresh_token cookies
     3. GET /session reads the session
     4. POST /session rotates cookies
@@ -961,11 +953,7 @@ def test_e2e_callback_exchange_session_refresh_logout_happy_path(client, monkeyp
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         stmt_repr = str(stmt).lower()
         if stmt_repr.startswith("update"):
-            if (
-                row is not None
-                and row.consumed_at is None
-                and row.expires_at > now
-            ):
+            if row is not None and row.consumed_at is None and row.expires_at > now:
                 row.consumed_at = now
                 out.rowcount = 1
             else:
@@ -983,10 +971,8 @@ def test_e2e_callback_exchange_session_refresh_logout_happy_path(client, monkeyp
 
     app.dependency_overrides[auth_module.get_db] = _override
     try:
-        # 1. /oauth/callback — redirect to /auth/complete#code=, NO cookies.
-        r_callback = client.get(
-            f"{API_PREFIX}/oauth/callback", follow_redirects=False
-        )
+        # 1. /auth/callback — redirect to /auth/complete#code=, NO cookies.
+        r_callback = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
         assert r_callback.status_code in (302, 307), r_callback.text
         location = r_callback.headers["location"]
         assert "/auth/complete#code=" in location
@@ -995,9 +981,7 @@ def test_e2e_callback_exchange_session_refresh_logout_happy_path(client, monkeyp
         assert not client.cookies.get("auth_token")
 
         # 2. /session/exchange — sets both cookies on a same-origin POST.
-        r_exchange = client.post(
-            f"{API_PREFIX}/session/exchange", json={"code": code}
-        )
+        r_exchange = client.post(f"{API_PREFIX}/session/exchange", json={"code": code})
         assert r_exchange.status_code == 200, r_exchange.text
         assert r_exchange.json() == {"id": 99, "email": "e2e@example.org"}
         assert client.cookies.get("auth_token"), "exchange must set auth_token"

@@ -12,7 +12,7 @@ summary: OAuth callback issues a single-use exchange code (URL fragment) and the
 
 ## TL;DR
 
-The OAuth callback at `GET /v1/oauth/callback` does not set session
+The OAuth callback at `GET /v1/auth/callback` does not set session
 cookies directly. It writes a single-use `AuthExchangeCode` (60 s TTL)
 and redirects the browser to `<FRONTEND_URL>/auth/complete#code=<token>`.
 The SPA's `/auth/complete` page POSTs the code to
@@ -43,8 +43,8 @@ The previous flow set `Set-Cookie` on the OAuth-callback's 302 to
 **Split the trust boundaries by URL namespace and introduce a BFF
 cookie-exchange step.**
 
-- `GET /v1/oauth/login` → kick off OAuth.
-- `GET /v1/oauth/callback` → consume the OAuth code, upsert the user,
+- `GET /v1/auth/login` → kick off OAuth.
+- `GET /v1/auth/callback` → consume the OAuth code, upsert the user,
   audit the event, mint a single-use `AuthExchangeCode`, redirect to
   `<FRONTEND_URL>/auth/complete#code=<token>`. **No cookies set here.**
 - `POST /v1/session/exchange` → atomically consume the code, set
@@ -89,8 +89,9 @@ ADR-012 (JWT) remains in force. Track separately.
 - Cookies emitted on a same-origin POST; no cross-site cookie
   reliance.
 - Code in fragment → no leakage via logs or `Referer` headers.
-- URL surface (`/oauth/*` vs `/session/*`) makes the trust boundaries
-  visible.
+- URL surface (`/auth/*` for the browser-driven IdP dance vs `/session/*`
+  for the SPA-facing session resource) keeps the trust boundaries
+  visible without forcing a `redirect_uri` reconfiguration in Entra.
 
 **Negative**:
 

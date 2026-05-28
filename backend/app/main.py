@@ -181,7 +181,7 @@ app = FastAPI(
 
     ### How Permissions Work
 
-    1. User authenticates via `/api/v1/oauth/login` and receives JWT token
+    1. User authenticates via `/api/v1/auth/login` and receives JWT token
     2. JWT token contains user information and assigned roles
     3. On each request, permissions are calculated from roles
     4. Routes use `require_permission("path.resource", "action")` decorator

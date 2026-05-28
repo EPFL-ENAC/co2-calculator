@@ -6,7 +6,7 @@ and ADR-018 ``bff-cookie-exchange``):
 
 1. IdP -> backend: only the ``userinfo`` claims returned by
    ``oauth.co2_oauth_provider.authorize_access_token`` are trusted to bind
-   a session to a real identity. Nothing else on the ``/oauth/callback``
+   a session to a real identity. Nothing else on the ``/auth/callback``
    request (query params, headers, body) may influence the resolved
    ``institutional_id`` or ``provider``.
 2. backend -> exchange code: after the callback succeeds the backend
@@ -32,7 +32,7 @@ The legacy URL surface ``/v1/auth/*`` is removed outright -- no
 deprecated aliases. Per project policy (pre-v1.x, DB drops between
 deploys) the frontend lands in lockstep with this change.
 
-``/v1/oauth/login-test`` deliberately bypasses boundary 1 and constructs
+``/v1/auth/login-test`` deliberately bypasses boundary 1 and constructs
 a session from a query-string ``role``. Its only gate is
 ``settings.DEBUG``.
 """
@@ -243,7 +243,7 @@ async def _log_auth_audit_event(
 ) -> None:
     """Record an auth audit event.
 
-    ``must_succeed=True`` (only the /oauth/callback success path) re-raises on
+    ``must_succeed=True`` (only the /auth/callback success path) re-raises on
     failure: minting a session without an audit trail is treated as a
     security-contract violation, and the caller's outer handler will
     convert the raise into the standard 401. /session POST and DELETE pass
@@ -319,7 +319,7 @@ def _enforce_exchange_rate_limit(request: Request) -> None:
 
 
 # ---------------------------------------------------------------------------
-# /oauth/login-test (debug only)
+# /auth/login-test (debug only)
 # ---------------------------------------------------------------------------
 
 
@@ -413,7 +413,7 @@ async def login_test(
 
 
 # ---------------------------------------------------------------------------
-# OAuth router: /v1/oauth/*
+# OAuth router: /v1/auth/*
 # ---------------------------------------------------------------------------
 
 
@@ -452,8 +452,7 @@ async def _create_exchange_code(db: AsyncSession, user_id: int) -> str:
         AuthExchangeCode(
             code=code,
             user_id=user_id,
-            expires_at=_naive_utcnow()
-            + timedelta(seconds=EXCHANGE_CODE_TTL_SECONDS),
+            expires_at=_naive_utcnow() + timedelta(seconds=EXCHANGE_CODE_TTL_SECONDS),
         )
     )
     await db.commit()
@@ -660,9 +659,7 @@ class ExchangeRequest(BaseModel):
     code: str
 
 
-async def _consume_exchange_code(
-    db: AsyncSession, code: str
-) -> AuthExchangeCode:
+async def _consume_exchange_code(db: AsyncSession, code: str) -> AuthExchangeCode:
     """Atomically validate and mark a code as consumed.
 
     Uses a single ``UPDATE ... WHERE code = :c AND consumed_at IS NULL

@@ -31,7 +31,7 @@ async def test_login_redirect_uri_https(client, monkeypatch):
     )
 
     response = client.get(
-        f"{API_PREFIX}/oauth/login",
+        f"{API_PREFIX}/auth/login",
         headers={"X-Forwarded-Proto": "https"},
         follow_redirects=False,
     )

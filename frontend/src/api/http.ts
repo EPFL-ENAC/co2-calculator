@@ -11,8 +11,8 @@ declare module 'ky' {
 export type ApiOptions = Options;
 
 export const API_BASE_URL = '/api/v1/';
-export const API_LOGIN_URL = '/api/v1/oauth/login';
-export const API_LOGIN_TEST_URL = '/api/v1/oauth/login-test';
+export const API_LOGIN_URL = '/api/v1/auth/login';
+export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 // All three session verbs hit the same path; the interceptor predicates
 // disambiguate by HTTP method (see isRefresh / isSessionCheck below).
 export const API_ME_URL = 'session';
