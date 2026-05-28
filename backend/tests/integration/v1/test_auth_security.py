@@ -207,6 +207,24 @@ def test_refresh_rejects_access_token_in_refresh_cookie(client, override_db):
     assert response.status_code == 401
 
 
+def test_me_rejects_refresh_token_in_auth_cookie(client, override_db):
+    """Symmetric to the /refresh case: `/me` must reject a refresh JWT
+    presented as `auth_token`. Closes the inverse type-confusion vector
+    flagged by Copilot — get_current_user (used by many protected
+    endpoints) also enforces `expected_token_type="access"`."""
+    refresh = create_refresh_token(
+        data={
+            "sub": "abc",
+            "institutional_id": "123456",
+            "provider": str(UserProvider.TEST.value),
+        },
+        expires_delta=timedelta(hours=1),
+    )
+
+    response = client.get(f"{API_PREFIX}/auth/me", cookies={"auth_token": refresh})
+    assert response.status_code == 401
+
+
 def test_refresh_rotates_both_auth_and_refresh_cookies(
     client, override_db, monkeypatch
 ):
@@ -583,3 +601,112 @@ def test_callback_binds_session_to_idp_institutional_id(
     pad = "=" * (-len(payload_segment) % 4)
     claims = json.loads(base64.urlsafe_b64decode(payload_segment + pad))
     assert claims["institutional_id"] == "IDP-PROVIDED-ID"
+
+
+# ---------------------------------------------------------------------------
+# End-to-end happy path
+# ---------------------------------------------------------------------------
+
+
+def test_e2e_callback_me_refresh_logout_happy_path(client, override_db, monkeypatch):
+    """End-to-end happy path: /callback mints a session, /me reads it,
+    /refresh rotates it, /logout clears it. Single TestClient session so
+    cookies flow naturally between calls — catches any future regression
+    in how the four endpoints interact (e.g. cookie attribute mismatch,
+    JWT shape divergence between callback and refresh)."""
+    from app.models.user import User
+
+    # TestClient uses http://testserver — Secure cookies stored by httpx
+    # would be silently dropped on the next request. Disable for the test.
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
+
+    # Stable identity used across every step.
+    user = User(
+        id=99,
+        email="e2e@example.org",
+        institutional_id="E2E-INST",
+        provider=UserProvider.TEST,
+        display_name="E2E User",
+    )
+
+    # --- OAuth + role provider mocks ---
+    userinfo = {
+        "sub": "e2e-sub",
+        "email": "e2e@example.org",
+        "uniqueid": "E2E-INST",
+        "name": "E2E User",
+    }
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider,
+        "authorize_access_token",
+        AsyncMock(return_value={"userinfo": userinfo}),
+    )
+
+    fake_provider = MagicMock()
+    fake_provider.type = UserProvider.TEST
+    fake_provider.get_user_id = MagicMock(return_value="E2E-INST")
+    fake_provider.get_user_by_user_id = AsyncMock(
+        return_value={
+            "email": "e2e@example.org",
+            "display_name": "E2E User",
+            "function": None,
+            "roles": [],
+        }
+    )
+    monkeypatch.setattr(
+        auth_module, "get_role_provider", lambda *a, **kw: fake_provider
+    )
+
+    # --- Persistence mocks: same user across all four endpoints ---
+    monkeypatch.setattr(
+        auth_module.UserService,
+        "upsert_user",
+        AsyncMock(return_value=user),
+    )
+    monkeypatch.setattr(
+        auth_module.UserService,
+        "get_by_institutional_id_and_provider",
+        AsyncMock(return_value=user),
+    )
+    monkeypatch.setattr(
+        auth_module.UserService, "get_by_id", AsyncMock(return_value=user)
+    )
+    monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+
+    # --- 1. /callback — sets auth_token + refresh_token cookies ---
+    r_callback = client.get(f"{API_PREFIX}/auth/callback", follow_redirects=False)
+    assert r_callback.status_code in (302, 307), r_callback.text
+    assert client.cookies.get("auth_token"), "callback must set auth_token"
+    assert client.cookies.get("refresh_token"), "callback must set refresh_token"
+
+    # --- 2. /me — uses the auth_token cookie from /callback ---
+    r_me = client.get(f"{API_PREFIX}/auth/me")
+    assert r_me.status_code == 200, r_me.text
+    body = r_me.json()
+    assert body["email"] == "e2e@example.org"
+    assert body["institutional_id"] == "E2E-INST"
+
+    # --- 3. /refresh — rotates both cookies (F5 + the new e2e proof) ---
+    r_refresh = client.post(f"{API_PREFIX}/auth/refresh")
+    assert r_refresh.status_code == 200, r_refresh.text
+    # The Set-Cookie headers on the /refresh response are the rotation
+    # signal. Don't compare cookie values: JWT encoding is deterministic,
+    # so a refresh issued in the same wall-clock second has the same `exp`
+    # and therefore the same bytes — equality here is a property of the
+    # encoding, not evidence that rotation didn't happen.
+    set_cookies = r_refresh.headers.get_list("set-cookie")
+    assert any(c.startswith("auth_token=") for c in set_cookies)
+    assert any(c.startswith("refresh_token=") for c in set_cookies)
+
+    # The rotated access cookie must still authenticate /me.
+    r_me_after = client.get(f"{API_PREFIX}/auth/me")
+    assert r_me_after.status_code == 200, r_me_after.text
+
+    # --- 4. /logout — clears both cookies ---
+    r_logout = client.post(f"{API_PREFIX}/auth/logout")
+    assert r_logout.status_code == 200, r_logout.text
+    # After logout, cookies are cleared (value emptied with Max-Age=0).
+    # /me must now reject because the auth_token cookie is gone.
+    client.cookies.clear()
+    r_me_logged_out = client.get(f"{API_PREFIX}/auth/me")
+    assert r_me_logged_out.status_code == 401

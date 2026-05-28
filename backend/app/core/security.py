@@ -25,6 +25,12 @@ settings = get_settings()
 security = HTTPBearer()
 logger = get_logger(__name__)
 
+# Hoisted out of decode_jwt to avoid re-allocating per request — every
+# authenticated call goes through decode_jwt. The registry is stateless
+# w.r.t. the token being validated (it carries only the global validation
+# config), so a single shared instance is safe across the process.
+_CLAIMS_REGISTRY = JWTClaimsRegistry()
+
 
 async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
     if not auth_token:
@@ -66,19 +72,29 @@ def decode_jwt(token: str) -> dict:
     """Decode and validate JWT token.
 
     `jwt.decode` validates signature and algorithm but does NOT validate
-    payload claims. The explicit `JWTClaimsRegistry().validate` call below
+    payload claims. The explicit `_CLAIMS_REGISTRY.validate` call below
     is what enforces `exp` (expiry) — without it expired tokens remain
     valid until SECRET_KEY rotates.
+
+    The 401 detail is intentionally opaque: callers don't need to know
+    whether the failure was a bad signature, expired token, or invalid
+    claim, and disclosing it leaks oracle-style information back to
+    whoever sent the token (CWE-209). The underlying exception is logged
+    at INFO so it remains diagnosable server-side.
     """
     try:
         key = OctKey.import_key(settings.SECRET_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
-        JWTClaimsRegistry().validate(payload.claims)
+        _CLAIMS_REGISTRY.validate(payload.claims)
         return payload.claims
     except (BadSignatureError, ExpiredTokenError, InvalidClaimError) as e:
+        logger.info(
+            "JWT validation failed",
+            extra={"error": str(e), "error_type": type(e).__name__},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {str(e)}",
+            detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -124,7 +140,9 @@ async def resolve_user_by_jwt_payload(
 
     try:
         provider = UserProvider(int(provider_str))
-    except (TypeError, ValueError):
+    except ValueError:
+        # Guard above already excludes None/empty so TypeError can't fire;
+        # int("notanumber") raises ValueError, UserProvider(99999) likewise.
         logger.warning(
             "Invalid provider in token",
             extra={"provider": provider_str},
@@ -151,9 +169,10 @@ async def get_current_user(
     token: str = Depends(get_jwt_from_cookie),
 ) -> User:
     """Get current user from JWT token. Thin wrapper over
-    :func:`resolve_user_by_jwt_payload`."""
+    :func:`resolve_user_by_jwt_payload` that enforces the access-token
+    contract — refresh tokens must not be accepted for protected routes."""
     payload = decode_jwt(token)
-    return await resolve_user_by_jwt_payload(payload, db)
+    return await resolve_user_by_jwt_payload(payload, db, expected_token_type="access")
 
 
 async def get_current_active_user(

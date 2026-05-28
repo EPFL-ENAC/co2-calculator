@@ -541,7 +541,9 @@ async def get_me(
 
     try:
         payload = decode_jwt(auth_token)
-        user = await resolve_user_by_jwt_payload(payload, db)
+        user = await resolve_user_by_jwt_payload(
+            payload, db, expected_token_type="access"
+        )
 
         if not user.email:
             raise HTTPException(
@@ -587,7 +589,16 @@ async def refresh_token(
         user = await resolve_user_by_jwt_payload(
             payload, db, expected_token_type="refresh"
         )
-        sub = payload.get("sub", "")
+        sub = payload.get("sub")
+        if not sub:
+            # Every JWT we issue carries `sub`; missing it means the token
+            # was hand-crafted (signature would already have failed) or the
+            # issuance pipeline regressed. Refuse rather than silently
+            # passing an empty `sub` into the freshly minted cookies.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload",
+            )
 
         if not user.email:
             raise HTTPException(
