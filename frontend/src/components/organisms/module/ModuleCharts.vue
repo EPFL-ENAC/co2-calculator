@@ -104,6 +104,22 @@
           </span>
         </template>
       </div>
+      <template v-if="type === MODULES.ProfessionalTravel && !isPrintMode">
+        <q-separator class="q-my-lg" />
+        <div class="q-mx-lg">
+          <div class="text-body1 text-weight-medium q-mb-sm text-black">
+            {{ $t(`${MODULES.ProfessionalTravel}-trips-map-title-overall`) }}
+          </div>
+          <trips-map
+            :legs="tripsMapLegs"
+            :loading="moduleStore.state.loadingTripsMap"
+            :aria-label="
+              $t(`${MODULES.ProfessionalTravel}-trips-map-aria-label`)
+            "
+            testid="trips-map-overall"
+          />
+        </div>
+      </template>
     </template>
   </q-card-section>
 </template>
@@ -113,6 +129,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Module, MODULES } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
+import TripsMap from 'src/components/molecules/TripsMap.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
 import { useModuleStore } from 'src/stores/modules';
@@ -223,16 +240,32 @@ function fetchTopClassBreakdownIfNeeded() {
   }
 }
 
+function fetchTripsMapIfNeeded() {
+  const unitId = workspaceStore.selectedUnit?.id;
+  const year = workspaceStore.selectedYear;
+  if (unitId && year && props.type === MODULES.ProfessionalTravel) {
+    void moduleStore.getProfessionalTravelTripsMap(unitId, String(year));
+  }
+}
+
 watch(
   () => workspaceStore.selectedCarbonReport?.id,
   (carbonReportId) => {
     if (carbonReportId) {
       void moduleStore.getEmissionBreakdown(carbonReportId);
       fetchTopClassBreakdownIfNeeded();
+      fetchTripsMapIfNeeded();
     }
   },
   { immediate: true },
 );
+
+watch(
+  () => props.type,
+  () => fetchTripsMapIfNeeded(),
+);
+
+const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
 
 // Re-fetch top-class breakdown when the module type changes (e.g. navigating
 // from purchases to equipment) so stale data from the previous module is replaced.

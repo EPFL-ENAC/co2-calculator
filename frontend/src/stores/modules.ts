@@ -41,6 +41,23 @@ export interface EmbodiedEnergyCategoryEntry {
   tonnes_co2eq: number;
 }
 
+export interface TripLeg {
+  mode: 'plane' | 'train';
+  origin_lat: number;
+  origin_lng: number;
+  destination_lat: number;
+  destination_lng: number;
+  origin_name: string;
+  destination_name: string;
+  kg_co2eq: number;
+  number_of_trips: number;
+}
+
+export interface TripsMapResponse {
+  legs: TripLeg[];
+  dropped_count: number;
+}
+
 export interface EmissionBreakdownResponse {
   module_breakdown: EmissionBreakdownCategoryRow[];
   additional_breakdown: EmissionBreakdownCategoryRow[];
@@ -291,6 +308,9 @@ export const useModuleStore = defineStore('modules', () => {
     topClassBreakdown: Array<Record<string, unknown>>;
     loadingTopClassBreakdown: boolean;
     errorTopClassBreakdown: string | null;
+    tripsMap: TripsMapResponse | null;
+    loadingTripsMap: boolean;
+    errorTripsMap: string | null;
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
@@ -321,6 +341,9 @@ export const useModuleStore = defineStore('modules', () => {
     topClassBreakdown: [],
     loadingTopClassBreakdown: false,
     errorTopClassBreakdown: null,
+    tripsMap: null,
+    loadingTripsMap: false,
+    errorTripsMap: null,
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
@@ -649,6 +672,7 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType: submoduleType,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unitId, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
@@ -704,6 +728,7 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
@@ -740,6 +765,7 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
@@ -768,6 +794,51 @@ export const useModuleStore = defineStore('modules', () => {
     } finally {
       state.loadingTravelStatsByClass = false;
     }
+  }
+
+  // Dedupe key (unit|year): navigating between modules won't refetch the same
+  // payload, while a different unit/year misses and refetches.
+  const tripsMapCacheKey = ref<string | null>(null);
+
+  async function getProfessionalTravelTripsMap(
+    unit: number,
+    year: string,
+    force = false,
+  ) {
+    const cacheKey = `${unit}|${year}`;
+    if (
+      !force &&
+      tripsMapCacheKey.value === cacheKey &&
+      state.tripsMap !== null
+    )
+      return;
+    state.loadingTripsMap = true;
+    state.errorTripsMap = null;
+    try {
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/trips-map`;
+      const data = await api.get(path).json<TripsMapResponse>();
+      state.tripsMap = data;
+      tripsMapCacheKey.value = cacheKey;
+    } catch (err: unknown) {
+      state.errorTripsMap =
+        err instanceof Error
+          ? (err.message ?? 'Unknown error')
+          : 'Unknown error';
+      state.tripsMap = null;
+      tripsMapCacheKey.value = null;
+    } finally {
+      state.loadingTripsMap = false;
+    }
+  }
+
+  // Force-refetch so the maps reflect an added/edited/removed entry.
+  async function refreshProfessionalTravelTripsMap(
+    moduleType: Module,
+    unit: number,
+    year: string,
+  ) {
+    if (moduleType !== MODULES.ProfessionalTravel) return;
+    await getProfessionalTravelTripsMap(unit, year, true);
   }
 
   async function getTopClassBreakdown(
@@ -977,6 +1048,7 @@ export const useModuleStore = defineStore('modules', () => {
     deleteItem,
     getTravelStatsByClass,
     getTopClassBreakdown,
+    getProfessionalTravelTripsMap,
     getValidatedTotals,
     invalidateValidatedTotals,
     getEmissionBreakdown,

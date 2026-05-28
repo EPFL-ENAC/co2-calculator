@@ -123,6 +123,10 @@ export interface Submodule {
   notifyInfoOnAddKey?: string;
   requiredFieldIds?: string[];
   csvTemplateHeaders?: string[];
+  // Visualization rendered above the submodule's table. Currently the only
+  // supported value is 'trips-map' for the plane/train cards in the
+  // Professional Travel module — see SubModuleSection.vue.
+  topVisualization?: 'trips-map';
 }
 
 export interface ResultBigNumberConfig {

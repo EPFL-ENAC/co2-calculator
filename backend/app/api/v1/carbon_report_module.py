@@ -41,6 +41,7 @@ from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
+    TripsMapResponse,
 )
 from app.schemas.data_entry import (
     DataEntryResponse,
@@ -568,6 +569,62 @@ async def list_headcount_members(
     if row is None:
         return []
     return [HeadcountMemberDropdownItem(**row)]
+
+
+@router.get(
+    "/{unit_id}/{year}/professional-travel/trips-map",
+    response_model=TripsMapResponse,
+)
+async def get_professional_travel_trips_map(
+    unit_id: int,
+    year: int,
+    carbon_project_type: int = Query(default=0, ge=0, le=2),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TripsMapResponse:
+    """Return plane + train trip legs with geographic coordinates.
+
+    Powers the three Professional Travel maps (overall + per-mode). The
+    frontend aggregates per map; the backend ships raw legs (one per
+    ``DataEntry``). Legs missing origin/destination coords are dropped and
+    counted in ``dropped_count``.
+
+    Scope follows the same rules as ``get_submodule``: principals/superadmin
+    see the unit's full data; standard users see only their own legs (via
+    ``_get_professional_travel_institutional_id_filter``).
+    """
+    report_type = _resolve_carbon_report_type(carbon_project_type)
+    await _check_module_permission_for_unit(
+        current_user=current_user,
+        module_id="professional-travel",
+        action="view",
+        db=db,
+        unit_id=unit_id,
+    )
+
+    carbon_report_module_id = await get_carbon_report_id(
+        unit_id=unit_id,
+        year=year,
+        module_type_id=ModuleTypeEnum.professional_travel,
+        db=db,
+        report_type=report_type,
+    )
+
+    # Use the train data_entry_type to drive the scoping helper — the helper
+    # only cares that the type is plane or train (it short-circuits otherwise),
+    # so either works and the filter applies to both modes uniformly inside
+    # the repo method.
+    institutional_id_filter = await _get_professional_travel_institutional_id_filter(
+        db=db,
+        unit_id=unit_id,
+        current_user=current_user,
+        data_entry_type_id=DataEntryTypeEnum.train,
+    )
+
+    return await DataEntryService(db).get_professional_travel_trips_map(
+        carbon_report_module_id=carbon_report_module_id,
+        institutional_id_filter=institutional_id_filter,
+    )
 
 
 @router.get(

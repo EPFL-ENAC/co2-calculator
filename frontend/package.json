@@ -25,6 +25,7 @@
     "@sentry/vue": "=10.53.0",
     "echarts": "=6.0.0",
     "ky": "=1.14.0",
+    "maplibre-gl": "=5.24.0",
     "pinia": "=3.0.4",
     "pinia-plugin-persistedstate": "=4.7.1",
     "quasar": "=2.19.3",
