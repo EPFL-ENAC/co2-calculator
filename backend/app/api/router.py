@@ -25,7 +25,8 @@ from app.api.v1 import (
 api_router = APIRouter()
 
 # Include routers
-api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
+api_router.include_router(auth.oauth_router, prefix="/oauth", tags=["oauth"])
+api_router.include_router(auth.session_router, prefix="/session", tags=["session"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(unit_results.router, prefix="/unit", tags=["unit-results"])
 api_router.include_router(backoffice.router, prefix="/backoffice", tags=["backoffice"])

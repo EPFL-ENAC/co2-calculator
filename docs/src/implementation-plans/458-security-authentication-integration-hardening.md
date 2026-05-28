@@ -87,3 +87,25 @@ The PR closes all three of #458's success criteria except as noted below.
 ## Failure handling
 
 Per #458's stated procedure: if a regression test surfaces a real auth/authz failure during development, treat as high priority — file a follow-up ticket linked to the failing test and to this plan. F6 (logout denylist) remains the only deferred follow-up.
+
+## Post-#458 follow-up (delivered in feat/458-followup-session-resource-bff-exchange)
+
+The architecture review of PR #1310 surfaced four points the F1-F12 sweep
+did not address. Delivered as a separate PR on top of #1310 so the
+trust-boundary tests above remain the historical record of what landed
+under #458.
+
+| Item | Change | Why |
+| --- | --- | --- |
+| Session resource | `/v1/auth/me` → `GET /v1/session`; `/v1/auth/refresh` → `POST /v1/session`; `/v1/auth/logout` → `DELETE /v1/session`. Frontend `auth.ts` + `http.ts` updated in lockstep; no deprecated aliases (pre-v1.x). | The session is a resource; CRUD verbs read more honestly than verb-in-URL. |
+| OAuth namespace | `/v1/auth/login` → `GET /v1/oauth/login`; `/v1/auth/callback` → `GET /v1/oauth/callback`; `/v1/auth/login-test` → `GET /v1/oauth/login-test` (DEBUG-only, unchanged gating). Route function names follow: `oauth_login`, `oauth_callback`. `request.url_for("oauth_callback")` updated. | Browser-driven OAuth flows are a distinct concern from the JSON-API session resource; splitting them makes the trust boundaries obvious. |
+| BFF cookie exchange (ADR-018) | `/oauth/callback` no longer sets cookies. It writes a single-use `AuthExchangeCode` (60 s TTL, 48-byte token, naive-UTC stored) and redirects the browser to `<FRONTEND_URL>/auth/complete#code=...` (fragment, not query). The SPA's `/auth/complete` page POSTs the code to `POST /v1/session/exchange`, which is the only place cookies are now minted. 10 req/min/IP rate limit (in-process; Redis-backed comes with F6). | Safari ITP can drop `Set-Cookie` on the tail of a cross-site redirect chain. The exchange is a same-origin POST → cookies always survive. Also keeps the code out of server logs and `Referer` headers. |
+| Test-hack removal | Deleted the `app.include_router(auth_router, prefix="/api/v1/auth")` double-mount in `tests/unit/v1/test_unit_auth.py:12` and the hardcoded `/api/v1/auth/*` paths in `tests/integration/v1/test_auth.py`. Both existed only to paper over a path drift between source-of-truth (the API router include) and the tests. | Tests should follow the router, not bypass it. |
+
+New regression coverage (`tests/integration/v1/test_auth_security.py::TestExchangeFlow`):
+unknown / expired / consumed codes return 401; valid codes set cookies
+and return `{id, email}`; the 11th rapid request per IP returns 429.
+
+The new model lives at `backend/app/models/auth_exchange_code.py`;
+migration `d90884a395e1` creates the `auth_exchange_code` table. No
+backfill (v0.x drops the DB between deploys).

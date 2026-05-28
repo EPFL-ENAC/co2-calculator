@@ -7,6 +7,8 @@ import app.core.config as config
 from app.main import app
 from app.models.user import UserProvider
 
+API_PREFIX = config.get_settings().API_VERSION
+
 
 @pytest.fixture
 def client():
@@ -28,11 +30,8 @@ async def test_login_redirect_uri_https(client, monkeypatch):
         fake_authorize_redirect,
     )
 
-    settings = config.get_settings()
-    prefix = settings.API_VERSION
-
     response = client.get(
-        f"{prefix}/auth/login",
+        f"{API_PREFIX}/oauth/login",
         headers={"X-Forwarded-Proto": "https"},
         follow_redirects=False,
     )
@@ -81,7 +80,7 @@ def test_refresh_logs_audit_event(client, monkeypatch):
     app.dependency_overrides[auth_module.get_db] = override_get_db
     try:
         response = client.post(
-            "/api/v1/auth/refresh", cookies={"refresh_token": "token"}
+            f"{API_PREFIX}/session", cookies={"refresh_token": "token"}
         )
     finally:
         app.dependency_overrides.clear()
@@ -117,7 +116,9 @@ def test_logout_logs_audit_event(client, monkeypatch):
 
     app.dependency_overrides[auth_module.get_db] = override_get_db
     try:
-        response = client.post("/api/v1/auth/logout", cookies={"auth_token": "token"})
+        response = client.delete(
+            f"{API_PREFIX}/session", cookies={"auth_token": "token"}
+        )
     finally:
         app.dependency_overrides.clear()
 

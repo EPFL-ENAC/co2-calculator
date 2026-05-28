@@ -11,14 +11,21 @@ declare module 'ky' {
 export type ApiOptions = Options;
 
 export const API_BASE_URL = '/api/v1/';
-export const API_LOGIN_URL = '/api/v1/auth/login';
-export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
-export const API_ME_URL = 'auth/me';
-export const API_REFRESH_URL = 'auth/refresh';
-export const API_LOGOUT_URL = 'auth/logout';
+export const API_LOGIN_URL = '/api/v1/oauth/login';
+export const API_LOGIN_TEST_URL = '/api/v1/oauth/login-test';
+// All three session verbs hit the same path; the interceptor predicates
+// disambiguate by HTTP method (see isRefresh / isSessionCheck below).
+export const API_ME_URL = 'session';
+export const API_REFRESH_URL = 'session';
+export const API_LOGOUT_URL = 'session';
+export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
 
-const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
+const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
+const isRefresh = (u: string, m: string) =>
+  endsWithSession(u) && m.toUpperCase() === 'POST';
+const isSessionCheck = (u: string, m: string) =>
+  endsWithSession(u) && m.toUpperCase() === 'GET';
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -36,7 +43,7 @@ export const api = ky.create({
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying
       async ({ request }) => {
-        if (!isRefresh(request.url))
+        if (!isRefresh(request.url, request.method))
           // do not retry 'refresh' itself
           await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
       },
@@ -44,15 +51,14 @@ export const api = ky.create({
     afterResponse: [
       async (req, options, res) => {
         if (res.status === 401) {
-          if (isRefresh(req.url)) {
+          if (isRefresh(req.url, req.method)) {
             // If refresh returns 401, let it pass through and be handled by
             // next api call, which will trigger the login redirect. This prevents infinite
             // loops in case the refresh token is also expired or invalid.
             return;
           }
           // If still 401 after refresh, redirect to login
-          const isSessionCheck = req.url.endsWith(API_ME_URL);
-          if (isSessionCheck) {
+          if (isSessionCheck(req.url, req.method)) {
             // For session check, do not redirect, just return
             // This prevents redirect loops during session validation
             // vue Router guard will handle the redirection

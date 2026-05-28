@@ -141,7 +141,7 @@ export interface UserPermissions {
  *
  * The backend uses dot-notation keys (e.g., "backoffice.users") to represent
  * the permission hierarchy. This matches exactly what the backend returns
- * from the `/auth/me` endpoint.
+ * from the `GET /session` endpoint.
  *
  * This structure is what you'll receive from the API - use this type when
  * working directly with API responses.

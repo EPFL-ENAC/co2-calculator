@@ -3,6 +3,7 @@
 from sqlmodel import Relationship
 
 from .audit import AuditDocument
+from .auth_exchange_code import AuthExchangeCode
 from .building_room import BuildingRoom
 from .carbon_project import CarbonProject
 from .carbon_report import CarbonReport, CarbonReportModule
@@ -51,6 +52,7 @@ DataEntryEmission.data_entry = Relationship()
 __all__ = [
     "BuildingRoom",
     "AuditDocument",
+    "AuthExchangeCode",
     "Unit",
     "User",
     "UnitUser",

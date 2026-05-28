@@ -376,10 +376,10 @@ export async function mockPipelineStream(
 export async function mockApiCatchAll(page: Page): Promise<void> {
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
-    // Auth-me: return a permissive identity so any code path that
+    // GET /session: return a permissive identity so any code path that
     // bypasses the LIGHTHOUSE_BYPASS guard (e.g. components reading
     // the auth store directly) still has something to chew on.
-    if (url.includes('/auth/me')) {
+    if (/\/session(\?|$)/.test(url) && route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

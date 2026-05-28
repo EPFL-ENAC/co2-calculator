@@ -26,6 +26,7 @@ export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
 export const WORKSPACE_ROUTE_NAME = 'workspace-dashboard';
 export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
 export const NOT_FOUND_ROUTE_NAME = 'not-found';
+export const AUTH_COMPLETE_ROUTE_NAME = 'auth-complete';
 export const DEFAULT_ROUTE_NAME = WORKSPACE_SETUP_ROUTE_NAME;
 
 export const ROUTES_WITHOUT_LANGUAGE = [
@@ -331,6 +332,19 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
+  },
+  // BFF cookie-exchange landing (ADR-018). Backend redirects here with
+  // `#code=<single-use-token>`; component POSTs it to /session/exchange,
+  // strips the fragment, and routes to home. No auth required: the
+  // exchange call IS the act of authenticating.
+  {
+    path: '/auth/complete',
+    name: AUTH_COMPLETE_ROUTE_NAME,
+    component: () => import('pages/app/AuthCompletePage.vue'),
+    meta: {
+      note: 'BFF cookie-exchange landing page (no auth required)',
+      breadcrumb: false,
+    },
   },
   // Catch-all: show 404
   {

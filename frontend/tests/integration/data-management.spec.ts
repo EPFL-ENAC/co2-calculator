@@ -924,7 +924,7 @@ async function expandHeadcountAndMember(page: Page): Promise<void> {
  *
  * Uses the shared `installInitScripts` + `mockBackend` helpers so the
  * page renders past the auth/permission guards (Lighthouse bypass) and
- * has stubs for every endpoint the page hits on mount (auth/me,
+ * has stubs for every endpoint the page hits on mount (GET /session,
  * active-pipelines, active-pipelines/year, year-configuration, ...).
  *
  * The button is disabled when `anyModuleIncomplete || is_started` —
