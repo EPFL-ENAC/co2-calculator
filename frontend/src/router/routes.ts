@@ -17,21 +17,33 @@ const YEAR_PATTERN = '\\d{4}';
 const UNIT_PATTERN = '[^/]+';
 const SIMULATION_ID_PATTERN = '[^/]+';
 
-// Route name constants
-export const LOGIN_ROUTE_NAME = 'login';
-export const LOGIN_TEST_ROUTE_NAME = 'login-test';
-export const LOGIN_ROUTES = [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME];
-export const HOME_ROUTE_NAME = 'home';
-export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
-export const WORKSPACE_ROUTE_NAME = 'workspace-dashboard';
-export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
-export const NOT_FOUND_ROUTE_NAME = 'not-found';
-export const DEFAULT_ROUTE_NAME = WORKSPACE_SETUP_ROUTE_NAME;
-
-export const ROUTES_WITHOUT_LANGUAGE = [
-  NOT_FOUND_ROUTE_NAME,
+// Route name constants live in routeNames.ts so guards + tests can
+// depend on them without pulling in the i18n module (which uses
+// import.meta.glob and breaks bare-Node test runners).
+export {
+  LOGIN_ROUTE_NAME,
+  LOGIN_TEST_ROUTE_NAME,
+  LOGIN_ROUTES,
+  HOME_ROUTE_NAME,
+  WORKSPACE_SETUP_ROUTE_NAME,
+  WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
-];
+  NOT_FOUND_ROUTE_NAME,
+  AUTH_COMPLETE_ROUTE_NAME,
+  DEFAULT_ROUTE_NAME,
+  ROUTES_WITHOUT_LANGUAGE,
+} from './routeNames';
+import {
+  LOGIN_ROUTE_NAME,
+  LOGIN_TEST_ROUTE_NAME,
+  HOME_ROUTE_NAME,
+  WORKSPACE_SETUP_ROUTE_NAME,
+  WORKSPACE_ROUTE_NAME,
+  UNAUTHORIZED_ROUTE_NAME,
+  NOT_FOUND_ROUTE_NAME,
+  AUTH_COMPLETE_ROUTE_NAME,
+  DEFAULT_ROUTE_NAME,
+} from './routeNames';
 
 export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
   return route.meta?.isBackOffice === true;
@@ -331,6 +343,23 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
+  },
+  // BFF cookie-exchange landing (ADR-019). Backend redirects here with
+  // `#code=<single-use-token>`; component POSTs it to /session/exchange,
+  // strips the fragment, and routes to home. No auth required: the
+  // exchange call IS the act of authenticating.
+  {
+    path: '/auth/complete',
+    name: AUTH_COMPLETE_ROUTE_NAME,
+    component: () => import('pages/app/AuthCompletePage.vue'),
+    meta: {
+      note: 'BFF cookie-exchange landing page (no auth required)',
+      breadcrumb: false,
+      // The page itself POSTs the exchange code in onMounted, then calls
+      // getUser(). Skipping the guard's auto-probe avoids two redundant
+      // 401s (GET /session, then POST /session refresh) on every login.
+      skipAuthCheck: true,
+    },
   },
   // Catch-all: show 404
   {

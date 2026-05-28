@@ -296,12 +296,15 @@ export async function mockBackend(
     }
   });
 
-  // auth/me — 401 so getUser() resolves to null without crashing.
+  // GET /session — 401 so getUser() resolves to null without crashing.
   // The Lighthouse bypass means we never read user.value, so 401 is
   // safe (and matches the production "not yet logged in" state).
-  await page.route('**/api/v1/auth/me', (route) =>
-    route.fulfill({ status: 401, body: '' }),
-  );
+  await page.route('**/api/v1/session', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 401, body: '' });
+    }
+    return route.continue();
+  });
 
   // year-configuration GET / POST / PATCH
   await page.route(/.*\/api\/v1\/year-configuration\/(\d+)$/, async (route) => {

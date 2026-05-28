@@ -115,8 +115,9 @@ async def resolve_user_by_jwt_payload(
 ) -> User:
     """Centralized JWT-payload → User resolution.
 
-    Single trust-boundary check shared by /auth/me, /auth/refresh, and
-    `get_current_user`. Validates the stable (institutional_id, provider)
+    Single trust-boundary check shared by `GET /v1/session`,
+    `POST /v1/session`, and `get_current_user`. Validates the stable
+    (institutional_id, provider)
     identity pair, rejects legacy user_id-only tokens, looks the user up,
     and raises 401 on any failure. When ``expected_token_type`` is
     supplied (used by /refresh) the payload's ``type`` field must match.

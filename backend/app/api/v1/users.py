@@ -2,7 +2,7 @@
 
 NOTE: User management endpoints have been removed.
 Users are managed internally through OAuth/OIDC authentication only.
-User information is available via /auth/me endpoint.
+User information is available via GET /v1/session endpoint.
 
 This file is kept for potential future internal user management needs.
 """
@@ -22,7 +22,7 @@ from app.services.unit_service import UnitService
 logger = get_logger(__name__)
 router = APIRouter()
 
-# All user management endpoints removed - users are read-only via /auth/me
+# All user management endpoints removed - users are read-only via GET /v1/session
 # Users are auto-created and updated during OAuth login flow
 
 

@@ -9,7 +9,7 @@ and enforces role-scoped permissions through OPA at every request.
 ```mermaid
 flowchart LR
     U[User] --> SPA[Frontend SPA]
-    SPA -->|1. /v1/oauth/login| API[Backend API]
+    SPA -->|1. /v1/auth/login| API[Backend API]
     API -->|2. 302| Entra[Entra ID]
     Entra -->|3. 302 with code| API
     API -->|4. redirect with one-shot exchange code| SPA
@@ -23,13 +23,13 @@ flowchart LR
 Three boundaries pinned by tests. The module docstring at
 `backend/app/api/v1/auth.py` is the canonical source.
 
-| Boundary          | Trusted artefact                                                                | Untrusted artefact                                              | Test that pins it                                              |
-| ----------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------- |
-| IdP → backend     | `userinfo` claims from `authorize_access_token` (signed by IdP)                 | Query params, headers, request body on `/callback`              | `test_callback_binds_session_to_idp_institutional_id`          |
-| Backend → cookie  | JWTs minted by `_set_auth_cookies`, signed with `settings.SECRET_KEY`           | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`             |
-| Cookie → backend  | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation     | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
+| Boundary         | Trusted artefact                                                            | Untrusted artefact                                              | Test that pins it                                                   |
+| ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| IdP → backend    | `userinfo` claims from `authorize_access_token` (signed by IdP)             | Query params, headers, request body on `/callback`              | `test_callback_binds_session_to_idp_institutional_id`               |
+| Backend → cookie | JWTs minted by `_set_auth_cookies`, signed with `settings.SECRET_KEY`       | Anything else the client could return as evidence of identity   | `test_auth_cookies_secure_when_cookie_secure_true`                  |
+| Cookie → backend | `decode_jwt(cookie)` payload after signature + algorithm + `exp` validation | Cookie body in transit, query params, headers carrying identity | `test_jwt_expired_rejected`, `test_jwt_tampered_signature_rejected` |
 
-`/oauth/login-test` deliberately bypasses boundary 1; its only safeguard
+`/auth/login-test` deliberately bypasses boundary 1; its only safeguard
 is `settings.DEBUG`, pinned by `test_login_test_registration_matches_debug_flag`.
 
 ## 3. OAuth Authorization Code flow
@@ -44,11 +44,11 @@ sequenceDiagram
     participant DB as Database
 
     U->>SPA: Click "Login"
-    SPA->>API: GET /v1/oauth/login
+    SPA->>API: GET /v1/auth/login
     API-->>SPA: 302 to Entra authorize endpoint
     SPA->>Entra: Authorize request
     U->>Entra: Authenticate
-    Entra-->>API: 302 to /v1/oauth/callback?code=...
+    Entra-->>API: 302 to /v1/auth/callback?code=...
     API->>Entra: Exchange code for access token
     Entra-->>API: access_token + userinfo
     API->>API: Fetch roles via RoleProvider
@@ -75,8 +75,8 @@ sequenceDiagram
 ```mermaid
 stateDiagram-v2
     [*] --> Anonymous
-    Anonymous --> Authenticating: GET /v1/oauth/login
-    Authenticating --> Exchanging: /v1/oauth/callback issues one-shot code
+    Anonymous --> Authenticating: GET /v1/auth/login
+    Authenticating --> Exchanging: /v1/auth/callback issues one-shot code
     Exchanging --> Authenticated: POST /v1/session/exchange sets cookies
     Authenticated --> Authenticated: POST /v1/session (rotates both cookies)
     Authenticated --> Anonymous: DELETE /v1/session (clears cookies)
@@ -92,13 +92,13 @@ remains valid until `exp`. F6 (server-side denylist) is deferred — see
 
 Claims minted by `_set_auth_cookies` in `backend/app/api/v1/auth.py`:
 
-| Claim              | Purpose                                                                                  |
-| ------------------ | ---------------------------------------------------------------------------------------- |
-| `sub`              | Opaque subject (currently `user.id` as string)                                           |
-| `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                                  |
-| `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                            |
-| `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants     |
-| `exp`              | UTC expiry                                                                               |
+| Claim              | Purpose                                                                              |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `sub`              | Opaque subject (currently `user.id` as string)                                       |
+| `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                              |
+| `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                        |
+| `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants |
+| `exp`              | UTC expiry                                                                           |
 
 Algorithm: `HS256`. Key: `settings.SECRET_KEY` (single shared symmetric
 secret — see [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.md)).
@@ -119,7 +119,7 @@ Validation path in `backend/app/core/security.py`:
 - **`DefaultRoleProvider`** — reads roles from JWT claims. Used in
   development and synthetic-data flows.
 - **`AccredRoleProvider`** — fetches from the EPFL Accred API. Production.
-- **`TestRoleProvider`** — synthetic roles for `/oauth/login-test`
+- **`TestRoleProvider`** — synthetic roles for `/auth/login-test`
   (DEBUG-only route).
 
 Selection is driven by `settings.PROVIDER_PLUGIN` through the factory
@@ -136,7 +136,7 @@ warning rather than aborting the login.
   dev; Safari and `httpx` clients silently drop `Secure` cookies on the
   return trip over `http://`. This decoupling from `DEBUG` was the F2
   regression caught during PR #1310 review.
-- **`/oauth/login-test` is registered only in DEBUG builds** — not a
+- **`/auth/login-test` is registered only in DEBUG builds** — not a
   runtime gate. The route literally does not exist in production
   `app.routes`. Pinned by `test_login_test_registration_matches_debug_flag`.
 - **F6 deferred** — logout does not denylist the JWT. A leaked cookie
@@ -154,20 +154,20 @@ truth: the implementation plan
 `docs/src/implementation-plans/458-security-authentication-integration-hardening.md`
 (landed with PR #1310 — [issue #458](https://github.com/EPFL-ENAC/co2-calculator/issues/458)).
 
-| Finding | Test file                                                | Test name                                                                                   |
-| ------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| F1      | `backend/tests/integration/v1/test_auth_security.py`     | `test_callback_binds_session_to_idp_institutional_id`                                       |
-| F2      | `backend/tests/integration/v1/test_auth_security.py`     | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false` |
-| F3      | `backend/tests/integration/v1/test_auth_security.py`     | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build` |
-| F4      | `backend/tests/integration/v1/test_auth_security.py`     | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected` |
-| F5      | `backend/tests/integration/v1/test_auth_security.py`     | `test_refresh_rotates_both_auth_and_refresh_cookies`                                        |
-| F6      | _deferred_                                               | _Redis-backed denylist — see follow-up comment_                                             |
-| F7      | `backend/tests/integration/v1/test_auth_security.py`     | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure` |
-| F8      | `backend/tests/integration/v1/test_auth_security.py`     | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token` |
-| F9      | `backend/tests/unit/providers/test_role_provider.py`     | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                          |
-| F10     | `backend/tests/integration/v1/test_auth_security.py`     | `test_jwt_expired_rejected`                                                                 |
-| F11     | `backend/tests/unit/providers/test_role_provider.py`     | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestDefaultRoleProviderClaimCombinations`) |
-| F12     | `backend/tests/unit/providers/test_role_provider.py`     | `test_unknown_scope_type_warns_when_skipped` (in `TestDefaultRoleProviderClaimCombinations`) |
+| Finding | Test file                                            | Test name                                                                                                                                    |
+| ------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1      | `backend/tests/integration/v1/test_auth_security.py` | `test_callback_binds_session_to_idp_institutional_id`                                                                                        |
+| F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                  |
+| F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                               |
+| F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                          |
+| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                         |
+| F6      | _deferred_                                           | _Redis-backed denylist — see follow-up comment_                                                                                              |
+| F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                        |
+| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                |
+| F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                           |
+| F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                  |
+| F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestDefaultRoleProviderClaimCombinations`) |
+| F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestDefaultRoleProviderClaimCombinations`)                                                 |
 
 Additional pinning tests:
 

@@ -2,9 +2,11 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import {
   api,
+  API_EXCHANGE_URL,
   API_LOGIN_URL,
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
+  API_ME_URL,
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
@@ -61,7 +63,7 @@ export const useAuthStore = defineStore('auth', () => {
     inflight = (async () => {
       try {
         loading.value = true;
-        const u = await api.get('auth/me').json<User>();
+        const u = await api.get(API_ME_URL).json<User>();
         user.value = u;
         return u;
       } catch {
@@ -85,10 +87,24 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.replace(API_LOGIN_URL);
   }
 
+  /**
+   * Trade the single-use OAuth-callback code for session cookies (BFF
+   * leg 2; ADR-019). Run from the /auth/complete landing page after the
+   * IdP redirect lands there with a `#code=<...>` fragment.
+   */
+  async function exchange(code: string): Promise<User | null> {
+    await api
+      .post(API_EXCHANGE_URL, { json: { code }, retry: { limit: 0 } })
+      .json<{ id: number; email: string }>();
+    // The backend already wrote the cookies; hydrate the full user
+    // profile (roles, permissions, display_name) via /session.
+    return await getUser();
+  }
+
   async function logout(router: Router) {
     try {
       loading.value = true;
-      await api.post(API_LOGOUT_URL);
+      await api.delete(API_LOGOUT_URL);
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
@@ -191,6 +207,7 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     login_test,
     logout,
+    exchange,
     isAuthenticated,
     hasUserPermission,
     hasUserModulePermission,
