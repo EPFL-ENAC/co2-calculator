@@ -36,7 +36,7 @@ class UserRead(UserBase):
 
     @computed_field
     def permissions(self) -> dict:
-        """Calculate permissions dynamically from roles on every GET /v1/session call."""
+        """Calculate permissions dynamically on every GET /v1/session call."""
         return self.calculate_permissions()
 
 

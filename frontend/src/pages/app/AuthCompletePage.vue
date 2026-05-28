@@ -1,12 +1,7 @@
 <template>
   <q-page class="fullscreen bg-grey-1 flex flex-center q-pa-md">
     <div class="col-12 col-md-8 col-lg-6 col-xl-5">
-      <q-card
-        bordered
-        flat
-        class="q-px-lg text-center"
-        style="padding: 3rem"
-      >
+      <q-card bordered flat class="q-px-lg text-center" style="padding: 3rem">
         <div class="column items-center q-gutter-y-xl">
           <!-- In progress -->
           <template v-if="state === 'progress'">
