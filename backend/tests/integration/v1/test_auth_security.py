@@ -405,6 +405,81 @@ def test_auth_cookies_not_secure_when_cookie_secure_false(
 
 
 # ---------------------------------------------------------------------------
+# Audit-event failure handling (F7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_audit_event_failure_logs_error_with_marker(monkeypatch, caplog):
+    """Pins F7: when the audit DB call fails, `_log_auth_audit_event` logs at
+    ERROR with a structured `audit_failure` marker so alerting can fire."""
+    fake_request = MagicMock()
+    fake_request.url.path = "/v1/auth/refresh"
+    fake_request.headers = {}
+    fake_request.client = None
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("audit DB down")
+
+    monkeypatch.setattr(auth_module.AuditDocumentService, "create_version", boom)
+
+    db = MagicMock()
+    db.commit = AsyncMock()
+
+    with caplog.at_level("ERROR"):
+        # must_succeed defaults to False → no raise, just an ERROR log.
+        await auth_module._log_auth_audit_event(
+            db=db,
+            request=fake_request,
+            change_type=auth_module.AuditChangeTypeEnum.UPDATE,
+            change_reason="Token refreshed",
+            handler_id="x",
+            changed_by=1,
+            entity_id=1,
+        )
+
+    error_records = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert error_records, "audit failure must log at ERROR"
+    # Project logger sanitizes structured extras into strings during emit,
+    # so accept either the boolean True or the string "True".
+    assert any(
+        getattr(r, "audit_failure", None) in (True, "True") for r in error_records
+    ), "audit failure log must carry the `audit_failure` marker"
+
+
+@pytest.mark.asyncio
+async def test_audit_event_must_succeed_propagates_failure(monkeypatch):
+    """Pins F7: when `must_succeed=True` (only the /callback success path
+    opts in), an audit failure re-raises so the caller can refuse to mint
+    the session. Without this, a failing audit DB would silently let
+    sessions be issued without an audit trail."""
+    fake_request = MagicMock()
+    fake_request.url.path = "/v1/auth/callback"
+    fake_request.headers = {}
+    fake_request.client = None
+
+    async def boom(*_args, **_kwargs):
+        raise RuntimeError("audit DB down")
+
+    monkeypatch.setattr(auth_module.AuditDocumentService, "create_version", boom)
+
+    db = MagicMock()
+    db.commit = AsyncMock()
+
+    with pytest.raises(RuntimeError, match="audit DB down"):
+        await auth_module._log_auth_audit_event(
+            db=db,
+            request=fake_request,
+            change_type=auth_module.AuditChangeTypeEnum.CREATE,
+            change_reason="User login",
+            handler_id="x",
+            changed_by=1,
+            entity_id=1,
+            must_succeed=True,
+        )
+
+
+# ---------------------------------------------------------------------------
 # OAuth callback error paths
 # ---------------------------------------------------------------------------
 

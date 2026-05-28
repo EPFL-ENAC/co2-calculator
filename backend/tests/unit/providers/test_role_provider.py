@@ -630,25 +630,16 @@ class TestGetRoleProvider:
 class TestDefaultRoleProviderClaimCombinations:
     """Tests for issue #458 success criterion 'incorrect role/claim combinations'.
 
-    These pin the behaviour of DefaultRoleProvider when the IdP returns
-    malformed or unexpected role claims. xfail(strict=True) tests document
-    bugs (F11, F12) — when the underlying provider is hardened the tests
-    will start passing and force the marker's removal.
+    Pin the behaviour of DefaultRoleProvider when the IdP returns
+    malformed or unexpected role claims. F11 and F12 are now fixed —
+    these tests assert the hardened behaviour.
     """
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F11 (plan 458): RoleName(unknown_str) raises ValueError mid-iteration "
-            "in DefaultRoleProvider.get_roles, killing the entire roles list "
-            "instead of skipping the bad entry. Single malformed role from the "
-            "IdP DoS's the login. Fix: catch ValueError, log+skip the entry."
-        ),
-    )
     @pytest.mark.asyncio
     async def test_unknown_role_name_is_skipped_not_raised(self):
-        """A role whose name is not in the RoleName enum should be skipped,
-        not raise — one bad entry must not lose the whole role set."""
+        """Pins F11 fix: a role whose name is not in the RoleName enum is
+        skipped (with a warning), so one malformed entry from the IdP does
+        not DoS the entire login."""
         provider = DefaultRoleProvider()
         good_role = f"{RoleName.CO2_USER_STD.value}@unit:12345"
         userinfo = {
@@ -659,32 +650,19 @@ class TestDefaultRoleProviderClaimCombinations:
         assert len(roles) == 1
         assert roles[0].role == RoleName.CO2_USER_STD
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F11 (plan 458): empty role name raises ValueError just like an "
-            "unknown name — same fix applies."
-        ),
-    )
     @pytest.mark.asyncio
     async def test_empty_role_name_is_skipped_not_raised(self):
-        """A role string starting with `@` (empty name) should be skipped."""
+        """Pins F11 fix: an empty role name (e.g. `@unit:12345`) is also a
+        ValueError from RoleName(""); must be skipped with a warning."""
         provider = DefaultRoleProvider()
         roles = await provider.get_roles({"sub": "x", "roles": ["@unit:12345"]})
         assert roles == []
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "F12 (plan 458): unknown scope type (e.g. 'bogus:value') is "
-            "silently dropped with no warning log, violating the 'no silent "
-            "fallbacks' policy. Fix: emit a warning before skipping."
-        ),
-    )
     @pytest.mark.asyncio
     async def test_unknown_scope_type_warns_when_skipped(self, caplog):
-        """Roles with an unknown scope type must log a warning before
-        being dropped — silent drops mask IdP/config drift."""
+        """Pins F12 fix: roles with an unknown scope type
+        (e.g. `co2.user.standard@bogus:value`) emit a warning before being
+        dropped. Silent drops mask IdP/config drift."""
         provider = DefaultRoleProvider()
         with caplog.at_level("WARNING"):
             roles = await provider.get_roles(
