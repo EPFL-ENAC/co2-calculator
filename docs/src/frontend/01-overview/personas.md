@@ -8,7 +8,7 @@ summary: Frontend persona flows for data-entry and back-office users.
 
 Two primary personas drive the frontend. Both authenticate against Microsoft
 Entra ID via the backend, then diverge based on permissions returned from
-`auth/me`.
+the session endpoint.
 
 ## Data-Entry User
 
@@ -19,7 +19,7 @@ the resulting emissions.
 stateDiagram-v2
     [*] --> Login
     Login: LoginPage redirects to API_LOGIN_URL
-    Login --> WorkspaceSetup: auth/me succeeds
+    Login --> WorkspaceSetup: GET /v1/session succeeds
     Login --> Unauthorized: no view permission
 
     WorkspaceSetup: WorkspaceSetupPage (pick unit + year)

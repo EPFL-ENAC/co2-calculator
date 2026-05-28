@@ -82,12 +82,6 @@ See [File Structure](03-FILE_STRUCTURE.md) for details.
 
 ## API Endpoints
 
-### Authentication
-
-- `POST /api/v1/users/token` - Login and get JWT
-- `POST /api/v1/users/register` - Register new user
-- `GET /api/v1/users/me` - Get current user
-
 ### Resources
 
 - `GET /api/v1/resources` - List resources

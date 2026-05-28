@@ -76,11 +76,6 @@ See [Architecture](02-ARCHITECTURE.md) for complete layer details.
 Visit http://localhost:8000/docs for the complete OpenAPI
 specification. Main endpoint groups:
 
-**Authentication**
-
-- `POST /api/v1/auth/login` - Initiate OIDC login
-- `GET /api/v1/users/me` - Current user profile
-
 **Laboratory Management**
 
 - `GET /api/v1/labs` - List labs
@@ -141,10 +136,10 @@ DB_URL=postgresql://user:pass@localhost:5432/co2calculator
 SECRET_KEY=your-secret-key-here
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
-# OIDC Authentication
-OIDC_DISCOVERY_URL=https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration
-OIDC_CLIENT_ID=your-client-id
-OIDC_CLIENT_SECRET=your-client-secret
+# OAuth/OIDC (see backend/.env.example for full set + Keycloak variant)
+OAUTH_ISSUER_URL=https://login.microsoftonline.com/{tenant}/v2.0
+OAUTH_CLIENT_ID=your-client-id
+OAUTH_CLIENT_SECRET=your-client-secret
 
 # Background Tasks
 REDIS_URL=redis://localhost:6379/0
@@ -169,24 +164,11 @@ make celery-flower  # Web monitoring UI
 Tasks include CSV import processing, emission calculations,
 report generation, and email notifications.
 
-## Authentication & Authorization
+## Authorization
 
-### Authentication Flow (OIDC + JWT)
-
-1. Frontend redirects user to Microsoft Entra ID
-2. User authenticates with EPFL credentials
-3. Backend validates OIDC token and extracts claims
-4. Backend issues JWT for subsequent requests
-5. Frontend includes JWT in `Authorization: Bearer <token>`
-
-### Authorization (RBAC)
-
-- **Roles**: `admin`, `lab_manager`, `lab_member`, `viewer`
-- **Permissions**: Checked in service layer before data access
-- **Resource ownership**: Users access only their labs (unless admin)
-
-Authorization uses in-code RBAC for simplicity rather than Open
-Policy Agent.
+In-code RBAC, not OPA. Service methods receive the authenticated user
+and apply role + scope filters before reaching the repository. See
+[Permission System](06-PERMISSION-SYSTEM.md).
 
 ## Security Features
 

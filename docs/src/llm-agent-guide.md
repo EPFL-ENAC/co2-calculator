@@ -68,7 +68,8 @@ status as suspect, and verify against code.
   `asyncio.run` cancel any tasks they spawn. See
   [`310-b-factor-pipeline.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/src/implementation-plans/310-b-factor-pipeline.md).
 - **`backoffice.*` permissions only apply server-side.** Frontend gates
-  use the same path but read from `/auth/me`; do not gate UI on raw roles.
+  use the same path but read from the session endpoint (`GET /v1/session`);
+  do not gate UI on raw roles.
 - **Plans named `*-copilot-feedback-*` are review threads, not plans.** They
   capture bot feedback for a PR; they do not represent the design.
 - **`status: draft` plans land in the repo.** Presence in the tree does not

@@ -46,7 +46,7 @@ The 403 body is generic, so debugging starts with the server log.
 1. Find the most recent `Permission check denied` warning in the API logs
    for the request's `user_id` and `request_id`. Its `extra` payload
    carries the required `path` and `action`.
-2. Call `/api/v1/auth/me` with the user's token and inspect the flat
+2. Call `GET /api/v1/session` from the authenticated SPA and inspect the flat
    `permissions` dict — look for a key matching `path` (or
    `path/<institutional_id>` for module permissions) whose action list
    contains `action`.
