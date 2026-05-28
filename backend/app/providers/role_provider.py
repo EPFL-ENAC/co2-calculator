@@ -163,9 +163,18 @@ class DefaultRoleProvider(RoleProvider):
                 )
                 continue
 
-            # Parse "role@scope:value" format
+            # Parse "role@scope:value" format. RoleName(value) raises
+            # ValueError on unknown enum values — catch so a single malformed
+            # role from the IdP doesn't DoS the whole login (F11).
             parts = role_str.split("@", 1)
-            role_name = RoleName(parts[0].strip())
+            try:
+                role_name = RoleName(parts[0].strip())
+            except ValueError:
+                logger.warning(
+                    "Unknown role name, skipping",
+                    extra={"role": role_str, "user_id": user_id},
+                )
+                continue
             scope_part = parts[1].strip()
 
             if scope_part == "global":
@@ -189,6 +198,17 @@ class DefaultRoleProvider(RoleProvider):
                             on=RoleScope(affiliation=scope_id),
                         )
                     )
+                else:
+                    # F12: surface unknown scope types instead of silent drop.
+                    logger.warning(
+                        "Unknown scope type, skipping",
+                        extra={
+                            "role": role_str,
+                            "scope_type": scope_type,
+                            "user_id": user_id,
+                        },
+                    )
+                    continue
             else:
                 logger.warning(
                     "Invalid scope format, skipping",
@@ -645,12 +665,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     elif provider_type == UserProvider.TEST:
         logger.info("Using TestRoleProvider (for testing)")
         return TestRoleProvider()
-    else:
-        logger.error(
-            "Unknown role provider type, falling back to default",
-            extra={"provider_type": provider_type},
-        )
-        return DefaultRoleProvider()
+    raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):

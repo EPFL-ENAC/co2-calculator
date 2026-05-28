@@ -242,6 +242,17 @@ class Settings(BaseSettings):
         default="/",
         description="OAuth2/OIDC cookie path",
     )
+    COOKIE_SECURE: bool = Field(
+        default=True,
+        description=(
+            "Set the `Secure` attribute on auth cookies. Default true (correct "
+            "for prod HTTPS). MUST be overridden to false for local HTTP dev — "
+            "Safari and httpx-based clients refuse to re-send a Secure cookie "
+            "over plain http://localhost, which silently breaks /me, /refresh, "
+            "and /login-test. See .env.example. Independent of DEBUG so a debug "
+            "build behind a TLS terminator can still mint Secure cookies."
+        ),
+    )
 
     # Session lifetimes — see issue #949. Tuned for an internal EPFL app
     # behind Entra SSO + httpOnly+secure+samesite cookies; 8h access / 24h
