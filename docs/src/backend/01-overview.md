@@ -6,7 +6,8 @@ structure, and deploy to production. The backend uses PostgreSQL
 for data persistence, OIDC for authentication, and in-process
 `asyncio.create_task` chains with a 10-second safety-net poller
 for background jobs (see
-[ADR-010](../architecture-decision-records/010-background-job-processing.md)).
+[ADR-010](../architecture-decision-records/010-background-job-processing.md)
+and [ADR-016](../architecture-decision-records/016-pipeline-two-path-principle.md)).
 
 Read this if you need to set up the backend locally, understand
 how the API works, or deploy to production.
