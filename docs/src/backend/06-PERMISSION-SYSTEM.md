@@ -8,7 +8,7 @@ CF https://github.com/EPFL-ENAC/co2-calculator/issues/414
 
 ## How It Works
 
-The backend calculates permissions during `/auth/me` response
+The backend calculates permissions during `GET /v1/session` response
 serialization:
 
 1. Read user from database with `roles_raw` field
@@ -134,7 +134,7 @@ roles.
 
 ## API Response
 
-The `/auth/me` endpoint returns:
+`GET /v1/session` returns:
 
 ```json
 {
@@ -339,7 +339,7 @@ if resource_type == "your_resource":
 
 1. Permissions are calculated from roles, never stored
 2. Frontend checks permissions, not roles
-3. Permissions recalculate on every `/auth/me` call
+3. Permissions recalculate on every `GET /v1/session` call
 4. Domains are independent and combine when needed
 5. Flat structure with dot-notation for easy checking
 6. **Authorization checks at route level** via `require_permission()` decorator

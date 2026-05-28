@@ -77,11 +77,11 @@ flowchart TD
 
 Roles are stored on `User.roles_raw`. Permissions are computed during
 policy evaluation per request from the role list — never persisted.
-The `/auth/me` endpoint is a separate route used by the SPA to fetch
-its own permission set; it is not on the request-time auth path for
-other endpoints. See [06 Permission System](06-PERMISSION-SYSTEM.md)
-for computation rules and [07](07-DEVELOPER-GUIDE-PERMISSIONS.md) for
-adding new permission paths.
+`GET /v1/session` is the separate route the SPA calls to fetch its own
+permission set; it is not on the request-time auth path for other
+endpoints. See [06 Permission System](06-PERMISSION-SYSTEM.md) for
+computation rules and [07](07-DEVELOPER-GUIDE-PERMISSIONS.md) for adding
+new permission paths.
 
 ## Worked Example: `GET /api/v1/resources`
 

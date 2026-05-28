@@ -65,7 +65,7 @@ travel record, etc.). Resource-level policy can enforce business rules that
 generic permission checks cannot, e.g. "API trips are read-only" — see
 [audit](./audit.md) and [matrix](./matrix.md).
 
-## Permission shape (`/auth/me` response)
+## Permission shape (`GET /v1/session` response)
 
 The backend returns a **flat** dictionary keyed by dot-notation path, with a
 **list of action strings** as the value. Module paths carry a trailing
@@ -85,7 +85,7 @@ The backend returns a **flat** dictionary keyed by dot-notation path, with a
 }
 ```
 
-Permissions are calculated in-memory on each `/auth/me` call — they are
+Permissions are calculated in-memory on each `GET /v1/session` call — they are
 never stored in the database. The role-to-permission mapping lives in
 [`app/models/user.py::calculate_user_permissions`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/models/user.py),
 the runtime check helper is

@@ -45,9 +45,8 @@ recalculation. See
 **GHG Protocol** — The Greenhouse Gas Protocol, the international
 emissions accounting standard. Defines Scope 1, 2, and 3.
 
-**`/me`** — `GET /api/v1/auth/me`. Returns the cached user profile, roles,
-and computed permissions in ~8 ms. Does not trigger role sync. See
-[`role-sync-architecture.md`](https://github.com/epfl-enac/co2-calculator/blob/main/docs/role-sync-architecture.md).
+**`GET /v1/session`** — Whoami endpoint. Returns the cached user profile,
+roles, and computed permissions in ~8 ms.
 
 **Path 1 vs Path 2** — Operational paths in the bulk-job model. Path 1 is
 per-request work for a single user. Path 2 is bulk operator workflows

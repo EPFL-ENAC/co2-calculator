@@ -59,14 +59,10 @@ CI runs `test-ct` and `test:e2e` (see `.github/workflows/test.yml`). The
 Storybook test-runner is not yet wired into CI; run `npm run storybook:test`
 locally to exercise it.
 
-## Authentication & Authorization
+## Authorization
 
-`LoginPage` redirects to `API_LOGIN_URL` (Microsoft Entra ID via backend);
-`auth/me` populates the `auth` Pinia store with `roles_raw` and
-`permissions`. Guards in `router/guards/` enforce access:
-`requirePermission`, `requireModuleEditPermission`, `validateUnitGuard`,
-`redirectToWorkspaceIfSelectedGuard`. See
-[Auth Flow Across Layers](../architecture/04-auth-flow.md) for the full path.
+`useAuthStore` holds the user, roles, and permissions; guards in
+`router/guards/` gate routes from there.
 
 ## Further Reading
 
