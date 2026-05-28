@@ -377,10 +377,10 @@ _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.research_facilities: "researchfacility_name",
 }
 
-# Maps module type → JSON data field to use as the human-readable label
-# in the top-class breakdown response (falls back to the group field when absent).
+# Maps module type → Factor.values JSON field to use as the segment label
+# in the top-class breakdown response (looked up from the Factor table).
 _MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
-    ModuleTypeEnum.purchase: "name",
+    ModuleTypeEnum.purchase: "translation_key",
 }
 
 
@@ -430,12 +430,23 @@ async def get_top_class_breakdown(
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
-    stats = await DataEntryEmissionService(db).get_top_class_breakdown(
+    svc = DataEntryEmissionService(db)
+    stats = await svc.get_top_class_breakdown(
         carbon_report_module_id=carbon_report_module_id,
         data_entry_types=data_entry_types,
         group_by_field=group_field,
         report_year=int(year),
     )
+
+    factor_tk_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
+    if factor_tk_field:
+        stats = await svc.enrich_breakdown_with_factor_labels(
+            breakdown=stats,
+            data_entry_types=data_entry_types,
+            group_by_field=group_field,
+            factor_label_field=factor_tk_field,
+        )
+
     return stats
 
 
