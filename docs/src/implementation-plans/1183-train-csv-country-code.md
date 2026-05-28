@@ -13,9 +13,8 @@ summary: "Adds origin_country_code / destination_country_code columns to the tra
 The train CSV format ships only station names (`origin_name`,
 `destination_name`). Same-name stations exist in multiple countries
 (e.g. `BERNE, CH` vs `BERNE, DE`), and the CSV-time resolver in
-`app/modules/professional_travel/schemas.py::ProfessionalTravelTrain
-ModuleHandler.enrich_csv_row` cannot disambiguate cross-country
-collisions from names alone.
+`app/modules/professional_travel/schemas.py::ProfessionalTravelTrainModuleHandler.enrich_csv_row`
+cannot disambiguate cross-country collisions from names alone.
 
 ## 2. Pre-existing backend wiring (not changed by this PR)
 

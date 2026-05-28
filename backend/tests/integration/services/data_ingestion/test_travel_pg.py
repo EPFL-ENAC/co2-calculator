@@ -578,8 +578,7 @@ async def test_train_csv_country_code_column_overrides_ch_default(
         f"status={parent.status_message!r}"
     )
     assert parent.result == IngestionResult.SUCCESS, (
-        f"country_code-override CSV reported {parent.result}: "
-        f"{parent.status_message!r}"
+        f"country_code-override CSV reported {parent.result}: {parent.status_message!r}"
     )
 
     async with Sf() as s:
@@ -594,9 +593,7 @@ async def test_train_csv_country_code_column_overrides_ch_default(
             .scalars()
             .all()
         )
-        assert len(rows) == 1, (
-            f"expected single override row; persisted {len(rows)}"
-        )
+        assert len(rows) == 1, f"expected single override row; persisted {len(rows)}"
         persisted = rows[0]
         assert persisted.data.get("destination_natural_key") == de_natural_key, (
             "destination_country_code=DE must resolve to the German Berne "

@@ -86,7 +86,7 @@ def _process_csv(path: Path) -> str:
     new_header = _new_header(header)
     dict_rows = [dict(zip(header, row)) for row in rows[1:]]
     with path.open("w", newline="", encoding="utf-8") as fh:
-        writer = csv.writer(fh)
+        writer = csv.writer(fh, lineterminator="\n")
         writer.writerow(new_header)
         for row in dict_rows:
             writer.writerow(_augment_row(row, new_header))
