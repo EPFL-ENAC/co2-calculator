@@ -1,20 +1,18 @@
-"""End-to-end Postgres test for the B-H1 kg_co2eq override carrier.
+"""End-to-end Postgres test for the kg_co2eq_override column.
 
 Pin: under ``BULK_PATH_PURE_ASYNC`` the bulk-path providers persist the
 ingestion-time ``kg_co2eq`` override (Tableau's ``OUT_CO2_CORRECTED`` for
-the travel API; the parsed CSV value for ``base_csv_provider``) into
-``DataEntry.data`` under the reserved ``__kg_co2eq_override__`` key.
+the travel API; the parsed CSV value for ``base_csv_provider``) into the
+first-class ``DataEntry.kg_co2eq_override`` column.
 
-The runner-driven recalc workflow then reads ``data_entries`` and calls
-``DataEntryEmissionService.upsert_by_data_entry``, which has no
-``kg_co2eq_override`` parameter — without the carrier this test was
-guarding the regression where every async-path emission silently came out
+The runner-driven recalc workflow reads ``data_entries`` and calls
+``DataEntryEmissionService.upsert_by_data_entry``.  Without the column
+the regression was that every async-path emission silently came out
 formula-recomputed.
 
 This test bypasses the actual ingest providers (their full transactional
-machinery is exercised elsewhere) and seeds a ``DataEntry`` shaped exactly
-like the one the providers persist post-fix: payload includes
-``__kg_co2eq_override__``.  Running ``upsert_by_data_entry`` against it
+machinery is exercised elsewhere) and seeds a ``DataEntry`` with
+``kg_co2eq_override`` set.  Running ``upsert_by_data_entry`` against it
 must yield an emission row whose ``kg_co2eq`` equals the override —
 provably *not* the formula-derived value.
 
@@ -39,10 +37,9 @@ from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 @pytest.mark.asyncio
 async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
-    """B-H1 — a DataEntry persisted with ``__kg_co2eq_override__`` survives
-    the async path: ``EmissionRecalculationWorkflow`` →
-    ``upsert_by_data_entry`` produces an emission whose ``kg_co2eq`` equals
-    the override, NOT the value the formula would have yielded.
+    """A DataEntry with ``kg_co2eq_override`` set survives the async path:
+    ``EmissionRecalculationWorkflow`` → ``upsert_by_data_entry`` produces an
+    emission whose ``kg_co2eq`` equals the override, NOT the formula value.
 
     Uses an IT/equipment factor + entry where the formula yields a
     deterministic, distinguishable value (~50.0) so the override (999.0)
@@ -98,9 +95,6 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
         await s.commit()
         factor_id = factor.id
 
-        # Persist the override on the data entry under the reserved carrier
-        # — exactly the shape the bulk-path providers use under
-        # ``BULK_PATH_PURE_ASYNC`` after the B-H1 fix.
         override_value = 999.0
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.it.value,
@@ -112,8 +106,8 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
                 "active_usage_hours_per_week": 40.0,
                 "standby_usage_hours_per_week": 128.0,
                 "name": "Test Laptop",
-                "__kg_co2eq_override__": override_value,
             },
+            kg_co2eq_override=override_value,
         )
         s.add(entry)
         await s.commit()
@@ -172,10 +166,10 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
 
 @pytest.mark.asyncio
 async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
-    """B-H1 — covers the exact call-path the runner-driven chain takes:
+    """Covers the exact call-path the runner-driven chain takes:
     ``EmissionRecalculationWorkflow.recalculate_for_data_entry_type`` →
-    ``upsert_by_data_entry`` → ``prepare_create``.  The persisted
-    ``__kg_co2eq_override__`` carrier must survive that hop and produce
+    ``upsert_by_data_entry`` → ``prepare_create``.  The
+    ``kg_co2eq_override`` column must survive that hop and produce
     emissions whose ``kg_co2eq`` equals the override.
     """
     engine = create_async_engine(pg_dsn_with_310b, future=True)
@@ -232,8 +226,8 @@ async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
                 "active_usage_hours_per_week": 40.0,
                 "standby_usage_hours_per_week": 128.0,
                 "name": "Workflow Laptop",
-                "__kg_co2eq_override__": override_value,
             },
+            kg_co2eq_override=override_value,
         )
         s.add(entry)
         await s.commit()
@@ -276,10 +270,9 @@ async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
 
 @pytest.mark.asyncio
 async def test_kg_co2eq_override_function_arg_takes_precedence(pg_dsn_with_310b):
-    """B-H1 — when both the function-arg ``kg_co2eq_override`` and the
-    persisted ``__kg_co2eq_override__`` carrier are present, the function
-    arg wins.  Pins the legacy inline-path semantics so existing
-    ``_process_batch`` tests stay green.
+    """When both the function-arg ``kg_co2eq_override`` and the column
+    ``kg_co2eq_override`` are set, the function arg wins.  Pins the
+    inline-path semantics so existing ``_process_batch`` tests stay green.
     """
     engine = create_async_engine(pg_dsn_with_310b, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -333,8 +326,8 @@ async def test_kg_co2eq_override_function_arg_takes_precedence(pg_dsn_with_310b)
                 "active_usage_hours_per_week": 40.0,
                 "standby_usage_hours_per_week": 128.0,
                 "name": "Test Laptop",
-                "__kg_co2eq_override__": 999.0,  # carrier value
             },
+            kg_co2eq_override=999.0,  # column value — function arg must win
         )
         s.add(entry)
         await s.commit()

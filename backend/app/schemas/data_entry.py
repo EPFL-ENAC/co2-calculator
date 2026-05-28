@@ -13,7 +13,12 @@ logger = get_logger(__name__)
 # ============ DTO INPUT ================================= #
 
 
-DATA_ENTRY_META_FIELDS = {"data_entry_type_id", "carbon_report_module_id", "id"}
+DATA_ENTRY_META_FIELDS = {
+    "data_entry_type_id",
+    "carbon_report_module_id",
+    "id",
+    "kg_co2eq_override",
+}
 
 
 class DataEntryPayloadMixin(BaseModel):
@@ -72,6 +77,18 @@ class DataEntryPayloadMixin(BaseModel):
             values = _coerce(values)
         return values
 
+    @model_validator(mode="after")
+    def reject_reserved_data_keys(self) -> "DataEntryPayloadMixin":
+        _RESERVED = {"kg_co2eq", "__kg_co2eq_override__"}
+        bad_keys = _RESERVED & set(getattr(self, "data", {}).keys())
+        if bad_keys:
+            raise ValueError(
+                f"Reserved keys in DataEntry.data: {sorted(bad_keys)}. "
+                "Remove these keys from data; kg_co2eq is computed and "
+                "reserved internal override keys cannot be provided in data."
+            )
+        return self
+
 
 class DataEntryCreate(DataEntryPayloadMixin, DataEntryBase):
     """Base factor schema."""
@@ -91,6 +108,7 @@ class DataEntryResponse(DataEntryBase):
 
     id: int
     data: dict
+    kg_co2eq_override: Optional[float] = None
 
 
 class DataEntryResponseGen(DataEntryBase):
