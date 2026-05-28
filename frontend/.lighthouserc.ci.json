@@ -40,7 +40,8 @@
           {
             "minScore": 0.9
           }
-        ]
+        ],
+        "color-contrast": "error"
       }
     },
     "upload": {
