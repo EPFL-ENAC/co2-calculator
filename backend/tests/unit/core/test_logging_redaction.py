@@ -77,3 +77,24 @@ def test_redact_filter_never_raises():
     record = _make_record("normal message", args=(object(), 1, None))
     assert f.filter(record) is True
     # Args may or may not be modified; the contract is "don't raise".
+
+
+def test_setup_logging_installs_redactor_on_uvicorn_access():
+    """The filter is useless if it isn't attached to the right logger.
+
+    Regression guard against the wiring being silently dropped during a
+    future refactor of `setup_logging`. Calls setup_logging() and asserts
+    the uvicorn.access logger ends up with a
+    _RedactSensitiveQueryStringFilter in its filter list.
+    """
+    from app.core.logging import setup_logging
+
+    setup_logging()
+
+    access_logger = logging.getLogger("uvicorn.access")
+    assert any(
+        isinstance(f, _RedactSensitiveQueryStringFilter) for f in access_logger.filters
+    ), (
+        "uvicorn.access should have _RedactSensitiveQueryStringFilter "
+        "installed; otherwise OAuth callback URLs land in logs verbatim."
+    )
