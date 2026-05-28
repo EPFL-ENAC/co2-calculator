@@ -1,6 +1,16 @@
 import { Threshold } from 'src/constant/modules';
 import type { AllSubmoduleTypes } from 'src/constant/modules';
 export type FormStructure = 'single' | 'perSubmodule' | 'grouped';
+
+export const COLUMN_SIZES = {
+  xs: 80,
+  sm: 120,
+  md: 160,
+  lg: 200,
+  xl: 260,
+} as const;
+
+export type ColumnSize = keyof typeof COLUMN_SIZES;
 export type FieldType =
   | 'text'
   | 'number'
@@ -75,6 +85,7 @@ export interface ModuleField {
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;
+  columnSize?: ColumnSize;
   minColumnWidth?: number;
   maxColumnWidth?: number;
   hideIn?: {

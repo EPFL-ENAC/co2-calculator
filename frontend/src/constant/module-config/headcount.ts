@@ -28,6 +28,7 @@ const memberFields: ModuleField[] = [
     required: true,
     ratio: '1/4',
     icon: 'o_filter_drama',
+    columnSize: 'sm',
   },
   {
     id: 'position_category',
@@ -40,6 +41,7 @@ const memberFields: ModuleField[] = [
     ratio: '1/4',
     icon: 'o_assignment_ind',
     optionLabelsAreKeys: true,
+    columnSize: 'sm',
     options: [
       { value: 'professor', label: 'headcount_professor' },
       {

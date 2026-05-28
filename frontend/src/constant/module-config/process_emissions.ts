@@ -17,6 +17,7 @@ const processEmissionsFields: ModuleField[] = [
     ratio: '1/3',
     hideIn: { form: false },
     icon: 'o_science',
+    columnSize: 'lg',
   },
   {
     id: 'subcategory',
@@ -30,6 +31,7 @@ const processEmissionsFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     hideIn: { form: false },
+    columnSize: 'lg',
     conditionalVisibility: {
       showWhen: {
         fieldId: 'category',

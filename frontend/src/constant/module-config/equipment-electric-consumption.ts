@@ -43,6 +43,7 @@ const baseModuleFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
+    columnSize: 'lg',
   },
   {
     id: 'sub_class',
@@ -60,6 +61,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: false,
     ratio: '1/2',
     icon: 'o_category',
+    columnSize: 'lg',
   },
   {
     id: 'active_usage_hours_per_week',
