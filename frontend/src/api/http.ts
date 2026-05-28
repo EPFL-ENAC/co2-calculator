@@ -22,10 +22,21 @@ export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
 
 const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
+const endsWithSessionExchange = (u: string) =>
+  /\/session\/exchange(?:\?.*)?$/.test(u);
 const isRefresh = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'POST';
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
+// /session/exchange is the BFF cookie-exchange POST run by AuthCompletePage.
+// 401 from this endpoint means an expired/consumed/unknown exchange code —
+// an EXPECTED failure mode that the page renders as its own failure UI
+// (with a retry button). It MUST NOT trigger the global login redirect
+// (location.replace(loginPageName)), and it MUST NOT trigger the global
+// pre-retry refresh attempt (there's no refresh cookie yet during the BFF
+// handshake — the exchange IS what mints the cookies).
+const isExchange = (u: string, m: string) =>
+  endsWithSessionExchange(u) && m.toUpperCase() === 'POST';
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -41,10 +52,14 @@ export const api = ky.create({
   },
   hooks: {
     beforeRetry: [
-      // For any non-refresh call, try to refresh before retrying
+      // For any non-refresh call, try to refresh before retrying.
+      // Exception: /session/exchange — it predates the cookies, so a
+      // refresh attempt here would hit the same 401 wall and bounce.
       async ({ request }) => {
-        if (!isRefresh(request.url, request.method))
-          // do not retry 'refresh' itself
+        if (
+          !isRefresh(request.url, request.method) &&
+          !isExchange(request.url, request.method)
+        )
           await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
       },
     ],
@@ -62,6 +77,15 @@ export const api = ky.create({
             // For session check, do not redirect, just return
             // This prevents redirect loops during session validation
             // vue Router guard will handle the redirection
+            return;
+          }
+          if (isExchange(req.url, req.method)) {
+            // BFF cookie-exchange: 401 means expired/consumed/unknown
+            // code. Let the caller (authStore.exchange via
+            // AuthCompletePage) see the error so the page can render
+            // its "exchange failed, retry login" state — bypassing the
+            // global redirect would otherwise loop the user back through
+            // /login and hide the actual failure reason.
             return;
           } else {
             // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to

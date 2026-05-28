@@ -50,9 +50,11 @@ class _RedactSensitiveQueryStringFilter(logging.Filter):
                 )
             if isinstance(record.msg, str):
                 record.msg = _REDACT_QS_RE.sub(r"\1=<redacted>", record.msg)
-        except Exception:
-            # Logging must never raise. Drop the scrub on the floor before
-            # losing a log line.
+        except Exception:  # nosec B110
+            # Logging filters MUST NOT raise (Python contract: a raising
+            # filter would drop the log line entirely). The scrub is
+            # best-effort; on any failure we let the original record
+            # through unmodified rather than losing it.
             pass
         return True
 

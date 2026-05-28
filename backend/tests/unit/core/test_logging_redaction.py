@@ -10,7 +10,7 @@ scrub installed on the ``uvicorn.access`` logger.
 
 import logging
 
-from app.core.logging import _RedactSensitiveQueryStringFilter
+from app.core.logging import _RedactSensitiveQueryStringFilter, setup_logging
 
 
 def _make_record(msg: str, args: tuple = ()) -> logging.LogRecord:
@@ -87,8 +87,6 @@ def test_setup_logging_installs_redactor_on_uvicorn_access():
     the uvicorn.access logger ends up with a
     _RedactSensitiveQueryStringFilter in its filter list.
     """
-    from app.core.logging import setup_logging
-
     setup_logging()
 
     access_logger = logging.getLogger("uvicorn.access")

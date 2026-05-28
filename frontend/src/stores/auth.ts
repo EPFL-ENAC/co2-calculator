@@ -89,7 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Trade the single-use OAuth-callback code for session cookies (BFF
-   * leg 2; ADR-018). Run from the /auth/complete landing page after the
+   * leg 2; ADR-019). Run from the /auth/complete landing page after the
    * IdP redirect lands there with a `#code=<...>` fragment.
    */
   async function exchange(code: string): Promise<User | null> {

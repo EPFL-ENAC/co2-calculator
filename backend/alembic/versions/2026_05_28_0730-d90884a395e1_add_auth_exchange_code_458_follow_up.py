@@ -1,7 +1,7 @@
 # codeql[py/unused-global-variable]
 """add auth_exchange_code (#458 follow-up)
 
-Backs the BFF cookie-exchange flow (ADR-018): the OAuth callback writes a
+Backs the BFF cookie-exchange flow (ADR-019): the OAuth callback writes a
 single-use code here and redirects to the SPA's /auth/complete page, which
 POSTs the code to /v1/session/exchange to obtain cookies on a same-origin
 response. Sidesteps Safari ITP, which can drop Set-Cookie on the tail of a

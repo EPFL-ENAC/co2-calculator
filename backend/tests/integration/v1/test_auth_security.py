@@ -2,7 +2,7 @@
 
 Each test in this file pins one row of the trust-boundary table documented
 in `docs/src/implementation-plans/458-security-authentication-integration-hardening.md`
-plus the BFF-exchange contract from ADR-018.
+plus the BFF-exchange contract from ADR-019.
 
 The tests intentionally use the real `create_access_token` / `decode_jwt`
 code paths so signature, algorithm and claim handling are exercised, not
@@ -25,7 +25,7 @@ import app.core.config as config
 from app.core.security import create_access_token, create_refresh_token
 from app.main import app
 from app.models.auth_exchange_code import AuthExchangeCode
-from app.models.user import UserProvider
+from app.models.user import User, UserProvider
 
 API_PREFIX = config.get_settings().API_VERSION
 
@@ -443,7 +443,6 @@ def _exchange_cookies_under(client, override_db, monkeypatch, *, cookie_secure: 
         code = location.split("#code=", 1)[1]
 
         # Stub user lookup for the exchange leg.
-        from app.models.user import User
 
         user = User(
             id=1,
@@ -700,7 +699,6 @@ def test_callback_binds_session_to_idp_institutional_id(
     code = location.split("#code=", 1)[1]
 
     # Drive the exchange leg and inspect the freshly-minted access cookie.
-    from app.models.user import User
 
     monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
     user = User(
@@ -755,7 +753,7 @@ def test_callback_binds_session_to_idp_institutional_id(
 
 
 # ---------------------------------------------------------------------------
-# BFF exchange flow (ADR-018)
+# BFF exchange flow (ADR-019)
 # ---------------------------------------------------------------------------
 
 
@@ -833,7 +831,6 @@ class TestExchangeFlow:
     def test_exchange_valid_code_sets_cookies_and_returns_user(
         self, client, monkeypatch
     ):
-        from app.models.user import User
 
         monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
         future = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(seconds=30)
@@ -886,7 +883,6 @@ def test_e2e_callback_exchange_session_refresh_logout_happy_path(client, monkeyp
     Catches future regressions where the four endpoints diverge on cookie
     attributes or JWT shape.
     """
-    from app.models.user import User
 
     # TestClient uses http://testserver — Secure cookies stored by httpx
     # would be silently dropped on the next request. Disable for the test.

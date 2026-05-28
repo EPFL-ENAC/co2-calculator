@@ -344,7 +344,7 @@ const routes: RouteRecordRaw[] = [
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
   },
-  // BFF cookie-exchange landing (ADR-018). Backend redirects here with
+  // BFF cookie-exchange landing (ADR-019). Backend redirects here with
   // `#code=<single-use-token>`; component POSTs it to /session/exchange,
   // strips the fragment, and routes to home. No auth required: the
   // exchange call IS the act of authenticating.

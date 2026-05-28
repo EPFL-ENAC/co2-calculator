@@ -2,7 +2,7 @@
 
 Trust boundaries (see plan
 ``docs/src/implementation-plans/458-security-authentication-integration-hardening.md``
-and ADR-018 ``bff-cookie-exchange``):
+and ADR-019 ``bff-cookie-exchange``):
 
 1. IdP -> backend: only the ``userinfo`` claims returned by
    ``oauth.co2_oauth_provider.authorize_access_token`` are trusted to bind
@@ -28,9 +28,14 @@ and ADR-018 ``bff-cookie-exchange``):
    the endpoint (access for ``GET /v1/session``, refresh for
    ``POST /v1/session``).
 
-The legacy URL surface ``/v1/auth/*`` is removed outright -- no
-deprecated aliases. Per project policy (pre-v1.x, DB drops between
-deploys) the frontend lands in lockstep with this change.
+The legacy session endpoints (``/v1/auth/me``, ``/v1/auth/refresh``,
+``/v1/auth/logout``) were removed and replaced by the RESTful
+``/v1/session`` resource (GET / POST / DELETE) — no deprecated aliases.
+Per project policy (pre-v1.x, DB drops between deploys) the frontend
+lands in lockstep with this change. The IdP-touching routes stayed at
+``/v1/auth/{login,callback,login-test}`` to avoid an Entra
+``redirect_uri`` reconfiguration; their trust-boundary semantics are
+unchanged.
 
 ``/v1/auth/login-test`` deliberately bypasses boundary 1 and constructs
 a session from a query-string ``role``. Its only gate is
@@ -294,15 +299,20 @@ def _reset_exchange_rate_limiter() -> None:
 
 
 def _enforce_exchange_rate_limit(request: Request) -> None:
-    """Token-bucket gate: at most N requests per IP per window.
+    """Token-bucket gate: at most N requests per peer per window.
 
-    Keyed by ``X-Forwarded-For`` head (when present, behind the trusted
-    ``ProxyHeadersMiddleware``) else ``request.client.host``. Bucket is
-    a deque of timestamps; we evict entries older than the window and
-    refuse when the remaining count hits the cap.
+    Keyed on ``request.client.host`` — the immediate TCP peer, NOT a
+    client-supplied ``X-Forwarded-For`` header. With
+    ``ProxyHeadersMiddleware(trusted_hosts="*")`` in ``app/main.py``
+    XFF would be honoured from any peer, letting an attacker rotate the
+    header to get unlimited fresh rate-limit buckets. The peer address
+    can't be spoofed: for direct connections it's the attacker's real
+    IP; for proxied deployments it's the reverse proxy's IP, which is
+    fine because the proxy is trusted infra and serves as a per-proxy
+    cap (a single misbehaving proxy can't DoS unrelated peers).
     """
     client = request.client
-    ip = extract_ip_address(request) or (client.host if client else "unknown")
+    ip = client.host if client else "unknown"
     now = time.monotonic()
     cutoff = now - _EXCHANGE_RATE_LIMIT_WINDOW_SECONDS
 
