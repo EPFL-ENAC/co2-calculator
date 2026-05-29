@@ -108,7 +108,6 @@ nav:
       - Overview: backend/01-overview.md
       - Architecture: backend/02-ARCHITECTURE.md
       - File Structure: backend/03-FILE_STRUCTURE.md
-      - Quick Start: backend/04-README.md
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
       - "Developer Guide: Permissions":
