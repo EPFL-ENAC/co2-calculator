@@ -480,6 +480,131 @@ async def test_train_csv_persists_csv_source_and_preserves_one_to_one(
     await engine.dispose()
 
 
+@pytest.mark.asyncio
+async def test_train_csv_resolves_station_by_required_country_code(
+    pg_dsn_with_310b, monkeypatch, tmp_path
+) -> None:
+    """Regression for issue #1183: the train CSV's required
+    ``origin_country_code`` / ``destination_country_code`` columns scope
+    station resolution to one country.
+
+    Setup pins the cross-country collision case from the issue body:
+    two stations share the same name (``Berne``) in different
+    countries (CH vs DE). A single CSV row with
+    ``destination_country_code=DE`` must resolve to the German station,
+    not the Swiss one. (Missing country_code is rejected — covered by the
+    unit test ``test_train_enrich_csv_row``.)
+    """
+    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    de_natural_key = Location.compute_natural_key(
+        transport_mode=TransportModeEnum.train,
+        name="Berne",
+        latitude=53.1667,
+        longitude=8.5,
+        country_code="DE",
+    )
+
+    async with Sf() as s:
+        _, _, module_id = await _seed_year_unit_and_module(s)
+        # Origin: Geneva (CH) — same as the smoke fixture.
+        s.add(
+            Location(
+                transport_mode=TransportModeEnum.train,
+                name="Geneva",
+                latitude=46.2104,
+                longitude=6.1428,
+                country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Geneva",
+                    latitude=46.2104,
+                    longitude=6.1428,
+                    country_code="CH",
+                ),
+            )
+        )
+        # Collision pair: Berne exists in both CH and DE.
+        s.add(
+            Location(
+                transport_mode=TransportModeEnum.train,
+                name="Berne",
+                latitude=46.948,
+                longitude=7.4474,
+                country_code="CH",
+                natural_key=Location.compute_natural_key(
+                    transport_mode=TransportModeEnum.train,
+                    name="Berne",
+                    latitude=46.948,
+                    longitude=7.4474,
+                    country_code="CH",
+                ),
+            )
+        )
+        s.add(
+            Location(
+                transport_mode=TransportModeEnum.train,
+                name="Berne",
+                latitude=53.1667,
+                longitude=8.5,
+                country_code="DE",
+                natural_key=de_natural_key,
+            )
+        )
+        await s.commit()
+        await _seed_train_factor(s)
+
+    csv_path = tmp_path / "train_country_code_override.csv"
+    csv_path.write_text(
+        "unit_institutional_id,origin_name,origin_country_code,"
+        "destination_name,destination_country_code,user_institutional_id,"
+        "departure_date,number_of_trips,cabin_class,note,kg_co2eq\n"
+        f"{UNIT_INST_ID},Geneva,CH,Berne,DE,U-DE,2025-04-01,1,second,,\n"
+    )
+    relative_path = _stage_csv_under_files_store(monkeypatch, tmp_path, csv_path)
+
+    parent, _ = await dispatch_csv_and_wait(
+        session_factory=Sf,
+        file_path=relative_path,
+        target_type=TargetType.DATA_ENTRIES,
+        module_type_id=int(ModuleTypeEnum.professional_travel),
+        data_entry_type_id=int(DataEntryTypeEnum.train),
+        year=YEAR,
+        ingestion_method=IngestionMethod.csv,
+        provider_class=ModulePerYearCSVProvider,
+    )
+    assert parent.state == IngestionState.FINISHED, (
+        f"country_code-override CSV did not finish: state={parent.state} "
+        f"status={parent.status_message!r}"
+    )
+    assert parent.result == IngestionResult.SUCCESS, (
+        f"country_code-override CSV reported {parent.result}: {parent.status_message!r}"
+    )
+
+    async with Sf() as s:
+        rows = (
+            (
+                await s.execute(
+                    select(DataEntry).where(
+                        col(DataEntry.carbon_report_module_id) == module_id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 1, f"expected single override row; persisted {len(rows)}"
+        persisted = rows[0]
+        assert persisted.data.get("destination_natural_key") == de_natural_key, (
+            "destination_country_code=DE must resolve to the German Berne "
+            "station, not the Swiss default — got "
+            f"{persisted.data.get('destination_natural_key')!r}"
+        )
+
+    await engine.dispose()
+
+
 # ── 3. CSV reupload ────────────────────────────────────────────────────
 
 

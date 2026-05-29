@@ -99,16 +99,14 @@ class LocationService:
     async def resolve_train_station_for_csv(
         self,
         name: str,
-        default_country_code: str = "CH",
+        country_code: str,
     ) -> tuple[Optional[Location], str]:
         """Resolve a train station name to a single ``Location`` for CSV ingest.
 
-        Production train CSVs ship only ``origin_name`` / ``destination_name``
-        (no country, no coordinates, no precomputed natural_key), so the CSV
-        provider needs a name → Location resolver to fill in ``natural_key``
-        before persisting the row. The resolver defaults to ``CH`` because
-        the project's data is Swiss-centric; non-CH cases will be revisited
-        when the CSV gains a ``country_code`` column.
+        Train CSVs ship ``origin_name`` / ``destination_name`` plus a required
+        ``country_code`` per endpoint, so the CSV provider can fill in
+        ``natural_key`` before persisting the row. ``country_code`` scopes the
+        lookup to one country — there is no default; callers must pass it.
 
         Returns:
             (Location, "ok") on a single match.
@@ -119,13 +117,13 @@ class LocationService:
         """
         matches = await self.repo.find_train_stations_by_name(
             name=name,
-            country_code=default_country_code,
+            country_code=country_code,
             limit=2,
         )
         if not matches:
             return None, "not_found"
         if len(matches) > 1:
-            return None, f"ambiguous: {len(matches)} matches in {default_country_code}"
+            return None, f"ambiguous: {len(matches)} matches in {country_code}"
         return matches[0], "ok"
 
     async def get_location_by_id(self, location_id: int) -> Optional[Location]:
