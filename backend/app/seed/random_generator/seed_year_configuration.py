@@ -25,7 +25,11 @@ async def get_connection():
 
 
 async def insert_year_configurations(conn):
-    now = datetime.now(timezone.utc)
+    now_tz = datetime.now(timezone.utc)
+    # `updated_at` is TIMESTAMP (no tz) per the SQLModel column default;
+    # `configuration_completed` is TIMESTAMPTZ. Pass them as distinct
+    # parameters so asyncpg can deduce each type unambiguously.
+    now_naive = now_tz.replace(tzinfo=None)
     provider = UserProvider.DEFAULT.name
 
     for year in YEARS:
@@ -39,12 +43,20 @@ async def insert_year_configurations(conn):
                 config,
                 updated_at
             )
-            VALUES ($1, $2::user_provider_enum, TRUE, $3, '{}'::jsonb, $3)
+            VALUES (
+                $1,
+                $2::user_provider_enum,
+                TRUE,
+                $3::timestamptz,
+                '{}'::jsonb,
+                $4::timestamp
+            )
             ON CONFLICT (year, provider) DO NOTHING
             """,
             year,
             provider,
-            now,
+            now_tz,
+            now_naive,
         )
 
     print(f"✓ Year configurations ready for {YEARS} (provider={provider})")
