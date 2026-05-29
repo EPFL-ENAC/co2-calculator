@@ -20,18 +20,29 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
-from app.models.location import TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
 from app.modules import (
+    BuildingRoomHandlerCreate,
+    EnergyCombustionHandlerCreate,
     EquipmentHandlerCreate,
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,
     HeadCountCreate,
     HeadCountStudentCreate,
+    ProcessEmissionsHandlerCreate,
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
+    PurchaseAdditionalHandlerCreate,
+    PurchaseHandlerCreate,
+    ResearchFacilitiesAnimalHandlerCreate,
+    ResearchFacilitiesCommonHandlerCreate,
 )
-from app.modules.purchase.schemas import PurchaseHandlerCreate
+from app.modules.buildings.schemas import (
+    VALID_ROOM_TYPES,
+    BuildingEmbodiedEnergyHandlerCreate,
+)
+from app.modules.external_cloud_and_ai.schemas import REQUESTS_FREQUENCY_OPTIONS
+from app.modules.headcount.schemas import POSITION_CATEGORY_VALUES
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -100,15 +111,17 @@ async def copy_insert_data_entries(conn, rows):
 
 
 async def copy_insert_emissions(conn, rows):
+    # Schema mirrors ``DataEntryEmissionBase`` — ``subcategory`` and
+    # ``formula_version`` were dropped from the table; do not re-add them.
     await conn.execute("""
         CREATE TEMP TABLE IF NOT EXISTS tmp_emissions (
             data_entry_id INT,
             emission_type_id INT,
             primary_factor_id INT,
-            subcategory TEXT,
             kg_co2eq FLOAT,
+            additional_value FLOAT,
+            scope INT,
             meta JSONB,
-            formula_version TEXT,
             computed_at TIMESTAMPTZ
         ) ON COMMIT DROP
     """)
@@ -125,10 +138,10 @@ async def copy_insert_emissions(conn, rows):
             data_entry_id,
             emission_type_id,
             primary_factor_id,
-            subcategory,
             kg_co2eq,
+            additional_value,
+            scope,
             meta,
-            formula_version,
             computed_at
         )
         SELECT *
@@ -140,28 +153,45 @@ async def copy_insert_emissions(conn, rows):
 # DATA GENERATION
 # ============================================================
 
-DATA_ENTRY_TYPE_TO_DTO = {
-    DataEntryTypeEnum.plane: ProfessionalTravelPlaneHandlerCreate,
-    DataEntryTypeEnum.train: ProfessionalTravelTrainHandlerCreate,
-    DataEntryTypeEnum.it: EquipmentHandlerCreate,
-    DataEntryTypeEnum.scientific: EquipmentHandlerCreate,
-    DataEntryTypeEnum.other: EquipmentHandlerCreate,
-    DataEntryTypeEnum.external_clouds: ExternalCloudHandlerCreate,
-    DataEntryTypeEnum.external_ai: ExternalAIHandlerCreate,
+# Maps every DataEntryTypeEnum that the random generator may emit (per
+# MODULE_TYPE_TO_DATA_ENTRY_TYPES) to the Pydantic create-DTO that owns its
+# JSON payload contract. Keeping this exhaustive prevents the generator's
+# random module-type pick from raising KeyError mid-batch.
+DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
+    # headcount
     DataEntryTypeEnum.member: HeadCountCreate,
     DataEntryTypeEnum.student: HeadCountStudentCreate,
-    DataEntryTypeEnum.building: EquipmentHandlerCreate,
-    DataEntryTypeEnum.process_emissions: EquipmentHandlerCreate,
-    DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
-    DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
-    DataEntryTypeEnum.scientific_equipment: EquipmentHandlerCreate,
+    # professional travel
+    DataEntryTypeEnum.plane: ProfessionalTravelPlaneHandlerCreate,
+    DataEntryTypeEnum.train: ProfessionalTravelTrainHandlerCreate,
+    # equipment electric consumption
+    DataEntryTypeEnum.scientific: EquipmentHandlerCreate,
+    DataEntryTypeEnum.it: EquipmentHandlerCreate,
+    DataEntryTypeEnum.other: EquipmentHandlerCreate,
+    # buildings
+    DataEntryTypeEnum.building: BuildingRoomHandlerCreate,
+    DataEntryTypeEnum.energy_combustion: EnergyCombustionHandlerCreate,
+    DataEntryTypeEnum.building_embodied_energy: BuildingEmbodiedEnergyHandlerCreate,
+    # external cloud & AI
+    DataEntryTypeEnum.external_clouds: ExternalCloudHandlerCreate,
+    DataEntryTypeEnum.external_ai: ExternalAIHandlerCreate,
+    # process emissions
+    DataEntryTypeEnum.process_emissions: ProcessEmissionsHandlerCreate,
+    # purchases (standard purchase DTO covers all subkinds except
+    # ``additional_purchases``, which has its own DTO).
+    DataEntryTypeEnum.scientific_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.consumable_accessories: PurchaseHandlerCreate,
     DataEntryTypeEnum.biological_chemical_gaseous_product: PurchaseHandlerCreate,
     DataEntryTypeEnum.services: PurchaseHandlerCreate,
     DataEntryTypeEnum.vehicles: PurchaseHandlerCreate,
     DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
-    DataEntryTypeEnum.additional_purchases: PurchaseHandlerCreate,
+    DataEntryTypeEnum.additional_purchases: PurchaseAdditionalHandlerCreate,
+    # research facilities
+    DataEntryTypeEnum.research_facilities: ResearchFacilitiesCommonHandlerCreate,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: (
+        ResearchFacilitiesAnimalHandlerCreate
+    ),
 }
 
 
@@ -169,92 +199,205 @@ def maybe(value, probability=0.5):  # nosec B311
     return value if random.random() < probability else None  # nosec B311
 
 
-def build_professional_travel():
+def _user_institutional_id() -> str:
+    # populate_units_and_users emits ``USR000000``-style ids; mirror that shape
+    # so future joins (where applicable) line up. Random suffix is fine — these
+    # payloads are decoupled from the users table at the DB level.
+    return f"USR{random.randint(0, 999999):06d}"  # nosec B311
+
+
+def build_plane_travel() -> dict:
     return {
-        "traveler_name": fake.name(),
-        "user_institutional_id": random.randint(1, 1000),  # nosec B311
-        "origin_location_id": random.randint(1, 200),  # nosec B311
-        "destination_location_id": random.randint(1, 200),  # nosec B311
-        "transport_mode": random.choice(list(TransportModeEnum)).value,  # nosec B311
-        "cabin_class": maybe(random.choice(["eco", "business", "first"])),  # nosec B311
-        "departure_date": maybe(date.today()),
+        "user_institutional_id": _user_institutional_id(),
+        "origin_iata": fake.lexify(text="???").upper(),
+        "destination_iata": fake.lexify(text="???").upper(),
+        "cabin_class": random.choice(["eco", "business", "first"]),  # nosec B311
+        "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
-        "is_round_trip": random.choice([True, False]),  # nosec B311
-        "trip_direction": maybe(random.choice(["outbound", "return"])),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
-def build_equipment():
+def build_train_travel() -> dict:
+    return {
+        "user_institutional_id": _user_institutional_id(),
+        "origin_name": fake.city(),
+        "destination_name": fake.city(),
+        "cabin_class": random.choice(["first", "second"]),  # nosec B311
+        "departure_date": date.today().isoformat(),
+        "number_of_trips": random.randint(1, 10),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_equipment() -> dict:
+    # ``equipment_class`` is required (``str``, not Optional) on the create DTO.
+    # ``active`` + ``standby`` hours must sum to ≤ 168 per the mixin validator.
+    active = random.randint(0, 80)  # nosec B311
+    standby = random.randint(0, 168 - active)  # nosec B311
     return {
         "name": fake.word(),
-        "equipment_class": maybe(fake.word()),
+        "equipment_class": fake.word(),
         "sub_class": maybe(fake.word()),
-        "active_usage_hours": maybe(random.randint(0, 168)),  # nosec B311
-        "passive_usage_hours": maybe(random.randint(0, 168)),  # nosec B311
+        "active_usage_hours_per_week": active,
+        "standby_usage_hours_per_week": standby,
+        "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
-def build_external_cloud():
+def build_external_cloud() -> dict:
     return {
         "service_type": fake.word(),
-        "provider": maybe(random.choice(["AWS", "Azure", "GCP"])),  # nosec B311
+        "provider": random.choice(["AWS", "Azure", "GCP"]),  # nosec B311
         "spent_amount": round(random.uniform(0, 5000), 2),  # nosec B311
+        "currency": random.choice(["chf", "eur", "usd"]),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
-def build_external_ai():
+def build_external_ai() -> dict:
     return {
         "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
         "usage_type": fake.sentence(nb_words=3),
-        "requests_per_user_per_day": maybe(random.randint(0, 50)),  # nosec B311
-        "fte_count": random.randint(1, 500),  # nosec B311
+        "requests_per_user_per_day": maybe(
+            random.choice(REQUESTS_FREQUENCY_OPTIONS),  # nosec B311
+        ),
+        # fte_count must be ≥ 0.1 per the schema validator.
+        "fte_count": round(random.uniform(0.1, 500.0), 2),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
-def build_headcount():
+def build_headcount() -> dict:
     return {
         "name": fake.name(),
-        "function": maybe(fake.job()),
+        "position_title": maybe(fake.job()),
+        "position_category": maybe(
+            random.choice(sorted(POSITION_CATEGORY_VALUES)),  # nosec B311
+        ),
         "fte": maybe(round(random.uniform(0.1, 1.0), 2)),  # nosec B311
-        "sciper": maybe(str(random.randint(100000, 999999))),  # nosec B311
+        # user_institutional_id is required (non-Optional) on the create DTO.
+        "user_institutional_id": _user_institutional_id(),
+        "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
-def build_student():
+def build_student() -> dict:
     return {
         "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
     }
 
 
-def build_purchase():
+def build_purchase() -> dict:
     return {
         "name": fake.word(),
         "supplier": maybe(fake.company()),
-        "quantity": maybe(random.randint(1, 100)),  # nosec B311
-        "total_spent_amount": maybe(round(random.uniform(100, 10000), 2)),  # nosec B311
+        "quantity": maybe(round(random.uniform(1, 100), 2)),  # nosec B311
+        # total_spent_amount is required (non-Optional) on the create DTO.
+        "total_spent_amount": round(random.uniform(100, 10000), 2),  # nosec B311
+        "currency": random.choice(["chf", "eur", "usd"]),  # nosec B311
         "purchase_institutional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
         "purchase_additional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
         "note": maybe(fake.sentence(nb_words=10)),
     }
 
 
-DTO_BUILDERS = {
-    ProfessionalTravelPlaneHandlerCreate: build_professional_travel,
-    ProfessionalTravelTrainHandlerCreate: build_professional_travel,
+def build_purchase_additional() -> dict:
+    return {
+        "name": fake.word(),
+        "unit": random.choice(["kg", "liter", "piece"]),  # nosec B311
+        "annual_consumption": round(random.uniform(0, 5000), 2),  # nosec B311
+        "coef_to_kg": round(random.uniform(0.01, 10.0), 3),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_building_room() -> dict:
+    return {
+        "building_name": fake.last_name() + " Hall",
+        "room_name": f"R{random.randint(100, 999)}",  # nosec B311
+        "room_type": random.choice(  # nosec B311
+            [t for t in VALID_ROOM_TYPES if t is not None]
+        ),
+        "room_allocation_ratio": round(random.uniform(0.0, 1.0), 2),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_energy_combustion() -> dict:
+    return {
+        "name": fake.word(),
+        "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_building_embodied_energy() -> dict:
+    return {
+        "building_name": fake.last_name() + " Hall",
+    }
+
+
+def build_process_emissions() -> dict:
+    return {
+        "category": fake.word(),
+        "subcategory": maybe(fake.word()),
+        "quantity": round(random.uniform(0, 5000), 2),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_research_facility_common() -> dict:
+    return {
+        "researchfacility_id": maybe(fake.bothify(text="RF-#####")),
+        "researchfacility_name": maybe(fake.company()),
+        "use": maybe(round(random.uniform(0, 1000), 2)),  # nosec B311
+        "use_unit": maybe(random.choice(["kg", "liter", "hour"])),  # nosec B311
+        "note": maybe(fake.sentence(nb_words=6)),
+    }
+
+
+def build_research_facility_animal() -> dict:
+    payload = build_research_facility_common()
+    payload["researchfacility_type"] = maybe(
+        random.choice(["mice", "fish", "rat"]),  # nosec B311
+    )
+    return payload
+
+
+DTO_BUILDERS: dict[type, object] = {
+    ProfessionalTravelPlaneHandlerCreate: build_plane_travel,
+    ProfessionalTravelTrainHandlerCreate: build_train_travel,
     EquipmentHandlerCreate: build_equipment,
     ExternalCloudHandlerCreate: build_external_cloud,
     ExternalAIHandlerCreate: build_external_ai,
     HeadCountCreate: build_headcount,
     HeadCountStudentCreate: build_student,
     PurchaseHandlerCreate: build_purchase,
+    PurchaseAdditionalHandlerCreate: build_purchase_additional,
+    BuildingRoomHandlerCreate: build_building_room,
+    EnergyCombustionHandlerCreate: build_energy_combustion,
+    BuildingEmbodiedEnergyHandlerCreate: build_building_embodied_energy,
+    ProcessEmissionsHandlerCreate: build_process_emissions,
+    ResearchFacilitiesCommonHandlerCreate: build_research_facility_common,
+    ResearchFacilitiesAnimalHandlerCreate: build_research_facility_animal,
 }
+
+
+# Tuned to land at ~800k data_entry rows total:
+# NUM_UNITS (500) × YEARS (3) × ALL_MODULE_TYPE_IDS (8) × avg ~67 = 804k.
+# See docs/src/implementation-plans/222-seed-data-faker.md for the math.
+ENTRIES_PER_MODULE_MIN = 60
+ENTRIES_PER_MODULE_MAX = 74
 
 
 def generate_data_entries_for_module(module_id, module_type_id):
     rows = []
     now_status_values = [s.value for s in DataEntryStatusEnum]
 
-    num_entries = random.randint(10, 220)  # nosec B311
+    num_entries = random.randint(  # nosec B311
+        ENTRIES_PER_MODULE_MIN, ENTRIES_PER_MODULE_MAX
+    )
 
     matching_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
         module_type_id, [DataEntryTypeEnum.member]
@@ -268,15 +411,21 @@ def generate_data_entries_for_module(module_id, module_type_id):
 
         payload_dict = builder()
 
-        # Validate against real DTO
-        # dto_instance = dto_class(**payload_dict)
+        # Validate against the real Pydantic DTO so payload drift surfaces here
+        # rather than at first read by the app. ``DataEntryPayloadMixin`` wraps
+        # the flat dict into ``{"data": {...}}``; we persist the inner dict so
+        # the JSONB column stays flat (matches what the API would store).
+        dto_instance = dto_class(
+            data_entry_type_id=data_entry_type.value,
+            carbon_report_module_id=module_id,
+            **payload_dict,
+        )
 
         rows.append(
             (
                 data_entry_type.value,
                 module_id,
-                # dto_instance.model_dump_json(),
-                json.dumps(payload_dict, default=str),
+                json.dumps(dto_instance.data, default=str),
                 random.choice(now_status_values),  # nosec B311
             )
         )
@@ -288,18 +437,20 @@ def generate_emissions_for_entry(entry_id, data_entry_type_id):
     rows = []
     now = datetime.now(timezone.utc)
 
-    # simple placeholder logic for speed  # nosec B311
+    # simple placeholder logic for speed — no factor lookup; primary_factor_id
+    # stays NULL. Fields mirror ``DataEntryEmissionBase``.
     emission_type = random.choice(list(EmissionType))  # nosec B311
+    scope = emission_type.scope.value if emission_type.scope is not None else None
 
     rows.append(
         (
             entry_id,
             emission_type.value,
-            None,
-            emission_type.name,
-            round(random.uniform(10, 500), 4),  # nosec B311
-            json.dumps({"seeded": True}),
-            versionapi,
+            None,  # primary_factor_id
+            round(random.uniform(10, 500), 4),  # kg_co2eq  # nosec B311
+            None,  # additional_value
+            scope,
+            json.dumps({"seeded": True, "formula_version": versionapi}),
             now,
         )
     )

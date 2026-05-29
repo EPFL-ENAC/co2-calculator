@@ -1,8 +1,12 @@
 """
 Ultra-fast PostgreSQL COPY seeder
 
-- 3,000 units
-- 10,000 users (3–15 per unit, normal distribution around 8)
+Sized for scale testing. NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS (8) ×
+entries_per_module drives the data_entries row count; tune ENTRIES_PER_MODULE
+in seed_data_entries to hit the target volume.
+
+- NUM_UNITS units
+- NUM_USERS users (3–15 per unit, normal distribution around 8)
 - 2 global admin users
 - Bulk inserts using asyncpg COPY
 - Principal users assigned in SQL
@@ -18,12 +22,11 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.user import RoleName, UserProvider
 
-NUM_UNITS = 3000
-NUM_USERS = 10000
-
-
-NUM_UNITS = 300
-NUM_USERS = 1000
+# 500 units × 3 years × 8 module_types × ~67 entries/module ≈ 804k data_entry rows
+# (see seed_data_entries.ENTRIES_PER_MODULE). Keep NUM_USERS between
+# 3 × NUM_UNITS and 15 × NUM_UNITS so distribute_users converges.
+NUM_UNITS = 500
+NUM_USERS = 4000
 
 USER_ROLES = [
     RoleName.CO2_USER_STD,
@@ -54,30 +57,23 @@ async def get_asyncpg_connection():
 # ============================================================
 
 
+SEEDED_UNIT_LEVEL = 5  # leaf level (lab/team).
+
+
 def generate_units():
     rows = []
 
     for i in range(NUM_UNITS):
         institutional_code = f"U{i:05d}"
-
-        affiliations = []
-        if random.random() < 0.7:  # nosec B311
-            affiliations.append(random.choice(["SB", "STI", "IC", "SV", "EDOC"]))  # nosec B311
-        if random.random() < 0.3:  # nosec B311
-            affiliations.append(random.choice(["ENAC", "INPLUS", "ISIC", "IIE"]))  # nosec B311
-
-        cost_centers = [
-            f"C{random.randint(1000, 9999)}"  # nosec B311
-            for _ in range(random.randint(1, 3))  # nosec B311
-        ]
-
+        # cf-style id; RoleScope.institutional_id matches this column.
+        institutional_id = f"CF{i:05d}"
         rows.append(
             (
                 institutional_code,
+                institutional_id,
                 fake.company(),
+                SEEDED_UNIT_LEVEL,
                 None,
-                json.dumps(cost_centers),
-                json.dumps(affiliations),
                 UserProvider.DEFAULT.name,
             )
         )
@@ -89,10 +85,10 @@ async def insert_units(conn, rows):
     await conn.execute("""
         CREATE TEMP TABLE tmp_units (
             institutional_code TEXT,
+            institutional_id TEXT,
             name TEXT,
+            level INTEGER,
             principal_user_institutional_id TEXT,
-            cost_centers JSONB,
-            affiliations JSONB,
             provider TEXT
         ) ON COMMIT DROP
     """)
@@ -105,24 +101,26 @@ async def insert_units(conn, rows):
     unit_ids = await conn.fetch("""
         INSERT INTO units (
             institutional_code,
+            institutional_id,
             name,
+            level,
             principal_user_institutional_id,
-            cost_centers,
-            affiliations,
-            provider
+            provider,
+            is_active
         )
         SELECT
             institutional_code,
+            institutional_id,
             name,
+            level,
             principal_user_institutional_id,
-            cost_centers,
-            affiliations,
-            provider::user_provider_enum
+            provider::user_provider_enum,
+            TRUE
         FROM tmp_units
-        RETURNING id, institutional_code
+        RETURNING id, institutional_id
     """)
 
-    return {r["institutional_code"]: r["id"] for r in unit_ids}
+    return {r["institutional_id"]: r["id"] for r in unit_ids}
 
 
 # ============================================================
@@ -162,11 +160,11 @@ def generate_users(unit_map):
     counts = distribute_users()
     user_counter = 0
 
-    unit_codes = list(unit_map.keys())
+    unit_iids = list(unit_map.keys())
 
     for unit_index, count in enumerate(counts):
-        unit_code = unit_codes[unit_index]
-        unit_id = unit_map[unit_code]
+        unit_iid = unit_iids[unit_index]
+        unit_id = unit_map[unit_iid]
 
         for _ in range(count):
             institutional_id = f"USR{user_counter:06d}"
@@ -185,7 +183,7 @@ def generate_users(unit_map):
                         [
                             {
                                 "role": role.value,
-                                "on": {"institutional_id": unit_code},
+                                "on": {"institutional_id": unit_iid},
                             }
                         ]
                     ),
@@ -197,8 +195,8 @@ def generate_users(unit_map):
 
     # Admins
     # Admins
-    first_unit_code = unit_codes[0]
-    first_unit_id = unit_map[first_unit_code]
+    first_unit_iid = unit_iids[0]
+    first_unit_id = unit_map[first_unit_iid]
 
     for role in ADMIN_ROLES:
         institutional_id = f"ADMIN{user_counter:06d}"
