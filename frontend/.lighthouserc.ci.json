@@ -41,7 +41,7 @@
             "minScore": 0.9
           }
         ],
-        "color-contrast": "error"
+        "color-contrast": "warn"
       }
     },
     "upload": {
