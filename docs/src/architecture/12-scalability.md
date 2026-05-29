@@ -5,15 +5,16 @@ The system is designed for horizontal scaling with stateless components.
 ## Horizontal Scaling Plan
 
 - Frontend: Multiple instances behind load balancer
-- Backend: Multiple FastAPI workers
+- Backend: Multiple FastAPI pods — stateless, no sticky sessions required
 - Database: Read replicas for read-heavy workloads
-- Workers: Multiple consumer processes
+- Background jobs: run in-process; scale with backend replicas (see [ADR-010](../architecture-decision-records/010-background-job-processing.md))
 
 ## Stateless Design Principles Applied
 
 All components are designed to be stateless:
 
-- Session data stored in Redis
+- Auth is a signed JWT in an httpOnly cookie — no server-side session store, no
+  shared cache required (see [ADR-012](../architecture-decision-records/012-jwt-authentication-strategy.md))
 - User state persisted in database
 - File uploads stored in object storage
 - No local file system dependencies
@@ -29,6 +30,5 @@ All components are designed to be stateless:
 Caching is implemented at multiple levels:
 
 - CDN for static assets
-- Redis for session data and temporary storage
 - Database query caching where appropriate
 - HTTP caching headers for API responses
