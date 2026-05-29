@@ -105,8 +105,8 @@ ADR-012 (JWT) remains in force. Track separately.
 **Operational**:
 
 - In-process rate limiter is per-pod. With multiple pods an attacker
-  could 10× the rate cap; acceptable for pre-v1.x. Redis-backed limit
-  ships with F6 (logout denylist) in a later PR.
+  could 10× the rate cap; acceptable for pre-v1.x. A shared limiter is
+  future work with F6 (logout denylist) in a later PR.
 - `DELETE /v1/session` does not invalidate any outstanding exchange
   codes; they self-clear at TTL. Cleanup of consumed/expired rows is
   not implemented in this PR (table is small; sweep with F6).
