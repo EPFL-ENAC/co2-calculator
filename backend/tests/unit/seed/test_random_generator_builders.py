@@ -18,12 +18,14 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from app.seed.random_generator import seed_data_entries
 from app.seed.random_generator.populate_units_and_users import NUM_UNITS
 from app.seed.random_generator.seed_data_entries import (
     DATA_ENTRY_TYPE_TO_DTO,
     DTO_BUILDERS,
     ENTRIES_PER_MODULE_MAX,
     ENTRIES_PER_MODULE_MIN,
+    build_equipment,
 )
 
 
@@ -75,6 +77,34 @@ def test_every_dto_in_map_has_a_builder():
     assert missing == set(), (
         f"DTO_BUILDERS is missing builders for: {sorted(c.__name__ for c in missing)}"
     )
+
+
+def test_build_equipment_uses_factor_pool_when_populated():
+    """Regression net for issue #222 success criterion:
+    "rely on power_factors to determine the appropriate class and sub_class values".
+
+    When the pool is populated (live seed run), build_equipment must draw
+    its class/sub_class from the pool — random fake.word() values can't
+    match any factor and break the emissions pipeline.
+    """
+    pool = [
+        ("Computers", "High Efficiency"),
+        ("Servers", None),
+        ("Laboratory Equipment", "Industrial Grade"),
+    ]
+    original = seed_data_entries._EQUIPMENT_CLASS_POOL
+    seed_data_entries._EQUIPMENT_CLASS_POOL = pool
+    try:
+        seen: set[tuple[str, str | None]] = set()
+        for _ in range(50):
+            payload = build_equipment()
+            seen.add((payload["equipment_class"], payload["sub_class"]))
+        assert seen <= set(pool), (
+            f"build_equipment emitted (class, sub_class) outside the pool: "
+            f"{seen - set(pool)}"
+        )
+    finally:
+        seed_data_entries._EQUIPMENT_CLASS_POOL = original
 
 
 def test_entries_per_module_window_targets_800k_rows():
