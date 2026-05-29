@@ -18,6 +18,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from app.seed.random_generator.populate_units_and_users import NUM_UNITS
 from app.seed.random_generator.seed_data_entries import (
     DATA_ENTRY_TYPE_TO_DTO,
     DTO_BUILDERS,
@@ -76,17 +77,16 @@ def test_every_dto_in_map_has_a_builder():
     )
 
 
-def test_entries_per_module_window_targets_800_rows():
+def test_entries_per_module_window_targets_800k_rows():
     """Document the row-count math as an assertion: with the configured
-    NUM_UNITS=5, YEARS=3, ALL_MODULE_TYPE_IDS=8, the avg total stays
-    in the ~800 ±100 band the task targets.
+    NUM_UNITS, YEARS=3, ALL_MODULE_TYPE_IDS=8, the avg total stays in the
+    ~800k ±100k band the task targets.
     """
     avg_per_module = (ENTRIES_PER_MODULE_MIN + ENTRIES_PER_MODULE_MAX) / 2
-    num_units = 5
     num_years = 3
     num_module_types = 8
-    expected_total = avg_per_module * num_units * num_years * num_module_types
-    assert 700 <= expected_total <= 900, (
-        f"Expected ~800 ±100 rows; got {expected_total}. "
+    expected_total = avg_per_module * NUM_UNITS * num_years * num_module_types
+    assert 700_000 <= expected_total <= 900_000, (
+        f"Expected ~800k ±100k rows; got {expected_total}. "
         f"Adjust ENTRIES_PER_MODULE_MIN/MAX or NUM_UNITS."
     )

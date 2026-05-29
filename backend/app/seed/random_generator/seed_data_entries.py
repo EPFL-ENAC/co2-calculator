@@ -384,11 +384,11 @@ DTO_BUILDERS: dict[type, object] = {
 }
 
 
-# Tuned to land at ~800 data_entry rows total:
-# NUM_UNITS (5) × YEARS (3) × ALL_MODULE_TYPE_IDS (8) × avg ~7 = 840.
+# Tuned to land at ~800k data_entry rows total:
+# NUM_UNITS (500) × YEARS (3) × ALL_MODULE_TYPE_IDS (8) × avg ~67 = 804k.
 # See docs/src/implementation-plans/222-seed-data-faker.md for the math.
-ENTRIES_PER_MODULE_MIN = 4
-ENTRIES_PER_MODULE_MAX = 10
+ENTRIES_PER_MODULE_MIN = 60
+ENTRIES_PER_MODULE_MAX = 74
 
 
 def generate_data_entries_for_module(module_id, module_type_id):

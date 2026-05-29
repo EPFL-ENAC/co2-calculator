@@ -1,9 +1,9 @@
 """
 Ultra-fast PostgreSQL COPY seeder
 
-Sized for local dev / smoke testing. NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS
-(8) × entries_per_module drives the data_entries row count; keep NUM_UNITS small
-to stay in the ~800-row target band used by ``seed_data_entries``.
+Sized for scale testing. NUM_UNITS × YEARS (3) × ALL_MODULE_TYPE_IDS (8) ×
+entries_per_module drives the data_entries row count; tune ENTRIES_PER_MODULE
+in seed_data_entries to hit the target volume.
 
 - NUM_UNITS units
 - NUM_USERS users (3–15 per unit, normal distribution around 8)
@@ -22,11 +22,11 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.user import RoleName, UserProvider
 
-# 5 units × 3 years × 8 module_types × ~7 entries/module ≈ 840 data_entry rows
-# (see seed_data_entries.entries_per_module). Keep NUM_USERS between
+# 500 units × 3 years × 8 module_types × ~67 entries/module ≈ 804k data_entry rows
+# (see seed_data_entries.ENTRIES_PER_MODULE). Keep NUM_USERS between
 # 3 × NUM_UNITS and 15 × NUM_UNITS so distribute_users converges.
-NUM_UNITS = 5
-NUM_USERS = 40
+NUM_UNITS = 500
+NUM_USERS = 4000
 
 USER_ROLES = [
     RoleName.CO2_USER_STD,
