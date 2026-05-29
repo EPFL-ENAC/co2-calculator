@@ -230,15 +230,55 @@ def build_train_travel() -> dict:
     }
 
 
+# (class, sub_class) pairs drawn from the seeded equipment factors so the
+# generated data_entries can resolve to a real factor at emission time
+# (issue #222 success criterion: "rely on power_factors to determine the
+# appropriate class and sub_class values"). Populated by
+# load_equipment_class_pool() at main() startup; empty in unit tests that
+# don't run against a live DB, in which case build_equipment() falls back
+# to fake.word().
+_EQUIPMENT_CLASS_POOL: list[tuple[str, str | None]] = []
+
+
+async def load_equipment_class_pool(conn) -> None:
+    """Populate _EQUIPMENT_CLASS_POOL from the factors table.
+
+    Must run AFTER seed_generic_factors, which is the case in seed_all
+    (factors run before data_entries).
+    """
+    global _EQUIPMENT_CLASS_POOL
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT
+            classification->>'class' AS cls,
+            classification->>'sub_class' AS sub_class
+        FROM factors
+        WHERE emission_type_id = $1
+          AND classification->>'class' IS NOT NULL
+        """,
+        int(EmissionType.equipment),
+    )
+    _EQUIPMENT_CLASS_POOL = [(r["cls"], r["sub_class"]) for r in rows]
+    print(
+        f"✓ Loaded {len(_EQUIPMENT_CLASS_POOL)} equipment "
+        "(class, sub_class) pairs from factors"
+    )
+
+
 def build_equipment() -> dict:
     # ``equipment_class`` is required (``str``, not Optional) on the create DTO.
     # ``active`` + ``standby`` hours must sum to ≤ 168 per the mixin validator.
     active = random.randint(0, 80)  # nosec B311
     standby = random.randint(0, 168 - active)  # nosec B311
+    if _EQUIPMENT_CLASS_POOL:
+        equipment_class, sub_class = random.choice(_EQUIPMENT_CLASS_POOL)  # nosec B311
+    else:
+        equipment_class = fake.word()
+        sub_class = maybe(fake.word())
     return {
         "name": fake.word(),
-        "equipment_class": fake.word(),
-        "sub_class": maybe(fake.word()),
+        "equipment_class": equipment_class,
+        "sub_class": sub_class,
         "active_usage_hours_per_week": active,
         "standby_usage_hours_per_week": standby,
         "note": maybe(fake.sentence(nb_words=6)),
@@ -470,6 +510,8 @@ async def main():
     transaction = None
 
     try:
+        await load_equipment_class_pool(conn)
+
         print("Fetching carbon report modules...")
         modules = await conn.fetch(
             "SELECT id, module_type_id FROM carbon_report_modules"

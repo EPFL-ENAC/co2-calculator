@@ -170,6 +170,20 @@ a DB and would catch every drift fix above. 18 parametrized cases, all green:
 - `backend/tests/unit/seed/test_random_generator_builders.py` — new
   regression net.
 
+## Follow-up: closing remaining success criteria
+
+Landed after the initial PR was merged to `dev`:
+
+- **Class/sub_class driven by factors** — `build_equipment()` now draws
+  `(equipment_class, sub_class)` from the live `factors` table (loaded
+  once at `seed_data_entries.main()` startup into
+  `_EQUIPMENT_CLASS_POOL`). Falls back to `fake.word()` only when the
+  pool is empty (unit tests). Regression test
+  `test_build_equipment_uses_factor_pool_when_populated` pins this.
+- **User-guide doc** — `docs/src/backend/11-SEED-DATA.md` covers the
+  two seed pipelines, the login-test perimeter map, and the volume
+  tuning constants.
+
 ## Out of scope
 
 - The Faker generator still skips `data_entry_emissions` factor lookups
