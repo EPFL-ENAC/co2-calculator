@@ -130,7 +130,7 @@ export default {
 
 All translation changes must be submitted via GitHub pull request:
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `dev`
 2. Make your changes to the translation files
 3. Commit with a conventional commit message (e.g., `feat(i18n): add dashboard translations`)
 4. Push your branch and open a pull request
