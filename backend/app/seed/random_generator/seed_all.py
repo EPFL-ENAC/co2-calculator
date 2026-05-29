@@ -11,6 +11,9 @@ from app.seed.random_generator.seed_carbon_reports import main as seed_carbon_re
 from app.seed.random_generator.seed_data_entries import main as seed_data_entries
 from app.seed.random_generator.seed_factors import main as seed_factors
 from app.seed.random_generator.seed_post_all import main as seed_post_all
+from app.seed.random_generator.seed_year_configuration import (
+    main as seed_year_configuration,
+)
 
 
 async def main():
@@ -22,19 +25,23 @@ async def main():
         await seed_units_users()
         print("✓ Units and users seeded successfully")
 
-        print("\n2. Seeding carbon reports and modules...")
+        print("\n2. Seeding year configurations...")
+        await seed_year_configuration()
+        print("✓ Year configurations seeded successfully")
+
+        print("\n3. Seeding carbon reports and modules...")
         await seed_carbon_reports()
         print("✓ Carbon reports and modules seeded successfully")
 
-        print("\n3. Seeding factors...")
+        print("\n4. Seeding factors...")
         await seed_factors()
         print("✓ Factors seeded successfully")
 
-        print("\n4. Seeding data entries and emissions...")
+        print("\n5. Seeding data entries and emissions...")
         await seed_data_entries()
         print("✓ Data entries and emissions seeded successfully")
 
-        print("\n5. Re-creating indexes / FKs on data tables...")
+        print("\n6. Re-creating indexes / FKs on data tables...")
         await seed_post_all()
         print("\nAll seeding operations completed successfully!")
 
