@@ -148,16 +148,19 @@ OAUTH_CLIENT_SECRET=your-client-secret
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
 
+See [Auth Flow](../architecture/04-auth-flow.md) for how the OAuth/OIDC
+settings are used.
+
 For production: set `DEBUG=false`, use strong `SECRET_KEY`, and
 restrict `CORS_ORIGINS` to your frontend domain.
 
 ## Background Processing
 
-Background jobs run in-process via `asyncio.create_task` chains,
-backed by a 10-second safety-net poller in every web pod. No Celery,
-no Redis broker — that path was evaluated and deferred. See
-[ADR-010 — Background Job Processing](../architecture-decision-records/010-background-job-processing.md)
-for the decision and [ADR-016 — Two-Path Pipeline Principle](../architecture-decision-records/016-pipeline-two-path-principle.md)
+Background jobs run in-process via `asyncio.create_task` chains with a
+10-second safety-net poller. See
+[ADR-010](../architecture-decision-records/010-background-job-processing.md)
+for the decision and
+[ADR-016](../architecture-decision-records/016-pipeline-two-path-principle.md)
 for the interactive-vs-bulk write strategy.
 
 Jobs cover CSV import processing, emission calculations, factor sync,
