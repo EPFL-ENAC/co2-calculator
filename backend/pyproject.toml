@@ -6,11 +6,11 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
-    "fastapi[standard]==0.136.1",
+    "fastapi[standard]==0.136.3",
     "starlette==0.52.1",
     "uvicorn[standard]==0.47.0",
     "python-multipart==0.0.29",
-    "sqlalchemy[asyncio,mypy]==2.0.49",
+    "sqlalchemy[asyncio,mypy]==2.0.50",
     "psycopg[binary,pool]==3.3.4",
     "alembic==1.18.4",
     "authlib==1.7.2",
@@ -27,8 +27,8 @@ dependencies = [
     "sqlmodel>=0.0.38",
     "enacit4r-files",
     "haversine==2.9.0",
-    "opentelemetry-distro>=0.62b1",
-    "opentelemetry-exporter-otlp>=1.41.1",
+    "opentelemetry-distro>=0.63b1",
+    "opentelemetry-exporter-otlp>=1.42.1",
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
 ]

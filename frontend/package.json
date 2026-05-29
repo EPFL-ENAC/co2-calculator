@@ -24,7 +24,7 @@
   "dependencies": {
     "@quasar/extras": "=1.18.0",
     "@sentry/vue": "=10.53.0",
-    "echarts": "=6.0.0",
+    "echarts": "=6.1.0",
     "ky": "=1.14.0",
     "pinia": "=3.0.4",
     "pinia-plugin-persistedstate": "=4.7.1",
@@ -55,15 +55,15 @@
     "postcss-html": "=1.8.1",
     "postcss-rtlcss": "=5.7.1",
     "prettier": "=3.8.3",
-    "sass": "=1.99.0",
-    "stylelint": "=17.11.1",
+    "sass": "=1.100.0",
+    "stylelint": "=17.12.0",
     "stylelint-config-recommended-vue": "=1.6.1",
     "stylelint-config-standard-scss": "=17.0.0",
     "stylelint-scss": "=7.1.1",
     "typescript": "=5.9.3",
     "typescript-eslint": "^8.59.4",
     "vue-eslint-parser": "=10.4.0",
-    "vue-tsc": "=3.3.0"
+    "vue-tsc": "=3.3.2"
   },
   "overrides": {
     "minimatch": "=10.2.4",
