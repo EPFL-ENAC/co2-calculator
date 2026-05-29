@@ -20,14 +20,14 @@ The original audit listed six endpoints with no gate. Four have since been gated
 (they now call `require_unit_access` after loading the unit). Two endpoints
 remain ungated — both resolve a unit indirectly via `carbon_report_id`:
 
-| Endpoint | Function | Line | Status |
-| --- | --- | --- | --- |
-| `GET /unit/{unit_id}/` | `list_carbon_reports_by_unit` | 48 | gated (55) |
-| `GET /unit/{unit_id}/year/{year}/` | `get_carbon_report_by_unit_and_year` | 61 | gated (69) |
-| `POST /` | `create_carbon_report` | 78 | gated (85) |
-| `GET /{carbon_report_id}` | `get_carbon_report` | 158 | gated (169) |
-| `GET /{carbon_report_id}/modules/` | `list_carbon_report_modules` | 177 | **open** |
-| `PATCH /{carbon_report_id}/modules/{module_type_id}/status` | `update_carbon_report_module_status` | 203 | **open** |
+| Endpoint                                                    | Function                             | Line | Status      |
+| ----------------------------------------------------------- | ------------------------------------ | ---- | ----------- |
+| `GET /unit/{unit_id}/`                                      | `list_carbon_reports_by_unit`        | 48   | gated (55)  |
+| `GET /unit/{unit_id}/year/{year}/`                          | `get_carbon_report_by_unit_and_year` | 61   | gated (69)  |
+| `POST /`                                                    | `create_carbon_report`               | 78   | gated (85)  |
+| `GET /{carbon_report_id}`                                   | `get_carbon_report`                  | 158  | gated (169) |
+| `GET /{carbon_report_id}/modules/`                          | `list_carbon_report_modules`         | 177  | **open**    |
+| `PATCH /{carbon_report_id}/modules/{module_type_id}/status` | `update_carbon_report_module_status` | 203  | **open**    |
 
 The two open endpoints only verify the report exists; any logged-in user can
 list module statuses or mutate them for any report.
@@ -38,11 +38,11 @@ All three endpoints take `unit_id` in the path but only depend on
 `get_current_user`. The downstream `UnitTotalsService` performs no permission
 checks (`user=current_user` is passed but unused for gating).
 
-| Endpoint | Function | Line |
-| --- | --- | --- |
-| `GET /{unit_id}/results` | `get_unit_results` | 45 |
-| `GET /{unit_id}/{year}/totals` | `get_unit_totals` | 57 |
-| `GET /{unit_id}/yearly-validated-emissions` | `get_validated_emissions` | 87 |
+| Endpoint                                    | Function                  | Line |
+| ------------------------------------------- | ------------------------- | ---- |
+| `GET /{unit_id}/results`                    | `get_unit_results`        | 45   |
+| `GET /{unit_id}/{year}/totals`              | `get_unit_totals`         | 57   |
+| `GET /{unit_id}/yearly-validated-emissions` | `get_validated_emissions` | 87   |
 
 ### Finding 3 — coarse `is_permitted("modules.*", action)` fallback
 
@@ -135,7 +135,7 @@ implementation:
     `backoffice.data_management.{view,edit}` primary already present in the
     `await is_permitted(...)` clause immediately above each fallback. Update
     the docstrings (lines 112, 191, 293, 341) and HTTPException details
-    (136, 214, 307, 355) to drop the "or modules.* …" prose.
+    (136, 214, 307, 355) to drop the "or modules.\* …" prose.
 
 ## Approach
 
@@ -200,14 +200,14 @@ The plan does **not** add the lifted `check_module_permission_for_unit` to
 these routes — it removes the fallback and keeps the surviving
 `backoffice.data_management.*` primary. Per-route audit:
 
-| File:Line | Primary gate (today) | Action |
-| --- | --- | --- |
-| `data_sync.py:728` (sync) | `backoffice.data_management.sync` | drop `modules.*` fallback |
+| File:Line                  | Primary gate (today)              | Action                    |
+| -------------------------- | --------------------------------- | ------------------------- |
+| `data_sync.py:728` (sync)  | `backoffice.data_management.sync` | drop `modules.*` fallback |
 | `data_sync.py:1309` (view) | `backoffice.data_management.view` | drop `modules.*` fallback |
-| `files.py:129` (download) | `backoffice.data_management.view` | drop `modules.*` fallback |
-| `files.py:207` (list) | `backoffice.data_management.view` | drop `modules.*` fallback |
-| `files.py:300` (upload) | `backoffice.data_management.edit` | drop `modules.*` fallback |
-| `files.py:348` (delete) | `backoffice.data_management.edit` | drop `modules.*` fallback |
+| `files.py:129` (download)  | `backoffice.data_management.view` | drop `modules.*` fallback |
+| `files.py:207` (list)      | `backoffice.data_management.view` | drop `modules.*` fallback |
+| `files.py:300` (upload)    | `backoffice.data_management.edit` | drop `modules.*` fallback |
+| `files.py:348` (delete)    | `backoffice.data_management.edit` | drop `modules.*` fallback |
 
 If during implementation any of these routes turns out to be exercised by a
 non-backoffice user today (scoped principal hits the route in
@@ -260,6 +260,7 @@ async def test_data_sync_view_rejects_scoped_principal_without_backoffice()
 ```
 
 Notes:
+
 - The `files.py` / `data_sync.py` tests must specifically construct a
   principal who has `modules.<x>/A` perms (the old fallback admit-set) and
   assert 403 against a route now requiring `backoffice.data_management.*`.

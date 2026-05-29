@@ -48,11 +48,11 @@ regression test** so a future refactor can't silently revert it.
 
 ```ts
 function dataButtonColor(row: ImportRow): string {
-  if (row.isDisabled) return 'grey-4';
-  if (!row.lastDataJob) return 'accent';                              // ← API-only row hits this
-  if (row.lastDataJob.result === IngestionResult.ERROR) return 'negative';
-  if (row.lastDataJob.result === IngestionResult.WARNING) return 'warning';
-  return 'positive';
+  if (row.isDisabled) return "grey-4";
+  if (!row.lastDataJob) return "accent"; // ← API-only row hits this
+  if (row.lastDataJob.result === IngestionResult.ERROR) return "negative";
+  if (row.lastDataJob.result === IngestionResult.WARNING) return "warning";
+  return "positive";
 }
 ```
 
@@ -73,12 +73,12 @@ green-by-default).
 
 ```ts
 function dataButtonColor(row: ImportRow): string {
-  if (row.isDisabled) return 'grey-4';
-  if (row.lastDataJob?.result === IngestionResult.ERROR) return 'negative';
-  if (row.lastDataJob?.result === IngestionResult.WARNING) return 'warning';
-  if (row.lastDataJob?.result === IngestionResult.SUCCESS) return 'positive';
-  if (row.lastApiDataJob?.result === IngestionResult.SUCCESS) return 'positive';
-  return 'accent';
+  if (row.isDisabled) return "grey-4";
+  if (row.lastDataJob?.result === IngestionResult.ERROR) return "negative";
+  if (row.lastDataJob?.result === IngestionResult.WARNING) return "warning";
+  if (row.lastDataJob?.result === IngestionResult.SUCCESS) return "positive";
+  if (row.lastApiDataJob?.result === IngestionResult.SUCCESS) return "positive";
+  return "accent";
 }
 ```
 
@@ -92,20 +92,20 @@ No code change. Test pins FACTORS-first in the upload row.
 
 ## 4. Files changed
 
-| File | Change |
-| ---- | ------ |
-| `frontend/src/composables/useUploadCard.ts` | Extend `dataButtonColor` to surface API success. |
+| File                                                 | Change                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `frontend/src/composables/useUploadCard.ts`          | Extend `dataButtonColor` to surface API success.                                           |
 | `frontend/tests/integration/data-management.spec.ts` | Add tests 1216a (API-only → green button) and 1216b (FACTORS before DATA in render order). |
 
 ## 5. Before / after
 
-| State | Before | After |
-| --- | --- | --- |
-| Only `lastApiDataJob.result === SUCCESS` | Data button = `accent` (grey), card border grey. Inline "API ingestion: 42 rows imported" text below. | Data button = `positive` (green), card border green. Inline text unchanged. |
-| `lastDataJob.result === SUCCESS` (CSV) | green | green (unchanged) |
-| `lastDataJob.result === ERROR`, `lastApiDataJob.result === SUCCESS` | red (`negative`) | red (CSV error wins, unchanged) |
-| No jobs at all | grey (`accent`) | grey (unchanged) |
-| Equipments / Purchases upload cards | FACTORS before DATA (already fixed in `69c5a3d8`) | FACTORS before DATA, now pinned by a regression test. |
+| State                                                               | Before                                                                                                | After                                                                       |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Only `lastApiDataJob.result === SUCCESS`                            | Data button = `accent` (grey), card border grey. Inline "API ingestion: 42 rows imported" text below. | Data button = `positive` (green), card border green. Inline text unchanged. |
+| `lastDataJob.result === SUCCESS` (CSV)                              | green                                                                                                 | green (unchanged)                                                           |
+| `lastDataJob.result === ERROR`, `lastApiDataJob.result === SUCCESS` | red (`negative`)                                                                                      | red (CSV error wins, unchanged)                                             |
+| No jobs at all                                                      | grey (`accent`)                                                                                       | grey (unchanged)                                                            |
+| Equipments / Purchases upload cards                                 | FACTORS before DATA (already fixed in `69c5a3d8`)                                                     | FACTORS before DATA, now pinned by a regression test.                       |
 
 ## 6. Regression tests
 

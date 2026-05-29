@@ -54,21 +54,21 @@ Target: **800 ±100**. Actual expected mean: **840**.
 
 ## Drift fixes (per builder)
 
-| Builder | Before | After |
-| --- | --- | --- |
-| `build_professional_travel` (single) | `traveler_name`, `origin_location_id`, `destination_location_id`, `transport_mode` | Split into `build_plane_travel` (writes `user_institutional_id`, `origin_iata`, `destination_iata`, `cabin_class` ∈ {eco,business,first}) and `build_train_travel` (writes `user_institutional_id`, `origin_name`, `destination_name`, `cabin_class` ∈ {first,second}) |
-| `build_equipment` | `equipment_class` Optional, `active_usage_hours`, `passive_usage_hours`, sum unbounded | `equipment_class` required, renamed to `active_usage_hours_per_week`/`standby_usage_hours_per_week`, sum capped at 168 to satisfy `_EquipmentUsageHoursValidationMixin` |
-| `build_headcount` | `function`, `sciper`, missing `user_institutional_id` | `position_title`, `position_category` (from `POSITION_CATEGORY_VALUES`), required `user_institutional_id` |
-| `build_external_cloud` | `provider` wrapped in `maybe()` | `provider` always present, adds `currency` ∈ {chf,eur,usd} |
-| `build_external_ai` | `requests_per_user_per_day` was an int | Drawn from `REQUESTS_FREQUENCY_OPTIONS` string enum; `fte_count` ≥ 0.1 per validator |
-| `build_purchase` | `total_spent_amount` wrapped in `maybe()` | Required; `currency` added |
-| (new) `build_purchase_additional` | — | `name`, `unit`, `annual_consumption`, `coef_to_kg` |
-| (new) `build_building_room` | — | Required `building_name`, `room_name`; `room_type` from `VALID_ROOM_TYPES`; ratio ∈ [0,1] |
-| (new) `build_energy_combustion` | — | Required `name`, `quantity` ≥ 0 |
-| (new) `build_building_embodied_energy` | — | Required `building_name` |
-| (new) `build_process_emissions` | — | Required `category`, `quantity` ≥ 0 |
-| (new) `build_research_facility_common` | — | All-optional payload matching `ResearchFacilitiesCommonHandlerCreate` |
-| (new) `build_research_facility_animal` | — | Common payload + `researchfacility_type` |
+| Builder                                | Before                                                                                 | After                                                                                                                                                                                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build_professional_travel` (single)   | `traveler_name`, `origin_location_id`, `destination_location_id`, `transport_mode`     | Split into `build_plane_travel` (writes `user_institutional_id`, `origin_iata`, `destination_iata`, `cabin_class` ∈ {eco,business,first}) and `build_train_travel` (writes `user_institutional_id`, `origin_name`, `destination_name`, `cabin_class` ∈ {first,second}) |
+| `build_equipment`                      | `equipment_class` Optional, `active_usage_hours`, `passive_usage_hours`, sum unbounded | `equipment_class` required, renamed to `active_usage_hours_per_week`/`standby_usage_hours_per_week`, sum capped at 168 to satisfy `_EquipmentUsageHoursValidationMixin`                                                                                                |
+| `build_headcount`                      | `function`, `sciper`, missing `user_institutional_id`                                  | `position_title`, `position_category` (from `POSITION_CATEGORY_VALUES`), required `user_institutional_id`                                                                                                                                                              |
+| `build_external_cloud`                 | `provider` wrapped in `maybe()`                                                        | `provider` always present, adds `currency` ∈ {chf,eur,usd}                                                                                                                                                                                                             |
+| `build_external_ai`                    | `requests_per_user_per_day` was an int                                                 | Drawn from `REQUESTS_FREQUENCY_OPTIONS` string enum; `fte_count` ≥ 0.1 per validator                                                                                                                                                                                   |
+| `build_purchase`                       | `total_spent_amount` wrapped in `maybe()`                                              | Required; `currency` added                                                                                                                                                                                                                                             |
+| (new) `build_purchase_additional`      | —                                                                                      | `name`, `unit`, `annual_consumption`, `coef_to_kg`                                                                                                                                                                                                                     |
+| (new) `build_building_room`            | —                                                                                      | Required `building_name`, `room_name`; `room_type` from `VALID_ROOM_TYPES`; ratio ∈ [0,1]                                                                                                                                                                              |
+| (new) `build_energy_combustion`        | —                                                                                      | Required `name`, `quantity` ≥ 0                                                                                                                                                                                                                                        |
+| (new) `build_building_embodied_energy` | —                                                                                      | Required `building_name`                                                                                                                                                                                                                                               |
+| (new) `build_process_emissions`        | —                                                                                      | Required `category`, `quantity` ≥ 0                                                                                                                                                                                                                                    |
+| (new) `build_research_facility_common` | —                                                                                      | All-optional payload matching `ResearchFacilitiesCommonHandlerCreate`                                                                                                                                                                                                  |
+| (new) `build_research_facility_animal` | —                                                                                      | Common payload + `researchfacility_type`                                                                                                                                                                                                                               |
 
 `DATA_ENTRY_TYPE_TO_DTO` was also wrong on three rows — `building` →
 `EquipmentHandlerCreate`, `process_emissions` → `EquipmentHandlerCreate`,
@@ -82,12 +82,12 @@ module-native DTO). The rewritten map now covers every reachable
 Past the per-row payload drift, the emissions writer was also writing two
 columns that no longer exist on the table:
 
-| Column | Old seeder | Current `DataEntryEmissionBase` |
-| --- | --- | --- |
-| `subcategory` (TEXT) | written | removed (emission_type.path is the source of truth) |
-| `formula_version` (TEXT) | written as top-level column | folded into `meta.formula_version` |
-| `additional_value` (FLOAT) | not written | new nullable polymorphic quantity |
-| `scope` (INT) | not written | scope id (1/2/3 or NULL on rollups) |
+| Column                     | Old seeder                  | Current `DataEntryEmissionBase`                     |
+| -------------------------- | --------------------------- | --------------------------------------------------- |
+| `subcategory` (TEXT)       | written                     | removed (emission_type.path is the source of truth) |
+| `formula_version` (TEXT)   | written as top-level column | folded into `meta.formula_version`                  |
+| `additional_value` (FLOAT) | not written                 | new nullable polymorphic quantity                   |
+| `scope` (INT)              | not written                 | scope id (1/2/3 or NULL on rollups)                 |
 
 `copy_insert_emissions` now creates a tmp table whose columns match the live
 schema in order, and `generate_emissions_for_entry` emits an 8-tuple in the
@@ -144,7 +144,7 @@ seed-data-random: ## Seed ~800 random data_entry rows via Faker (issue #222)
 
 The pre-existing `populate_units_and_users.py` already handles labs (`units`)
 and users via `asyncpg` `COPY`, including admin-role grants. That code path
-covers the success criterion *"Seed data are generated for user and labs"* in
+covers the success criterion _"Seed data are generated for user and labs"_ in
 issue #222; this change only resizes its constants.
 
 ## Regression smoke test

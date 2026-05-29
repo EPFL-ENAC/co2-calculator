@@ -23,7 +23,7 @@ sources into the rule. Concretely:
 - Lines 465-468: `!sub.noFactors` branch returns `true` when
   `latest_factor_job.result !== 0` — i.e. an errored factor job is
   reported as Incomplete, even though "Incomplete" is supposed to mean
-  *absence*, not run state. Errored jobs are already surfaced by the
+  _absence_, not run state. Errored jobs are already surfaced by the
   upload-card inline.
 - Lines 469-478: the `mandatoryData` branch treats CSV `data` as
   mandatory whenever the flag is true. Per the strategic decision (see
@@ -60,7 +60,7 @@ mandatory and must NOT drive the "Incomplete" tag.
 mandatory job is **missing** (no row in the database). A job that
 exists but errored (`result == 2`) does NOT make the submodule
 incomplete — the upload-card already surfaces the error inline.
-"Incomplete" is about *absence*, not run state.
+"Incomplete" is about _absence_, not run state.
 
 **Caveat**: a submodule that doesn't offer factors (`noFactors: true`
 today) cannot be incomplete for missing factors. Same for reference
@@ -158,9 +158,9 @@ In `_enrich_config_with_incomplete_flags` (new helper in
   - `submodule["incomplete_reasons"] = reasons`.
 - For each module dict, aggregate:
   - `module["incomplete"] = any(sub["incomplete"] for sub in
-    enabled_submodules)` (only enabled — disabled submodules don't
+enabled_submodules)` (only enabled — disabled submodules don't
     count, matching today's `isSubmoduleEnabled(sub) &&
-    isSubmoduleIncomplete(sub)` in the deleted helper).
+isSubmoduleIncomplete(sub)` in the deleted helper).
   - Module-level `incomplete_reasons` — see §7 (d).
 
 Errored jobs (`result == 2`) do **not** count as incomplete (key
@@ -190,7 +190,7 @@ picks based on where the helper ends up):
   (errored ≠ missing). This is the regression invariant.
 - **Disabled-submodule pin**: an enabled module with one disabled
   submodule that's missing factors → module-level `incomplete is
-  False` (disabled subs don't count).
+False` (disabled subs don't count).
 - **Module-level aggregation**: any enabled submodule incomplete →
   module incomplete.
 
@@ -228,7 +228,7 @@ In `frontend/tests/integration/data-management.spec.ts` (tests 9 and
   must hide.
 - Delete any unit tests that targeted the now-removed helpers (none
   found in the search, but verify with `grep -r "isSubmoduleIncomplete"
-  frontend/tests/`).
+frontend/tests/`).
 
 ### 4.5 Manual smoke checklist
 
@@ -271,6 +271,7 @@ BackOffice → Configuration, and verify:
 
 The issue body scenario — mandatory factor + reference uploads
 successful, "Incomplete" tag still visible — is covered by:
+
 - the backend errored-job pin (proves the rule emits the right flag);
 - the frontend integration test (proves the renderer consumes the flag
   and not a derived helper).
@@ -337,7 +338,7 @@ the frontend copy.
 The existing frontend rule (line 466) treats
 `mod.latest_common_factor_job` as a fallback when a submodule has no
 `latest_factor_job`. Does the new backend rule honor this? Proposal:
-*yes* — at module level, if the module exposes
+_yes_ — at module level, if the module exposes
 `latest_common_factor_job` (i.e. it has a common-factor target), then
 that job's presence/absence drives a module-level `incomplete` flag
 in addition to per-submodule rollup. Verify by inspecting which
@@ -374,7 +375,7 @@ already 1006 lines).
 - **(b)** Verified against `MODULE_SUBMODULES` / `MODULE_COMMON_UPLOADS`
   in `frontend/src/constant/backoffice-module-config.ts`:
   `mandatoryReference` matches train (21), plane (20), and building (30);
-  `noFactors` matches the Equipment (4, *) and Purchase (5, *) submodules
+  `noFactors` matches the Equipment (4, _) and Purchase (5, _) submodules
   except `additional_purchases` (5, 67). Common-factor modules are exactly 4 and 5.
 - **(c)** Applied as proposed — backend honours the legacy fallback:
   a submodule's mandatory factor is satisfied by either its own
@@ -389,12 +390,14 @@ already 1006 lines).
 **Files changed:**
 
 Backend:
+
 - `backend/app/core/submodule_mandatoriness.py` (new)
 - `backend/app/api/v1/year_configuration.py` (+helper, +2 call sites)
 - `backend/app/schemas/year_configuration.py` (+`incomplete`/`incomplete_reasons` fields)
 - `backend/tests/unit/v1/test_year_configuration_incomplete_flag.py` (new, 19 tests)
 
 Frontend:
+
 - `frontend/src/stores/yearConfig.ts` (deleted `isSubmoduleIncomplete`/`isModuleIncomplete`;
   `anyModuleIncomplete` reads backend flags; added `incomplete`/`incomplete_reasons` to
   `SubmoduleConfig`/`ModuleConfig` types)

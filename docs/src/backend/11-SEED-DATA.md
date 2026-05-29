@@ -15,10 +15,10 @@ For broader backend context see:
 
 The repo ships two distinct seed pipelines:
 
-| Target               | Volume                      | Source                              | Use when                                                   |
-| -------------------- | --------------------------- | ----------------------------------- | ---------------------------------------------------------- |
-| `make seed-data`     | Small, deterministic        | CSVs in `backend/seed_data/`        | You need predictable reference data (factors, locations, building rooms, generic data entries). Default for local dev and CI fixtures. |
-| `make seed-data-random` | ~800k `data_entry` rows     | Faker + the same factor CSVs        | You need scale: perf testing, pagination work, query-plan checks, populated charts. Issue [#222](https://github.com/EPFL-ENAC/co2-calculator/issues/222). |
+| Target                  | Volume                  | Source                       | Use when                                                                                                                                                  |
+| ----------------------- | ----------------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `make seed-data`        | Small, deterministic    | CSVs in `backend/seed_data/` | You need predictable reference data (factors, locations, building rooms, generic data entries). Default for local dev and CI fixtures.                    |
+| `make seed-data-random` | ~800k `data_entry` rows | Faker + the same factor CSVs | You need scale: perf testing, pagination work, query-plan checks, populated charts. Issue [#222](https://github.com/EPFL-ENAC/co2-calculator/issues/222). |
 
 `seed-data-random` chains the random unit/user/year/project/report generators
 with the canonical CSV-driven factor seeder, so factor classes stay aligned
@@ -46,11 +46,11 @@ Run order (see `backend/app/seed/random_generator/seed_all.py`):
 Seeded users carry roles whose scope binds to a unit's `institutional_id`
 (the cf-style key, `CF00000`+):
 
-| User pattern         | Role                       | Scope                                    |
-| -------------------- | -------------------------- | ---------------------------------------- |
-| `USR000000`-`USR003999` | CO2_USER_STD or CO2_USER_PRINCIPAL | Single unit (`institutional_id=CF…`)    |
-| `ADMIN004000`        | CO2_BACKOFFICE_METIER      | An affiliation (`SB`, `STI`, `IC`, `SV`) |
-| `ADMIN004001`        | CO2_SUPERADMIN             | Global                                   |
+| User pattern            | Role                               | Scope                                    |
+| ----------------------- | ---------------------------------- | ---------------------------------------- |
+| `USR000000`-`USR003999` | CO2_USER_STD or CO2_USER_PRINCIPAL | Single unit (`institutional_id=CF…`)     |
+| `ADMIN004000`           | CO2_BACKOFFICE_METIER              | An affiliation (`SB`, `STI`, `IC`, `SV`) |
+| `ADMIN004001`           | CO2_SUPERADMIN                     | Global                                   |
 
 In login-test, picking any `USR…` user lands you on that user's unit
 perimeter. Picking the SUPERADMIN puts you in global scope; picking the
