@@ -57,7 +57,7 @@ const props = defineProps({
   },
 });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 
@@ -107,12 +107,27 @@ let lastScopeState: {
   s3Left?: number;
   dividerX?: number | null;
   showAdditional: boolean;
+  yZero?: number;
+  locale?: string;
 } | null = null;
+
+const SCOPE_LABEL_TOP = 55;
+/** Additional categories sit below scope headers to show they belong under Scope 3. */
+const ADDITIONAL_LABEL_TOP = SCOPE_LABEL_TOP + 14;
+const ADDITIONAL_RECT_TOP = ADDITIONAL_LABEL_TOP - 6;
 
 function recalculateScopeRects() {
   const chart = chartRef.value?.chart;
   if (!chart) return;
 
+  requestAnimationFrame(() => {
+    updateScopeGraphics(chart);
+  });
+}
+
+function updateScopeGraphics(
+  chart: NonNullable<typeof chartRef.value>['chart'],
+) {
   const items = datasetSource.value;
   if (items.length < 2) return;
 
@@ -153,50 +168,38 @@ function recalculateScopeRects() {
     : null;
   const showAdditional = effectiveToggle.value && dividerX !== null;
 
-  // Check if state has changed
+  // y=0 pixel (baseline) — grid bottom can drift from 0 when x-axis label height changes (e.g. FR).
+  const yZero = chart.convertToPixel({ yAxisIndex: 0 }, 0) as number;
+  if (!Number.isFinite(yZero)) {
+    chart.setOption({ graphic: [] });
+    return;
+  }
+
   const newState = {
     s1Left: s1?.left,
     s2Left: s2?.left,
     s3Left: s3?.left,
     dividerX,
     showAdditional,
+    yZero,
+    locale: locale.value,
   };
   if (
     lastScopeState?.s1Left === newState.s1Left &&
     lastScopeState?.s2Left === newState.s2Left &&
     lastScopeState?.s3Left === newState.s3Left &&
     lastScopeState?.dividerX === newState.dividerX &&
-    lastScopeState?.showAdditional === newState.showAdditional
+    lastScopeState?.showAdditional === newState.showAdditional &&
+    lastScopeState?.yZero === newState.yZero &&
+    lastScopeState?.locale === newState.locale
   ) {
     return; // nothing changed — stop the loop
   }
   lastScopeState = newState;
 
-  // Use the grid's actual bottom edge so dividers and the dashed outline
-  // always reach the full plotting area, regardless of axis type or domain.
-  const gridModel = (
-    chart as unknown as {
-      getModel(): {
-        getComponent(type: string): {
-          coordinateSystem: {
-            getRect(): { x: number; y: number; width: number; height: number };
-          };
-        };
-      };
-    }
-  )
-    .getModel()
-    .getComponent('grid');
-  const gridRect = gridModel?.coordinateSystem?.getRect();
-  const yAxisBase = gridRect ? gridRect.y + gridRect.height : NaN;
-  if (!Number.isFinite(yAxisBase)) {
-    chart.setOption({ graphic: [] });
-    return;
-  }
-
-  const boxTop = 55;
-  const labelTop = boxTop;
-  const rectTop = labelTop - 6;
+  const scopeLabelTop = SCOPE_LABEL_TOP;
+  const additionalLabelTop = ADDITIONAL_LABEL_TOP;
+  const additionalRectTop = ADDITIONAL_RECT_TOP;
   // Narrow once so downstream shape/style expressions use a plain number
   // without repeated casts. The showAdditional guard already ensures
   // dividerX !== null, but TypeScript can't see through that indirection.
@@ -210,7 +213,7 @@ function recalculateScopeRects() {
             type: 'text',
             id: 'st1',
             left: s1.left + 8,
-            top: labelTop,
+            top: scopeLabelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 1',
@@ -227,7 +230,7 @@ function recalculateScopeRects() {
             type: 'text',
             id: 'st2',
             left: s2.left + 8,
-            top: labelTop,
+            top: scopeLabelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 2',
@@ -244,7 +247,7 @@ function recalculateScopeRects() {
             type: 'text',
             id: 'st3',
             left: s3.left + 8,
-            top: labelTop,
+            top: scopeLabelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 3',
@@ -260,7 +263,7 @@ function recalculateScopeRects() {
           {
             type: 'line',
             id: 'sdiv12',
-            shape: { x1: s2.left, y1: boxTop, x2: s2.left, y2: yAxisBase },
+            shape: { x1: s2.left, y1: scopeLabelTop, x2: s2.left, y2: yZero },
             style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
             silent: true,
           },
@@ -280,7 +283,7 @@ function recalculateScopeRects() {
           {
             type: 'line',
             id: 'sdiv23',
-            shape: { x1: s3.left, y1: boxTop, x2: s3.left, y2: yAxisBase },
+            shape: { x1: s3.left, y1: scopeLabelTop, x2: s3.left, y2: yZero },
             style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
             silent: true,
           },
@@ -302,9 +305,9 @@ function recalculateScopeRects() {
             id: 'sadd',
             shape: {
               x: dividerXNum + 2,
-              y: rectTop,
+              y: additionalRectTop,
               width: Math.max(0, additionalRect.width - 4),
-              height: Math.max(0, yAxisBase - rectTop),
+              height: Math.max(0, yZero - additionalRectTop),
               r: 3,
             },
             style: {
@@ -319,7 +322,7 @@ function recalculateScopeRects() {
             type: 'text',
             id: 'stadd',
             left: dividerXNum + 8,
-            top: labelTop,
+            top: additionalLabelTop,
             style: {
               fill: '#000000',
               text: t('charts-additional-category'),
@@ -394,11 +397,9 @@ function recalculateScopeRects() {
     },
   ];
 
-  requestAnimationFrame(() => {
-    chart.setOption({ graphic: elements }, {
-      replaceMerge: ['graphic'],
-    } as Parameters<typeof chart.setOption>[1]);
-  });
+  chart.setOption({ graphic: elements }, {
+    replaceMerge: ['graphic'],
+  } as Parameters<typeof chart.setOption>[1]);
 }
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
