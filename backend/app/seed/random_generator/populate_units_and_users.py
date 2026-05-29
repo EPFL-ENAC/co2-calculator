@@ -57,30 +57,20 @@ async def get_asyncpg_connection():
 # ============================================================
 
 
+SEEDED_UNIT_LEVEL = 5  # leaf level (lab/team).
+
+
 def generate_units():
     rows = []
 
     for i in range(NUM_UNITS):
         institutional_code = f"U{i:05d}"
-
-        affiliations = []
-        if random.random() < 0.7:  # nosec B311
-            affiliations.append(random.choice(["SB", "STI", "IC", "SV", "EDOC"]))  # nosec B311
-        if random.random() < 0.3:  # nosec B311
-            affiliations.append(random.choice(["ENAC", "INPLUS", "ISIC", "IIE"]))  # nosec B311
-
-        cost_centers = [
-            f"C{random.randint(1000, 9999)}"  # nosec B311
-            for _ in range(random.randint(1, 3))  # nosec B311
-        ]
-
         rows.append(
             (
                 institutional_code,
                 fake.company(),
+                SEEDED_UNIT_LEVEL,
                 None,
-                json.dumps(cost_centers),
-                json.dumps(affiliations),
                 UserProvider.DEFAULT.name,
             )
         )
@@ -93,9 +83,8 @@ async def insert_units(conn, rows):
         CREATE TEMP TABLE tmp_units (
             institutional_code TEXT,
             name TEXT,
+            level INTEGER,
             principal_user_institutional_id TEXT,
-            cost_centers JSONB,
-            affiliations JSONB,
             provider TEXT
         ) ON COMMIT DROP
     """)
@@ -109,17 +98,15 @@ async def insert_units(conn, rows):
         INSERT INTO units (
             institutional_code,
             name,
+            level,
             principal_user_institutional_id,
-            cost_centers,
-            affiliations,
             provider
         )
         SELECT
             institutional_code,
             name,
+            level,
             principal_user_institutional_id,
-            cost_centers,
-            affiliations,
             provider::user_provider_enum
         FROM tmp_units
         RETURNING id, institutional_code
