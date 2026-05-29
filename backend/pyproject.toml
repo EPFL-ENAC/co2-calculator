@@ -28,7 +28,7 @@ dependencies = [
     "enacit4r-files",
     "haversine==2.9.0",
     "opentelemetry-distro>=0.62b1",
-    "opentelemetry-exporter-otlp>=1.41.1",
+    "opentelemetry-exporter-otlp>=1.42.1",
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
 ]
