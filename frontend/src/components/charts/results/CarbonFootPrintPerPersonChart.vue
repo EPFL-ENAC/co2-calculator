@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
-import type { EChartsOption } from 'echarts';
+import type { EChartsOption, SeriesOption } from 'echarts';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
@@ -438,7 +438,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray.value as echarts.SeriesOption[],
+    series: seriesArray.value as SeriesOption[],
   };
 });
 

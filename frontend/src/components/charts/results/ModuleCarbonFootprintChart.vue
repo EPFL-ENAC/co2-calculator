@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
-import type { EChartsOption } from 'echarts';
+import type { EChartsOption, SeriesOption } from 'echarts';
 import {
   buildChartDecal,
   colors,
@@ -1289,7 +1289,7 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: enrichedDatasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as echarts.SeriesOption[],
+    series: seriesArray as SeriesOption[],
   };
 });
 
