@@ -7,21 +7,16 @@ graph TD
     %% Layers
     FE[Frontend]
     BE[Backend]
-    WK[Workers]
     DB[Database]
     ST[Storage]
 
     %% Main Flow
     FE -->|HTTP REST API| BE
-    BE -->|Message Queue| WK
     BE -->|SQLAlchemy ORM| DB
     BE -->|API Calls| ST
-    WK -->|Optional DB Access| DB
-    WK -->|Optional Storage Access| ST
 
     %% Bidirectional Arrows
     FE <--> BE
-    BE <--> WK
 ```
 
 - Detailed mermaid graph
@@ -54,11 +49,6 @@ graph TD
     FastAPI2[FastAPI2]
     APIAuth[API Auth]
 
-    %% Workers
-    Redis[Redis]
-    Celery1[Celery1]
-    Celery2[Celery2]
-
     %% Database
     PGBouncer1[PGBouncer1]
     PGBouncer2[PGBouncer2]
@@ -90,13 +80,6 @@ graph TD
     API --> FastAPI2
     API --> APIAuth
 
-    %% Backend to workers
-    FastAPI1 --> Celery1
-    FastAPI2 --> Celery2
-    APIAuth --> Redis
-    FastAPI1 --> Redis
-    FastAPI2 --> Redis
-
     %% Backend to Database via PGBouncer
     FastAPI1 --> PGBouncer1
     FastAPI2 --> PGBouncer2
@@ -106,11 +89,9 @@ graph TD
     PGBouncer2 --> Primary
     PGBouncer2 --> Replica2
 
-    %% Workers optional DB/Storage access
-    Celery1 --> Primary
-    Celery2 --> Replica2
-    Celery1 --> S3
-    Celery2 --> S3
+    %% Backend in-process Storage access (background jobs run in-process via asyncio)
+    FastAPI1 --> S3
+    FastAPI2 --> S3
 
     %% Config & Monitoring
     FastAPI1 --> ConfigMaps
@@ -118,8 +99,6 @@ graph TD
     APIAuth --> DBCreds
     Prometheus --> FastAPI1
     Prometheus --> FastAPI2
-    Prometheus --> Celery1
-    Prometheus --> Celery2
     Grafana --> Prometheus
 
     %% External Identity & Storage
@@ -134,18 +113,17 @@ The system follows a layered architecture pattern with clear separation of conce
 ## Layer Dependencies
 
 ```
-Frontend ↔ Backend ↔ Workers ↔ DB
-                ↕
-            Storage
+Frontend ↔ Backend ↔ DB
+               ↕
+           Storage
 ```
 
 Each layer communicates with adjacent layers through well-defined interfaces:
 
 - Frontend communicates with Backend via HTTP REST APIs
-- Backend communicates with Workers via message queues
 - Backend communicates with Database via SQLAlchemy ORM
 - Backend communicates with Storage via direct API calls
-- Workers may communicate with Database and Storage as needed
+- Background jobs run in-process inside the Backend (asyncio, no external task queue)
 
 For implementation details, see:
 

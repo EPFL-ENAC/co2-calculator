@@ -4,7 +4,10 @@
 
 The auth system binds every session to a real EPFL identity via Microsoft
 Entra OAuth, holds that identity in a signed JWT in an `httpOnly` cookie,
-and enforces role-scoped permissions through OPA at every request.
+and enforces role-scoped permissions through **in-code RBAC** at every request
+(`app/core/policy.py`, `app/core/security.py`; the module borrows OPA-style
+naming but runs no policy engine — see
+[ADR-005](../architecture-decision-records/005-authorization-strategy.md)).
 
 ```mermaid
 flowchart LR
@@ -140,7 +143,7 @@ warning rather than aborting the login.
   runtime gate. The route literally does not exist in production
   `app.routes`. Pinned by `test_login_test_registration_matches_debug_flag`.
 - **F6 deferred** — logout does not denylist the JWT. A leaked cookie
-  remains valid until `exp`. A Redis-backed JTI denylist is the planned
+  remains valid until `exp`. A JTI denylist is the planned
   remediation; see
   [issue #458 follow-up](https://github.com/EPFL-ENAC/co2-calculator/issues/458#issuecomment-4560788251).
 - **`JWTClaimsRegistry` default `leeway=0`** — no clock-skew tolerance.
@@ -161,7 +164,7 @@ truth: the implementation plan
 | F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                               |
 | F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                          |
 | F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                         |
-| F6      | _deferred_                                           | _Redis-backed denylist — see follow-up comment_                                                                                              |
+| F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                           |
 | F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                        |
 | F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                |
 | F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                           |
@@ -178,7 +181,7 @@ Additional pinning tests:
   (parallel Unit A worktree).
 - `TestDefaultRoleProviderClaimCombinations::*` — claim-combination
   matrix for the role provider.
-- `backend/tests/unit/core/test_security_gates.py::*` — OPA gate unit
+- `backend/tests/unit/core/test_security_gates.py::*` — permission gate unit
   tests covering `is_permitted` / `check_permission` / `require_permission`.
 
 ## 9. Design choices and trade-offs
@@ -188,8 +191,8 @@ Additional pinning tests:
 Setting cookies on the tail of a cross-site redirect from Microsoft is
 unreliable: Safari ITP and modern third-party-cookie defaults can drop
 them. A same-origin SPA-to-backend POST is reliable. Trade-off: +1
-round-trip on login and a small server-side exchange-code store (DB
-today, Redis later). See
+round-trip on login and a small server-side exchange-code store (DB-backed
+today). See
 [ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md).
 
 ### Why HS256 with a shared secret, not RS256 with a key pair
@@ -208,13 +211,14 @@ and the standard `Origin`/`Referer` checks already in place.
 
 ## 10. Future work
 
-- **F6** — Logout JWT denylist (Redis-backed JTI store). Pairs with
+- **F6** — Logout JWT denylist (server-side JTI store). Pairs with
   refresh-token reuse detection to convert F5 from hygiene into actual
   stolen-token mitigation.
 - **`JWTClaimsRegistry` leeway tuning** — currently default `0` seconds;
   30 s is the candidate value to absorb pod-to-pod NTP drift.
-- **Move the BFF exchange-code store from DB to Redis** — current store
-  is single-pod-safe but slower; Redis aligns with the F6 store.
+- **BFF exchange-code store** — current DB-backed store is single-pod-safe
+  but slower; a shared, higher-throughput store is a future option if
+  multi-pod scaling warrants it.
 - **Narrow the role-provider boundary** — F11/F12 are delivered, but the
   provider surface deserves its own scope-narrowing pass in a future
   tier (typed schema for IdP role payloads, strict mode for production).

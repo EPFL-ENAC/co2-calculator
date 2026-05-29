@@ -3,8 +3,11 @@
 This guide covers the FastAPI backend for CO2 emissions tracking.
 Use it to set up your local environment, understand the API
 structure, and deploy to production. The backend uses PostgreSQL
-for data persistence, OIDC for authentication, and Celery for
-asynchronous tasks.
+for data persistence, OIDC for authentication, and in-process
+`asyncio.create_task` chains with a 10-second safety-net poller
+for background jobs (see
+[ADR-010](../architecture-decision-records/010-background-job-processing.md)
+and [ADR-016](../architecture-decision-records/016-pipeline-two-path-principle.md)).
 
 Read this if you need to set up the backend locally, understand
 how the API works, or deploy to production.
@@ -51,7 +54,7 @@ make db-migrate
 make run
 ```
 
-Requires Python 3.11+ and PostgreSQL 15+.
+Requires Python 3.12+ and PostgreSQL 15+.
 
 ## Architecture Overview
 
@@ -141,28 +144,27 @@ OAUTH_ISSUER_URL=https://login.microsoftonline.com/{tenant}/v2.0
 OAUTH_CLIENT_ID=your-client-id
 OAUTH_CLIENT_SECRET=your-client-secret
 
-# Background Tasks
-REDIS_URL=redis://localhost:6379/0
-
 # CORS
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
+
+See [Auth Flow](../architecture/04-auth-flow.md) for how the OAuth/OIDC
+settings are used.
 
 For production: set `DEBUG=false`, use strong `SECRET_KEY`, and
 restrict `CORS_ORIGINS` to your frontend domain.
 
 ## Background Processing
 
-Celery handles long-running tasks with Redis as message broker:
+Background jobs run in-process via `asyncio.create_task` chains with a
+10-second safety-net poller. See
+[ADR-010](../architecture-decision-records/010-background-job-processing.md)
+for the decision and
+[ADR-016](../architecture-decision-records/016-pipeline-two-path-principle.md)
+for the interactive-vs-bulk write strategy.
 
-```bash
-make celery-worker  # Start worker
-make celery-beat    # Start scheduler
-make celery-flower  # Web monitoring UI
-```
-
-Tasks include CSV import processing, emission calculations,
-report generation, and email notifications.
+Jobs cover CSV import processing, emission calculations, factor sync,
+and report generation.
 
 ## Authorization
 
@@ -196,12 +198,16 @@ psql $DB_URL -c "SELECT 1;"
 
 ### Background Task Failures
 
-View worker logs:
+Background jobs run inside the web pods. Inspect them via the backend
+logs and the `data_ingestion_jobs` table in PostgreSQL:
 
 ```bash
-docker-compose logs celery-worker
-redis-cli -h localhost -p 6379 LLEN celery
+docker-compose logs backend
+psql $DB_URL -c "SELECT id, target_type, state, locked_by, updated_at FROM data_ingestion_jobs ORDER BY updated_at DESC LIMIT 20;"
 ```
+
+See [ADR-010](../architecture-decision-records/010-background-job-processing.md)
+for the claim / poller model.
 
 ### Enable Debug Logging
 
@@ -238,9 +244,9 @@ Applied optimizations:
 
 - **Connection Pooling**: SQLAlchemy pool (size: 20, overflow: 10)
 - **Query Optimization**: Eager loading to avoid N+1 queries
-- **Caching**: Redis for frequently accessed data
 - **Async Operations**: FastAPI async endpoints for I/O tasks
-- **Background Jobs**: Celery offloads long operations
+- **Background Jobs**: in-process `asyncio.create_task` chains with a
+  10s safety-net poller (see [ADR-010](../architecture-decision-records/010-background-job-processing.md))
 
 ## Next Steps
 
@@ -261,12 +267,12 @@ Applied optimizations:
 
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [SQLAlchemy](https://docs.sqlalchemy.org/)
-- [Celery](https://docs.celeryq.dev/)
 - [Pydantic](https://docs.pydantic.dev/)
 
 ## Summary
 
 FastAPI backend with layered architecture. Start with `make docker-up`,
 explore API at `/docs`. Authorization in service layer, database
-queries in repositories. Celery handles background tasks. See
-[Architecture](02-ARCHITECTURE.md) for details.
+queries in repositories. Background jobs run in-process per
+[ADR-010](../architecture-decision-records/010-background-job-processing.md).
+See [Architecture](02-ARCHITECTURE.md) for details.

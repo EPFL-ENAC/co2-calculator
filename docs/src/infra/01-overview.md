@@ -58,8 +58,6 @@ helm/
     ├── frontend-deployment.yaml
     ├── backend-deployment.yaml
     ├── postgres-statefulset.yaml
-    ├── redis-deployment.yaml
-    ├── celery-deployment.yaml
     ├── ingress.yaml
     ├── services.yaml
     ├── configmaps.yaml
@@ -141,21 +139,9 @@ backend:
   resources:
     requests: { cpu: 200m, memory: 512Mi }
     limits: { cpu: 1000m, memory: 1Gi }
-
-# Celery Workers
-celery-worker:
-  replicas: 2
-  resources:
-    requests: { cpu: 200m, memory: 512Mi }
-    limits: { cpu: 1000m, memory: 2Gi }
-
-# Redis (task queue)
-redis:
-  replicas: 1
-  resources:
-    requests: { cpu: 100m, memory: 256Mi }
-    limits: { cpu: 500m, memory: 512Mi }
 ```
+
+Background jobs run in-process inside the backend pods (no worker fleet, no Redis broker). See [ADR-010](../architecture-decision-records/010-background-job-processing.md).
 
 ### StatefulSet
 
@@ -184,10 +170,6 @@ backend-service:
 postgres-service:
   type: ClusterIP
   port: 5432
-
-redis-service:
-  type: ClusterIP
-  port: 6379
 ```
 
 ### Ingress
@@ -239,8 +221,6 @@ data:
   DATABASE_HOST: postgres-service
   DATABASE_PORT: "5432"
   DATABASE_NAME: co2calculator
-  REDIS_HOST: redis-service
-  REDIS_PORT: "6379"
   LOG_LEVEL: INFO
   CORS_ORIGINS: https://co2calculator.epfl.ch
 ```
@@ -326,8 +306,6 @@ http_request_duration_seconds_bucket{le="0.1"}
 # Application metrics
 db_connections_active
 db_query_duration_seconds
-celery_tasks_running
-celery_tasks_failed_total
 
 # Resource metrics
 process_cpu_seconds_total
@@ -355,7 +333,6 @@ scrape_configs:
 1. **Application Overview**
    - Request rate, latency, error rate
    - Active users, database connections
-   - Celery queue length, task processing time
 
 2. **Infrastructure Health**
    - CPU, memory, disk usage per pod
@@ -382,7 +359,6 @@ scrape_configs:
 
 - High memory usage (> 80%)
 - Slow response time (> 1s p95)
-- Celery queue backlog (> 1000 tasks)
 - Certificate expiry (< 7 days)
 
 **Configuration**: Alert rules defined in `helm/templates/prometheus-rules.yaml`
@@ -455,10 +431,8 @@ spec:
 
 ```bash
 # Scale backend replicas
+# Background jobs run in-process, so this also scales job capacity (no separate worker tier).
 kubectl scale deployment backend --replicas=5 -n co2-calculator-prod
-
-# Scale Celery workers
-kubectl scale deployment celery-worker --replicas=4 -n co2-calculator-prod
 ```
 
 ---

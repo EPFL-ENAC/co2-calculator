@@ -32,11 +32,11 @@ understand why certain choices were made.
 
 ### Security & Authorization
 
-| ADR                                             | Decision                 | Status      | Key Rationale                  |
-| ----------------------------------------------- | ------------------------ | ----------- | ------------------------------ |
-| [ADR-005](./005-authorization-strategy.md)      | In-code RBAC, reject OPA | ✅ Accepted | Simpler, sufficient for needs  |
-| [ADR-012](./012-jwt-authentication-strategy.md) | JWT-based authentication | ✅ Accepted | Stateless, microservices-ready |
-| [ADR-014](./014-security-checklist.md)          | Security checklist       | ✅ Accepted | Security maintenance plan      |
+| ADR                                             | Decision                 | Status      | Key Rationale                     |
+| ----------------------------------------------- | ------------------------ | ----------- | --------------------------------- |
+| [ADR-005](./005-authorization-strategy.md)      | In-code RBAC, reject OPA | ✅ Accepted | Simpler, sufficient for needs     |
+| [ADR-012](./012-jwt-authentication-strategy.md) | JWT-based authentication | ✅ Accepted | Stateless, microservices-ready    |
+| [ADR-014](./014-security-checklist.md)          | Security checklist       | ✅ Accepted | Security maintenance plan         |
 | [ADR-019](./019-bff-cookie-exchange.md)         | BFF cookie exchange      | 📋 Proposed | Reliable cookies under Safari ITP |
 
 ### Infrastructure & Operations
@@ -63,11 +63,11 @@ understand why certain choices were made.
 
 ## Planned Decisions
 
-| ADR | Topic               | Status     | Notes                                      |
-| --- | ------------------- | ---------- | ------------------------------------------ |
-| 008 | Observability Stack | 📋 Planned | Prometheus + Grafana + OpenTelemetry       |
-| 009 | Caching Strategy    | 📋 Planned | Redis for emissions factors, rate limiting |
-| 019 | OIDC Integration    | 📋 Planned | MS Entra ID for EPFL SSO                   |
+| ADR | Topic               | Status     | Notes                                                             |
+| --- | ------------------- | ---------- | ----------------------------------------------------------------- |
+| 008 | Observability Stack | 📋 Planned | Prometheus + Grafana + OpenTelemetry                              |
+| 009 | Caching Strategy    | 📋 Planned | Caching strategy for emission factors and rate limiting (planned) |
+| 019 | OIDC Integration    | 📋 Planned | MS Entra ID for EPFL SSO                                          |
 
 ## Rejected Alternatives
 
