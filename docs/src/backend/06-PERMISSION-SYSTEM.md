@@ -170,7 +170,7 @@ Files:
 - `app/schemas/user.py` - UserRead schema with `@computed_field`
 - `app/utils/permissions.py` - Permission calculation logic
 - `app/core/security.py` - `require_permission()` decorator for routes
-- `app/core/policy.py` - OPA policy evaluations for data filtering and resource access
+- `app/core/policy.py` - in-code policy evaluation for data filtering and resource access (OPA-style naming, no policy engine)
 - `app/services/authorization_service.py` - Helper functions for data filtering and resource checks
 
 The UserRead schema computes permissions:
@@ -275,7 +275,7 @@ async def update_trip(self, trip_id: int, data: TripUpdate):
 
 ## Resource-Level Access Control
 
-OPA policies enforce business rules for individual resources:
+In-code policy functions enforce business rules for individual resources:
 
 ### Professional Travel Policy
 
