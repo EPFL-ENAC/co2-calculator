@@ -155,12 +155,20 @@ import type { FlatUserPermissions } from "src/constant/permissions";
 import type { components } from "src/types/api/openapi";
 
 type GeneratedUserRead = components["schemas"]["UserRead"];
-type User = Omit<GeneratedUserRead, "permissions" | "roles_raw"> & {
+type User = Omit<
+  GeneratedUserRead,
+  "permissions" | "roles_raw" | "institutional_id"
+> & {
   permissions?: FlatUserPermissions;
-  roles_raw?: Array<{
+  // Normalized to `[]` at the API boundary in `getUser()`, so callers can
+  // `.map()` without an optional guard.
+  roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | "global";
   }>;
+  // `response_model_exclude_none=True` strips this from the wire when null,
+  // even though the generated type marks it required. Reflect runtime reality.
+  institutional_id?: string;
 };
 ```
 
@@ -174,19 +182,22 @@ Why the wrapper (and not the bare generated type):
   helpers (`hasPermission`, `hasAnyScopePermission`, …) and
   `authGuard.ts` actually consume. Using the bare generated type would
   push `as` casts to every call site.
+- `roles_raw` and `institutional_id` are also overridden: `getUser()`
+  normalizes `roles_raw` to `[]` so the local type can keep it
+  non-optional, and `institutional_id` is marked optional because
+  `response_model_exclude_none=True` omits it from the wire when null.
 - Everything else (`id: number`, `email: string`, `display_name`,
-  `institutional_id`, `is_user_test`, `last_login`, `provider`) flows
-  through `Omit` so backend changes to those fields immediately
-  surface in TypeScript.
+  `is_user_test`, `last_login`, `provider`) flows through `Omit` so
+  backend changes to those fields immediately surface in TypeScript.
 
 #### Drift surfaced by this migration
 
 The pre-existing hand-typed `id: string` was wrong. The backend emits
 `UserBase.id: Optional[int]` and `UserRead.id` is `integer` in the
 schema. The migration silently fixes this — `user.value.id` is now
-`number`. The only consumer is the display-name fallback
-`user.value.id || '?'` in the same store; that still works (the only
-falsy `number` is `0`, which is never a real user id).
+`number`. The only consumer is the display-name fallback in the same
+store, written `String(user.value.id) || '?'` so the numeric id renders
+as a string (the only falsy `number` is `0`, never a real user id).
 
 ### Verification
 
