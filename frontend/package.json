@@ -18,7 +18,8 @@
     "preview": "npx vite preview --outDir dist/spa",
     "build": "quasar build",
     "postinstall": "quasar prepare",
-    "mock:auth": "node src/mock/mockauth.js"
+    "mock:auth": "node src/mock/mockauth.js",
+    "gen-api-types": "node scripts/gen-api-types.mjs"
   },
   "dependencies": {
     "@quasar/extras": "=1.18.0",
@@ -50,6 +51,7 @@
     "eslint-config-prettier": "=10.1.8",
     "eslint-plugin-vue": "=10.9.1",
     "globals": "=17.6.0",
+    "openapi-typescript": "=7.13.0",
     "postcss-html": "=1.8.1",
     "postcss-rtlcss": "=5.7.1",
     "prettier": "=3.8.3",

@@ -51,6 +51,12 @@ docker-compose.yml
 Dockerfile
 frontend/.quasar/*
 frontend/src/css/tokens.css
+# Auto-generated from FastAPI OpenAPI schema (frontend/scripts/gen-api-types.mjs).
+# Prettier-formatting it would put it permanently out of sync with the
+# generator's output and break drift checks. Mirrored in frontend/.prettierignore
+# since make lint runs prettier from frontend/.
+frontend/src/types/api/openapi.d.ts
+frontend/scripts/openapi.snapshot.json
 lefthook.yml
 logs/
 Makefile
