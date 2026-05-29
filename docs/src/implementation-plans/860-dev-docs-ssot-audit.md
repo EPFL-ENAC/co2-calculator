@@ -1,19 +1,21 @@
 ---
 status: delivered
 issue: 860
-last_updated: 2026-05-28
+last_updated: 2026-05-29
 title: "Dev docs SSoT audit"
-summary: "Page-per-page review of dev docs: duplicate clusters with SSoT winners, stale-fact findings against the codebase, and the three highest-confidence fixes shipped in this PR."
+summary: "Page-per-page review of dev docs: duplicate clusters with SSoT winners, stale-fact findings against the codebase, the three highest-confidence fixes, plus the follow-up checklist now executed in this PR."
 ---
 
 # 860 — Dev docs SSoT audit
 
-This PR is a **read-only audit** of `docs/src/` plus three top-level
-contributor files (`README.md`, `CONTRIBUTING.md`, `frontend/README.md`,
-`backend/...`). It surfaces duplicate clusters, identifies a Single
-Source of Truth (SSoT) winner per cluster, and lists stale facts that
-contradict the codebase. **Three high-confidence fixes** ship with this
-PR; the rest is a checklist for follow-up.
+This PR began as a **read-only audit** of `docs/src/` plus three
+top-level contributor files (`README.md`, `CONTRIBUTING.md`,
+`frontend/README.md`, `backend/...`). It surfaces duplicate clusters,
+identifies a Single Source of Truth (SSoT) winner per cluster, and lists
+stale facts that contradict the codebase. **Three high-confidence
+fixes** shipped first; a **follow-up pass then executed the action
+checklist** below (see the checked items and the `docs(860):` commits on
+this branch).
 
 This audit is a follow-up pass on issue #860; the broader refresh batch
 is captured in
@@ -24,8 +26,9 @@ were SSoT-consolidated on `dev` in `06dcf902` / `0b7a4ad6` and are
 ## Duplicate clusters
 
 Ordered HIGH → LOW. Each row gives the cluster, the proposed SSoT
-winner, and the recommended action. None of these are executed in this
-PR beyond the targeted fixes below.
+winner, and the recommended action. The actions called out below were
+executed in this PR's follow-up pass — see the
+[Action checklist](#action-checklist-executed-in-this-prs-follow-up-pass).
 
 ### HIGH — Backend install / setup
 
@@ -62,8 +65,8 @@ PR beyond the targeted fixes below.
 - Files: `docs/src/backend/01-overview.md` (Celery + Redis section), ADRs `010-background-job-processing.md`, `016-pipeline-two-path-principle.md`, plan `310-overview.md`.
 - SSoT winner: ADR-010 (decision) + ADR-016 (path principle).
 - Action: rewrite the background-processing section of `01-overview.md`
-  to point at ADR-010 / ADR-016. **Partially done in this PR** (see
-  Stale-fact fixes below).
+  to point at ADR-010 / ADR-016. **Done in this PR** (first pass plus the
+  follow-up trim; see Stale-fact fixes below).
 
 ### LOW — Permissions
 
@@ -78,8 +81,9 @@ PR beyond the targeted fixes below.
 
 ## Stale-fact findings
 
-Ordered HIGH → LOW. "Fixed in this PR" = applied; the rest are queued
-for follow-up.
+Ordered HIGH → LOW. All findings below are now applied — the three
+"(fixed in this PR)" items in the first pass, the rest in the follow-up
+pass on this branch.
 
 ### HIGH — Python version drift (fixed in this PR)
 
@@ -117,35 +121,63 @@ for follow-up.
   pointer to ADR-010 / ADR-016. The fake `make celery-*` and
   `redis-cli` commands are removed — they were actively misleading.
 
-### MODERATE — Env URLs in root `README.md` (not fixed)
+### MODERATE — Env URLs in root `README.md` (fixed in follow-up pass)
 
 - File: `README.md` (top of file).
 - Claim: dev / stage / pre-prod URLs are hardcoded inline.
 - Issue: no SSoT link; the same URLs are repeated in
   `architecture/05-environments.md`.
-- Suggested fix (follow-up): link to `05-environments.md` from
-  `README.md` instead of restating; keep `05-environments.md` as the
-  one place URLs are maintained.
+- Fix: `README.md` now links to `architecture/05-environments.md`, which
+  gained a `URL` column and is the one place these URLs are maintained.
 
-### LOW — Backend `01-overview.md` env table
+### MODERATE — Stale Redis/Celery in `05-environments.md` (fixed in follow-up pass)
+
+- File: `docs/src/architecture/05-environments.md`.
+- Claim: a "Redis/Celery Configuration" table (workers / Redis mode /
+  task retention per env) and a required `REDIS_URL` env var.
+- Evidence: same as the backend Celery finding above — no Celery/Redis
+  in `backend/pyproject.toml`, `Makefile`, `.env.example`, or app code;
+  jobs run in-process per ADR-010. (Two `auth.py` comments mention a
+  _future_ Redis-backed rate limiter — not current infra.)
+- Fix: removed the table and the `REDIS_URL` row; replaced with a
+  one-line accurate note pointing to ADR-010. (Discovered while wiring
+  up the env-URL SSoT; not in the original cluster list.)
+
+### LOW — Backend `01-overview.md` env table (fixed in follow-up pass)
 
 - File: `docs/src/backend/01-overview.md` Configuration section.
-- Notes: mentions `OIDC_*` / `OAUTH_*` env names — once SSoT moves to
-  `04-auth-flow.md`, link there instead of repeating env-var lists.
-  Out of scope (auth-flow SSoT freeze).
+- Notes: mentioned `OIDC_*` / `OAUTH_*` env names with no link to the
+  auth SSoT.
+- Fix: added a cross-link to `architecture/04-auth-flow.md` next to the
+  OAuth/OIDC block; the env list stays for local setup. (Auth-flow SSoT
+  has since stabilized on `dev`, so the earlier freeze no longer
+  blocks a one-way link.)
 
-## Action checklist (follow-up PRs)
+## Action checklist (executed in this PR's follow-up pass)
 
-- [ ] Shrink `docs/src/backend/04-README.md` to a pointer page (or
-      delete + redirect).
-- [ ] Rewrite the "Background Processing" section of
-      `01-overview.md` as a pure pointer to ADR-010 / ADR-016 once
-      readers stop expecting Celery content.
-- [ ] Replace inline env URLs in root `README.md` with a link to
-      `architecture/05-environments.md`.
-- [ ] Sweep `01-overview.md` once auth-flow SSoT links stabilize.
-- [ ] Audit `docs/src/frontend/` for `quasar` command leftovers after
-      this PR lands.
+- [x] Shrink `docs/src/backend/04-README.md` to a pointer page (kept as
+      a pointer; dropped its `Quick Start` nav + `.pages` entries).
+- [x] Rewrite the "Background Processing" section of `01-overview.md` as
+      a pure pointer to ADR-010 / ADR-016 (dropped the residual
+      "no Celery/Redis" framing).
+- [x] Replace inline env URLs in root `README.md` with a link to
+      `architecture/05-environments.md` (which is now the URL SSoT).
+- [x] Sweep `01-overview.md` for the auth-flow SSoT link — added a
+      cross-link from the OAuth/OIDC env block to `04-auth-flow.md`.
+- [x] Audit `docs/src/frontend/` for `quasar` command leftovers — none
+      found. The remaining `quasar` references are legitimate framework
+      docs (SCSS bridge, `quasar.config.js`, design-token integration);
+      the stale CLI commands were already removed from `frontend/README.md`
+      in the first pass.
+
+### New follow-up surfaced (not in this PR)
+
+- [ ] Align the Quick Start in `docs/src/frontend/01-overview.md` with
+      the repo's `make` convention — it still uses raw `npm install` /
+      `npm run dev` / `npm run build`, whereas root `README.md`,
+      `CONTRIBUTING.md`, and `frontend/README.md` standardize on
+      `cd frontend && make dev`. Adjacent to the frontend-workflow drift
+      finding above; left out here to keep this pass scoped.
 
 ## Out of scope for this PR
 
