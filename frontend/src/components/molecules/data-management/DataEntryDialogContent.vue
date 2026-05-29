@@ -262,7 +262,7 @@ watch(showDialog, (newVal) => {
 
       <q-separator />
 
-      <q-card-section class="q-pt-sm">
+      <q-card-actions class="q-px-md q-pb-md">
         <q-btn
           aria-label="data-entry-save"
           :label="
@@ -285,7 +285,7 @@ watch(showDialog, (newVal) => {
                 : (showDialog = false)
           "
         />
-      </q-card-section>
+      </q-card-actions>
     </q-card>
   </q-dialog>
 </template>

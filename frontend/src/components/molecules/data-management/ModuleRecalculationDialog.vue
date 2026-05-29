@@ -42,7 +42,16 @@ function handleConfirm() {
         <div class="text-h6">
           {{ $t('data_management_recalculate_emissions_title') }}
         </div>
+        <q-space />
+        <q-btn
+          flat
+          size="md"
+          icon="o_close"
+          color="grey-6"
+          @click="handleClose"
+        />
       </q-card-section>
+      <q-separator />
       <q-card-section class="text-body2">
         {{ $t('data_management_recalculate_emissions_description') }}
       </q-card-section>
@@ -70,7 +79,7 @@ function handleConfirm() {
           @update:model-value="(val) => emit('update:onlyStale', val)"
         />
       </q-card-section>
-      <q-card-actions align="right">
+      <q-card-actions class="q-px-md q-pb-md">
         <q-btn flat :label="$t('common_cancel')" @click="handleClose" />
         <q-btn
           color="accent"

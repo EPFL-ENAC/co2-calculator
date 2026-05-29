@@ -878,9 +878,21 @@ onUnmounted(() => {
          many rows and a misclick is easy. -->
     <q-dialog v-model="abortDialog" persistent>
       <q-card style="min-width: 360px">
-        <q-card-section>
+        <q-card-section class="row items-center q-pb-none">
           <div class="text-h6">{{ $t('pipeops_abort_title') }}</div>
-          <div class="text-body2 text-grey-8 q-mt-sm">
+          <q-space />
+          <q-btn
+            flat
+            size="md"
+            icon="o_close"
+            color="grey-6"
+            :disable="aborting"
+            @click="abortDialog = false"
+          />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-body2 text-grey-8">
             {{ $t('pipeops_abort_body') }}
           </div>
           <div v-if="abortTarget" class="q-mt-sm text-caption text-grey-7">
@@ -890,7 +902,7 @@ onUnmounted(() => {
             / {{ abortTarget.year ?? '—' }}
           </div>
         </q-card-section>
-        <q-card-actions align="right">
+        <q-card-actions class="q-px-md q-pb-md">
           <q-btn
             flat
             :label="$t('pipeops_abort_cancel')"
@@ -914,15 +926,9 @@ onUnmounted(() => {
         <q-card-section class="row items-center q-pb-none">
           <div class="text-subtitle1">{{ $t('pipeops_msg_title') }}</div>
           <q-space />
-          <q-btn
-            flat
-            dense
-            icon="content_copy"
-            :label="$t('pipeops_msg_copy')"
-            @click="copyMsg"
-          />
-          <q-btn v-close-popup flat dense round icon="close" />
+          <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
         </q-card-section>
+        <q-separator />
         <q-card-section>
           <pre
             class="q-pa-md bg-grey-2 rounded-borders"
@@ -936,6 +942,14 @@ onUnmounted(() => {
             >{{ msgText }}</pre
           >
         </q-card-section>
+        <q-card-actions class="q-px-md q-pb-md">
+          <q-btn
+            flat
+            icon="content_copy"
+            :label="$t('pipeops_msg_copy')"
+            @click="copyMsg"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
   </q-page>

@@ -10,13 +10,7 @@
           {{ title }}
         </div>
         <q-space />
-        <q-btn
-          icon="close"
-          flat
-          round
-          dense
-          @click="$emit('update:modelValue', false)"
-        />
+        <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
