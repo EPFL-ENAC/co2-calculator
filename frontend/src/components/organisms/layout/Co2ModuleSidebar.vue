@@ -40,8 +40,10 @@ const currentTotalResult = computed(() => {
 });
 
 const visibleItems = computed(() =>
-  timelineItems.filter((item) =>
-    yearConfigStore.isModuleVisible(item.link as Module),
+  timelineItems.filter(
+    (item) =>
+      yearConfigStore.isModuleVisible(item.link as Module) &&
+      authStore.canUserAccessModule(item.link as Module),
   ),
 );
 
