@@ -152,10 +152,11 @@ class ProfessionalTravelTrainHandlerCreate(
     destination_name: str
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
-    # Optional CSV columns. Future train CSVs are expected to ship these so
-    # the ingest-time resolver can disambiguate same-name stations across
-    # countries (e.g. Bern, CH vs Berne, DE). Absent → resolver defaults to
-    # "CH" per the project's data center of mass.
+    # Required for CSV rows lacking a precomputed ``*_natural_key``: the
+    # ingest-time resolver uses them to scope same-name stations to one
+    # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
+    # because UI/API rows resolve via ``*_natural_key`` instead; the CSV
+    # resolver (``enrich_csv_row``) rejects rows that supply neither.
     origin_country_code: Optional[str] = None
     destination_country_code: Optional[str] = None
     departure_date: Optional[date] = None
@@ -348,18 +349,19 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     ) -> tuple[dict, Optional[str]]:
         """Resolve ``origin_name`` / ``destination_name`` → ``*_natural_key``.
 
-        Production train CSVs currently ship only the station names. A
-        ``{role}_country_code`` column is expected in future CSVs to
-        disambiguate same-name stations across countries (e.g. Bern, CH vs
-        Berne, DE); when absent or blank the resolver defaults to ``CH`` per
-        the project's data center of mass.
+        Train CSVs ship a ``{role}_country_code`` column to disambiguate
+        same-name stations across countries (e.g. Bern, CH vs Berne, DE).
+        It is **required**: a row missing it for either endpoint is rejected
+        before any station lookup — there is no ``CH`` default. The
+        ``stations.csv``-derived seed carries country codes natively.
 
         UI/API entries already carry ``*_natural_key`` (sent directly from
         the station autocomplete) — the hook leaves those rows alone.
 
         Resolution failure modes split:
-          - ambiguous (>1 match): row fails — operator must supply a
-            ``{role}_country_code`` (or hand-curate the upstream data)
+          - missing country_code: row fails — operator must supply it.
+          - ambiguous (>1 match): row fails — operator must hand-curate the
+            upstream data (or pick a more specific name).
           - not_found (0 matches): mirror the plane unknown-IATA path —
             persist the entry without ``natural_key``; ``pre_compute`` logs
             a WARNING and skips emission. Operator sees the gap in
@@ -373,10 +375,17 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
             name = enriched.get(f"{role}_name")
             if not name:
                 return data, f"Missing {role}_name"
-            country_code = enriched.get(f"{role}_country_code") or "CH"
+            # Canonicalize to uppercase: the seed stores ISO-2 codes uppercase
+            # and the station lookup matches country_code exactly.
+            country_code = (enriched.get(f"{role}_country_code") or "").strip().upper()
+            if not country_code:
+                return (
+                    data,
+                    f"Missing {role}_country_code (required for train CSV ingestion)",
+                )
             station, reason = await loc_service.resolve_train_station_for_csv(
                 name=name,
-                default_country_code=country_code,
+                country_code=country_code,
             )
             if station is not None:
                 enriched[f"{role}_natural_key"] = station.natural_key

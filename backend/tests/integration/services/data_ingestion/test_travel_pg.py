@@ -481,18 +481,19 @@ async def test_train_csv_persists_csv_source_and_preserves_one_to_one(
 
 
 @pytest.mark.asyncio
-async def test_train_csv_country_code_column_overrides_ch_default(
+async def test_train_csv_resolves_station_by_required_country_code(
     pg_dsn_with_310b, monkeypatch, tmp_path
 ) -> None:
-    """Regression for issue #1183 Phase 1: when the train CSV carries
-    ``origin_country_code`` / ``destination_country_code`` columns, the
-    resolver must honour them over the ``CH`` default.
+    """Regression for issue #1183: the train CSV's required
+    ``origin_country_code`` / ``destination_country_code`` columns scope
+    station resolution to one country.
 
     Setup pins the cross-country collision case from the issue body:
     two stations share the same name (``Berne``) in different
     countries (CH vs DE). A single CSV row with
     ``destination_country_code=DE`` must resolve to the German station,
-    not the Swiss one.
+    not the Swiss one. (Missing country_code is rejected — covered by the
+    unit test ``test_train_enrich_csv_row``.)
     """
     engine = create_async_engine(pg_dsn_with_310b, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
