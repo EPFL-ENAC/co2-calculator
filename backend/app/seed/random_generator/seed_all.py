@@ -9,11 +9,15 @@ from app.seed.random_generator.populate_units_and_users import (
 )
 from app.seed.random_generator.seed_carbon_reports import main as seed_carbon_reports
 from app.seed.random_generator.seed_data_entries import main as seed_data_entries
-from app.seed.random_generator.seed_factors import main as seed_factors
 from app.seed.random_generator.seed_post_all import main as seed_post_all
 from app.seed.random_generator.seed_year_configuration import (
     main as seed_year_configuration,
 )
+
+# Canonical CSV-based factor seeder; replaces random_generator.seed_factors,
+# which drifted from the current factor schema and produced duplicate
+# (data_entry_type_id, emission_type_id, classification) rows.
+from app.seed.seed_generic_factors import main as seed_factors
 
 
 async def main():
