@@ -630,6 +630,203 @@ test.describe('back-office data-management — happy paths', () => {
     );
   });
 
+  test('1216a — successful API ingestion (no CSV) turns the data card button green', async ({
+    page,
+  }) => {
+    // Issue #1216: when only ``latest_api_data_job`` is present and
+    // SUCCESS, the data card must signal success — the operator can't
+    // otherwise distinguish "API connected, data loaded" from "nothing
+    // uploaded yet".  Previously ``dataButtonColor`` only inspected
+    // ``lastDataJob`` (the CSV path) and returned ``accent`` for an
+    // API-only row, leaving the card visually identical to an empty
+    // one.  Fix is in ``useUploadCard.dataButtonColor``.
+    const apiSuccess = {
+      job_id: 301,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 0, // API
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: { rows_processed: 42, timestamp: '2024-01-15T00:00:00Z' },
+    };
+
+    const yearConfigApiOnly = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: apiSuccess,
+                latest_api_data_job: apiSuccess,
+                // No latest_data_job — only the API path imported rows.
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigApiOnly(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    // The "Add Data" button on the data card must carry Quasar's
+    // ``bg-positive`` class — that's the visual signal that the row
+    // already has data (green border via cardStyle + green button).
+    const dataBtn = page
+      .getByRole('button', { name: /add data|reupload data/i })
+      .first();
+    await expect(dataBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toHaveClass(/bg-positive/);
+  });
+
+  test('1216b — FACTORS card renders before DATA card in the upload row (regression)', async ({
+    page,
+  }) => {
+    // Issue #1216: the screenshot showed the DATA card rendered before
+    // FACTORS on Equipments / Purchases (which both flow through
+    // ``ModuleUploadsSection``'s common-uploads branch).  Commit
+    // 69c5a3d8 fixed the markup; this test pins the order so a future
+    // refactor can't silently revert it.  We use Headcount-member
+    // (per-submodule path through ``SubmoduleItem``) which shares the
+    // same FACTORS-first ordering rule.
+    await mockBackend(page);
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    const factorBtn = page
+      .getByRole('button', { name: /(re)?upload factors|add factors/i })
+      .first();
+    const dataBtn = page
+      .getByRole('button', { name: /(re)?upload data|add data/i })
+      .first();
+
+    await expect(factorBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toBeVisible();
+
+    // Compare bounding-box ``y`` (cards sit on one row → factor must
+    // be left of data, i.e. smaller ``x``).
+    const [factorBox, dataBox] = await Promise.all([
+      factorBtn.boundingBox(),
+      dataBtn.boundingBox(),
+    ]);
+    expect(factorBox).not.toBeNull();
+    expect(dataBox).not.toBeNull();
+    expect(factorBox!.x).toBeLessThan(dataBox!.x);
+  });
+
+  test('1216c — FACTORS card renders before DATA card in the common-uploads row (regression)', async ({
+    page,
+  }) => {
+    // Issue #1216 follow-up: ``ModuleUploadsSection.vue`` has a
+    // SEPARATE template block (the common-uploads section, lines
+    // 68-125) that renders factor + data cards for modules with
+    // module-level (rather than per-submodule) uploads — Equipment
+    // and Purchases.  The 1216b test only exercises the per-submodule
+    // path through ``SubmoduleItem.vue``; this test pins the same
+    // FACTORS-first ordering rule on the common-uploads path so a
+    // refactor of ``ModuleUploadsSection`` can't silently regress
+    // half the data-management UI.
+    //
+    // We use Equipment (module 4): its single common upload renders
+    // both cards unconditionally (no ``noData``/``noFactors`` on the
+    // common entry) and its three submodules are all
+    // ``noData=noFactors=true`` — so the only factor/data buttons on
+    // the page after expanding Equipment come from the common-uploads
+    // block, which makes ``.first()`` unambiguous.
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...buildYearConfig({ year }),
+            config: {
+              modules: {
+                '4': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  submodules: {},
+                },
+              },
+              reduction_objectives: {
+                files: {
+                  institutional_footprint: null,
+                  population_projections: null,
+                  unit_scenarios: null,
+                },
+                goals: [],
+                institutional_footprint: [],
+                population_projections: [],
+                unit_scenarios: [],
+              },
+            },
+          }),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Module-level expand for Equipment.  Headcount stays collapsed,
+    // so it contributes no factor/data buttons to the DOM.
+    const equipmentExpand = page
+      .getByRole('button', { name: /expand/i })
+      .filter({ hasText: /equipment/i })
+      .first();
+    await expect(equipmentExpand).toBeVisible({ timeout: 10000 });
+    await equipmentExpand.click();
+
+    const factorBtn = page
+      .getByRole('button', { name: /(re)?upload factors|add factors/i })
+      .first();
+    const dataBtn = page
+      .getByRole('button', { name: /(re)?upload data|add data/i })
+      .first();
+
+    await expect(factorBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toBeVisible();
+
+    // Same bounding-box assertion as 1216b: cards sit on one row, so
+    // FACTORS must be left of DATA (smaller ``x``).
+    const [factorBox, dataBox] = await Promise.all([
+      factorBtn.boundingBox(),
+      dataBtn.boundingBox(),
+    ]);
+    expect(factorBox).not.toBeNull();
+    expect(dataBox).not.toBeNull();
+    expect(factorBox!.x).toBeLessThan(dataBox!.x);
+  });
+
   test('1215a — Incomplete badge renders when backend sets module.incomplete=true', async ({
     page,
   }) => {

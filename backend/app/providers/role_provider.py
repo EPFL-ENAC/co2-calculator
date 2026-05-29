@@ -494,7 +494,6 @@ class AccredRoleProvider(RoleProvider):
             # Call EPFL Accred authorizations endpoint
             url = f"{self.api_url}/authorizations"
             params: dict[str, str | int] = {
-                "type": "right",
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",

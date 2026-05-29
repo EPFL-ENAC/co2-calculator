@@ -28,11 +28,19 @@ export function useUploadCard() {
   }
 
   function dataButtonColor(row: ImportRow): string {
+    // Issue #1216 — a successful API ingestion (no CSV upload) must
+    // turn the data card green just like a successful CSV does. CSV
+    // result still takes precedence (an errored CSV after a prior
+    // API success stays red), and only an explicit SUCCESS counts —
+    // an API job with an unrecognised result falls through to
+    // ``accent`` rather than silently going green.
     if (row.isDisabled) return 'grey-4';
-    if (!row.lastDataJob) return 'accent';
-    if (row.lastDataJob.result === IngestionResult.ERROR) return 'negative';
-    if (row.lastDataJob.result === IngestionResult.WARNING) return 'warning';
-    return 'positive';
+    if (row.lastDataJob?.result === IngestionResult.ERROR) return 'negative';
+    if (row.lastDataJob?.result === IngestionResult.WARNING) return 'warning';
+    if (row.lastDataJob?.result === IngestionResult.SUCCESS) return 'positive';
+    if (row.lastApiDataJob?.result === IngestionResult.SUCCESS)
+      return 'positive';
+    return 'accent';
   }
 
   function factorButtonColor(row: ImportRow): string {
