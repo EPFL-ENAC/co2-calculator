@@ -65,9 +65,12 @@ def generate_units():
 
     for i in range(NUM_UNITS):
         institutional_code = f"U{i:05d}"
+        # cf-style id; RoleScope.institutional_id matches this column.
+        institutional_id = f"CF{i:05d}"
         rows.append(
             (
                 institutional_code,
+                institutional_id,
                 fake.company(),
                 SEEDED_UNIT_LEVEL,
                 None,
@@ -82,6 +85,7 @@ async def insert_units(conn, rows):
     await conn.execute("""
         CREATE TEMP TABLE tmp_units (
             institutional_code TEXT,
+            institutional_id TEXT,
             name TEXT,
             level INTEGER,
             principal_user_institutional_id TEXT,
@@ -97,22 +101,26 @@ async def insert_units(conn, rows):
     unit_ids = await conn.fetch("""
         INSERT INTO units (
             institutional_code,
+            institutional_id,
             name,
             level,
             principal_user_institutional_id,
-            provider
+            provider,
+            is_active
         )
         SELECT
             institutional_code,
+            institutional_id,
             name,
             level,
             principal_user_institutional_id,
-            provider::user_provider_enum
+            provider::user_provider_enum,
+            TRUE
         FROM tmp_units
-        RETURNING id, institutional_code
+        RETURNING id, institutional_id
     """)
 
-    return {r["institutional_code"]: r["id"] for r in unit_ids}
+    return {r["institutional_id"]: r["id"] for r in unit_ids}
 
 
 # ============================================================
@@ -152,11 +160,11 @@ def generate_users(unit_map):
     counts = distribute_users()
     user_counter = 0
 
-    unit_codes = list(unit_map.keys())
+    unit_iids = list(unit_map.keys())
 
     for unit_index, count in enumerate(counts):
-        unit_code = unit_codes[unit_index]
-        unit_id = unit_map[unit_code]
+        unit_iid = unit_iids[unit_index]
+        unit_id = unit_map[unit_iid]
 
         for _ in range(count):
             institutional_id = f"USR{user_counter:06d}"
@@ -175,7 +183,7 @@ def generate_users(unit_map):
                         [
                             {
                                 "role": role.value,
-                                "on": {"institutional_id": unit_code},
+                                "on": {"institutional_id": unit_iid},
                             }
                         ]
                     ),
@@ -187,8 +195,8 @@ def generate_users(unit_map):
 
     # Admins
     # Admins
-    first_unit_code = unit_codes[0]
-    first_unit_id = unit_map[first_unit_code]
+    first_unit_iid = unit_iids[0]
+    first_unit_id = unit_map[first_unit_iid]
 
     for role in ADMIN_ROLES:
         institutional_id = f"ADMIN{user_counter:06d}"
