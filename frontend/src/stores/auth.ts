@@ -183,6 +183,15 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(path, action);
   }
 
+  function canUserAccessModule(module: Module): boolean {
+    const path = getModulePermissionPath(module);
+    if (!path) return true; // Unprotected module, accessible to all users
+    return (
+      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
+      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+    );
+  }
+
   /**
    * Check if the current user can access the back-office area (any
    * `backoffice.*` or `system.*` permission granting `action`). Use for
@@ -223,6 +232,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     hasUserPermission,
     hasUserModulePermission,
+    canUserAccessModule,
     hasUserBackOfficeAreaPermission,
     hasUserAnyScopePermission,
   };

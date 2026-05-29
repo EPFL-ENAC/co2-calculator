@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
-import type { ModuleCard } from 'src/constant/moduleCards';
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -61,14 +60,13 @@ function hasModulePermission(
 }
 const timelineStore = useTimelineStore();
 
-const moduleCardsWithStatus = computed(() => {
-  return MODULE_CARDS.map(
-    (card): ModuleCard => ({
-      ...card,
-      isDisabled: !yearConfigStore.isModuleVisible(card.module),
-    }),
-  );
-});
+const moduleCardsWithStatus = computed(() =>
+  MODULE_CARDS.filter(
+    (card) =>
+      yearConfigStore.isModuleVisible(card.module) &&
+      authStore.canUserAccessModule(card.module),
+  ),
+);
 
 const modulesCounterText = computed(() => t('home_modules_counter'));
 
