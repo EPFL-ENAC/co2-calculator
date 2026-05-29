@@ -37,6 +37,37 @@ $tokens-icon-size-sm: 18px !default;
 $tokens-icon-size-md: 32px !default;
 $tokens-icon-size-lg: 48px !default;
 
+// Module Icon Box
+$tokens-module-icon-box-size-sm: 2.5rem !default;
+$tokens-module-icon-box-size-md: $tokens-spacing-48 !default;
+$tokens-module-icon-box-size-lg: 3.5rem !default;
+$tokens-module-icon-box-border-radius: $tokens-spacing-8 !default;
+$tokens-module-icon-box-border-width: 1.5px !default;
+
+// Module Total Result
+$tokens-mtr-color-muted: #aaa !default;
+$tokens-mtr-color-muted-dark: #888 !default;
+$tokens-mtr-tooltip-text-muted: rgb(255 255 255 / 70%) !default;
+$tokens-mtr-sidebar-mini-padding-x: 0.4rem !default;
+$tokens-mtr-sidebar-mini-padding-bottom: 0.6rem !default;
+$tokens-mtr-sidebar-mini-gap: 0.2rem !default;
+$tokens-mtr-sidebar-mini-value-font-size: 1.6rem !default;
+$tokens-mtr-sidebar-mini-unit-font-size: 0.55rem !default;
+$tokens-mtr-sidebar-mini-btn-margin-top: 0.3rem !default;
+$tokens-mtr-sidebar-mini-btn-border-radius: 6px !default;
+$tokens-mtr-sidebar-mini-tooltip-gap: 0.3rem !default;
+$tokens-mtr-sidebar-body-gap: 0.4rem !default;
+$tokens-mtr-sidebar-badge-font-size: 0.65rem !default;
+$tokens-mtr-sidebar-badge-padding-y: 0.2rem !default;
+$tokens-mtr-sidebar-badge-padding-x: 0.5rem !default;
+$tokens-mtr-sidebar-placeholder-margin-top: 0.4rem !default;
+$tokens-mtr-sidebar-placeholder-max-width: 10rem !default;
+$tokens-mtr-sidebar-value-font-size: 2.4rem !default;
+$tokens-mtr-sidebar-unit-font-size: 0.7rem !default;
+$tokens-mtr-sidebar-unit-margin-top: 0.2rem !default;
+$tokens-mtr-card-min-height: 150px !default;
+$tokens-mtr-card-accent-width: 4px !default;
+
 // Line Height
 $tokens-typography-line-height-4xl: 2.25rem !default;
 $tokens-typography-line-height-3xl: 2rem !default;
@@ -51,7 +82,16 @@ $tokens-typography-line-height-2xs: 0.875rem !default;
 // Font Weight
 $tokens-typography-font-weight-regular: 400 !default;
 $tokens-typography-font-weight-medium: 500 !default;
+$tokens-typography-font-weight-semibold: 600 !default;
 $tokens-typography-font-weight-bold: 700 !default;
+$tokens-typography-font-weight-extrabold: 800 !default;
+
+// Letter spacing & line height (display numbers)
+$tokens-typography-letter-spacing-tight-sm: -0.03em !default;
+$tokens-typography-letter-spacing-tight: -0.04em !default;
+$tokens-typography-line-height-none: 1 !default;
+$tokens-typography-line-height-snug: 1.2 !default;
+$tokens-typography-line-height-relaxed: 1.3 !default;
 
 // Colors
 $tokens-colors-status-green: #28a745 !default;

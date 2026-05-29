@@ -1,7 +1,7 @@
 <template>
   <q-card flat>
     <q-card-section
-      class="row flex justify-between items-center q-mx-lg q-my-xl"
+      class="row flex justify-between items-center q-mx-xl q-my-xl q-pa-none"
     >
       <div class="text-h3 text-weight-medium q-mb-none">
         {{ $t(`${moduleType}-${submoduleType}-form-title`) }}
@@ -230,7 +230,11 @@
             />
             <q-btn
               icon="o_save"
-              color="accent"
+              :style="{
+                background: moduleColors.bgColorLighter,
+                color: moduleColors.buttonTextColor,
+                border: `1px solid ${moduleColors.buttonTextColor}`,
+              }"
               :label="$t('common_save')"
               unelevated
               no-caps
@@ -243,7 +247,11 @@
             <!-- Add mode buttons -->
             <q-btn
               icon="o_add_circle"
-              color="accent"
+              :style="{
+                background: moduleColors.bgColorLighter,
+                color: moduleColors.buttonTextColor,
+                border: `1px solid ${moduleColors.buttonTextColor}`,
+              }"
               :label="$t(addButtonLabelKey)"
               unelevated
               no-caps
@@ -268,7 +276,12 @@
         </q-card-actions>
       </q-form>
     </q-card-section>
-    <NoteDialog v-model="addNoteDialogOpen" @save="saveNote" />
+    <NoteDialog
+      v-model="addNoteDialogOpen"
+      :module-color="moduleColors.bgColorLighter"
+      :module-text-color="moduleColors.buttonTextColor"
+      @save="saveNote"
+    />
   </q-card>
 </template>
 
@@ -295,6 +308,7 @@ import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemb
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
+import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -333,6 +347,7 @@ const props = withDefaults(
     unitId?: number;
     year?: string | number;
     formDefaults?: Record<string, unknown>;
+    moduleColor?: string;
   }>(),
   {
     fields: null,
@@ -344,7 +359,12 @@ const props = withDefaults(
     unitId: undefined,
     year: undefined,
     formDefaults: undefined,
+    moduleColor: undefined,
   },
+);
+
+const moduleColors = computed(() =>
+  getModuleIconColors(String(props.moduleType), String(props.submoduleType)),
 );
 
 const selectedYear = computed(

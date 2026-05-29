@@ -33,7 +33,7 @@
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
+      <div v-if="submodule.moduleFields" class="q-mx-lg q-my-lg">
         <module-table
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
@@ -46,6 +46,8 @@
           :submodule-config="submodule"
           :disable="isTableDisabled"
           :is-simulator="isSimulator"
+          :module-color="submoduleColor"
+          :module-color-lighter="submoduleLighterColor"
         />
       </div>
       <q-separator />
@@ -61,7 +63,7 @@
         </div>
       </div>
       <template v-else>
-        <div v-if="showModuleForm" class="q-mx-lg">
+        <div v-if="showModuleForm">
           <module-form
             ref="formRef"
             :fields="submodule.moduleFields"
@@ -75,6 +77,7 @@
             :unit-id="unitId"
             :year="year"
             :form-defaults="formDefaults"
+            :module-color="submoduleColor"
             @submit="submitForm"
           />
         </div>
@@ -188,6 +191,10 @@ import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import { Notify } from 'quasar';
+import {
+  getSubmoduleIconColor,
+  getSubmoduleLighterColor,
+} from 'src/composables/useModuleIconColors';
 interface Option {
   label: string;
   value: string;
@@ -258,6 +265,14 @@ const authStore = useAuthStore();
 const submoduleKey = computed(() => {
   return props.submodule.id;
 });
+
+const submoduleColor = computed(() =>
+  getSubmoduleIconColor(props.submodule.id, props.moduleType),
+);
+
+const submoduleLighterColor = computed(
+  () => `${getSubmoduleLighterColor(props.submodule.id, props.moduleType)}50`,
+);
 
 const isInputDeactivated = computed(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);

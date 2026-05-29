@@ -3,6 +3,10 @@ export default {
     en: 'View results',
     fr: 'Voir les résultats',
   },
+  results_summary_label: {
+    en: 'Summary',
+    fr: 'Récapitulatif',
+  },
   results_download_pdf: {
     en: 'Download as PDF',
     fr: 'Télécharger en PDF',

@@ -174,7 +174,7 @@ $table-color-success: opt.$tokens-colors-status-green !default;
 // Templates
 $template-width: opt.$tokens-layout-page-width !default;
 $template-padding-y: opt.$tokens-spacing-48 !default;
-$template-gap: opt.$tokens-spacing-32 !default;
+$template-gap: opt.$tokens-spacing-24 !default;
 $template-bg: opt.$tokens-colors-base-white !default;
 
 // Containers
@@ -242,7 +242,7 @@ $sidebar-padding-y: opt.$tokens-spacing-8 !default;
 $sidebar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $sidebar-bg-selected: opt.$tokens-colors-grey-scale-grey-400 !default;
 $sidebar-border-width: opt.$tokens-spacing-1 !default;
-$sidebar-border-color: opt.$tokens-colors-grey-scale-grey-400 !default;
+$sidebar-border-color: opt.$tokens-colors-grey-scale-grey-300 !default;
 $sidebar-color: opt.$tokens-colors-base-black !default;
 $sidebar-item-gap: opt.$tokens-spacing-8 !default;
 $sidebar-collapsed-width: 3.5rem !default;
@@ -263,3 +263,62 @@ $module-result-border-weight: opt.$tokens-spacing-1 !default;
 $module-result-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $module-result-padding-x: opt.$tokens-spacing-16 !default;
 $module-result-padding-y: opt.$tokens-spacing-8 !default;
+
+// Module Icon Box
+$module-icon-box-size-sm: opt.$tokens-module-icon-box-size-sm !default;
+$module-icon-box-size-md: opt.$tokens-module-icon-box-size-md !default;
+$module-icon-box-size-lg: opt.$tokens-module-icon-box-size-lg !default;
+$module-icon-box-border-radius: opt.$tokens-module-icon-box-border-radius !default;
+$module-icon-box-border-width: opt.$tokens-module-icon-box-border-width !default;
+
+// Module Total Result — shared
+$mtr-color-muted: opt.$tokens-mtr-color-muted !default;
+$mtr-color-muted-dark: opt.$tokens-mtr-color-muted-dark !default;
+$mtr-tooltip-text-muted: opt.$tokens-mtr-tooltip-text-muted !default;
+$mtr-card-min-height: opt.$tokens-mtr-card-min-height !default;
+$mtr-card-accent-width: opt.$tokens-mtr-card-accent-width !default;
+$mtr-content-gap: opt.$tokens-spacing-4 !default;
+
+// Module Total Result — sidebar variant
+$mtr-sidebar-border-bottom-width: opt.$tokens-spacing-1 !default;
+$mtr-sidebar-mini-padding: opt.$tokens-spacing-8
+  opt.$tokens-mtr-sidebar-mini-padding-x
+  opt.$tokens-mtr-sidebar-mini-padding-bottom !default;
+$mtr-sidebar-mini-gap: opt.$tokens-mtr-sidebar-mini-gap !default;
+$mtr-sidebar-mini-value-font-size: opt.$tokens-mtr-sidebar-mini-value-font-size !default;
+$mtr-sidebar-mini-value-font-weight: opt.$tokens-typography-font-weight-extrabold !default;
+$mtr-sidebar-mini-value-letter-spacing: opt.$tokens-typography-letter-spacing-tight-sm !default;
+$mtr-sidebar-mini-unit-font-size: opt.$tokens-mtr-sidebar-mini-unit-font-size !default;
+$mtr-sidebar-mini-unit-line-height: opt.$tokens-typography-line-height-snug !default;
+$mtr-sidebar-mini-btn-margin-top: opt.$tokens-mtr-sidebar-mini-btn-margin-top !default;
+$mtr-sidebar-mini-btn-border-radius: opt.$tokens-mtr-sidebar-mini-btn-border-radius !default;
+$mtr-sidebar-mini-btn-size: opt.$tokens-module-icon-box-size-sm !default;
+$mtr-sidebar-mini-tooltip-gap: opt.$tokens-mtr-sidebar-mini-tooltip-gap !default;
+$mtr-sidebar-mini-tooltip-padding-y: opt.$tokens-spacing-4 !default;
+$mtr-sidebar-mini-tooltip-value-font-size: opt.$tokens-spacing-32 !default;
+$mtr-sidebar-mini-tooltip-value-font-weight: opt.$tokens-typography-font-weight-extrabold !default;
+$mtr-sidebar-mini-tooltip-value-letter-spacing: opt.$tokens-typography-letter-spacing-tight !default;
+$mtr-sidebar-mini-tooltip-unit-font-size: opt.$tokens-mtr-sidebar-unit-font-size !default;
+$mtr-sidebar-mini-tooltip-placeholder-font-size: opt.$tokens-spacing-12 !default;
+$mtr-sidebar-mini-tooltip-placeholder-max-width: opt.$tokens-mtr-sidebar-placeholder-max-width !default;
+$mtr-sidebar-body-padding: opt.$tokens-spacing-8 !default;
+$mtr-sidebar-body-gap: opt.$tokens-mtr-sidebar-body-gap !default;
+$mtr-sidebar-badge-gap: opt.$tokens-spacing-4 !default;
+$mtr-sidebar-badge-font-size: opt.$tokens-mtr-sidebar-badge-font-size !default;
+$mtr-sidebar-badge-font-weight: opt.$tokens-typography-font-weight-semibold !default;
+$mtr-sidebar-badge-padding: opt.$tokens-mtr-sidebar-badge-padding-y
+  opt.$tokens-mtr-sidebar-badge-padding-x !default;
+$mtr-sidebar-badge-radius: opt.$tokens-border-radius-full-border-radius !default;
+$mtr-sidebar-badge-bg-opacity-validated: dec.$home-status-badge-bg-opacity-validated !default;
+$mtr-sidebar-badge-bg-opacity-progress: dec.$home-status-badge-bg-opacity-progress !default;
+$mtr-sidebar-value-area-min-height: opt.$tokens-spacing-64 !default;
+$mtr-sidebar-placeholder-font-size: opt.$tokens-mtr-sidebar-unit-font-size !default;
+$mtr-sidebar-placeholder-margin-top: opt.$tokens-mtr-sidebar-placeholder-margin-top !default;
+$mtr-sidebar-placeholder-line-height: opt.$tokens-typography-line-height-relaxed !default;
+$mtr-sidebar-placeholder-max-width: opt.$tokens-mtr-sidebar-placeholder-max-width !default;
+$mtr-sidebar-value-font-size: opt.$tokens-mtr-sidebar-value-font-size !default;
+$mtr-sidebar-value-font-weight: opt.$tokens-typography-font-weight-extrabold !default;
+$mtr-sidebar-value-letter-spacing: opt.$tokens-typography-letter-spacing-tight !default;
+$mtr-sidebar-unit-font-size: opt.$tokens-mtr-sidebar-unit-font-size !default;
+$mtr-sidebar-unit-margin-top: opt.$tokens-mtr-sidebar-unit-margin-top !default;
+$mtr-sidebar-btn-border-radius: opt.$tokens-module-icon-box-border-radius !default;

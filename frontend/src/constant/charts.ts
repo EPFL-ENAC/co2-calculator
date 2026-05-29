@@ -18,18 +18,19 @@ function lerpHex(a: string, b: string, t: number): string {
 const colorDefinitions = {
   yellow: {
     default: {
-      darker: '#FFF381',
-      dark: '#FFFA9C',
-      default: '#FFFEBA',
-      light: '#FFFFD4',
-      lighter: '#FFFFE8',
+      // Pastel lemon yellow (readable, not washed-out)
+      darker: '#D8C300',
+      dark: '#F0E06A',
+      default: '#FAED90',
+      light: '#FFF6C0',
+      lighter: '#FFFCE6',
     },
     colorblind: {
       darker: '#D4A017',
-      dark: '#E5B84F',
-      default: '#F5D882',
-      light: '#FAE8B0',
-      lighter: '#FDF5D9',
+      dark: '#DCCB4A',
+      default: '#F2E27A',
+      light: '#F6F0A8',
+      lighter: '#FBF9D1',
     },
   },
   // 2
@@ -287,6 +288,22 @@ const colorDefinitions = {
       lighter: '#E6EEF9',
     },
   },
+  teal: {
+    default: {
+      darker: '#72C5C2',
+      dark: '#8DD3D0',
+      default: '#A8E1DE',
+      light: '#C4EDEB',
+      lighter: '#DCF4F3',
+    },
+    colorblind: {
+      darker: '#3A8FA0',
+      dark: '#5AAABB',
+      default: '#7DC5D5',
+      light: '#AADCE8',
+      lighter: '#D0EDF4',
+    },
+  },
   notDefined: {
     default: {
       darker: '#000000',
@@ -325,6 +342,7 @@ export const colors = computed(() => {
     lightGreen: colorDefinitions.lightGreen[mode],
     paleYellowGreen: colorDefinitions.paleYellowGreen[mode],
     lightLavender: colorDefinitions.lightLavender[mode],
+    teal: colorDefinitions.teal[mode],
     notDefined: colorDefinitions.notDefined[mode],
   };
 });
@@ -382,6 +400,7 @@ export const RESULTS_CATEGORY_LABEL_KEYS: Record<
 
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
+  headcount: colors.value.yellow,
   process_emissions: colors.value.peach,
   buildings_energy_combustion: colors.value.apricot,
   buildings_room: colors.value.lilac,

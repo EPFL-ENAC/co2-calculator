@@ -14,13 +14,15 @@
         @click="onUploadCsv"
       />
       <q-btn
-        icon="download"
-        color="accent"
+        outline
+        icon="o_download"
+        color="primary"
         :label="$t('common_download_csv_template')"
         unelevated
         no-caps
         size="sm"
         class="text-weight-medium"
+        :disable="isDisabled"
         @click="onDownloadTemplate"
       />
 
@@ -48,6 +50,7 @@
   <q-table
     v-model:pagination="moduleStore.state.paginationSubmodule[submoduleType]"
     class="co2-table border"
+    :style="tableStyle"
     :columns="qCols"
     :rows="moduleStore.state.dataSubmodule[submoduleType]?.items || []"
     row-key="id"
@@ -155,18 +158,18 @@
               v-else
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
-              :type="col.type === 'number' ? 'number' : undefined"
+              :type="getColumnInputType(col)"
               :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
               emit-value
               map-options
               outlined
-              :title="col.hint ? $t(col.hint) : undefined"
+              :title="getColumnTitle(col)"
               :min="col.min"
               :max="col.max"
               :step="col.step"
-              :rules="col.type === 'number' ? getNumericRules(col) : []"
+              :rules="getColumnRules(col)"
               class="inline-input"
               :error="!!getError(slotProps.row, col)"
               :error-message="getError(slotProps.row, col)"
@@ -180,9 +183,10 @@
             "
           >
             <q-btn
-              :icon="slotProps.row.note ? 'o_comment' : 'o_add_comment'"
-              :color="slotProps.row.note ? 'accent' : 'grey-4'"
-              :text-color="slotProps.row.note ? 'white' : 'primary'"
+              :icon="noteButtonIcon(slotProps.row.note)"
+              :color="noteButtonColor(slotProps.row.note)"
+              :style="noteButtonStyle(slotProps.row.note)"
+              :text-color="noteButtonTextColor(slotProps.row.note)"
               :disable="isDisabled"
               unelevated
               no-caps
@@ -284,7 +288,9 @@
   <NoteDialog
     v-model="noteDialogOpen"
     :note="noteDialogCurrentNote"
-    :mode="noteDialogCurrentNote ? 'edit' : 'add'"
+    :mode="noteDialogMode"
+    :module-color="moduleColors.bgColorLighter"
+    :module-text-color="moduleColors.buttonTextColor"
     @save="saveNote"
     @delete="deleteNote"
   />
@@ -332,7 +338,11 @@
           @click="confirmDelete = false"
         />
         <q-btn
-          color="accent"
+          :style="{
+            background: moduleColors.bgColorLighter,
+            color: moduleColors.buttonTextColor,
+            border: `1px solid ${moduleColors.buttonTextColor}`,
+          }"
           :label="$t('common_delete')"
           unelevated
           no-caps
@@ -389,6 +399,7 @@ import {
 } from 'src/api/modules';
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
+import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -682,15 +693,71 @@ type CommonProps = {
   submoduleConfig: Submodule;
   disable: boolean;
   isSimulator?: boolean;
+  moduleColor?: string;
+  moduleColorLighter?: string;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
+  moduleColor: undefined,
+  moduleColorLighter: undefined,
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+
+const moduleColors = computed(() =>
+  getModuleIconColors(String(props.moduleType), String(props.submoduleType)),
+);
+
+const tableStyle = computed(() =>
+  props.moduleType === MODULES.Buildings
+    ? {
+        '--row-alt-color': '#f8fafc',
+        '--table-header-bg': moduleColors.value.bgColorLighter,
+      }
+    : { '--row-alt-color': '#f8fafc' },
+);
+
+function noteButtonIcon(note: unknown): string {
+  return note ? 'o_comment' : 'o_add_comment';
+}
+
+function noteButtonColor(note: unknown): string | undefined {
+  if (!note) return 'grey-4';
+  return props.moduleColor ? undefined : 'accent';
+}
+
+function noteButtonStyle(note: unknown) {
+  return note
+    ? {
+        background: moduleColors.value.bgColorLighter,
+        color: moduleColors.value.buttonTextColor,
+        border: `1px solid ${moduleColors.value.buttonTextColor}`,
+      }
+    : undefined;
+}
+
+function noteButtonTextColor(note: unknown): string | undefined {
+  return note ? undefined : 'primary';
+}
+
+const noteDialogMode = computed<'add' | 'edit'>(() =>
+  noteDialogCurrentNote.value ? 'edit' : 'add',
+);
+
+function getColumnInputType(col: TableViewColumn): string | undefined {
+  return col.type === 'number' ? 'number' : undefined;
+}
+
+function getColumnTitle(col: TableViewColumn): string | undefined {
+  return col.hint ? $t(col.hint) : undefined;
+}
+
+function getColumnRules(col: TableViewColumn) {
+  return col.type === 'number' ? getNumericRules(col) : [];
+}
 
 const hasModuleUpload = computed(() => {
   return (
@@ -1625,5 +1692,9 @@ onUnmounted(() => {
 
 .co2-table .q-table td {
   width: 100px;
+}
+
+.co2-table :deep(tbody tr:nth-child(even)) {
+  background-color: var(--row-alt-color, transparent);
 }
 </style>

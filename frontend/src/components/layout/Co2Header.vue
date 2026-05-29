@@ -55,6 +55,12 @@ const hasBackOfficeAccess = computed(() => {
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
 
+const breadcrumbLabel = computed(() =>
+  route.params.module
+    ? t(route.params.module as string)
+    : t(route.name as string),
+);
+
 const logoRoute = computed(() => {
   const routeName = String(route.name ?? '');
   const isSimulation =
@@ -98,36 +104,6 @@ const logoRoute = computed(() => {
       <q-space />
 
       <Co2LanguageSelector />
-
-      <q-btn
-        v-if="hasBackOfficeAccess && isInBackOfficeRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('documentation_backoffice_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :href="$t('header_backoffice_documentation_link')"
-        target="_blank"
-      />
-
-      <q-btn
-        v-if="!isInBackOfficeRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('documentation_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :href="$t('header_user_documentation_link')"
-        target="_blank"
-      />
 
       <q-btn
         v-if="hasBackOfficeAccess && !isInBackOfficeRoute"
@@ -232,14 +208,7 @@ const logoRoute = computed(() => {
             :label="$t('home')"
             :to="{ name: 'workspace-setup', params: route.params }"
           />
-          <q-breadcrumbs-el
-            class="text-capitalize"
-            :label="
-              route.params.module
-                ? $t(route.params.module as string)
-                : $t(route.name as string)
-            "
-          />
+          <q-breadcrumbs-el class="text-capitalize" :label="breadcrumbLabel" />
         </q-breadcrumbs>
       </q-toolbar>
       <q-separator />

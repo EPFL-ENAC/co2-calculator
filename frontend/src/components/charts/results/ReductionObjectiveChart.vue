@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
   hideAdditionalData: false,
 });
 
-const moduleChartView = ref<ModuleChartView>('epfl');
+const moduleChartView = ref<ModuleChartView>('unit');
 
 const moduleChartViewModel = computed({
   get: () => moduleChartView.value,
@@ -67,21 +67,21 @@ const chartTitle = computed(() =>
         dense
         no-caps
         unelevated
-        toggle-color="accent"
+        toggle-color="info"
         toggle-text-color="white"
         color="grey-2"
         text-color="grey-7"
         :options="[
-          { value: 'epfl', slot: 'epfl' },
           { value: 'unit', slot: 'unit' },
+          { value: 'epfl', slot: 'epfl' },
         ]"
-        class="chart-view-toggle"
+        class="chart-view-toggle text-weight-medium"
       >
-        <template #epfl>
-          {{ $t('results_objectives_2040_epfl_button') }}
-        </template>
         <template #unit>
           {{ $t('results_objectives_2040_unit_button') }}
+        </template>
+        <template #epfl>
+          {{ $t('results_objectives_2040_epfl_button') }}
         </template>
       </q-btn-toggle>
     </div>
@@ -150,3 +150,14 @@ const chartTitle = computed(() =>
     />
   </q-card-section>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.chart-view-toggle {
+  :deep(.q-btn) {
+    font-weight: tokens.$text-weight-medium;
+    font-size: tokens.$text-size-base;
+  }
+}
+</style>

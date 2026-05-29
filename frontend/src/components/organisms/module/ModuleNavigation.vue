@@ -2,7 +2,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { Module, MODULES_LIST } from 'src/constant/modules';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useTimelineStore } from 'src/stores/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -98,7 +98,7 @@ function validateCurrentModule() {
       <span class="text-body2 text-weight-medium">{{
         $t(previousModule!)
       }}</span>
-      <module-icon :name="previousModule" />
+      <module-icon-box :name="previousModule" size="sm" />
     </router-link>
     <router-link
       v-if="nextModule"
@@ -106,23 +106,21 @@ function validateCurrentModule() {
       class="module-navigation__link module-navigation__link--next"
       @click="validateCurrentModule"
     >
-      <module-icon :name="nextModule" />
+      <module-icon-box :name="nextModule" size="sm" />
       <span class="text-body2 text-weight-medium">{{ $t(nextModule!) }}</span>
       <q-icon name="chevron_right" class="chevron-right" size="sm" />
     </router-link>
-    <q-btn
+    <router-link
       v-if="isLastModule"
       :to="resultsRoute"
-      class="module-navigation__link module-navigation__link--next text-weight-medium"
-      icon="bar_chart"
-      :label="$t('results_btn')"
-      color="info"
-      unelevated
-      no-caps
-      size="md"
+      class="module-navigation__link module-navigation__link--next module-navigation__link--results"
       @click="validateCurrentModule"
     >
-    </q-btn>
+      <span class="results-icon-box">
+        <q-icon name="bar_chart" size="sm" />
+      </span>
+      <span class="text-body2 text-weight-medium">{{ $t('results_btn') }}</span>
+    </router-link>
   </div>
 </template>
 
@@ -158,6 +156,10 @@ function validateCurrentModule() {
       margin-right: auto;
     }
 
+    &--results {
+      color: tokens.$color-validated;
+    }
+
     .chevron-left {
       transition: transform 0.2s;
     }
@@ -165,5 +167,17 @@ function validateCurrentModule() {
       transition: transform 0.2s;
     }
   }
+}
+
+.results-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: tokens.$module-icon-box-size-sm;
+  height: tokens.$module-icon-box-size-sm;
+  border-radius: tokens.$module-icon-box-border-radius;
+  border: tokens.$module-icon-box-border-width solid tokens.$color-validated;
+  background-color: tokens.$module-result-bg-validated;
+  flex-shrink: 0;
 }
 </style>

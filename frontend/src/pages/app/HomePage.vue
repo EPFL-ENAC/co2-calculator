@@ -5,12 +5,8 @@ import { MODULES } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import type { ModuleCard } from 'src/constant/moduleCards';
-import {
-  getBadgeForStatus,
-  getModuleTypeId,
-  MODULE_STATES,
-} from 'src/constant/moduleStates';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
 import { PermissionAction } from 'src/constant/permissions';
@@ -69,14 +65,35 @@ const moduleCardsWithStatus = computed(() => {
   return MODULE_CARDS.map(
     (card): ModuleCard => ({
       ...card,
-      badge:
-        getBadgeForStatus(timelineStore.itemStates[card.module]) ?? undefined,
       isDisabled: !yearConfigStore.isModuleVisible(card.module),
     }),
   );
 });
 
 const modulesCounterText = computed(() => t('home_modules_counter'));
+
+type StatusBadgeVariant = 'validated' | 'progress';
+
+function getStatusIcon(moduleLink: Module): string {
+  const state = timelineStore.itemStates[moduleLink];
+  if (state === MODULE_STATES.Validated) return 'o_check_circle';
+  if (state === MODULE_STATES.InProgress) return 'o_pending';
+  return '';
+}
+
+function getStatusBadgeVariant(moduleLink: Module): StatusBadgeVariant | null {
+  const state = timelineStore.itemStates[moduleLink];
+  if (state === MODULE_STATES.Validated) return 'validated';
+  if (state === MODULE_STATES.InProgress) return 'progress';
+  return null;
+}
+
+function getStatusLabelKey(moduleLink: Module): string {
+  const state = timelineStore.itemStates[moduleLink];
+  if (state === MODULE_STATES.Validated) return 'module_status_validated';
+  if (state === MODULE_STATES.InProgress) return 'module_status_in_progress';
+  return '';
+}
 </script>
 
 <template>
@@ -112,7 +129,7 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
       </p>
       <p class="text-body1 q-mb-none">{{ $t('home_intro_6') }}</p>
       <q-btn
-        color="accent"
+        color="info"
         :label="$t('home_start_button')"
         unelevated
         no-caps
@@ -133,7 +150,7 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
         </h3>
         <div class="flex justify-between items-end q-mt-xl">
           <q-btn
-            color="accent"
+            color="info"
             :label="$t('home_results_btn')"
             unelevated
             no-caps
@@ -154,7 +171,7 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
       <q-card flat class="container column justify-between">
         <div class="row items-center justify-between q-mb-xl">
           <div class="row items-center q-gutter-sm">
-            <q-icon name="o_notifications" color="accent" size="sm" />
+            <q-icon name="o_notifications" color="info" size="md" />
             <h3 class="text-h4 text-weight-medium">
               {{ $t('calculator_update_title') }}
             </h3>
@@ -187,19 +204,23 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
         >
           <div class="flex justify-between">
             <div class="q-gutter-sm row items-center">
-              <module-icon :name="moduleCard.module" size="md" color="accent" />
+              <ModuleIconBox
+                :name="moduleCard.module"
+                size="sm"
+                class="q-mr-xs"
+              />
               <h3 class="text-h5 text-weight-medium">
                 {{ $t(moduleCard.module) }}
               </h3>
             </div>
-            <q-badge
-              v-if="moduleCard.badge"
-              rounded
-              :color="moduleCard.badge.color"
-              :text-color="moduleCard.badge.textColor"
-              :class="moduleCard.badge.color === 'accent' ? 'q-pa-sm' : ''"
-              :label="$t(moduleCard.badge.label)"
-            />
+            <span
+              v-if="getStatusBadgeVariant(moduleCard.module)"
+              class="home-status-badge"
+              :class="`home-status-badge--${getStatusBadgeVariant(moduleCard.module)}`"
+            >
+              <q-icon :name="getStatusIcon(moduleCard.module)" size="xs" />
+              {{ $t(getStatusLabelKey(moduleCard.module)) }}
+            </span>
           </div>
           <p class="text-body2 text-secondary q-mt-md">
             {{ $t(`${moduleCard.module}-description`) }}
@@ -285,3 +306,35 @@ const modulesCounterText = computed(() => t('home_modules_counter'));
     </div>
   </q-page>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.home-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: tokens.$home-status-badge-gap;
+  font-size: tokens.$home-status-badge-font-size;
+  font-weight: tokens.$home-status-badge-font-weight;
+  line-height: 1;
+  padding: tokens.$home-status-badge-padding-y
+    tokens.$home-status-badge-padding-x;
+  border-radius: tokens.$radius-pill;
+
+  &--validated {
+    background-color: rgba(
+      var(--q-positive-rgb, 33, 186, 69),
+      tokens.$home-status-badge-bg-opacity-validated
+    );
+    color: var(--q-positive);
+  }
+
+  &--progress {
+    background-color: rgba(
+      var(--q-warning-rgb, 242, 192, 56),
+      tokens.$home-status-badge-bg-opacity-progress
+    );
+    color: var(--q-warning);
+  }
+}
+</style>

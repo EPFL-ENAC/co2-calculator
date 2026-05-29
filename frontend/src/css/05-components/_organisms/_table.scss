@@ -1,7 +1,7 @@
 @use '../../02-tokens' as tokens;
 
 .co2-table {
-  border: 1px solid tokens.$table-border-color;
+  border: 1px solid tokens.$container-default-border;
   border-radius: tokens.$table-border-radius;
   font-size: tokens.$text-size-sm;
 

@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { nOrDash } from 'src/utils/number';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
@@ -42,6 +44,62 @@ const {
 } = useResultsPrintData();
 
 const moduleStore = useModuleStore();
+const { t } = useI18n();
+
+const yearComparisonPct = computed(
+  () => resultsSummary.value?.unit_totals.year_comparison_percentage ?? null,
+);
+
+const totalCarComparison = computed(() => {
+  if (!hasCo2PerKmKg.value || !resultsSummary.value) return undefined;
+  return t('results_equivalent_to_car', {
+    km: nOrDash(resultsSummary.value.unit_totals.equivalent_car_km, {
+      options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+    }),
+    value: nOrDash(co2PerKmKg.value, {
+      options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+    }),
+  });
+});
+
+const yearComparisonUnit = computed(() => {
+  if (yearComparisonPct.value == null)
+    return t('results_no_comparison_year_available');
+  return t('results_compared_to', { year: (currentYear.value - 1).toString() });
+});
+
+const yearComparisonColor = computed(() => {
+  if (yearComparisonPct.value == null) return undefined;
+  return yearComparisonPct.value < 0 ? 'positive' : 'negative';
+});
+
+const yearComparisonText = computed(() => {
+  if (yearComparisonPct.value == null || !resultsSummary.value)
+    return undefined;
+  return t('results_compared_to_value_of', {
+    value: `${nOrDash(
+      resultsSummary.value.unit_totals.previous_year_total_tonnes_co2eq,
+      { options: { minimumFractionDigits: 1, maximumFractionDigits: 1 } },
+    )}${t('results_units_tonnes')}`,
+  });
+});
+
+const yearComparisonHighlight = computed(() => {
+  if (yearComparisonPct.value == null || !resultsSummary.value)
+    return undefined;
+  return `${nOrDash(
+    resultsSummary.value.unit_totals.previous_year_total_tonnes_co2eq,
+    { options: { minimumFractionDigits: 1, maximumFractionDigits: 1 } },
+  )}${t('results_units_tonnes')}`;
+});
+
+const fteBigNumberTitle = computed(() => {
+  const fte = resultsSummary.value?.unit_totals.total_fte;
+  if (fte == null) return t('results_carbon_footprint_per_FTE_no_headcount');
+  return t('results_carbon_footprint_per_fte', {
+    FTE: nOrDash(fte, { options: { maximumFractionDigits: 1 } }),
+  });
+});
 
 const percentChangeFormatter = new Intl.NumberFormat('en-US', {
   style: 'percent',
@@ -107,24 +165,7 @@ onMounted(async () => {
               })
             "
             tooltip-placement="comparison"
-            :comparison="
-              hasCo2PerKmKg
-                ? $t('results_equivalent_to_car', {
-                    km: $nOrDash(resultsSummary.unit_totals.equivalent_car_km, {
-                      options: {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      },
-                    }),
-                    value: `${$nOrDash(co2PerKmKg, {
-                      options: {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      },
-                    })}`,
-                  })
-                : undefined
-            "
+            :comparison="totalCarComparison"
             :comparison-highlight="`${$nOrDash(
               resultsSummary.unit_totals.equivalent_car_km,
               {
@@ -157,62 +198,15 @@ onMounted(async () => {
                 resultsSummary.unit_totals.year_comparison_percentage,
               )
             "
-            :unit="
-              resultsSummary.unit_totals.year_comparison_percentage == null
-                ? $t('results_no_comparison_year_available')
-                : $t('results_compared_to', {
-                    year: (currentYear - 1).toString(),
-                  })
-            "
-            :color="
-              resultsSummary.unit_totals.year_comparison_percentage == null
-                ? undefined
-                : resultsSummary.unit_totals.year_comparison_percentage < 0
-                  ? 'positive'
-                  : 'negative'
-            "
-            :comparison="
-              resultsSummary.unit_totals.year_comparison_percentage == null
-                ? undefined
-                : $t('results_compared_to_value_of', {
-                    value: `${$nOrDash(
-                      resultsSummary.unit_totals
-                        .previous_year_total_tonnes_co2eq,
-                      {
-                        options: {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
-                        },
-                      },
-                    )}${$t('results_units_tonnes')}`,
-                  })
-            "
-            :comparison-highlight="
-              resultsSummary.unit_totals.year_comparison_percentage == null
-                ? undefined
-                : `${$nOrDash(
-                    resultsSummary.unit_totals.previous_year_total_tonnes_co2eq,
-                    {
-                      options: {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      },
-                    },
-                  )}${$t('results_units_tonnes')}`
-            "
+            :unit="yearComparisonUnit"
+            :color="yearComparisonColor"
+            :comparison="yearComparisonText"
+            :comparison-highlight="yearComparisonHighlight"
             :print-mode="true"
           />
 
           <BigNumber
-            :title="
-              resultsSummary.unit_totals.total_fte == null
-                ? $t('results_carbon_footprint_per_FTE_no_headcount')
-                : $t('results_carbon_footprint_per_fte', {
-                    FTE: $nOrDash(resultsSummary.unit_totals.total_fte, {
-                      options: { maximumFractionDigits: 1 },
-                    }),
-                  })
-            "
+            :title="fteBigNumberTitle"
             :number="
               $nOrDash(adjustedTonnesPerFte, {
                 options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
@@ -322,6 +316,23 @@ onMounted(async () => {
 </template>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.report-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: tokens.$print-report-container-padding;
+  color: tokens.$color-text !important;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--half-muted-color);
+  z-index: tokens.$print-toolbar-z-index;
+}
+
 .module-page-header {
   margin-bottom: 0px;
 }
@@ -329,7 +340,7 @@ onMounted(async () => {
 .grid-3-col {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: tokens.$print-grid-gap;
 }
 
 .report-h2 {
@@ -341,15 +352,15 @@ onMounted(async () => {
 }
 
 .print-card {
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 4px;
-  padding: 12px 12px 10px;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.03);
+  background: tokens.$color-surface;
+  border: 1px solid tokens.$print-border-color;
+  border-radius: tokens.$radius-default;
+  padding: tokens.$print-card-padding;
+  box-shadow: tokens.$print-shadow-subtle;
 }
 
 .print-card--chart {
-  padding: 10px 10px 8px;
+  padding: tokens.$print-card-padding-chart;
 }
 
 .print-card__eyebrow {
@@ -361,7 +372,7 @@ onMounted(async () => {
   page-break-inside: avoid;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: tokens.$breakpoint-desktop-min) {
   .grid-3-col {
     grid-template-columns: repeat(3, 1fr);
   }
