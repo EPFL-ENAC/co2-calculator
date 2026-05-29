@@ -1,4 +1,10 @@
-export type TooltipRow = { label: string; value: string; color?: string };
+export type TooltipRow = {
+  label: string;
+  value: string;
+  color?: string;
+  /** Optional module icon name (uses existing `ModuleIcon` system). */
+  icon?: string;
+};
 
 export type TooltipState = {
   title?: string;

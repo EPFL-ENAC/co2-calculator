@@ -1,25 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
-import { useI18n } from 'vue-i18n';
-import { use } from 'echarts/core';
-import { CanvasRenderer } from 'echarts/renderers';
-import { BarChart } from 'echarts/charts';
-import type { EChartsOption } from 'echarts';
-import { TooltipComponent, GridComponent } from 'echarts/components';
-import VChart from 'vue-echarts';
-import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
-import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
+import { computed, ref } from 'vue';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
-import { CHART_CATEGORY_COLOR_SCHEMES, colors } from 'src/constant/charts';
+import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
 import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { useTimelineStore } from 'src/stores/modules';
-import { downloadEchartAsPng } from 'src/utils/chartDownload';
-import { formatTonnesCO2, formatTonnesForChart } from 'src/utils/number';
+import { formatTonnesCO2 } from 'src/utils/number';
 import type { ItBreakdownResponse } from 'src/stores/modules';
-
-use([CanvasRenderer, BarChart, TooltipComponent, GridComponent]);
 
 const props = withDefaults(
   defineProps<{
@@ -39,36 +27,12 @@ const props = withDefaults(
   },
 );
 
-const { t } = useI18n();
 const timelineStore = useTimelineStore();
 
-const chartRef = ref<InstanceType<typeof VChart>>();
-const { tooltip, style, attach, emitTooltip } = useEchartsTooltip();
+const breakdownChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(
+  null,
+);
 
-const onChartReady = async () => {
-  await nextTick();
-  const chart = chartRef.value?.chart;
-  if (!chart) return;
-  attach(chart);
-};
-
-const downloadPNG = () =>
-  downloadEchartAsPng(chartRef.value?.chart, 'it-focus');
-
-function isItCategoryModuleValidated(categoryKey: string): boolean {
-  const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
-  if (!mod) return false;
-  return timelineStore.itemStates[mod] === MODULE_STATES.Validated;
-}
-
-const CATEGORY_LABEL_MAP: Record<string, string> = {
-  equipment_it: 'it-focus-equipment-it',
-  purchases_it: 'it-focus-purchases-it',
-  external_cloud_and_ai: 'it-focus-cloud-ai',
-  research_facilities_it: 'it-focus-research-facilities',
-};
-
-/** Y-axis top → bottom after chart `.reverse()` (first here = top of chart). */
 const IT_FOCUS_CATEGORY_ORDER = [
   'equipment_it',
   'external_cloud_and_ai',
@@ -76,315 +40,27 @@ const IT_FOCUS_CATEGORY_ORDER = [
   'research_facilities_it',
 ] as const;
 
-const CLOUD_AI_LABEL_MAP: Record<string, string> = {
-  cloud: 'it-focus-cloud',
-  ai: 'it-focus-ai',
-};
-
-/** Map category_key → single color (dark shade) */
-const categoryColor = computed(() => ({
-  equipment_it: colors.value.plum.dark,
-  purchases_it: colors.value.lightGreen.dark,
-  external_cloud_and_ai:
-    CHART_CATEGORY_COLOR_SCHEMES.value.external_cloud_and_ai,
-  /** Same as `research_facilities` in module / results charts (CHART_CATEGORY_COLOR_SCHEMES). */
-  research_facilities_it:
-    CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
-}));
-
-interface BarSegment {
-  name: string;
-  value: number;
-  color: string;
+function isItCategoryModuleValidated(categoryKey: string): boolean {
+  const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
+  if (!mod) return false;
+  return timelineStore.itemStates[mod] === MODULE_STATES.Validated;
 }
 
-interface CategoryBar {
-  label: string;
-  categoryKey: string;
-  segments: BarSegment[];
-  total: number;
-  validated: boolean;
-}
-
-/**
- * Build stacked horizontal bars: one bar per IT category,
- * segments within = top items (top 3 + rest for equipment/purchases,
- * sub-breakdown for cloud & AI).
- */
-const categoryBars = computed<CategoryBar[]>(() => {
-  if (!props.data) return [];
-
-  const bars: CategoryBar[] = [];
-
-  // Index API data by key — non-validated categories may be absent from the response
-  const dataByKey = Object.fromEntries(
-    props.data.categories.map((c) => [c.category_key, c]),
-  );
-
-  // Iterate the fixed order so all 4 rows are always present (validated or not)
-  for (const categoryKey of IT_FOCUS_CATEGORY_ORDER) {
-    const validated = isItCategoryModuleValidated(categoryKey);
-    const label = t(CATEGORY_LABEL_MAP[categoryKey] ?? categoryKey);
-    const color =
-      categoryColor.value[categoryKey as keyof typeof categoryColor.value] ??
-      '#999';
-
-    if (!validated) {
-      bars.push({
-        label,
-        categoryKey,
-        segments: [],
-        total: 0,
-        validated: false,
-      });
-      continue;
-    }
-
-    const cat = dataByKey[categoryKey];
-    if (!cat || cat.tonnes_co2eq <= 0) {
-      // Validated but no data: still show the row (empty bar, black label)
-      bars.push({
-        label,
-        categoryKey,
-        segments: [],
-        total: 0,
-        validated: true,
-      });
-      continue;
-    }
-
-    const items = cat.top_items ?? [];
-    const segments: BarSegment[] = [];
-
-    if (items.length === 0) {
-      segments.push({ name: label, value: cat.tonnes_co2eq, color });
-    } else {
-      if (cat.category_key === 'external_cloud_and_ai') {
-        let cloud = 0;
-        let ai = 0;
-
-        for (const item of items) {
-          if (item.value <= 0) continue;
-          const key = item.name.toLowerCase();
-          const isAi = key === 'ai' || key.includes('ai');
-          if (isAi) {
-            ai += item.value;
-          } else if (key !== 'rest') {
-            cloud += item.value;
-          }
-        }
-
-        if (cloud > 0) {
-          segments.push({
-            name: t(CLOUD_AI_LABEL_MAP.cloud),
-            value: cloud,
-            color,
-          });
-        }
-        if (ai > 0) {
-          segments.push({
-            name: t(CLOUD_AI_LABEL_MAP.ai),
-            value: ai,
-            color,
-          });
-        }
-      } else {
-        items.forEach((item) => {
-          if (item.value <= 0) return;
-          let name = item.name;
-          if (item.name === 'rest') {
-            name = t('it-focus-rest');
-          }
-          segments.push({ name, value: item.value, color });
-        });
-      }
-    }
-
-    bars.push({
-      label,
-      categoryKey,
-      segments,
-      total: cat.tonnes_co2eq,
-      validated: true,
-    });
-  }
-
-  return bars;
-});
-
-// Show chart as long as there's at least one bar (validated or grayed-out)
-const hasData = computed(() => categoryBars.value.length > 0);
-
-/** Set of translated labels for validated categories (used for axis styling). */
-const validatedLabels = computed(
-  () =>
-    new Set(categoryBars.value.filter((b) => b.validated).map((b) => b.label)),
-);
-
-/** Tonnes from categories whose parent module is validated (aligned with visible bars). */
-const displayTotalItTonnes = computed(() =>
-  categoryBars.value
-    .filter((b) => b.validated)
-    .reduce((sum, bar) => sum + bar.total, 0),
-);
-
-/** Collect all unique segment names across all bars (union for stacking) */
-const allSegmentKeys = computed(() => {
-  const keys: string[] = [];
-  const seen = new Set<string>();
-  for (const bar of categoryBars.value) {
-    for (const seg of bar.segments) {
-      // Use a compound key to keep segments unique across categories
-      const compoundKey = `${bar.categoryKey}__${seg.name}`;
-      if (!seen.has(compoundKey)) {
-        seen.add(compoundKey);
-        keys.push(compoundKey);
-      }
+const displayTotalItTonnes = computed(() => {
+  if (!props.data) return 0;
+  let sum = 0;
+  for (const key of IT_FOCUS_CATEGORY_ORDER) {
+    if (isItCategoryModuleValidated(key)) {
+      const cat = props.data.categories.find((c) => c.category_key === key);
+      if (cat) sum += cat.tonnes_co2eq;
     }
   }
-  return keys;
+  return sum;
 });
 
-/** Map compound segment key → color */
-const segmentColorMap = computed(() => {
-  const map: Record<string, string> = {};
-  for (const bar of categoryBars.value) {
-    for (const seg of bar.segments) {
-      map[`${bar.categoryKey}__${seg.name}`] = seg.color;
-    }
-  }
-  return map;
-});
+const hasData = computed(() => !!props.data);
 
-/** Map compound segment key → display label */
-const segmentLabelMap = computed(() => {
-  const map: Record<string, string> = {};
-  for (const bar of categoryBars.value) {
-    for (const seg of bar.segments) {
-      map[`${bar.categoryKey}__${seg.name}`] = seg.name;
-    }
-  }
-  return map;
-});
-
-const chartHeight = computed(() => {
-  // Always 4 rows (IT_FOCUS_CATEGORY_ORDER), validated or not
-  return Math.max(200, IT_FOCUS_CATEGORY_ORDER.length * 50 + 90);
-});
-
-const barChartOption = computed<EChartsOption>(() => {
-  const bars = categoryBars.value;
-  if (!bars.length) return {};
-
-  // Y axis labels (reversed so first category is at top)
-  const yLabels = [...bars].reverse().map((b) => b.label);
-
-  // Build one series per segment key (stacked)
-  const series = allSegmentKeys.value.map((segKey) => ({
-    name: segmentLabelMap.value[segKey] ?? segKey,
-    type: 'bar' as const,
-    stack: 'total',
-    data: [...bars].reverse().map((bar) => {
-      const seg = bar.segments.find(
-        (s) => `${bar.categoryKey}__${s.name}` === segKey,
-      );
-      return seg ? seg.value : 0;
-    }),
-    itemStyle: {
-      color: segmentColorMap.value[segKey] ?? '#999',
-      borderColor: '#fff',
-      borderWidth: 1,
-    },
-    barWidth: 60,
-    label: { show: false },
-    emphasis: {
-      focus: 'series' as const,
-      blurScope: 'coordinateSystem' as const,
-    },
-    blur: { itemStyle: { opacity: 0.4 } },
-  }));
-
-  return {
-    animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          value?: number;
-          name?: string;
-          color?: string;
-        };
-        const name = p.name || '';
-        if (!validatedLabels.value.has(name)) {
-          emitTooltip({
-            title: name,
-            rows: [],
-            tone: 'muted',
-            footer: t('results_validate_module_title', { module: name }),
-          });
-          return '';
-        }
-        const val = Number(p.value) || 0;
-        if (val <= 0) {
-          emitTooltip(null);
-          return '';
-        }
-        emitTooltip({
-          rows: [
-            {
-              label: p.seriesName ?? '',
-              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-              color: p.color ?? '#888',
-            },
-          ],
-        });
-        return '';
-      },
-    },
-    legend: { show: false },
-    grid: {
-      left: '3%',
-      right: '4%',
-      top: 10,
-      bottom: 40,
-      containLabel: true,
-    },
-    xAxis: {
-      type: 'value',
-      name: t('tco2eq'),
-      nameLocation: 'middle',
-      nameGap: 30,
-      nameTextStyle: { fontSize: 11, fontWeight: 'bold' },
-      axisLabel: { formatter: '{value}' },
-    },
-    yAxis: {
-      type: 'category',
-      data: yLabels,
-      axisLabel: {
-        width: 150,
-        overflow: 'truncate',
-        formatter: (value: string) => {
-          if (validatedLabels.value.has(value)) {
-            return `{validated|${value}}`;
-          }
-          return `{unvalidated|${value}}`;
-        },
-        rich: {
-          validated: {
-            color: '#000000',
-            fontSize: 10,
-          },
-          unvalidated: {
-            color: '#aaaaaa',
-            fontSize: 10,
-          },
-        },
-      },
-    },
-    series: series as echarts.SeriesOption[],
-  };
-});
+const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
 </script>
 
 <template>
@@ -403,66 +79,47 @@ const barChartOption = computed<EChartsOption>(() => {
 
     <!-- Summary numbers -->
     <div v-if="data" class="it-stats-row" :class="{ 'q-px-lg': !printMode }">
-      <BigNumber
-        :title="$t('it-focus-total')"
-        :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
-        comparison=""
-        color="info"
-        :bordered="false"
-        :print-mode="printMode"
-      >
-      </BigNumber>
+      <div class="it-stats-row__item">
+        <BigNumber
+          :title="$t('it-focus-total')"
+          :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
+          comparison=""
+          color="info"
+          :bordered="false"
+          :print-mode="printMode"
+        />
+      </div>
+
       <q-separator vertical />
-      <BigNumber
-        :title="$t('it-focus-share-of-total')"
-        :number="
-          data.percentage_of_source_modules != null
-            ? `${Math.round(data.percentage_of_source_modules)}%`
-            : '-'
-        "
-        :comparison="$t('it-focus-share-of-total-hint')"
-        hide-unit
-        color="info"
-        :bordered="false"
-        :print-mode="printMode"
-      />
+
+      <div class="it-stats-row__item">
+        <BigNumber
+          :title="$t('it-focus-share-of-total')"
+          :number="
+            data.percentage_of_source_modules != null
+              ? `${Math.round(data.percentage_of_source_modules)}%`
+              : '-'
+          "
+          :comparison="$t('it-focus-share-of-total-hint')"
+          hide-unit
+          color="info"
+          :bordered="false"
+          :print-mode="printMode"
+        />
+      </div>
     </div>
 
     <template v-if="!loading && data">
       <q-separator v-if="!printMode" />
-      <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->
 
-      <q-card v-if="hasData" flat :bordered="printMode" class="q-px-lg">
-        <div
-          class="flex items-center no-wrap text-h5 text-weight-medium q-my-md"
-        >
-          <q-icon
-            name="o_info"
-            size="xs"
-            color="primary"
-            class="cursor-pointer"
-            :aria-label="$t('it-focus-breakdown-bar-title-tooltip')"
-          >
-            <q-tooltip
-              anchor="center right"
-              self="top right"
-              class="u-tooltip text-body2"
-              max-width="min(92vw, 48rem)"
-              :offset="[8, 8]"
-            >
-              {{ $t('it-focus-breakdown-bar-title-tooltip') }}
-            </q-tooltip>
-          </q-icon>
-          <span class="q-ml-sm">{{ $t('it-focus-breakdown-bar-title') }}</span>
-        </div>
-        <v-chart
-          ref="chartRef"
-          :option="barChartOption"
-          autoresize
-          :style="{ height: chartHeight + 'px', width: '100%' }"
-          @vue:mounted="onChartReady"
+      <q-card v-if="hasData" flat :bordered="printMode" class="q-mb-lg q-px-lg">
+        <ItFocusBreakdownChart
+          ref="breakdownChartRef"
+          :data="data"
+          :print-mode="printMode"
         />
       </q-card>
+
       <template v-if="!printMode">
         <q-separator />
         <q-card-section class="flex justify-start q-gutter-sm">
@@ -485,24 +142,18 @@ const barChartOption = computed<EChartsOption>(() => {
     <div v-else-if="loading" class="flex justify-center q-pa-xl">
       <q-spinner color="accent" size="40px" />
     </div>
-    <Teleport to="body">
-      <tooltip-echarts
-        v-if="tooltip.visible"
-        :tooltip-state="tooltip.data"
-        :style="style"
-      />
-    </Teleport>
   </div>
 </template>
 
 <style scoped lang="scss">
 .it-stats-row {
   display: flex;
+  flex-direction: row;
   align-items: stretch;
+}
 
-  > :not(.q-separator) {
-    flex: 1;
-  }
+.it-stats-row__item {
+  flex: 1;
 
   :deep(.q-card) {
     border: none !important;

@@ -9,8 +9,15 @@
       :key="i"
       class="chart-tooltip__row"
     >
+      <ModuleIcon
+        v-if="row.icon"
+        :name="row.icon"
+        size="sm"
+        color=""
+        :style="{ color: row.color ?? 'currentColor' }"
+      />
       <span
-        v-if="row.color"
+        v-else-if="row.color"
         class="chart-tooltip__dot"
         :style="{ '--dot-color': row.color }"
       />
@@ -46,6 +53,7 @@
 </template>
 
 <script setup lang="ts">
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import type { TooltipState } from 'src/types/chartTooltip';
 
 defineProps<{
