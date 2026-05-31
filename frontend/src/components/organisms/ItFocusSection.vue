@@ -18,12 +18,14 @@ const props = withDefaults(
     /** Carbon report year (Results page selected year). */
     year?: number;
     printMode?: boolean;
+    compact?: boolean;
   }>(),
   {
     loading: false,
     co2PerKmKg: 0,
     year: undefined,
     printMode: false,
+    compact: false,
   },
 );
 
@@ -117,6 +119,7 @@ const downloadPNG = () => breakdownChartRef.value?.downloadPNG();
           ref="breakdownChartRef"
           :data="data"
           :print-mode="printMode"
+          :compact="compact"
         />
       </q-card>
 
