@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 import app.api.deps as deps_module
 from app.main import app
 from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.schemas.carbon_report_response import TripsMapResponse
 
 
 @pytest.fixture
@@ -92,7 +93,7 @@ def _wire(monkeypatch, user, decision_fn):
         if institutional_id_filter is not None:
             # Toy filter: keep only the train leg when scoped to user 11111.
             legs = [ALL_LEGS[1]]
-        return MagicMock(model_dump=lambda: {"legs": legs, "dropped_count": 0})
+        return TripsMapResponse.model_validate({"legs": legs, "dropped_count": 0})
 
     mock_service.get_professional_travel_trips_map = mock_trips_map
     monkeypatch.setattr(

@@ -805,7 +805,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
     force = false,
   ) {
-    const cacheKey = `${unit}|${year}`;
+    const cacheKey = `${unit}|${year}|${carbonProjectType.value}`;
     if (
       !force &&
       tripsMapCacheKey.value === cacheKey &&
@@ -816,7 +816,11 @@ export const useModuleStore = defineStore('modules', () => {
     state.errorTripsMap = null;
     try {
       const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/trips-map`;
-      const data = await api.get(path).json<TripsMapResponse>();
+      const data = await api
+        .get(path, {
+          searchParams: { carbon_project_type: carbonProjectType.value },
+        })
+        .json<TripsMapResponse>();
       state.tripsMap = data;
       tripsMapCacheKey.value = cacheKey;
     } catch (err: unknown) {

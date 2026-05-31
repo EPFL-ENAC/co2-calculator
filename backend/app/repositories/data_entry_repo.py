@@ -838,7 +838,12 @@ class DataEntryRepository:
                     == institutional_id_filter
                 )
 
-            statement = statement.limit(max_rows)
+            # max_rows is a global cap across both modes, so bound the second
+            # query by what the first already consumed (returned + dropped).
+            remaining = max_rows - (len(legs) + dropped)
+            if remaining <= 0:
+                break
+            statement = statement.limit(remaining)
             result = await self.session.execute(statement)
             for row in result.all():
                 (o_lat, o_lng, o_name, d_lat, d_lng, d_name, kg, n_trips) = row
@@ -855,7 +860,7 @@ class DataEntryRepository:
                         "origin_name": o_name or "",
                         "destination_name": d_name or "",
                         "kg_co2eq": float(kg or 0.0),
-                        "number_of_trips": int(n_trips) if n_trips else 1,
+                        "number_of_trips": int(n_trips) if n_trips is not None else 1,
                     }
                 )
 

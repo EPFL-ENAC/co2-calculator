@@ -2,7 +2,7 @@
   <div
     class="trips-map"
     :style="{ height }"
-    role="img"
+    role="region"
     :aria-label="ariaLabel"
     :data-testid="testid"
   >
