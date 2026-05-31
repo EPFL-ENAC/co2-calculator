@@ -270,7 +270,7 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           :scope-label="$t('backoffice_reporting_completion_bar_scope_table')"
         />
       </div>
-      <q-card flat class="grid-2-col q-mt-xl">
+      <q-card flat class="q-mt-xl" style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
         <ModuleCarbonFootprintChart
           :breakdown-data="reportingEmissionBreakdown"
           :title="$t('backoffice_reporting_aggregated_results_title')"
