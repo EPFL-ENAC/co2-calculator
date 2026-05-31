@@ -263,4 +263,12 @@ export default {
     en: '{count} trip | {count} trips',
     fr: '{count} voyage | {count} voyages',
   },
+  [`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`]: {
+    en: 'Emissions',
+    fr: 'Émissions',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-legend-trips`]: {
+    en: 'Trips',
+    fr: 'Voyages',
+  },
 } as const;

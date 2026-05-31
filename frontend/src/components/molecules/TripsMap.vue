@@ -16,6 +16,60 @@
     </div>
     <template v-else>
       <div ref="mapEl" class="trips-map__canvas" />
+      <div class="trips-map__legend" aria-hidden="true">
+        <div class="trips-map__legend-block">
+          <div class="trips-map__legend-caption">
+            {{ t(`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`) }}
+          </div>
+          <div
+            class="trips-map__legend-gradient"
+            :style="{ background: CO2_RAMP_CSS }"
+          />
+          <div class="trips-map__legend-scale">
+            <span>0</span>
+            <span>{{ formatKgCo2eq(niceMaxKg) }}</span>
+          </div>
+        </div>
+        <div class="trips-map__legend-block">
+          <div class="trips-map__legend-caption">
+            {{ t(`${MODULES.ProfessionalTravel}-trips-map-legend-trips`) }}
+          </div>
+          <svg
+            class="trips-map__legend-width"
+            viewBox="0 0 120 12"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <polygon points="2,6.75 118,1 118,11" />
+          </svg>
+          <div class="trips-map__legend-scale">
+            <span>1</span>
+            <span>{{ niceMaxTrips }}</span>
+          </div>
+        </div>
+        <div v-if="!modeFilter" class="trips-map__legend-modes">
+          <span class="trips-map__legend-mode">
+            <svg
+              class="trips-map__legend-glyph"
+              viewBox="0 0 20 10"
+              aria-hidden="true"
+            >
+              <path d="M1 8 Q10 -2 19 8" />
+            </svg>
+            {{ t('plane') }}
+          </span>
+          <span class="trips-map__legend-mode">
+            <svg
+              class="trips-map__legend-glyph"
+              viewBox="0 0 20 10"
+              aria-hidden="true"
+            >
+              <line x1="1" y1="5" x2="19" y2="5" />
+            </svg>
+            {{ t('train') }}
+          </span>
+        </div>
+      </div>
       <ul class="trips-map__sr-only">
         <li v-for="(leg, idx) in visibleLegs" :key="idx">
           {{
@@ -37,41 +91,26 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { runtimeConfig } from 'src/config/runtime';
 import { MODULES } from 'src/constant/modules';
-
-interface RawLeg {
-  mode: 'plane' | 'train';
-  origin_lat: number;
-  origin_lng: number;
-  destination_lat: number;
-  destination_lng: number;
-  origin_name: string;
-  destination_name: string;
-  kg_co2eq: number;
-  number_of_trips: number;
-}
-
-interface AggregatedLeg {
-  mode: 'plane' | 'train';
-  from: [number, number];
-  to: [number, number];
-  fromName: string;
-  toName: string;
-  tripCount: number;
-  totalKgCo2eq: number;
-}
+import type { TripLeg } from 'src/stores/modules';
+import { formatKgCo2eq, niceCeil } from 'src/utils/number';
+import {
+  CO2_RAMP_CSS,
+  LINE_COLOR_EXPR,
+  aggregateLegs,
+  buildEndpointFeatures,
+  buildTripsGeoJson,
+} from 'src/utils/trips-map';
 
 const props = withDefaults(
   defineProps<{
-    legs: RawLeg[];
+    legs: TripLeg[];
     modeFilter?: 'plane' | 'train';
-    aggregation?: 'undirected' | 'directed' | 'none';
     height?: string;
     loading?: boolean;
     ariaLabel?: string;
     testid?: string;
   }>(),
   {
-    aggregation: 'undirected',
     height: '360px',
     loading: false,
     ariaLabel: 'Trips map',
@@ -82,168 +121,23 @@ const props = withDefaults(
 
 const { t } = useI18n();
 
-const PLANE_COLOR = '#e65100';
-const TRAIN_COLOR = '#1b5e20';
+const LINE_LAYERS = ['trip-legs-lines'];
 
-const visibleLegs = computed<AggregatedLeg[]>(() => {
-  const filtered = props.modeFilter
-    ? props.legs.filter((l) => l.mode === props.modeFilter)
-    : props.legs;
+const visibleLegs = computed(() => aggregateLegs(props.legs, props.modeFilter));
 
-  if (props.aggregation === 'none') {
-    return filtered.map((l) => ({
-      mode: l.mode,
-      from: [l.origin_lng, l.origin_lat],
-      to: [l.destination_lng, l.destination_lat],
-      fromName: l.origin_name,
-      toName: l.destination_name,
-      tripCount: l.number_of_trips,
-      totalKgCo2eq: l.kg_co2eq,
-    }));
-  }
-
-  const buckets = new Map<string, AggregatedLeg>();
-  for (const l of filtered) {
-    const a: [number, number] = [l.origin_lng, l.origin_lat];
-    const b: [number, number] = [l.destination_lng, l.destination_lat];
-    let from = a;
-    let to = b;
-    let fromName = l.origin_name;
-    let toName = l.destination_name;
-    if (
-      props.aggregation === 'undirected' &&
-      `${b[0]},${b[1]}` < `${a[0]},${a[1]}`
-    ) {
-      from = b;
-      to = a;
-      fromName = l.destination_name;
-      toName = l.origin_name;
-    }
-    const key = `${l.mode}|${from[0]},${from[1]}|${to[0]},${to[1]}`;
-    const existing = buckets.get(key);
-    if (existing) {
-      existing.tripCount += l.number_of_trips;
-      existing.totalKgCo2eq += l.kg_co2eq;
-    } else {
-      buckets.set(key, {
-        mode: l.mode,
-        from,
-        to,
-        fromName,
-        toName,
-        tripCount: l.number_of_trips,
-        totalKgCo2eq: l.kg_co2eq,
-      });
-    }
-  }
-  return [...buckets.values()];
-});
+// Legend bounds rounded up to a tidy ceiling so the scale reads 0→500 rather
+// than 0→459.
+const niceMaxKg = computed(() =>
+  niceCeil(visibleLegs.value.reduce((m, l) => Math.max(m, l.totalKgCo2eq), 0)),
+);
+const niceMaxTrips = computed(() =>
+  niceCeil(visibleLegs.value.reduce((m, l) => Math.max(m, l.tripCount), 0)),
+);
 
 const mapEl = ref<HTMLDivElement | null>(null);
 let map: unknown = null;
 let MapLibreNS: unknown = null;
 let resizeObserver: ResizeObserver | null = null;
-
-function formatKgCo2eq(kg: number): string {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)} t CO₂eq`;
-  return `${kg.toFixed(0)} kg CO₂eq`;
-}
-
-function greatCirclePoints(
-  from: [number, number],
-  to: [number, number],
-  segments = 64,
-): [number, number][][] {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  const toDeg = (r: number) => (r * 180) / Math.PI;
-  const lat1 = toRad(from[1]);
-  const lng1 = toRad(from[0]);
-  const lat2 = toRad(to[1]);
-  const lng2 = toRad(to[0]);
-  const d =
-    2 *
-    Math.asin(
-      Math.sqrt(
-        Math.sin((lat2 - lat1) / 2) ** 2 +
-          Math.cos(lat1) * Math.cos(lat2) * Math.sin((lng2 - lng1) / 2) ** 2,
-      ),
-    );
-  if (d === 0) return [[from, to]];
-
-  const pts: [number, number][] = [];
-  for (let i = 0; i <= segments; i++) {
-    const f = i / segments;
-    const A = Math.sin((1 - f) * d) / Math.sin(d);
-    const B = Math.sin(f * d) / Math.sin(d);
-    const x =
-      A * Math.cos(lat1) * Math.cos(lng1) + B * Math.cos(lat2) * Math.cos(lng2);
-    const y =
-      A * Math.cos(lat1) * Math.sin(lng1) + B * Math.cos(lat2) * Math.sin(lng2);
-    const z = A * Math.sin(lat1) + B * Math.sin(lat2);
-    const lat = Math.atan2(z, Math.sqrt(x * x + y * y));
-    const lng = Math.atan2(y, x);
-    pts.push([toDeg(lng), toDeg(lat)]);
-  }
-
-  // Split at the antimeridian so the line takes the short way around.
-  const segs: [number, number][][] = [];
-  let current: [number, number][] = [pts[0]];
-  for (let i = 1; i < pts.length; i++) {
-    if (Math.abs(pts[i][0] - pts[i - 1][0]) > 180) {
-      segs.push(current);
-      current = [pts[i]];
-    } else {
-      current.push(pts[i]);
-    }
-  }
-  segs.push(current);
-  return segs;
-}
-
-function buildGeoJson(legs: AggregatedLeg[]) {
-  type GeoFeature = {
-    type: 'Feature';
-    properties: Record<string, unknown>;
-    geometry: { type: 'LineString'; coordinates: [number, number][] };
-  };
-  const features: GeoFeature[] = [];
-  for (const leg of legs) {
-    const segs =
-      leg.mode === 'plane'
-        ? greatCirclePoints(leg.from, leg.to)
-        : [[leg.from, leg.to] as [number, number][]];
-    for (const coords of segs) {
-      features.push({
-        type: 'Feature',
-        properties: {
-          mode: leg.mode,
-          fromName: leg.fromName,
-          toName: leg.toName,
-          tripCount: leg.tripCount,
-          totalKgCo2eq: leg.totalKgCo2eq,
-        },
-        geometry: { type: 'LineString', coordinates: coords },
-      });
-    }
-  }
-  return { type: 'FeatureCollection' as const, features };
-}
-
-function endpointFeatures(legs: AggregatedLeg[]) {
-  const seen = new Map<string, [number, number]>();
-  for (const leg of legs) {
-    seen.set(`${leg.from[0]},${leg.from[1]}`, leg.from);
-    seen.set(`${leg.to[0]},${leg.to[1]}`, leg.to);
-  }
-  return {
-    type: 'FeatureCollection' as const,
-    features: [...seen.values()].map((p) => ({
-      type: 'Feature' as const,
-      properties: {},
-      geometry: { type: 'Point' as const, coordinates: p },
-    })),
-  };
-}
 
 async function ensureMap() {
   if (!mapEl.value) return;
@@ -271,7 +165,12 @@ async function ensureMap() {
           id: 'osm',
           type: 'raster',
           source: 'osm',
-          paint: { 'raster-saturation': -1 },
+          paint: {
+            'raster-saturation': -1,
+            'raster-brightness-min': 0.4,
+            'raster-opacity': 0.9,
+            'raster-contrast': -0.05,
+          },
         },
       ],
     },
@@ -301,40 +200,27 @@ function installLayers() {
   const m = map as InstanceType<typeof ml.Map>;
   m.addSource('trip-legs', {
     type: 'geojson',
-    data: buildGeoJson(visibleLegs.value),
+    data: buildTripsGeoJson(visibleLegs.value),
   });
   m.addSource('trip-endpoints', {
     type: 'geojson',
-    data: endpointFeatures(visibleLegs.value),
+    data: buildEndpointFeatures(visibleLegs.value),
   });
+  // One layer for both modes (shape distinguishes them); line-sort-key keeps
+  // the heaviest emitters on top so they're never hidden.
   m.addLayer({
-    id: 'trip-legs',
+    id: 'trip-legs-lines',
     type: 'line',
     source: 'trip-legs',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'line-sort-key': ['get', 'totalKgCo2eq'],
+    },
     paint: {
-      'line-color': [
-        'match',
-        ['get', 'mode'],
-        'plane',
-        PLANE_COLOR,
-        'train',
-        TRAIN_COLOR,
-        '#444',
-      ],
-      'line-width': [
-        'interpolate',
-        ['linear'],
-        ['get', 'totalKgCo2eq'],
-        0,
-        1.5,
-        100,
-        2,
-        1000,
-        3,
-        10000,
-        5,
-      ],
-      'line-opacity': 0.85,
+      'line-color': LINE_COLOR_EXPR,
+      'line-width': ['get', 'lineWidth'],
+      'line-opacity': 0.9,
     },
   });
   m.addLayer({
@@ -350,7 +236,7 @@ function installLayers() {
   });
 
   const popup = new ml.Popup({ closeButton: false, closeOnClick: false });
-  m.on('mousemove', 'trip-legs', (e) => {
+  m.on('mousemove', LINE_LAYERS, (e) => {
     m.getCanvas().style.cursor = 'pointer';
     const f = e.features?.[0];
     if (!f) return;
@@ -365,7 +251,7 @@ function installLayers() {
       `${t(`${MODULES.ProfessionalTravel}-trips-map-popup-trips`, { count: p.tripCount })} · ${escape(formatKgCo2eq(Number(p.totalKgCo2eq)))}</div>`;
     popup.setLngLat(e.lngLat).setHTML(html).addTo(m);
   });
-  m.on('mouseleave', 'trip-legs', () => {
+  m.on('mouseleave', LINE_LAYERS, () => {
     m.getCanvas().style.cursor = '';
     popup.remove();
   });
@@ -405,12 +291,12 @@ watch(
     const endsSrc = m.getSource('trip-endpoints');
     if (legsSrc && 'setData' in legsSrc) {
       (legsSrc as { setData: (d: unknown) => void }).setData(
-        buildGeoJson(visibleLegs.value),
+        buildTripsGeoJson(visibleLegs.value),
       );
     }
     if (endsSrc && 'setData' in endsSrc) {
       (endsSrc as { setData: (d: unknown) => void }).setData(
-        endpointFeatures(visibleLegs.value),
+        buildEndpointFeatures(visibleLegs.value),
       );
     }
     fitToLegs();
@@ -463,6 +349,80 @@ onBeforeUnmount(() => {
 .trips-map__canvas {
   position: absolute;
   inset: 0;
+}
+
+.trips-map__legend {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 1;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #212121;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.trips-map__legend-caption {
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+
+.trips-map__legend-block + .trips-map__legend-block {
+  margin-top: 6px;
+}
+
+.trips-map__legend-gradient {
+  width: 120px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.trips-map__legend-width {
+  display: block;
+  width: 120px;
+  height: 9px;
+}
+
+.trips-map__legend-width polygon {
+  fill: #555;
+}
+
+.trips-map__legend-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.trips-map__legend-modes {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.trips-map__legend-mode {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.trips-map__legend-glyph {
+  width: 20px;
+  height: 10px;
+  overflow: visible;
+}
+
+.trips-map__legend-glyph path,
+.trips-map__legend-glyph line {
+  fill: none;
+  stroke: #8c2981;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 
 .trips-map__sr-only {
