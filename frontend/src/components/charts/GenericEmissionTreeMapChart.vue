@@ -31,7 +31,7 @@ const LABEL_KEY_MAP: Record<string, string> = {
   co2: 'process-emissions.category.co2',
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerant',
+  refrigerants: 'process-emissions.category.refrigerants',
   // buildings
   combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
