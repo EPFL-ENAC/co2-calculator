@@ -1,7 +1,5 @@
 <template>
   <q-page>
-    <Co2Timeline />
-    <q-separator />
     <div class="module-page">
       <module-title
         :type="currentModuleType"
@@ -10,18 +8,9 @@
         :has-tooltip="staticModuleConfig.hasTooltip"
         :has-tooltip-sub-text="staticModuleConfig.hasTooltipSubText ?? false"
       />
-      <!-- module summary -->
-      <module-total-result
-        v-if="!forbiddenModules.includes(currentModuleType)"
-        :data="totalResult"
-        :type="currentModuleType"
-        :module-config="staticModuleConfig"
-      />
+      <!-- module summary is rendered in the sidebar -->
       <q-card class="container container--pa-none" flat>
-        <module-charts
-          :type="currentModuleType"
-          :show-evolution-chart="false"
-        />
+        <module-charts :type="currentModuleType" />
       </q-card>
       <!-- module tables iteration -->
       <module-table-section
@@ -46,15 +35,12 @@ import { computed, onMounted, watch, Ref } from 'vue';
 import ModuleTitle from 'src/components/organisms/module/ModuleTitle.vue';
 import ModuleCharts from 'src/components/organisms/module/ModuleCharts.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
-import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
 import ModuleNavigation from 'src/components/organisms/module/ModuleNavigation.vue';
-import { Module, MODULES } from 'src/constant/modules';
+import { Module } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import { MODULES_CONFIG } from 'src/constant/module-config';
-import Co2Timeline from 'src/components/organisms/layout/Co2Timeline.vue';
-
 const $route = useRoute();
 const currentModuleType = computed(() => $route.params.module as Module);
 import { useTimelineStore } from 'src/stores/modules';
@@ -73,12 +59,6 @@ const staticModuleConfig: Ref<ModuleConfig> = computed(
 const data = computed(() => moduleStore.state.data);
 const loading = computed(() => moduleStore.state.loading);
 const error = computed(() => moduleStore.state.error);
-const totalResult = computed(() => {
-  if (currentModuleType.value === MODULES.Headcount) {
-    return moduleStore.state.data?.totals?.total_annual_fte;
-  }
-  return moduleStore.state.data?.totals?.total_tonnes_co2eq;
-});
 
 // ACTIONS
 // get data on mount and when route params change

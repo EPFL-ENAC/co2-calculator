@@ -28,12 +28,10 @@ import dataclasses
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import select as sa_select
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
     IngestionMethod,
@@ -192,7 +190,12 @@ async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn_with_310b) -> None
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
-        seeded = await seeded_year_with_units(s, year=2025, n_units=1)
+        # Tree must exist so the chain has CRMs to scan during the
+        # aggregation grandchild — the return value is unused now that
+        # stats are no longer asserted (Phase 4A.3 of #1236 rescoped
+        # aggregation to ``affected_module_ids``, which is empty for
+        # the stub provider; see the assertions below).
+        await seeded_year_with_units(s, year=2025, n_units=1)
 
     csv_path = csv_fixture_path("headcount", "data")
 
@@ -223,28 +226,30 @@ async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn_with_310b) -> None
         f"expected emission_recalc child; got job_types={job_types}"
     )
 
-    # ``assert_stats_match`` against the CRM the recalc/aggregation
-    # touched: the headcount module for the seeded unit.  After the
-    # aggregation child runs, the CRM's ``stats`` column MUST be a
-    # dict — aggregation runs even on empty data and writes a
-    # zero-shape stats payload.  A ``None`` here would mean
-    # ``data_session`` never committed (regression of the
-    # ``_run_one_job`` commit fix).
-    unit_id = seeded.units[0].id
-    crm = seeded.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.headcount))]
-    async with Sf() as s:
-        result = await s.execute(
-            sa_select(CarbonReportModule).where(CarbonReportModule.id == crm.id)
+    # Chain-wiring smoke: the aggregation grandchild ran and reached a
+    # FINISHED+SUCCESS terminal state.  We deliberately do NOT assert
+    # the CRM ``stats`` payload is non-null here — Phase 4A.3 (#1236)
+    # rescoped the aggregation handler to ``meta.config.affected_module_ids``,
+    # and the stub provider inserts no rows, so the workflow's
+    # ``affected_module_ids`` is empty and the aggregation correctly
+    # writes stats for zero modules.  The stats math is covered by
+    # ``test_full_dag_pipeline_pg.py`` (real workflow + real CRM update);
+    # this smoke just pins that every link in the chain runs to
+    # completion against the test PG session factory (a regression of
+    # ``_run_one_job``'s data-session commit would show up as the
+    # aggregation child stuck mid-state, not as a None stats).
+    aggregation_children = [c for c in children if c.job_type == "aggregation"]
+    assert aggregation_children, (
+        f"expected aggregation grandchild; got job_types="
+        f"{[c.job_type for c in children]}"
+    )
+    for agg in aggregation_children:
+        assert agg.state == IngestionState.FINISHED, (
+            f"aggregation child stuck mid-state: state={agg.state}, "
+            f"status={agg.status_message!r}"
         )
-        fresh = result.scalar_one()
-        assert isinstance(fresh.stats, dict), (
-            f"aggregation should leave stats as a dict; got {fresh.stats!r}. "
-            "Most likely cause: dispatch_csv_and_wait._run_one_job stopped "
-            "committing data_session — handlers' domain writes never "
-            "persisted past their session scope."
+        assert agg.result == IngestionResult.SUCCESS, (
+            f"aggregation child reported {agg.result}: {agg.status_message!r}"
         )
-        # Empty subset asserts the dict shape; Units 2-11 will pin
-        # specific keys + numerics.
-        await assert_stats_match(s, crm.id, {})
 
     await engine.dispose()

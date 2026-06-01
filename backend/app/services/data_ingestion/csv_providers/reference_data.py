@@ -281,13 +281,19 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
     async def _ingest_locations(
         self, csv_text: str, det: DataEntryTypeEnum
     ) -> Dict[str, Any]:
-        """COPY into a staging temp table, then UPSERT into ``locations``.
+        """COPY into a staging temp table, then REPLACE the ``locations`` of
+        this upload's mode.
 
         Mirrors the seed-time path in ``app.seed.seed_locations`` — same
-        natural-key expression, same staging columns, same UPSERT.  Rows are
-        filtered to ``transport_mode = {det.name}`` so a "plane" CSV that
-        accidentally contains train rows (or vice-versa) does not pollute
-        the table.
+        natural-key expression, same staging columns. Rows are filtered to
+        ``transport_mode = {det.name}`` so a "plane" CSV that accidentally
+        contains train rows (or vice-versa) does not pollute the table.
+
+        Replace is scoped per mode: the prior train (or plane) rows are
+        deleted inside the same transaction before re-insert, so a reupload
+        from a new source does not accumulate stale stations. Plane rows are
+        untouched by a train upload and vice-versa. (Building rooms replace
+        the same way — see ``_ingest_building_rooms``.)
         """
         self._validate_headers(
             csv_text, LOCATIONS_REQUIRED_COLUMNS, LOCATIONS_EXPECTED_COLUMNS
@@ -372,6 +378,15 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
                     for row in rows:
                         writer.writerow(row)
                     await copy.write(buf.getvalue().encode("utf-8"))
+                # Replace, scoped to this upload's mode: erase the prior
+                # train (or plane) reference inside the same transaction so a
+                # reupload from a new source does not accumulate stale
+                # stations. The COPY above already filtered rows to det.name.
+                await cur.execute(
+                    "DELETE FROM locations "
+                    "WHERE transport_mode = %s::transportmodeenum",
+                    (det.name,),
+                )
                 await cur.execute(upsert_sql)
                 rows_inserted = cur.rowcount if cur.rowcount >= 0 else len(rows)
             await conn.commit()
@@ -419,6 +434,17 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         from sqlalchemy import select
 
         from app.models.location import Location, TransportModeEnum
+
+        # Replace, scoped to this upload's mode: erase the prior train (or
+        # plane) reference before re-inserting, so a reupload from a new
+        # source does not accumulate stale stations. Plane rows are left
+        # untouched by a train upload and vice-versa.
+        target_mode = TransportModeEnum(det.name)
+        await self.data_session.exec(
+            delete(Location).where(
+                Location.transport_mode == target_mode  # type: ignore[arg-type]
+            )
+        )
 
         inserted = 0
         for row in rows:

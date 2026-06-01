@@ -14,16 +14,10 @@ graph TB
         Frontend[Frontend Container<br/>Port 3000]
         Backend[Backend Container<br/>Port 8000]
         DB[(PostgreSQL<br/>Port 5432)]
-        Redis[(Redis<br/>Port 6379)]
-        Worker[Celery Worker]
         Storage[MinIO/S3<br/>Port 9000]
 
         Frontend -->|HTTP| Backend
         Backend -->|SQL| DB
-        Backend -->|Tasks| Redis
-        Redis -->|Jobs| Worker
-        Worker -->|SQL| DB
-        Worker -->|Files| Storage
         Backend -->|Files| Storage
     end
 
@@ -32,8 +26,6 @@ graph TB
     style Frontend fill:#e1f5ff
     style Backend fill:#fff4e1
     style DB fill:#e1ffe1
-    style Redis fill:#ffe1e1
-    style Worker fill:#f5e1ff
     style Storage fill:#ffe1f5
 ```
 
@@ -65,15 +57,9 @@ graph TB
         end
 
         subgraph "Backend Namespace"
-            BE1[Backend Pod 1]
-            BE2[Backend Pod 2]
+            BE1[Backend Pod 1<br/>incl. async jobs]
+            BE2[Backend Pod 2<br/>incl. async jobs]
             BESvc[Backend Service]
-        end
-
-        subgraph "Worker Namespace"
-            W1[Worker Pod 1]
-            W2[Worker Pod 2]
-            Redis[(Redis)]
         end
 
         subgraph "Data Namespace"
@@ -100,11 +86,7 @@ graph TB
     FE1 & FE2 --> BESvc
     BESvc --> BE1 & BE2
     BE1 & BE2 --> PGB
-    BE1 & BE2 --> Redis
     BE1 & BE2 --> S3
-    Redis --> W1 & W2
-    W1 & W2 --> PGB
-    W1 & W2 --> S3
     PGB --> PG
     PGB --> PGR
     PG -->|Replication| PGR
@@ -113,7 +95,6 @@ graph TB
     BE1 & BE2 --> Entra
 
     Prom --> BE1 & BE2
-    Prom --> W1 & W2
     Graf --> Prom
 
     style User fill:#e1f5ff
@@ -122,7 +103,6 @@ graph TB
     style FESvc fill:#e1f5ff
     style BESvc fill:#fff4e1
     style PG fill:#e1ffe1
-    style Redis fill:#ffe1e1
 ```
 
 **Key characteristics:**

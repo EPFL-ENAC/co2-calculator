@@ -66,6 +66,9 @@ _IT_RESEARCH_TYPES: frozenset[EmissionType] = frozenset(
         EmissionType.research_facilities,
         EmissionType.research_facilities__facilities,
         EmissionType.research_facilities__animal,
+        EmissionType.research_facilities__animal__mice,
+        EmissionType.research_facilities__animal__fish,
+        EmissionType.research_facilities__it_facilities,
     ]
 )
 

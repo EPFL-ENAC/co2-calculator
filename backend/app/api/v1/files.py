@@ -2,6 +2,7 @@
 
 import base64
 import datetime
+import urllib.parse
 from typing import List
 
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
@@ -29,6 +30,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.models.user import User
+from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -108,11 +110,10 @@ async def list_files(
     """
     List files in the specified directory.
 
-    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
+    **Required Permission**: `backoffice.data_management.view`
 
     **Authorization**:
     - Backoffice metier: Can list all data management files
-    - User principal: Can list data management files
     - Other users: No access
 
     This endpoint lists files stored in the file storage (local or S3)
@@ -122,18 +123,10 @@ async def list_files(
         403: Missing required permission
         400: Invalid file path
     """
-    # Check for EITHER backoffice.data_management.view OR modules.* view
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "view"
-    ) or await is_permitted(current_user, "modules.*", "view")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.view "
-                "or modules.* view"
-            ),
+            detail="Permission denied: requires backoffice.data_management.view",
         )
 
     logger.info(
@@ -187,11 +180,10 @@ async def get_file(
     """
     Retrieve a file from file storage.
 
-    **Required Permission**: `backoffice.data_management.view` OR `modules.*` view
+    **Required Permission**: `backoffice.data_management.view`
 
     **Authorization**:
     - Backoffice metier: Can access all data management files
-    - User principal: Can access data management files
     - Other users: No access
 
     Raises:
@@ -200,18 +192,10 @@ async def get_file(
         400: Invalid file path
         500: Internal server error
     """
-    # Check for EITHER backoffice.data_management.view OR modules.* view
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "view"
-    ) or await is_permitted(current_user, "modules.*", "view")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.view "
-                "or modules.* view"
-            ),
+            detail="Permission denied: requires backoffice.data_management.view",
         )
 
     logger.info(
@@ -232,11 +216,39 @@ async def get_file(
         (body, content_type) = await files_store.get_file(file_path)
         if body:
             if download:
-                # download file
-                return Response(content=body, media_type=content_type)
+                # Force a real download with the original filename.
+                # Without ``Content-Disposition: attachment; filename="..."``,
+                # Safari (and to a lesser extent Firefox) ignores the
+                # ``<a download>`` attribute set on the client side
+                # and saves the file by sniffing the URL/Content-Type,
+                # which can strip the extension when the sniff
+                # disagrees with the URL.  User-reported regression
+                # 2026-05-21: ``processed/152/equipments_data.csv``
+                # was being saved as ``equipments_data`` (no .csv).
+                # ``filename*`` encoding via RFC 5987 handles
+                # non-ASCII names; ``filename`` is the ASCII fallback
+                # for older clients.
+                basename = file_path.rsplit("/", 1)[-1] or "download"
+                ascii_basename = basename.encode("ascii", "replace").decode("ascii")
+                quoted = urllib.parse.quote(basename, safe="")
+                disposition = (
+                    f'attachment; filename="{ascii_basename}"; '
+                    f"filename*=UTF-8''{quoted}"
+                )
+                return Response(
+                    content=body,
+                    media_type=content_type or "application/octet-stream",
+                    headers={"Content-Disposition": disposition},
+                )
             else:
-                # inline image
-                return Response(content=body)
+                # Inline display (images / preview).  Still set
+                # ``Content-Type`` so the browser doesn't sniff a CSV
+                # as ``text/html`` and run script-injection on any
+                # malformed row.
+                return Response(
+                    content=body,
+                    media_type=content_type or "application/octet-stream",
+                )
         else:
             raise HTTPException(status_code=404, detail="File not found")
     except FileNotFoundError:
@@ -261,21 +273,22 @@ async def upload_temp_files(
     """
     Upload files to the /tmp folder in the file storage.
 
-    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
+    **Required Permission**: `backoffice.data_management.edit`
 
     Used for temporary file uploads before processing (e.g., CSV imports).
     """
-    # Check for EITHER backoffice.data_management.edit OR modules.* edit
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "edit"
-    ) or await is_permitted(current_user, "modules.*", "edit")
-
-    if not has_permission:
+    perms = current_user.calculate_permissions()
+    can_upload = has_permission(perms, "backoffice.data_management", "edit") or any(
+        isinstance(actions, list) and "sync" in actions
+        for key, actions in perms.items()
+        if key.startswith("modules.")
+    )
+    if not can_upload:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Permission denied: requires backoffice.data_management.edit "
-                "or modules.* edit"
+                "Permission denied: requires backoffice.data_management.edit"
+                " or module sync access"
             ),
         )
 
@@ -309,22 +322,14 @@ async def delete_temp_files(
     """
     Delete files from the /tmp folder.
 
-    **Required Permission**: `backoffice.data_management.edit` OR `modules.*` edit
+    **Required Permission**: `backoffice.data_management.edit`
 
     Only files in /tmp/ folder can be deleted.
     """
-    # Check for EITHER backoffice.data_management.edit OR modules.* edit
-    has_permission = await is_permitted(
-        current_user, "backoffice.data_management", "edit"
-    ) or await is_permitted(current_user, "modules.*", "edit")
-
-    if not has_permission:
+    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=(
-                "Permission denied: requires backoffice.data_management.edit "
-                "or modules.* edit"
-            ),
+            detail="Permission denied: requires backoffice.data_management.edit",
         )
 
     logger.info(

@@ -17,6 +17,7 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_apartment',
+    columnSize: 'sm',
   },
   {
     id: 'room_name',
@@ -30,6 +31,7 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_meeting_room',
+    columnSize: 'md',
   },
   {
     id: 'room_type',
@@ -41,20 +43,19 @@ const roomFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     icon: 'o_category',
-    minColumnWidth: 150,
-    maxColumnWidth: 150,
+    columnSize: 'md',
     disableUntilField: 'room_name',
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
     options: [
-      { value: 'office', label: 'buildings-room-type-office' },
-      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
       { value: 'laboratories', label: 'buildings-room-type-laboratories' },
+      { value: 'office', label: 'buildings-room-type-office' },
       { value: 'archives', label: 'buildings-room-type-archives' },
       { value: 'libraries', label: 'buildings-room-type-libraries' },
       { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
+      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
     ],
   },
   {
@@ -81,7 +82,7 @@ const roomFields: ModuleField[] = [
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
     tooltip: `${MODULES.Buildings}.tooltips.ratio`,
-    minColumnWidth: 140,
+    columnSize: 'md',
   },
   {
     id: 'heating_kwh_per_square_meter',
@@ -159,6 +160,7 @@ const energyCombustionFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_local_fire_department',
     hideIn: { form: false },
+    columnSize: 'lg',
     optionOrder: [
       'buildings_combustion_type_natural_gas',
       'buildings_combustion_type_heating_oil',

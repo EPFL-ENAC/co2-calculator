@@ -4,11 +4,11 @@ help: ## Show available targets
 
 .PHONY: install
 install: ## Install dependencies
-	npm install
+	npm install --ignore-scripts
 
 .PHONY: clean
 clean: ## Clean up generated files
-	rm -rf node_modules dist
+	rm -rf node_modules dist storybook/node_modules
 	rm -f package-lock.json
 
 # FILES can be overridden to target specific files (for git hooks)
@@ -84,6 +84,11 @@ type-check-full:  ## Run TypeScript type checking
 	wait
 
 
+.PHONY: gen-api-types
+gen-api-types: ## Generate src/types/api/openapi.d.ts from FastAPI OpenAPI schema
+	@npm run gen-api-types
+
+
 .PHONY: test
 test: ## Run tests (component + e2e)
 	@set -e; \
@@ -104,6 +109,10 @@ localbuild: ## Run
 	@set -e; \
 	npm run build;
 
+.PHONY: serve
+serve: ## Serve the built SPA locally (requires `make localbuild` first)
+	npm run preview
+
 .PHONY: lighthouse
 lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 3 routes)
 	@set -e; \
@@ -122,19 +131,23 @@ lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, 
 
 .PHONY: storybook
 storybook: ## Start Storybook development server
-	npm run storybook
+	cd storybook && npm run dev
 
 .PHONY: storybook-build
 storybook-build: ## Build static Storybook site
-	npm run storybook:build
+	cd storybook && npm run build
 
 .PHONY: storybook-test
 storybook-test: ## Test Storybook stories
-	npm run storybook:test
+	cd storybook && npm run test
 
 .PHONY: storybook-test-ci
 storybook-test-ci: ## Test Storybook stories in CI mode
-	npm run storybook:test-ci
+	cd storybook && npm run test:ci
+
+.PHONY: storybook-install
+storybook-install: ## Install Storybook dependencies (separate from frontend)
+	cd storybook && npm install --ignore-scripts
 
 .PHONY: storybook-docker
 storybook-docker: ## Build and run Storybook in Docker

@@ -30,6 +30,7 @@ interface BreakdownData {
 const props = defineProps<{
   breakdownData: BreakdownData | null;
   height?: string;
+  forcedModule?: string | null;
 }>();
 
 const { t } = useI18n();
@@ -70,6 +71,7 @@ const chartView = ref<'breakdown' | 'type'>('breakdown');
 const selectedTab = ref<TabKey | null>(null);
 
 const activeTab = computed<TabKey | null>(() => {
+  if (props.forcedModule) return props.forcedModule as TabKey;
   if (selectedTab.value && availableModules.value.includes(selectedTab.value)) {
     return selectedTab.value;
   }
@@ -203,8 +205,41 @@ const emissionTypeInfoKey = computed(() =>
 </script>
 
 <template>
-  <q-card flat bordered class="q-pa-xl">
-    <div v-if="!isPrintMode" class="flex justify-between items-center q-mb-md">
+  <!-- Print mode: two separate labelled boxes -->
+  <template v-if="isPrintMode">
+    <q-card flat bordered class="q-pa-md print-chart-box">
+      <div class="text-body2 text-weight-medium q-mb-sm">
+        {{
+          activeTab ? `Treemap — ${t(activeTab)}` : $t('results_treemap_title')
+        }}
+      </div>
+      <GenericEmissionTreeMapChart
+        v-if="treemapData.length > 0"
+        :data="treemapData"
+        :height="height ?? '200px'"
+      />
+      <span v-else class="text-body2 text-secondary">
+        {{ $t('backoffice_reporting_chart_no_data') }}
+      </span>
+    </q-card>
+    <q-card flat bordered class="q-pa-md q-mt-sm print-chart-box">
+      <div class="text-body2 text-weight-medium q-mb-sm">
+        {{ activeTab ? `Emission breakdown — ${t(activeTab)}` : '' }}
+      </div>
+      <EmissionTypeBreakdownChart
+        v-if="categoryRows.length"
+        :category-rows="categoryRows"
+        class="full-width"
+      />
+      <span v-else class="text-body2 text-secondary">
+        {{ $t('backoffice_reporting_chart_no_data') }}
+      </span>
+    </q-card>
+  </template>
+
+  <!-- Normal mode: single card with tabs and toggle -->
+  <q-card v-else flat bordered class="q-pa-xl">
+    <div class="flex justify-between items-center q-mb-md">
       <span class="text-h5 text-weight-medium">{{
         $t('results_treemap_title')
       }}</span>
@@ -261,7 +296,7 @@ const emissionTypeInfoKey = computed(() =>
     </div>
 
     <!-- Module tab buttons -->
-    <div v-if="!isPrintMode" class="flex flex-wrap q-gutter-sm q-mb-md">
+    <div class="flex flex-wrap q-gutter-sm q-mb-md">
       <q-btn
         v-for="mod in availableModules"
         :key="mod"
@@ -307,6 +342,11 @@ const emissionTypeInfoKey = computed(() =>
 </template>
 
 <style scoped>
+.print-chart-box {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
 .tab-btn {
   border-radius: 3px;
 }

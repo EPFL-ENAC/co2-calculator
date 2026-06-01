@@ -152,10 +152,11 @@ class ProfessionalTravelTrainHandlerCreate(
     destination_name: str
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
-    # Optional CSV columns. Future train CSVs are expected to ship these so
-    # the ingest-time resolver can disambiguate same-name stations across
-    # countries (e.g. Bern, CH vs Berne, DE). Absent → resolver defaults to
-    # "CH" per the project's data center of mass.
+    # Required for CSV rows lacking a precomputed ``*_natural_key``: the
+    # ingest-time resolver uses them to scope same-name stations to one
+    # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
+    # because UI/API rows resolve via ``*_natural_key`` instead; the CSV
+    # resolver (``enrich_csv_row``) rejects rows that supply neither.
     origin_country_code: Optional[str] = None
     destination_country_code: Optional[str] = None
     departure_date: Optional[date] = None
@@ -256,18 +257,46 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
         destination_iata = data_entry.data.get("destination_iata")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_iata is None or destination_iata is None:
+            # Entry persists but produces no emission leaves —
+            # "skip, don't default" semantic.  Log so an operator
+            # tracking missing-IATA uploads can find them without
+            # querying the DB directly.
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — missing "
+                "origin_iata or destination_iata (origin=%r, destination=%r)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                destination_iata,
+            )
             return {}
 
         loc_service = LocationService(session)
         origin = await loc_service.get_location_by_iata(origin_iata)
         dest = await loc_service.get_location_by_iata(destination_iata)
         if not origin or not dest:
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — IATA not found "
+                "in locations table (origin_iata=%r resolved=%s, "
+                "destination_iata=%r resolved=%s)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                origin is not None,
+                destination_iata,
+                dest is not None,
+            )
             return {}
         distance_one_trip_km = calculate_plane_distance(
             origin_airport=origin,
             dest_airport=dest,
         )
         if distance_one_trip_km is None:
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — distance "
+                "calculation returned None (origin_iata=%r, destination_iata=%r)",
+                getattr(data_entry, "id", None),
+                origin_iata,
+                destination_iata,
+            )
             return {}
         # TODO: find factors depending on distance not get_haul_category
         haul_category = get_haul_category(distance_one_trip_km)
@@ -320,18 +349,19 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     ) -> tuple[dict, Optional[str]]:
         """Resolve ``origin_name`` / ``destination_name`` → ``*_natural_key``.
 
-        Production train CSVs currently ship only the station names. A
-        ``{role}_country_code`` column is expected in future CSVs to
-        disambiguate same-name stations across countries (e.g. Bern, CH vs
-        Berne, DE); when absent or blank the resolver defaults to ``CH`` per
-        the project's data center of mass.
+        Train CSVs ship a ``{role}_country_code`` column to disambiguate
+        same-name stations across countries (e.g. Bern, CH vs Berne, DE).
+        It is **required**: a row missing it for either endpoint is rejected
+        before any station lookup — there is no ``CH`` default. The
+        ``stations.csv``-derived seed carries country codes natively.
 
         UI/API entries already carry ``*_natural_key`` (sent directly from
         the station autocomplete) — the hook leaves those rows alone.
 
         Resolution failure modes split:
-          - ambiguous (>1 match): row fails — operator must supply a
-            ``{role}_country_code`` (or hand-curate the upstream data)
+          - missing country_code: row fails — operator must supply it.
+          - ambiguous (>1 match): row fails — operator must hand-curate the
+            upstream data (or pick a more specific name).
           - not_found (0 matches): mirror the plane unknown-IATA path —
             persist the entry without ``natural_key``; ``pre_compute`` logs
             a WARNING and skips emission. Operator sees the gap in
@@ -345,10 +375,17 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
             name = enriched.get(f"{role}_name")
             if not name:
                 return data, f"Missing {role}_name"
-            country_code = enriched.get(f"{role}_country_code") or "CH"
+            # Canonicalize to uppercase: the seed stores ISO-2 codes uppercase
+            # and the station lookup matches country_code exactly.
+            country_code = (enriched.get(f"{role}_country_code") or "").strip().upper()
+            if not country_code:
+                return (
+                    data,
+                    f"Missing {role}_country_code (required for train CSV ingestion)",
+                )
             station, reason = await loc_service.resolve_train_station_for_csv(
                 name=name,
-                default_country_code=country_code,
+                country_code=country_code,
             )
             if station is not None:
                 enriched[f"{role}_natural_key"] = station.natural_key
@@ -377,6 +414,13 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         destination_natural_key = data_entry.data.get("destination_natural_key")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
         if origin_name is None or destination_name is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — missing "
+                "origin_name or destination_name (origin=%r, destination=%r)",
+                getattr(data_entry, "id", None),
+                origin_name,
+                destination_name,
+            )
             return {}
         if not origin_natural_key or not destination_natural_key:
             # Should not happen on the CSV path — ``enrich_csv_row`` fills these
@@ -397,12 +441,30 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
         dest = await loc_service.get_location_by_natural_key(destination_natural_key)
 
         if origin is None or dest is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — natural_key "
+                "not found in locations table (origin_key=%r resolved=%s, "
+                "destination_key=%r resolved=%s)",
+                getattr(data_entry, "id", None),
+                origin_natural_key,
+                origin is not None,
+                destination_natural_key,
+                dest is not None,
+            )
             return {}
         distance_one_trip_km = calculate_train_distance(
             origin_station=origin,
             dest_station=dest,
         )
         if distance_one_trip_km is None:
+            logger.warning(
+                "train.pre_compute: skipping entry id=%s — distance "
+                "calculation returned None (origin_natural_key=%r, "
+                "destination_natural_key=%r)",
+                getattr(data_entry, "id", None),
+                origin_natural_key,
+                destination_natural_key,
+            )
             return {}
         distance_km = distance_one_trip_km * number_of_trips
 

@@ -21,6 +21,7 @@ import { useEchartsTooltip } from './useEchartsTooltip';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useColorblindStore } from 'src/stores/colorblind';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
@@ -247,6 +248,11 @@ const onChartReady = async () => {
   attach(chart);
 };
 
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'reduction-objective-epfl');
+
+defineExpose({ downloadPNG });
+
 function tooltipAxisValueToYearLabel(rawAxisValue: unknown): string {
   // When tooltip is driven by the hidden numeric axis, axisValue can be an index
   // (e.g. "3.5"). Map it back to the closest year label.
@@ -353,7 +359,7 @@ async function ensureYearConfigFetched(): Promise<void> {
 }
 
 onMounted(async () => {
-  accentColorHex.value = readCssVarHex('--q-accent');
+  accentColorHex.value = readCssVarHex('--q-info');
   await ensureYearConfigFetched();
 });
 

@@ -31,6 +31,8 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 from app.tasks._chain import chain_job
 
+from .conftest import ensure_pipeline_for_job
+
 
 async def _install_dedup_index(engine) -> None:
     """Create the ``uq_aggregation_active`` partial unique index that
@@ -84,6 +86,7 @@ async def test_dedup_active_creates_single_row_for_concurrent_chains(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -148,6 +151,7 @@ async def test_dedup_active_allows_new_row_after_first_finishes(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -208,6 +212,8 @@ async def test_dedup_active_does_not_collide_across_modules_or_years(pg_dsn):
         parent_a = _parent_job(module_type_id=5, year=2025)
         parent_b = _parent_job(module_type_id=6, year=2025)  # diff module
         parent_c = _parent_job(module_type_id=5, year=2026)  # diff year
+        for parent in (parent_a, parent_b, parent_c):
+            await ensure_pipeline_for_job(session, parent)
         session.add_all([parent_a, parent_b, parent_c])
         await session.commit()
         await session.refresh(parent_a)
@@ -250,6 +256,7 @@ async def test_dedup_active_skips_run_job_dispatch_on_collision(pg_dsn):
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)

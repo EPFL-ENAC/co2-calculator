@@ -63,4 +63,4 @@ Equivalent rules can be added per resource type — see
 
 - [model](./model.md) — definitions of the symbols used in this matrix.
 - [Permission System Overview](../06-PERMISSION-SYSTEM.md) — narrative
-  overview, including OPA evaluation.
+  overview, including in-code policy evaluation.

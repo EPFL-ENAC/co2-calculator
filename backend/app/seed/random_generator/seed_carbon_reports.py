@@ -36,44 +36,97 @@ async def get_connection():
 
 
 # ============================================================
+# CARBON PROJECTS
+# ============================================================
+
+
+async def insert_carbon_projects(conn):
+    """Create one Calculator project per unit.
+
+    `carbon_reports.UNIQUE(carbon_project_id, year)` requires a non-null
+    `carbon_project_id` for the dedup path to work, and the UI hangs all
+    reports off a project, so every seeded unit gets a Calculator project.
+    """
+    units = await conn.fetch("SELECT id FROM units")
+    unit_ids = [u["id"] for u in units]
+
+    print(f"Creating Calculator projects for {len(unit_ids)} units...")
+
+    start_year = min(YEARS)
+    end_year = max(YEARS)
+    records = [(u_id, "Calculator", start_year, end_year, False) for u_id in unit_ids]
+
+    await conn.execute("""
+        CREATE TEMP TABLE tmp_carbon_projects (
+            unit_id INTEGER,
+            carbon_report_type TEXT,
+            start_year INTEGER,
+            end_year INTEGER,
+            is_viewable_by_unit_members BOOLEAN
+        ) ON COMMIT DROP
+    """)
+
+    await conn.copy_records_to_table("tmp_carbon_projects", records=records)
+
+    await conn.execute("""
+        INSERT INTO carbon_projects (
+            unit_id,
+            carbon_report_type,
+            start_year,
+            end_year,
+            is_viewable_by_unit_members
+        )
+        SELECT
+            unit_id,
+            carbon_report_type::carbon_report_type_enum,
+            start_year,
+            end_year,
+            is_viewable_by_unit_members
+        FROM tmp_carbon_projects
+        ON CONFLICT (unit_id, carbon_report_type) DO NOTHING
+    """)
+
+    rows = await conn.fetch(
+        "SELECT id, unit_id FROM carbon_projects "
+        "WHERE carbon_report_type = 'Calculator'"
+    )
+    return {r["unit_id"]: r["id"] for r in rows}
+
+
+# ============================================================
 # CARBON REPORTS
 # ============================================================
 
 
-async def insert_carbon_reports(conn):
-    print("Fetching units...")
+async def insert_carbon_reports(conn, unit_to_project):
+    print(f"Creating carbon reports for {len(unit_to_project)} units...")
 
-    units = await conn.fetch("SELECT id FROM units")
-    unit_ids = [u["id"] for u in units]
-
-    print(f"Creating carbon reports for {len(unit_ids)} units...")
-
-    # Prepare records
-    records = [(year, unit_id) for unit_id in unit_ids for year in YEARS]
+    records = [
+        (year, unit_id, project_id)
+        for unit_id, project_id in unit_to_project.items()
+        for year in YEARS
+    ]
 
     await conn.execute("""
         CREATE TEMP TABLE tmp_carbon_reports (
             year INTEGER,
-            unit_id INTEGER
+            unit_id INTEGER,
+            carbon_project_id INTEGER
         ) ON COMMIT DROP
     """)
 
-    await conn.copy_records_to_table(
-        "tmp_carbon_reports",
-        records=records,
-    )
+    await conn.copy_records_to_table("tmp_carbon_reports", records=records)
 
     inserted = await conn.fetch("""
-        INSERT INTO carbon_reports (year, unit_id)
-        SELECT year, unit_id
+        INSERT INTO carbon_reports (year, unit_id, carbon_project_id)
+        SELECT year, unit_id, carbon_project_id
         FROM tmp_carbon_reports
-        ON CONFLICT (year, unit_id) DO NOTHING
+        ON CONFLICT (carbon_project_id, year) DO NOTHING
         RETURNING id
     """)
 
     print(f"✓ Inserted {len(inserted)} carbon reports")
 
-    # Fetch ALL report ids (including pre-existing ones)
     reports = await conn.fetch("SELECT id FROM carbon_reports")
     return [r["id"] for r in reports]
 
@@ -141,13 +194,13 @@ async def main():
 
     try:
         async with conn.transaction():
-            print("\n2. Seeding carbon reports and modules...\n")
+            print("\nSeeding carbon projects, reports and modules...\n")
 
-            report_ids = await insert_carbon_reports(conn)
-
+            unit_to_project = await insert_carbon_projects(conn)
+            report_ids = await insert_carbon_reports(conn, unit_to_project)
             await insert_carbon_report_modules(conn, report_ids)
 
-        print("\nAll carbon reports and modules seeded successfully!\n")
+        print("\nAll carbon projects, reports and modules seeded successfully!\n")
 
     finally:
         await conn.close()

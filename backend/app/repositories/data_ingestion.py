@@ -699,6 +699,90 @@ class DataIngestionRepository:
         )
         return new_status
 
+    async def find_orphan_aggregation_pipelines(self) -> list[UUID]:
+        """Identify pipelines whose trailing aggregation never fired.
+
+        Durable backstop for the
+        ``emission_recalc_handler._is_last_recalc_sibling`` coalescing
+        gate's known failure modes (see the gate's own docstring for
+        the full enumeration; load-bearing summary: an errored or
+        pod-killed sibling never advances the counter, so the
+        survivor that *would* have been "last" sees N-1/N and
+        declines to fan out).
+
+        A pipeline is an orphan when ALL of:
+
+        - ``Pipeline.status == RUNNING`` (not already terminal — once
+          status is SUCCESS / PARTIAL / FAILED the chain is closed
+          and an aggregation rerun would be redundant or unwanted).
+        - ``Pipeline.expected_recalc`` is set (Phase 5A wrote it; if
+          NULL the pipeline never had recalc fan-out planned and
+          there's nothing to recover).
+        - Every ``emission_recalc`` sibling is ``FINISHED`` (any
+          result) AND the count >= ``expected_recalc``.
+        - Zero ``aggregation`` job rows for the pipeline.
+
+        Returns the pipeline_ids only — the caller fires the
+        aggregation via ``chain_job`` so the dispatch + post-commit
+        run_job lifecycle stays in one place (importing ``chain_job``
+        from the repo would re-introduce the cycle ``_chain`` was
+        extracted to break).
+        """
+        # Step 1: every pipeline_id that has any emission_recalc job.
+        recalc_pids = (
+            await self.session.execute(
+                select(col(DataIngestionJob.pipeline_id))
+                .where(
+                    col(DataIngestionJob.pipeline_id).isnot(None),
+                    col(DataIngestionJob.job_type) == "emission_recalc",
+                )
+                .distinct()
+            )
+        ).all()
+        candidate_pids = [r[0] for r in recalc_pids if r[0] is not None]
+
+        orphans: list[UUID] = []
+        for pid in candidate_pids:
+            pipeline = (
+                await self.session.execute(
+                    select(Pipeline).where(col(Pipeline.id) == pid)
+                )
+            ).scalar_one_or_none()
+            if pipeline is None:
+                continue
+            if pipeline.status != PipelineStatus.RUNNING:
+                continue
+            if pipeline.expected_recalc is None:
+                continue
+            siblings = (
+                (
+                    await self.session.execute(
+                        select(DataIngestionJob).where(
+                            col(DataIngestionJob.pipeline_id) == pid,
+                            col(DataIngestionJob.job_type) == "emission_recalc",
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if len(siblings) < int(pipeline.expected_recalc):
+                continue
+            if any(s.state != IngestionState.FINISHED for s in siblings):
+                continue
+            agg_count = (
+                await self.session.execute(
+                    select(func.count(col(DataIngestionJob.id))).where(
+                        col(DataIngestionJob.pipeline_id) == pid,
+                        col(DataIngestionJob.job_type) == "aggregation",
+                    )
+                )
+            ).scalar_one()
+            if agg_count and int(agg_count) > 0:
+                continue
+            orphans.append(pid)
+        return orphans
+
     async def reconcile_pipeline_statuses(self) -> dict:
         """Phase-1 standalone reconciliation sweep (#1236).
 
@@ -1279,50 +1363,99 @@ class DataIngestionRepository:
             logger.error(f"Failed to mark job {job.id} as current: {e}")
             raise
 
-    async def cancel_job(self, job_id: int) -> Optional[DataIngestionJob]:
+    async def abort_pipeline(
+        self,
+        pipeline_id: UUID,
+        *,
+        user_email: str,
+    ) -> list[DataIngestionJob]:
+        """Abort every non-terminal job of a pipeline (user-initiated stop).
+
+        Replaces the legacy single-job ``cancel_job`` — that endpoint
+        operated on a ``job_id`` and could only ever stop one link of
+        a chain, leaving the rest of the pipeline orphaned (csv_ingest
+        parent FINISHED but emission_recalc / aggregation children
+        still in flight, or vice-versa).  After the pipeline-debug
+        refactor (#1236), the durable unit of work IS the pipeline;
+        cancellation must follow.
+
+        Marks each job in ``NOT_STARTED / QUEUED / RUNNING`` as
+        ``FINISHED + ERROR`` with ``status_message = "Aborted by
+        {user_email}"`` and merges ``meta.aborted = True`` for the
+        runner's cooperative-cancellation check.
+
+        **Clears ``locked_by``** on those rows: the in-flight handler's
+        preemption check at ``runner.py:270`` (``current.locked_by !=
+        POD_ID``) trips, the handler rolls back its data session, and
+        exits without overwriting our abort.  Without this clear, the
+        handler would happily complete its work and flip the row back
+        to ``FINISHED + SUCCESS`` seconds after the user clicked abort
+        — UX disaster.
+
+        Also recomputes ``pipelines.status`` so the SSE stream's
+        next poll surfaces the terminal state.
+
+        Returns the list of jobs actually flipped (excludes already-
+        terminal jobs).  Callers use the empty-list case to surface a
+        409 ("nothing to abort").
         """
-        Cancel a stuck job by setting it to FINISHED/ERROR and unsetting is_current.
+        jobs = await self.list_jobs_by_pipeline_id(pipeline_id)
+        non_terminal = [
+            j
+            for j in jobs
+            if j.state
+            in (
+                IngestionState.NOT_STARTED,
+                IngestionState.QUEUED,
+                IngestionState.RUNNING,
+            )
+        ]
+        if not non_terminal:
+            return []
 
-        Only jobs in NOT_STARTED, QUEUED, or RUNNING state can be cancelled.
+        now_dt = datetime.now(timezone.utc)
+        aborted_at_iso = now_dt.isoformat()
+        message = f"Aborted by {user_email}"
+        for job in non_terminal:
+            job.state = IngestionState.FINISHED
+            job.result = IngestionResult.ERROR
+            job.status_message = message
+            if job.finished_at is None:
+                job.finished_at = now_dt
+            job.is_current = False
+            # Crucial: clears the lock so the in-flight handler's
+            # preemption check (see runner.py:270) trips and rolls
+            # back the data session.
+            job.locked_by = None
+            job.meta = {
+                **self.sanitize_for_json(job.meta or {}),
+                "aborted": True,
+                "aborted_by": user_email,
+                "aborted_at": aborted_at_iso,
+            }
 
-        Args:
-            job_id: The ID of the job to cancel
-
-        Returns:
-            The updated job, or None if not found or not cancellable
-        """
-        stmt = select(DataIngestionJob).where(DataIngestionJob.id == job_id)
-        exec_result = await self.session.execute(stmt)
-        job = exec_result.scalar_one_or_none()
-        if not job:
-            return None
-
-        if job.state not in (
-            IngestionState.NOT_STARTED,
-            IngestionState.QUEUED,
-            IngestionState.RUNNING,
-        ):
-            logger.warning(f"Job {job_id} state {job.state} not cancellable")
-            return None
-
-        job.state = IngestionState.FINISHED
-        job.result = IngestionResult.ERROR
-        job.status_message = "Cancelled by user"
-        # Terminal transition — stamp finished_at so observability queries
-        # see cancelled rows alongside success/error completions.
-        if job.finished_at is None:
-            job.finished_at = func.now()
-        job.is_current = False
-        merged_meta = {
-            **self.sanitize_for_json(job.meta or {}),
-            "cancelled": True,
-            "completed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        job.meta = merged_meta
         await self.session.flush()
-        await self.session.refresh(job)
-        logger.info(f"Job {job_id} cancelled")
-        return job
+        # Refresh ``pipelines.status`` so SSE clients see the terminal
+        # state on the next poll without waiting for the reconciliation
+        # sweep.  Best-effort — log-and-skip on failure mirrors the
+        # runner's own post-finish recompute (runner.py:336-348).
+        try:
+            await self.recompute_pipeline_status(pipeline_id)
+        except Exception:
+            logger.exception(
+                "abort_pipeline: pipeline status recompute failed "
+                "(pipeline_id=%s); sweep will heal",
+                pipeline_id,
+            )
+        for job in non_terminal:
+            await self.session.refresh(job)
+        logger.info(
+            "abort_pipeline: pipeline_id=%s aborted %d job(s) by %s",
+            pipeline_id,
+            len(non_terminal),
+            user_email,
+        )
+        return non_terminal
 
     async def _get_jobs_by_state(
         self, states: list[IngestionState], negate: bool = False

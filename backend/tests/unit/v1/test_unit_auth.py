@@ -3,19 +3,34 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import Response, status
 from fastapi.testclient import TestClient
+from starlette.datastructures import URL, Headers
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import app.api.v1.auth as auth_module
-from app.api.v1.auth import router as auth_router
+import app.core.config as config
 from app.main import app
 from app.models.user import UserProvider
 
-app.include_router(auth_router, prefix="/api/v1/auth")
+API_PREFIX = config.get_settings().API_VERSION
 
 
 @pytest.fixture
 def client():
     with TestClient(app) as c:
         yield c
+
+
+def _login_request(callback_url: str) -> MagicMock:
+    """A fake login Request whose url_for returns a Starlette URL.
+
+    Mirrors what ``Request.url_for`` actually returns (a ``URL`` exposing
+    ``.scheme``/``.replace``), so the scheme-forcing branch in
+    ``oauth_login`` exercises real behaviour rather than a stub string.
+    """
+    request = MagicMock()
+    request.url_for = lambda name: URL(callback_url)
+    request.headers = Headers({})
+    return request
 
 
 @pytest.mark.asyncio
@@ -26,12 +41,78 @@ async def test_login_redirect(monkeypatch):
         "authorize_redirect",
         mock_authorize_redirect,
     )
-    request = MagicMock()
-    request.url_for = lambda x: "http://test/callback"
-    request.headers = {}
-    result = await auth_module.login(request)
+    result = await auth_module.oauth_login(_login_request("https://test/callback"))
     assert result == "redirected"
     mock_authorize_redirect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
+    """Regression: behind a TLS-terminating LB the proxy may leave the
+    pod-visible scheme as http (e.g. duplicate X-Forwarded-Proto that uvicorn's
+    ProxyHeadersMiddleware drops). With COOKIE_SECURE set, oauth_login must
+    still hand Entra an https redirect_uri."""
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
+    captured = {}
+
+    async def capture(request, redirect_uri):
+        captured["redirect_uri"] = redirect_uri
+        return "redirected"
+
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider, "authorize_redirect", capture
+    )
+    await auth_module.oauth_login(_login_request("http://co2-dev.epfl.ch/callback"))
+    assert str(captured["redirect_uri"]) == "https://co2-dev.epfl.ch/callback"
+
+
+@pytest.mark.asyncio
+async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
+    """Local http dev keeps COOKIE_SECURE=false, so http://localhost is left
+    intact — Entra exempts localhost from the https redirect_uri requirement."""
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
+    captured = {}
+
+    async def capture(request, redirect_uri):
+        captured["redirect_uri"] = redirect_uri
+        return "redirected"
+
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider, "authorize_redirect", capture
+    )
+    await auth_module.oauth_login(_login_request("http://localhost:8000/callback"))
+    assert str(captured["redirect_uri"]) == "http://localhost:8000/callback"
+
+
+@pytest.mark.asyncio
+async def test_proxy_headers_drops_duplicate_forwarded_proto():
+    """Pin the uvicorn behaviour we work around: ProxyHeadersMiddleware ignores
+    X-Forwarded-Proto when more than one copy is present (anti-spoofing guard),
+    so a two-hop LB+ingress chain leaves the scheme as the inner http."""
+    captured = {}
+
+    async def downstream(scope, receive, send):
+        captured["scheme"] = scope["scheme"]
+
+    mw = ProxyHeadersMiddleware(downstream, trusted_hosts="*")
+    scope = {
+        "type": "http",
+        "scheme": "http",
+        "client": ("10.0.0.1", 1234),
+        "headers": [
+            (b"x-forwarded-proto", b"https"),
+            (b"x-forwarded-proto", b"http"),
+        ],
+    }
+
+    async def receive():  # pragma: no cover - unused by the middleware
+        return {"type": "http.request"}
+
+    async def send(message):  # pragma: no cover - unused by the middleware
+        return None
+
+    await mw(scope, receive, send)
+    assert captured["scheme"] == "http"
 
 
 @pytest.mark.asyncio
@@ -45,7 +126,7 @@ async def test_auth_callback_no_userinfo(monkeypatch):
     db = MagicMock()
     request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.auth_callback(request, db)
+        await auth_module.oauth_callback(request, db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -66,7 +147,7 @@ async def test_auth_callback_missing_fields(monkeypatch, field):
     db = MagicMock()
     request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.auth_callback(request, db)
+        await auth_module.oauth_callback(request, db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -80,23 +161,23 @@ async def test_auth_callback_exception(monkeypatch):
     db = MagicMock()
     request = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.auth_callback(request, db)
+        await auth_module.oauth_callback(request, db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("payload", [None, {"sub": None}])
-async def test_get_me_invalid_token(monkeypatch, payload):
+async def test_get_session_invalid_token(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_session(auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("user_attr", ["email", "institutional_id"])
-async def test_get_me_user_missing(monkeypatch, user_attr):
+async def test_get_session_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value={"sub": "1"}))
     mock_user = MagicMock(
         id=1,
@@ -110,7 +191,7 @@ async def test_get_me_user_missing(monkeypatch, user_attr):
     monkeypatch.setattr(auth_module.UserService, "get_by_id", mock_get_user_by_user_id)
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_session(auth_token="token", db=db)
     assert exc.value.status_code in [
         status.HTTP_401_UNAUTHORIZED,
         status.HTTP_403_FORBIDDEN,
@@ -118,34 +199,34 @@ async def test_get_me_user_missing(monkeypatch, user_attr):
 
 
 @pytest.mark.asyncio
-async def test_get_me_no_token():
+async def test_get_session_no_token():
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token=None, db=db)
+        await auth_module.get_session(auth_token=None, db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.asyncio
-async def test_get_me_exception(monkeypatch):
+async def test_get_session_exception(monkeypatch):
     monkeypatch.setattr(
         auth_module, "decode_jwt", MagicMock(side_effect=Exception("fail"))
     )
     db = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.get_me(auth_token="token", db=db)
+        await auth_module.get_session(auth_token="token", db=db)
     assert exc.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("payload", [None, {"type": "access"}, {"sub": None}])
-async def test_refresh_token_invalid_payload(monkeypatch, payload):
+async def test_refresh_session_invalid_payload(monkeypatch, payload):
     monkeypatch.setattr(auth_module, "decode_jwt", MagicMock(return_value=payload))
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
     bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(
+        await auth_module.refresh_session(
             refresh_token="token",
             response=response,
             request=request,
@@ -156,7 +237,7 @@ async def test_refresh_token_invalid_payload(monkeypatch, payload):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_user_missing(monkeypatch):
+async def test_refresh_session_user_missing(monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "decode_jwt",
@@ -169,7 +250,7 @@ async def test_refresh_token_user_missing(monkeypatch):
     request = MagicMock()
     bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(
+        await auth_module.refresh_session(
             refresh_token="token",
             response=response,
             request=request,
@@ -180,13 +261,13 @@ async def test_refresh_token_user_missing(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_no_token():
+async def test_refresh_session_no_token():
     db = MagicMock()
     response = MagicMock()
     request = MagicMock()
     bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(
+        await auth_module.refresh_session(
             refresh_token=None,
             response=response,
             request=request,
@@ -197,7 +278,7 @@ async def test_refresh_token_no_token():
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_exception(monkeypatch):
+async def test_refresh_session_exception(monkeypatch):
     monkeypatch.setattr(
         auth_module, "decode_jwt", MagicMock(side_effect=Exception("fail"))
     )
@@ -206,7 +287,7 @@ async def test_refresh_token_exception(monkeypatch):
     request = MagicMock()
     bg_tasks = MagicMock()
     with pytest.raises(auth_module.HTTPException) as exc:
-        await auth_module.refresh_token(
+        await auth_module.refresh_session(
             refresh_token="token",
             response=response,
             request=request,
@@ -217,7 +298,7 @@ async def test_refresh_token_exception(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_refresh_token_logs_audit_event(monkeypatch):
+async def test_refresh_session_logs_audit_event(monkeypatch):
     monkeypatch.setattr(
         auth_module,
         "decode_jwt",
@@ -249,7 +330,7 @@ async def test_refresh_token_logs_audit_event(monkeypatch):
     request = MagicMock()
     bg_tasks = MagicMock()
 
-    result = await auth_module.refresh_token(
+    result = await auth_module.refresh_session(
         refresh_token="token",
         response=response,
         request=request,
@@ -267,7 +348,7 @@ def test_logout(client):
 
     app.dependency_overrides[auth_module.get_db] = override_get_db
     try:
-        response = client.post("/api/v1/auth/logout")
+        response = client.delete(f"{API_PREFIX}/session")
     finally:
         app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -292,7 +373,7 @@ async def test_logout_logs_audit_event(monkeypatch):
     request = MagicMock()
     db = MagicMock()
 
-    result = await auth_module.logout(
+    result = await auth_module.delete_session(
         response=response,
         request=request,
         auth_token="token",

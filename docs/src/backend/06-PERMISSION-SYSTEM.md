@@ -8,7 +8,7 @@ CF https://github.com/EPFL-ENAC/co2-calculator/issues/414
 
 ## How It Works
 
-The backend calculates permissions during `/auth/me` response
+The backend calculates permissions during `GET /v1/session` response
 serialization:
 
 1. Read user from database with `roles_raw` field
@@ -134,7 +134,7 @@ roles.
 
 ## API Response
 
-The `/auth/me` endpoint returns:
+`GET /v1/session` returns:
 
 ```json
 {
@@ -170,7 +170,7 @@ Files:
 - `app/schemas/user.py` - UserRead schema with `@computed_field`
 - `app/utils/permissions.py` - Permission calculation logic
 - `app/core/security.py` - `require_permission()` decorator for routes
-- `app/core/policy.py` - OPA policy evaluations for data filtering and resource access
+- `app/core/policy.py` - in-code policy evaluation for data filtering and resource access (OPA-style naming, no policy engine)
 - `app/services/authorization_service.py` - Helper functions for data filtering and resource checks
 
 The UserRead schema computes permissions:
@@ -275,7 +275,7 @@ async def update_trip(self, trip_id: int, data: TripUpdate):
 
 ## Resource-Level Access Control
 
-OPA policies enforce business rules for individual resources:
+In-code policy functions enforce business rules for individual resources:
 
 ### Professional Travel Policy
 
@@ -339,7 +339,7 @@ if resource_type == "your_resource":
 
 1. Permissions are calculated from roles, never stored
 2. Frontend checks permissions, not roles
-3. Permissions recalculate on every `/auth/me` call
+3. Permissions recalculate on every `GET /v1/session` call
 4. Domains are independent and combine when needed
 5. Flat structure with dot-notation for easy checking
 6. **Authorization checks at route level** via `require_permission()` decorator

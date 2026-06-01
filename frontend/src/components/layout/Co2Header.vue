@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useColorblindStore } from 'src/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute } from 'src/router/routes';
@@ -13,6 +14,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 const workspaceStore = useWorkspaceStore();
+const colorblindStore = useColorblindStore();
 const { t } = useI18n();
 
 const unitName = computed(() => {
@@ -48,10 +50,16 @@ const handleLogout = async () => {
 };
 
 const hasBackOfficeAccess = computed(() => {
-  return authStore.hasUserPermission('backoffice.users', PermissionAction.VIEW);
+  return authStore.hasUserBackOfficeAreaPermission(PermissionAction.VIEW);
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const breadcrumbLabel = computed(() =>
+  route.params.module
+    ? t(route.params.module as string)
+    : t(route.name as string),
+);
 
 const logoRoute = computed(() => {
   const routeName = String(route.name ?? '');
@@ -96,36 +104,6 @@ const logoRoute = computed(() => {
       <q-space />
 
       <Co2LanguageSelector />
-
-      <q-btn
-        v-if="hasBackOfficeAccess && isInBackOfficeRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('documentation_backoffice_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :href="$t('header_backoffice_documentation_link')"
-        target="_blank"
-      />
-
-      <q-btn
-        v-if="!isInBackOfficeRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('documentation_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        :href="$t('header_user_documentation_link')"
-        target="_blank"
-      />
 
       <q-btn
         v-if="hasBackOfficeAccess && !isInBackOfficeRoute"
@@ -199,6 +177,20 @@ const logoRoute = computed(() => {
         class="q-ml-xl text-weight-medium"
       >
         <q-list>
+          <q-item>
+            <q-item-section>
+              <q-toggle
+                :model-value="colorblindStore.enabled"
+                :label="$t('results_colorblind_mode')"
+                color="accent"
+                keep-color
+                size="md"
+                class="text-weight-medium"
+                @update:model-value="colorblindStore.setEnabled"
+              />
+            </q-item-section>
+          </q-item>
+          <q-separator />
           <q-item clickable @click="handleLogout">
             <q-item-section>
               <q-item-label>{{ $t('logout') }}</q-item-label>
@@ -216,14 +208,7 @@ const logoRoute = computed(() => {
             :label="$t('home')"
             :to="{ name: 'workspace-setup', params: route.params }"
           />
-          <q-breadcrumbs-el
-            class="text-capitalize"
-            :label="
-              route.params.module
-                ? $t(route.params.module as string)
-                : $t(route.name as string)
-            "
-          />
+          <q-breadcrumbs-el class="text-capitalize" :label="breadcrumbLabel" />
         </q-breadcrumbs>
       </q-toolbar>
       <q-separator />

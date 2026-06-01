@@ -337,6 +337,25 @@ class TestTestUnitProvider:
         units = await provider.get_units(unit_ids=["NONEXISTENT_ID_XYZ"])
         assert units == []
 
+    @pytest.mark.asyncio
+    async def test_fetch_all_units_returns_fixtures_round_trippable(self):
+        """``unit_sync_handler`` calls ``fetch_all_units`` then maps each
+        raw dict through ``map_api_unit``. The pair must round-trip TEST
+        fixtures back into ``Unit`` instances with ``provider=TEST``."""
+        from app.models.user import UserProvider as _UP
+        from app.providers.test_fixtures import TEST_UNITS
+
+        provider = TestUnitProvider()
+        units_raw, users_raw = await provider.fetch_all_units()
+        assert len(units_raw) == len(TEST_UNITS)
+        assert len(users_raw) == 1  # the principal user
+
+        mapped = [provider.map_api_unit(u) for u in units_raw]
+        assert all(u.provider == _UP.TEST for u in mapped)
+        assert {u.institutional_id for u in mapped} == {
+            u.institutional_id for u in TEST_UNITS
+        }
+
 
 # ---------------------------------------------------------------------------
 # get_unit_by_id (base class method)

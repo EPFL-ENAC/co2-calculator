@@ -1,0 +1,7 @@
+# Auto-generated from FastAPI OpenAPI schema (scripts/gen-api-types.mjs).
+# Prettier-formatting it would put it permanently out of sync with the
+# generator's output and break drift checks.
+src/types/api/openapi.d.ts
+# Pristine OpenAPI 3.1 snapshot dumped by FastAPI; reformatting would
+# spuriously diff against re-snapshots produced by `app.openapi()`.
+scripts/openapi.snapshot.json

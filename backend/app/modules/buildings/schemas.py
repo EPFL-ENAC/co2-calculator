@@ -7,6 +7,7 @@ from pydantic import (
     field_validator,
 )
 
+from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -29,6 +30,8 @@ from app.schemas.factor import (
     FactorUpdate,
 )
 from app.services.building_room_service import BuildingRoomService
+
+logger = get_logger(__name__)
 
 
 def _validate_non_negative_float(
@@ -181,9 +184,34 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         room_name = data_entry.data.get("room_name")
         building_name = data_entry.data.get("building_name")
         if not room_name or not building_name:
+            # Surface missing reference rows in the logs — the entry
+            # persists but produces no emission leaves (the workflow's
+            # "skip, don't default" semantic).  Without this warning,
+            # operators couldn't tell why a row uploaded but
+            # contributed zero to the module's totals.
+            logger.warning(
+                "buildings.pre_compute: skipping entry id=%s — missing "
+                "room_name or building_name (room_name=%r, building_name=%r)",
+                getattr(data_entry, "id", None),
+                room_name,
+                building_name,
+            )
             return {}
         service = BuildingRoomService(session)
         room = await service.get_room(room_name=room_name)
+        if room is None:
+            # Same "no leaf rows" outcome as the missing-name branch
+            # above — log so the operator can chase the missing
+            # building_room reference (likely a stale CSV or a
+            # building_rooms ref-data import that didn't run).
+            logger.warning(
+                "buildings.pre_compute: skipping entry id=%s — room not "
+                "found in BuildingRoom ref-data (room_name=%r, "
+                "building_name=%r)",
+                getattr(data_entry, "id", None),
+                room_name,
+                building_name,
+            )
         return {
             "room_surface_square_meter": room.room_surface_square_meter
             if room

@@ -430,6 +430,7 @@ class FactorRepository:
         data_entry_type: DataEntryTypeEnum,
         kind_field: str,
         subkind_field: str,
+        year: int,
     ) -> Dict[str, List[str]]:
         """
         Return a mapping of equipment_class -> list of subclasses.
@@ -438,11 +439,15 @@ class FactorRepository:
             data_entry_type: The data entry type to filter on
             kind_field: Classification key for the primary class
             subkind_field: Classification key for the subclass
+            year: Year filter — factors are year-scoped, so options must be too
         """
         stmt = select(
             Factor.classification[kind_field].as_string(),
             Factor.classification[subkind_field].as_string(),
-        ).where(col(Factor.data_entry_type_id) == data_entry_type.value)
+        ).where(
+            col(Factor.data_entry_type_id) == data_entry_type.value,
+            col(Factor.year) == year,
+        )
 
         result = await self.session.exec(stmt)
         factors = result.all()

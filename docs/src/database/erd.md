@@ -148,6 +148,13 @@ erDiagram
     DATETIME updated_at
     INTEGER year
   }
+  pods {
+    VARCHAR app_version
+    VARCHAR git_sha
+    DATETIME last_heartbeat_at
+    VARCHAR pod_id PK
+    DATETIME started_at
+  }
   unit_users {
     VARCHAR role "indexed"
     INTEGER unit_id PK
@@ -187,6 +194,7 @@ erDiagram
     JSON config
     DATETIME configuration_completed
     BOOLEAN is_started
+    VARCHAR provider PK
     DATETIME updated_at
     INTEGER year PK
   }

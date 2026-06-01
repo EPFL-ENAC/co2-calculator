@@ -20,9 +20,14 @@ Each test is one falsifiable hypothesis under the cartesian product
    provider's ``_get_source_from_entity_type`` pin).
 2. With factors pre-loaded → ``data_entry_emissions`` rows exist with
    ``kg_co2eq`` matching the factor formula.
-3. Without factors → ``data_entry_emissions`` rows are zero/empty
-   (``primary_factor_id is None`` on every entry; the chain still
-   drives to FINISHED — recalc handles "no factors" gracefully).
+3. Without factors → fail-fast: parent reaches FINISHED+ERROR with a
+   single-line ``status_message`` naming the missing-factor cause, no
+   children are dispatched, and no DataEntry/emissions/stats are
+   written.  Replaces the older "absent factors → graceful FINISHED+
+   SUCCESS, no emissions" contract retired by #1236 (commit 503bfe5b
+   added ``_guard_factors_required`` + the ``_FACTOR_INFERRED_MODULES``
+   short-circuit so the operator sees one explanation rather than
+   50 000 row-level "no matching factor" errors).
 4. The targeted module's CRM has a dict-shaped ``stats`` payload
    for module types that appear in ``MODULE_TYPE_TO_EMISSION_ROOTS``
    (proves the aggregation chain committed); for module types
@@ -405,13 +410,58 @@ async def test_csv_ingest_standard_module(
             year=year,
         )
 
-        # The parent must terminate cleanly.  ``WARNING`` is the partial
-        # success bucket; we don't expect skips on a 2-row trimmed CSV
-        # with a fully seeded tree, so assert SUCCESS strictly.
+        # The parent always reaches FINISHED.  For ``factors_state=absent``
+        # the new fail-fast guard (#1236, commit 503bfe5b) refuses ingest
+        # up-front so the result flips to ERROR with a single-line
+        # status_message — the operator sees one explanation instead of
+        # 50 000 row-level "no matching factor" errors.  For
+        # ``pre_loaded`` we expect SUCCESS strictly.
         assert parent.state == IngestionState.FINISHED, (
             f"parent did not FINISH: state={parent.state} "
             f"status={parent.status_message}"
         )
+
+        if factors_state == "absent":
+            # Fail-fast contract: parent terminates ERROR, no children
+            # are dispatched, and no DataEntry/emissions/stats are
+            # written.  Pinning the absence of side-effects guards
+            # against a regression where the guard misses + lets every
+            # row error individually.
+            assert parent.result == IngestionResult.ERROR, (
+                f"factors_state=absent must trip the fail-fast guard; "
+                f"got result={parent.result}, status={parent.status_message!r}"
+            )
+            assert "factor" in (parent.status_message or "").lower(), (
+                f"absent-factors error should name the missing-factor cause; "
+                f"got status_message={parent.status_message!r}"
+            )
+            recalc_children = [c for c in children if c.job_type == "emission_recalc"]
+            assert recalc_children == [], (
+                f"fail-fast must skip the chain fan-out; got recalc "
+                f"children={[c.id for c in recalc_children]}"
+            )
+
+            async with Sf() as s:
+                target_entries = await _read_data_entries(
+                    s, carbon_report_module_id=target_crm.id
+                )
+            assert target_entries == [], (
+                f"fail-fast must not persist DataEntry rows; got "
+                f"{len(target_entries)} rows on the target CRM."
+            )
+
+            async with Sf() as s:
+                sibling_entries = await _read_data_entries(
+                    s, carbon_report_module_id=sibling_crm.id
+                )
+            assert sibling_entries == [], (
+                f"sibling unit's CRM (module_type={spec.module_type.name}) "
+                f"received DataEntries despite fail-fast on the target. "
+                f"got {len(sibling_entries)} rows."
+            )
+            return
+
+        # ── pre_loaded path ──────────────────────────────────────────
         assert parent.result == IngestionResult.SUCCESS, (
             f"parent reported {parent.result}: {parent.status_message}"
         )
@@ -443,49 +493,34 @@ async def test_csv_ingest_standard_module(
 
         entry_ids = [e.id for e in target_entries if e.id is not None]
 
-        # ── 6. Assertions 2 & 3 — kg_co2eq math (or its absence).
+        # ── 6. Assertion 2 — kg_co2eq math.
         async with Sf() as s:
             emissions = await _read_emissions_for_entries(s, data_entry_ids=entry_ids)
 
-        if factors_state == "pre_loaded":
-            assert emissions, (
-                "expected data_entry_emissions when factors are pre-loaded; "
-                "the recalc chain should have written one row per (entry, "
-                "emission_type)"
+        assert emissions, (
+            "expected data_entry_emissions when factors are pre-loaded; "
+            "the recalc chain should have written one row per (entry, "
+            "emission_type)"
+        )
+        # Pin assertion 2: at least one emission row carries the
+        # formula-derived kg.  Tolerance accommodates float math
+        # (process_emissions=150.0 exact; equipment uses
+        # WEEKS_PER_YEAR which is float).
+        kg_values = [e.kg_co2eq for e in emissions if e.kg_co2eq is not None]
+        assert any(
+            kg == pytest.approx(spec.expected_kg_first_row, rel=1e-2)
+            for kg in kg_values
+        ), (
+            f"no emission row matched the expected formula output "
+            f"{spec.expected_kg_first_row} (rel=1e-2); "
+            f"persisted kg values: {kg_values}"
+        )
+        # Pin: every entry has a primary_factor_id (factor was found).
+        for entry in target_entries:
+            assert entry.data.get("primary_factor_id") is not None, (
+                f"entry id={entry.id} missing primary_factor_id "
+                f"despite factors_state=pre_loaded"
             )
-            # Pin assertion 2: at least one emission row carries the
-            # formula-derived kg.  Tolerance accommodates float math
-            # (process_emissions=150.0 exact; equipment uses
-            # WEEKS_PER_YEAR which is float).
-            kg_values = [e.kg_co2eq for e in emissions if e.kg_co2eq is not None]
-            assert any(
-                kg == pytest.approx(spec.expected_kg_first_row, rel=1e-2)
-                for kg in kg_values
-            ), (
-                f"no emission row matched the expected formula output "
-                f"{spec.expected_kg_first_row} (rel=1e-2); "
-                f"persisted kg values: {kg_values}"
-            )
-            # Pin: every entry has a primary_factor_id (factor was found).
-            for entry in target_entries:
-                assert entry.data.get("primary_factor_id") is not None, (
-                    f"entry id={entry.id} missing primary_factor_id "
-                    f"despite factors_state=pre_loaded"
-                )
-        else:
-            # No factors → no formula → no emission rows AND no
-            # primary_factor_id stamped on the entries.
-            assert emissions == [], (
-                f"expected zero emissions when factors are absent; "
-                f"got {len(emissions)} rows: "
-                f"{[(e.data_entry_id, e.kg_co2eq) for e in emissions]}"
-            )
-            for entry in target_entries:
-                assert entry.data.get("primary_factor_id") is None, (
-                    f"entry id={entry.id} stamped primary_factor_id="
-                    f"{entry.data.get('primary_factor_id')!r} despite "
-                    f"factors_state=absent"
-                )
 
         # ── 7. Assertion 4 — CRM stats committed (shape-only).
         # ``CarbonReportModuleService.recompute_stats`` early-returns

@@ -64,7 +64,7 @@ install: ## Install all dependencies and set up git hooks
 	@echo "Installing root npm dependencies (lefthook + prettier)..."
 	@command -v node >/dev/null 2>&1 || { echo "❌ node not found. Run: nvm install"; exit 1; }
 	@echo "Node: $$(node --version), npm: $$(npm --version)"
-	@npm run setup
+	@npm run setup:fresh
 	@echo "Installing backend dependencies..."
 	cd backend && $(MAKE) install
 	@echo "Installing frontend dependencies..."

@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/experimental-ct-vue';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -26,6 +31,47 @@ export default defineConfig({
 
     /* Port to use for Playwright component endpoint. */
     ctPort: 3100,
+    /**
+     * Playwright Component Testing starts its own Vite instance and does not
+     * automatically inherit Quasar's generated Vite configuration.
+     *
+     * Quasar injects aliases such as:
+     *   - src/*
+     *   - components/*
+     *   - stores/*
+     * during `quasar dev/build`, so application code resolves correctly there.
+     *
+     * However, Playwright CT only sees TypeScript path mappings from
+     * `.quasar/tsconfig.json`, and Vite/Rollup cannot use TS `paths`
+     * without additional configuration.
+     *
+     * Without `vite-tsconfig-paths` (or equivalent manual aliases),
+     * imports such as:
+     *
+     *   import { useFooStore } from 'src/stores/foo'
+     *
+     * fail at bundle time with:
+     *
+     *   Rollup failed to resolve import "src/..."
+     *
+     * The plugin below makes the Playwright CT Vite instance reuse the
+     * same path aliases defined by Quasar/TypeScript, avoiding alias drift
+     * between app runtime, IDE tooling, and component tests.
+     */
+
+    ctViteConfig: {
+      resolve: {
+        alias: {
+          src: resolve(__dirname, './src'),
+          components: resolve(__dirname, './src/components'),
+          layouts: resolve(__dirname, './src/layouts'),
+          pages: resolve(__dirname, './src/pages'),
+          assets: resolve(__dirname, './src/assets'),
+          boot: resolve(__dirname, './src/boot'),
+          stores: resolve(__dirname, './src/stores'),
+        },
+      },
+    },
   },
 
   /* Configure projects for major browsers */

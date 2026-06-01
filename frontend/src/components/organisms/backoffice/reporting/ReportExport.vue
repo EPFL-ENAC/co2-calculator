@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
 import { REPORT_TYPES } from 'src/constant/report';
 // import type { ModuleState } from 'src/constant/moduleStates';
 import { Notify } from 'quasar';
@@ -13,6 +14,7 @@ import {
 import type { ReportFormat, ReportType } from 'src/api/backoffice';
 import { type UnitFilters } from 'src/stores/backoffice';
 const { t } = useI18n();
+const router = useRouter();
 
 // interface ModuleCompletion {
 //   status: ModuleState;
@@ -38,6 +40,7 @@ const { t } = useI18n();
 
 const props = defineProps<{
   unitFilters?: UnitFilters;
+  hasData?: boolean;
 }>();
 
 const selectedReport = ref<ReportType>('combined');
@@ -55,6 +58,23 @@ const downloading = ref(false);
 //   }
 //   return stringValue;
 // }
+
+function downloadPDF() {
+  const filtersJson = JSON.stringify(props.unitFilters ?? {});
+  if (selectedReport.value === 'combined') {
+    const url = router.resolve({
+      name: 'backoffice-reporting-print',
+      query: { filters: filtersJson },
+    }).href;
+    window.open(url, '_blank');
+  } else if (selectedReport.value === 'results') {
+    const url = router.resolve({
+      name: 'backoffice-results-print',
+      query: { filters: filtersJson },
+    }).href;
+    window.open(url, '_blank');
+  }
+}
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -288,16 +308,23 @@ async function downloadReport(format: 'csv' | 'json') {
       icon="o_picture_as_pdf"
       color="accent"
       :label="$t('common_export_as_pdf')"
+      :disable="
+        !props.hasData ||
+        selectedReport === 'usage' ||
+        selectedReport === 'detailed'
+      "
       unelevated
       no-caps
       size="md"
       class="text-weight-medium q-mr-sm"
+      @click="downloadPDF"
     />
     <q-btn
       icon="o_table"
       color="accent"
       :label="$t('common_export_as_csv')"
       :loading="downloading"
+      :disable="!props.hasData"
       unelevated
       no-caps
       size="md"

@@ -28,11 +28,19 @@ export function useUploadCard() {
   }
 
   function dataButtonColor(row: ImportRow): string {
+    // Issue #1216 — a successful API ingestion (no CSV upload) must
+    // turn the data card green just like a successful CSV does. CSV
+    // result still takes precedence (an errored CSV after a prior
+    // API success stays red), and only an explicit SUCCESS counts —
+    // an API job with an unrecognised result falls through to
+    // ``accent`` rather than silently going green.
     if (row.isDisabled) return 'grey-4';
-    if (!row.lastDataJob) return 'accent';
-    if (row.lastDataJob.result === IngestionResult.ERROR) return 'negative';
-    if (row.lastDataJob.result === IngestionResult.WARNING) return 'warning';
-    return 'positive';
+    if (row.lastDataJob?.result === IngestionResult.ERROR) return 'negative';
+    if (row.lastDataJob?.result === IngestionResult.WARNING) return 'warning';
+    if (row.lastDataJob?.result === IngestionResult.SUCCESS) return 'positive';
+    if (row.lastApiDataJob?.result === IngestionResult.SUCCESS)
+      return 'positive';
+    return 'accent';
   }
 
   function factorButtonColor(row: ImportRow): string {
@@ -76,7 +84,14 @@ export function useUploadCard() {
       .processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
+    // ``?d=true`` flips the backend into download mode — it sets
+    // ``Content-Disposition: attachment; filename="…"`` which is the
+    // authoritative source for the saved filename in every browser.
+    // Without it, Safari ignored ``a.download`` and saved the file
+    // with the URL's last segment stripped of its extension
+    // (regression reported 2026-05-21: ``equipments_data`` instead
+    // of ``equipments_data.csv``).
+    a.href = `/api/v1/files/${filePath}?d=true`;
     a.download = filePath.split('/').pop() || filePath;
     document.body.appendChild(a);
     a.click();

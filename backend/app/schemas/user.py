@@ -11,7 +11,7 @@ from app.models.user import Role, UserBase, UserProvider
 class UserRead(UserBase):
     """Schema for reading user data (OAuth-only users).
 
-    Matches the /auth/me response format with hierarchical roles and permissions.
+    Matches the GET /v1/session response format with hierarchical roles and permissions.
     Permissions are calculated on-the-fly from roles, not stored in DB.
     """
 
@@ -36,7 +36,7 @@ class UserRead(UserBase):
 
     @computed_field
     def permissions(self) -> dict:
-        """Calculate permissions dynamically from roles on every /auth/me call."""
+        """Calculate permissions dynamically on every GET /v1/session call."""
         return self.calculate_permissions()
 
 

@@ -15,8 +15,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import TargetType
 from app.models.location import TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.seed._stub_jobs import create_seed_stub_job
 from app.services.data_ingestion.csv_providers.local_seed import (
     LocalDataEntryCSVProvider,
 )
@@ -181,6 +183,29 @@ async def seed_data_entries(
         f"Created {result['inserted']} entries for [{label}]"
         + (f" ({result['skipped']} skipped)" if result["skipped"] else "")
     )
+
+    # Plant a stub ``csv_ingest`` job so the data-management cards
+    # show the seed.  ``data_entry_type_id`` matches what the real
+    # dispatch would write: single-DET seed → set DET so the
+    # submodule card sees it; multi-DET seed (factor-derived) →
+    # NULL so ``latest_common_data_job`` covers every routed
+    # submodule.  See ``app.seed._stub_jobs`` for the contract.
+    await create_seed_stub_job(
+        session,
+        module_type_id=config.module_type.value,
+        data_entry_type_id=(
+            config.data_entry_types[0].value
+            if len(config.data_entry_types) == 1
+            else None
+        ),
+        year=YEAR,
+        target_type=TargetType.DATA_ENTRIES,
+        job_type="csv_ingest",
+        file_path=config.path,
+        rows_processed=int(result.get("inserted", 0)),
+        rows_skipped=int(result.get("skipped", 0)),
+    )
+
     await session.commit()
     logger.info("Seeded data entries for [%s].", label)
 

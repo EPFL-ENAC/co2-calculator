@@ -1,43 +1,66 @@
-# EPFL CO₂ Calculator (co2-calculator)
+# EPFL CO₂ Calculator — Frontend
 
-co2-calculator
+Vue 3 + Quasar 2 SPA. See
+[Tech Stack](../docs/src/architecture/08-tech-stack.md) for the full
+toolchain and [CONTRIBUTING](../CONTRIBUTING.md) for the contributor
+workflow.
 
-## Install the dependencies
-
-```bash
-yarn
-# or
-npm install
-```
-
-### Start the app in development mode (hot-code reloading, error reporting, etc.)
+## Install dependencies
 
 ```bash
-quasar dev
+make install
 ```
 
-### Lint the files
+The repo is npm-only (committed `package-lock.json`); the `make install`
+target wraps `npm install --ignore-scripts`.
+
+## Start the dev server
+
+Hot-code reloading on `http://localhost:9000`:
 
 ```bash
-yarn lint
-# or
-npm run lint
+make dev
 ```
 
-### Format the files
+## Lint and format
 
 ```bash
-yarn format
-# or
-npm run format
+make lint    # prettier --check + eslint + stylelint
+make format  # auto-fix
 ```
 
-### Build the app for production
+## Type-check
 
 ```bash
-quasar build
+make type-check  # vue-tsc (canonical, matches husky/CI)
 ```
 
-### Customize the configuration
+## Build
+
+```bash
+make localbuild  # SPA build → dist/spa
+make serve       # preview the built SPA locally
+make build       # Docker image (production container)
+```
+
+## Tests
+
+```bash
+make test  # component tests + Playwright E2E
+```
+
+## Quasar configuration
 
 See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
+
+## Storybook
+
+```bash
+make storybook-install  # one-time
+make storybook          # start dev server
+```
+
+## See also
+
+- Root [`Makefile`](../Makefile) — CI orchestration (`make ci`).
+- [`frontend/Makefile`](Makefile) — full list of targets (`make help`).

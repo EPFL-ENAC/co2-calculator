@@ -92,8 +92,18 @@ async function handleReferenceProgressing() {
   await handleJobProgressing();
 }
 
-async function handleCancelJob(jobId: number) {
-  await backofficeStore.cancelJob(jobId, props.selectedYear);
+// Module-scoped pipeline_id (provided by ModuleConfig — single SSE
+// subscriber).  Empty when no chain is in flight; the abort button is
+// only rendered while ``isJobStuck`` is true on a card, which itself
+// requires an active pipeline — so a null-but-button-clicked sequence
+// shouldn't happen, but we no-op defensively anyway.
+const currentPipelineId =
+  inject<ComputedRef<string | null>>('currentPipelineId');
+
+async function handleAbortPipeline() {
+  const pipelineId = currentPipelineId?.value;
+  if (!pipelineId) return;
+  await backofficeStore.abortPipeline(pipelineId);
   await handleJobCompleted();
 }
 
@@ -140,7 +150,6 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         </div>
       </q-item-section>
     </template>
-    <q-separator class="q-mb-xs" />
 
     <template v-if="!submodule.factorsOnly">
       <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
@@ -255,7 +264,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
-        @cancel="handleCancelJob"
+        @abort="handleAbortPipeline"
       />
 
       <UploadCardData
@@ -271,7 +280,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         :on-download="downloadLastCsv"
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
-        @cancel="handleCancelJob"
+        @abort="handleAbortPipeline"
       />
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"

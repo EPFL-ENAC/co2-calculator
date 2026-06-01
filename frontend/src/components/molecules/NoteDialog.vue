@@ -10,13 +10,7 @@
           {{ title }}
         </div>
         <q-space />
-        <q-btn
-          icon="close"
-          flat
-          round
-          dense
-          @click="$emit('update:modelValue', false)"
-        />
+        <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
@@ -37,7 +31,8 @@
       <q-card-actions class="q-px-md q-pb-md">
         <q-btn
           :label="submitLabel"
-          color="accent"
+          :color="submitBtnColor"
+          :style="submitBtnStyle"
           unelevated
           no-caps
           class="text-weight-medium"
@@ -69,8 +64,15 @@ const props = withDefaults(
     modelValue: boolean;
     mode?: 'add' | 'edit';
     note?: string;
+    moduleColor?: string;
+    moduleTextColor?: string;
   }>(),
-  { mode: 'add', note: undefined },
+  {
+    mode: 'add',
+    note: undefined,
+    moduleColor: undefined,
+    moduleTextColor: undefined,
+  },
 );
 
 const emit = defineEmits<{
@@ -92,6 +94,20 @@ const title = computed(() =>
 );
 const submitLabel = computed(() =>
   isEdit.value ? $t('common_edit') : $t('common_add_button'),
+);
+
+const submitBtnColor = computed(() =>
+  props.moduleColor ? undefined : 'accent',
+);
+
+const submitBtnStyle = computed(() =>
+  props.moduleColor
+    ? {
+        background: props.moduleColor,
+        color: props.moduleTextColor ?? 'white',
+        border: `1px solid ${props.moduleTextColor ?? 'white'}`,
+      }
+    : undefined,
 );
 
 watch(

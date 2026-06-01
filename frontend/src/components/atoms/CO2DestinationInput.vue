@@ -285,7 +285,7 @@ async function filterFrom(val: string, update: (fn: () => void) => void) {
 
   loadingFrom.value = true;
   try {
-    const results = await searchLocations(val, props.transportMode, 10);
+    const results = await searchLocations(val, props.transportMode, 20);
     update(() => {
       fromOptions.value = results;
     });
@@ -309,7 +309,7 @@ async function filterTo(val: string, update: (fn: () => void) => void) {
 
   loadingTo.value = true;
   try {
-    const results = await searchLocations(val, props.transportMode, 10);
+    const results = await searchLocations(val, props.transportMode, 20);
     update(() => {
       toOptions.value = results;
     });

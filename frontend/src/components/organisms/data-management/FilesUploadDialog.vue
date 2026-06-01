@@ -64,8 +64,11 @@ const uploadFiles = async () => {
           {{ $t('data_management_upload_csv_files') }}
         </div>
 
-        <!-- Wrap in q-form with @submit.prevent -->
-        <q-form class="q-gutter-md" @submit.prevent="uploadFiles">
+        <q-form
+          id="files-upload-form"
+          class="q-gutter-md"
+          @submit.prevent="uploadFiles"
+        >
           <q-file
             v-model="selectedFiles"
             dense
@@ -76,20 +79,27 @@ const uploadFiles = async () => {
             accept=".csv, text/csv"
             @keyup.enter="uploadFiles"
           />
-
-          <q-btn
-            :label="$t('data_management_upload')"
-            size="sm"
-            color="accent"
-            type="submit"
-            :disabled="
-              !selectedFiles || selectedFiles.length === 0 || isUploading
-            "
-          />
-
-          <q-linear-progress v-if="isUploading" indeterminate color="accent" />
         </q-form>
+
+        <q-linear-progress
+          v-if="isUploading"
+          indeterminate
+          color="accent"
+          class="q-mt-sm"
+        />
       </q-card-section>
+      <q-card-actions class="q-px-md q-pb-md">
+        <q-btn
+          :label="$t('data_management_upload')"
+          size="sm"
+          color="accent"
+          form="files-upload-form"
+          type="submit"
+          :disabled="
+            !selectedFiles || selectedFiles.length === 0 || isUploading
+          "
+        />
+      </q-card-actions>
     </q-card>
   </q-dialog>
 </template>

@@ -27,6 +27,10 @@ backend:
     APP_NAME: "CO2 Calculator API"
     APP_VERSION: "0.1.0"
     DEBUG: "false"
+    # Governs the cookie `Secure` attribute AND the OAuth redirect_uri scheme.
+    # Keep "true" wherever a TLS terminator fronts the pods (all clusters);
+    # only local plain-http dev sets it "false". See infra OAuth post-mortem.
+    COOKIE_SECURE: "true"
     API_VERSION: "/api/v1"
     API_DOCS_PREFIX: "/api"
     LOG_LEVEL: "INFO"

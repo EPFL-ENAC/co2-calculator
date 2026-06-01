@@ -12,8 +12,6 @@ sequenceDiagram
     participant Frontend
     participant Backend
     participant Storage as S3 Storage
-    participant Queue as Redis Queue
-    participant Worker
     participant DB as Database
 
     User->>Frontend: Select file to upload
@@ -24,15 +22,14 @@ sequenceDiagram
     Frontend->>Storage: Upload file directly
     Storage-->>Frontend: Upload complete
     Frontend->>Backend: Notify upload complete
-    Backend->>Queue: Enqueue processing task
+    Backend->>DB: Record job as pending
     Backend-->>Frontend: Return job ID
 
-    Queue->>Worker: Dispatch task
-    Worker->>Storage: Fetch file
-    Storage-->>Worker: Return file data
-    Worker->>Worker: Process file
-    Worker->>DB: Store results
-    Worker->>Queue: Mark task complete
+    Backend->>Storage: Fetch file (in-process async job)
+    Storage-->>Backend: Return file data
+    Backend->>Backend: Process file
+    Backend->>DB: Store results
+    Backend->>DB: Update job status to complete
 
     Frontend->>Backend: Poll for results
     Backend->>DB: Query results
@@ -48,8 +45,8 @@ The diagram above illustrates a typical data flow through the system.
 1. User uploads file through frontend
 2. Frontend requests presigned URL from backend
 3. File uploaded directly to storage
-4. Backend enqueues processing task
-5. Worker processes file and stores results
+4. Backend records job and triggers in-process async processing (asyncio)
+5. Backend processes file and stores results in-process
 6. Frontend retrieves processed data for visualization
 
 ## Key Systems Involved at Each Step
@@ -70,15 +67,8 @@ graph TB
         B1[Authentication]
         B2[Authorization]
         B3[URL Generation]
-        B4[Task Coordination]
+        B4[In-Process Job Handler]
         B5[API Endpoints]
-    end
-
-    subgraph "Processing Layer"
-        Q[Message Queue]
-        W1[Worker 1]
-        W2[Worker 2]
-        W3[Worker N]
     end
 
     subgraph "Storage Layer"
@@ -92,10 +82,8 @@ graph TB
     B2 --> B3
     B3 --> S
     B2 --> B4
-    B4 --> Q
-    Q --> W1 & W2 & W3
-    W1 & W2 & W3 --> S
-    W1 & W2 & W3 --> D
+    B4 --> S
+    B4 --> D
     F2 --> B5
     B5 --> D
     D --> F3
@@ -104,11 +92,9 @@ graph TB
     style U fill:#e1f5ff
     style S fill:#ffe1e1
     style D fill:#e1ffe1
-    style Q fill:#fff4e1
 ```
 
 - **Frontend**: User interface and file selection
-- **Backend**: Authentication, authorization, and task coordination
+- **Backend**: Authentication, authorization, task coordination, and in-process async job execution (asyncio — no external task queue)
 - **Storage**: File persistence and retrieval
-- **Workers**: Asynchronous processing
 - **Database**: Metadata and processed data storage

@@ -49,6 +49,8 @@ const props = withDefaults(
   },
 );
 const OVERRIDE = false;
+const HEADCOUNT_COLOR = colors.value.yellow.darker;
+const HEADCOUNT_FILL = colors.value.yellow.default;
 // Define colors for each key
 const colorMap: Record<string, string> = {
   professor: colors.value.mint.dark,
@@ -89,7 +91,7 @@ const chartOptions = computed<EChartsOption>(() => {
             {
               label: name,
               value: `${Math.round(val * 10) / 10} ${t('module_total_result_title_unit', { type: MODULES.Headcount })}`,
-              color: '#00a79f',
+              color: HEADCOUNT_COLOR,
             },
           ],
         });
@@ -97,7 +99,13 @@ const chartOptions = computed<EChartsOption>(() => {
       },
     },
     legend: { show: false },
-    grid: { left: '3%', right: '4%', bottom: '50px', containLabel: true },
+    grid: {
+      left: '3%',
+      right: '4%',
+      bottom: '3%',
+      top: '5%',
+      containLabel: true,
+    },
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
@@ -108,9 +116,11 @@ const chartOptions = computed<EChartsOption>(() => {
     xAxis: {
       type: 'category',
       axisLabel: {
-        interval: 0, // Force showing all labels
-        rotate: 45, // Rotate labels if needed
-        fontSize: 12,
+        interval: 0,
+        rotate: 35,
+        fontSize: 11,
+        overflow: 'truncate',
+        width: 90,
       },
     },
     yAxis: { type: 'value', boundaryGap: [0, 0.01] },
@@ -118,15 +128,16 @@ const chartOptions = computed<EChartsOption>(() => {
       {
         type: 'bar',
         encode: { x: 'category', y: 'value' },
+        barMaxWidth: 100,
         itemStyle: {
           color: (params) => {
             // const key = keys[params.dataIndex];
             // return colorMap[key] || '#00a79f';
             if (OVERRIDE) {
               const key = keys[params.dataIndex];
-              return colorMap[key] || '#00a79f';
+              return colorMap[key] || HEADCOUNT_COLOR;
             }
-            return '#00a79f';
+            return HEADCOUNT_FILL;
           },
         },
       },
@@ -156,6 +167,6 @@ const chartOptions = computed<EChartsOption>(() => {
 <style lang="css" scoped>
 .head-count-bar-chart {
   width: 100%;
-  height: 400px;
+  height: 320px;
 }
 </style>

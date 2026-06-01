@@ -9,7 +9,7 @@
  *     populated from ``GET /carbon-reports/{id}/modules/``
  *   - ``yearConfigStore.recalculationStatus[id].current_pipeline_id``
  *     keyed by numeric ``module_type_id``, populated from
- *     ``GET /year-configurations/{year}``
+ *     ``GET /year-configuration/{year}``
  *
  * Both views are now a single store keyed by ``(module_type_id, year)``
  * and fed by the dedicated bulk endpoint

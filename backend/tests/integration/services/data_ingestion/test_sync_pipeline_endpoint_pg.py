@@ -44,6 +44,8 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 
+from .conftest import ensure_pipeline_for_job
+
 
 @pytest_asyncio.fixture
 async def pg_app(pg_dsn, monkeypatch):
@@ -141,6 +143,9 @@ async def test_get_pipeline_returns_ordered_jobs(pg_app):
         parent = _make_parent_factor_job(pipeline_id)
         child_a = _make_child_data_entries_job(pipeline_id, data_entry_type_id=2)
         child_b = _make_child_data_entries_job(pipeline_id, data_entry_type_id=3)
+        # Pipeline row is shared — seed it once before the first INSERT
+        # so the FK on ``data_ingestion_jobs.pipeline_id`` is satisfied.
+        await ensure_pipeline_for_job(session, parent)
         # Insert sequentially so ids are deterministic (parent first).
         session.add(parent)
         await session.flush()
@@ -170,10 +175,13 @@ async def test_get_pipeline_returns_ordered_jobs(pg_app):
     )
 
     # Verify the parent shape — proves enum and Optional columns serialise.
+    # ``state`` / ``result`` use the enum NAME (PipelineJobResponse
+    # field_serializer) so frontend string comparisons hold; the int
+    # enums (``target_type``) keep their numeric value.
     parent_row = jobs[0]
     assert parent_row["job_type"] == "factor_ingest"
-    assert parent_row["state"] == IngestionState.FINISHED.value
-    assert parent_row["result"] == IngestionResult.SUCCESS.value
+    assert parent_row["state"] == IngestionState.FINISHED.name
+    assert parent_row["result"] == IngestionResult.SUCCESS.name
     assert parent_row["target_type"] == TargetType.FACTORS.value
     assert parent_row["module_type_id"] == 1
     assert parent_row["data_entry_type_id"] == 1
@@ -202,6 +210,9 @@ async def test_get_pipeline_does_not_leak_jobs_from_other_pipelines(pg_app):
         # Different combo so the partial unique is_current index doesn't trip.
         theirs.module_type_id = 2
         theirs.data_entry_type_id = 2
+        # Two distinct pipeline_ids — seed both ``pipelines`` rows first.
+        await ensure_pipeline_for_job(session, ours)
+        await ensure_pipeline_for_job(session, theirs)
         session.add_all([ours, theirs])
         await session.commit()
 

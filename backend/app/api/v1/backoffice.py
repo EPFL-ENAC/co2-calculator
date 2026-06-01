@@ -12,7 +12,7 @@ from typing import Any, Generator, List, NamedTuple, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlmodel import desc, select
+from sqlmodel import col, desc, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -43,11 +43,12 @@ from app.core.constants import (
     ModuleStatus,
 )
 from app.core.logging import get_logger
-from app.core.security import require_permission
+from app.core.security import get_current_active_user
 from app.models.carbon_report import (
     CarbonReport,
 )
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
     CarbonReportModuleRepository,
@@ -56,6 +57,11 @@ from app.schemas.backoffice import (
     PaginatedUnitReportingData,
     PaginationMeta,
     UnitReportingData,
+)
+from app.utils.scoping import (
+    build_affiliation_predicate,
+    gate_backoffice,
+    narrow_path_affiliation,
 )
 
 logger = get_logger(__name__)
@@ -238,19 +244,36 @@ async def list_backoffice_units(
         None,
         description="Sort order: 'asc' for ascending, 'desc' for descending",
     ),
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     List units with their reporting completion status and outlier values.
     """
+    is_global, affiliations = gate_backoffice(current_user, "view")
+    scoped_path_affiliation = narrow_path_affiliation(
+        filters.path_affiliation, is_global, affiliations
+    )
+    # Scoped caller whose request resolves to no allowed affiliations → empty.
+    if not is_global and not scoped_path_affiliation:
+        return PaginatedUnitReportingData(
+            data=[],
+            pagination=PaginationMeta(
+                total=0, page=page, page_size=page_size, total_pages=0
+            ),
+            validated_units_count=0,
+            in_progress_units_count=0,
+            not_started_units_count=0,
+            total_units_count=0,
+        )
+
     carbon_report_module_repo = CarbonReportModuleRepository(db)
 
     if filters.years is None or len(filters.years) == 0:
         raise HTTPException(status_code=400, detail=ERROR_AT_LEAST_ONE_YEAR)
 
     result = await carbon_report_module_repo.get_reporting_overview(
-        path_affiliation=filters.path_affiliation,
+        path_affiliation=scoped_path_affiliation,
         path_lvl4=filters.path_lvl4,
         completion_status=filters.completion_status,
         search=filters.search,
@@ -299,6 +322,7 @@ async def list_backoffice_units(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
         emission_breakdown=result.get("emission_breakdown"),
+        it_breakdown=result.get("it_breakdown"),
         validated_units_count=result.get("validated_units_count", 0),
         in_progress_units_count=result.get("in_progress_units_count", 0),
         not_started_units_count=result.get("not_started_units_count", 0),
@@ -321,10 +345,12 @@ async def export_reporting(
         description="Number of items per page",
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Export unit reporting data as CSV or JSON file download."""
-    # Get all matching records for export
+    gate_backoffice(current_user, "export")
+    # Get all matching records for export. The inner ``list_backoffice_units``
+    # applies the affiliation narrowing via its own ``gate_backoffice("view")``.
     reporting_data = await list_backoffice_units(
         filters=filters,
         page=page,
@@ -385,16 +411,26 @@ async def export_reporting(
 
 @router.get("/years")
 async def get_available_years(
-    current_user: User = Depends(require_permission("backoffice.users", "view")),
+    current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Get all available years from CarbonReport records in the database,
     sorted in descending order (latest first).
+
+    Affiliation-scoped backoffice users see only the years where reports
+    exist for units inside their affiliation (#459).
     """
-    result = await db.exec(
-        select(CarbonReport.year).distinct().order_by(desc(CarbonReport.year))
-    )
+    is_global, affiliations = gate_backoffice(current_user, "view")
+    stmt = select(CarbonReport.year).distinct()
+    if not is_global:
+        if not affiliations:
+            return {"years": [], "latest": ""}
+        stmt = stmt.join(Unit, col(CarbonReport.unit_id) == col(Unit.id)).where(
+            build_affiliation_predicate(affiliations)
+        )
+    stmt = stmt.order_by(desc(CarbonReport.year))
+    result = await db.exec(stmt)
     years = [str(y) for y in result.all()]
     if not years:
         return {"years": [], "latest": ""}
@@ -406,23 +442,30 @@ async def report_usage(
     filters: BackofficeFilters = Depends(get_backoffice_filters),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
+    current_user: User = Depends(get_current_active_user),
 ) -> StreamingResponse:
     if format not in {"csv", "json"}:
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
 
-    try:
-        data = await CarbonReportModuleRepository(db).get_usage_report(
-            path_affiliation=filters.path_affiliation,
-            path_lvl4=filters.path_lvl4,
-            completion_status=filters.completion_status,
-            search=filters.search,
-            modules=filters.modules,
-            years=filters.years,
-        )
-    except ValueError as exc:
-        # Invalid filter values or other issues in query parameters
-        raise HTTPException(status_code=400, detail=str(exc))
+    is_global, affiliations = gate_backoffice(current_user, "export")
+    scoped_path_affiliation = narrow_path_affiliation(
+        filters.path_affiliation, is_global, affiliations
+    )
+    if not is_global and not scoped_path_affiliation:
+        data = []
+    else:
+        try:
+            data = await CarbonReportModuleRepository(db).get_usage_report(
+                path_affiliation=scoped_path_affiliation,
+                path_lvl4=filters.path_lvl4,
+                completion_status=filters.completion_status,
+                search=filters.search,
+                modules=filters.modules,
+                years=filters.years,
+            )
+        except ValueError as exc:
+            # Invalid filter values or other issues in query parameters
+            raise HTTPException(status_code=400, detail=str(exc))
 
     timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
     if format == "json":
@@ -468,10 +511,16 @@ async def report_detailed(
     filters: BackofficeFilters = Depends(get_backoffice_filters),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
+    current_user: User = Depends(get_current_active_user),
 ) -> StreamingResponse:
     if format not in {"csv", "json"}:
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
+
+    is_global, affiliations = gate_backoffice(current_user, "export")
+    scoped_path_affiliation = narrow_path_affiliation(
+        filters.path_affiliation, is_global, affiliations
+    )
+    scoped_caller_no_affiliations = not is_global and not scoped_path_affiliation
 
     timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
 
@@ -480,10 +529,12 @@ async def report_detailed(
 
         for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
             for data_entry_type in data_entry_types:
+                if scoped_caller_no_affiliations:
+                    continue
                 try:
                     data = await CarbonReportModuleRepository(db).get_detailed_report(
                         data_entry_type=data_entry_type,
-                        path_affiliation=filters.path_affiliation,
+                        path_affiliation=scoped_path_affiliation,
                         path_lvl4=filters.path_lvl4,
                         completion_status=filters.completion_status,
                         search=filters.search,
@@ -551,22 +602,29 @@ async def report_results(
     filters: BackofficeFilters = Depends(get_backoffice_filters),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("backoffice.users", "export")),
+    current_user: User = Depends(get_current_active_user),
 ) -> StreamingResponse:
     if format not in {"csv", "json"}:
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
 
-    try:
-        data = await CarbonReportModuleRepository(db).get_results_report(
-            path_affiliation=filters.path_affiliation,
-            path_lvl4=filters.path_lvl4,
-            completion_status=filters.completion_status,
-            search=filters.search,
-            years=filters.years,
-        )
-    except ValueError as exc:
-        # Invalid filter values or other issues in query parameters
-        raise HTTPException(status_code=400, detail=str(exc))
+    is_global, affiliations = gate_backoffice(current_user, "export")
+    scoped_path_affiliation = narrow_path_affiliation(
+        filters.path_affiliation, is_global, affiliations
+    )
+    if not is_global and not scoped_path_affiliation:
+        data = []
+    else:
+        try:
+            data = await CarbonReportModuleRepository(db).get_results_report(
+                path_affiliation=scoped_path_affiliation,
+                path_lvl4=filters.path_lvl4,
+                completion_status=filters.completion_status,
+                search=filters.search,
+                years=filters.years,
+            )
+        except ValueError as exc:
+            # Invalid filter values or other issues in query parameters
+            raise HTTPException(status_code=400, detail=str(exc))
 
     timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
     if format == "json":

@@ -6,12 +6,16 @@ import { storeToRefs } from 'pinia';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute } from 'src/router/routes';
 import Co2Sidebar from 'src/components/layout/Co2Sidebar.vue';
+import Co2ModuleSidebar from 'src/components/organisms/layout/Co2ModuleSidebar.vue';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 
 const authStore = useAuthStore();
 const { user } = storeToRefs(authStore);
 const route = useRoute();
 const isBackOffice = computed(() => isBackOfficeRoute(route));
+const isModuleRoute = computed(() =>
+  ['module', 'results'].includes(String(route.name)),
+);
 </script>
 
 <template>
@@ -21,6 +25,7 @@ const isBackOffice = computed(() => isBackOfficeRoute(route));
     <q-page-container class="co2-page-container">
       <aside class="sidebar-wrapper">
         <Co2Sidebar v-if="isBackOffice" :items="BACKOFFICE_NAV" />
+        <Co2ModuleSidebar v-else-if="isModuleRoute" />
       </aside>
       <main class="content-wrapper">
         <router-view />

@@ -3,6 +3,7 @@
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
@@ -620,3 +621,36 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access to this unit is not permitted.",
         )
+
+
+async def check_module_permission_for_unit(
+    *,
+    current_user: User,
+    module_id: str,
+    action: str,
+    db: AsyncSession,
+    unit_id: int,
+) -> Unit:
+    """Load the Unit and gate access using its ``institutional_id``.
+
+    Module permissions are stored as ``modules.{name}/{institutional_id}`` (see
+    PR #974). Routes that operate on a specific unit must look up the unit's
+    ``institutional_id`` before delegating to the policy — otherwise scoped
+    users (CO2_USER_*) are denied because the bare-path lookup misses.
+
+    Returns the loaded ``Unit`` so callers can reuse it (e.g. for travel filters
+    or principal/global checks) without re-fetching.
+    """
+    unit = await db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit {unit_id} not found",
+        )
+    await check_module_permission(
+        current_user,
+        module_id,
+        action,
+        institutional_id=unit.institutional_id,
+    )
+    return unit

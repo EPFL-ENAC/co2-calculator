@@ -5,12 +5,13 @@ FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files for dependency installation (root + storybook workspace)
+# Install frontend deps (vue, quasar, etc. — storybook resolves them via parent node_modules)
 COPY package.json package-lock.json ./
-COPY storybook/package.json ./storybook/
-
-# Install dependencies (npm ci installs all workspaces)
 RUN npm ci --ignore-scripts
+
+# Install storybook deps in its own isolated tree
+COPY storybook/package.json storybook/package-lock.json ./storybook/
+RUN cd storybook && npm ci --ignore-scripts
 
 # Copy source code (be selective to avoid copying node_modules)
 COPY src/ ./src/
@@ -21,8 +22,8 @@ COPY index.html tsconfig.json quasar.config.js quasar.extensions.json ./
 # Prepare Quasar (generates .quasar/)
 RUN npx quasar prepare
 
-# Build Storybook static site (creates ./storybook/storybook-static via workspace)
-RUN npm run storybook:build
+# Build Storybook static site (creates ./storybook/storybook-static)
+RUN cd storybook && npm run build
 
 # ==============================================================================
 # Production Stage: Serve the built Storybook site with Nginx

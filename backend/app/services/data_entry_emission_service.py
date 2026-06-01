@@ -781,6 +781,7 @@ class DataEntryEmissionService:
         top_n: int = 3,
         label_field: str | None = None,
         report_year: int | None = None,
+        emission_type_ids: list[int] | None = None,
     ) -> list[dict]:
         """Get emissions aggregated by subcategory and a grouping field.
 
@@ -793,14 +794,56 @@ class DataEntryEmissionService:
             top_n=top_n,
             label_field=label_field,
             report_year=report_year,
+            emission_type_ids=emission_type_ids,
         )
 
-    async def get_travel_evolution_over_time(
+    async def enrich_breakdown_with_factor_labels(
         self,
-        unit_id: int,
+        breakdown: list[dict],
+        data_entry_types: list[DataEntryTypeEnum],
+        group_by_field: str,
+        factor_label_field: str,
     ) -> list[dict]:
-        """Get travel emissions aggregated by year and category."""
-        return await self.repo.get_travel_evolution_over_time(unit_id)
+        """Add a ``translation_key`` field to each non-rest child in breakdown.
+
+        Looks up ``Factor.values[factor_label_field]`` for each unique
+        ``group_by_field`` code and attaches it to the child dict so the
+        frontend can resolve the human-readable label via i18n.
+        """
+        codes = {
+            child["name"]
+            for group in breakdown
+            for child in group.get("children", [])
+            if child.get("name") != "rest"
+        }
+        if not codes:
+            return breakdown
+
+        stmt = (
+            select(
+                Factor.classification[group_by_field].as_string().label("code"),
+                Factor.values[factor_label_field].as_string().label("label"),
+            )
+            .where(
+                col(Factor.data_entry_type_id).in_(
+                    [det.value for det in data_entry_types]
+                ),
+                Factor.classification[group_by_field].as_string().in_(list(codes)),
+            )
+            .distinct()
+        )
+        rows = (await self.session.execute(stmt)).all()
+        code_to_label: dict[str, str] = {
+            row.code: row.label for row in rows if row.code and row.label
+        }
+
+        for group in breakdown:
+            for child in group.get("children", []):
+                label = code_to_label.get(child.get("name", ""))
+                if label:
+                    child["translation_key"] = label
+
+        return breakdown
 
     # # Dict of dataEntryTypeEnum , func to calculation formulas
     # FORMULAS: dict[EmissionType, Callable] = {}

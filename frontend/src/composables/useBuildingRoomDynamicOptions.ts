@@ -14,6 +14,7 @@ export function useBuildingRoomDynamicOptions(
   form: FormLike,
   moduleType: Ref<Module | string>,
   submoduleType: Ref<AllSubmoduleTypes>,
+  year?: Ref<string | number | undefined>,
 ) {
   const buildingRoomStore = useBuildingRoomStore();
 
@@ -84,21 +85,28 @@ export function useBuildingRoomDynamicOptions(
     form['ventilation_kwh_per_square_meter'] = null;
     form['lighting_kwh_per_square_meter'] = null;
 
+    // `year` is required by the factor endpoint; without it the request 422s.
+    const yearValue = year?.value;
+    if (yearValue == null) return;
+
     const defaults = await getFactorValues(
       SUBMODULE_BUILDINGS_TYPES.Building,
       buildingName,
       roomType.trim().toLowerCase(),
+      yearValue,
     );
     if (requestId !== energyDefaultsRequestId) return;
+    // No matching factor for this building/room/year — leave fields cleared.
+    if (!defaults) return;
 
     form['heating_kwh_per_square_meter'] =
-      defaults.heating_kwh_per_square_meter;
+      defaults.heating_kwh_per_square_meter ?? null;
     form['cooling_kwh_per_square_meter'] =
-      defaults.cooling_kwh_per_square_meter;
+      defaults.cooling_kwh_per_square_meter ?? null;
     form['ventilation_kwh_per_square_meter'] =
-      defaults.ventilation_kwh_per_square_meter;
+      defaults.ventilation_kwh_per_square_meter ?? null;
     form['lighting_kwh_per_square_meter'] =
-      defaults.lighting_kwh_per_square_meter;
+      defaults.lighting_kwh_per_square_meter ?? null;
   }
 
   // When room_name changes: fill room_type + room_surface + kwh/m² fields

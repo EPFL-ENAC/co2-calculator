@@ -2,18 +2,115 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { copyToClipboard, debounce, Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
+import { api } from 'src/api/http';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
+import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
+  type PipelineJobListEntry,
 } from 'src/stores/pipelineOperationsConsole';
+
+/**
+ * Wire shape of ``GET /v1/sync/workers`` — one row per live pod.
+ * Surfaces git_sha + claimed-jobs count so an operator can spot
+ * a two-pods-on-different-code conflict at a glance (the
+ * local+stage scenario from 2026-05-21).
+ */
+interface WorkerRow {
+  pod_id: string;
+  git_sha: string | null;
+  app_version: string | null;
+  started_at: string;
+  last_heartbeat_at: string;
+  heartbeat_age_seconds: number;
+  claimed_job_count: number;
+}
 
 const { t } = useI18n();
 
 const store = usePipelineOperationsConsole();
+const backofficeStore = useBackofficeDataManagement();
+
+// Abort dialog — one-step confirmation so an accidental click on a
+// row doesn't kill a long-running chain mid-flight.  Mirrors the
+// data-management abort flow (which doesn't confirm because it's
+// scoped to a single visible card; on the ops page an operator
+// may be looking at a list and click the wrong row).
+const abortDialog = ref(false);
+const abortTarget = ref<PipelineListItem | null>(null);
+const aborting = ref(false);
+
+function openAbortDialog(p: PipelineListItem): void {
+  abortTarget.value = p;
+  abortDialog.value = true;
+}
+
+async function confirmAbort(): Promise<void> {
+  const target = abortTarget.value;
+  if (!target?.pipeline_id) return;
+  aborting.value = true;
+  try {
+    await backofficeStore.abortPipeline(target.pipeline_id);
+    Notify.create({
+      type: 'positive',
+      message: t('pipeops_abort_success'),
+      timeout: 1800,
+    });
+    abortDialog.value = false;
+    abortTarget.value = null;
+    // Re-fetch immediately so the row reflects FAILED status without
+    // waiting for the SSE refresh — the abort wrote terminal state
+    // server-side and the SSE will deliver the same eventually, but
+    // an explicit refetch makes the UI feel decisive.
+    await store.fetch();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : t('pipeops_abort_failed');
+    Notify.create({ type: 'negative', message: msg });
+  } finally {
+    aborting.value = false;
+  }
+}
+
+// Processed-CSV download — surfaces ``meta.processed_file_path``
+// straight from the pipeline row so an operator triaging a stalled
+// or failed chain can grab the source CSV in one click.  Mirrors
+// the data-management ``downloadLastCsv`` flow:
+//
+// * ``?d=true`` flips the backend into download mode (sets
+//   ``Content-Disposition: attachment; filename="…"`` so Safari /
+//   Chrome both save with the original extension — see
+//   ``backend/app/api/v1/files.py``).
+// * ``a.download`` is a belt-and-braces fallback for older browsers.
+function processedCsvJob(p: PipelineListItem): PipelineJobListEntry | null {
+  // Pick the FIRST job in id order that carries a processed_file_path.
+  // For a typical chain that's the parent csv_ingest / factor_ingest
+  // / reference_ingest — the operator's actual source CSV.  Downstream
+  // ``emission_recalc`` / ``aggregation`` rows don't stage CSVs, so
+  // they're naturally skipped.
+  for (const j of p.jobs) {
+    const path = (j.meta as Record<string, unknown> | undefined)
+      ?.processed_file_path;
+    if (typeof path === 'string' && path.length > 0) return j;
+  }
+  return null;
+}
+
+function downloadProcessedCsv(p: PipelineListItem): void {
+  const j = processedCsvJob(p);
+  if (!j) return;
+  const filePath = (j.meta as Record<string, unknown>)
+    .processed_file_path as string;
+  const a = document.createElement('a');
+  a.href = `/api/v1/files/${filePath}?d=true`;
+  a.download = filePath.split('/').pop() || filePath;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
 const expanded = ref<Set<string>>(new Set());
 
@@ -158,6 +255,54 @@ function fmtWhen(s: string | null): string {
 
 const counters = computed(() => store.counters);
 
+// Workers section — independent from the pipelines table.  Refreshed
+// on mount, on user click, and on every pipelines-table refresh so
+// the two views stay in sync when an operator chases a pod conflict.
+// Not SSE-driven because pod heartbeats are slow-moving (~30s) and a
+// dedicated stream would add no value over plain refetch.
+const workers = ref<WorkerRow[]>([]);
+const workersLoading = ref(false);
+const workersError = ref<string | null>(null);
+
+async function fetchWorkers(): Promise<void> {
+  workersLoading.value = true;
+  workersError.value = null;
+  try {
+    workers.value = (await api.get('sync/workers').json()) as WorkerRow[];
+  } catch (err: unknown) {
+    workersError.value =
+      err instanceof Error ? err.message : 'Failed to load workers';
+    workers.value = [];
+  } finally {
+    workersLoading.value = false;
+  }
+}
+
+// "Two pods on different revisions" is the load-bearing signal the
+// workers view exists to surface (motivating 2026-05-21 incident).
+// Compute once over the loaded set so the template can render a
+// banner above the table.
+const hasMultipleGitShas = computed<boolean>(() => {
+  const shas = new Set(
+    workers.value
+      .map((w) => w.git_sha)
+      .filter((s): s is string => typeof s === 'string' && s.length > 0),
+  );
+  return shas.size > 1;
+});
+
+function shortSha(sha: string | null): string {
+  if (!sha) return '—';
+  return sha.length > 7 ? sha.slice(0, 7) : sha;
+}
+
+function fmtHeartbeatAge(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h`;
+}
+
 // #1236 Phase 3 read-flip: ``state`` is the pipeline-level
 // ``pipelines.status`` (server-authoritative), not the job-level state.
 // The 5 values match the backend ``PipelineStatus`` enum.
@@ -216,6 +361,7 @@ function fmtTs(s: string | null | undefined): string {
 
 onMounted(() => {
   void store.fetch();
+  void fetchWorkers();
 });
 
 // 🐞#3 (Guilbert 2026-05-20) — SSE live-update on the ops page.
@@ -275,6 +421,97 @@ onUnmounted(() => {
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="text-body1 q-mb-lg">{{ $t('pipeops_subtitle') }}</div>
+
+        <!-- Workers panel — surfaces "who's actually polling jobs right
+             now" so an operator can spot a two-pods-on-different-code
+             conflict immediately.  The 2026-05-21 stuck-recalc came
+             down to a dev branch running locally against the stage DB
+             while the deployed stage app was ALSO running; logs gave
+             no signal that two pods were active. -->
+        <q-card flat bordered class="q-mb-lg">
+          <q-card-section class="row items-center q-py-sm">
+            <div class="text-subtitle2 q-mr-md">
+              {{ $t('pipeops_workers_title') }}
+            </div>
+            <q-badge color="grey-7" text-color="white">
+              {{ workers.length }} {{ $t('pipeops_workers_count_suffix') }}
+            </q-badge>
+            <q-space />
+            <q-btn
+              flat
+              dense
+              icon="refresh"
+              :loading="workersLoading"
+              @click="fetchWorkers"
+            >
+              <q-tooltip>{{ $t('pipeops_refresh') }}</q-tooltip>
+            </q-btn>
+          </q-card-section>
+          <q-banner
+            v-if="hasMultipleGitShas"
+            class="bg-warning text-white q-mx-md q-mb-sm rounded-borders"
+            dense
+          >
+            <q-icon name="report_problem" class="q-mr-xs" />
+            {{ $t('pipeops_workers_multi_sha_warning') }}
+          </q-banner>
+          <q-banner
+            v-if="workersError"
+            class="bg-negative text-white q-mx-md q-mb-sm rounded-borders"
+            dense
+          >
+            {{ workersError }}
+          </q-banner>
+          <q-markup-table
+            v-if="workers.length"
+            flat
+            dense
+            separator="horizontal"
+          >
+            <thead>
+              <tr>
+                <th class="text-left">{{ $t('pipeops_workers_col_pod') }}</th>
+                <th class="text-left">{{ $t('pipeops_workers_col_sha') }}</th>
+                <th class="text-left">
+                  {{ $t('pipeops_workers_col_version') }}
+                </th>
+                <th class="text-left">
+                  {{ $t('pipeops_workers_col_heartbeat') }}
+                </th>
+                <th class="text-right">
+                  {{ $t('pipeops_workers_col_jobs') }}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="w in workers" :key="w.pod_id">
+                <td class="text-monospace">{{ w.pod_id }}</td>
+                <td class="text-monospace">{{ shortSha(w.git_sha) }}</td>
+                <td>{{ w.app_version ?? '—' }}</td>
+                <td>
+                  {{ fmtHeartbeatAge(w.heartbeat_age_seconds) }}
+                  <span class="text-caption text-grey-6">
+                    {{ $t('pipeops_workers_ago') }}
+                  </span>
+                </td>
+                <td class="text-right">
+                  <q-badge
+                    :color="w.claimed_job_count > 0 ? 'primary' : 'grey-5'"
+                    text-color="white"
+                  >
+                    {{ w.claimed_job_count }}
+                  </q-badge>
+                </td>
+              </tr>
+            </tbody>
+          </q-markup-table>
+          <q-card-section
+            v-else-if="!workersLoading"
+            class="text-center text-grey-7 q-py-md"
+          >
+            {{ $t('pipeops_workers_empty') }}
+          </q-card-section>
+        </q-card>
 
         <!-- Alert strip — clickable counters set a filter -->
         <div class="row q-col-gutter-md q-mb-lg">
@@ -401,16 +638,19 @@ onUnmounted(() => {
               <th class="text-left">{{ $t('pipeops_col_duration') }}</th>
               <th class="text-left">{{ $t('pipeops_col_when') }}</th>
               <th class="text-left">{{ $t('pipeops_col_message') }}</th>
+              <th class="text-right" style="width: 96px">
+                {{ $t('pipeops_col_actions') }}
+              </th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="store.loading && !store.items.length">
-              <td colspan="8" class="text-center text-grey-7">
+              <td colspan="9" class="text-center text-grey-7">
                 {{ $t('pipeops_loading') }}
               </td>
             </tr>
             <tr v-else-if="!store.items.length">
-              <td colspan="8" class="text-center text-grey-7">
+              <td colspan="9" class="text-center text-grey-7">
                 {{ $t('pipeops_empty') }}
               </td>
             </tr>
@@ -471,9 +711,53 @@ onUnmounted(() => {
                 >
                   {{ pipelineMessage(p) ?? '—' }}
                 </td>
+                <td class="text-right">
+                  <!-- Processed-CSV download.  Visible whenever the
+                       pipeline's parent ingest job has staged a
+                       processed CSV — operator can grab the source
+                       file to triage a failed/stalled run.  No
+                       affordance when no job has the path (orphans,
+                       API-only chains, in-flight chains before
+                       phase 1 finalize). -->
+                  <q-btn
+                    v-if="processedCsvJob(p)"
+                    flat
+                    dense
+                    round
+                    color="positive"
+                    icon="o_download"
+                    size="sm"
+                    @click.stop="downloadProcessedCsv(p)"
+                  >
+                    <q-tooltip>
+                      {{ $t('pipeops_action_download_csv') }}
+                    </q-tooltip>
+                  </q-btn>
+                  <!-- Abort the whole pipeline.  Mirrors the
+                       data-management Cancel button (same backend
+                       endpoint, same outcome) but gated behind a
+                       confirmation dialog — the ops list shows many
+                       rows and a misclick should be recoverable.
+                       Only enabled while the pipeline is in flight
+                       (statusOf === 'running'); on terminal rows
+                       the button hides since there's nothing to
+                       abort. -->
+                  <q-btn
+                    v-if="statusOf(p) === 'running' && p.pipeline_id !== null"
+                    flat
+                    dense
+                    round
+                    color="negative"
+                    icon="cancel"
+                    size="sm"
+                    @click.stop="openAbortDialog(p)"
+                  >
+                    <q-tooltip>{{ $t('pipeops_action_abort') }}</q-tooltip>
+                  </q-btn>
+                </td>
               </tr>
               <tr v-if="expanded.has(rowKey(p))">
-                <td colspan="8" class="bg-grey-1">
+                <td colspan="9" class="bg-grey-1">
                   <div class="q-pa-sm">
                     <div v-for="j in p.jobs" :key="j.job_id" class="q-py-sm">
                       <!-- Main job row -->
@@ -588,21 +872,63 @@ onUnmounted(() => {
       </div>
     </div>
 
+    <!-- Abort confirmation — one-click guard against misfire on a long
+         chain.  The data-management page button skips this because
+         it's scoped to a single visible card; the ops list shows
+         many rows and a misclick is easy. -->
+    <q-dialog v-model="abortDialog" persistent>
+      <q-card style="min-width: 360px">
+        <q-card-section class="row items-center q-pb-none">
+          <div class="text-h6">{{ $t('pipeops_abort_title') }}</div>
+          <q-space />
+          <q-btn
+            flat
+            size="md"
+            icon="o_close"
+            color="grey-6"
+            :disable="aborting"
+            @click="abortDialog = false"
+          />
+        </q-card-section>
+        <q-separator />
+        <q-card-section>
+          <div class="text-body2 text-grey-8">
+            {{ $t('pipeops_abort_body') }}
+          </div>
+          <div v-if="abortTarget" class="q-mt-sm text-caption text-grey-7">
+            #{{ abortTarget.latest_job_id }} ·
+            {{ abortTarget.job_type ?? '—' }} ·
+            {{ abortTarget.module_label ?? abortTarget.module_type_id ?? '—' }}
+            / {{ abortTarget.year ?? '—' }}
+          </div>
+        </q-card-section>
+        <q-card-actions class="q-px-md q-pb-md">
+          <q-btn
+            flat
+            :label="$t('pipeops_abort_cancel')"
+            :disable="aborting"
+            @click="abortDialog = false"
+          />
+          <q-btn
+            color="negative"
+            unelevated
+            :label="$t('pipeops_abort_confirm')"
+            :loading="aborting"
+            @click="confirmAbort"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <!-- UI1 — full message + copy to clipboard -->
     <q-dialog v-model="msgDialog">
       <q-card style="min-width: 480px; max-width: 90vw">
         <q-card-section class="row items-center q-pb-none">
           <div class="text-subtitle1">{{ $t('pipeops_msg_title') }}</div>
           <q-space />
-          <q-btn
-            flat
-            dense
-            icon="content_copy"
-            :label="$t('pipeops_msg_copy')"
-            @click="copyMsg"
-          />
-          <q-btn v-close-popup flat dense round icon="close" />
+          <q-btn v-close-popup flat size="md" icon="o_close" color="grey-6" />
         </q-card-section>
+        <q-separator />
         <q-card-section>
           <pre
             class="q-pa-md bg-grey-2 rounded-borders"
@@ -616,6 +942,14 @@ onUnmounted(() => {
             >{{ msgText }}</pre
           >
         </q-card-section>
+        <q-card-actions class="q-px-md q-pb-md">
+          <q-btn
+            flat
+            icon="content_copy"
+            :label="$t('pipeops_msg_copy')"
+            @click="copyMsg"
+          />
+        </q-card-actions>
       </q-card>
     </q-dialog>
   </q-page>

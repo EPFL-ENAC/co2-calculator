@@ -34,4 +34,12 @@ export const runtimeConfig = {
     injected.APP_ENVIRONMENT || process.env.APP_ENVIRONMENT || 'development',
   release: process.env.APP_VERSION,
   buildTime: process.env.APP_BUILD_TIME,
+  // Raster-tile URL template for the MapLibre maps in the Professional
+  // Travel module. Defaults to OSM raster tiles; can be overridden per-pod
+  // via APP_MAP_TILE_STYLE_URL on /injectEnv.js to switch to an internal
+  // mirror or a paid provider without code changes.
+  mapTileStyleUrl:
+    injected.APP_MAP_TILE_STYLE_URL ||
+    process.env.APP_MAP_TILE_STYLE_URL ||
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
 } as const;

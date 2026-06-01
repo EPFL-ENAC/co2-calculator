@@ -22,6 +22,10 @@ from app.providers.test_fixtures import (
 logger = get_logger(__name__)
 settings = get_settings()
 
+# ACCRED sortpath hierarchy level used as the backoffice affiliation token.
+# Example: "EPFL ENAC ENAC-SG ENAC-IT" → level 3 = "ENAC-SG".
+AFFILIATION_LEVEL = 3
+
 
 class RoleProvider(ABC):
     """Abstract base class for role providers.
@@ -159,9 +163,18 @@ class DefaultRoleProvider(RoleProvider):
                 )
                 continue
 
-            # Parse "role@scope:value" format
+            # Parse "role@scope:value" format. RoleName(value) raises
+            # ValueError on unknown enum values — catch so a single malformed
+            # role from the IdP doesn't DoS the whole login (F11).
             parts = role_str.split("@", 1)
-            role_name = RoleName(parts[0].strip())
+            try:
+                role_name = RoleName(parts[0].strip())
+            except ValueError:
+                logger.warning(
+                    "Unknown role name, skipping",
+                    extra={"role": role_str, "user_id": user_id},
+                )
+                continue
             scope_part = parts[1].strip()
 
             if scope_part == "global":
@@ -185,6 +198,17 @@ class DefaultRoleProvider(RoleProvider):
                             on=RoleScope(affiliation=scope_id),
                         )
                     )
+                else:
+                    # F12: surface unknown scope types instead of silent drop.
+                    logger.warning(
+                        "Unknown scope type, skipping",
+                        extra={
+                            "role": role_str,
+                            "scope_type": scope_type,
+                            "user_id": user_id,
+                        },
+                    )
+                    continue
             else:
                 logger.warning(
                     "Invalid scope format, skipping",
@@ -470,7 +494,6 @@ class AccredRoleProvider(RoleProvider):
             # Call EPFL Accred authorizations endpoint
             url = f"{self.api_url}/authorizations"
             params: dict[str, str | int] = {
-                "type": "right",
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
@@ -542,14 +565,30 @@ class AccredRoleProvider(RoleProvider):
                     # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
                 elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
-                    affiliations_names = (
-                        auth.get("reason").get("resource").get("sortpath")
+                    sortpath = (
+                        auth.get("reason", {}).get("resource", {}).get("sortpath") or ""
                     )
-                    # Map to affiliation scope (placeholder logic)
+                    # ACCRED sortpath is a space-separated hierarchy
+                    # ("EPFL ENAC ENAC-SG ENAC-IT"). Affiliation scoping operates
+                    # at LVL3 (e.g. "ENAC-SG"). Skip authorizations that cannot
+                    # resolve LVL3 — they cannot be scoped meaningfully.
+                    levels = sortpath.split()
+                    if len(levels) < AFFILIATION_LEVEL:
+                        logger.warning(
+                            "Backoffice metier sortpath too short; "
+                            "cannot resolve affiliation; skipping",
+                            extra={
+                                "auth_name": auth_name,
+                                "user_id": user_id,
+                                "sortpath": sortpath,
+                            },
+                        )
+                        continue
+                    affiliation = levels[AFFILIATION_LEVEL - 1]
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(affiliation=affiliations_names),
+                            on=RoleScope(affiliation=affiliation),
                         )
                     )
                 else:
@@ -625,12 +664,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     elif provider_type == UserProvider.TEST:
         logger.info("Using TestRoleProvider (for testing)")
         return TestRoleProvider()
-    else:
-        logger.error(
-            "Unknown role provider type, falling back to default",
-            extra={"provider_type": provider_type},
-        )
-        return DefaultRoleProvider()
+    raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):

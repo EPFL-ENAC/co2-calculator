@@ -1,4 +1,12 @@
 export default {
+  backoffice_reporting_print_combined_title: {
+    en: 'Combined Report',
+    fr: 'Rapport combiné',
+  },
+  backoffice_reporting_print_results_title: {
+    en: 'Aggregated Results Report',
+    fr: 'Rapport de résultats agrégés',
+  },
   backoffice_reporting_aggregated_results_title: {
     en: 'Aggregated Results',
     fr: 'Résultats agrégés',

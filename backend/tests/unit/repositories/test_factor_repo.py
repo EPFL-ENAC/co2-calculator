@@ -155,6 +155,7 @@ async def test_get_class_subclass_map(repo):
         DataEntryTypeEnum.scientific,
         kind_field="kind",
         subkind_field="subkind",
+        year=2025,
     )
 
     assert result == {"ClassA": ["SubA1", "SubA2"], "ClassB": ["SubB1"]}

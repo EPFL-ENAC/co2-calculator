@@ -192,6 +192,9 @@ async def list_carbon_report_modules(
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
 
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
+
     module_service = CarbonReportModuleService(db)
     return await module_service.list_modules(carbon_report_id)
 
@@ -220,6 +223,9 @@ async def update_carbon_report_module_status(
     report = await report_service.get(carbon_report_id)
     if not report:
         raise HTTPException(status_code=404, detail="Carbon report not found")
+
+    unit = await db.get(Unit, report.unit_id)
+    require_unit_access(current_user, unit)
 
     module_service = CarbonReportModuleService(db)
     try:
