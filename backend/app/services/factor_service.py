@@ -149,12 +149,14 @@ class FactorService:
         data_entry_type: DataEntryTypeEnum,
         kind_field: str,
         subkind_field: str,
+        year: int,
     ) -> Dict[str, List[str]]:
-        """Get class/subclass mapping for power factors."""
+        """Get class/subclass mapping for power factors, scoped to ``year``."""
         return await self.repo.get_class_subclass_map(
             data_entry_type=data_entry_type,
             kind_field=kind_field,
             subkind_field=subkind_field,
+            year=year,
         )
 
     async def prepare_create(

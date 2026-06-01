@@ -76,10 +76,13 @@ export function useEquipmentClassOptions<
 
   async function loadClassOptions() {
     const sub = submoduleType.value;
-    if (!sub) return;
+    // `year` is required by the class-subclass-map endpoint (factors are
+    // year-scoped); without it the request 422s.
+    const yearValue = year?.value;
+    if (!sub || yearValue == null) return;
     loadingClasses.value = true;
     try {
-      const rawClasses = await store.fetchClassOptions(sub);
+      const rawClasses = await store.fetchClassOptions(sub, yearValue);
       dynamicOptions[classOptionId] = rawClasses.map((o) => ({
         label: te(o.label) ? t(o.label) : o.label,
         value: o.value,
@@ -94,7 +97,8 @@ export function useEquipmentClassOptions<
   async function loadSubclassOptions() {
     const sub = submoduleType.value;
     const cls = normalizeValue(entity[classFieldId]);
-    if (!sub || !cls) {
+    const yearValue = year?.value;
+    if (!sub || !cls || yearValue == null) {
       dynamicOptions[subClassOptionId] = [];
       subclassLoadError.value = false;
       return;
@@ -102,7 +106,7 @@ export function useEquipmentClassOptions<
     loadingSubclasses.value = true;
     subclassLoadError.value = false;
     try {
-      const rawOptions = await store.fetchSubclassOptions(sub, cls);
+      const rawOptions = await store.fetchSubclassOptions(sub, cls, yearValue);
       const options = rawOptions.map((o) => ({
         label: te(o.label) ? t(o.label) : o.label,
         value: o.value,
