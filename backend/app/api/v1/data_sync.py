@@ -261,6 +261,24 @@ async def _resolve_source_job_to_file_path(
     return f"{folder}/{filename}"
 
 
+async def _institutional_id_for_crm(
+    db: AsyncSession,
+    carbon_report_module_id: int,
+) -> Optional[str]:
+    """Resolve carbon_report_module_id → unit.institutional_id."""
+    stmt = (
+        select(Unit.institutional_id)
+        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(
+            CarbonReportModule,
+            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+        )
+        .where(CarbonReportModule.id == carbon_report_module_id)
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def _institutional_id_for_job(
     job: DataIngestionJob, db: AsyncSession
 ) -> Optional[str]:
@@ -702,10 +720,10 @@ async def sync_module_data_entries(
     """
     Sync data entries for a specific module.
 
-    **Required Permission**: `system.users.edit` (Super Admin only).
-    The previous `modules.*.sync` fallback was scope-blind across modules
-    and units, and was removed in #977 — module owners cannot dispatch a
-    sync directly from this endpoint.
+    **Required Permission**: `system.users.edit` (Super Admin) OR
+    `modules.{name}.sync` for the unit (principal users uploading from the
+    module page). The module-owner path requires `target_type=DATA_ENTRIES`
+    with both `carbon_report_module_id` and `module_type_id` in config.
 
     Example of request body for module_type_year:
     {
@@ -727,11 +745,34 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
-    if not await is_permitted(current_user, "system.users", "edit"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires system.users.edit",
+    is_superadmin = await is_permitted(current_user, "system.users", "edit")
+    if not is_superadmin:
+        crm_id = (
+            syncRequest.config.carbon_report_module_id if syncRequest.config else None
         )
+        mod_type_id = syncRequest.config.module_type_id if syncRequest.config else None
+        if (
+            syncRequest.target_type == TargetType.DATA_ENTRIES
+            and crm_id is not None
+            and mod_type_id is not None
+        ):
+            institutional_id = await _institutional_id_for_crm(db, crm_id)
+            if institutional_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Unit for carbon_report_module_id {crm_id} not found",
+                )
+            await check_module_permission(
+                current_user,
+                mod_type_id,
+                "sync",
+                institutional_id=institutional_id,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied: requires system.users.edit",
+            )
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
         raise HTTPException(

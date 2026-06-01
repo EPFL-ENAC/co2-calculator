@@ -30,6 +30,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.models.user import User
+from app.utils.permissions import has_permission
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -276,10 +277,19 @@ async def upload_temp_files(
 
     Used for temporary file uploads before processing (e.g., CSV imports).
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    perms = current_user.calculate_permissions()
+    can_upload = has_permission(perms, "backoffice.data_management", "edit") or any(
+        isinstance(actions, list) and "sync" in actions
+        for key, actions in perms.items()
+        if key.startswith("modules.")
+    )
+    if not can_upload:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.data_management.edit",
+            detail=(
+                "Permission denied: requires backoffice.data_management.edit"
+                " or module sync access"
+            ),
         )
 
     logger.info(
