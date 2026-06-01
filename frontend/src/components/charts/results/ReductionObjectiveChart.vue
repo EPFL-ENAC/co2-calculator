@@ -104,7 +104,7 @@ const chartTitle = computed(() =>
         {{ $t('results_objectives_2040_subtitle') }}
         (
         <a
-          class="objective-subtitle__link"
+          class="link"
           href="https://e4s.center/fr/resources/reports/carbon-removal-net-zero-and-implications-for-switzerland/"
           target="_blank"
           rel="noopener noreferrer"
