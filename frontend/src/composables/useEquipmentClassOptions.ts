@@ -164,14 +164,14 @@ export function useEquipmentClassOptions<
         valueFieldIds.forEach((fieldId) => {
           if (fieldId && fieldId in entity)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (entity as any)[fieldId] = pf[fieldId];
+            (entity as any)[fieldId] = pf[fieldId] ?? null;
         });
         // Only seed default fields that have no value yet, so an existing
         // user-entered value is never overwritten.
         defaultValueFieldIds.forEach((fieldId) => {
           if (fieldId && fieldId in entity && isEmpty(entity[fieldId]))
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (entity as any)[fieldId] = pf[fieldId];
+            (entity as any)[fieldId] = pf[fieldId] ?? null;
         });
       }
     } catch {
