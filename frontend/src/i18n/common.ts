@@ -485,11 +485,11 @@ export default {
     fr: 'Empreinte carbone des voyages professionnels',
   },
   'carbon_footprint_title_process-emissions': {
-    en: 'Process emission carbon footprint',
-    fr: "Empreinte carbone de gaz d'emission",
+    en: 'Process emissions carbon footprint',
+    fr: 'Empreinte carbone des émissions de procédés',
   },
   'carbon_footprint_title_equipment-electric-consumption': {
-    en: 'Equipment use carbon footprint',
+    en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
   'carbon_footprint_tooltip_equipment-electric-consumption': {
@@ -505,11 +505,11 @@ export default {
     fr: 'Empreinte carbone des bâtiments',
   },
   'carbon_footprint_title_external-cloud-and-ai': {
-    en: 'Carbon footprint from the use of AI services and external cloud services',
-    fr: "Empreinte carbone liée à l'utilisation des services d'IA et des services cloud externes",
+    en: 'External clouds & AI usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des clouds externes et de l'IA",
   },
   'carbon_footprint_title_research-facilities': {
-    en: 'Carbon footprint from the use of research infrastructures',
+    en: 'Research facilities usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
   'carbon_footprint_subtitle_research-facilities': {
