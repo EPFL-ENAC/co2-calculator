@@ -15,6 +15,7 @@ export type SubmoduleConfig = {
   factorsOnly?: true;
   mandatoryData?: boolean;
   mandatoryReference?: boolean;
+  noThreshold?: true;
 };
 
 export const MODULE_SUBMODULES: Partial<
@@ -26,6 +27,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.Headcount}-member`,
       moduleTypeId: 1,
       dataEntryTypeId: 1,
+      noThreshold: true,
     },
     {
       key: 'student',
@@ -33,6 +35,7 @@ export const MODULE_SUBMODULES: Partial<
       moduleTypeId: 1,
       dataEntryTypeId: 2,
       noData: true,
+      noThreshold: true,
     },
   ],
   [MODULES.ProfessionalTravel]: [

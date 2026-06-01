@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 from app.models.data_ingestion import IngestionResult
+from app.models.module_type import ModuleTypeEnum
 
 # Type definitions
 UncertaintyTag = Literal["low", "medium", "high", "none"]
@@ -448,6 +449,7 @@ class YearConfigurationUpdate(BaseModel):
         if not self.config or "modules" not in self.config:
             return self
         modules = self.config["modules"]
+        MODULES_WITHOUT_THRESHOLD = {str(ModuleTypeEnum.headcount)}
         for module_key, module_val in modules.items():
             if not isinstance(module_val, dict):
                 continue
@@ -458,6 +460,11 @@ class YearConfigurationUpdate(BaseModel):
                 if not isinstance(sub_val, dict):
                     continue
                 threshold = sub_val.get("threshold")
+                if threshold is not None and module_key in MODULES_WITHOUT_THRESHOLD:
+                    raise ValueError(
+                        f"threshold cannot be set for module {module_key} "
+                        f"(data is not in tCO2eq)"
+                    )
                 if threshold is not None and (
                     not isinstance(threshold, (int, float)) or threshold < 0
                 ):
