@@ -33,13 +33,45 @@ jobs:
 
       - name: Upload coverage reports
         if: always()
+        timeout-minutes: 5
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: EPFL-ENAC/co2-calculator
           flags: backend
-          directory: ./backend
+          files: ./backend/coverage.xml
+          disable_search: true
           fail_ci_if_error: false
+
+  test-backend-migrations:
+    name: Backend Migration Smoke (db-create + db-migrate)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync
+
+      # Spawns its own postgres:16-alpine container (matches existing
+      # tests/integration/services/data_ingestion/conftest.py pattern) and
+      # exercises the exact commands `make db-create && make db-migrate`
+      # runs.  Scoped to a single file so it stays fast on PRs; the daily
+      # integration suite picks it up too via the normal tests/integration/
+      # discovery.
+      - name: Run alembic migration smoke test
+        run: uv run pytest tests/integration/test_alembic_migrations.py -vv
 
   test-frontend:
     name: Frontend Tests
@@ -47,7 +79,7 @@ jobs:
     # Official Playwright image ships both OS-level dependencies and browser binaries.
     # Keep the image tag in sync with the @playwright/* versions in frontend/package.json.
     container:
-      image: mcr.microsoft.com/playwright:v1.58.2-jammy
+      image: mcr.microsoft.com/playwright:v1.60.0-jammy
       # Run as uid 1001 to match the owner of /github/home set by the GitHub Actions
       # runner. Browsers (Firefox in particular) refuse to launch when $HOME is owned
       # by a different user than the process running them.
@@ -62,12 +94,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ">=24.0.0"
+          node-version-file: '.nvmrc'
           cache: "npm"
           cache-dependency-path: "./frontend/package-lock.json"
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Cache Build Folders
         uses: actions/cache@v4

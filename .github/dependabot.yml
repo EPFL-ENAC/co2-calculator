@@ -1,12 +1,30 @@
 version: 2
 updates:
 # --- only dev to avoid pull request on main branch ---
+#
+# --- Cooldown: supply-chain defense-in-depth -----------------------------
+# Newly published versions are quarantined before Dependabot opens a PR.
+# Most malicious releases (compromised maintainer tokens, typosquats,
+# accidental unpublishes) get flagged or yanked within days — cooldowns
+# let that signal reach us before our auto-merge / review cadence picks
+# them up.  Not a silver bullet: an attacker who compromises a long-
+# stable package and ships a poisoned patch still slips through the
+# window.  We only catch the noisy cases (e.g. shai-hulud-style worm
+# republishes).  Tradeoff accepted: legitimate releases lag 3-30 days.
+# open-pull-requests-limit bumped from 5 to 10 to absorb the bursty
+# nature of post-cooldown PRs (a quiet week then 10 land at once).
+# -------------------------------------------------------------------------
   - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
       interval: "daily"
     target-branch: "dev"
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
     assignees:
       - "co2-calculator"
     labels:
@@ -21,7 +39,12 @@ updates:
     schedule:
       interval: "daily"
     target-branch: "dev"
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
     assignees:
       - "co2-calculator"
     labels:
@@ -32,16 +55,62 @@ updates:
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/frontend/storybook"
     schedule:
       interval: "daily"
     target-branch: "dev"
-    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
     assignees:
       - "co2-calculator"
     labels:
       - "dependencies"
       - "dev"
+      - "storybook"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    target-branch: "dev"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "dev"
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "uv"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    open-pull-requests-limit: 10
+    assignees:
+      - "co2-calculator"
+    labels:
+      - "dependencies"
+      - "docs"
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]

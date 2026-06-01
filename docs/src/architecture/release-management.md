@@ -6,6 +6,7 @@ procedures for releases, hotfixes, and rollbacks.
 
 **Related documentation:**
 
+- [Dev Release Runbook](release-runbook.md) - Step-by-step commands to cut a release
 - [CI/CD Pipeline](06-cicd-pipeline.md) - Pipeline architecture
 - [CI/CD Workflows](cicd-workflows.md) - GitHub Actions details
 - [Workflow Guide](workflow-guide.md) - Developer daily workflow
@@ -168,7 +169,7 @@ We use `release-please` GitHub Action for automation:
 - Publishes GitHub release
 
 Configuration in `.github/workflows/release-please.yml`. For workflow
-details, see [CI/CD Workflows](cicd-workflows.md#10-release-please).
+details, see [CI/CD Workflows](cicd-workflows.md#release-pleaseyml-tag-and-release).
 
 ### Release Notes
 

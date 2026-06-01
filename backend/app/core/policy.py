@@ -6,7 +6,9 @@ from fastapi import HTTPException, status
 
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
+from app.core.role_priority import pick_role_for_institutional_id
 from app.models.module_type import ModuleTypeEnum
+from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
     Role,
@@ -531,15 +533,15 @@ async def check_module_permission(
     Check if user has permission for the module.
 
     Args:
-        user: Current user
-        module_id: Module enum identifier or name
-        action: Permission action ("view" or "edit")
+        user: Current user.
+        module_id: Module enum identifier or name.
+        action: Permission action ("view" or "edit").
         institutional_id: Unit institutional_id for scoped permission lookup.
             Routes that operate on a unit MUST pass this.
         any_scope: Taxonomy-only escape hatch. See ``has_permission``.
 
     Raises:
-        HTTPException: 403 if permission denied
+        HTTPException: 403 if permission denied.
     """
     module_name = (
         module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
@@ -579,4 +581,42 @@ async def check_module_permission(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"Permission denied: {reason}",
+        )
+
+
+def require_unit_access(current_user: User, unit: Unit | None) -> None:
+    """Raise 403/404 unless the user has global or unit-scoped access.
+
+    Enforcer counterpart to ``check_module_permission`` for the unit data
+    boundary. Keeps the role-walking logic in one place so simulator and
+    calculator endpoints stay in lockstep.
+
+    Allows:
+    - Global-scope roles (backoffice / superadmin).
+    - Any role (PRINCIPAL or STD) scoped to the unit's ``institutional_id``
+      via ``pick_role_for_institutional_id``.
+
+    Args:
+        current_user: The authenticated user.
+        unit: The loaded Unit ORM object, or None if the unit was not found.
+
+    Raises:
+        HTTPException 404: If ``unit`` is None.
+        HTTPException 403: If the user has no qualifying role for the unit.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return
+    if unit is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Unit not found",
+        )
+    if (
+        unit.institutional_id is None
+        or pick_role_for_institutional_id(current_user.roles, unit.institutional_id)
+        is None
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access to this unit is not permitted.",
         )

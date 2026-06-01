@@ -1,8 +1,10 @@
 """Year configuration model for annual administrative settings."""
 
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Column
+from sqlalchemy import DateTime as SADateTime
 from sqlmodel import JSON, Field, SQLModel
 
 
@@ -13,9 +15,18 @@ class YearConfigurationBase(SQLModel):
         default=False,
         description="If true, data entry is open for users for this year",
     )
-    is_reports_synced: bool = Field(
-        default=False,
-        description="If true, carbon_reports have been initialized for this year",
+    # #1234-followup (Guilbert 2026-05-20): the `unit_sync` pipeline
+    # provisions a year's carbon_reports + modules; uploads for the
+    # year must NOT be accepted while that's running or before it ever
+    # ran. ``configuration_completed`` is set by ``unit_sync_handler``
+    # on SUCCESS (None until then). Dispatch gates on it.
+    configuration_completed: Optional[datetime] = Field(
+        default=None,
+        sa_column=Column(SADateTime(timezone=True), nullable=True),
+        description=(
+            "Timestamp the unit_sync pipeline finished SUCCESSFULLY for "
+            "this year. NULL = year not yet provisioned (uploads blocked)."
+        ),
     )
     config: dict = Field(
         default_factory=dict,
@@ -28,7 +39,7 @@ class YearConfiguration(YearConfigurationBase, table=True):
     """Year configuration table for annual administrative settings.
 
     This table centralizes:
-    - Annual administrative settings (is_started, is_reports_synced)
+    - Annual administrative settings (is_started)
     - Emission thresholds per module/submodule
     - Uncertainty levels
     - Institutional reduction goals

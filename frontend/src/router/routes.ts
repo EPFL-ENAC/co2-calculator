@@ -38,6 +38,23 @@ export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
 }
 
 const routes: RouteRecordRaw[] = [
+  // Print preview — own layout so no header/sidebar appears
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/results/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'results-print',
+        component: () => import('pages/app/ResultsPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Results – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+        },
+      },
+    ],
+  },
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
@@ -137,7 +154,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -147,7 +164,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -157,7 +174,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Plan a simulation',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -210,6 +227,22 @@ const routes: RouteRecordRaw[] = [
             meta: {
               requiresAuth: true,
               note: 'Back Office - Data management (admin only)',
+              breadcrumb: false,
+              isBackOffice: true,
+            },
+          },
+          {
+            path: 'back-office/pipeline-operations',
+            name: BACKOFFICE_NAV.BACKOFFICE_PIPELINE_OPERATIONS.routeName,
+            component: () =>
+              import('pages/back-office/PipelineOperationsConsolePage.vue'),
+            beforeEnter: requirePermission(
+              'backoffice.users',
+              PermissionAction.EDIT,
+            ),
+            meta: {
+              requiresAuth: true,
+              note: 'Back Office - Pipeline operations console (admin only)',
               breadcrumb: false,
               isBackOffice: true,
             },

@@ -67,6 +67,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
       lastDataJob: toSyncJobResponse(subConfig?.latest_data_job),
       lastApiDataJob: toSyncJobResponse(subConfig?.latest_api_data_job),
       lastFactorJob: toSyncJobResponse(subConfig?.latest_factor_job),
+      lastReferenceJob: toSyncJobResponse(subConfig?.latest_reference_job),
     };
   }
 

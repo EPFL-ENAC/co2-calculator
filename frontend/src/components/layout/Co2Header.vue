@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -12,6 +13,7 @@ const authStore = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 const workspaceStore = useWorkspaceStore();
+const { t } = useI18n();
 
 const unitName = computed(() => {
   return workspaceStore.selectedUnit?.name || '';
@@ -21,9 +23,24 @@ const year = computed(() => {
   return workspaceStore.selectedYear || '';
 });
 
+const simulationContext = computed(() => {
+  if (route.name === 'simulation-explore') return 'explore';
+  if (route.name === 'simulation-plan') return 'plan';
+  return null;
+});
+
 const workspaceDisplay = computed(() => {
   if (!unitName.value || !year.value) return '';
+  if (simulationContextLabel.value) {
+    return `${unitName.value} | ${t(simulationContextLabel.value)}`;
+  }
   return `${unitName.value} | ${year.value}`;
+});
+
+const simulationContextLabel = computed(() => {
+  if (simulationContext.value === 'explore') return 'simulation_tab_explore';
+  if (simulationContext.value === 'plan') return 'simulation_tab_plan';
+  return null;
 });
 
 const handleLogout = async () => {
@@ -35,6 +52,27 @@ const hasBackOfficeAccess = computed(() => {
 });
 
 const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
+
+const logoRoute = computed(() => {
+  const routeName = String(route.name ?? '');
+  const isSimulation =
+    routeName === 'simulation' ||
+    routeName === 'simulation-explore' ||
+    routeName === 'simulation-plan';
+
+  if (isSimulation) {
+    return {
+      name: 'simulation',
+      params: {
+        language: route.params.language || 'en',
+      },
+    };
+  }
+
+  return {
+    name: 'workspace-setup',
+  };
+});
 </script>
 
 <template>
@@ -43,9 +81,7 @@ const isInBackOfficeRoute = computed(() => isBackOfficeRoute(route));
     <q-toolbar class="q-px-xl q-py-md">
       <q-toolbar-title class="row items-center no-wrap">
         <router-link
-          :to="{
-            name: 'workspace-setup',
-          }"
+          :to="logoRoute"
           :aria-label="$t('home')"
           :title="$t('home')"
           class="toolbar-home-link row items-center no-wrap"

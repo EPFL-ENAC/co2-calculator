@@ -7,6 +7,22 @@ export default {
     en: 'Download as PDF',
     fr: 'Télécharger en PDF',
   },
+  results_print: {
+    en: 'Print',
+    fr: 'Imprimer',
+  },
+  results_loading: {
+    en: 'Loading…',
+    fr: 'Chargement…',
+  },
+  results_module_chart_emission_types: {
+    en: '{module} — Emission types',
+    fr: "{module} — Types d'émissions",
+  },
+  results_module_chart_breakdown: {
+    en: '{module} — Breakdown',
+    fr: '{module} — Répartition',
+  },
   results_colorblind_mode: {
     en: 'Colorblind mode',
     fr: 'Mode daltonien',
@@ -67,6 +83,10 @@ export default {
     en: 'Results',
     fr: 'Résultats',
   },
+  results_print_title: {
+    en: 'Total results',
+    fr: 'Résultats totaux',
+  },
   results_subtitle: {
     en: 'Annual carbon footprint {year}',
     fr: 'Empreinte carbone annuelle {year}',
@@ -112,8 +132,8 @@ export default {
     fr: 'Empreinte carbone par ETP (total de {FTE})',
   },
   results_carbon_footprint_per_FTE_no_headcount: {
-    en: 'Carbon footprint per FTE',
-    fr: 'Empreinte carbone par ETP',
+    en: 'My unit carbon footprint per FTE',
+    fr: "Empreinte carbone de l'unité par ETP",
   },
   results_unit_carbon_footprint: {
     en: 'Comparison to previous year',
@@ -389,12 +409,12 @@ export default {
     fr: 'Emissions de procédés',
   },
   'charts-buildings-room-category': {
-    en: 'Buildings room',
-    fr: 'Salles des bâtiments',
+    en: 'Buildings',
+    fr: 'Bâtiments',
   },
   'charts-buildings-energy-combustion-category': {
-    en: 'Energy combustion emissions',
-    fr: 'Emissions de combustion d’énergie',
+    en: 'Thermal energy emissions',
+    fr: 'Emissions d’énergie thermique',
   },
   // Legacy key kept for backward compatibility with any existing references.
   'charts-building-energy-subcategory': {
@@ -463,7 +483,7 @@ export default {
   },
   'charts-pellets-subcategory': {
     en: 'Pellets',
-    fr: 'Pellets',
+    fr: 'Granulés de bois',
   },
   'charts-forest-chips-subcategory': {
     en: 'Forest Chips',
@@ -471,7 +491,7 @@ export default {
   },
   'charts-wood-logs-subcategory': {
     en: 'Wood Logs',
-    fr: 'Bûches',
+    fr: 'Bois bûche',
   },
   'charts-ln2-subcategory': {
     en: 'LN2',
@@ -487,7 +507,7 @@ export default {
   },
   'charts-commuting-category': {
     en: 'Commuting',
-    fr: 'Déplacements domicile-travail',
+    fr: 'Pendularité',
   },
   'charts-food-category': {
     en: 'Food',
@@ -522,8 +542,8 @@ export default {
     fr: 'Équipement',
   },
   'charts-external-cloud-category': {
-    en: 'External cloud',
-    fr: 'Cloud externe',
+    en: 'External clouds & AI',
+    fr: 'Clouds externes & IA',
   },
   'emission-type-breakdown-info-equipment': {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
@@ -625,22 +645,6 @@ export default {
     en: 'AI',
     fr: 'IA',
   },
-  'charts-co2-subcategory': {
-    en: 'CO₂',
-    fr: 'CO₂',
-  },
-  'charts-ch4-subcategory': {
-    en: 'CH4',
-    fr: 'CH4',
-  },
-  'charts-n2o-subcategory': {
-    en: 'N2O',
-    fr: 'N2O',
-  },
-  'charts-refrigerants-subcategory': {
-    en: 'Refrigerants',
-    fr: 'Réfrigérants',
-  },
   'charts-heating-subcategory': {
     en: 'Heating',
     fr: 'Chauffage',
@@ -738,8 +742,8 @@ export default {
     fr: 'Scope',
   },
   'charts-my-unit-tick': {
-    en: 'My Unit',
-    fr: 'Mon unité',
+    en: 'Total',
+    fr: 'Total',
   },
   'charts-epf-tick': {
     en: 'EPFL',
@@ -758,12 +762,12 @@ export default {
     fr: "Type d'émission",
   },
   results_additional_title: {
-    en: 'Additional Categories',
+    en: 'Additional categories',
     fr: 'Catégories additionnelles',
   },
   results_additional_subtitle: {
-    en: "These emissions are calculated based on EPFL's general assumptions and use only the number of staff as laboratory-specific data.",
-    fr: 'Ces émissions sont calculées à partir des hypothèses générales de l’EPFL et utilisent uniquement le nombre de personnel comme donnée spécifique au laboratoire.',
+    en: "These emissions are calculated based on EPFL's general assumptions and use only headcount and buildings information as unit-specific data.",
+    fr: "Ces émissions sont calculées sur la base des hypothèses générales de l’EPFL et utilisent uniquement les données de l'unité: personnel et bâtiments.",
   },
   results_additional_headcount_card_title: {
     en: 'Commuting, food and waste',

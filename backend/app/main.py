@@ -50,6 +50,14 @@ async def lifespan(app: FastAPI):
 
         await init_db()
 
+    # Plan 310-C: prime the runner's handler registry.  Bootstrap is
+    # idempotent and lazy-imports the handler modules so audit_service's
+    # early ``audit_sync_tasks`` import doesn't form a cycle through
+    # ingestion provider factory + audit_service.
+    from app.tasks.bootstrap import bootstrap_handlers
+
+    bootstrap_handlers()
+
     # Start the safety poller (Plan 310A)
     if settings.RUN_BACKGROUND_POLLER:
         from app.tasks._pod_id import POD_ID
@@ -58,9 +66,22 @@ async def lifespan(app: FastAPI):
         logger.info(f"Starting safety poller on pod {POD_ID}")
         app.state.poller_task = asyncio.create_task(poll_pending_jobs())
 
+    # Start the pipeline reconciliation sweep (#1236 Phase 3) — durable
+    # backstop for the runner's log-and-skip post-``finish_job`` write.
+    if settings.RUN_PIPELINE_RECONCILER:
+        from app.tasks._pipeline_reconciler import reconcile_pipeline_statuses_loop
+
+        logger.info(
+            "Starting pipeline reconciler (every %ss)",
+            settings.PIPELINE_RECONCILER_INTERVAL_SECONDS,
+        )
+        app.state.pipeline_reconciler_task = asyncio.create_task(
+            reconcile_pipeline_statuses_loop()
+        )
+
     yield
 
-    # Cancel the safety poller on shutdown
+    # Cancel background tasks on shutdown
     task = getattr(app.state, "poller_task", None)
     if task:
         logger.info("Cancelling safety poller")
@@ -69,6 +90,14 @@ async def lifespan(app: FastAPI):
             await task
         except asyncio.CancelledError:
             logger.info("Safety poller cancelled successfully")
+    reconciler_task = getattr(app.state, "pipeline_reconciler_task", None)
+    if reconciler_task:
+        logger.info("Cancelling pipeline reconciler")
+        reconciler_task.cancel()
+        try:
+            await reconciler_task
+        except asyncio.CancelledError:
+            logger.info("Pipeline reconciler cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
@@ -209,6 +238,7 @@ app = FastAPI(
     root_path=settings.API_DOCS_PREFIX,
     lifespan=lifespan,
 )
+
 
 # NO CORS origins configured allowed on this instance
 

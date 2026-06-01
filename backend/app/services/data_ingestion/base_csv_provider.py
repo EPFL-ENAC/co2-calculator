@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import (
     DataEntry,
@@ -28,7 +29,10 @@ from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
 from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
@@ -90,6 +94,43 @@ def _get_required_columns_from_handler(handler: Any) -> set[str]:
         for name, field in handler.create_dto.model_fields.items()
         if field.is_required() and name not in meta_fields
     }
+
+
+def _guard_factors_required(
+    *,
+    factors_map: Dict[str, Any],
+    handlers: list[Any],
+    module_label: str,
+    year: int | None,
+) -> None:
+    """Fail-fast when an ingest needs factors but the map is empty.
+
+    For modules whose handler declares ``require_factor_to_match=True``
+    (e.g. equipment), every row's emission record needs a matched
+    ``Factor`` to populate ``primary_factor_id``.  When the factors
+    table has nothing for this (module, year) tuple the row-level loop
+    would record one "no matching factor" error per row — a 50 000-row
+    CSV produces 50 000 identical messages and the operator has to
+    scroll past them to find out the real issue is that they forgot to
+    upload factors first.
+
+    Raised at setup time instead, so ``_setup_and_validate``'s
+    try/except wraps it into one ``FINISHED + ERROR`` with a
+    single-line ``status_message``.  Caller passes a human-readable
+    ``module_label`` (e.g. ``"Equipment"``) so the message tells the
+    operator *which* upload is missing without them having to know
+    enum ints.
+    """
+    if factors_map:
+        return
+    if not any(getattr(h, "require_factor_to_match", False) for h in handlers):
+        return
+    year_str = f"year={year}" if year is not None else "the configured year"
+    raise ValueError(
+        f"No factors available for module={module_label} {year_str}. "
+        "Upload factors for this module/year before ingesting data — "
+        "every row needs a matched Factor for primary_factor_id."
+    )
 
 
 class BaseCSVProvider(DataIngestionProvider, ABC):
@@ -589,6 +630,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Process CSV rows
             batch: List[DataEntry] = []
+            # Parallel list of kg_co2eq overrides aligned with `batch` by index.
+            # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
+            batch_kg_co2eq_overrides: List[float | None] = []
             # Track seen user_institutional_ids per module to catch intra-CSV duplicates
             seen_institutional_ids: Dict[int, set] = {}
             csv_reader = csv.DictReader(
@@ -596,8 +640,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             for row_idx, row in enumerate(csv_reader, start=1):
-                # Process single row, returns (data_entry, error_msg, factor)
-                data_entry, error_msg, factor = await self._process_row(
+                # Process single row, returns
+                # (data_entry, error_msg, factor, kg_co2eq_override)
+                (
+                    data_entry,
+                    error_msg,
+                    factor,
+                    kg_co2eq_override,
+                ) = await self._process_row(
                     row,
                     row_idx,
                     setup_result,
@@ -644,6 +694,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
                 # Row processed successfully
                 batch.append(data_entry)
+                batch_kg_co2eq_overrides.append(kg_co2eq_override)
                 if factor:
                     stats["rows_with_factors"] += 1
                 else:
@@ -653,7 +704,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Process batch when it reaches BATCH_SIZE
                 if len(batch) >= BATCH_SIZE:
                     await self._process_batch(
-                        batch, data_entry_service, emission_service, self.user
+                        batch,
+                        data_entry_service,
+                        emission_service,
+                        self.user,
+                        batch_kg_co2eq_overrides,
                     )
                     stats["batches_processed"] += 1
                     logger.info(
@@ -661,6 +716,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"{stats['rows_processed']} rows total"
                     )
                     batch = []
+                    batch_kg_co2eq_overrides = []
                     # Update job progress every batche
                     if stats["batches_processed"]:
                         await self._update_job(
@@ -672,7 +728,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Finalize: process remaining batch, move file, update job
             return await self._finalize_and_commit(
-                batch, data_entry_service, emission_service, stats, setup_result
+                batch,
+                data_entry_service,
+                emission_service,
+                stats,
+                setup_result,
+                batch_kg_co2eq_overrides,
             )
 
         except Exception as e:
@@ -772,11 +833,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: Dict[str, int] | None = None,
-    ) -> tuple[DataEntry | None, str | None, Any | None]:
+    ) -> tuple[DataEntry | None, str | None, Any | None, float | None]:
         """
         Process a single CSV row.
-        Returns (DataEntry, error_msg, factor) tuple.
+        Returns (DataEntry, error_msg, factor, kg_co2eq_override) tuple.
         If error_msg is not None, row processing failed and error was recorded.
+
+        ``kg_co2eq_override`` is carried out-of-band so it never lands in
+        ``DataEntry.data``; the caller passes it transiently to
+        ``prepare_create`` when emissions are built.
 
         Args:
             unit_to_module_map: Optional mapping of institutional_id
@@ -785,13 +850,23 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         try:
             handlers = setup_result["handlers"]
-            # factors_map = setup_result["factors_map"]
             expected_columns = setup_result["expected_columns"]
-            # force kg_co2eq column in expected columns to allow flexibility
-            # in handlers (some may not require it,
-            # for module_year it is required for factor resolution,
-            # but for module_unit_specific it is not needed and often not provided)
-            # expected_columns.add("kg_co2eq")
+
+            # Extract kg_co2eq override from the raw row (carried out-of-band).
+            # Bypasses expected_columns intentionally: not every handler lists
+            # kg_co2eq there, but it's still a valid override when present.
+            kg_co2eq_override: float | None = None
+            raw_kg = row.get("kg_co2eq")
+            if raw_kg is not None and raw_kg.strip() != "":
+                try:
+                    kg_co2eq_override = float(raw_kg)
+                except (ValueError, TypeError):
+                    # Surface unparseable overrides at WARNING so operators see
+                    # the silent fallback to formula-based emissions in the log.
+                    logger.warning(
+                        f"Row {row_idx}: invalid kg_co2eq value {raw_kg!r}, "
+                        f"ignoring override"
+                    )
 
             # Filter row to only include expected columns
             filtered_row = {
@@ -799,14 +874,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 for k, v in row.items()
                 if k in expected_columns and v is not None and v.strip() != ""
             }
-            # special kg_co2eq handling: include it if present in row,
-            # even if not in expected_columns
-            if (
-                "kg_co2eq" in row
-                and row["kg_co2eq"] is not None
-                and row["kg_co2eq"].strip() != ""
-            ):
-                filtered_row["kg_co2eq"] = row["kg_co2eq"]
 
             # Extract kind/subkind values (entity-specific extraction)
             kind_value, subkind_value = self._extract_kind_subkind_values(
@@ -823,12 +890,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             if error_msg:
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             if not data_entry_type or not handler:
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
             # This avoids 100k+ DB queries - factors already loaded in setup phase
@@ -837,7 +904,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
-                year_value = self.year or 0
+                # Defense in depth: setup-time guards in the entity-specific
+                # providers (_setup_handlers_and_factors for
+                # MODULE_UNIT_SPECIFIC, _resolve_module_per_year_modules for
+                # MODULE_PER_YEAR) raise before any row reaches this method,
+                # so reaching this branch with a falsy year would mean a
+                # future caller bypassed setup. Use the same `not self.year`
+                # check the setup-time guard uses so both layers reject the
+                # same set of values (None and 0); a stricter `is None` check
+                # would let `year=0` rebuild the `:0:` silent-miss key.
+                if not self.year:
+                    raise ValueError(
+                        "year must be set (and non-zero) before processing "
+                        "rows; setup-time guard was bypassed"
+                    )
+                year_value = self.year
                 # Build lookup key same way as load_factors_map does
                 key_full = (
                     f"{data_entry_type.value}:"
@@ -869,7 +950,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 ):
                     error_msg = "Missing unit_institutional_id in row"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
 
                 unit_institutional_id = str(unit_institutional_id).strip()
 
@@ -884,7 +965,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         self._missing_units_logged.add(unit_institutional_id)
                     error_msg = f"Unit '{unit_institutional_id}' not found"
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
 
                 carbon_report_module_id = unit_to_module_map.get(unit_institutional_id)
                 if not carbon_report_module_id:
@@ -893,7 +974,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"institutional_id={unit_institutional_id}"
                     )
                     self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                    return None, error_msg, None
+                    return None, error_msg, None, None
             elif self.carbon_report_module_id:
                 # MODULE_UNIT_SPECIFIC: use pre-configured value
                 carbon_report_module_id = self.carbon_report_module_id
@@ -901,7 +982,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Neither mapping nor pre-configured value available
                 error_msg = "Missing carbon_report_module_id"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Validate payload with handler (primary_factor_id already
             # set by ModuleHandlerService)
@@ -916,10 +997,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-                return None, error_msg, None
+                return None, error_msg, None, None
 
             # Build DataEntry
             data = dict(validated.data)
+
+            # CSV-time enrichment hook. Default no-op; the train handler uses
+            # it to resolve origin_name/destination_name → *_natural_key via
+            # a Location lookup so the recalc-time pre_compute can compute
+            # distance. Returning a non-None error_msg skips the row.
+            data, enrich_error = await handler.enrich_csv_row(data, self.data_session)
+            if enrich_error is not None:
+                self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
+                return None, enrich_error, None, None
 
             # Note: primary_factor_id is already in payload and
             # will be in validated.data
@@ -949,19 +1039,29 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                         f"{field_name}={default_value} from factor"
                                     )
 
+            # B-H1 — under ``BULK_PATH_PURE_ASYNC`` the inline path skips
+            # ``prepare_create``, so the parallel ``kg_co2eq_override`` list
+            # is built and discarded.  Persist the override on the data
+            # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
+            # the async recalc path (``upsert_by_data_entry`` →
+            # ``prepare_create``) still honors it.  The parallel list is
+            # kept for the legacy inline path's existing flow.
+            if kg_co2eq_override is not None:
+                data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
+
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
                 data=data,
             )
 
-            return data_entry, None, None
+            return data_entry, None, None, kg_co2eq_override
 
         except Exception as row_error:
             logger.error(f"Row {row_idx}: Error processing row: {str(row_error)}")
             error_msg = f"Row processing error: {row_error}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, error_msg, None
+            return None, error_msg, None, None
 
     def _compute_ingestion_result(self, stats: StatsDict) -> IngestionResult:
         """
@@ -996,6 +1096,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         emission_service: DataEntryEmissionService,
         stats: StatsDict,
         setup_result: Dict[str, Any],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> Dict[str, Any]:
         """
         Finalize: process remaining batch, move file to processed/, update job.
@@ -1003,7 +1104,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Process final batch (remaining rows < BATCH_SIZE)
         if batch:
             await self._process_batch(
-                batch, data_entry_service, emission_service, self.user
+                batch,
+                data_entry_service,
+                emission_service,
+                self.user,
+                batch_kg_co2eq_overrides,
             )
             stats["batches_processed"] += 1
             logger.info(
@@ -1073,8 +1178,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         data_entry_service: DataEntryService,
         emission_service: DataEntryEmissionService,
         user: Optional[User],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> None:
-        """Process a batch of data entries: bulk insert entries and emissions"""
+        """Process a batch of data entries: bulk insert entries and emissions.
+
+        ``batch_kg_co2eq_overrides`` is index-aligned with ``batch``. Values are
+        applied transiently when emissions are built — they never enter
+        ``DataEntry.data``.
+        """
         if not batch:
             return
 
@@ -1119,12 +1230,41 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             created_by_id=self.job_id,
         )
 
+        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` the runner-driven
+        # ``emission_recalc`` chain (fired by ``csv_ingest_handler`` /
+        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
+        # writes for the bulk path.  Skipping steps 2-3 here doesn't lose
+        # data: the chain reads the freshly-committed data_entries and
+        # writes emissions against the latest factors.  Inline writes
+        # would race the chain's writes for the same primary key.
+        #
+        # When the flag is False (emergency rollback) we keep the legacy
+        # inline write so the chain's emissions become a redundant
+        # overwrite rather than a missing one.
+        #
+        # Seed runs (``is_seed_run=True``) bypass the gate: their
+        # ``_update_job`` is a no-op, so the runner-driven chain never
+        # fires.  Without the inline writes the seeded module ends up
+        # with empty ``data_entry_emissions`` and zero stats.
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
+            return
+
+        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
+        overrides_by_id: dict[int, float] = {
+            resp.id: ov
+            for resp, ov in zip(data_entries_response, batch_kg_co2eq_overrides)
+            if ov is not None and resp.id is not None
+        }
+
         # 2. Prepare emissions for all created data entries
         emissions_to_create = []
         for data_entry_response in data_entries_response:
             try:
                 emission_objs = await emission_service.prepare_create(
-                    data_entry_response
+                    data_entry_response,
+                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
                 )
                 if emission_objs is not None:
                     emissions_to_create.extend(emission_objs)
@@ -1148,7 +1288,27 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         then recomputes stats for each affected carbon report.
         For MODULE_UNIT_SPECIFIC: recomputes stats for self.carbon_report_module_id,
         then recomputes stats for the parent carbon report.
+
+        Plan 310-D — when ``BULK_PATH_PURE_ASYNC`` is set, the runner-driven
+        ``aggregation`` handler (chained by ``emission_recalc`` after the
+        data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
+        for the bulk path.  Skipping inline here avoids racing the chain's
+        eventual write for the same module row; the dashboard's stale-stats
+        UX surfaces the gap until the chain completes.
+
+        Seed runs (``is_seed_run=True``) bypass the gate: their
+        ``_update_job`` is a no-op so the chain never fires.  Without the
+        inline recompute the seeded module's stats stay at zero.
         """
+        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
+            self, "is_seed_run", False
+        ):
+            logger.debug(
+                "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
+                "aggregation handler will own the stats writes"
+            )
+            return
+
         from app.services.carbon_report_service import CarbonReportService
 
         crm_service = CarbonReportModuleService(self.data_session)

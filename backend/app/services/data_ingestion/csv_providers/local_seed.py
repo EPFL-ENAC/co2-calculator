@@ -136,12 +136,42 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         )
         return None
 
+    # ------------------------------------------------------------------
+    # Override: stay on the legacy bulk_create path during the batch loop
+    # ------------------------------------------------------------------
+
+    async def _upsert_batch(
+        self,
+        batch: List[Any],
+        factor_repo: Any,
+    ) -> int:
+        """Local seed scripts have no DataIngestionJob and therefore no
+        ``job_id`` to stamp on ``last_seen_job_id``.  The base class's
+        ``_upsert_batch`` requires a job_id and raises if absent — so once
+        a seed CSV exceeds BATCH_SIZE the main loop would crash.
+
+        Override here to keep large seed runs on the legacy
+        ``bulk_create`` path.  Seed scripts already assume an empty
+        factor table (delete-and-insert semantics), so identity-key
+        upsert is unnecessary; staying on bulk_create avoids the
+        job_id requirement entirely.
+        """
+        # Late import to avoid circular import at module load.
+        from app.services.factor_service import FactorService
+
+        factor_service = FactorService(self.data_session)
+        await self._process_batch(batch, factor_service)
+        return len(batch)
+
     async def _finalize_and_commit(
         self,
         batch: List[Any],
         factor_service: Any,
         stats: FactorStatsDict,
         setup_result: Dict[str, Any],
+        factor_repo: Any,  # signature-compat with base; legacy seed path
+        # uses bulk_create and assumes the factor table starts empty
+        # (seed scripts run against a fresh DB).
     ) -> Dict[str, Any]:
 
         if batch:
@@ -185,6 +215,16 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
     The full ``ModulePerYearCSVProvider`` pipeline is reused: row validation,
     factor lookup, batch inserts, emission computation and stats recomputation.
 
+    Seed runs are NOT subject to ``BULK_PATH_PURE_ASYNC``: the runner-driven
+    ``emission_recalc`` / ``aggregation`` chain is fired post-success by the
+    request-scoped CSV ingest handlers, which seed scripts bypass entirely
+    (their ``_update_job`` is a no-op and no DataIngestionJob exists).
+    Honouring the gate would leave the seeded module with empty
+    ``data_entry_emissions`` and zero stats, breaking dev DB bootstrap.
+    The class therefore sets ``self.is_seed_run = True`` so the gate sites
+    in ``base_csv_provider`` (``_process_batch`` emissions write,
+    ``_recompute_module_stats``) always run inline for seed runs.
+
     Config keys
     -----------
     local_file_path : str
@@ -215,6 +255,9 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             module_type_id=config.get("module_type_id"),
             data_entry_type_id=config.get("data_entry_type_id"),
         )
+        # Seed runs bypass ``BULK_PATH_PURE_ASYNC``: the runner chain that
+        # would normally own emissions/stats writes is never fired here.
+        self.is_seed_run = True
         self._local_file_path: str | None = config.get("local_file_path")
         self._location_fields: dict[str, str] | None = config.get("location_fields")
         transport_mode_value: str | None = config.get("transport_mode_value")
@@ -357,7 +400,7 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         stats: StatsDict,
         max_row_errors: int,
         unit_to_module_map: Dict[str, int] | None = None,
-    ) -> tuple[Any, str | None, Any]:
+    ) -> tuple[Any, str | None, Any, float | None]:
         if self._location_fields:
             row = dict(row)  # shallow copy to avoid mutating original
             location_id_cache = setup_result.get("location_id_cache", {})
@@ -400,10 +443,15 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
         emission_service: Any,
         stats: StatsDict,
         setup_result: Dict[str, Any],
+        batch_kg_co2eq_overrides: List[float | None],
     ) -> Dict[str, Any]:
         if batch:
             await self._process_batch(
-                batch, data_entry_service, emission_service, self.user
+                batch,
+                data_entry_service,
+                emission_service,
+                self.user,
+                batch_kg_co2eq_overrides,
             )
             stats["batches_processed"] += 1
 

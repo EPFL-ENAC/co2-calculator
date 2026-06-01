@@ -1,27 +1,28 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, type PropType, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
-import { graphic } from 'echarts';
 import {
+  buildChartDecal,
   colors,
   getChartSubcategoryColor,
   RESULTS_CATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
+import { useColorblindStore } from 'src/stores/colorblind';
 import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
-import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
 
 use([
   CanvasRenderer,
@@ -31,18 +32,34 @@ use([
   GridComponent,
   DatasetComponent,
   GraphicComponent,
+  AriaComponent,
 ]);
 
 import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type { TooltipRow } from 'src/types/chartTooltip';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
-const props = defineProps<{
-  breakdownData?: EmissionBreakdownResponse | null;
-  title?: string;
-  viewAdditionalData?: boolean;
-}>();
+const props = defineProps({
+  breakdownData: {
+    type: Object as PropType<EmissionBreakdownResponse | null | undefined>,
+    default: undefined,
+  },
+  title: {
+    type: String as PropType<string | undefined>,
+    default: undefined,
+  },
+
+  viewAdditionalData: {
+    type: Boolean as PropType<boolean | undefined>,
+    default: undefined,
+  },
+});
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
+
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
   () => props.viewAdditionalData ?? toggleAdditionalData.value,
@@ -154,28 +171,45 @@ function recalculateScopeRects() {
   }
   lastScopeState = newState;
 
+  // Use the grid's actual bottom edge so dividers and the dashed outline
+  // always reach the full plotting area, regardless of axis type or domain.
+  const gridModel = (
+    chart as unknown as {
+      getModel(): {
+        getComponent(type: string): {
+          coordinateSystem: {
+            getRect(): { x: number; y: number; width: number; height: number };
+          };
+        };
+      };
+    }
+  )
+    .getModel()
+    .getComponent('grid');
+  const gridRect = gridModel?.coordinateSystem?.getRect();
+  const yAxisBase = gridRect ? gridRect.y + gridRect.height : NaN;
+  if (!Number.isFinite(yAxisBase)) {
+    chart.setOption({ graphic: [] });
+    return;
+  }
+
+  const boxTop = 55;
+  const labelTop = boxTop;
+  const rectTop = labelTop - 6;
+  // Narrow once so downstream shape/style expressions use a plain number
+  // without repeated casts. The showAdditional guard already ensures
+  // dividerX !== null, but TypeScript can't see through that indirection.
+  const dividerXNum = Number(dividerX);
+
   const elements: object[] = [
+    // Scope 1 label
     ...(s1
       ? [
           {
-            type: 'rect',
-            id: 'sr1',
-            left: s1.left,
-            top: '15px',
-            shape: { width: s1.width, height: 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(248,248,248,0.9)' },
-                { offset: 1, color: 'rgba(248,248,248,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st1',
-            left: s1.left + 10,
-            top: '30px',
+            left: s1.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 1',
@@ -185,27 +219,14 @@ function recalculateScopeRects() {
           },
         ]
       : []),
+    // Scope 2 label
     ...(s2
       ? [
           {
-            type: 'rect',
-            id: 'sr2',
-            left: s2.left,
-            top: '15px',
-            shape: { width: s2.width, height: 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(240,240,240,0.9)' },
-                { offset: 1, color: 'rgba(240,240,240,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st2',
-            left: s2.left + 10,
-            top: '30px',
+            left: s2.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 2',
@@ -215,27 +236,14 @@ function recalculateScopeRects() {
           },
         ]
       : []),
+    // Scope 3 label
     ...(s3
       ? [
           {
-            type: 'rect',
-            id: 'sr3',
-            left: s3.left,
-            top: '15px',
-            shape: { width: s3.width, height: 300 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(229,229,229,0.9)' },
-                { offset: 1, color: 'rgba(229,229,229,0.1)' },
-              ]),
-            },
-            silent: true,
-          },
-          {
             type: 'text',
             id: 'st3',
-            left: s3.left + 10,
-            top: '30px',
+            left: s3.left + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-scope') + ' 3',
@@ -245,59 +253,77 @@ function recalculateScopeRects() {
           },
         ]
       : []),
-    {
-      type: 'text',
-      id: 'smain',
-      left: s1 ? s1.left + 10 : 56,
-      top: '0px',
-      style: {
-        fill: '#000000',
-        text: t('charts-main-category'),
-        font: '11px SuisseIntl',
-      },
-      silent: true,
-    },
-    ...(showAdditional
+    // Dotted divider line between Scope 1 and Scope 2
+    ...(s1 && s2
+      ? [
+          {
+            type: 'line',
+            id: 'sdiv12',
+            shape: { x1: s2.left, y1: boxTop, x2: s2.left, y2: yAxisBase },
+            style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'line',
+            id: 'sdiv12',
+            shape: { x1: 0, y1: 0, x2: 0, y2: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+    // Dotted divider line between Scope 2 and Scope 3
+    ...(s2 && s3
+      ? [
+          {
+            type: 'line',
+            id: 'sdiv23',
+            shape: { x1: s3.left, y1: boxTop, x2: s3.left, y2: yAxisBase },
+            style: { stroke: '#aaaaaa', lineWidth: 1, lineDash: [2, 2] },
+            silent: true,
+          },
+        ]
+      : [
+          {
+            type: 'line',
+            id: 'sdiv23',
+            shape: { x1: 0, y1: 0, x2: 0, y2: 0 },
+            style: { opacity: 0 },
+            silent: true,
+          },
+        ]),
+    // Additional categories: dashed rectangle outline + label
+    ...(showAdditional && additionalRect
       ? [
           {
             type: 'rect',
             id: 'sadd',
-            left: dividerX,
-            top: '15px',
-            shape: { width: additionalRect?.width ?? 200, height: 300 },
+            shape: {
+              x: dividerXNum + 2,
+              y: rectTop,
+              width: Math.max(0, additionalRect.width - 4),
+              height: Math.max(0, yAxisBase - rectTop),
+              r: 3,
+            },
             style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(215,215,215,0.9)' },
-                { offset: 1, color: 'rgba(215,215,215,0.1)' },
-              ]),
+              fill: 'transparent',
+              stroke: '#888888',
+              lineWidth: 1,
+              lineDash: [2, 2],
             },
             silent: true,
           },
           {
             type: 'text',
             id: 'stadd',
-            left: dividerX + 10,
-            top: '0px',
+            left: dividerXNum + 8,
+            top: labelTop,
             style: {
               fill: '#000000',
               text: t('charts-additional-category'),
-              font: '11px SuisseIntl',
+              font: 'italic 11px SuisseIntl',
             },
-            silent: true,
-          },
-          {
-            type: 'rect',
-            id: 'sdiv',
-            left: dividerX,
-            top: '0px',
-            shape: { width: 1, height: 420 },
-            style: {
-              fill: new graphic.LinearGradient(0, 0, 0, 1, [
-                { offset: 0, color: 'rgba(0,0,0,1)' },
-                { offset: 1, color: 'rgba(240,240,240,0.1)' },
-              ]),
-            },
-            z: 100,
             silent: true,
           },
         ]
@@ -319,16 +345,52 @@ function recalculateScopeRects() {
             style: { opacity: 0, text: '' },
             silent: true,
           },
-          {
-            type: 'rect',
-            id: 'sdiv',
-            left: 0,
-            top: 0,
-            shape: { width: 0, height: 0 },
-            style: { opacity: 0 },
-            silent: true,
-          },
         ]),
+    // Previously used elements — now cleared
+    {
+      type: 'rect',
+      id: 'sr1',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sr2',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sr3',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'rect',
+      id: 'sdiv',
+      left: 0,
+      top: 0,
+      shape: { width: 0, height: 0 },
+      style: { opacity: 0 },
+      silent: true,
+    },
+    {
+      type: 'text',
+      id: 'smain',
+      left: 0,
+      top: 0,
+      style: { opacity: 0, text: '' },
+      silent: true,
+    },
   ];
 
   requestAnimationFrame(() => {
@@ -1066,83 +1128,87 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow',
-      },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'shadow',
+          },
 
-      formatter: (params: unknown) => {
-        const arr = Array.isArray(params) ? params : params ? [params] : [];
-        if (!arr.length) {
-          emitTooltip(null);
-          return '';
-        }
-        const first = arr[0] as {
-          data?: Record<string, unknown>;
-          axisValue?: string;
-          name?: string;
-        };
-        const data = first.data;
-        const name = String(first.axisValue || first.name || '');
-        const isValidated = validatedLabels.value.has(name);
+          formatter: (params: unknown) => {
+            const arr = Array.isArray(params) ? params : params ? [params] : [];
+            if (!arr.length) {
+              emitTooltip(null);
+              return '';
+            }
 
-        if (!isValidated) {
-          const moduleName = additionalHeadcountLabels.value.has(name)
-            ? t('headcount')
-            : additionalBuildingsLabels.value.has(name)
-              ? t('buildings')
-              : name;
-          emitTooltip({
-            title: name,
-            rows: [],
-            tone: 'muted',
-            footer: t('results_validate_module_title', { module: moduleName }),
-          });
-          return '';
-        }
+            const firstParam = arr[0] as {
+              data?: Record<string, unknown>;
+              axisValue?: string;
+              name?: string;
+            };
+            const data = firstParam.data;
+            const name = firstParam.axisValue || firstParam.name || '';
+            const isValidated = validatedLabels.value.has(name);
 
-        const rows: TooltipRow[] = [];
-        let total = 0;
+            if (!isValidated) {
+              const moduleName = additionalHeadcountLabels.value.has(name)
+                ? t('headcount')
+                : additionalBuildingsLabels.value.has(name)
+                  ? t('buildings')
+                  : name;
+              emitTooltip({
+                title: name,
+                rows: [],
+                footer: t('results_validate_module_title', {
+                  module: moduleName,
+                }),
+                tone: 'muted',
+              });
+              return '';
+            }
 
-        for (const param of [...arr].reverse()) {
-          const p = param as {
-            seriesName?: string;
-            seriesIndex?: number;
-          };
-          const series =
-            typeof p.seriesIndex === 'number'
-              ? seriesArray[p.seriesIndex]
-              : seriesArray.find((s) => s.name === p.seriesName);
-          const key = series?.encode.y;
-          if (!data || !key) continue;
-          const dataValue = Number(data[key]) || 0;
-          if (dataValue > 0) {
-            rows.push({
-              label: series?.name ?? String(p.seriesName ?? ''),
-              value: formatTonnesForChart(dataValue),
-              color: (series?.itemStyle?.color as string) ?? '#888',
-            });
-            total += dataValue;
-          }
-        }
+            const rows: TooltipRow[] = [];
+            let total = 0;
 
-        const state: TooltipState = {
-          title: name,
-          rows,
-          ...(rows.length > 1
-            ? {
-                separatorRow: {
-                  label: t('results_objectives_total'),
-                  value: formatTonnesForChart(total),
-                },
+            for (const param of [...arr].reverse()) {
+              const p = param as {
+                seriesName?: string;
+                seriesIndex?: number;
+                color?: string;
+                data?: Record<string, unknown>;
+              };
+              const series =
+                typeof p.seriesIndex === 'number'
+                  ? seriesArray[p.seriesIndex]
+                  : seriesArray.find((s) => s.name === p.seriesName);
+              const key = series?.encode.y;
+
+              if (!data || !key) continue;
+              const dataValue = Number(data[key]) || 0;
+              if (dataValue > 0) {
+                rows.push({
+                  label: series?.name ?? p.seriesName ?? '',
+                  value: formatTonnesForChart(dataValue),
+                  color:
+                    (series?.itemStyle?.color as string) ?? p.color ?? '#888',
+                });
+                total += dataValue;
               }
-            : {}),
-        };
-        emitTooltip(state);
-        return '';
-      },
-    },
+            }
+
+            emitTooltip({
+              title: name,
+              rows,
+              separatorRow: {
+                label: t('total'),
+                value: formatTonnesForChart(total),
+              },
+            });
+            return '';
+          },
+        },
 
     grid: {
       left: '5%',
@@ -1190,6 +1256,11 @@ const chartOption = computed((): EChartsOption => {
       },
     },
     graphic: [],
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
+    },
+
     dataset: {
       dimensions: [
         'category',
@@ -1278,26 +1349,38 @@ const downloadCSV = () => {
     return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  const headers = [
-    ...new Set(
-      datasetSource.value.flatMap((item) =>
-        Object.entries(item)
-          .filter(([key, value]) => {
-            if (key.startsWith('__')) return false;
-            if (typeof value === 'object' && value !== null) return false;
-            return true;
-          })
-          .map(([key]) => key),
-      ),
-    ),
-  ].sort((a, b) =>
-    a === 'category' ? -1 : b === 'category' ? 1 : a.localeCompare(b),
+  // Pivot: one row per category × subcategory pair where the value is non-zero.
+  // This avoids the sparse wide-table format where each category gets all
+  // possible subcategory columns, 90% of which are empty.
+  const SKIP_KEYS = new Set(['category', 'category_key']);
+
+  const rows: Array<[string, string, number]> = datasetSource.value.flatMap(
+    (item) => {
+      const category = String(item.category ?? '');
+      return Object.entries(item)
+        .filter(([key, value]) => {
+          if (SKIP_KEYS.has(key) || key.startsWith('__')) return false;
+          if (typeof value === 'object' && value !== null) return false;
+          const n = Number(value);
+          // Only emit rows where the subcategory actually has a value
+          return Number.isFinite(n) && n !== 0;
+        })
+        .map(
+          ([key, value]) =>
+            [category, key, Number(value)] as [string, string, number],
+        );
+    },
   );
 
+  const headers = [
+    t('csv_header_category'),
+    t('csv_header_subcategory'),
+    t('csv_header_co2'),
+  ];
   const csv = [
     headers.map(escape).join(','),
-    ...datasetSource.value.map((item) =>
-      headers.map((key) => escape(item[key])).join(','),
+    ...rows.map(([category, subcategory, co2]) =>
+      [escape(category), escape(subcategory), escape(co2)].join(','),
     ),
   ].join('\n');
 
@@ -1317,6 +1400,7 @@ const downloadCSV = () => {
     <q-card-section class="flex justify-between items-center">
       <div class="flex items-center no-wrap">
         <q-icon
+          v-if="!isPrintMode"
           name="o_info"
           size="xs"
           color="primary"
@@ -1366,29 +1450,7 @@ const downloadCSV = () => {
         </span>
       </div>
 
-      <div class="flex items-center no-wrap q-gutter-sm">
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_png')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadPNG"
-        />
-        <q-btn
-          unelevated
-          no-caps
-          outline
-          icon="o_download"
-          :label="$t('common_download_as_csv')"
-          size="xs"
-          dense
-          class="text-weight-bold q-px-sm"
-          @click="downloadCSV"
-        />
+      <div v-if="!isPrintMode">
         <q-checkbox
           v-if="props.viewAdditionalData === undefined"
           v-model="toggleAdditionalData"
@@ -1404,7 +1466,8 @@ const downloadCSV = () => {
     >
       <v-chart
         ref="chartRef"
-        class="chart"
+        :key="colorblindStore.enabled ? 'cb' : 'default'"
+        :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
         @rendered="recalculateScopeRects"
@@ -1417,6 +1480,31 @@ const downloadCSV = () => {
           :style="style"
         />
       </Teleport>
+    </q-card-section>
+    <q-separator v-if="!isPrintMode" />
+    <q-card-section v-if="!isPrintMode" class="flex justify-start q-gutter-sm">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadPNG"
+      />
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_csv')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadCSV"
+      />
     </q-card-section>
   </q-card>
 </template>
@@ -1434,12 +1522,16 @@ const downloadCSV = () => {
 
 .chart {
   width: 100%;
-  min-height: 500px;
+  min-height: 420px;
+}
+
+.chart--print {
+  min-height: 320px;
 }
 
 @media (max-width: 1320px) {
-  .chart {
-    width: 95%;
+  .chart:not(.chart--print) {
+    width: 100%;
   }
 }
 </style>

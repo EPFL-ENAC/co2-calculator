@@ -28,11 +28,13 @@ const props = withDefaults(
     co2PerKmKg?: number;
     /** Carbon report year (Results page selected year). */
     year?: number;
+    printMode?: boolean;
   }>(),
   {
     loading: false,
     co2PerKmKg: 0,
     year: undefined,
+    printMode: false,
   },
 );
 
@@ -383,24 +385,31 @@ const barChartOption = computed<EChartsOption>(() => {
 
 <template>
   <div>
-    <div class="q-pt-xl q-px-lg">
-      <h2 class="text-h2 text-weight-medium">
-        {{ $t('it-title') }}
-      </h2>
-      <span class="text-body1 text-secondary">{{
-        $t('it-subtitle', { year: year ?? '' })
-      }}</span>
-    </div>
-
-    <q-separator class="q-mt-xl" />
+    <template v-if="!printMode">
+      <div class="q-pt-xl q-px-lg">
+        <h2 class="text-h2 text-weight-medium">
+          {{ $t('it-title') }}
+        </h2>
+        <span class="text-body1 text-secondary">{{
+          $t('it-subtitle', { year: year ?? '' })
+        }}</span>
+      </div>
+      <q-separator class="q-mt-xl" />
+    </template>
 
     <!-- Summary numbers -->
-    <q-card v-if="data" flat class="grid-2-col q-mt-lg q-mb-lg q-px-lg">
+    <q-card
+      v-if="data"
+      flat
+      class="grid-2-col q-mt-lg q-mb-lg"
+      :class="{ 'q-px-lg': !printMode }"
+    >
       <BigNumber
         :title="$t('it-focus-total')"
         :number="`${formatTonnesCO2(displayTotalItTonnes)}`"
         comparison=""
         color="accent"
+        :print-mode="printMode"
       >
       </BigNumber>
       <BigNumber
@@ -413,14 +422,15 @@ const barChartOption = computed<EChartsOption>(() => {
         :comparison="$t('it-focus-share-of-total-hint')"
         hide-unit
         color="accent"
+        :print-mode="printMode"
       />
     </q-card>
 
     <template v-if="!loading && data">
-      <q-separator class="q-mt-xl" />
+      <q-separator v-if="!printMode" class="q-mt-xl" />
       <!-- Stacked horizontal bar chart - one bar per IT category, segments = top items -->
 
-      <q-card v-if="hasData" flat class="q-mb-lg q-pa-lg q-mx-lg">
+      <q-card v-if="hasData" flat :bordered="printMode" class="q-mb-lg q-px-lg">
         <div
           class="flex items-center no-wrap text-h5 text-weight-medium q-my-xl"
         >

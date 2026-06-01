@@ -23,7 +23,7 @@ const purchaseFields: ModuleField[] = [
     id: 'supplier',
     labelKey: `${MODULES.Purchase}.inputs.supplier`,
     type: 'text',
-    required: true,
+    required: false,
     placeholder: 'Enter value',
     sortable: true,
     align: 'left',

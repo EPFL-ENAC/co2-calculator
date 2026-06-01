@@ -28,6 +28,7 @@ import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
+import { useRoute, useRouter } from 'vue-router';
 
 const yearConfigStore = useYearConfigStore();
 
@@ -138,6 +139,8 @@ const workspaceStore = useWorkspaceStore();
 const timelineStore = useTimelineStore();
 const moduleStore = useModuleStore();
 const colorblindStore = useColorblindStore();
+const router = useRouter();
+const route = useRoute();
 const colorblindMode = computed({
   get: () => colorblindStore.enabled,
   set: (v: boolean) => colorblindStore.setEnabled(v),
@@ -343,8 +346,19 @@ const loadModulesConfig = async () => {
 const getModuleConfig = (module: string) => modulesConfig.value?.[module];
 
 const downloadPDF = () => {
-  // Open browser print dialog where user can save as PDF
-  window.print();
+  const resolved = router.resolve({
+    name: 'results-print',
+    params: {
+      language: String(route.params.language ?? 'en'),
+      unit: workspaceStore.selectedParams?.unit ?? route.params.unit,
+      year: String(currentYear.value),
+    },
+    query: {
+      hideResearchFacilities: hideResearchFacilities.value ? '1' : '0',
+      hideAdditionalData: hideAdditionalData.value ? '1' : '0',
+    },
+  });
+  window.open(resolved.href, '_blank');
 };
 
 const getUncertainty = (
@@ -748,46 +762,64 @@ const getUncertainty = (
                         }}</template>
                       </BigNumber>
                       <BigNumber
-                        :title="
-                          $t('results_module_carbon_footprint', {
-                            module: $t(module),
-                          })
-                        "
+                        :title="$t('results_unit_carbon_footprint')"
                         :number="
                           formatPercentChange(
                             getModuleResult(module)!.year_comparison_percentage,
                           )
                         "
                         :unit="
-                          $t('results_compared_to', {
-                            year: (currentYear - 1).toString(),
-                          })
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? $t('results_no_comparison_year_available')
+                            : $t('results_compared_to', {
+                                year: (currentYear - 1).toString(),
+                              })
                         "
                         :color="
-                          getModuleResult(module)!.year_comparison_percentage ==
-                          null
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
                             ? undefined
-                            : getModuleResult(module)!
-                                  .year_comparison_percentage! < 0
+                            : resultsSummary.unit_totals
+                                  .year_comparison_percentage < 0
                               ? 'positive'
                               : 'negative'
                         "
                         :comparison="
-                          $t('results_compared_to_value_of', {
-                            value: `${getModuleConfig(module)?.totalFormatter(
-                              getModuleResult(module)!
-                                .previous_year_total_tonnes_co2eq,
-                            )}${$t('results_units_tonnes')}`,
-                          })
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? undefined
+                            : $t('results_compared_to_value_of', {
+                                value: `${$nOrDash(
+                                  resultsSummary.unit_totals
+                                    .previous_year_total_tonnes_co2eq,
+                                  {
+                                    options: {
+                                      minimumFractionDigits: 1,
+                                      maximumFractionDigits: 1,
+                                    },
+                                  },
+                                )}${$t('results_units_tonnes')}`,
+                              })
                         "
-                        :comparison-highlight="`${getModuleConfig(
-                          module,
-                        ).totalFormatter(
-                          getModuleResult(module)!
-                            .previous_year_total_tonnes_co2eq,
-                        )}${$t('results_units_tonnes')}`"
+                        :comparison-highlight="
+                          resultsSummary.unit_totals
+                            .year_comparison_percentage == null
+                            ? undefined
+                            : `${$nOrDash(
+                                resultsSummary.unit_totals
+                                  .previous_year_total_tonnes_co2eq,
+                                {
+                                  options: {
+                                    minimumFractionDigits: 1,
+                                    maximumFractionDigits: 1,
+                                  },
+                                },
+                              )}${$t('results_units_tonnes')}`
+                        "
                       >
                       </BigNumber>
+
                       <BigNumber
                         :title="
                           resultsSummary.unit_totals.total_fte == null
@@ -814,9 +846,6 @@ const getUncertainty = (
                         :comparison-highlight="`${$nOrDash(2)}${$t('results_units_tonnes')}`"
                         color="negative"
                       >
-                        <template #tooltip>{{
-                          $t('results_paris_agreement_tooltip')
-                        }}</template>
                       </BigNumber>
                     </q-card>
                   </template>
@@ -873,11 +902,6 @@ const getUncertainty = (
                 <h2 class="text-h2 text-weight-medium q-mb-none">
                   {{ $t('results_additional_title') }}
                 </h2>
-                <q-icon name="o_info" size="sm" class="text-primary">
-                  <q-tooltip class="text-body2 text-black" max-width="320px">
-                    {{ $t('results_additional_waste_tooltip') }}
-                  </q-tooltip>
-                </q-icon>
               </div>
               <span class="text-body1 text-secondary">{{
                 $t('results_additional_subtitle')

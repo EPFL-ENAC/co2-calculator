@@ -41,8 +41,8 @@ build-docs: ## Build documentation
 serve-docs: ## Serve documentation with live reload
 	UV_NO_ISOLATION=1 uv run mkdocs serve --dirtyreload --watch src --watch mkdocs.yml
 
-.PHONY: clean-docs
-clean-docs: ## Clean built documentation
+.PHONY: clean
+clean: ## Clean built documentation
 	rm -rf site/
 
 .PHONY: clean-docker

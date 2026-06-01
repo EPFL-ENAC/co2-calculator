@@ -32,8 +32,12 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 from app.repositories.data_ingestion import DataIngestionRepository
-from app.tasks.emission_recalculation_tasks import run_recalculation_task
-from app.tasks.ingestion_tasks import run_sync_task
+
+# Plan 310-C cutover: legacy ``run_sync_task`` / ``run_recalculation_task``
+# are gone — every job_type funnels through ``app.tasks.runner.run_job``.
+# Claim-guard semantics are now covered by ``test_runner.py``
+# (test_run_job_claim_fails_returns_silently); the pod-safety claim
+# tests below remain because they assert repository-level behaviour.
 
 
 def _make_job(
@@ -270,126 +274,182 @@ async def test_recover_job_none_id(db_session: AsyncSession):
 
 
 # ======================================================================
-# run_sync_task claim guard tests
+# sweep_stuck_running_jobs tests (poller's pod-crash auto-recovery)
 # ======================================================================
+#
+# Difference from ``recover_job``: the sweep PRESERVES ``attempts`` so
+# claim_job's max-retry guard caps an infinitely-crashing job, and it
+# ABANDONS jobs whose attempts have hit max (state=FINISHED+ERROR) so
+# operators see them.  ``recover_job`` (the manual API path) intentionally
+# resets attempts to 0 — operator override of the cap.
 
 
 @pytest.mark.asyncio
-async def test_run_sync_task_claim_fails_skips_provider(db_session: AsyncSession):
-    job = _make_job(
-        state=IngestionState.NOT_STARTED,
-        locked_by="other-pod",
-    )
-    db_session.add(job)
-    await db_session.flush()
-
-    fake_provider = MagicMock()
-    fake_provider.ingest = AsyncMock()
-    fake_provider._update_job = AsyncMock()
-    fake_provider.set_job_id = AsyncMock()
-
-    class FakeProviderClass:
-        def __new__(cls, *args, **kwargs):
-            return fake_provider
-
-    with (
-        patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local,
-        patch(
-            "app.tasks.ingestion_tasks.ProviderFactory.get_provider_class",
-            return_value=FakeProviderClass,
-        ),
-    ):
-        mock_job_session = db_session
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
-
-        mock_session_local.return_value.__aenter__ = AsyncMock(
-            side_effect=[mock_job_session, mock_data_session]
-        )
-        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        await run_sync_task(
-            "FakeProviderClass", job_id=job.id, filters={"key": "value"}
-        )
-
-    fake_provider.ingest.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_run_sync_task_invalid_provider_does_not_claim(
+async def test_sweep_recovers_stuck_running_with_retries_left(
     db_session: AsyncSession,
 ):
-    """If the provider class doesn't resolve, ``run_sync_task`` must
-    return BEFORE acquiring the claim — otherwise the job ends up stuck
-    in RUNNING and only the 30-min stale-recovery window can release it.
+    """attempts < max → reset to NOT_STARTED but PRESERVE attempts.
+
+    Locks are cleared so claim_job can pick it up next cycle, but
+    attempts is intact so a job that crashes every time can't loop
+    forever — claim_job's ``attempts < max_attempts`` guard caps it.
     """
-    job = _make_job(state=IngestionState.NOT_STARTED)
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-crashed-1",
+        locked_at=stale_time,
+        attempts=1,
+        max_attempts=3,
+        is_current=True,
+    )
     db_session.add(job)
     await db_session.flush()
-    assert job.id is not None
+    job_id = job.id
 
-    with patch("app.tasks.ingestion_tasks.SessionLocal") as mock_session_local:
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
-        mock_session_local.return_value.__aenter__ = AsyncMock(
-            side_effect=[db_session, mock_data_session]
-        )
-        mock_session_local.return_value.__aexit__ = AsyncMock(return_value=None)
-
-        # No patch on ProviderFactory: the real factory returns None for
-        # this bogus name, which is exactly what we want to exercise.
-        await run_sync_task(
-            "DefinitelyNotAProviderClass",
-            job_id=job.id,
-            filters={},
-        )
-
-    # Job must be untouched — no claim occurred.
     repo = DataIngestionRepository(db_session)
-    refreshed = await repo.get_job_by_id(job.id)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 0)
+
+    refreshed = await repo.get_job_by_id(job_id)
     assert refreshed is not None
     assert refreshed.state == IngestionState.NOT_STARTED
-    assert refreshed.is_current is False
     assert refreshed.locked_by is None
-    assert refreshed.attempts == 0
-
-
-# ======================================================================
-# run_recalculation_task claim guard tests
-# ======================================================================
+    assert refreshed.locked_at is None
+    assert refreshed.is_current is False
+    assert refreshed.run_after is None
+    # attempts is preserved — that's the whole difference vs recover_job
+    assert refreshed.attempts == 1
 
 
 @pytest.mark.asyncio
-async def test_run_recalculation_task_claim_fails(db_session: AsyncSession):
+async def test_sweep_abandons_stuck_running_at_max_attempts(
+    db_session: AsyncSession,
+):
+    """attempts >= max → mark FINISHED+ERROR with diagnostic message.
+
+    Without this branch, a job whose handler crashes every claim would
+    sit RUNNING forever after attempts hits max — claim_job won't
+    re-pick it up (``attempts < max_attempts`` is false), and the
+    recoverable branch above won't fire either (same gate).  So we
+    mark it terminally failed; operators see it and can investigate.
+    """
+    stale_time = datetime.now(timezone.utc) - timedelta(minutes=60)
     job = _make_job(
-        state=IngestionState.NOT_STARTED,
-        locked_by="other-pod",
+        state=IngestionState.RUNNING,
+        locked_by="pod-crashed-final",
+        locked_at=stale_time,
+        attempts=3,
+        max_attempts=3,
+        is_current=True,
+    )
+    db_session.add(job)
+    await db_session.flush()
+    job_id = job.id
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 1)
+
+    refreshed = await repo.get_job_by_id(job_id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.FINISHED
+    assert refreshed.result == IngestionResult.ERROR
+    assert "Auto-recovery" in (refreshed.status_message or "")
+    assert "max_attempts" in (refreshed.status_message or "")
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_running_within_stale_window(db_session: AsyncSession):
+    """Jobs whose locked_at is within the stale window are presumed alive."""
+    recent_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-alive",
+        locked_at=recent_time,
+        attempts=1,
     )
     db_session.add(job)
     await db_session.flush()
 
-    with patch("app.tasks.emission_recalculation_tasks.SessionLocal") as mock_sl:
-        mock_job_session = db_session
-        mock_data_session = MagicMock()
-        mock_data_session.commit = AsyncMock()
-        mock_data_session.rollback = AsyncMock()
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 0)
 
-        mock_sl.return_value.__aenter__ = AsyncMock(
-            side_effect=[mock_job_session, mock_data_session]
-        )
-        mock_sl.return_value.__aexit__ = AsyncMock(return_value=None)
+    refreshed = await repo.get_job_by_id(job.id)
+    assert refreshed is not None
+    assert refreshed.state == IngestionState.RUNNING  # untouched
 
-        await run_recalculation_task(
-            module_type_id=1,
-            data_entry_type_id=1,
-            year=2025,
-            job_id=job.id,
-        )
 
-    refreshed = await DataIngestionRepository(db_session).get_job_by_id(job.id)
-    assert refreshed.state == IngestionState.NOT_STARTED
+@pytest.mark.asyncio
+async def test_sweep_recovers_running_with_null_locked_at(db_session: AsyncSession):
+    """RUNNING with NULL locked_at = a clearly-broken row (claim_job
+    always sets locked_at on success).  Treat as stale and recover."""
+    job = _make_job(
+        state=IngestionState.RUNNING,
+        locked_by="pod-mystery",
+        locked_at=None,
+        attempts=1,
+        max_attempts=3,
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 0)
+
+
+@pytest.mark.asyncio
+async def test_sweep_does_not_touch_not_started(db_session: AsyncSession):
+    """NOT_STARTED is the dispatch sweep's domain — auto-recovery only
+    cares about RUNNING."""
+    job = _make_job(state=IngestionState.NOT_STARTED, attempts=0)
+    db_session.add(job)
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (0, 0)
+
+
+@pytest.mark.asyncio
+async def test_sweep_handles_mixed_population(db_session: AsyncSession):
+    """One sweep call handles multiple rows in different buckets without
+    interference — recoverable, abandoned, alive, and not-started all
+    coexist; only the first two are touched."""
+    stale = datetime.now(timezone.utc) - timedelta(minutes=60)
+    fresh = datetime.now(timezone.utc) - timedelta(minutes=5)
+    db_session.add_all(
+        [
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=stale,
+                attempts=1,
+                max_attempts=3,
+                module_type_id=1,
+            ),
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=stale,
+                attempts=3,
+                max_attempts=3,
+                module_type_id=2,
+            ),
+            _make_job(
+                state=IngestionState.RUNNING,
+                locked_at=fresh,
+                attempts=1,
+                module_type_id=3,
+            ),
+            _make_job(state=IngestionState.NOT_STARTED, module_type_id=4),
+        ]
+    )
+    await db_session.flush()
+
+    repo = DataIngestionRepository(db_session)
+    recovered, abandoned = await repo.sweep_stuck_running_jobs(stale_timeout_minutes=30)
+    assert (recovered, abandoned) == (1, 1)
 
 
 # ======================================================================
@@ -427,7 +487,15 @@ async def test_recover_endpoint_stale(
     async def fake_get_db():
         yield db_session
 
+    async def fake_check_module(*args, **kwargs):
+        return None
+
     monkeypatch.setattr("app.core.security.is_permitted", fake_permitted)
+    # ``recover_job`` now layers a per-job ``check_module_permission`` on
+    # top of the global gate; bypass it in this repo-level test.
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.check_module_permission", fake_check_module
+    )
 
     app.dependency_overrides[get_current_user] = fake_user
     app.dependency_overrides[get_db] = fake_get_db
@@ -470,7 +538,13 @@ async def test_recover_endpoint_not_stale(
     async def fake_get_db():
         yield db_session
 
+    async def fake_check_module(*args, **kwargs):
+        return None
+
     monkeypatch.setattr("app.core.security.is_permitted", fake_permitted)
+    monkeypatch.setattr(
+        "app.api.v1.data_sync.check_module_permission", fake_check_module
+    )
 
     app.dependency_overrides[get_current_user] = fake_user
     app.dependency_overrides[get_db] = fake_get_db
@@ -534,17 +608,141 @@ async def test_pending_jobs_query(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_dispatch_job_unknown_type(db_session: AsyncSession):
+async def test_dispatch_job_routes_through_runner():
+    """Plan 310-C cutover: ``dispatch_job`` is now a thin pass-through
+    to ``run_job`` — the registry lookup happens INSIDE the runner.
+    Unit-level: assert the call delegates with the right id."""
     from app.tasks._poller import dispatch_job
 
-    job = _make_job(
+    job = MagicMock(spec=DataIngestionJob)
+    job.id = 42
+    job.job_type = "anything"
+
+    with patch("app.tasks._poller.run_job", new_callable=AsyncMock) as mock_run:
+        await dispatch_job(job, "pod-test")
+    mock_run.assert_awaited_once_with(42)
+
+
+@pytest.mark.asyncio
+async def test_pending_runner_jobs_query_excludes_null_job_type(
+    db_session: AsyncSession,
+):
+    """Plan 310-C poller cutover: the dispatch sweep filters out rows
+    with ``job_type IS NULL`` so legacy in-flight jobs (created
+    pre-Plan-C) don't get funneled through a runner that has no handler
+    for them.  The runner itself defends in depth (refuses to dispatch
+    a NULL row), but filtering at SELECT time avoids per-iteration
+    noise in the logs."""
+    from app.tasks._poller import _pending_runner_jobs_query
+
+    legacy = _make_job(
         state=IngestionState.NOT_STARTED,
-        job_type="unknown_type",
+        job_type=None,  # legacy in-flight row
+        data_entry_type_id=1,
     )
+    typed = _make_job(
+        state=IngestionState.NOT_STARTED,
+        job_type="csv_ingest",
+        data_entry_type_id=2,
+    )
+    db_session.add_all([legacy, typed])
+    await db_session.flush()
+
+    stmt = _pending_runner_jobs_query(limit=10)
+    jobs = (await db_session.execute(stmt)).scalars().all()
+    job_ids = {j.id for j in jobs}
+    assert legacy.id not in job_ids
+    assert typed.id in job_ids
+
+
+# ======================================================================
+# _check_job_scope tests — regression gate for the #1078 tenant-scope fallout
+# ======================================================================
+#
+# Background: PR #1078 added a per-job permission gate layered on the
+# global ``backoffice.data_management.*`` permission.  The original
+# implementation called ``check_module_permission(institutional_id=None)``
+# for MODULE_PER_YEAR jobs (cross-unit aggregation/recalc), which 403'd
+# every unit-scoped backoffice user (their permissions are stored as
+# ``modules.X/<institutional_id>``, never as bare ``modules.X``).  The
+# fix skips the per-module check when no institutional_id can be derived;
+# the tests below pin that behaviour.
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_skips_module_check_for_module_per_year_jobs(
+    db_session: AsyncSession,
+):
+    """MODULE_PER_YEAR jobs (cross-unit aggregation/recalc) must NOT
+    trigger the per-module ``check_module_permission`` call.  The job has
+    no resolvable institutional_id, so the check would deny every
+    unit-scoped backoffice user.  Regression gate for the 403 the user
+    hit on ``GET /api/v1/sync/jobs/{id}/stream`` post-#1078."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job(module_type_id=1)  # MODULE_PER_YEAR (the factory default)
     db_session.add(job)
     await db_session.flush()
 
-    with patch("app.tasks._poller.logger.warning") as mock_warning:
-        await dispatch_job(job, "pod-test")
-        mock_warning.assert_called_once()
-        assert "unknown_type" in mock_warning.call_args[0][0]
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+
+    with patch("app.api.v1.data_sync.check_module_permission", check_mock):
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_skips_when_module_type_id_is_none(
+    db_session: AsyncSession,
+):
+    """Jobs with no ``module_type_id`` (unit_sync, raw factor_ingest)
+    have no module path to gate on — the global permission alone is
+    sufficient."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job()
+    job.module_type_id = None
+    db_session.add(job)
+    await db_session.flush()
+
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+
+    with patch("app.api.v1.data_sync.check_module_permission", check_mock):
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_check_job_scope_enforces_module_check_for_unit_specific_jobs(
+    db_session: AsyncSession,
+):
+    """MODULE_UNIT_SPECIFIC jobs DO trigger the per-module check, with
+    the resolved ``institutional_id`` passed through.  This confirms the
+    fix doesn't accidentally drop the unit-scoped guard."""
+    from app.api.v1.data_sync import _check_job_scope
+
+    job = _make_job(module_type_id=1)
+    db_session.add(job)
+    await db_session.flush()
+
+    fake_user = MagicMock()
+    check_mock = AsyncMock()
+    inst_resolver = AsyncMock(return_value="0184")
+
+    with (
+        patch("app.api.v1.data_sync.check_module_permission", check_mock),
+        patch("app.api.v1.data_sync._institutional_id_for_job", inst_resolver),
+    ):
+        # Even though the factory default is MODULE_PER_YEAR, mocking the
+        # resolver to return a non-None institutional_id is the cleanest
+        # way to drive the unit-specific code path here without seeding
+        # the full Unit/CarbonReport/CarbonReportModule chain.
+        await _check_job_scope(job, fake_user, db_session, action="view")
+
+    check_mock.assert_awaited_once()
+    kwargs = check_mock.await_args.kwargs
+    assert kwargs["institutional_id"] == "0184"

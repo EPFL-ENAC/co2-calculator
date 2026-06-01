@@ -1,5 +1,6 @@
 import type { EChartsOption } from 'echarts';
 import {
+  buildChartDecal,
   CHART_SUBCATEGORY_COLOR_SCHEMES,
   getChartSubcategoryColor,
 } from 'src/constant/charts';
@@ -34,6 +35,7 @@ export function buildDoughnutOption(
   entries: DisplayEntry[],
   useQuantity: boolean,
   emitTooltip?: (state: TooltipState) => void,
+  showDecal?: boolean,
 ): EChartsOption {
   const colorScheme = CHART_SUBCATEGORY_COLOR_SCHEMES.value[category] ?? {};
   const noBreakdownColor = '#D5D5D5';
@@ -77,6 +79,10 @@ export function buildDoughnutOption(
 
   return {
     animation: false,
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(showDecal ?? false),
+    },
     tooltip: {
       trigger: 'item',
       formatter: (params: unknown) => {

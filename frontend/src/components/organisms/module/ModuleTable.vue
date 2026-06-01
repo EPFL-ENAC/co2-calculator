@@ -58,6 +58,7 @@
     :rows-per-page-options="ROWS_PER_PAGE_OPTIONS"
     :hide-pagination="submoduleConfig?.hasTablePagination === false"
     :no-data-label="$t('common_no_items')"
+    :rows-per-page-label="$t('rows_per_page')"
     :filter="filterTerm"
     @request="onRequest"
   >
@@ -98,7 +99,9 @@
         :disable="scope.isFirstPage"
         @click="scope.prevPage"
       />
-
+      <div v-if="scope.pagesNumber > 1" class="q-px-sm">
+        {{ scope.pagination.page }} / {{ scope.pagesNumber }}
+      </div>
       <q-btn
         icon="chevron_right"
         color="grey-8"
@@ -136,6 +139,8 @@
               :row="slotProps.row"
               :field-id="col.field"
               :options-id="col.optionsId"
+              :option-label-key="col.optionLabelKey"
+              :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
               :submodule-type="submoduleType as any"
@@ -524,6 +529,7 @@ const onFilesUploaded = async (filePaths: string[]) => {
       moduleStore.state.data?.carbon_report_module_id;
     const jobId = await dataManagementStore.initiateSync({
       module_type_id: moduleTypeId,
+      year: Number(props.year),
       provider_type: 'csv',
       target_type: TargetType.DATA_ENTRIES,
       file_path: filePath,
@@ -670,6 +676,7 @@ type CommonProps = {
   moduleConfig: ModuleConfig;
   submoduleConfig: Submodule;
   disable: boolean;
+  isSimulator?: boolean;
 };
 
 type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
@@ -698,9 +705,10 @@ const canEdit = computed(() => {
 // Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
 const isDisabled = computed(
   () =>
-    props.disable ||
-    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-    !canEdit.value,
+    !props.isSimulator &&
+    (props.disable ||
+      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
 );
 
 const filterTerm = ref('');
@@ -734,6 +742,7 @@ type TableViewColumn = {
   editableInline: boolean;
   options?: Array<{ value: string; label: string }>;
   optionsId?: string;
+  optionLabelKey?: string;
   tooltip?: string;
   type: ModuleField['type'];
   minColumnWidth?: number;
@@ -741,6 +750,8 @@ type TableViewColumn = {
   readOnlyWhen?: ModuleField['readOnlyWhen'];
   readOnlyDisplayField?: string;
   optionLabelsAreKeys?: boolean;
+  optionLabelPrefix?: string;
+  optionOrder?: string[];
 };
 
 const qCols = computed<TableViewColumn[]>(() => {
@@ -793,6 +804,8 @@ const qCols = computed<TableViewColumn[]>(() => {
             readOnlyWhen: f.readOnlyWhen,
             readOnlyDisplayField: f.readOnlyDisplayField,
             optionLabelsAreKeys: f.optionLabelsAreKeys,
+            optionLabelPrefix: f.optionLabelPrefix,
+            optionOrder: f.optionOrder,
           });
         });
       } else {
@@ -819,6 +832,7 @@ const qCols = computed<TableViewColumn[]>(() => {
           editableInline,
           options,
           optionsId: f.optionsId,
+          optionLabelKey: f.optionLabelKey,
           tooltip,
           type: f.type,
           minColumnWidth: f.minColumnWidth,
@@ -826,6 +840,8 @@ const qCols = computed<TableViewColumn[]>(() => {
           readOnlyWhen: f.readOnlyWhen,
           readOnlyDisplayField: f.readOnlyDisplayField,
           optionLabelsAreKeys: f.optionLabelsAreKeys,
+          optionLabelPrefix: f.optionLabelPrefix,
+          optionOrder: f.optionOrder,
         });
       }
     });
@@ -851,6 +867,21 @@ const qCols = computed<TableViewColumn[]>(() => {
     });
   }
   return baseCols;
+});
+
+const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
+  const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType];
+  const map: Record<string, string> = {};
+  taxo?.children?.forEach((node) => {
+    if (node.name && node.label) {
+      if (node.translation_key && $te(node.translation_key)) {
+        map[node.name] = $t(node.translation_key);
+      } else {
+        map[node.name] = node.label;
+      }
+    }
+  });
+  return map;
 });
 
 const inlineOptionsMap = computed<
@@ -894,6 +925,8 @@ function renderCell(
     name: string;
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
+    optionLabelPrefix?: string;
+    optionsId?: string;
   },
 ) {
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
@@ -923,6 +956,15 @@ function renderCell(
     if (option) {
       return option.label;
     }
+  }
+  // Factor-sourced options: translate using optionLabelPrefix
+  if (col.optionLabelPrefix && typeof val === 'string') {
+    const key = `${col.optionLabelPrefix}${val.toLowerCase()}`;
+    return $te(key) ? $t(key) : val;
+  }
+  // Factor-sourced kind/subkind: look up label from taxonomy
+  if (col.optionsId === 'kind' && typeof val === 'string') {
+    return taxonomyKindLabelMap.value[val] ?? val;
   }
   if (typeof val === 'string') return val;
   if (typeof val === 'number') {
@@ -954,30 +996,26 @@ function getError(row: ModuleRow, col: { name: string }) {
   return inlineErrors.value[errorKey(row, col)] ?? '';
 }
 
-function validateUsage(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: $t('validation_required') };
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n))
+function validateUsageHoursWeek(value: number) {
+  if (!Number.isFinite(value))
     return {
       valid: false,
       parsed: null,
       error: $t('validation_number_required'),
     };
-  if (n < 0)
+  if (value < 0)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_must_be_non_negative'),
     };
-  if (n > 168)
+  if (value > 168)
     return {
       valid: false,
       parsed: null,
       error: $t('validation_max_hours_per_week'),
     };
-  return { valid: true, parsed: n, error: null };
+  return { valid: true, parsed: value, error: null };
 }
 
 function validateNumberOfTrips(value: unknown) {
@@ -1021,13 +1059,17 @@ async function commitInline(
 
   const valueToSave = (() => {
     if (isUsageField) {
-      const validation = validateUsage(rawVal);
+      const activeVal = Number(row['active_usage_hours_per_week']) || 0;
+      const standbyVal = Number(row['standby_usage_hours_per_week']) || 0;
+      const validation = validateUsageHoursWeek(activeVal + standbyVal);
       if (!validation.valid) {
         setError(row, col, validation.error);
         return null;
       }
       setError(row, col, null);
-      return validation.parsed;
+      // parse raw value to number to ensure consistent type (could be string from input)
+      const parsedVal = Number(rawVal);
+      return Number.isFinite(parsedVal) ? parsedVal : rawVal;
     }
     if (isNumberOfTrips) {
       const validation = validateNumberOfTrips(rawVal);
@@ -1190,7 +1232,7 @@ function isCompleteExternalAI(row: ModuleRow) {
     'provider',
     'usage_type',
     'requests_per_user_per_day',
-    'user_count',
+    'fte_count',
   ];
   return hasRequiredValues(row, required);
 }

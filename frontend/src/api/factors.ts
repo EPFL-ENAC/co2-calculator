@@ -29,6 +29,13 @@ export async function getFactorValues(
   const path =
     `factors/${encodeURIComponent(enumSubmodule[submodule])}/classes/${encodeURIComponent(equipmentClass)}/values` +
     (query ? `?${query}` : '');
-  const res = await api.get(path).json<ValueFactorResponse | null>();
-  return res ?? null;
+  try {
+    const res = await api
+      .get(path, { skipErrorCodes: [404, 422] })
+      .json<ValueFactorResponse | null>();
+    return res ?? null;
+  } catch (err) {
+    console.error('Error fetching factor values:', err);
+    return null;
+  }
 }

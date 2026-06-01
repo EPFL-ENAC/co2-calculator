@@ -24,6 +24,16 @@ use_directory_urls: false
 watch:
   - src
   - mkdocs.yml
+validation:
+  nav:
+    omitted_files: info
+    not_found: info
+    absolute_links: info
+  links:
+    not_found: info
+    absolute_links: info
+    unrecognized_links: info
+    anchors: info
 markdown_extensions:
   - admonition
   - toc:
@@ -45,6 +55,9 @@ markdown_extensions:
 docs_dir: src
 nav:
   - Home: index.md
+  - CRD: architecture/spec.md
+  - LLM Agent Guide: llm-agent-guide.md
+  - Glossary: glossary.md
   - Architecture:
       - Overview: architecture/index.md
       - Purpose & Scope: architecture/01-purpose-scope.md
@@ -53,10 +66,15 @@ nav:
       - Auth Flow: architecture/04-auth-flow.md
       - Environments: architecture/05-environments.md
       - CI/CD Pipeline: architecture/06-cicd-pipeline.md
+      - CI/CD Workflows: architecture/cicd-workflows.md
+      - Workflow Guide: architecture/workflow-guide.md
+      - Release Management: architecture/release-management.md
+      - Dev Release Runbook: architecture/release-runbook.md
       - Global Conventions: architecture/07-global-conventions.md
       - Tech Stack: architecture/08-tech-stack.md
       - Component Breakdown: architecture/09-component-breakdown.md
       - Data Flow: architecture/10-data-flow.md
+      - Data Pipeline (Two-Path): architecture/pipeline.md
       - Deployment Topology: architecture/11-deployment-topology.md
       - Scalability: architecture/12-scalability.md
       - Cross-Cutting Concerns: architecture/13-cross-cutting-concerns.md
@@ -64,7 +82,10 @@ nav:
       - Architectural Decisions: architecture/14-architectural-decisions.md
       - Appendices: architecture/15-appendices.md
       - EPFL Compliance: architecture/epfl-compliance-mapping.md
+      - EPFL IT Requirements (RFC-001): architecture/epfl-constraint.md
       - Code Standards: architecture/code-standards.md
+      - Documentation Standards: architecture/documentation-standards.md
+      - RFC-First Process: architecture/rfc-first-process.md
 
   - Architecture Decision Records:
       - Overview: architecture-decision-records/index.md
@@ -74,13 +95,14 @@ nav:
       - ADR-004 Database Selection: architecture-decision-records/004-database-selection.md
       - ADR-005 Authorization Strategy: architecture-decision-records/005-authorization-strategy.md
       - ADR-010 Background Job Processing: architecture-decision-records/010-background-job-processing.md
+      - ADR-011 Factor Classification JSONB: architecture-decision-records/011-factor-classification-jsonb.md
       - ADR-012 JWT Authentication: architecture-decision-records/012-jwt-authentication-strategy.md
       - ADR-013 Object Storage: architecture-decision-records/013-object-storage-strategy.md
       - ADR-014 Security Checklist: architecture-decision-records/014-security-checklist.md
-
-  - Frontend:
-      - Overview: frontend/01-overview.md
-      - Design Tokens: frontend/02-design-tokens.md
+      - ADR-015 Atomic Job Claiming: architecture-decision-records/015-claim-job-atomic-state-is-current.md
+      - ADR-016 Two-Path Pipeline: architecture-decision-records/016-pipeline-two-path-principle.md
+      - ADR-017 /me Async Role Sync: architecture-decision-records/017-me-endpoint-async-role-sync.md
+      - ADR-018 Factor CSV Idempotency: architecture-decision-records/018-factor-csv-delete-before-insert.md
 
   - Backend:
       - Overview: backend/01-overview.md
@@ -89,8 +111,29 @@ nav:
       - Quick Start: backend/04-README.md
       - Request Flow: backend/05-REQUEST_FLOW.md
       - Permission System: backend/06-PERMISSION-SYSTEM.md
-      - "Developer Guide: Permissions": backend/07-DEVELOPER-GUIDE-PERMISSIONS.md
+      - "Developer Guide: Permissions":
+          - Overview: backend/permissions/index.md
+          - Model: backend/permissions/model.md
+          - Matrix: backend/permissions/matrix.md
+          - How to add a permission: backend/permissions/how-to-add.md
+          - Audit trail: backend/permissions/audit.md
       - Location Search: backend/09-LOCATION-SEARCH.md
+      - CSV seed formats: backend/csv-seed-formats.md
+      - "CSV column inventory": backend/csv-seed-formats/inventory.md
+
+  - Frontend:
+      - Overview: frontend/01-overview.md
+      - Component Tree: frontend/01-overview/components.md
+      - Persona Flows: frontend/01-overview/personas.md
+      - Design Tokens: frontend/02-design-tokens.md
+      - Quasar Bridge: frontend/quasar-bridge.md
+      - Error Monitoring: frontend/error-monitoring.md
+      - Data Management:
+          - Overview: frontend/data-management/index.md
+          - Architecture: frontend/data-management/architecture.md
+          - Data Flows: frontend/data-management/data-flows.md
+          - Modules & Configuration: frontend/data-management/modules-and-config.md
+          - API & Troubleshooting: frontend/data-management/api-and-troubleshooting.md
 
   - Database:
       - Overview: database/01-overview.md
@@ -98,11 +141,11 @@ nav:
   - Infrastructure:
       - Overview: infra/01-overview.md
 
+  - Implementation Plans: implementation-plans/_index.md
+
   - User Documentation:
       - Overview: user-docs/01-overview.md
-      - Module Equipment: user-docs/02-equipment.md
-      - Module Travel: user-docs/03-travel.md
-      - Module Headcount: user-docs/04-headcount.md
+
 extra:
   version: "1.0.0"
 extra_css:
@@ -121,15 +164,35 @@ plugins:
   #     enabled_if_env: ENABLE_PDF_EXPORT
   #     # custom_styles: styles/pdf-custom.css
   #     verbose: false
-  - git-authors
+  - awesome-pages
+  - gen-files:
+      scripts:
+        - gen_indexes.py
+  - literate-nav
+  - git-authors:
+      # Auto-generated INDEX.md files live in a temp dir from gen-files
+      # and have no git history. Don't escalate that to a build error.
+      strict: false
+      fallback_to_empty: true
   - git-revision-date-localized:
       fallback_to_build_date: true
       locale: en
       timezone: Europe/Zurich
+      strict: false
   - minify:
       minify_html: true
       minify_css: true
       minify_js: true
+
+# Auto-generated section indexes are intentionally excluded from `nav:`;
+# whitelist them so `mkdocs build --strict` keeps passing.
+# Filename `_index.md` (not `INDEX.md`) avoids case-insensitive collisions
+# with hand-authored `index.md` pages on macOS/Windows filesystems.
+not_in_nav: |
+  /architecture/_index.md
+  /backend/_index.md
+  /frontend/_index.md
+  /contributing/auto-index.md
 
 copyright: >
   2025 EPFL — GPL-3.0 License. Built with MkDocs

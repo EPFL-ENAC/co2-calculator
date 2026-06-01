@@ -25,6 +25,13 @@ from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_ingestion import (
+    DataIngestionJob,
+    EntityType,
+    IngestionMethod,
+    IngestionState,
+    TargetType,
+)
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
@@ -37,6 +44,7 @@ from app.schemas.year_configuration import (
     RecalculationStatusEntry,
     SyncJobSummary,
     YearConfigurationCreate,
+    YearConfigurationListItem,
     YearConfigurationResponse,
     YearConfigurationUpdate,
     validate_reduction_objective_csv,
@@ -47,6 +55,8 @@ from app.services.year_config_service import (
     get_module_config,
     get_submodule_config,
 )
+from app.tasks._background import fire_and_forget
+from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -155,14 +165,25 @@ def _pick_latest_job(
     sub_id: int | None,
     target_val: int,
 ) -> SyncJobSummary | None:
-    """Pick the most recent job across all ingestion methods for a given target type.
+    """Pick the latest job for a given target type.
 
-    Prefers API (0) > CSV (1) > MANUAL (2) > COMPUTED (3) when multiple exist.
+    For target=DATA_ENTRIES, only CSV uploads surface here: API has its own
+    field (``latest_api_data_job``); MANUAL is reserved for seed-data
+    scripts; COMPUTED targets factor recompute, not data. Restricting to CSV
+    prevents a failed API ingestion from masking a successful CSV upload.
+    For factor/reference targets, all methods are considered (API preferred
+    via the existing ingestion_method ascending sort).
     """
+    INGESTION_METHOD_CSV = 1
+    TARGET_DATA_ENTRIES = 0
+
     candidates = [
         v
         for k, v in job_lookup.items()
-        if k[0] == module_id and k[1] == sub_id and k[2] == target_val
+        if k[0] == module_id
+        and k[1] == sub_id
+        and k[2] == target_val
+        and (target_val != TARGET_DATA_ENTRIES or k[3] == INGESTION_METHOD_CSV)
     ]
     if not candidates:
         return None
@@ -174,6 +195,11 @@ def _build_recalculation_status(
     rows: list,
 ) -> list[ModuleRecalculationStatusEntry]:
     """Build per-module recalculation status from repository rows.
+
+    Plan 310-D / Issue #1062 — ``current_pipeline_id`` no longer rides
+    here; the frontend reads the active pipeline_id from the unified
+    ``pipelineStateStore`` (``GET /v1/sync/active-pipelines``).  This
+    helper now produces the pure recalculation-status rollup.
 
     Args:
         rows: List of RecalculationStatusRow dicts from the repository.
@@ -364,6 +390,35 @@ async def create_audit_entry(
 
 
 @router.get(
+    "/",
+    response_model=list[YearConfigurationListItem],
+    status_code=status.HTTP_200_OK,
+)
+async def list_year_configurations(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List year configurations available to the caller.
+
+    Backoffice data managers see every row (admin-equivalent for this purpose);
+    everyone else only sees years where ``is_started`` is true. This is what
+    drives the workspace year selector — closed years stay hidden from regular
+    users until backoffice opens them.
+
+    Sorted by year descending (latest first).
+    """
+    is_admin = await is_permitted(current_user, "backoffice.data_management", "view")
+
+    stmt = select(YearConfiguration)
+    if not is_admin:
+        stmt = stmt.where(col(YearConfiguration.is_started).is_(True))
+    stmt = stmt.order_by(col(YearConfiguration.year).desc())
+
+    rows = (await db.exec(stmt)).all()
+    return [YearConfigurationListItem.model_validate(r) for r in rows]
+
+
+@router.get(
     "/{year}",
     response_model=YearConfigurationResponse,
     status_code=status.HTTP_200_OK,
@@ -413,7 +468,7 @@ async def get_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
-        is_reports_synced=result.is_reports_synced,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
@@ -462,13 +517,21 @@ async def create_year_configuration(
     config_data = (
         payload.config if payload and payload.config else generate_default_year_config()
     )
+    # Issue #867 — collapse the old two-click flow ("Create year" then
+    # "Sync units from Accred") into a single observable pipeline.  The
+    # endpoint auto-enqueues a ``unit_sync`` ``DataIngestionJob`` with
+    # a freshly-minted ``pipeline_id`` so the frontend can subscribe to
+    # the SSE stream immediately.
+    #
+    # ``is_started`` stays ``False`` on create — the year must NOT be
+    # visible to end-users until backoffice confirms every CSV is
+    # uploaded and every mandatory module setting is valid.  Operators
+    # flip it explicitly via the U5 "Open year for users" button (PATCH
+    # ``is_started: true``).  Callers may still override here.
     new_config = YearConfiguration(
         year=year,
         is_started=payload.is_started
         if payload and payload.is_started is not None
-        else False,
-        is_reports_synced=payload.is_reports_synced
-        if payload and payload.is_reports_synced is not None
         else False,
         config=config_data,
     )
@@ -476,7 +539,6 @@ async def create_year_configuration(
 
     snapshot = {
         "is_started": new_config.is_started,
-        "is_reports_synced": new_config.is_reports_synced,
         "config": new_config.config,
     }
     await create_audit_entry(
@@ -487,15 +549,80 @@ async def create_year_configuration(
         snapshot,
     )
 
+    # Issue #867 — enqueue the unit_sync pipeline tied to this year.  The
+    # shape mirrors ``POST /v1/sync/units`` (see
+    # ``data_sync.py:sync_units_from_accred``) so the registered
+    # ``unit_sync_handler`` reads ``meta.config.target_year`` exactly as
+    # it does for the standalone endpoint — the only difference here is
+    # that we mint ``pipeline_id`` up-front so we can return it
+    # synchronously in the response (the lazy mint inside ``chain_job``
+    # would not yield it before the pipeline starts).
+    #
+    # TODO(#867): if a third caller appears, extract these ~10 lines to
+    # ``app/services/`` (or ``app/tasks/_chain.py``) so the endpoint and
+    # ``data_sync.sync_units_from_accred`` share one helper.  Until then
+    # the duplication is intentional — extraction in flight here would
+    # collide with sibling units of issue #867.
+    pipeline_id = uuid4()
+    job = DataIngestionJob(
+        job_type="unit_sync",
+        module_type_id=None,
+        data_entry_type_id=None,
+        year=year,
+        ingestion_method=IngestionMethod.api,
+        target_type=TargetType.REFERENCE_DATA,
+        entity_type=EntityType.GLOBAL_PER_YEAR,
+        state=IngestionState.NOT_STARTED,
+        pipeline_id=pipeline_id,
+        meta={"config": {"target_year": year}},
+    )
+    # #1236 Phase 2 — Pipeline row MUST exist before the
+    # data_ingestion_jobs INSERT flushes, else the FK rejects.
+    # ``ensure_pipeline_exists`` is idempotent.
+    repo = DataIngestionRepository(db)
+    await repo.ensure_pipeline_exists(
+        pipeline_id,
+        kind="unit_sync",
+        entity_type=EntityType.GLOBAL_PER_YEAR.value,
+        ingestion_method=IngestionMethod.api.value,
+        year=year,
+    )
+    created_job = await repo.create_ingestion_job(job)
+
     await db.commit()
     await db.refresh(new_config)
 
-    logger.info(
-        f"Year configuration created for year {year}",
-        extra={"user_id": current_user.id, "year": year},
+    if created_job.id is None:
+        # Defense-in-depth — repository contract returns the persisted row
+        # so ``id`` is set after commit.  Surface a 500 rather than firing
+        # ``run_job(None)`` if the invariant is violated.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create unit sync job",
+        )
+
+    # Fire-and-forget; the safety poller (Plan 310A) recovers the job
+    # if this pod crashes before the runner claims it.  Same dispatch
+    # path the Plan 310-C unit_sync_handler expects.
+    fire_and_forget(
+        run_job(created_job.id),
+        name=f"run_job-{created_job.id}",
     )
 
-    return YearConfigurationResponse.model_validate(new_config)
+    logger.info(
+        f"Year configuration created for year {year}, "
+        f"unit_sync pipeline {pipeline_id} enqueued (job_id={created_job.id})",
+        extra={
+            "user_id": current_user.id,
+            "year": year,
+            "pipeline_id": str(pipeline_id),
+            "job_id": created_job.id,
+        },
+    )
+
+    response = YearConfigurationResponse.model_validate(new_config)
+    response.pipeline_id = str(pipeline_id)
+    return response
 
 
 @router.patch(
@@ -567,14 +694,11 @@ async def update_year_configuration(
     # Get old snapshot for audit
     old_snapshot = {
         "is_started": result.is_started,
-        "is_reports_synced": result.is_reports_synced,
         "config": result.config,
     }
 
     if payload.is_started is not None:
         result.is_started = payload.is_started
-    if payload.is_reports_synced is not None:
-        result.is_reports_synced = payload.is_reports_synced
     if payload.config is not None:
         result.config = _deep_merge(result.config, payload.config)
 
@@ -582,7 +706,6 @@ async def update_year_configuration(
 
     new_snapshot = {
         "is_started": result.is_started,
-        "is_reports_synced": result.is_reports_synced,
         "config": result.config,
     }
     data_diff = {
@@ -621,7 +744,7 @@ async def update_year_configuration(
     return YearConfigurationResponse(
         year=result.year,
         is_started=result.is_started,
-        is_reports_synced=result.is_reports_synced,
+        configuration_completed=result.configuration_completed,
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
@@ -716,7 +839,6 @@ async def upload_reduction_objective_file(
     old_config = copy.deepcopy(result.config)
     old_snapshot = {
         "is_started": result.is_started,
-        "is_reports_synced": result.is_reports_synced,
         "config": old_config,
     }
 
@@ -761,7 +883,6 @@ async def upload_reduction_objective_file(
     # Create audit entry with diff
     new_snapshot = {
         "is_started": result.is_started,
-        "is_reports_synced": result.is_reports_synced,
         "config": result.config,
     }
     data_diff = {

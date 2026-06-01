@@ -479,11 +479,11 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       };
     })(),
     commuting: {
-      walking: colors.value.aqua.darker,
-      cycling: colors.value.aqua.dark,
-      powered_two_wheeler: colors.value.aqua.default,
-      public_transport: colors.value.aqua.light,
-      car: colors.value.aqua.lighter,
+      powered_two_wheeler: colors.value.aqua.darker,
+      public_transport: colors.value.aqua.dark,
+      car: colors.value.aqua.default,
+      cycling: colors.value.aqua.light,
+      walking: colors.value.aqua.lighter,
     },
     food: {
       vegetarian: colors.value.mint.darker,
@@ -576,3 +576,65 @@ export const uncertaintyColor = (hex: string): string => {
   }
   return hex;
 };
+
+/**
+ * Three visually distinct decal patterns for accessibility/colorblind mode.
+ * ECharts cycles through these across series so segments differ by texture, not just colour.
+ */
+export const CHART_DECAL_PATTERNS: Array<{
+  symbol: string;
+  dashArrayX: [number, number];
+  dashArrayY: [number, number];
+  rotation: number;
+  color: string;
+}> = [
+  // Pattern 1: diagonal lines (−45°)
+  {
+    symbol: 'rect',
+    dashArrayX: [2, 0],
+    dashArrayY: [2, 4],
+    rotation: -Math.PI / 4,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+  // Pattern 2: dots
+  {
+    symbol: 'circle',
+    dashArrayX: [3, 5],
+    dashArrayY: [3, 5],
+    rotation: 0,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+  // Pattern 3: vertical lines (90°)
+  {
+    symbol: 'rect',
+    dashArrayX: [2, 0],
+    dashArrayY: [2, 4],
+    rotation: Math.PI / 2,
+    color: 'rgba(0, 0, 0, 0.15)',
+  },
+];
+
+/**
+ * Builds a full ECharts `aria.decal` block.
+ * @param show
+ * @param overrides
+ */
+export function buildChartDecal(
+  show: boolean,
+  overrides?: Partial<{
+    symbol: string;
+    dashArrayX: [number, number];
+    dashArrayY: [number, number];
+    rotation: number;
+    color: string;
+    lineWidth?: number;
+  }>,
+) {
+  const patterns = overrides
+    ? CHART_DECAL_PATTERNS.map((p) => ({ ...p, ...overrides }))
+    : CHART_DECAL_PATTERNS;
+  return {
+    show,
+    decals: patterns,
+  };
+}

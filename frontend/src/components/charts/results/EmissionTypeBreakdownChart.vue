@@ -6,6 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import type { EChartsOption } from 'echarts';
 import {
+  buildChartDecal,
   getChartSubcategoryColor,
   CHART_CATEGORY_COLOR_SCALES,
   RESULTS_CATEGORY_LABEL_KEYS,
@@ -15,10 +16,12 @@ import {
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
+import { useColorblindStore } from 'src/stores/colorblind';
 
 use([
   CanvasRenderer,
@@ -27,6 +30,7 @@ use([
   LegendComponent,
   GridComponent,
   DatasetComponent,
+  AriaComponent,
 ]);
 
 import type { EmissionBreakdownCategoryRow } from 'src/stores/modules';
@@ -35,14 +39,15 @@ import {
   normalizeParentKey,
 } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
 
 const CATEGORY_LABEL_MAP: Record<string, string> = RESULTS_CATEGORY_LABEL_KEYS;
 
 const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerant',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
@@ -101,9 +106,12 @@ export interface TopClassBreakdownItem {
 const props = defineProps<{
   categoryRows: EmissionBreakdownCategoryRow[];
   topClassBreakdown?: TopClassBreakdownItem[];
+  printMode?: boolean;
 }>();
 
 const { t } = useI18n();
+const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
 
 const categoryKeyPrefixes = Object.keys(CATEGORY_LABEL_MAP);
 
@@ -364,34 +372,41 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          color?: string;
-          seriesIndex?: number;
-          data?: Record<string, unknown>;
-        };
-        const dimKey = segmentKeys[p.seriesIndex ?? 0];
-        const row = p.data;
-        const val = row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
-        if (val <= 0) {
-          emitTooltip(null);
-          return '';
-        }
-        emitTooltip({
-          rows: [
-            {
-              label: p.seriesName ?? '',
-              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-              color: p.color ?? '#888',
-            },
-          ],
-        });
-        return '';
-      },
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
     },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'item',
+          formatter: (params: unknown) => {
+            const p = params as {
+              seriesName?: string;
+              color?: string;
+              seriesIndex?: number;
+              data?: Record<string, unknown>;
+            };
+            const dimKey = segmentKeys[p.seriesIndex ?? 0];
+            const row = p.data;
+            const val =
+              row && dimKey !== undefined ? Number(row[dimKey]) || 0 : 0;
+            if (val <= 0) {
+              emitTooltip(null);
+              return '';
+            }
+            emitTooltip({
+              rows: [
+                {
+                  label: p.seriesName ?? '',
+                  value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+                  color: p.color ?? '#888',
+                },
+              ],
+            });
+            return '';
+          },
+        },
     legend: { show: false },
     grid: {
       left: '3%',
@@ -427,7 +442,8 @@ const chartOption = computed((): EChartsOption => {
 
 const chartHeight = computed(() => {
   const barCount = chartData.value.bars.length;
-  return Math.max(200, barCount * 60 + 60);
+  const natural = Math.max(200, barCount * 60 + 60);
+  return isPrintMode.value ? Math.min(natural, 500) : natural;
 });
 
 const chartRef = ref<InstanceType<typeof VChart>>();
@@ -447,6 +463,7 @@ const onChartReady = async () => {
       <v-chart
         v-if="chartData.bars.length"
         ref="chartRef"
+        :key="colorblindStore.enabled ? 'cb' : 'default'"
         class="chart"
         autoresize
         :option="chartOption"

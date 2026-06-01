@@ -48,53 +48,19 @@ def _make_fake_emission() -> DataEntryEmission:
 
 
 # ---------------------------------------------------------------------------
-# upsert_by_data_entry — kg_co2eq stripping (regression: commit f9576005b)
+# upsert_by_data_entry — passes data through to prepare_create unchanged
 # ---------------------------------------------------------------------------
+#
+# Note: the historical "strip kg_co2eq before recompute" workaround in
+# upsert_by_data_entry was removed once the CSV/API ingestion paths stopped
+# persisting kg_co2eq into DataEntry.data. The override is now carried
+# transiently via prepare_create(kg_co2eq_override=...).
 
 
 @pytest.mark.asyncio
-async def test_upsert_strips_kg_co2eq_before_prepare_create():
-    """kg_co2eq stored by CSV import must not override the formula on user edits.
-
-    Regression introduced by f9576005b renaming co2_kg → kg_co2eq in the CSV
-    provider, which made prepare_create's CSV-override branch trigger for every
-    subsequent edit of a CSV-imported entry.
-    """
-    service = _make_service()
-    fake_emission = _make_fake_emission()
-    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
-
-    data_entry = _make_data_entry_response(
-        {
-            "number_of_trips": 5,
-            "distance_one_trip_km": 800.0,
-            "kg_co2eq": 99999.0,  # stale value from CSV import
-        }
-    )
-
-    captured: list[DataEntryResponse] = []
-
-    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
-        captured.append(de)
-        return [fake_emission]
-
-    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
-        result = await service.upsert_by_data_entry(data_entry)
-
-    assert result == [fake_emission]
-    assert len(captured) == 1
-    called_with = captured[0]
-
-    # The stale kg_co2eq must have been removed so the formula runs
-    assert "kg_co2eq" not in called_with.data
-    # Other fields must be preserved
-    assert called_with.data["number_of_trips"] == 5
-    assert called_with.data["distance_one_trip_km"] == 800.0
-
-
-@pytest.mark.asyncio
-async def test_upsert_does_not_strip_when_no_kg_co2eq():
-    """Entries without a stored kg_co2eq must pass through untouched."""
+async def test_upsert_passes_data_through_unchanged():
+    """upsert_by_data_entry must forward the response to prepare_create
+    without mutating its data dict (no stale-kg_co2eq workaround anymore)."""
     service = _make_service()
     fake_emission = _make_fake_emission()
     service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
@@ -105,7 +71,10 @@ async def test_upsert_does_not_strip_when_no_kg_co2eq():
 
     captured: list[DataEntryResponse] = []
 
-    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
+    async def fake_prepare_create(
+        de: DataEntryResponse,
+        kg_co2eq_override: float | None = None,
+    ) -> list[DataEntryEmission]:
         captured.append(de)
         return [fake_emission]
 
@@ -114,30 +83,6 @@ async def test_upsert_does_not_strip_when_no_kg_co2eq():
 
     called_with = captured[0]
     assert called_with.data == {"number_of_trips": 3, "distance_one_trip_km": 500.0}
-
-
-@pytest.mark.asyncio
-async def test_upsert_does_not_mutate_original_data_entry():
-    """model_copy must be used — the caller's object must stay unchanged."""
-    service = _make_service()
-    fake_emission = _make_fake_emission()
-    service.repo.bulk_create = AsyncMock(return_value=[fake_emission])
-
-    original_data = {
-        "number_of_trips": 2,
-        "distance_one_trip_km": 300.0,
-        "kg_co2eq": 42.0,
-    }
-    data_entry = _make_data_entry_response(original_data)
-
-    async def fake_prepare_create(de: DataEntryResponse) -> list[DataEntryEmission]:
-        return [fake_emission]
-
-    with patch.object(service, "prepare_create", side_effect=fake_prepare_create):
-        await service.upsert_by_data_entry(data_entry)
-
-    # The original response object's data must be unchanged
-    assert data_entry.data.get("kg_co2eq") == 42.0
 
 
 @pytest.mark.asyncio
@@ -184,6 +129,115 @@ async def test_upsert_returns_none_and_flushes_when_no_emissions():
     service.repo.delete_by_data_entry_id.assert_awaited_once_with(data_entry.id)
     service.session.flush.assert_awaited_once()
     service.repo.bulk_create.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# prepare_create — kg_co2eq_override (CSV / API ingestion path)
+# ---------------------------------------------------------------------------
+#
+# The override short-circuits the formula: we produce a single emission per
+# computation with the given kg_co2eq and primary_factor_id=None, and the
+# value is NEVER read from data_entry.data.kg_co2eq.
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
+    """When kg_co2eq_override is set, the formula path is bypassed and a
+    single emission with the override value (and primary_factor_id=None) is
+    returned — even when the data dict has no kg_co2eq key."""
+    from app.models.factor import Factor
+
+    service = _make_service()
+
+    factor = MagicMock(spec=Factor)
+    factor.id = 99
+    factor.emission_type_id = EmissionType.commuting__cycling.value
+    factor.values = {"ef_kg_co2eq_per_unit": 0.5, "unit": "km"}
+
+    de = _make_data_entry_response({"number_of_trips": 2})  # no kg_co2eq key
+
+    with (
+        patch.object(service, "_fetch_factors", new=AsyncMock(return_value=[factor])),
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+        ),
+        patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=[EmissionType.professional_travel__plane],
+        ),
+        patch(
+            "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+        ) as mock_handler_cls,
+    ):
+        mock_handler = MagicMock()
+        mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.resolve_computations = MagicMock(
+            return_value=[
+                EmissionComputation(
+                    emission_type=EmissionType.professional_travel__plane,
+                    factor_id=99,
+                )
+            ]
+        )
+        mock_handler_cls.return_value = mock_handler
+
+        results = await service.prepare_create(de, kg_co2eq_override=42.0)
+
+    assert len(results) == 1
+    assert results[0].kg_co2eq == 42.0
+    assert results[0].primary_factor_id is None
+
+
+@pytest.mark.asyncio
+async def test_prepare_create_does_not_read_kg_co2eq_from_data():
+    """A kg_co2eq value sitting in data_entry.data must NOT be picked up as
+    an override — the channel is exclusively the kg_co2eq_override param."""
+    from app.models.factor import Factor
+
+    service = _make_service()
+
+    factor = MagicMock(spec=Factor)
+    factor.id = 99
+    factor.emission_type_id = EmissionType.professional_travel__plane.value
+    factor.values = {"ef_kg_co2eq_per_km": 0.2}
+
+    # data has a stray kg_co2eq from a hypothetical legacy row — must be ignored
+    de = _make_data_entry_response({"distance_km": 100.0, "kg_co2eq": 99999.0})
+
+    with (
+        patch.object(service, "_fetch_factors", new=AsyncMock(return_value=[factor])),
+        patch.object(
+            service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+        ),
+        patch(
+            "app.services.data_entry_emission_service.resolve_emission_types",
+            return_value=[EmissionType.professional_travel__plane],
+        ),
+        patch(
+            "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+        ) as mock_handler_cls,
+    ):
+        mock_handler = MagicMock()
+        mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.resolve_computations = MagicMock(
+            return_value=[
+                EmissionComputation(
+                    emission_type=EmissionType.professional_travel__plane,
+                    factor_id=99,
+                    formula_key="ef_kg_co2eq_per_km",
+                    quantity_key="distance_km",
+                )
+            ]
+        )
+        mock_handler_cls.return_value = mock_handler
+
+        # No override → formula path runs; the stray kg_co2eq=99999 must be ignored.
+        results = await service.prepare_create(de)
+
+    assert len(results) == 1
+    # Result is from the formula: 100.0 km * 0.2 = 20.0
+    assert results[0].kg_co2eq == pytest.approx(20.0)
+    assert results[0].primary_factor_id == 99
 
 
 # ---------------------------------------------------------------------------
@@ -238,6 +292,11 @@ class TestMetaExtras:
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",
                 return_value=[EmissionType.commuting],
@@ -288,6 +347,11 @@ class TestMetaExtras:
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
             ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",
                 return_value=[EmissionType.food],
@@ -337,6 +401,11 @@ class TestMetaExtras:
             ),
             patch.object(
                 service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
             ),
             patch(
                 "app.services.data_entry_emission_service.resolve_emission_types",
@@ -717,7 +786,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,  # 10 queries per day
-#         "user_count": 100,  # 100 users
+#         "fte_count": 100,  # 100 full-time employees
 #     }
 
 #     factor = Factor(
@@ -743,7 +812,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,
-#         "user_count": 0,
+#         "fte_count": 0,
 #     }
 
 #     factor = Factor(
@@ -768,7 +837,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 10,
-#         "user_count": 100,
+#         "fte_count": 100,
 #     }
 
 #     result = await compute_external_ai(service, data_entry, [])
@@ -784,7 +853,7 @@ class TestDelegationMethods:
 
 #     data_entry = MagicMock()
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
-#     data_entry.data = {}  # Missing frequency and user_count
+#     data_entry.data = {}  # Missing frequency and fte_count
 
 #     factor = Factor(
 #         id=1,
@@ -1330,7 +1399,7 @@ class TestDelegationMethods:
 #     data_entry.data_entry_type = DataEntryTypeEnum.external_ai
 #     data_entry.data = {
 #         "frequency_use_per_day": 1,
-#         "user_count": 1,
+#         "fte_count": 1,
 #     }
 
 #     # factor_gCO2eq is in grams, result should be in kg
@@ -1470,14 +1539,19 @@ class TestPrepareCreateRollup:
 
     @pytest.mark.asyncio
     async def test_csv_override_with_multiple_factors_creates_single_row(self):
-        """CSV kg_co2eq override must not be duplicated per matching factor."""
+        """kg_co2eq override must not be duplicated per matching factor.
+
+        The override is now passed via the ``kg_co2eq_override`` parameter
+        rather than read from ``data_entry.data["kg_co2eq"]`` (which the new
+        contract forbids — kg_co2eq must never live in the persisted column).
+        """
         service = _make_service()
 
         data_entry = DataEntryResponse(
             id=102,
             data_entry_type_id=DataEntryTypeEnum.scientific.value,
             carbon_report_module_id=10,
-            data={"name": "Microscope", "kg_co2eq": 300.0},
+            data={"name": "Microscope"},
         )
 
         fake_factor_1 = MagicMock()
@@ -1518,7 +1592,7 @@ class TestPrepareCreateRollup:
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
-            results = await service.prepare_create(data_entry)
+            results = await service.prepare_create(data_entry, kg_co2eq_override=300.0)
 
         assert len(results) == 1
         override_row = results[0]

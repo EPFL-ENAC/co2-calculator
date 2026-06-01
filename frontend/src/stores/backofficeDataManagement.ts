@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 import { Module } from 'src/constant/modules';
 import { getModuleTypeId } from 'src/constant/moduleStates';
+import { usePipelineStateStore } from 'src/stores/pipelineState';
 
 export interface DataIngestionJob {
   job_id: number;
@@ -35,6 +36,7 @@ export interface ImportRow {
   lastDataJob?: SyncJobResponse;
   lastApiDataJob?: SyncJobResponse;
   lastFactorJob?: SyncJobResponse;
+  lastReferenceJob?: SyncJobResponse;
 }
 
 export interface JobRowError {
@@ -98,9 +100,16 @@ export enum TargetType {
   REFERENCE_DATA = 3,
 }
 
+// Mirrors backend ``app.models.data_ingestion.EntityType`` — keep the integer
+// values in lock-step (BE persists ``entity_type.value`` into job meta and
+// round-trips via ``EntityType(value)``).  The dispatch endpoint currently
+// overrides the FE-sent value from ``carbon_report_module_id`` presence, but
+// other callers (or that endpoint after a refactor) may trust the FE value.
+// ``GLOBAL_PER_YEAR = 3`` exists on the BE for unit-sync jobs; the FE never
+// emits it, so it's intentionally omitted here.
 export enum EntityType {
-  MODULE_PER_YEAR = 2,
-  MODULE_UNIT_SPECIFIC = 3,
+  MODULE_PER_YEAR = 1,
+  MODULE_UNIT_SPECIFIC = 2,
 }
 
 export enum FactorType {
@@ -123,7 +132,7 @@ export enum IngestionResult {
 
 export type InitiateSyncParams = {
   module_type_id: number;
-  year?: number;
+  year: number;
   provider_type: 'csv' | 'api';
   target_type?: TargetType;
   filters?: Record<string, unknown>;
@@ -381,7 +390,27 @@ provider_type
           .post(urlPath, {
             json: requestBody,
           })
-          .json()) as { job_id: number };
+          .json()) as { job_id: number; pipeline_id?: string };
+
+        // Issue #1219 — seed the pipeline_id straight from the dispatch
+        // response so the module card subscribes to the SSE stream
+        // immediately (phase 1 "Inserting data…" becomes visible),
+        // instead of only after the upload job FINISHED via the next
+        // active-pipelines poll.  Guarded: the api/carbon-report-only
+        // path may not carry a module_type_id/year to key on.
+        if (
+          response.pipeline_id &&
+          module_type_id !== undefined &&
+          module_type_id !== null &&
+          year !== undefined &&
+          year !== null
+        ) {
+          usePipelineStateStore().setPipelineId(
+            module_type_id,
+            year,
+            response.pipeline_id,
+          );
+        }
 
         // Update local state with new job
         if (year !== undefined) {
@@ -526,36 +555,6 @@ provider_type
     }
 
     /**
-     * Sync units from Accred API.
-     * Triggers background task to fetch and upsert all units and principal users.
-     */
-    async function syncUnitsFromAccred(target_year: number): Promise<void> {
-      if (loading.value) {
-        throw new Error('Another operation is in progress');
-      }
-
-      loading.value = true;
-      error.value = null;
-
-      try {
-        await api
-          .post('sync/units', {
-            json: { target_year },
-          })
-          .json();
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          error.value = err.message ?? 'Failed to sync units from Accred API';
-        } else {
-          error.value = 'Failed to sync units from Accred API';
-        }
-        throw err;
-      } finally {
-        loading.value = false;
-      }
-    }
-
-    /**
      * Get successful jobs from a specific year, filtered by module type and target type.
      * Returns only jobs that have state = FINISHED (3) and result = SUCCESS (0).
      */
@@ -608,7 +607,18 @@ provider_type
               year,
             },
           })
-          .json()) as { job_id: number };
+          .json()) as { job_id: number; pipeline_id?: string };
+
+        // Issue #1219 — see initiateSync: seed the pipeline_id now so
+        // the card subscribes from dispatch, not from the post-finish
+        // active-pipelines poll.
+        if (response.pipeline_id) {
+          usePipelineStateStore().setPipelineId(
+            moduleTypeId,
+            year,
+            response.pipeline_id,
+          );
+        }
 
         return response.job_id;
       } catch (err: unknown) {
@@ -637,7 +647,18 @@ provider_type
         .post(`sync/recalculate-emissions/${moduleTypeId}/${dataEntryTypeId}`, {
           searchParams: { year },
         })
-        .json()) as { job_id: number };
+        .json()) as { job_id: number; pipeline_id?: string };
+      // Issue #1219 — seed the pipeline_id so the "Recalculate" button
+      // shows live phase progress on the card immediately, not after
+      // the next active-pipelines poll (which may never see a fast
+      // chain).
+      if (response.pipeline_id) {
+        usePipelineStateStore().setPipelineId(
+          moduleTypeId,
+          year,
+          response.pipeline_id,
+        );
+      }
       return response.job_id;
     }
 
@@ -654,7 +675,15 @@ provider_type
         .post(`sync/recalculate-emissions/${moduleTypeId}`, {
           searchParams: { year, only_stale: onlyStale },
         })
-        .json()) as { job_id: number };
+        .json()) as { job_id: number; pipeline_id?: string };
+      // Issue #1219 — see initiateEmissionRecalculation.
+      if (response.pipeline_id) {
+        usePipelineStateStore().setPipelineId(
+          moduleTypeId,
+          year,
+          response.pipeline_id,
+        );
+      }
       return response.job_id;
     }
 
@@ -722,7 +751,6 @@ provider_type
       unsubscribeFromJobUpdates,
       cancelJob,
       reset,
-      syncUnitsFromAccred,
     };
   },
 );

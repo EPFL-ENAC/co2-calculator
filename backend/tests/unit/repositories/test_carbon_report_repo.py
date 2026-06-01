@@ -5,6 +5,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
 
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
 
@@ -25,8 +27,11 @@ async def async_session():
 
 @pytest.mark.asyncio
 async def test_create_and_get_carbon_report(async_session):
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    async_session.add(project)
+    await async_session.flush()
     repo = CarbonReportRepository(async_session)
-    data = CarbonReportCreate(year=2025, unit_id=1)
+    data = CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     inv = await repo.create(data)
     assert inv.id is not None
     fetched = await repo.get(inv.id)
@@ -37,18 +42,26 @@ async def test_create_and_get_carbon_report(async_session):
 
 @pytest.mark.asyncio
 async def test_list_inventories_by_unit(async_session):
+    p1 = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    p2 = CarbonProject(unit_id=2, carbon_report_type=CarbonReportType.CALCULATOR)
+    async_session.add(p1)
+    async_session.add(p2)
+    await async_session.flush()
     repo = CarbonReportRepository(async_session)
-    await repo.create(CarbonReportCreate(year=2025, unit_id=1))
-    await repo.create(CarbonReportCreate(year=2024, unit_id=1))
-    await repo.create(CarbonReportCreate(year=2025, unit_id=2))
+    await repo.create(CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=p1.id))
+    await repo.create(CarbonReportCreate(year=2024, unit_id=1, carbon_project_id=p1.id))
+    await repo.create(CarbonReportCreate(year=2025, unit_id=2, carbon_project_id=p2.id))
     items = await repo.list_by_unit(1)
     assert len(items) == 2
 
 
 @pytest.mark.asyncio
 async def test_update_and_delete_carbon_report(async_session):
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    async_session.add(project)
+    await async_session.flush()
     repo = CarbonReportRepository(async_session)
-    data = CarbonReportCreate(year=2025, unit_id=1)
+    data = CarbonReportCreate(year=2025, unit_id=1, carbon_project_id=project.id)
     inv = await repo.create(data)
     # Update
     update = CarbonReportUpdate(year=2026, unit_id=1)

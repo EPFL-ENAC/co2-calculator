@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
+from sqlalchemy.exc import InvalidRequestError
 from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -16,6 +17,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
+from app.models.location import Location, TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
@@ -43,6 +45,22 @@ class DataEntryRepository:
         self.session = session
         self.entity_type = DataEntry.__name__
         self.carbon_report_module_repo = CarbonReportModuleRepository(session)
+
+    def _detach(self, *objs: Any) -> None:
+        """Expunge ORM rows from the session so accidental mutations cannot
+        be flushed back to the DB. Use on read-path methods that return rows
+        the caller should treat as read-only.
+
+        Silently ignores rows that are not currently attached.
+        """
+        for obj in objs:
+            if obj is None:
+                continue
+            try:
+                self.session.expunge(obj)
+            except InvalidRequestError:
+                # Already detached or session-state edge case — nothing to do.
+                pass
 
     async def get(self, id: int) -> Optional[DataEntry]:
         statement = select(DataEntry).where(DataEntry.id == id)
@@ -181,6 +199,10 @@ class DataEntryRepository:
         sort_order,
         filter: Optional[str] = None,
     ) -> list[DataEntry]:
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. Some callers (delete flows in
+        # data_entry_service.py) only read; others may mutate. Audit each
+        # caller before adding self._detach.
         statement = select(DataEntry).where(
             DataEntry.carbon_report_module_id == carbon_report_module_id
         )
@@ -206,6 +228,10 @@ class DataEntryRepository:
         Returns:
             List of matching DataEntry rows (may be empty).
         """
+        # TODO: check if it's safe to expunge the returned rows here for
+        # symmetry with get_submodule_data. The recalculation workflow in
+        # workflows/emission_recalculation.py is the primary caller and may
+        # mutate; audit before adding self._detach.
         statement = (
             select(DataEntry)
             .join(
@@ -352,6 +378,10 @@ class DataEntryRepository:
             DataEntryTypeEnum.plane.value,
             DataEntryTypeEnum.train.value,
         )
+        is_train_entry = data_entry_type_id == DataEntryTypeEnum.train.value
+        is_plane_entry = data_entry_type_id == DataEntryTypeEnum.plane.value
+        OriginLocation: Any = None
+        DestLocation: Any = None
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
@@ -467,6 +497,10 @@ class DataEntryRepository:
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
                 entities.extend([MemberEntry, DataEntryEmission])
+                if is_train_entry or is_plane_entry:
+                    OriginLocation = aliased(Location)
+                    DestLocation = aliased(Location)
+                    entities.extend([OriginLocation, DestLocation])
             statement = (
                 sa_select(*entities)
                 .join(
@@ -502,6 +536,48 @@ class DataEntryRepository:
                     col(DataEntryEmission.data_entry_id) == DataEntry.id,
                     isouter=True,
                 )
+                if is_train_entry:
+                    statement = statement.join(
+                        OriginLocation,
+                        (
+                            OriginLocation.name
+                            == DataEntry.data["origin_name"].as_string()
+                        )
+                        & (
+                            col(OriginLocation.transport_mode)
+                            == TransportModeEnum.train
+                        ),
+                        isouter=True,
+                    ).join(
+                        DestLocation,
+                        (
+                            DestLocation.name
+                            == DataEntry.data["destination_name"].as_string()
+                        )
+                        & (col(DestLocation.transport_mode) == TransportModeEnum.train),
+                        isouter=True,
+                    )
+                elif is_plane_entry:
+                    statement = statement.join(
+                        OriginLocation,
+                        (
+                            OriginLocation.iata_code
+                            == DataEntry.data["origin_iata"].as_string()
+                        )
+                        & (
+                            col(OriginLocation.transport_mode)
+                            == TransportModeEnum.plane
+                        ),
+                        isouter=True,
+                    ).join(
+                        DestLocation,
+                        (
+                            DestLocation.iata_code
+                            == DataEntry.data["destination_iata"].as_string()
+                        )
+                        & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
+                        isouter=True,
+                    )
             kg_sort_expr = emission_agg.c.total_kg_co2eq
 
         statement = statement.where(
@@ -525,6 +601,14 @@ class DataEntryRepository:
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
         sort_map["kg_co2eq"] = kg_sort_expr
+        if is_travel_entry:
+            sort_map["distance_km"] = func.coalesce(
+                DataEntryEmission.additional_value,
+                DataEntry.data["distance_km"].as_float(),
+            )
+        if (is_train_entry or is_plane_entry) and OriginLocation is not None:
+            sort_map["origin_name"] = OriginLocation.name
+            sort_map["destination_name"] = DestLocation.name
         statement = self._apply_sort(statement, sort_by, sort_order, sort_map)
 
         statement = statement.offset(offset).limit(limit)
@@ -558,15 +642,49 @@ class DataEntryRepository:
         items: list[BaseModel] = []
 
         for row in rows:
+            # Pre-bind conditionally-unpacked variables so static type checkers
+            # see them as definitely-bound (T | None) on every branch path.
+            # MemberEntry is a SQLAlchemy alias of DataEntry, so the runtime
+            # type is DataEntry.
+            member_entry: DataEntry | None = None
+            _emission: DataEntryEmission | None = None
+            building_room: BuildingRoom | None = None
+            _origin_loc: Location | None = None
+            _dest_loc: Location | None = None
             # Unpack based on query shape
             if is_travel_entry:
-                data_entry, total_kg_co2eq, primary_factor, member_entry, _emission = (
-                    row
-                )
+                if is_train_entry or is_plane_entry:
+                    (
+                        data_entry,
+                        total_kg_co2eq,
+                        primary_factor,
+                        member_entry,
+                        _emission,
+                        _origin_loc,
+                        _dest_loc,
+                    ) = row
+                else:
+                    (
+                        data_entry,
+                        total_kg_co2eq,
+                        primary_factor,
+                        member_entry,
+                        _emission,
+                    ) = row
             elif is_buildings_entry:
                 data_entry, total_kg_co2eq, primary_factor, building_room = row
             else:
                 data_entry, total_kg_co2eq, primary_factor = row
+
+            # Defense-in-depth: detach loaded ORM rows from the session so any
+            # accidental mutation (here or downstream) cannot be flushed back to
+            # the DB. This method only reads scalar columns and the JSON `data`
+            # field after unpack — no lazy relationships — so expunge is safe.
+            self._detach(data_entry, primary_factor)
+            if is_travel_entry:
+                self._detach(member_entry, _emission, _origin_loc, _dest_loc)
+            elif is_buildings_entry:
+                self._detach(building_room)
 
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
@@ -579,12 +697,18 @@ class DataEntryRepository:
                     factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
                     factor_result = await self.session.execute(factor_stmt)
                     primary_factor = factor_result.scalar_one_or_none()
+                    if primary_factor is not None:
+                        self._detach(primary_factor)
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
                 primary_factor.classification if primary_factor else {}
             )
-            data_entry.data = {
+            # Build the enriched response payload as a fresh dict — never
+            # mutate `data_entry.data`, which would dirty the ORM row and
+            # cause SQLAlchemy to flush computed values back into the source-
+            # of-truth JSON column on the next session flush/commit.
+            enriched_data: dict = {
                 **data_entry.data,
                 "kg_co2eq": total_kg_co2eq,
                 "primary_factor": {
@@ -597,27 +721,23 @@ class DataEntryRepository:
                 distance_km = (
                     float(_emission.additional_value)
                     if _emission is not None and _emission.additional_value is not None
-                    else data_entry.data.get("distance_km")
+                    else enriched_data.get("distance_km")
                 )
-                data_entry.data = {
-                    **data_entry.data,
-                    **(
-                        {"traveler_name": member_entry.data.get("name")}
-                        if member_entry
-                        else {}
-                    ),
-                    **({"distance_km": distance_km} if distance_km is not None else {}),
-                }
+                if member_entry is not None:
+                    enriched_data["traveler_name"] = member_entry.data.get("name")
+                if distance_km is not None:
+                    enriched_data["distance_km"] = distance_km
+                if is_train_entry or is_plane_entry:
+                    if _origin_loc is not None:
+                        enriched_data["origin_name"] = _origin_loc.name
+                    if _dest_loc is not None:
+                        enriched_data["destination_name"] = _dest_loc.name
             if is_buildings_entry and building_room:
-                surface = building_room.room_surface_square_meter
-                data_entry.data = {
-                    **data_entry.data,
-                    "room_surface_square_meter": surface
-                    if surface is not None
-                    else None,
-                }
+                enriched_data["room_surface_square_meter"] = (
+                    building_room.room_surface_square_meter
+                )
 
-            items.append(handler.to_response(data_entry))
+            items.append(handler.to_response(data_entry, enriched_data))
 
         response = SubmoduleResponse(
             id=data_entry_type_id,
@@ -725,6 +845,8 @@ class DataEntryRepository:
         carbon_report_id: int,
         aggregate_by: str = "module_type_id",
         aggregate_field: str = "fte",
+        *,
+        validated_only: bool = True,
     ) -> Dict[str, float]:
         """Aggregate DataEntry data by module_type_id for a whole carbon report.
 
@@ -760,7 +882,11 @@ class DataEntryRepository:
             )
             .where(
                 CarbonReportModule.carbon_report_id == carbon_report_id,
-                CarbonReportModule.status == ModuleStatus.VALIDATED,
+                *(
+                    []
+                    if not validated_only
+                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                ),
             )
             .group_by(group_field)
         )

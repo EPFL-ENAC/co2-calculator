@@ -207,7 +207,7 @@ def build_external_ai():
         "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
         "usage_type": fake.sentence(nb_words=3),
         "requests_per_user_per_day": maybe(random.randint(0, 50)),  # nosec B311
-        "user_count": random.randint(1, 500),  # nosec B311
+        "fte_count": random.randint(1, 500),  # nosec B311
     }
 
 
@@ -233,7 +233,6 @@ def build_purchase():
         "quantity": maybe(random.randint(1, 100)),  # nosec B311
         "total_spent_amount": maybe(round(random.uniform(100, 10000), 2)),  # nosec B311
         "purchase_institutional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
-        "purchase_institutional_description": maybe(fake.sentence(nb_words=5)),
         "purchase_additional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
         "note": maybe(fake.sentence(nb_words=10)),
     }

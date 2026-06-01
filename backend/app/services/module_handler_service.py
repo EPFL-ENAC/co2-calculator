@@ -167,6 +167,7 @@ class ModuleHandlerService:
                 kind_node = TaxonomyNode(
                     name=kind_value,
                     label=label,
+                    translation_key=values.get("translation_key") or kind_value,
                 )
                 children.append(kind_node)
 
@@ -204,6 +205,7 @@ class ModuleHandlerService:
                 TaxonomyNode(
                     name=subkind_value,
                     label=subkind_label,
+                    translation_key=values.get("translation_key") or subkind_value,
                     classification=classification,
                     values=values,
                 )

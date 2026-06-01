@@ -47,19 +47,14 @@ const roomFields: ModuleField[] = [
     // IMPORTANT: these values are backend emission-factor lookup keys.
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
+    optionLabelsAreKeys: true,
     options: [
-      { value: 'office', label: 'Office' },
-      { value: 'miscellaneous', label: 'Miscellaneous' },
-      {
-        value: 'laboratories',
-        label: 'Laboratories',
-      },
-      { value: 'archives', label: 'Archives' },
-      { value: 'libraries', label: 'Libraries' },
-      {
-        value: 'auditoriums',
-        label: 'Auditoriums',
-      },
+      { value: 'office', label: 'buildings-room-type-office' },
+      { value: 'miscellaneous', label: 'buildings-room-type-miscellaneous' },
+      { value: 'laboratories', label: 'buildings-room-type-laboratories' },
+      { value: 'archives', label: 'buildings-room-type-archives' },
+      { value: 'libraries', label: 'buildings-room-type-libraries' },
+      { value: 'auditoriums', label: 'buildings-room-type-auditoriums' },
     ],
   },
   {
@@ -164,6 +159,14 @@ const energyCombustionFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_local_fire_department',
     hideIn: { form: false },
+    optionOrder: [
+      'buildings_combustion_type_natural_gas',
+      'buildings_combustion_type_heating_oil',
+      'buildings_combustion_type_biomethane',
+      'buildings_combustion_type_pellets',
+      'buildings_combustion_type_forest_chips',
+      'buildings_combustion_type_wood_logs',
+    ],
   },
   {
     id: 'unit',
@@ -214,14 +217,6 @@ export const buildings: ModuleConfig = {
   },
   submodules: [
     {
-      id: SUBMODULE_BUILDINGS_TYPES.Building,
-      type: SUBMODULE_BUILDINGS_TYPES.Building as AllSubmoduleTypes,
-      tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
-      moduleFields: roomFields,
-      hasTableAction: true,
-      addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
-    },
-    {
       id: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion,
       type: SUBMODULE_BUILDINGS_TYPES.EnergyCombustion as BuildingsSubType,
       tableNameKey: `${MODULES.Buildings}.combustion_table_title`,
@@ -229,6 +224,16 @@ export const buildings: ModuleConfig = {
       hasTableAction: true,
       hasFormTooltip: `${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`,
       addButtonLabelKey: `${MODULES.Buildings}.add_combustion_button`,
+    },
+    {
+      id: SUBMODULE_BUILDINGS_TYPES.Building,
+      type: SUBMODULE_BUILDINGS_TYPES.Building as AllSubmoduleTypes,
+      tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
+      moduleFields: roomFields,
+      hasTableAction: true,
+      hasFormTooltip: false,
+      notifyInfoOnAddKey: `${MODULES.Buildings}-rooms-form-add-info`,
+      addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
     },
   ],
   totalFormatter: formatTonnesCO2,

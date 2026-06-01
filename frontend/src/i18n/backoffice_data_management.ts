@@ -175,8 +175,8 @@ export default {
     fr: 'Localisations aéroport',
   },
   data_management_other_institution_rooms: {
-    en: 'Institution rooms',
-    fr: "Salles de l'institution",
+    en: 'Institution rooms — uploading a CSV replaces every room in the table.',
+    fr: "Salles de l'institution — un téléversement remplace toutes les salles de la table.",
   },
   data_management_upload_reference: {
     en: 'Upload Reference',
@@ -299,37 +299,42 @@ export default {
     en: 'rows imported',
     fr: 'lignes importées',
   },
+  data_management_api_ingestion: {
+    en: 'API ingestion',
+    fr: 'Ingestion API',
+  },
   data_management_download_last_csv: {
     en: 'Download last CSV',
     fr: 'Télécharger le dernier CSV',
   },
-  data_management_sync_units_from_accred: {
-    en: 'Sync Units from Accred',
-    fr: 'Synchroniser les unités depuis Accred',
+  // Issue #867 — in-flight progress message shown while the unit_sync
+  // pipeline (kicked off automatically by the create-year endpoint) is
+  // running.  Replaces the legacy ``data_management_unit_sync_*`` keys
+  // and their fake ``setTimeout`` success toast — the success / error
+  // notifications below are now driven by the real SSE stream.
+  data_management_year_sync_in_progress: {
+    en: 'Setting up year {year}: syncing units from Accred…',
+    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred…",
   },
-  data_management_unit_sync_started: {
-    en: 'Unit sync started',
-    fr: 'Synchronisation des unités démarrée',
+  data_management_year_sync_in_progress_caption: {
+    en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
+    fr: "Cela peut prendre quelques minutes. Les téléversements CSV sont en pause jusqu'à la fin de la synchronisation.",
   },
-  data_management_unit_sync_started_caption: {
-    en: 'This may take a few minutes...',
-    fr: 'Cela peut prendre quelques minutes...',
+  data_management_year_sync_success: {
+    en: 'Year {year} ready: units synced',
+    fr: 'Année {year} prête : unités synchronisées',
   },
-  data_management_unit_sync_success: {
-    en: 'Units synced successfully!',
-    fr: 'Unités synchronisées avec succès !',
+  data_management_year_sync_success_caption: {
+    en: 'All units and principal users have been imported. You can now upload module data.',
+    fr: 'Toutes les unités et les utilisateurs principaux ont été importés. Vous pouvez maintenant téléverser les données des modules.',
   },
-  data_management_unit_sync_success_caption: {
-    en: 'All units and principal users have been updated',
-    fr: 'Toutes les unités et utilisateurs principaux ont été mis à jour',
+  data_management_year_sync_error: {
+    en: 'Unit sync failed for year {year}',
+    fr: "La synchronisation des unités a échoué pour l'année {year}",
   },
-  data_management_unit_sync_error: {
-    en: 'Unit sync failed',
-    fr: 'La synchronisation des unités a échoué',
-  },
-  data_management_unit_sync_error_caption: {
-    en: 'Please try again later',
-    fr: 'Veuillez réessayer plus tard',
+  data_management_year_sync_error_caption: {
+    en: 'The year was created but the unit import did not finish. Check the pipeline logs and retry.',
+    fr: "L'année a été créée mais l'import des unités n'a pas abouti. Vérifiez les logs du pipeline et réessayez.",
   },
   data_management_last_upload_overwrite: {
     en: 'The last uploaded data will be overwritten',
@@ -604,6 +609,82 @@ export default {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',
   },
+  data_management_pipeline_recalculating: {
+    en: 'Recalculating…',
+    fr: 'Recalcul en cours…',
+  },
+  data_management_pipeline_failed: {
+    en: 'Last recalc failed',
+    fr: 'Échec du dernier recalcul',
+  },
+  data_management_pipeline_phase_data: {
+    en: 'Step 1/3 · Inserting data…',
+    fr: 'Étape 1/3 · Insertion des données…',
+  },
+  data_management_pipeline_phase_emissions: {
+    en: 'Step 2/3 · Recalculating emissions…',
+    fr: 'Étape 2/3 · Recalcul des émissions…',
+  },
+  data_management_pipeline_phase_aggregation: {
+    en: 'Step 3/3 · Aggregating…',
+    fr: 'Étape 3/3 · Agrégation…',
+  },
+  data_management_pipeline_running_tooltip: {
+    en: 'Upload accepted — recalculation still in progress',
+    fr: 'Téléchargement accepté — recalcul en cours',
+  },
+  data_management_recalculate_retry: {
+    en: 'Retry recalculation',
+    fr: 'Relancer le recalcul',
+  },
+  data_management_pipeline_id_label: {
+    en: 'Pipeline:',
+    fr: 'Pipeline :',
+  },
+  data_management_pipeline_id_copy: {
+    en: 'Copy ID',
+    fr: 'Copier l’ID',
+  },
+  data_management_pipeline_id_copied: {
+    en: 'Pipeline ID copied',
+    fr: 'ID du pipeline copié',
+  },
+  data_management_pipeline_id_copy_failed: {
+    en: 'Failed to copy pipeline ID',
+    fr: 'Échec de la copie de l’ID',
+  },
+  data_management_pipeline_no_jobs_yet: {
+    en: 'Waiting for first update from the pipeline…',
+    fr: 'En attente de la première mise à jour du pipeline…',
+  },
+  data_management_pipeline_started: {
+    en: 'Started',
+    fr: 'Démarré',
+  },
+  data_management_pipeline_finished: {
+    en: 'Finished',
+    fr: 'Terminé',
+  },
+  data_management_pipeline_time_just_now: {
+    en: 'just now',
+    fr: 'à l’instant',
+  },
+  data_management_pipeline_time_seconds_ago: {
+    en: '{n}s ago',
+    fr: 'il y a {n} s',
+  },
+  data_management_pipeline_time_minutes_ago: {
+    en: '{n}m ago',
+    fr: 'il y a {n} min',
+  },
+  data_management_pipeline_time_hours_ago: {
+    en: '{n}h ago',
+    fr: 'il y a {n} h',
+  },
+  data_management_pipeline_time_days_ago: {
+    en: '{n}d ago',
+    fr: 'il y a {n} j',
+  },
   data_management_recalculate_emissions: {
     en: 'Recalculate Emissions',
     fr: 'Recalculer les émissions',
@@ -655,5 +736,21 @@ export default {
   data_management_cancel_job: {
     en: 'Cancel',
     fr: 'Annuler',
+  },
+  data_management_year_already_open: {
+    en: 'Year is already open to users',
+    fr: "L'année est déjà ouverte aux utilisateurs",
+  },
+  data_management_year_opened_success: {
+    en: 'Year {year} opened to users',
+    fr: 'Année {year} ouverte aux utilisateurs avec succès',
+  },
+  data_management_year_is_open: {
+    en: 'Open to users',
+    fr: 'Ouverte aux utilisateurs',
+  },
+  data_management_year_is_not_open: {
+    en: 'Not yet open',
+    fr: 'Pas encore ouverte',
   },
 } as const;

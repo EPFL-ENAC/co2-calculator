@@ -125,7 +125,9 @@ async def test_list_headcount_members_403_when_no_permission():
 
     with patch.object(crm, "get_module_permission_decision", side_effect=deny_all):
         with pytest.raises(HTTPException) as exc:
-            await crm.list_headcount_members(1, 2024, db, user)
+            await crm.list_headcount_members(
+                1, 2024, carbon_project_type=0, db=db, current_user=user
+            )
 
     assert exc.value.status_code == 403
     assert "Permission denied" in exc.value.detail
@@ -156,7 +158,9 @@ async def test_list_headcount_members_principal_for_unit_sees_all():
         patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(1, 2024, db, user)
+        result = await crm.list_headcount_members(
+            1, 2024, carbon_project_type=0, db=db, current_user=user
+        )
 
     assert len(result) == 2
 
@@ -181,7 +185,9 @@ async def test_list_headcount_members_global_role_sees_all():
         patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(1, 2024, db, user)
+        result = await crm.list_headcount_members(
+            1, 2024, carbon_project_type=0, db=db, current_user=user
+        )
 
     assert len(result) == 2
 
@@ -212,7 +218,9 @@ async def test_list_headcount_members_std_user_sees_only_own():
         patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(1, 2024, db, user)
+        result = await crm.list_headcount_members(
+            1, 2024, carbon_project_type=0, db=db, current_user=user
+        )
 
     assert len(result) == 1
     assert result[0].institutional_id == "11111"
@@ -245,7 +253,9 @@ async def test_list_headcount_members_principal_other_unit_sees_only_own():
         patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=1)),
         patch.object(crm, "DataEntryService", return_value=svc),
     ):
-        result = await crm.list_headcount_members(1, 2024, db, user)
+        result = await crm.list_headcount_members(
+            1, 2024, carbon_project_type=0, db=db, current_user=user
+        )
 
     assert len(result) == 1
     assert result[0].institutional_id == "11111"
@@ -265,7 +275,9 @@ async def test_list_headcount_members_404_when_unit_missing():
         crm, "get_module_permission_decision", side_effect=allow_headcount
     ):
         with pytest.raises(HTTPException) as exc:
-            await crm.list_headcount_members(1, 2024, db, user)
+            await crm.list_headcount_members(
+                1, 2024, carbon_project_type=0, db=db, current_user=user
+            )
 
     assert exc.value.status_code == 404
 

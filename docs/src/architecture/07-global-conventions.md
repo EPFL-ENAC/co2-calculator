@@ -303,16 +303,19 @@ For scaling strategy, see [Scalability](12-scalability.md).
 
 ## Documentation Standards
 
-Keep documentation concise and actionable:
+Keep documentation concise and actionable — a reader should grasp it in
+one ~10-minute sitting:
 
-- Target 500-800 words per document (10-minute read) Okay if < 1200 words
-- Use active voice and imperative mood
-- Wrap text at 72 characters
-- Include examples after concepts
-- Add cross-references to related docs
-- Avoid duplicating content across files
+- Target 500–800 words per document; longer only when justified (e.g. multi-procedure runbooks)
+- Active voice, imperative mood; sentences under 20 words; wrap text at 72 characters
+- Examples after concepts; cross-reference related docs; never duplicate content across files
+- Use blockquote callouts, **not** `!!!` admonitions — the Prettier hook breaks admonition indentation
+- Add every new page to `mkdocs.yml` `nav:`; a cross-link-only page is orphaned
+- No agent-only tooling (e.g. `rtk`) in human-facing docs — use plain `git`/`gh`
+- Verify with `npx prettier --check` and `uv run mkdocs build --strict` before commit
+- Update documentation in the same PR as the code it describes
 
-Update documentation in the same PR as code changes.
-
-For detailed conventions and code examples, see the [Code Standards
-documentation](code-standards.md) and individual component guides.
+For the full guideline, length targets by document type, and the
+MkDocs-specific conventions, see
+[Documentation Standards](documentation-standards.md). For coding
+conventions, see [Code Standards](code-standards.md).

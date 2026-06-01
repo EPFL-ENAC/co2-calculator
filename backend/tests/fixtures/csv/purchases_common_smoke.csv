@@ -1,0 +1,3 @@
+unit_institutional_id,name,supplier,purchase_institutional_code,total_spent_amount,currency,note
+{unit_institutional_id},Smoke Microscope,ACME,PIC-IT,200.0,eur,
+{unit_institutional_id},Smoke Cables,ACME,PIC-IT,100.0,eur,

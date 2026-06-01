@@ -9,6 +9,7 @@ import {
   TooltipComponent,
   LegendComponent,
   GridComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
@@ -16,20 +17,25 @@ import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { useColorblindStore } from 'src/stores/colorblind';
 
+import { buildChartDecal } from 'src/constant/charts';
 import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap';
 import { formatTonnesForChart } from 'src/utils/number';
 
 const { t } = useI18n();
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+const isPrintMode = usePrintMode();
+const colorblindStore = useColorblindStore();
 
 const LABEL_KEY_MAP: Record<string, string> = {
   // process_emissions
-  co2: 'charts-co2-subcategory',
-  ch4: 'charts-ch4-subcategory',
-  n2o: 'charts-n2o-subcategory',
-  refrigerants: 'charts-refrigerants-subcategory',
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerant',
   // buildings
   heating_thermal: 'charts-heating-thermal-subcategory',
   lighting: 'charts-lighting-subcategory',
@@ -81,6 +87,7 @@ use([
   TooltipComponent,
   LegendComponent,
   GridComponent,
+  AriaComponent,
 ]);
 
 const props = defineProps<{
@@ -163,31 +170,37 @@ const chartOption = computed((): EChartsOption => {
 
   return {
     animation: false,
-    tooltip: {
-      trigger: 'item',
-      formatter: (params: unknown) => {
-        const p = params as {
-          seriesName?: string;
-          color?: string;
-          data?: { value: number; originalValue: number };
-        };
-        const val = p.data?.originalValue ?? 0;
-        if (val <= 0) {
-          emitTooltip(null);
-          return '';
-        }
-        emitTooltip({
-          rows: [
-            {
-              label: p.seriesName ?? '',
-              value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
-              color: p.color ?? '#888',
-            },
-          ],
-        });
-        return '';
-      },
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(colorblindStore.enabled),
     },
+    tooltip: isPrintMode.value
+      ? { show: false }
+      : {
+          trigger: 'item',
+          formatter: (params: unknown) => {
+            const p = params as {
+              seriesName?: string;
+              color?: string;
+              data?: { value: number; originalValue: number };
+            };
+            const val = p.data?.originalValue ?? 0;
+            if (val <= 0) {
+              emitTooltip(null);
+              return '';
+            }
+            emitTooltip({
+              rows: [
+                {
+                  label: p.seriesName ?? '',
+                  value: `${formatTonnesForChart(val)}${t('results_units_tonnes')}`,
+                  color: p.color ?? '#888',
+                },
+              ],
+            });
+            return '';
+          },
+        },
     legend: { show: false },
     grid: {
       left: 0,
@@ -277,7 +290,7 @@ const babyBlueScheme = computed(() => {
 <template>
   <div class="flex justify-between items-center q-mb-xs">
     <q-card-section
-      v-if="legendData.length > 0"
+      v-if="!isPrintMode && legendData.length > 0"
       class="legend-container q-pa-none"
     >
       <div class="flex flex-wrap" style="gap: 15px">
@@ -296,7 +309,7 @@ const babyBlueScheme = computed(() => {
     </q-card-section>
 
     <q-btn
-      v-if="showEvolutionDialog"
+      v-if="!isPrintMode && showEvolutionDialog"
       color="primary"
       unelevated
       no-caps
@@ -318,11 +331,13 @@ const babyBlueScheme = computed(() => {
   <q-card-section class="chart-container q-pa-none">
     <v-chart
       ref="chartRef"
-      :key="visibleData.map((c) => c.name).join('|')"
+      :key="`${visibleData.map((c) => c.name).join('|')}-${colorblindStore.enabled}`"
       class="chart"
       autoresize
       :option="chartOption"
-      :style="{ height: height ?? '200px' }"
+      :style="{
+        height: isPrintMode ? (height ?? '80px') : (height ?? '200px'),
+      }"
       @vue:mounted="onChartReady"
     />
     <Teleport to="body">

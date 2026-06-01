@@ -128,9 +128,28 @@ class ModuleHandler(Protocol[T]):
     subkind_label_field: Optional[str] = None
     factor_value_fields: Optional[list[str]] = None
 
-    def to_response(self, data_entry: T) -> DataEntryResponseGen: ...
+    def to_response(
+        self,
+        data_entry: T,
+        enriched_data: dict | None = None,
+    ) -> DataEntryResponseGen:
+        """Build the response DTO for a data entry.
+
+        ``enriched_data`` overrides ``data_entry.data`` when provided. Callers
+        from listing endpoints pass it to inject computed values (kg_co2eq,
+        primary_factor, distance_km, ...) without mutating the ORM row, which
+        would otherwise be flushed back to ``DataEntry.data`` and corrupt the
+        source-of-truth column.
+        """
+        ...
+
     def validate_create(self, payload: dict) -> DataEntryCreate: ...
     def validate_update(self, payload: dict) -> DataEntryUpdate: ...
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: AsyncSession,
+    ) -> tuple[dict, Optional[str]]: ...
     async def pre_compute(
         self,
         data_entry: Any,
@@ -256,6 +275,25 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
             Dict of additional context keys (empty by default).
         """
         return {}
+
+    async def enrich_csv_row(
+        self,
+        data: dict,
+        session: AsyncSession,
+    ) -> tuple[dict, Optional[str]]:
+        """CSV-time data enrichment hook.
+
+        Called per-row after ``validate_create`` and before DataEntry
+        construction. Override to compute fields that are derived from CSV
+        columns plus DB state (e.g. resolve a train station ``origin_name``
+        to its ``origin_natural_key`` via a Location lookup).
+
+        Returns:
+            ``(enriched_data, error_msg)``. If ``error_msg`` is non-None,
+            the CSV provider skips the row and records the message in
+            ``row_errors`` — same shape as ``_record_row_error``.
+        """
+        return data, None
 
     def resolve_computations(
         self,

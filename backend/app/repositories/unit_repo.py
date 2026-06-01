@@ -5,6 +5,7 @@ from typing import Any, List, Optional, Union
 
 from attr import dataclass
 from sqlalchemy import asc, desc
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -178,10 +179,84 @@ class UnitRepository:
         return units
 
     async def bulk_upsert(self, units: List[Unit]) -> UpsertResult:
+        """Insert-or-update by ``institutional_code`` (the unique key).
+
+        **Race safety (#1236):** ``units`` is a GLOBAL table (not
+        year-scoped) so two parallel ``unit_sync`` jobs for different
+        years both upsert the same set of Accred units.  The previous
+        implementation did SELECT-then-MERGE, which races between two
+        transactions: both observe "code X doesn't exist", both INSERT,
+        the second hits ``ix_units_institutional_code`` and raises
+        ``UniqueViolation``.  The Postgres path now uses
+        ``INSERT … ON CONFLICT (institutional_code) DO UPDATE`` —
+        race-safe by construction at the database level.  The SQLite
+        fallback keeps the legacy SELECT/MERGE because the test
+        fixture's single-writer model already serialises (no race
+        possible inside one engine).
+        """
         if not units:
             return UpsertResult(created=0, updated=0, total=0, data=[])
-        # Use institutional_code as the merge key — it's always present
-        # and has a unique constraint, unlike institutional_id which can be None.
+
+        try:
+            dialect_name = self.session.get_bind().dialect.name
+        except Exception:
+            dialect_name = ""
+
+        if dialect_name == "postgresql":
+            return await self._bulk_upsert_on_conflict(units)
+        return await self._bulk_upsert_select_then_merge(units)
+
+    async def _bulk_upsert_on_conflict(self, units: List[Unit]) -> UpsertResult:
+        """Postgres ``INSERT … ON CONFLICT DO UPDATE`` path — race-safe."""
+        # Count "created" by checking which codes are NEW before the
+        # write.  The count is informational (used in
+        # ``UpsertResult.__str__``); slightly stale under concurrency
+        # but never wrong by more than one parallel writer's batch.
+        codes = [u.institutional_code for u in units]
+        existing_codes: set[str | None] = {
+            code
+            for (code,) in (
+                await self.session.execute(
+                    select(Unit.institutional_code).where(
+                        col(Unit.institutional_code).in_(codes)
+                    )
+                )
+            ).all()
+        }
+
+        # Build value dicts.  ``id`` is excluded (auto-assigned for new
+        # rows; preserved for existing via the conflict-update returning
+        # the same row).  SQLModel exposes the SQLAlchemy Table via
+        # ``__table__``; mypy doesn't see it through the metaclass so
+        # access it via a typing escape hatch on the row type.
+        table = Unit.__table__  # type: ignore[attr-defined]
+        value_dicts = [
+            {c.name: getattr(unit, c.name) for c in table.columns if c.name != "id"}
+            for unit in units
+        ]
+        insert_stmt = pg_insert(Unit).values(value_dicts)
+        # On conflict, update every column except the conflict target and
+        # the id (preserve the existing row's id so FKs stay valid).
+        update_cols = {
+            c: insert_stmt.excluded[c]
+            for c in value_dicts[0]
+            if c != "institutional_code"
+        }
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["institutional_code"],
+            set_=update_cols,
+        ).returning(Unit)
+        result = await self.session.execute(upsert_stmt)
+        merged = list(result.scalars().all())
+
+        created = sum(1 for u in units if u.institutional_code not in existing_codes)
+        updated = len(units) - created
+        return UpsertResult(
+            created=created, updated=updated, total=len(units), data=merged
+        )
+
+    async def _bulk_upsert_select_then_merge(self, units: List[Unit]) -> UpsertResult:
+        """SQLite fallback — single-writer engine, no race to worry about."""
         rows = (await self.session.exec(select(Unit.institutional_code, Unit.id))).all()
         existing: dict[str | None, int] = {
             code: uid for code, uid in rows if uid is not None

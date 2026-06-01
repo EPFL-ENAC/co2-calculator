@@ -13,13 +13,16 @@ import {
   TitleComponent,
   ToolboxComponent,
   TooltipComponent,
+  AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useColorblindStore } from 'src/stores/colorblind';
 import {
+  buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
   colors,
   getModuleForCategoryKey,
@@ -52,6 +55,7 @@ use([
   GridComponent,
   ToolboxComponent,
   GraphicComponent,
+  AriaComponent,
 ]);
 
 type FootprintRow = { year: number; category: string; co2: number };
@@ -65,6 +69,8 @@ const INT_FORMATTER = new Intl.NumberFormat(undefined, {
 
 const yearConfigStore = useYearConfigStore();
 const workspaceStore = useWorkspaceStore();
+const colorblindStore = useColorblindStore();
+const isColorblind = computed(() => colorblindStore.enabled);
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -484,10 +490,12 @@ const epflSeriesData = computed<EpflSeriesPayload | null>(() => {
     lineStyle: { width: 0 },
     itemStyle: { opacity: 0 },
     areaStyle: {
-      color: new graphic.LinearGradient(0, 0, 0, 1, [
-        { offset: 0, color: totalColor },
-        { offset: 1, color: 'rgba(255,255,255,0)' },
-      ]),
+      color: isColorblind.value
+        ? totalColor
+        : new graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: totalColor },
+            { offset: 1, color: 'rgba(255,255,255,0)' },
+          ]),
       opacity: 0.18,
     },
     emphasis: { disabled: true },
@@ -673,6 +681,10 @@ const chartOption = computed<EChartsOption | null>(() => {
           populationTooltipSeries,
         ]
       : [...payload.stackedSeries, totalTooltipSeries, populationTooltipSeries],
+    aria: {
+      enabled: true,
+      decal: buildChartDecal(isColorblind.value),
+    },
   } as EChartsOption;
 });
 </script>
@@ -682,6 +694,7 @@ const chartOption = computed<EChartsOption | null>(() => {
     <VChart
       v-if="chartOption && !showEpflEmptyState"
       ref="chartRef"
+      :key="colorblindStore.enabled ? 'cb' : 'default'"
       :option="chartOption"
       autoresize
       class="objective-chart__canvas"

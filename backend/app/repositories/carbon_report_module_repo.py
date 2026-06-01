@@ -5,12 +5,13 @@ from math import ceil
 from typing import Any, List, Optional
 
 from sqlalchemy import Integer, case, cast
-from sqlmodel import col, desc, func, or_, select
+from sqlmodel import col, delete, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
@@ -82,7 +83,12 @@ class CarbonReportModuleRepository:
         return db_objects
 
     async def get_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
+        self,
+        year: int,
+        unit_id: int,
+        module_type_id: ModuleTypeEnum,
+        *,
+        report_type: CarbonReportType = CarbonReportType.CALCULATOR,
     ) -> Optional[CarbonReportModule]:
         statement = (
             select(CarbonReportModule)
@@ -90,7 +96,12 @@ class CarbonReportModuleRepository:
                 CarbonReport,
                 col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
             )
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
             .where(
+                col(CarbonProject.carbon_report_type) == report_type,
                 CarbonReport.year == year,
                 CarbonReport.unit_id == unit_id,
                 CarbonReportModule.module_type_id == module_type_id,
@@ -133,6 +144,29 @@ class CarbonReportModuleRepository:
             select(CarbonReportModule)
             .where(CarbonReportModule.carbon_report_id == carbon_report_id)
             .order_by("module_type_id")
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
+    async def list_by_module_type_and_year(
+        self, module_type_id: int, year: int
+    ) -> List[CarbonReportModule]:
+        """List all modules for a given (module_type_id, year) slice.
+
+        ``module_type_id`` lives on ``CarbonReportModule``; ``year`` lives on
+        the parent ``CarbonReport``, so the filter joins through it.  Mirrors
+        ``get_by_year_and_unit`` minus the unit filter.
+        """
+        statement = (
+            select(CarbonReportModule)
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                CarbonReportModule.module_type_id == module_type_id,
+                CarbonReport.year == year,
+            )
         )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
@@ -182,16 +216,27 @@ class CarbonReportModuleRepository:
 
     async def delete_by_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a given carbon report. Returns count deleted."""
-        statement = select(CarbonReportModule).where(
-            CarbonReportModule.carbon_report_id == carbon_report_id
+        id_result = await self.session.execute(
+            select(CarbonReportModule.id).where(
+                CarbonReportModule.carbon_report_id == carbon_report_id
+            )
         )
-        result = await self.session.execute(statement)
-        db_objects = list(result.scalars().all())
-        count = len(db_objects)
-        for obj in db_objects:
-            await self.session.delete(obj)
+        module_ids = [row[0] for row in id_result.all()]
+        if not module_ids:
+            return 0
+
+        # Delete data_entries first (no DB-level cascade on this FK).
+        await self.session.execute(
+            delete(DataEntry).where(
+                col(DataEntry.carbon_report_module_id).in_(module_ids)
+            )
+        )
+
+        await self.session.execute(
+            delete(CarbonReportModule).where(col(CarbonReportModule.id).in_(module_ids))
+        )
         await self.session.flush()
-        return count
+        return len(module_ids)
 
     @staticmethod
     def _split_filter_values(
@@ -378,21 +423,68 @@ class CarbonReportModuleRepository:
                 "total_units_count": 0,
             }
 
+        is_multi_year = len(years) > 1
+
         # --- STEP 1: The Cheap Count ---
-        # Count units per status in a single GROUP BY query.
-        status_count_stmt = (
-            select(
-                col(CarbonReport.overall_status),
-                func.count(col(Unit.id)),
+        # Count units per status. Single year: one report per unit, group by status.
+        # Multi-year: roll up per unit, then bucket by validated_years_count to
+        # match the table row helper (_get_completion_status_from_progress on
+        # "validated_count/len(years)"); without this, units are double-counted
+        # once per selected year.
+        if is_multi_year:
+            unit_rollup_stmt: Any = (
+                select(
+                    col(CarbonReport.unit_id).label("unit_id"),
+                    func.sum(
+                        case(
+                            (
+                                col(CarbonReport.overall_status)
+                                == int(ModuleStatus.VALIDATED),
+                                1,
+                            ),
+                            else_=0,
+                        )
+                    ).label("validated_years_count"),
+                )
+                .where(col(CarbonReport.year).in_(years))
+                .group_by(col(CarbonReport.unit_id))
             )
-            .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
-            .where(col(CarbonReport.year).in_(years))
-            .group_by(col(CarbonReport.overall_status))
-        )
-        if hierarchy_unit_ids is not None:
-            status_count_stmt = status_count_stmt.where(
-                col(Unit.id).in_(hierarchy_unit_ids)
+            if hierarchy_unit_ids is not None:
+                unit_rollup_stmt = unit_rollup_stmt.where(
+                    col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+                )
+            unit_rollup_subq = unit_rollup_stmt.subquery()
+
+            rollup_bucket = case(
+                (
+                    col(unit_rollup_subq.c.validated_years_count) >= len(years),
+                    int(ModuleStatus.VALIDATED),
+                ),
+                (
+                    col(unit_rollup_subq.c.validated_years_count) > 0,
+                    int(ModuleStatus.IN_PROGRESS),
+                ),
+                else_=int(ModuleStatus.NOT_STARTED),
             )
+            status_count_stmt = (
+                select(rollup_bucket.label("bucket"), func.count())
+                .select_from(unit_rollup_subq)
+                .group_by(rollup_bucket)
+            )
+        else:
+            status_count_stmt = (
+                select(
+                    col(CarbonReport.overall_status),
+                    func.count(col(Unit.id)),
+                )
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
+                .where(col(CarbonReport.year).in_(years))
+                .group_by(col(CarbonReport.overall_status))
+            )
+            if hierarchy_unit_ids is not None:
+                status_count_stmt = status_count_stmt.where(
+                    col(Unit.id).in_(hierarchy_unit_ids)
+                )
 
         status_count_rows = (await self.session.exec(status_count_stmt)).all()
         status_counts = {int(status): count for status, count in status_count_rows}
@@ -401,9 +493,10 @@ class CarbonReportModuleRepository:
         in_progress_units_count = status_counts.get(int(ModuleStatus.IN_PROGRESS), 0)
         not_started_units_count = status_counts.get(int(ModuleStatus.NOT_STARTED), 0)
 
-        # Base count stmt still needed for the filtered table count below.
+        # Base count for the filtered table. DISTINCT avoids double-counting units
+        # that have a CarbonReport row in each selected year.
         base_count_stmt = (
-            select(func.count(col(Unit.id)))
+            select(func.count(func.distinct(col(Unit.id))))
             .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
             .where(col(CarbonReport.year).in_(years))
         )
@@ -430,8 +523,6 @@ class CarbonReportModuleRepository:
                 "page_size": page_size,
                 "total_pages": 0,
             }
-
-        is_multi_year = len(years) > 1
 
         # --- STEP 2: Paginate just the basic Unit/Report info ---
         if is_multi_year:

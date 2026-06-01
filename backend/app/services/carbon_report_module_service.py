@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReportModule
+from app.models.carbon_report import CarbonReportModule, CarbonReportType
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
@@ -163,11 +163,31 @@ class CarbonReportModuleService:
         ]
 
     async def get_carbon_report_by_year_and_unit(
-        self, year: int, unit_id: int, module_type_id: ModuleTypeEnum
+        self,
+        year: int,
+        unit_id: int,
+        module_type_id: ModuleTypeEnum,
+        *,
+        report_type: CarbonReportType = CarbonReportType.CALCULATOR,
     ) -> CarbonReportModuleRead:
-        """Get a carbon report module by year and unit."""
+        """Get a carbon report module by year and unit.
+
+        Args:
+            year: Report year to look up.
+            unit_id: Unit ID to filter by.
+            module_type_id: Module type to retrieve.
+            report_type: The CarbonReportType to resolve against (CALCULATOR,
+                SIMULATOR_EXPLORE, or SIMULATOR_PLAN). Derived from the
+                ``?carbon_project_type`` query parameter by the caller.
+
+        Returns:
+            The matching CarbonReportModuleRead.
+
+        Raises:
+            ValueError: If no matching module is found.
+        """
         carbon_report_module = await self.repo.get_by_year_and_unit(
-            year, unit_id, module_type_id
+            year, unit_id, module_type_id, report_type=report_type
         )
         if carbon_report_module is None:
             raise ValueError(
@@ -187,12 +207,33 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def list_modules(self, carbon_report_id: int) -> List[CarbonReportModuleRead]:
-        """List all modules for a carbon report."""
+    async def list_modules(
+        self,
+        carbon_report_id: int,
+    ) -> List[CarbonReportModuleRead]:
+        """List all modules for a carbon report.
+
+        Plan 310-D / Issue #1062 — ``current_pipeline_id`` enrichment
+        moved to the dedicated ``GET /v1/sync/active-pipelines``
+        endpoint consumed by the frontend ``pipelineStateStore``.
+        """
         carbon_report_modules = await self.repo.list_by_report(carbon_report_id)
         return [
             CarbonReportModuleRead.model_validate(crm) for crm in carbon_report_modules
         ]
+
+    async def list_modules_for(
+        self, module_type_id: int, year: int
+    ) -> List[CarbonReportModule]:
+        """Return all CarbonReportModule rows for a (module_type_id, year) slice.
+
+        Used by the Plan 310-D ``aggregation`` handler to identify which
+        modules need their stats recomputed after a bulk recalc / ingest
+        pipeline writes new emissions for that scope.
+        """
+        return await self.repo.list_by_module_type_and_year(
+            module_type_id=module_type_id, year=year
+        )
 
     async def update_status(
         self, carbon_report_id: int, module_type_id: int, status: int

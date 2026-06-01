@@ -20,8 +20,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4.4.0
         with:
-          node-version: ">=24.0.0"
           cache: "npm"
+          node-version-file: '.nvmrc'
           cache-dependency-path: "./frontend/package-lock.json"
 
       - name: Restore frontend build cache
@@ -31,10 +31,13 @@ jobs:
           path: ./frontend/dist
           key: frontend-build-${{ hashFiles('frontend/src/**', 'frontend/package-lock.json') }}
 
+      - name: Enable Corepack
+        run: corepack enable
+
       - name: Install frontend dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
         working-directory: ./frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: install ligthouse
         working-directory: ./frontend

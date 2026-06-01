@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, inject, type Ref } from 'vue';
+import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
 import { useSubmoduleConfig } from 'src/composables/useSubmoduleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
@@ -8,6 +8,7 @@ import {
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
+import type { PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
 import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';
@@ -48,6 +49,19 @@ const backofficeStore = useBackofficeDataManagement();
 const triggerTypeRecalculation = inject<
   (sub: SubmoduleConfig) => Promise<void>
 >('triggerTypeRecalculation')!;
+
+// Issue #1219 / #1234 — share the module-scoped pipeline progress
+// from ModuleConfig (single SSE subscriber, provided up the tree).
+// Without this the per-submodule UploadCardData kept a green ✓ +
+// "N rows imported" even while emission_recalc / aggregation
+// children were still running.  Mirrors ModuleUploadsSection's
+// pattern so every per-submodule card tells the same story as the
+// module-level cards.
+const injectedPipelineProgress =
+  inject<ComputedRef<PipelineProgress | null>>('pipelineProgress');
+const pipelineProgress = computed<PipelineProgress | null>(
+  () => injectedPipelineProgress?.value ?? null,
+);
 
 const openDataEntryDialog = inject<
   (row: ImportRow, targetType: TargetType | null) => void
@@ -226,26 +240,13 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
       :style="{ gap: '1rem' }"
     >
-      <UploadCardData
-        v-if="getImportRow(submodule).hasData"
-        :row="getImportRow(submodule)"
-        :recalc-running="
-          recalcTypeRunning[
-            `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
-          ]
-        "
-        :recalc-status="getRecalcStatus(submodule)"
-        :on-download="downloadLastCsv"
-        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
-        @recalculate="() => triggerTypeRecalculation(submodule)"
-        @cancel="handleCancelJob"
-      />
       <UploadCardFactors
         v-if="getImportRow(submodule).hasFactors"
         :row="getImportRow(submodule)"
         :module="submodule.key"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
+        :pipeline-progress="pipelineProgress"
         :on-download="
           (e, y) => {
             downloadLastCsv(e, y);
@@ -257,6 +258,21 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @cancel="handleCancelJob"
       />
 
+      <UploadCardData
+        v-if="getImportRow(submodule).hasData"
+        :row="getImportRow(submodule)"
+        :recalc-running="
+          recalcTypeRunning[
+            `${submodule.moduleTypeId}-${submodule.dataEntryTypeId}`
+          ]
+        "
+        :recalc-status="getRecalcStatus(submodule)"
+        :pipeline-progress="pipelineProgress"
+        :on-download="downloadLastCsv"
+        @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
+        @recalculate="() => triggerTypeRecalculation(submodule)"
+        @cancel="handleCancelJob"
+      />
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"
         :row="getImportRow(submodule)"

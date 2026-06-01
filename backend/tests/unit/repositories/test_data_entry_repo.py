@@ -5,7 +5,8 @@ from unittest.mock import MagicMock
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
@@ -969,7 +970,12 @@ async def test_list_by_data_entry_type_and_year_matching_year(
     """Entries from a CarbonReport with the matching year are returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 
@@ -1004,7 +1010,12 @@ async def test_list_by_data_entry_type_and_year_non_matching_year(
     """Entries from a CarbonReport with a different year are not returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 
@@ -1050,7 +1061,12 @@ async def test_list_by_data_entry_type_and_year_filters_by_type(
     """Only entries of the requested data_entry_type are returned."""
     repo = DataEntryRepository(db_session)
 
-    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    project = CarbonProject(unit_id=1, carbon_report_type=CarbonReportType.CALCULATOR)
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(
+        year=2025, unit_id=1, overall_status=0, carbon_project_id=project.id
+    )
     db_session.add(report)
     await db_session.flush()
 
@@ -1084,3 +1100,145 @@ async def test_list_by_data_entry_type_and_year_filters_by_type(
 
     assert len(results) == 1
     assert results[0].data_entry_type_id == DataEntryTypeEnum.plane
+
+
+# ======================================================================
+# Regression: read path must not persist computed fields back to data
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_does_not_persist_computed_fields(
+    db_session: AsyncSession,
+):
+    """``get_submodule_data`` must never write computed values (kg_co2eq,
+    primary_factor, distance_km, traveler_name, room_surface_square_meter)
+    back to the source-of-truth ``DataEntry.data`` JSON column.
+
+    Pre-fix, the method reassigned ``data_entry.data = {...}`` on the loaded
+    ORM row, which SQLAlchemy then flushed to the DB. This test fails on
+    that buggy code and passes after Option 1 + Option 2 are applied.
+    """
+    from sqlmodel import select
+
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    original_data = {
+        "origin_iata": "GVA",
+        "destination_iata": "ZRH",
+        "cabin_class": "first",
+        "user_institutional_id": "150322",
+        "number_of_trips": 1,
+        "primary_factor_id": None,
+    }
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data=dict(original_data),
+    )
+    db_session.add(entry)
+    await db_session.commit()
+    entry_id = entry.id
+
+    # Act: list the entries — pre-fix, this would mutate `data_entry.data`
+    # in-memory and SQLAlchemy would flush the mutation on the next query.
+    await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+    await db_session.commit()
+    db_session.expire_all()
+
+    refreshed = (
+        await db_session.execute(select(DataEntry).where(DataEntry.id == entry_id))
+    ).scalar_one()
+
+    # The JSON column must be byte-identical to the original input.
+    assert refreshed.data == original_data
+    for forbidden_key in (
+        "kg_co2eq",
+        "primary_factor",
+        "traveler_name",
+        "distance_km",
+        "room_surface_square_meter",
+    ):
+        assert forbidden_key not in refreshed.data, (
+            f"computed key {forbidden_key!r} leaked into DataEntry.data"
+        )
+
+
+# ======================================================================
+# Regression: _detach helper handles all session-state edge cases
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_detach_handles_none_attached_and_already_detached(
+    db_session: AsyncSession,
+):
+    """`_detach` must:
+    - silently no-op on None entries (varargs may include unloaded joins),
+    - successfully detach an attached ORM row,
+    - swallow InvalidRequestError when an already-detached row is passed.
+
+    Locks in the helper's contract so a future tightening of the except clause
+    or removal of the None guard would be caught.
+    """
+    repo = DataEntryRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"origin_iata": "GVA"},
+    )
+    db_session.add(entry)
+    await db_session.flush()
+
+    # 1. None varargs are tolerated.
+    repo._detach(None, None)
+
+    # 2. An attached ORM instance is detached.
+    assert entry in db_session.sync_session
+    repo._detach(entry)
+    assert entry not in db_session.sync_session
+
+    # 3. A second call on the now-detached row swallows InvalidRequestError.
+    repo._detach(entry)  # must not raise
+
+    # 4. Mixed call (None + already-detached + freshly-loaded) all succeed.
+    other = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={"origin_iata": "ZRH"},
+    )
+    db_session.add(other)
+    await db_session.flush()
+    repo._detach(None, entry, other)
+    assert other not in db_session.sync_session

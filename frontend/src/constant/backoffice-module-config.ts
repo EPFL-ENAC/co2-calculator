@@ -13,6 +13,8 @@ export type SubmoduleConfig = {
   headerIcon?: string;
   descriptionKey?: string;
   factorsOnly?: true;
+  mandatoryData?: boolean;
+  mandatoryReference?: boolean;
 };
 
 export const MODULE_SUBMODULES: Partial<
@@ -40,6 +42,8 @@ export const MODULE_SUBMODULES: Partial<
       moduleTypeId: 2,
       dataEntryTypeId: 21,
       other: 'data_management_other_train_stations',
+      mandatoryData: false,
+      mandatoryReference: true,
     },
     {
       key: 'plane',
@@ -48,6 +52,8 @@ export const MODULE_SUBMODULES: Partial<
       dataEntryTypeId: 20,
       hasApi: true,
       other: 'data_management_other_airports',
+      mandatoryData: false,
+      mandatoryReference: true,
     },
   ],
   [MODULES.Buildings]: [
@@ -57,6 +63,8 @@ export const MODULE_SUBMODULES: Partial<
       moduleTypeId: 3,
       dataEntryTypeId: 30,
       other: 'data_management_other_institution_rooms',
+      mandatoryData: false,
+      mandatoryReference: true,
     },
     {
       key: 'energy_combustion',

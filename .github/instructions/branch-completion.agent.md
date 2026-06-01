@@ -72,7 +72,7 @@ git diff backup-<branch-name> --stat
 git diff backup-<branch-name>
 
 # Find implementation plans
-find docs/implementation-plans -name "<issue-number>-*.md" -type f
+find docs/src/implementation-plans -name "<issue-number>-*.md" -type f
 ```
 
 Read implementation plans to understand:

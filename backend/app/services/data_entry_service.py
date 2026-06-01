@@ -78,12 +78,15 @@ class DataEntryService:
         carbon_report_id: int,
         aggregate_by: str = "data_entry_type_id",
         aggregate_field: str = "fte",
+        *,
+        validated_only: bool = True,
     ) -> dict[str, float]:
-        """Get validated DataEntry totals across modules for a carbon report."""
+        """Get DataEntry totals across modules for a carbon report."""
         return await self.repo.get_stats_by_carbon_report_id(
             carbon_report_id=carbon_report_id,
             aggregate_by=aggregate_by,
             aggregate_field=aggregate_field,
+            validated_only=validated_only,
         )
 
     async def check_json_field_unique(

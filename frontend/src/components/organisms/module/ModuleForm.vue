@@ -73,6 +73,7 @@
               </template>
               <template v-else-if="inp.type === 'date'">
                 <q-input
+                  :key="`date-${inp.id}-${dateInputKey}`"
                   :model-value="String(form[inp.id] || '')"
                   bordered
                   mask="####/##/##"
@@ -155,6 +156,7 @@
               </template>
               <template v-else-if="inp.type === 'headcount-member-select'">
                 <HeadcountMemberSelect
+                  :key="headcountMemberCount"
                   :model-value="form[inp.id] ?? null"
                   :unit-id="props.unitId"
                   :year="props.year"
@@ -300,9 +302,13 @@ import {
 } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 
-const { t: $t } = useI18n();
+const { t: $t, te: $te } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const moduleStore = useModuleStore();
+
+const headcountMemberCount = computed(
+  () => moduleStore.state.dataSubmodule['member']?.summary?.total_items ?? 0,
+);
 
 const addNoteDialogOpen = ref(false);
 
@@ -312,6 +318,7 @@ interface Option {
 }
 type FieldValue = string | number | boolean | null | Option;
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
+import { sortByOrder } from 'src/utils/options';
 
 const props = withDefaults(
   defineProps<{
@@ -423,15 +430,26 @@ const filteredOptionsMap = computed(() => {
     const dynamicOpts = buildingRoomOpts ?? dynamicOptions[optionsId];
     const baseOptions =
       dynamicOpts && dynamicOpts.length > 0
-        ? dynamicOpts
+        ? dynamicOpts.map((o: { label: string; value: string }) => ({
+            value: o.value,
+            label:
+              inp.optionLabelPrefix &&
+              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
+                : o.label,
+          }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
             value: o.value,
           })) ?? []);
 
+    const orderedBaseOptions = inp.optionOrder
+      ? sortByOrder(baseOptions, inp.optionOrder)
+      : baseOptions;
+
     // If no conditionalOptions, return base options
     if (!inp.conditionalOptions) {
-      map[inp.id] = baseOptions;
+      map[inp.id] = orderedBaseOptions;
       return;
     }
 
@@ -448,7 +466,7 @@ const filteredOptionsMap = computed(() => {
 
       // If condition matches, filter to only show specified options
       if (fieldValue === when.value) {
-        map[inp.id] = baseOptions.filter((opt) =>
+        map[inp.id] = orderedBaseOptions.filter((opt) =>
           showOptions.includes(opt.value),
         );
         matched = true;
@@ -458,7 +476,7 @@ const filteredOptionsMap = computed(() => {
 
     // If no condition matches, show all options
     if (!matched) {
-      map[inp.id] = baseOptions;
+      map[inp.id] = orderedBaseOptions;
     }
   });
 
@@ -472,9 +490,19 @@ function getFilteredOptions(
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
   opts.forEach((opt) => {
+    if (inp.optionLabelKey) {
+      opt.label = $t(
+        inp.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+      );
+      return;
+    }
     const taxoOptNode = taxoNode?.children?.find(
       (node) => node.name === opt.value,
     );
+    if (taxoOptNode?.translation_key && $te(taxoOptNode.translation_key)) {
+      opt.label = $t(taxoOptNode.translation_key);
+      return;
+    }
     if (taxoOptNode) {
       opt.label = taxoOptNode.label;
     }
@@ -482,10 +510,27 @@ function getFilteredOptions(
   return opts;
 }
 
+function isValidCalendarDate(val: string): boolean {
+  const parts = val.split(/[/.]/).map(Number);
+  if (parts.length !== 3) return false;
+  const [year, month, day] = parts;
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
+
+const dateInputKey = ref(0);
+
 function getDateRules(required?: boolean) {
   const dateFormatRule = (val: string) => {
-    if (!val || val === '') return required ? 'Required' : true;
-    return /^\d{4}[/.]\d{2}[/.]\d{2}$/.test(val) || 'Invalid date format';
+    if (!val || val === '') return required ? $t('validation_required') : true;
+    if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(val))
+      return $t('validation_invalid_date_format');
+    if (!isValidCalendarDate(val)) return $t('validation_invalid_date');
+    return true;
   };
   return [dateFormatRule];
 }
@@ -549,16 +594,26 @@ function getTravelMode(): 'plane' | 'train' | undefined {
   return undefined;
 }
 
-function validateUsage(value: unknown) {
-  if (value === null || value === undefined || value === '') {
-    return { valid: false, parsed: null, error: 'Required' };
-  }
-  const n = Number(value);
-  if (!Number.isFinite(n))
-    return { valid: false, parsed: null, error: 'Number required' };
-  if (n < 0) return { valid: false, parsed: null, error: 'Must be >= 0' };
-  if (n > 168) return { valid: false, parsed: null, error: 'Max 168 hrs/wk' };
-  return { valid: true, parsed: n, error: null };
+function validateUsageHoursWeek(value: number) {
+  if (!Number.isFinite(value))
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_number_required'),
+    };
+  if (value < 0)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_must_be_non_negative'),
+    };
+  if (value > 168)
+    return {
+      valid: false,
+      parsed: null,
+      error: $t('validation_max_hours_per_week'),
+    };
+  return { valid: true, parsed: value, error: null };
 }
 
 function init() {
@@ -620,6 +675,8 @@ function init() {
               form.destination_iata = undefined;
               form.origin_name = undefined;
               form.destination_name = undefined;
+              form.origin_natural_key = undefined;
+              form.destination_natural_key = undefined;
             }
             break;
           default:
@@ -696,6 +753,26 @@ watch(
   },
 );
 
+// Clear errors reactively when field values change
+watch(
+  () => ({ ...form }),
+  (newForm, oldForm) => {
+    Object.keys(newForm).forEach((key) => {
+      if (newForm[key] !== oldForm[key]) {
+        if (
+          key === 'active_usage_hours_per_week' ||
+          key === 'standby_usage_hours_per_week'
+        ) {
+          errors['active_usage_hours_per_week'] = null;
+          errors['standby_usage_hours_per_week'] = null;
+        } else {
+          errors[key] = null;
+        }
+      }
+    });
+  },
+);
+
 function fieldComponent(type: string): Component {
   switch (type) {
     case 'select':
@@ -713,20 +790,51 @@ function fieldComponent(type: string): Component {
 
 function validateField(i: ModuleField) {
   const v = form[i.id];
-  const effectiveType = i.type;
   errors[i.id] = null;
 
   if (
     i.id === 'active_usage_hours_per_week' ||
     i.id === 'standby_usage_hours_per_week'
   ) {
-    const validation = validateUsage(v);
+    const v_active = Number(form['active_usage_hours_per_week']) || 0;
+    const v_standby = Number(form['standby_usage_hours_per_week']) || 0;
+    const validation = validateUsageHoursWeek(v_active + v_standby);
     if (!validation.valid) {
-      errors[i.id] = validation.error;
+      errors['active_usage_hours_per_week'] = validation.error;
+      errors['standby_usage_hours_per_week'] = validation.error;
       return false;
     }
-    form[i.id] = validation.parsed as FieldValue;
+    if (v === null || v === undefined || v === '') {
+      form[i.id] = null;
+      if (i.required) {
+        errors[i.id] = $t('validation_required');
+        return false;
+      }
+      return true;
+    }
+    form[i.id] = Number(v) as FieldValue;
     return true;
+  }
+
+  const effectiveType = i.type;
+
+  if (effectiveType === 'date') {
+    if (i.required && (v === '' || v === null || v === undefined)) {
+      errors[i.id] = $t('validation_required');
+      return false;
+    }
+    if (v && v !== '') {
+      const dateStr = String(v);
+      if (!/^\d{4}([/.])\d{2}\1\d{2}$/.test(dateStr)) {
+        errors[i.id] = $t('validation_invalid_date_format');
+        return false;
+      }
+      if (!isValidCalendarDate(dateStr)) {
+        errors[i.id] = $t('validation_invalid_date');
+        return false;
+      }
+    }
+    return !errors[i.id];
   }
 
   // Handle direction-input validation (check origin and destination)
@@ -736,29 +844,39 @@ function validateField(i: ModuleField) {
     errors.destination = null;
 
     if (i.required) {
+      const requiredMsg = i.requiredMessageKey
+        ? $t(i.requiredMessageKey)
+        : $t('validation_required');
       if (!form.origin || form.origin === '') {
-        errors.origin = 'Required';
+        errors.origin = requiredMsg;
         return false;
       }
       if (!form.destination || form.destination === '') {
-        errors.destination = 'Required';
+        errors.destination = requiredMsg;
         return false;
       }
     }
 
     // Check if origin and destination are the same
-    const originValue = String(form.origin || '').trim();
-    const destinationValue = String(form.destination || '').trim();
-    if (originValue && destinationValue && originValue === destinationValue) {
-      const errorMessage = $t(
-        `${MODULES.ProfessionalTravel}-error-same-destination`,
-      );
-      errors.origin = errorMessage;
-      errors.destination = errorMessage;
-      return false;
+    if (
+      Object.keys(form).includes('origin') &&
+      Object.keys(form).includes('destination')
+    ) {
+      const originValue = String(form.origin || '').trim();
+      const destinationValue = String(form.destination || '').trim();
+      if (originValue && destinationValue && originValue === destinationValue) {
+        const errorMessage = $t(
+          `${MODULES.ProfessionalTravel}-error-same-destination`,
+        );
+        errors.origin = errorMessage;
+        errors.destination = errorMessage;
+        return false;
+      }
+
+      return !errors.origin && !errors.destination;
     }
 
-    return !errors.origin && !errors.destination;
+    return true;
   }
 
   // Skip validation for subkind fields with no available options (class has no sub-classes)
@@ -770,10 +888,13 @@ function validateField(i: ModuleField) {
   }
 
   if (i.required) {
+    const requiredMsg = i.requiredMessageKey
+      ? $t(i.requiredMessageKey)
+      : $t('validation_required');
     if (effectiveType === 'checkbox' || effectiveType === 'boolean') {
-      if (!v) errors[i.id] = 'Required';
+      if (!v) errors[i.id] = requiredMsg;
     } else if (v === '' || v === null || v === undefined) {
-      errors[i.id] = 'Required';
+      errors[i.id] = requiredMsg;
     }
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
@@ -880,6 +1001,8 @@ function reset() {
       form.destination_iata = undefined;
       form.origin_name = undefined;
       form.destination_name = undefined;
+      form.origin_natural_key = undefined;
+      form.destination_natural_key = undefined;
     } else {
       // Use null for select/headcount-member-select, empty string for text
       form[i.id] =
@@ -890,6 +1013,7 @@ function reset() {
     }
     errors[i.id] = null;
   });
+  dateInputKey.value++;
 }
 
 function getGridClass(ratio?: string): string {
@@ -908,6 +1032,7 @@ async function handleFromLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -919,6 +1044,7 @@ async function handleFromLocationSelected(location: {
     form.origin_iata = location.iata_code ?? location.name;
   } else {
     form.origin_name = location.name;
+    form.origin_natural_key = location.natural_key ?? undefined;
   }
 
   if (
@@ -943,6 +1069,7 @@ async function handleToLocationSelected(location: {
   longitude: number;
   iata_code: string | null;
   country_code: string | null;
+  natural_key?: string;
 }) {
   const travelMode = getTravelMode();
   if (!travelMode) return;
@@ -953,6 +1080,7 @@ async function handleToLocationSelected(location: {
     form.destination_iata = location.iata_code ?? location.name;
   } else {
     form.destination_name = location.name;
+    form.destination_natural_key = location.natural_key ?? undefined;
   }
 
   if (
@@ -990,6 +1118,10 @@ async function handleSwapLocations() {
     [form.origin_name, form.destination_name] = [
       form.destination_name,
       form.origin_name,
+    ];
+    [form.origin_natural_key, form.destination_natural_key] = [
+      form.destination_natural_key,
+      form.origin_natural_key,
     ];
   }
 

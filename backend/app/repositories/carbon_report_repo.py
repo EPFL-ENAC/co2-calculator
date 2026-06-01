@@ -5,10 +5,12 @@ from typing import List, Optional
 from sqlalchemy.dialects.postgresql import insert
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlmodel.sql.expression import desc
 
 from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
-from app.models.carbon_report import CarbonReport
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
 
 logger = get_logger(__name__)
@@ -29,11 +31,16 @@ class CarbonReportRepository:
         return db_obj
 
     async def bulk_upsert(self, data: list[CarbonReportCreate]) -> list[CarbonReport]:
-        """Bulk upsert carbon reports using INSERT ... ON CONFLICT DO NOTHING."""
+        """Bulk upsert carbon reports using INSERT ... ON CONFLICT DO NOTHING.
+
+        Uses the uq_carbon_reports_project_year constraint (carbon_project_id, year)
+        as the conflict target. Callers must resolve carbon_project_id before
+        calling this method (it must be non-null for conflict detection to work).
+        """
         stmt = (
             insert(CarbonReport)
-            .values([{"year": d.year, "unit_id": d.unit_id} for d in data])
-            .on_conflict_do_nothing(index_elements=["unit_id", "year"])
+            .values([d.model_dump() for d in data])
+            .on_conflict_do_nothing(constraint="uq_carbon_reports_project_year")
             .returning(CarbonReport)
         )
         result = await self.session.execute(stmt)
@@ -46,17 +53,64 @@ class CarbonReportRepository:
         return result.scalar_one_or_none()
 
     async def list_by_unit(self, unit_id: int) -> list[CarbonReport]:
-        """List all carbon reports for a unit."""
-        statement = select(CarbonReport).where(CarbonReport.unit_id == unit_id)
+        """List Calculator carbon reports for a unit (excludes Simulator types)."""
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
     async def get_by_unit_and_year(
         self, unit_id: int, year: int
     ) -> Optional[CarbonReport]:
-        """Get a carbon report by unit and year."""
-        statement = select(CarbonReport).where(
-            (CarbonReport.unit_id == unit_id) & (CarbonReport.year == year)
+        """Get a Calculator carbon report by unit and year."""
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReport.year == year,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()
+
+    async def get_explore_by_unit_and_reference_year(
+        self,
+        *,
+        unit_id: int,
+        reference_year: int,
+    ) -> Optional[CarbonReport]:
+        """Get the latest Simulator Explore report for a unit + reference year.
+
+        In the new schema, Explore reports store the reference year in the ``year``
+        field (year is always non-null).
+        """
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReport.year == reference_year,
+                CarbonProject.carbon_report_type == CarbonReportType.SIMULATOR_EXPLORE,
+            )
+            .order_by(desc(col(CarbonReport.last_updated)))
+            .limit(1)
         )
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
@@ -96,8 +150,8 @@ class CarbonReportRepository:
         path_lvl4: Optional[List[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
-        modules: Optional[List[str]] = None,  # complex TBD
-        years: Optional[List[int]] = None,  # Default to first year for overview for now
+        modules: Optional[List[str]] = None,
+        years: Optional[List[int]] = None,
         page: int = 1,
         page_size: int = 50,
     ) -> list[CarbonReport]:

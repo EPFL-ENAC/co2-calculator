@@ -147,3 +147,111 @@ async def test_recompute_report_stats_merges_by_additional_value(async_session):
     assert fetched is not None
     assert fetched.stats is not None
     assert fetched.stats["by_additional_value"]["10000"] == pytest.approx(6.0)
+
+
+# ── Simulator Explore: get_explore / create_explore ───────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_explore_returns_none_when_not_found(async_session):
+    """get_explore is idempotent: returns None without creating anything."""
+    service = CarbonReportService(async_session)
+    result = await service.get_explore(unit_id=1, reference_year=2024)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_explore_is_idempotent_on_empty_db(async_session):
+    """Calling get_explore twice on an empty DB still returns None both times."""
+    service = CarbonReportService(async_session)
+    first = await service.get_explore(unit_id=1, reference_year=2024)
+    second = await service.get_explore(unit_id=1, reference_year=2024)
+    assert first is None
+    assert second is None
+
+
+@pytest.mark.asyncio
+async def test_create_explore_creates_report_and_modules(async_session):
+    """create_explore creates a SIMULATOR_EXPLORE report with all modules."""
+    service = CarbonReportService(async_session)
+    result = await service.create_explore(unit_id=1, reference_year=2024)
+
+    assert result.id is not None
+    assert result.year == 2024
+    assert result.unit_id == 1
+
+    modules = await service.module_service.list_modules(result.id)
+    assert len(modules) == len(ALL_MODULE_TYPE_IDS)
+    for mod in modules:
+        assert mod.status == ModuleStatus.NOT_STARTED
+
+
+@pytest.mark.asyncio
+async def test_get_explore_returns_existing_report(async_session):
+    """get_explore finds the report created by create_explore."""
+    service = CarbonReportService(async_session)
+    created = await service.create_explore(unit_id=1, reference_year=2024)
+    fetched = await service.get_explore(unit_id=1, reference_year=2024)
+
+    assert fetched is not None
+    assert fetched.id == created.id
+
+
+@pytest.mark.asyncio
+async def test_get_explore_does_not_cross_units(async_session):
+    """
+    get_explore for a different unit returns None even if another unit has a report.
+    """
+    service = CarbonReportService(async_session)
+    await service.create_explore(unit_id=1, reference_year=2024)
+    result = await service.get_explore(unit_id=2, reference_year=2024)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_explore_does_not_cross_years(async_session):
+    """get_explore for a different year returns None."""
+    service = CarbonReportService(async_session)
+    await service.create_explore(unit_id=1, reference_year=2024)
+    result = await service.get_explore(unit_id=1, reference_year=2023)
+    assert result is None
+
+
+# ── bulk_upsert: project-ID resolution ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_bulk_upsert_resolves_project_ids_before_repo_call(async_session):
+    """Service enriches every item with a non-null carbon_project_id.
+
+    Two items for unit_id=1 share the same project; unit_id=2 gets its own.
+    The actual ON CONFLICT SQL runs only in PostgreSQL integration tests;
+    here we confirm the service-layer enrichment is correct.
+    """
+    service = CarbonReportService(async_session)
+
+    received: list[CarbonReportCreate] = []
+
+    async def fake_bulk_upsert(data: list) -> list:
+        received.extend(data)
+        return []
+
+    service.repo.bulk_upsert = fake_bulk_upsert
+
+    items = [
+        CarbonReportCreate(year=2024, unit_id=1),
+        CarbonReportCreate(year=2025, unit_id=1),
+        CarbonReportCreate(year=2024, unit_id=2),
+    ]
+    await service.bulk_upsert(items)
+
+    assert len(received) == 3
+    assert all(d.carbon_project_id is not None for d in received)
+
+    unit1_ids = [d.carbon_project_id for d in received if d.unit_id == 1]
+    unit2_ids = [d.carbon_project_id for d in received if d.unit_id == 2]
+
+    # Both unit_id=1 rows share one project
+    assert unit1_ids[0] == unit1_ids[1]
+    # unit_id=2 has a distinct project
+    assert unit1_ids[0] != unit2_ids[0]

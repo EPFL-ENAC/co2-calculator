@@ -106,15 +106,39 @@ interface YearConfig {
 export interface YearConfigurationResponse {
   year: number;
   is_started: boolean;
-  is_reports_synced: boolean;
+  /**
+   * #1234-followup — ISO timestamp when ``unit_sync`` finished SUCCESS
+   * for this year. ``null`` while the pipeline is still running or
+   * before it ever ran; backend ``/dispatch`` refuses uploads while
+   * ``null``. The data-management page surfaces a banner + disables
+   * upload affordances on the null state.
+   */
+  configuration_completed?: string | null;
   config: YearConfig;
   recalculation_status: ModuleRecalculationStatusEntry[];
+  updated_at: string;
+  /**
+   * Issue #867 — populated by ``POST /year-configuration/{year}`` when
+   * the endpoint auto-enqueues the ``unit_sync`` pipeline alongside the
+   * row create.  ``GET`` responses leave it ``null`` (the active
+   * pipeline_id for a running job lives in the unified
+   * ``pipelineState`` store sourced from
+   * ``GET /v1/sync/active-pipelines``).
+   */
+  pipeline_id?: string | null;
+}
+
+/** Lightweight row from `GET /year-configuration/` (workspace year selector). */
+export interface YearConfigurationListItem {
+  year: number;
+  is_started: boolean;
+  /** #1234-followup — see YearConfigurationResponse.configuration_completed. */
+  configuration_completed?: string | null;
   updated_at: string;
 }
 
 interface YearConfigurationCreate {
   is_started?: boolean;
-  is_reports_synced?: boolean;
   config?: Partial<YearConfig>;
 }
 
@@ -127,7 +151,6 @@ interface ModuleConfigUpdate {
 
 interface YearConfigurationUpdate {
   is_started?: boolean;
-  is_reports_synced?: boolean;
   config?: {
     modules?: Record<string, ModuleConfigUpdate>;
     reduction_objectives?: Partial<ReductionObjectives>;
@@ -140,6 +163,29 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const loading = ref(false);
   /** True when the backend returned 404 — no configuration exists yet for this year. */
   const notFound = ref(false);
+  /** All year-configuration rows visible to the caller (workspace year selector). */
+  const configuredYears = ref<YearConfigurationListItem[]>([]);
+
+  /**
+   * Set of years that are globally open (`is_started`). The list endpoint
+   * already filters these for regular users; admins receive every row, so we
+   * re-filter client-side to keep the meaning identical for both.
+   */
+  const startedYears = computed(
+    () =>
+      new Set(
+        configuredYears.value.filter((y) => y.is_started).map((y) => y.year),
+      ),
+  );
+
+  /** Fetch the list of year-configuration rows (global, not unit-scoped). */
+  async function fetchConfiguredYears(): Promise<YearConfigurationListItem[]> {
+    const rows = (await api
+      .get('year-configuration/')
+      .json()) as YearConfigurationListItem[];
+    configuredYears.value = rows;
+    return rows;
+  }
 
   // Methods
   async function fetchConfig(
@@ -149,8 +195,11 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     notFound.value = false;
 
     try {
+      // Suppress the global 404 error toast: a missing year-configuration is
+      // expected on first visit and is rendered as a "Create year" empty-state
+      // by the caller. Non-404 errors still surface via the global handler.
       const response = (await api
-        .get(`year-configuration/${year}`)
+        .get(`year-configuration/${year}`, { skipErrorCodes: [404] })
         .json()) as YearConfigurationResponse;
       config.value = response;
       return response;
@@ -176,6 +225,10 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading.value = true;
 
     try {
+      // Issue #867 — the response now carries ``pipeline_id`` (UUID of
+      // the unit_sync pipeline auto-enqueued by the backend).  The
+      // caller subscribes to it via ``usePipelineStream``; no extra
+      // store state is needed.
       const response = (await api
         .post(`year-configuration/${year}`, {
           json: payload ?? {},
@@ -361,6 +414,16 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       return modConfig?.enabled ?? false;
     }) as Module[];
   });
+  /**
+   * Flip a year's `is_started` flag to true, making it visible to non-admin
+   * users in their workspace year selector. Thin wrapper over updateConfig
+   * so callers don't need to know the payload shape.
+   */
+  async function openForUsers(
+    year: number,
+  ): Promise<YearConfigurationResponse> {
+    return updateConfig(year, { is_started: true });
+  }
 
   // ── Completeness helpers ────────────────────────────────────────────────────
 
@@ -403,9 +466,20 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       const job = subConfig?.latest_factor_job ?? mod?.latest_common_factor_job;
       if (!job || job.result !== 0) return true;
     }
-    if (sub.other) {
-      const job = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
-      if (!job || job.result !== 0) return true;
+    if (sub.mandatoryData) {
+      const dataJob = subConfig?.latest_data_job ?? mod?.latest_common_data_job;
+      const dataOk = !!dataJob && dataJob.result === 0;
+      if (sub.hasApi) {
+        const apiJob = subConfig?.latest_api_data_job;
+        const apiOk = !!apiJob && apiJob.result === 0;
+        if (!dataOk && !apiOk) return true;
+      } else if (!dataOk) {
+        return true;
+      }
+    }
+    if (sub.mandatoryReference) {
+      const refJob = subConfig?.latest_reference_job;
+      if (!refJob || refJob.result !== 0) return true;
     }
     if (!sub.noData && !sub.dataEntryTypeId) {
       const job = mod?.latest_common_data_job;
@@ -486,7 +560,9 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     config,
     loading,
     notFound,
+    configuredYears,
     // Computed
+    startedYears,
     anyModuleIncomplete,
     isReductionObjectiveIncomplete,
     unifiedModuleConfig,
@@ -508,7 +584,9 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,
+    fetchConfiguredYears,
     createConfig,
     updateConfig,
+    openForUsers,
   };
 });

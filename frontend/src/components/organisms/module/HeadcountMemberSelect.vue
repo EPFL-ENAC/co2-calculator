@@ -87,7 +87,7 @@ function buildOptions(list: HeadcountMemberDropdownItem[]): SelectOption[] {
   }));
 }
 
-onMounted(async () => {
+async function fetchMembers() {
   if (!props.unitId || !props.year) return;
   loading.value = true;
   try {
@@ -102,5 +102,7 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
-});
+}
+
+onMounted(fetchMembers);
 </script>
