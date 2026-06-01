@@ -676,6 +676,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -732,6 +733,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -769,6 +771,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -867,6 +870,26 @@ export const useModuleStore = defineStore('modules', () => {
       }
     } finally {
       state.loadingTopClassBreakdown = false;
+    }
+  }
+
+  async function refreshTopClassBreakdownIfNeeded(
+    moduleType: Module,
+    unit: number,
+    year: string,
+  ) {
+    const TOP_CLASS_MODULES = [
+      MODULES.EquipmentElectricConsumption,
+      MODULES.Purchase,
+      MODULES.ResearchFacilities,
+    ];
+    if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
+    try {
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleType)}/top-class-breakdown`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.topClassBreakdown = data;
+    } catch {
+      // keep existing data on error — don't blank the chart
     }
   }
 
