@@ -231,4 +231,44 @@ export default {
     en: 'Professional Travel Title Tooltip',
     fr: 'Professional Travel Title Tooltip',
   },
+
+  // Trip-map widget (issue #282). One Pinia slot feeds three maps —
+  // the overall map on the carbon-footprint card and the plane/train
+  // maps inside their respective submodule cards.
+  [`${MODULES.ProfessionalTravel}-trips-map-title-overall`]: {
+    en: 'Trips map',
+    fr: 'Carte des voyages',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-title-plane`]: {
+    en: 'Plane trips map',
+    fr: 'Carte des voyages en avion',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-title-train`]: {
+    en: 'Train trips map',
+    fr: 'Carte des voyages en train',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-empty`]: {
+    en: 'No trips with known coordinates to display.',
+    fr: 'Aucun voyage avec des coordonnées connues à afficher.',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-aria-label`]: {
+    en: 'Map of professional travel trips',
+    fr: 'Carte des déplacements professionnels',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-leg-aria`]: {
+    en: '{from} to {to}: {count} trips, {emissions}',
+    fr: '{from} à {to} : {count} voyages, {emissions}',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-trips`]: {
+    en: '{count} trip | {count} trips',
+    fr: '{count} voyage | {count} voyages',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`]: {
+    en: 'Emissions',
+    fr: 'Émissions',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-legend-trips`]: {
+    en: 'Trips',
+    fr: 'Voyages',
+  },
 } as const;

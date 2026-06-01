@@ -753,6 +753,130 @@ class DataEntryRepository:
         )
         return response
 
+    async def get_professional_travel_trip_legs(
+        self,
+        carbon_report_module_id: int,
+        institutional_id_filter: Optional[str] = None,
+        max_rows: int = 10000,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Fetch raw plane + train legs (one row per DataEntry, no GROUP BY)
+        with origin/destination coordinates; the client aggregates and sums
+        ``number_of_trips``. Rows whose origin or destination location did not
+        resolve are dropped and counted into the returned ``dropped`` total.
+        """
+        emission_agg_q = select(
+            DataEntryEmission.data_entry_id,
+            func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+        ).group_by(col(DataEntryEmission.data_entry_id))
+        if ROLLUP_EMISSION_TYPE_IDS:
+            emission_agg_q = emission_agg_q.where(
+                col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
+            )
+        emission_agg = emission_agg_q.subquery()
+
+        legs: list[dict[str, Any]] = []
+        dropped = 0
+
+        # Resolve both modes through the unique Location.natural_key. Plane
+        # entries store an IATA code, so derive "plane:<iata>" to match
+        # Location.compute_natural_key; train entries already carry the key
+        # (names alone collide, e.g. "Berne" → Bern CH + two DE stops).
+        for mode, type_enum, origin_key, dest_key in (
+            (
+                "plane",
+                DataEntryTypeEnum.plane,
+                "plane:" + DataEntry.data["origin_iata"].as_string(),
+                "plane:" + DataEntry.data["destination_iata"].as_string(),
+            ),
+            (
+                "train",
+                DataEntryTypeEnum.train,
+                DataEntry.data["origin_natural_key"].as_string(),
+                DataEntry.data["destination_natural_key"].as_string(),
+            ),
+        ):
+            OriginLocation = aliased(Location)
+            DestLocation = aliased(Location)
+
+            select_entities: list[Any] = [
+                OriginLocation.latitude,
+                OriginLocation.longitude,
+                OriginLocation.name,
+                DestLocation.latitude,
+                DestLocation.longitude,
+                DestLocation.name,
+                emission_agg.c.total_kg_co2eq,
+                DataEntry.data["number_of_trips"].as_float(),
+            ]
+            statement: Select[Any] = (
+                sa_select(*select_entities)
+                .select_from(DataEntry)
+                .join(
+                    emission_agg,
+                    col(DataEntry.id) == emission_agg.c.data_entry_id,
+                    isouter=True,
+                )
+                .join(
+                    OriginLocation,
+                    OriginLocation.natural_key == origin_key,
+                    isouter=True,
+                )
+                .join(
+                    DestLocation,
+                    DestLocation.natural_key == dest_key,
+                    isouter=True,
+                )
+            )
+
+            statement = statement.where(
+                col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
+                col(DataEntry.data_entry_type_id) == type_enum.value,
+            )
+            if institutional_id_filter is not None:
+                statement = statement.where(
+                    DataEntry.data["user_institutional_id"].as_string()
+                    == institutional_id_filter
+                )
+
+            # max_rows is a global cap across both modes, so bound the second
+            # query by what the first already consumed (returned + dropped).
+            remaining = max_rows - (len(legs) + dropped)
+            if remaining <= 0:
+                break
+            statement = statement.limit(remaining)
+            result = await self.session.execute(statement)
+            for row in result.all():
+                (o_lat, o_lng, o_name, d_lat, d_lng, d_name, kg, n_trips) = row
+                if o_lat is None or o_lng is None or d_lat is None or d_lng is None:
+                    dropped += 1
+                    continue
+                legs.append(
+                    {
+                        "mode": mode,
+                        "origin_lat": float(o_lat),
+                        "origin_lng": float(o_lng),
+                        "destination_lat": float(d_lat),
+                        "destination_lng": float(d_lng),
+                        "origin_name": o_name or "",
+                        "destination_name": d_name or "",
+                        "kg_co2eq": float(kg or 0.0),
+                        "number_of_trips": int(n_trips) if n_trips is not None else 1,
+                    }
+                )
+
+        if len(legs) + dropped >= max_rows:
+            logger.warning(
+                "trips-map row cap hit",
+                extra={
+                    "carbon_report_module_id": carbon_report_module_id,
+                    "max_rows": max_rows,
+                    "returned": len(legs),
+                    "dropped": dropped,
+                },
+            )
+
+        return legs, dropped
+
     async def get_total_per_field(
         self,
         field_name: str,

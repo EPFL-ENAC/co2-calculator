@@ -18,6 +18,8 @@ from app.schemas.carbon_report_response import (
     ModuleResponse,
     ModuleTotals,
     SubmoduleResponse,
+    TripLeg,
+    TripsMapResponse,
 )
 from app.schemas.data_entry import DataEntryCreate, DataEntryResponse, DataEntryUpdate
 from app.schemas.user import UserRead
@@ -669,6 +671,29 @@ class DataEntryService:
             await self.session.commit()
 
         return response
+
+    async def get_professional_travel_trips_map(
+        self,
+        carbon_report_module_id: int,
+        institutional_id_filter: Optional[str] = None,
+    ) -> TripsMapResponse:
+        """Return a flat list of plane + train trip legs with coordinates.
+
+        Own-scope filtering is applied via ``institutional_id_filter`` exactly
+        as in ``get_submodule_data``; the route resolves it via
+        ``_get_professional_travel_institutional_id_filter``.
+
+        Frontend aggregates per-map (undirected by default), so this is one
+        leg per source ``DataEntry``, not a per-route rollup.
+        """
+        legs, dropped = await self.repo.get_professional_travel_trip_legs(
+            carbon_report_module_id=carbon_report_module_id,
+            institutional_id_filter=institutional_id_filter,
+        )
+        return TripsMapResponse(
+            legs=[TripLeg(**leg) for leg in legs],
+            dropped_count=dropped,
+        )
 
     async def get_total_per_field(
         self,

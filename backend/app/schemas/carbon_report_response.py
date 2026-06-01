@@ -1,7 +1,7 @@
 """Equipment-related Pydantic schemas for API requests and responses."""
 
 from datetime import datetime
-from typing import Dict, Generic, Optional, Sequence, TypeVar
+from typing import Dict, Generic, List, Literal, Optional, Sequence, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -72,3 +72,33 @@ class ModuleResponse(BaseModel):
         None, description="Module statistics"
     )
     totals: ModuleTotals = Field(..., description="Module totals")
+
+
+class TripLeg(BaseModel):
+    """One professional-travel leg with geographic coordinates.
+
+    Aggregation is left to the client: this is the raw row per DataEntry,
+    not a per-route rollup. See ``GET /professional-travel/trips-map``.
+    """
+
+    mode: Literal["plane", "train"]
+    origin_lat: float
+    origin_lng: float
+    destination_lat: float
+    destination_lng: float
+    origin_name: str
+    destination_name: str
+    kg_co2eq: float
+    number_of_trips: int = 1
+
+
+class TripsMapResponse(BaseModel):
+    """Flat list of trip legs for the professional-travel map.
+
+    Legs whose origin or destination location could not be resolved to
+    coordinates are dropped server-side; ``dropped_count`` lets the UI
+    show "X trips not shown" if any.
+    """
+
+    legs: List[TripLeg]
+    dropped_count: int = 0
