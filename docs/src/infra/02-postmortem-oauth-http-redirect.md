@@ -66,6 +66,10 @@ See `backend/app/api/v1/auth.py` (`oauth_login`) and the regression tests in
   `url_for`-based external URL, not just this one call site.
 - **Confirm the trigger:** read the new `x_forwarded_proto` DEBUG log from a
   `dev` request and record here whether it was two-copies, zero, or `http`.
+- **Pin `COOKIE_SECURE` explicitly:** it was absent from `helm/values.yaml` and
+  relied on the code default (`true`). Now set explicitly under `backend.env`
+  since it governs both cookie `Secure` and the redirect scheme. Verify no
+  per-env override in the ops repo sets it `false` for a TLS-fronted cluster.
 
 ## Lessons
 
