@@ -45,9 +45,11 @@ const props = withDefaults(
   defineProps<{
     data: ItBreakdownResponse;
     printMode?: boolean;
+    compact?: boolean;
   }>(),
   {
     printMode: false,
+    compact: false,
   },
 );
 
@@ -151,7 +153,16 @@ const categoryColor = computed(() => ({
 const WAFFLE_TOTAL_UNITS = 1000;
 const WAFFLE_COLS = 50;
 const WAFFLE_ROWS = 20;
+const WAFFLE_COLS_COMPACT = 100;
+const WAFFLE_ROWS_COMPACT = 10;
 const NON_IT_COLOR = '#C8C6BE';
+
+const waffleCols = computed(() =>
+  props.compact ? WAFFLE_COLS_COMPACT : WAFFLE_COLS,
+);
+const waffleRows = computed(() =>
+  props.compact ? WAFFLE_ROWS_COMPACT : WAFFLE_ROWS,
+);
 
 interface WaffleCategory {
   key: string;
@@ -224,9 +235,10 @@ const waffleCategoryData = computed<WaffleCategory[]>(() => {
   return cats;
 });
 
-const cellSize = computed(() => Math.max(8, waffleWidth.value / WAFFLE_COLS));
-
-const waffleHeight = computed(() => cellSize.value * WAFFLE_ROWS);
+const cellSize = computed(() =>
+  Math.max(4, waffleWidth.value / waffleCols.value),
+);
+const waffleHeight = computed(() => cellSize.value * waffleRows.value);
 const hasWaffleSize = computed(() => waffleWidth.value > 0);
 
 const waffleChartOption = computed<EChartsOption>(() => {
@@ -263,7 +275,10 @@ const waffleChartOption = computed<EChartsOption>(() => {
       data: cells
         .map((c, idx) => ({ c, idx }))
         .filter(({ c }) => c.key === cat.key)
-        .map(({ idx }) => [idx % WAFFLE_COLS, Math.floor(idx / WAFFLE_COLS)]),
+        .map(({ idx }) => [
+          idx % waffleCols.value,
+          Math.floor(idx / waffleCols.value),
+        ]),
       itemStyle: cat.isIT
         ? {
             color: cat.color,
@@ -297,14 +312,14 @@ const waffleChartOption = computed<EChartsOption>(() => {
     xAxis: {
       type: 'value' as const,
       min: -0.5,
-      max: WAFFLE_COLS - 0.5,
+      max: waffleCols.value - 0.5,
       show: false,
       splitLine: { show: false },
     },
     yAxis: {
       type: 'value' as const,
       min: -0.5,
-      max: WAFFLE_ROWS - 0.5,
+      max: waffleRows.value - 0.5,
       show: false,
       splitLine: { show: false },
       inverse: true,

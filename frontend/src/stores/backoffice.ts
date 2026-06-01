@@ -3,7 +3,10 @@ import { reactive, ref } from 'vue';
 import { api } from 'src/api/http';
 import { applyUnitFiltersToParams } from 'src/api/backoffice';
 import type { ModuleState } from 'src/constant/moduleStates';
-import type { EmissionBreakdownResponse } from 'src/stores/modules';
+import type {
+  EmissionBreakdownResponse,
+  ItBreakdownResponse,
+} from 'src/stores/modules';
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE_UNITS = 10;
@@ -32,6 +35,7 @@ interface BackofficeUnitDataPagination {
     total: number;
   };
   emission_breakdown?: EmissionBreakdownResponse | null;
+  it_breakdown?: ItBreakdownResponse | null;
   validated_units_count?: number;
   in_progress_units_count?: number;
   not_started_units_count?: number;

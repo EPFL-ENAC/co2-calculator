@@ -22,6 +22,7 @@ import UnitDialogue from 'src/components/organisms/backoffice/reporting/UnitDial
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
+import ItFocusSection from 'src/components/organisms/ItFocusSection.vue';
 import { useRouter } from 'vue-router';
 const backofficeStore = useBackofficeStore();
 const router = useRouter();
@@ -80,6 +81,7 @@ const loading = computed(() => backofficeStore.unitsLoading);
 const reportingEmissionBreakdown = computed(
   () => units.value?.emission_breakdown ?? null,
 );
+const reportingItBreakdown = computed(() => units.value?.it_breakdown ?? null);
 
 const tableRows = computed(() => units.value?.data ?? []);
 const validatedCount = computed(() => units.value?.validated_units_count ?? 0);
@@ -270,7 +272,11 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
           :scope-label="$t('backoffice_reporting_completion_bar_scope_table')"
         />
       </div>
-      <q-card flat class="grid-2-col q-mt-xl">
+      <q-card
+        flat
+        class="q-mt-xl"
+        style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px"
+      >
         <ModuleCarbonFootprintChart
           :breakdown-data="reportingEmissionBreakdown"
           :title="$t('backoffice_reporting_aggregated_results_title')"
@@ -293,6 +299,13 @@ async function handleModuleStateUpdate(module: Module, states: ModuleState[]) {
         :breakdown-data="reportingEmissionBreakdown"
         class="q-mt-xl"
       />
+      <q-card v-if="reportingItBreakdown" flat bordered class="q-mt-xl">
+        <ItFocusSection
+          :data="reportingItBreakdown"
+          :loading="loading"
+          :compact="true"
+        />
+      </q-card>
       <div class="flex justify-between items-center q-pt-xl q-pb-md">
         <span class="text-body1 text-weight-medium">{{
           $t('backoffice_reporting_usage_statistic')

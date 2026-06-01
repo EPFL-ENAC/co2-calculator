@@ -19,6 +19,12 @@ from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleCreate
 from app.utils.emission_category import build_chart_breakdown
+from app.utils.it_breakdown import (
+    IT_EMISSION_TYPES,
+    ITSqlTotals,
+    build_it_breakdown,
+    get_validated_source_module_type_ids,
+)
 
 logger = get_logger(__name__)
 
@@ -754,6 +760,35 @@ class CarbonReportModuleRepository:
             validated_module_type_ids=validated_module_type_ids,
         )
 
+        # Build IT breakdown from the same aggregated rows (no extra SQL needed)
+        rows_no_add = [(mt, et, kg) for mt, et, kg, _add in chart_rows]
+        it_type_ids = {et.value for et in IT_EMISSION_TYPES}
+        validated_source_ids = set(
+            get_validated_source_module_type_ids(validated_module_type_ids)
+        )
+        it_total_kg = sum(kg for _mt, et, kg in rows_no_add if et in it_type_ids)
+        overall_total_kg = sum(kg for _mt, _et, kg in rows_no_add)
+        validated_source_total_kg = sum(
+            kg for mt, _et, kg in rows_no_add if mt in validated_source_ids
+        )
+        validated_it_kg = sum(
+            kg
+            for mt, et, kg in rows_no_add
+            if mt in validated_source_ids and et in it_type_ids
+        )
+        it_sql_totals: ITSqlTotals = {
+            "it_total_kg": float(it_total_kg),
+            "overall_total_kg": float(overall_total_kg),
+            "validated_source_total_kg": float(validated_source_total_kg),
+            "validated_it_kg": float(validated_it_kg),
+        }
+        it_breakdown = build_it_breakdown(
+            rows=rows_no_add,
+            total_fte=global_fte,
+            validated_module_type_ids=validated_module_type_ids,
+            sql_totals=it_sql_totals,
+        )
+
         # --- STEP 3: Use cached stats from CarbonReport ---
         # Build reporting data using pre-computed stats
         reporting_data = []
@@ -823,6 +858,7 @@ class CarbonReportModuleRepository:
             "page_size": page_size,
             "total_pages": ceil(total / page_size) if page_size > 0 else 1,
             "emission_breakdown": emission_breakdown,
+            "it_breakdown": it_breakdown,
             "validated_units_count": validated_units_count,
             "in_progress_units_count": in_progress_units_count,
             "not_started_units_count": not_started_units_count,
