@@ -613,6 +613,7 @@ const { dynamicOptions: buildingRoomDynamicOptions } =
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
+    toRef(props, 'year'),
   );
 
 function getTravelMode(): 'plane' | 'train' | undefined {
