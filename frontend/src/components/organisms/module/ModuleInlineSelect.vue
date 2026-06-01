@@ -82,10 +82,15 @@ const subkindFieldId = computed(() => {
 });
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
-  useEquipmentClassOptions(props.row, toRef(props, 'submoduleType'), {
-    classFieldId: kindFieldId.value,
-    subClassFieldId: subkindFieldId.value,
-  });
+  useEquipmentClassOptions(
+    props.row,
+    toRef(props, 'submoduleType'),
+    {
+      classFieldId: kindFieldId.value,
+      subClassFieldId: subkindFieldId.value,
+    },
+    toRef(props, 'year'),
+  );
 
 const classOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];

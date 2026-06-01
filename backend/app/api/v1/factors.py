@@ -77,15 +77,22 @@ async def list_stale_factors(
 )
 async def get_class_subclass_map(
     data_entry_type: DataEntryTypeEnum,
+    year: int = Query(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, list[str]]:
-    """Get mapping of equipment classes to subclasses for a given submodule."""
+    """Get mapping of equipment classes to subclasses for a given submodule.
+
+    Scoped to ``year`` so the options match the year-scoped factor lookup in
+    ``get_factor`` — otherwise the dropdown could offer a class that has no
+    factor for the selected year.
+    """
     handler = BaseModuleHandler.get_by_type(data_entry_type)
     return await FactorService(db).get_class_subclass_map(
         data_entry_type=data_entry_type,
         kind_field=handler.kind_field or "",
         subkind_field=handler.subkind_field or "",
+        year=year,
     )
 
 
