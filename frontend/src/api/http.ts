@@ -236,13 +236,28 @@ export const api = ky.create({
 
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
           if (!skipCodes.includes(res.status)) {
-            // For other errors, show a generic error toast
+            // Surface the backend's error detail when present — the bare status
+            // line ("400 Bad Request") doesn't tell the user what to fix.
+            let detail: string | undefined;
+            try {
+              const cloned = res.clone();
+              if (!cloned.bodyUsed) {
+                const body = (await cloned.json()) as { detail?: unknown };
+                if (typeof body?.detail === 'string') {
+                  detail = body.detail;
+                }
+              }
+            } catch {
+              // Non-JSON body; fall back to the generic status message.
+            }
             Notify.create({
               color: 'negative',
-              message: i18n.global.t('http_error_occurred', {
-                status: res.status,
-                text: res.statusText,
-              }),
+              message:
+                detail ??
+                i18n.global.t('http_error_occurred', {
+                  status: res.status,
+                  text: res.statusText,
+                }),
               position: 'top',
               timeout: 3000,
               actions: [{ icon: 'close', color: 'white' }],
