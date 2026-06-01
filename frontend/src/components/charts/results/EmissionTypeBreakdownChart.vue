@@ -48,7 +48,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   co2: 'process-emissions.category.co2',
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerant',
+  refrigerants: 'process-emissions.category.refrigerants',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
