@@ -61,6 +61,7 @@ const purchaseFields: ModuleField[] = [
     id: 'total_spent_amount',
     labelKey: `${MODULES.Purchase}.inputs.total_spent_amount`,
     type: 'number',
+    required: true,
     editableInline: true,
     min: 0,
     step: 0.01,
