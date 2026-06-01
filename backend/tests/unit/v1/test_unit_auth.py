@@ -3,6 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi import Response, status
 from fastapi.testclient import TestClient
+from starlette.datastructures import URL, Headers
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
@@ -18,6 +20,19 @@ def client():
         yield c
 
 
+def _login_request(callback_url: str) -> MagicMock:
+    """A fake login Request whose url_for returns a Starlette URL.
+
+    Mirrors what ``Request.url_for`` actually returns (a ``URL`` exposing
+    ``.scheme``/``.replace``), so the scheme-forcing branch in
+    ``oauth_login`` exercises real behaviour rather than a stub string.
+    """
+    request = MagicMock()
+    request.url_for = lambda name: URL(callback_url)
+    request.headers = Headers({})
+    return request
+
+
 @pytest.mark.asyncio
 async def test_login_redirect(monkeypatch):
     mock_authorize_redirect = AsyncMock(return_value="redirected")
@@ -26,12 +41,78 @@ async def test_login_redirect(monkeypatch):
         "authorize_redirect",
         mock_authorize_redirect,
     )
-    request = MagicMock()
-    request.url_for = lambda x: "http://test/callback"
-    request.headers = {}
-    result = await auth_module.oauth_login(request)
+    result = await auth_module.oauth_login(_login_request("https://test/callback"))
     assert result == "redirected"
     mock_authorize_redirect.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_login_redirect_forces_https_behind_tls_terminator(monkeypatch):
+    """Regression: behind a TLS-terminating LB the proxy may leave the
+    pod-visible scheme as http (e.g. duplicate X-Forwarded-Proto that uvicorn's
+    ProxyHeadersMiddleware drops). With COOKIE_SECURE set, oauth_login must
+    still hand Entra an https redirect_uri."""
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
+    captured = {}
+
+    async def capture(request, redirect_uri):
+        captured["redirect_uri"] = redirect_uri
+        return "redirected"
+
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider, "authorize_redirect", capture
+    )
+    await auth_module.oauth_login(_login_request("http://co2-dev.epfl.ch/callback"))
+    assert str(captured["redirect_uri"]) == "https://co2-dev.epfl.ch/callback"
+
+
+@pytest.mark.asyncio
+async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
+    """Local http dev keeps COOKIE_SECURE=false, so http://localhost is left
+    intact — Entra exempts localhost from the https redirect_uri requirement."""
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", False)
+    captured = {}
+
+    async def capture(request, redirect_uri):
+        captured["redirect_uri"] = redirect_uri
+        return "redirected"
+
+    monkeypatch.setattr(
+        auth_module.oauth.co2_oauth_provider, "authorize_redirect", capture
+    )
+    await auth_module.oauth_login(_login_request("http://localhost:8000/callback"))
+    assert str(captured["redirect_uri"]) == "http://localhost:8000/callback"
+
+
+@pytest.mark.asyncio
+async def test_proxy_headers_drops_duplicate_forwarded_proto():
+    """Pin the uvicorn behaviour we work around: ProxyHeadersMiddleware ignores
+    X-Forwarded-Proto when more than one copy is present (anti-spoofing guard),
+    so a two-hop LB+ingress chain leaves the scheme as the inner http."""
+    captured = {}
+
+    async def downstream(scope, receive, send):
+        captured["scheme"] = scope["scheme"]
+
+    mw = ProxyHeadersMiddleware(downstream, trusted_hosts="*")
+    scope = {
+        "type": "http",
+        "scheme": "http",
+        "client": ("10.0.0.1", 1234),
+        "headers": [
+            (b"x-forwarded-proto", b"https"),
+            (b"x-forwarded-proto", b"http"),
+        ],
+    }
+
+    async def receive():  # pragma: no cover - unused by the middleware
+        return {"type": "http.request"}
+
+    async def send(message):  # pragma: no cover - unused by the middleware
+        return None
+
+    await mw(scope, receive, send)
+    assert captured["scheme"] == "http"
 
 
 @pytest.mark.asyncio

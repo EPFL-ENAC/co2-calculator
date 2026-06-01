@@ -435,18 +435,26 @@ async def oauth_login(request: Request):
     Redirects to Entra ID for authentication.
     """
     if logger.isEnabledFor(logging.DEBUG):
-        x_forwarded_headers = {
-            k: v
-            for k, v in request.headers.items()
-            if k.lower().startswith("x-forwarded-")
-        }
+        # ``getlist`` keeps duplicates: uvicorn's ProxyHeadersMiddleware drops
+        # X-Forwarded-Proto when the LB sends >1 copy, so the count matters.
         logger.debug(
             "Login requested x-forwarded headers",
-            extra={"headers": x_forwarded_headers},
+            extra={
+                "x_forwarded_proto": request.headers.getlist("x-forwarded-proto"),
+                "x_forwarded_for": request.headers.getlist("x-forwarded-for"),
+            },
         )
     # ``url_for`` resolves the FastAPI route function name. Keep the name
     # in sync with the @decorator below (``oauth_callback``).
     redirect_uri = request.url_for("oauth_callback")
+    # Behind a TLS terminator the public scheme is https, but the proxy may
+    # send X-Forwarded-Proto in a shape ProxyHeadersMiddleware ignores, leaving
+    # scope["scheme"] as http. COOKIE_SECURE is the deployment's "served over
+    # https" flag (same gate as the cookie Secure attr); force the scheme to
+    # match the real public origin. Local http dev keeps COOKIE_SECURE=false, so
+    # http://localhost is left intact (Entra exempts localhost from https).
+    if settings.COOKIE_SECURE and redirect_uri.scheme != "https":
+        redirect_uri = redirect_uri.replace(scheme="https")
     logger.info("Initiating OAuth2 login", extra={"redirect_uri": str(redirect_uri)})
     return await oauth.co2_oauth_provider.authorize_redirect(request, redirect_uri)
 
