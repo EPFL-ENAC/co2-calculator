@@ -49,7 +49,7 @@ export default {
     en: 'N₂O',
     fr: 'N₂O',
   },
-  [`${MODULES.ProcessEmissions}.category.refrigerant`]: {
+  [`${MODULES.ProcessEmissions}.category.refrigerants`]: {
     en: 'Refrigerants',
     fr: 'Fluide Frigorigène',
   },
