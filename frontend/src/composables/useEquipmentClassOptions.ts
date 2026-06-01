@@ -13,9 +13,13 @@ interface FieldConfig {
   // (where to write the fetched power values)
   classOptionId?: string;
   subClassOptionId?: string;
-  // values of the fields in the entity record (real value we want to use)
-  primaryValueFieldId?: string; // was actPowerFieldId
-  secondaryValueFieldId?: string; // was pasPowerFieldId
+  // entity fields always overwritten with the fetched factor values; each id
+  // must match the key in the factor response (e.g. "active_power_w").
+  // Use for read-only fields that should mirror the factor.
+  valueFieldIds?: string[];
+  // entity fields filled from the factor only when currently empty, so a user's
+  // saved/edited value is preserved (e.g. "active_usage_hours_per_week").
+  defaultValueFieldIds?: string[];
 
   // Whether to automatically fetch power factor values when class/subclass changes.
   // Default is false to avoid unexpected API calls and allow the user to explicitly
@@ -44,9 +48,8 @@ export function useEquipmentClassOptions<
 
   const classOptionId = config.classOptionId ?? 'kind';
   const subClassOptionId = config.subClassOptionId ?? 'subkind';
-  // #  TODO: make power field IDs configurable
-  const primaryValueFieldId = config.primaryValueFieldId ?? '';
-  const secondaryValueFieldId = config.secondaryValueFieldId ?? '';
+  const valueFieldIds = config.valueFieldIds ?? [];
+  const defaultValueFieldIds = config.defaultValueFieldIds ?? [];
 
   const fetchFactorValuesOnChange: boolean =
     config.fetchFactorValuesOnChange ?? false;
@@ -58,6 +61,10 @@ export function useEquipmentClassOptions<
   const subclassLoadError = ref(false);
 
   const store = useFactorsStore();
+
+  function isEmpty(raw: unknown): boolean {
+    return raw === null || raw === undefined || raw === '';
+  }
 
   function normalizeValue(raw: unknown): string | null {
     if (raw === null || raw === undefined || raw === '') return null;
@@ -154,12 +161,18 @@ export function useEquipmentClassOptions<
     try {
       const pf = await store.fetchPowerFactor(sub, cls, subCls, yearValue);
       if (pf) {
-        if (primaryValueFieldId && primaryValueFieldId in entity)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (entity as any)[primaryValueFieldId] = pf[primaryValueFieldId];
-        if (secondaryValueFieldId && secondaryValueFieldId in entity)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (entity as any)[secondaryValueFieldId] = pf[secondaryValueFieldId];
+        valueFieldIds.forEach((fieldId) => {
+          if (fieldId && fieldId in entity)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (entity as any)[fieldId] = pf[fieldId];
+        });
+        // Only seed default fields that have no value yet, so an existing
+        // user-entered value is never overwritten.
+        defaultValueFieldIds.forEach((fieldId) => {
+          if (fieldId && fieldId in entity && isEmpty(entity[fieldId]))
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (entity as any)[fieldId] = pf[fieldId];
+        });
       }
     } catch {
       // ignore, user can still fill manually
@@ -173,12 +186,13 @@ export function useEquipmentClassOptions<
     if (subClassFieldId in entity)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (entity as any)[subClassFieldId] = '';
-    if (primaryValueFieldId in entity)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (entity as any)[primaryValueFieldId] = null;
-    if (secondaryValueFieldId in entity)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (entity as any)[secondaryValueFieldId] = null;
+    // Clear both always-overwritten and default fields so an explicit
+    // class/subclass change re-seeds them from the new factor.
+    [...valueFieldIds, ...defaultValueFieldIds].forEach((fieldId) => {
+      if (fieldId in entity)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (entity as any)[fieldId] = null;
+    });
   }
 
   // React to submodule type changes

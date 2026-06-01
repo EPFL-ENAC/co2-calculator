@@ -574,15 +574,24 @@ const subkindFieldId = computed(() => {
   return subkindField ? subkindField.id : null;
 });
 
-const useEquipmentClassOptionsConfig: Record<string, string> = {};
+// Factor fields populated on class/subclass selection. Each id must match a
+// key in the factor /values response.
+// - factorValueFieldIds: read-only fields always mirrored from the factor.
+// - factorDefaultFieldIds: editable fields seeded only when empty, so a user's
+//   saved value is preserved.
+const factorValueFieldIds: string[] = [];
+const factorDefaultFieldIds: string[] = [];
 if (props.moduleType === MODULES.EquipmentElectricConsumption) {
-  useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'active_power_w';
-  useEquipmentClassOptionsConfig['secondaryValueFieldId'] = 'standby_power_w';
+  factorValueFieldIds.push('active_power_w', 'standby_power_w');
+  factorDefaultFieldIds.push(
+    'active_usage_hours_per_week',
+    'standby_usage_hours_per_week',
+  );
 } else if (
   props.moduleType === MODULES.Buildings &&
   props.submoduleType === SUBMODULE_BUILDINGS_TYPES.EnergyCombustion
 ) {
-  useEquipmentClassOptionsConfig['primaryValueFieldId'] = 'unit';
+  factorValueFieldIds.push('unit');
 }
 
 const { dynamicOptions, loadingClasses, loadingSubclasses } =
@@ -593,7 +602,8 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
       classFieldId: kindFieldId.value ?? undefined,
       subClassFieldId: subkindFieldId.value ?? undefined,
       fetchFactorValuesOnChange: true,
-      ...useEquipmentClassOptionsConfig,
+      valueFieldIds: factorValueFieldIds,
+      defaultValueFieldIds: factorDefaultFieldIds,
     },
     toRef(props, 'year'),
   );
