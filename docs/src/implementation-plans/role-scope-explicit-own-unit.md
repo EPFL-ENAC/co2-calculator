@@ -1,6 +1,6 @@
 ---
 status: in-progress
-issue: TBD
+issue: 862
 last_updated: 2026-06-02
 title: "Explicit RoleScope: own / unit / global"
 summary: "Replace the implicit role→scope coupling with a discriminated-union Scope (global/unit/own/affiliation) so the own↔unit boundary is explicit in both the schema and the permission key, fixing unit-level capability leaking to standard users."
