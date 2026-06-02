@@ -18,6 +18,7 @@ import {
   hasPermission,
   hasAnyScopePermission,
   hasBackOfficeAreaPermission,
+  hasUnitScopePermission,
   getModulePermissionPath,
 } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
@@ -157,11 +158,17 @@ export const useAuthStore = defineStore('auth', () => {
       action,
     );
     if (globallyPermitted) return true;
-    // append workspace context to permission path if available
+    // append workspace context to permission path if available. A unit-context
+    // lookup matches either the unit-scoped key (principal) or the own-scoped
+    // key (standard user, ``modules.X/<unit>/own``) — mirrors the backend
+    // ``has_permission``. Unit-level controls use ``hasUserUnitScopePermission``.
     const institutionalId = workspaceStore.selectedUnit?.institutional_id;
     if (institutionalId) {
-      path = `${path}/${institutionalId}`;
-      return hasPermission(user.value.permissions, path, action);
+      const unitPath = `${path}/${institutionalId}`;
+      return (
+        hasPermission(user.value.permissions, unitPath, action) ||
+        hasPermission(user.value.permissions, `${unitPath}/own`, action)
+      );
     }
     return false;
   }
@@ -194,15 +201,29 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Check if the current user can access the back-office area (any
-   * `backoffice.*` or `system.*` permission granting `action`). Use for
-   * generic entry points (e.g. the header button) that should appear for
-   * any back-office user regardless of role, sub-domain, or affiliation.
+   * `backoffice.*` permission granting `action`). Use for generic entry
+   * points (e.g. the header button) that should appear for any back-office
+   * user regardless of role, sub-domain, or affiliation.
    */
   function hasUserBackOfficeAreaPermission(
     action: PermissionAction = PermissionAction.VIEW,
   ): boolean {
     if (!user.value || !user.value.permissions) return false;
     return hasBackOfficeAreaPermission(user.value.permissions, action);
+  }
+
+  /**
+   * Check if the current user has UNIT-level (or global) breadth on `path`
+   * for the selected workspace — i.e. a unit-scoped key, NOT the own-scoped
+   * (`/own`) variant. Use to gate unit-level controls such as validating a
+   * module's status, which standard (own-scoped) users must not see.
+   */
+  function hasUserUnitScopePermission(
+    path: string,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    return hasUnitScopePermission(user.value.permissions, path, action);
   }
 
   /**
@@ -231,6 +252,7 @@ export const useAuthStore = defineStore('auth', () => {
     exchange,
     isAuthenticated,
     hasUserPermission,
+    hasUserUnitScopePermission,
     hasUserModulePermission,
     canUserAccessModule,
     hasUserBackOfficeAreaPermission,

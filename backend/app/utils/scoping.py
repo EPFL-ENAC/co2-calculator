@@ -115,7 +115,9 @@ def can_view_module_flow(user: User) -> bool:
 
 
 def require_module_or_config_view():
-    """FastAPI dependency gating module-flow status reads (see ``can_view_module_flow``).
+    """FastAPI dependency gating module-flow status reads.
+
+    See ``can_view_module_flow`` for the allow rule.
 
     The Configuration / Data-Management page and the module upload pages both
     poll these job/pipeline status endpoints (the latter for a principal's own

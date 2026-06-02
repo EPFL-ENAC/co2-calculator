@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.models.unit import Unit
-from app.models.user import Role, RoleName, RoleScope, User, UserProvider
+from app.models.user import OwnScope, Role, RoleName, User, UserProvider
 from app.services.role_sync_service import RoleSyncService
 
 
@@ -20,7 +20,10 @@ async def test_sync_roles_detects_changes(db_session):
         email="test@example.com",
         provider=UserProvider.ACCRED,
         roles_raw=[
-            {"role": RoleName.CO2_USER_STD.value, "on": {"institutional_id": "unit1"}}
+            {
+                "role": RoleName.CO2_USER_STD.value,
+                "on": {"kind": "own", "institutional_id": "unit1"},
+            }
         ],
         last_roles_sync_at=datetime.now(timezone.utc) - timedelta(hours=1),
     )
@@ -33,7 +36,7 @@ async def test_sync_roles_detects_changes(db_session):
         "display_name": "Test User",
         "function": "Tester",
         "roles": [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="unit2"))
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="unit2"))
         ],
     }
     mock_provider = AsyncMock()
@@ -57,7 +60,10 @@ async def test_sync_roles_no_changes(db_session):
     """Test that sync skips update when roles unchanged."""
     # Arrange
     roles_raw = [
-        {"role": RoleName.CO2_USER_STD.value, "on": {"institutional_id": "unit1"}}
+        {
+            "role": RoleName.CO2_USER_STD.value,
+            "on": {"kind": "own", "institutional_id": "unit1"},
+        }
     ]
     user = User(
         id=1,
@@ -76,7 +82,7 @@ async def test_sync_roles_no_changes(db_session):
         "display_name": "Test User",
         "function": "Tester",
         "roles": [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="unit1"))
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="unit1"))
         ],
     }
     mock_provider = AsyncMock()
@@ -103,7 +109,10 @@ async def test_sync_roles_ignores_recent_sync(db_session):
         email="test@example.com",
         provider=UserProvider.ACCRED,
         roles_raw=[
-            {"role": RoleName.CO2_USER_STD.value, "on": {"institutional_id": "unit1"}}
+            {
+                "role": RoleName.CO2_USER_STD.value,
+                "on": {"kind": "own", "institutional_id": "unit1"},
+            }
         ],
         last_roles_sync_at=datetime.now(timezone.utc),  # Just synced
     )
@@ -162,7 +171,7 @@ async def test_sync_units_removes_stale_associations(db_session):
     await db_session.commit()
 
     # Sync with only unit2 role
-    roles = [Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="unit2"))]
+    roles = [Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="unit2"))]
     service = RoleSyncService(db_session)
     await service.sync_user_units(user.id, roles)
 

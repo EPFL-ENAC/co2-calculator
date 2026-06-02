@@ -106,6 +106,8 @@ TEST_UNITS: List[Unit] = [
 
 # Quick lookup helpers
 TEST_UNIT_IDS = [u.institutional_id for u in TEST_UNITS if u.institutional_id]
+# Primary test unit id as a non-optional str for scope construction.
+_TEST_UNIT_IID: str = TEST_UNITS[0].institutional_id or ""
 
 
 # -- Test Roles ---------------------------------------------------------------
@@ -115,13 +117,13 @@ TEST_ROLES: Dict[RoleName, List[Role]] = {
     RoleName.CO2_USER_STD: [
         Role(
             role=RoleName.CO2_USER_STD,
-            on=OwnScope(institutional_id=TEST_UNITS[0].institutional_id),
+            on=OwnScope(institutional_id=_TEST_UNIT_IID),
         ),
     ],
     RoleName.CO2_USER_PRINCIPAL: [
         Role(
             role=RoleName.CO2_USER_PRINCIPAL,
-            on=UnitScope(institutional_id=TEST_UNITS[0].institutional_id),
+            on=UnitScope(institutional_id=_TEST_UNIT_IID),
         ),
     ],
     RoleName.CO2_BACKOFFICE_METIER: [

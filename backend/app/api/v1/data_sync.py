@@ -724,8 +724,8 @@ async def sync_module_data_entries(
     """
     Sync data entries for a specific module.
 
-    **Required Permission**: `system.users.edit` (Super Admin) OR
-    `modules.{name}.sync` for the unit (principal users uploading from the
+    **Required Permission**: `backoffice.configuration.edit` (global data-sync)
+    OR `modules.{name}.sync` for the unit (principal users uploading from the
     module page). The module-owner path requires `target_type=DATA_ENTRIES`
     with both `carbon_report_module_id` and `module_type_id` in config.
 

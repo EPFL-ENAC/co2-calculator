@@ -112,19 +112,21 @@ who attempted what and why a decision was made.
 
 Permissions use dot-notation paths combined with an action:
 
-- **Paths**: `backoffice.users`, `backoffice.reporting`,
-  `backoffice.data_management`, `backoffice.documentation`,
-  `modules.headcount`, `modules.professional_travel`, … Module paths can
-  additionally be unit-scoped via a trailing `/<institutional_id>` segment
-  (e.g. `modules.headcount/0184`).
+- **Paths**: `backoffice.reporting`, `backoffice.users`,
+  `backoffice.documentation`, `backoffice.ui_texts`, `backoffice.configuration`,
+  `backoffice.pipeline_operations`, `backoffice.logs`, `modules.headcount`, …
+  Module paths carry an explicit scope suffix: `/<institutional_id>` for
+  unit-scoped grants (principal) or `/<institutional_id>/own` for own-scoped
+  grants (standard user). See [Explicit RoleScope](../implementation-plans/role-scope-explicit-own-unit.md).
 - **Actions**: `view` (read), `edit` (create/update/delete), `export` (data
-  export), `sync` (trigger imports — granted on `backoffice.data_management`
-  for backoffice/superadmin and on every `modules.*` for principals).
+  export), `sync` (trigger imports — granted on every `modules.*` for
+  principals, and the backoffice global sync via `backoffice.configuration`).
 
-Domains are independent: backoffice roles do not grant module access. The
-four backoffice areas are `backoffice.reporting`, `backoffice.users`,
-`backoffice.data_management`, and `backoffice.documentation`; plus
-`modules.*` (calculation modules) and `system.*` (reserved system routes).
+Domains are independent: backoffice roles do not grant module access. There is
+**one permission per backoffice page** (#862) — reporting, users, documentation,
+ui_texts (all metier + super admin) plus configuration, pipeline_operations and
+logs (super admin only) — alongside `modules.*` (calculation modules). The old
+`backoffice.data_management` and `system.*` keys were removed.
 
 ### Roles
 
@@ -135,10 +137,10 @@ canonical identifiers live in the `RoleName` enum in
 - `calco2.user.standard` — Standard user, own-scope access (professional
   travel and external cloud / AI).
 - `calco2.user.principal` — Unit manager, unit-scope access (all modules).
-- `calco2.backoffice.metier` — Backoffice administrator with reporting and
-  data-management access.
-- `calco2.superadmin` — Super administrator with full system + backoffice
-  access (no `modules.*` grants).
+- `calco2.backoffice.metier` — Backoffice administrator: affiliation-scoped
+  reporting plus scope-less users / documentation / ui_texts.
+- `calco2.superadmin` — Super administrator with every backoffice page,
+  including configuration / pipeline_operations / logs (no `modules.*` grants).
 
 ### Scopes
 
@@ -170,40 +172,45 @@ resource. The source of truth is
 [`app/models/user.py::calculate_user_permissions`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/models/user.py)
 — whenever you change a grant there, update this table in the same PR.
 
-Legend: `V` = view, `E` = edit, `X` = export, `S` = sync, `-` = no grant,
-`(U)` = unit-scoped, `(O)` = own-scoped. Backoffice grants are listed flat
-(issue #459 further scopes them by sub-perimeter).
+Legend: `V` = view, `E` = edit, `X` = export, `S` = sync, `-` = no grant.
+Scope is **explicit in the key**: principal grants are unit-scoped
+(`modules.X/<unit>`), standard-user grants are own-scoped
+(`modules.X/<unit>/own`), `backoffice.reporting` is affiliation-scoped for
+metier (`/<aff>`, #459), and all other keys are bare (global). `(U)` = unit,
+`(O)` = own, `(A)` = affiliation below.
 
-| Permission                      | `calco2.superadmin` | `calco2.backoffice.metier` | `calco2.user.principal` | `calco2.user.standard` |
-| ------------------------------- | ------------------- | -------------------------- | ----------------------- | ---------------------- |
-| `backoffice.reporting`          | V, X                | V, X                       | -                       | -                      |
-| `backoffice.users`              | V, E, X             | V, E, X                    | E (U)                   | -                      |
-| `backoffice.data_management`    | V, E, X, S          | V, E, X, S                 | -                       | -                      |
-| `backoffice.documentation`      | V, E                | V, E                       | -                       | -                      |
-| `system.users`                  | E                   | -                          | -                       | -                      |
-| `modules.headcount`             | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.equipment`             | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.professional_travel`   | -                   | -                          | V, E, S (U)             | V, E (O)               |
-| `modules.buildings`             | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.purchase`              | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.research_facilities`   | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.external_cloud_and_ai` | -                   | -                          | V, E, S (U)             | V, E (O)               |
-| `modules.process_emissions`     | -                   | -                          | V, E, S (U)             | -                      |
+| Permission                       | `calco2.superadmin` | `calco2.backoffice.metier` | `calco2.user.principal` | `calco2.user.standard` |
+| -------------------------------- | ------------------- | -------------------------- | ----------------------- | ---------------------- |
+| `backoffice.reporting`           | V, X                | V, X (A)                   | -                       | -                      |
+| `backoffice.users`               | V, E, X             | V, E, X                    | -                       | -                      |
+| `backoffice.documentation`       | V, E                | V, E                       | -                       | -                      |
+| `backoffice.ui_texts`            | V, E                | V, E                       | -                       | -                      |
+| `backoffice.configuration`       | V, E                | -                          | -                       | -                      |
+| `backoffice.pipeline_operations` | V, E                | -                          | -                       | -                      |
+| `backoffice.logs`                | V                   | -                          | -                       | -                      |
+| `modules.headcount`              | -                   | -                          | V, E, S (U)             | -                      |
+| `modules.equipment`              | -                   | -                          | V, E, S (U)             | -                      |
+| `modules.professional_travel`    | -                   | -                          | V, E, S (U)             | V, E (O)               |
+| `modules.buildings`              | -                   | -                          | V, E, S (U)             | -                      |
+| `modules.purchase`               | -                   | -                          | V, E, S (U)             | -                      |
+| `modules.research_facilities`    | -                   | -                          | V, E, S (U)             | -                      |
+| `modules.external_cloud_and_ai`  | -                   | -                          | V, E, S (U)             | V, E (O)               |
+| `modules.process_emissions`      | -                   | -                          | V, E, S (U)             | -                      |
+
+> **Unit-level module operations** (e.g. PATCH a module's validation status)
+> require **unit** breadth — principal or global. A standard user (own breadth)
+> is rejected even though they may `edit` their own records, because their key
+> is `modules.X/<unit>/own`, not `modules.X/<unit>`. This is enforced by
+> `resolve_module_scope` / `require_module_unit_scope`.
 
 ### Scope summary
 
-| Role                       | Scope  | Notes                                                                             |
-| -------------------------- | ------ | --------------------------------------------------------------------------------- |
-| `calco2.superadmin`        | Global | `system.users` + full `backoffice.*`; **no `modules.*` grants**                   |
-| `calco2.backoffice.metier` | Global | All `backoffice.*` (no module data edits)                                         |
-| `calco2.user.principal`    | Unit   | `view, edit, sync` on every `modules.*` for assigned units; can assign unit role  |
-| `calco2.user.standard`     | Own    | `view, edit` on `modules.professional_travel` and `modules.external_cloud_and_ai` |
-
-> **In flight:** [#862](https://github.com/EPFL-ENAC/co2-calculator/issues/862)
-> moves to a page-driven model — `system.users` is replaced by
-> `backoffice.logs` / `backoffice.configuration` / `backoffice.pipeline_operations`
-> (super-admin only), and only `backoffice.reporting` stays affiliation-scoped.
-> Update this table when that lands.
+| Role                       | Scope       | Notes                                                                               |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| `calco2.superadmin`        | Global      | Every `backoffice.*` page (bare keys); **no `modules.*` grants**                    |
+| `calco2.backoffice.metier` | Affiliation | `backoffice.reporting/<aff>` (scoped) + scope-less users / documentation / ui_texts |
+| `calco2.user.principal`    | Unit        | `view, edit, sync` on every `modules.X/<unit>` for assigned units                   |
+| `calco2.user.standard`     | Own         | `view, edit` on `modules.{professional_travel,external_cloud_and_ai}/<unit>/own`    |
 
 ## How permissions are computed
 
@@ -221,9 +228,10 @@ Permissions are computed in-memory. No database writes occur.
 ## Permission shape in the API
 
 `GET /v1/session` returns a **flat** dictionary keyed by dot-notation path,
-with a **list of action strings** as the value. Module paths carry a trailing
-`/<institutional_id>` segment for unit-scoped grants; `backoffice.*` and
-`system.*` grants are always un-scoped.
+with a **list of action strings** as the value. Module paths carry an explicit
+scope suffix — `/<institutional_id>` (unit, principal) or
+`/<institutional_id>/own` (own, standard user); `backoffice.*` keys are bare
+except `backoffice.reporting/<aff>` for an affiliation-scoped metier.
 
 ```json
 {
@@ -233,11 +241,11 @@ with a **list of action strings** as the value. Module paths carry a trailing
   "permissions": {
     "backoffice.reporting": ["view", "export"],
     "backoffice.users": ["view", "edit", "export"],
-    "backoffice.data_management": ["view", "edit", "export", "sync"],
-    "backoffice.documentation": ["view", "edit"],
-    "system.users": ["edit"],
+    "backoffice.configuration": ["view", "edit"],
+    "backoffice.pipeline_operations": ["view", "edit"],
+    "backoffice.logs": ["view"],
     "modules.headcount/0184": ["view", "edit", "sync"],
-    "modules.professional_travel/0184": ["view", "edit", "sync"]
+    "modules.professional_travel/0184/own": ["view", "edit"]
   }
 }
 ```

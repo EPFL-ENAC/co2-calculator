@@ -21,7 +21,6 @@ For each ``modules.*``-fallback removal:
   (was 200 with the old fallback — this pins the regression).
 """
 
-from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -30,10 +29,12 @@ from fastapi.testclient import TestClient
 import app.api.deps as deps_module
 from app.main import app
 from app.models.user import (
+    AffiliationScope,
     GlobalScope,
+    OwnScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     User,
     calculate_user_permissions,
 )
@@ -65,19 +66,23 @@ def _user(institutional_id: str, roles: list) -> MagicMock:
     u.email = "test@example.com"
     u.institutional_id = institutional_id
     u.roles = roles
+    # Gates resolve breadth from the real computed permissions, so expose them.
+    u.calculate_permissions = lambda: calculate_user_permissions(u.roles)
     return u
 
 
 def _principal(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=iid))
 
 
 def _std_role(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
 
 
 def _backoffice(aff: str) -> Role:
-    return Role(role=RoleName.CO2_BACKOFFICE_METIER, on=RoleScope(affiliation=aff))
+    return Role(
+        role=RoleName.CO2_BACKOFFICE_METIER, on=AffiliationScope(affiliation=aff)
+    )
 
 
 def _superadmin() -> Role:
@@ -334,7 +339,7 @@ def _scoped_principal_user() -> MagicMock:
     user.email = "principal@test.local"
     user.institutional_id = USER_IID
     user.roles = [_principal(UNIT_IID)]
-    # user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
+    user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
     return user
 
 
@@ -344,7 +349,7 @@ def _scoped_standard_user() -> MagicMock:
     user.email = "standard@test.local"
     user.institutional_id = USER_IID
     user.roles = [_std_role(UNIT_IID)]
-    # user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
+    user.calculate_permissions = lambda: calculate_user_permissions(user.roles)
     return user
 
 

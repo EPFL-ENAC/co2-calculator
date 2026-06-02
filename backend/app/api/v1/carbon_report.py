@@ -20,7 +20,6 @@ from app.schemas.carbon_report import (
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
-from app.utils.scoping import require_module_or_config_view
 
 _EXPLORE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
 
@@ -233,7 +232,7 @@ async def update_carbon_report_module_status(
     require_module_unit_scope(
         current_user,
         module_type_id,
-        unit.institutional_id if unit else "",
+        (unit.institutional_id or "") if unit else "",
     )
 
     module_service = CarbonReportModuleService(db)

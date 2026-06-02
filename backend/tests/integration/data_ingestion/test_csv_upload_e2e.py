@@ -37,11 +37,7 @@ async def test_user(db_session: AsyncSession):
         institutional_id="TEST001",
         email="test@example.com",
         display_name="Test User",
-        roles_raw=[
-            Role(
-                role=RoleName.CO2_SUPERADMIN, on=GlobalScope(scope="global")
-            ).model_dump()
-        ],
+        roles_raw=[Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()).model_dump()],
     )
     db_session.add(user)
     await db_session.commit()

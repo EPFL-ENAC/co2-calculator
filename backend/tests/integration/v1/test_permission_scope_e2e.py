@@ -30,10 +30,12 @@ import app.api.deps as deps_module
 from app.main import app
 from app.models.unit import Unit
 from app.models.user import (
+    AffiliationScope,
     GlobalScope,
+    OwnScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     calculate_user_permissions,
 )
 
@@ -73,11 +75,11 @@ def _user(institutional_id: str, roles: list) -> MagicMock:
 
 
 def _principal(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=iid))
 
 
 def _std(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
 
 
 def _backoffice() -> Role:
@@ -87,7 +89,7 @@ def _backoffice() -> Role:
 def _backoffice_scoped(affiliation: str) -> Role:
     return Role(
         role=RoleName.CO2_BACKOFFICE_METIER,
-        on=RoleScope(affiliation=affiliation),
+        on=AffiliationScope(affiliation=affiliation),
     )
 
 

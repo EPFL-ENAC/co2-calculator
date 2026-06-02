@@ -12,7 +12,6 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
-    OwnScope,
     Role,
     RoleName,
     UnitScope,
@@ -199,13 +198,9 @@ async def _evaluate_resource_access_policy(input_data: dict) -> dict:
             # Check if principal role
             if role_name == RoleName.CO2_USER_PRINCIPAL.value:
                 principal_or_secondary = True
-                # Extract unit from scope
-                if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+                # Extract unit from scope (principal is always unit-scoped).
+                if isinstance(role_scope, UnitScope) and role_scope.institutional_id:
                     user_unit_ids.add(role_scope.institutional_id)
-                elif isinstance(role_scope, dict) and role_scope.get(
-                    "institutional_id"
-                ):
-                    user_unit_ids.add(role_scope["institutional_id"])
 
         # Principals can edit manual/CSV trips in their units
         if principal_or_secondary and resource_unit_id in user_unit_ids:

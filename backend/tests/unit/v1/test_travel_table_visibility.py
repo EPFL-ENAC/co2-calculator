@@ -17,7 +17,7 @@ from app.api.v1.carbon_report_module import (
     _has_global_or_principal_access_for_unit,
 )
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
 
 UNIT_IID = "10208"
 OTHER_UNIT_IID = "99999"
@@ -42,12 +42,12 @@ def _make_unit(institutional_id):
 
 def _principal_role(unit_iid: str) -> Role:
     return Role(
-        role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=unit_iid)
+        role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=unit_iid)
     )
 
 
 def _std_role(unit_iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=unit_iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=unit_iid))
 
 
 def _global_role() -> Role:

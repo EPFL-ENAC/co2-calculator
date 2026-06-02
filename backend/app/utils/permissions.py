@@ -44,10 +44,10 @@ def has_permission(
 ) -> bool:
     """Check if a permission exists and grants ``action``.
 
-    Permission keys may be un-scoped (``"backoffice.users"``, ``"system.users"``)
-    or scoped to a unit (``"modules.headcount/0184"``). Only ``modules.*`` permissions
-    are unit-scoped — ``backoffice.*`` and ``system.*`` permissions are always stored
-    un-scoped. Callers pick the matching mode via kwargs:
+    Permission keys may be un-scoped (``"backoffice.users"``), unit-scoped
+    (``"modules.headcount/0184"``), or own-scoped (``"modules.headcount/0184/own"``
+    for standard users). When ``institutional_id`` is given the lookup matches
+    either the unit-scoped key or its ``/own`` variant. Callers pick the mode:
 
     - ``institutional_id`` set: strict match on ``f"{path}/{institutional_id}"``.
       Use this when the caller has a unit context (route handlers gating a unit-scoped

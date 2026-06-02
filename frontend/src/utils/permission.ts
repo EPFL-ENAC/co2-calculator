@@ -113,12 +113,12 @@ export function hasAnyScopePermission(
 /**
  * Check if the user holds ANY back-office area permission granting `action`.
  *
- * The back-office area covers both `backoffice.*` features (reporting, users,
- * data management, documentation) and `system.*` features (super-admin-only
- * tabs like configuration, pipeline operations, logs). Matches bare keys
- * (`backoffice.users`, emitted for GlobalScope) AND affiliation-scoped keys
- * (`backoffice.users/ENAC-SG`, emitted for ACCRED sub-perimeter users).
- * Used to gate UI entry points to the back-office area as a whole (#459).
+ * The back-office area is the `backoffice.*` page family (reporting, users,
+ * documentation, ui_texts, configuration, pipeline_operations, logs). Matches
+ * bare keys (`backoffice.users`, emitted for GlobalScope / super admin) AND
+ * affiliation-scoped keys (`backoffice.reporting/ENAC-SG`, emitted for ACCRED
+ * sub-perimeter users). Used to gate UI entry points to the back-office area
+ * as a whole (#459). The former `system.*` family was removed in #862.
  */
 export function hasBackOfficeAreaPermission(
   permissions: FlatUserPermissions | null | undefined,
@@ -132,7 +132,42 @@ export function hasBackOfficeAreaPermission(
     return false;
   }
   for (const [key, actions] of Object.entries(permissions)) {
-    if (!key.startsWith('backoffice.') && !key.startsWith('system.')) continue;
+    if (!key.startsWith('backoffice.')) continue;
+    if (Array.isArray(actions) && actions.includes(action)) return true;
+  }
+  return false;
+}
+
+/**
+ * Check if the user has UNIT-level (or global) breadth on `path`.
+ *
+ * Matches a bare `path` key (global / super admin) or a unit-scoped
+ * `path/<unit>` key (principal), but NOT the own-scoped `path/<unit>/own`
+ * key (standard user). Mirrors the backend `resolve_module_scope` returning
+ * `"unit"`/`"global"` (see `backend/app/utils/permissions.py`). Use this to
+ * gate unit-level controls — e.g. validating a module's status — which a
+ * standard user must not see even though they can edit their own records.
+ */
+export function hasUnitScopePermission(
+  permissions: FlatUserPermissions | null | undefined,
+  path: string,
+  action: PermissionAction = PermissionAction.VIEW,
+): boolean {
+  if (
+    !permissions ||
+    typeof permissions !== 'object' ||
+    Array.isArray(permissions)
+  ) {
+    return false;
+  }
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
+    return false;
+  }
+  const scopePrefix = `${path}/`;
+  for (const [key, actions] of Object.entries(permissions)) {
+    const isGlobal = key === path;
+    const isUnit = key.startsWith(scopePrefix) && !key.endsWith('/own');
+    if (!isGlobal && !isUnit) continue;
     if (Array.isArray(actions) && actions.includes(action)) return true;
   }
   return false;

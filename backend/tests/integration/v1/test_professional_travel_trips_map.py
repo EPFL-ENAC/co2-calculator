@@ -11,7 +11,14 @@ from fastapi.testclient import TestClient
 
 import app.api.deps as deps_module
 from app.main import app
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+)
 from app.schemas.carbon_report_response import TripsMapResponse
 
 
@@ -59,17 +66,18 @@ def _make_user(institutional_id: str, roles: list) -> MagicMock:
 
 def _principal_role(unit_iid: str) -> Role:
     return Role(
-        role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=unit_iid)
+        role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=unit_iid)
     )
 
 
 def _std_role(unit_iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=unit_iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=unit_iid))
 
 
 def _metier_role(affiliation: str) -> Role:
     return Role(
-        role=RoleName.CO2_BACKOFFICE_METIER, on=RoleScope(affiliation=affiliation)
+        role=RoleName.CO2_BACKOFFICE_METIER,
+        on=AffiliationScope(affiliation=affiliation),
     )
 
 

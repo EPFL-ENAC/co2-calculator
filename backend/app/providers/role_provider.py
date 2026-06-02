@@ -21,6 +21,15 @@ from app.models.user import (
     User,
     UserProvider,
 )
+from app.providers.test_fixtures import (
+    TEST_ROLES,
+    TEST_USERS,
+    get_test_role_by_user_id,
+    make_test_user_id,
+)
+
+logger = get_logger(__name__)
+settings = get_settings()
 
 
 def _unit_or_own_scope(role_name, institutional_id: str):
@@ -33,15 +42,7 @@ def _unit_or_own_scope(role_name, institutional_id: str):
     if name == RoleName.CO2_USER_STD.value:
         return OwnScope(institutional_id=institutional_id)
     return UnitScope(institutional_id=institutional_id)
-from app.providers.test_fixtures import (
-    TEST_ROLES,
-    TEST_USERS,
-    get_test_role_by_user_id,
-    make_test_user_id,
-)
 
-logger = get_logger(__name__)
-settings = get_settings()
 
 # ACCRED sortpath hierarchy level used as the backoffice affiliation token.
 # Example: "EPFL ENAC ENAC-SG ENAC-IT" → level 3 = "ENAC-SG".
