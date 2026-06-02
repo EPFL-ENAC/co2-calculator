@@ -70,6 +70,10 @@ def get_test_client(test_user, db_session, monkeypatch):
         app.dependency_overrides[get_db] = mock_get_db
         monkeypatch.setattr(files, "is_permitted", mock_is_permitted)
         monkeypatch.setattr(data_sync, "is_permitted", mock_is_permitted)
+        # upload_temp_files uses has_permission (sync, no OPA); patch it directly
+        # because User.roles deserialization through Union[RoleScope, GlobalScope]
+        # can resolve to RoleScope regardless of the intended scope.
+        monkeypatch.setattr(files, "has_permission", lambda *_a, **_k: True)
 
         client = TestClient(app, raise_server_exceptions=False)
         return client

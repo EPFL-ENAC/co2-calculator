@@ -277,14 +277,18 @@ async def test_module_stats_shape_pins_top_level_keys(
 async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
     seeded,
 ) -> None:
-    """``research_facilities`` rolls both leaves
-    (``research_facilities__facilities`` + ``research_facilities__animal``)
-    under one root (``EmissionType.research_facilities``); both are scope 3.
+    """``research_facilities`` rolls two leaf-level emissions under one root.
+
+    Seeds ``research_facilities__facilities`` (100.0) and the actual leaf
+    ``research_facilities__animal__mice`` (40.0) — the mice type was added as a
+    child of ``research_facilities__animal`` in the subcategory correction commit,
+    making the bare ``research_facilities__animal`` an intermediate rollup node.
+    The leaf path is the production-correct flow from ``_resolve_animal_facilities``.
 
     Seeding both leaves pins:
-      - ``scope3 == sum of leaves``
+      - ``scope3 == sum of leaves`` (100+40=140)
       - ``scope1`` and ``scope2`` stay 0
-      - ``by_emission_type`` contains both leaves AND the root rollup
+      - ``by_emission_type`` contains the two leaves, the animal rollup, AND root rollup
       - ``entry_count`` matches the number of ``DataEntry`` rows
     """
     seed, Sf = seeded
@@ -305,7 +309,7 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
             s,
             crm_id=crm.id,
             data_entry_type=DataEntryTypeEnum.mice_and_fish_animal_facilities,
-            emission_type=EmissionType.research_facilities__animal,
+            emission_type=EmissionType.research_facilities__animal__mice,
             kg_co2eq=40.0,
         )
         await s.commit()
@@ -334,8 +338,10 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
 
         by_et = stats["by_emission_type"]
         assert by_et[str(int(EmissionType.research_facilities__facilities))] == 100.0
+        assert by_et[str(int(EmissionType.research_facilities__animal__mice))] == 40.0
+        # Intermediate rollup: mice leaf rolls up to animal (40.0)
         assert by_et[str(int(EmissionType.research_facilities__animal))] == 40.0
-        # Root rollup: both leaves' parent is EmissionType.research_facilities
+        # Root rollup: facilities (100) + mice via animal (40) = 140
         assert by_et[str(int(EmissionType.research_facilities))] == 140.0
 
 
