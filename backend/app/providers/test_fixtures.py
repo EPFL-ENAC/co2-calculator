@@ -8,7 +8,15 @@ import hashlib
 from typing import Dict, List
 
 from app.models.unit import Unit
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserProvider
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+    UserProvider,
+)
 
 TEST_AFFILIATION = "testaffiliation"
 
@@ -107,28 +115,22 @@ TEST_ROLES: Dict[RoleName, List[Role]] = {
     RoleName.CO2_USER_STD: [
         Role(
             role=RoleName.CO2_USER_STD,
-            on=RoleScope(
-                institutional_id=TEST_UNITS[0].institutional_id,
-                affiliation=TEST_AFFILIATION,
-            ),
+            on=OwnScope(institutional_id=TEST_UNITS[0].institutional_id),
         ),
     ],
     RoleName.CO2_USER_PRINCIPAL: [
         Role(
             role=RoleName.CO2_USER_PRINCIPAL,
-            on=RoleScope(
-                institutional_id=TEST_UNITS[0].institutional_id,
-                affiliation=TEST_AFFILIATION,
-            ),
+            on=UnitScope(institutional_id=TEST_UNITS[0].institutional_id),
         ),
     ],
     RoleName.CO2_BACKOFFICE_METIER: [
         Role(
             role=RoleName.CO2_BACKOFFICE_METIER,
-            on=RoleScope(affiliation=TEST_AFFILIATION),
+            on=AffiliationScope(affiliation=TEST_AFFILIATION),
         ),
     ],
     RoleName.CO2_SUPERADMIN: [
-        Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope(scope="global")),
+        Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()),
     ],
 }

@@ -60,6 +60,11 @@ async def pg_app(pg_dsn, monkeypatch):
             yield session
 
     fake_user = MagicMock()
+    fake_user.calculate_permissions = lambda: {
+        "backoffice.configuration": ["view", "edit"],
+        "backoffice.pipeline_operations": ["view", "edit"],
+        "backoffice.logs": ["view"],
+    }
     fake_user.id = 1
     fake_user.email = "test@example.com"
     fake_user.institutional_id = "TEST-USER"

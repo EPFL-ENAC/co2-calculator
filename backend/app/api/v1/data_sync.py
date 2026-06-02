@@ -53,7 +53,11 @@ from app.tasks._background import fire_and_forget
 from app.tasks.runner import run_job
 from app.tasks.unit_sync_tasks import SyncUnitRequest
 from app.utils.request_context import extract_ip_address, extract_route_payload
-from app.utils.scoping import require_any_scope
+from app.utils.scoping import (
+    can_view_module_flow,
+    require_any_scope,
+    require_module_or_config_view,
+)
 
 
 def _job_type_for(target_type: TargetType, ingestion_method: IngestionMethod) -> str:
@@ -317,7 +321,7 @@ async def _check_job_scope(
 ) -> None:
     """Per-job permission gate (unit-scoped jobs only).
 
-    Layered on top of the existing ``backoffice.data_management.*`` global
+    Layered on top of the existing ``backoffice.configuration.*`` global
     gate so a user with backoffice access still has to clear the per-module
     scope when a job is pinned to a specific unit (``MODULE_UNIT_SPECIFIC``).
 
@@ -335,7 +339,7 @@ async def _check_job_scope(
     institutional_id = await _institutional_id_for_job(job, db)
     if institutional_id is None:
         # MODULE_PER_YEAR or unresolvable scope — the global
-        # backoffice.data_management gate already ran upstream via
+        # backoffice.configuration gate already ran upstream via
         # require_permission(...) and is the right granularity here.
         # TODO(#459): once sub-perimeter scoping ships, derive a
         # broader scope set from the job's module + year and tighten.
@@ -745,8 +749,13 @@ async def sync_module_data_entries(
         "config": {}
     }
     """
-    is_superadmin = await is_permitted(current_user, "system.users", "edit")
-    if not is_superadmin:
+    # Global (backoffice) dispatch requires backoffice.configuration (the
+    # Configuration page triggers global data-sync); otherwise fall through to
+    # the unit-scoped modules.<name>.sync path below.
+    is_global_dispatch = await is_permitted(
+        current_user, "backoffice.configuration", "edit"
+    )
+    if not is_global_dispatch:
         crm_id = (
             syncRequest.config.carbon_report_module_id if syncRequest.config else None
         )
@@ -771,7 +780,7 @@ async def sync_module_data_entries(
         else:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Permission denied: requires system.users.edit",
+                detail="Permission denied: requires backoffice.configuration.edit",
             )
 
     if syncRequest.target_type == TargetType.FACTORS and syncRequest.year is None:
@@ -933,12 +942,13 @@ async def sync_module_factors(
     request: Request,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
 ):
     """
     Sync (recompute) factors for a specific module and data-entry type.
 
-    **Required Permission**: `system.users.edit` (Super Admin only)
 
     ``year`` is **mandatory** for this endpoint — factor updates are always
     year-scoped.
@@ -1029,13 +1039,11 @@ async def get_jobs_by_status(
     filter_type: str = "completed",
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
+        require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> list:
     """
     Get jobs filtered by status.
-
-    **Required Permission**: `backoffice.data_management.view`
 
     Args:
         filter_type: "active" for in-progress jobs, "completed" for finished jobs
@@ -1051,14 +1059,10 @@ async def get_jobs_by_status(
 async def get_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
     """
     Get all sync jobs for a specific year.
-
-    **Required Permission**: `backoffice.data_management.view`
 
     Args:
         year: The year to filter jobs by
@@ -1090,14 +1094,10 @@ async def get_jobs_by_year(
 async def get_latest_jobs_by_year(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> list:
     """
     Get the current job for each (module_type_id, target_type) combination.
-
-    **Required Permission**: `backoffice.data_management.view`
 
     Args:
         year: The year to filter jobs by
@@ -1147,7 +1147,9 @@ class AbortPipelineResponse(BaseModel):
 async def abort_pipeline(
     pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.pipeline_operations", "edit")
+    ),
 ):
     """Abort every non-terminal job of a pipeline.
 
@@ -1167,9 +1169,6 @@ async def abort_pipeline(
         - 200 with summary on success.
         - 404 if ``pipeline_id`` has no jobs (unknown pipeline).
         - 409 if every job is already terminal (nothing to abort).
-
-    **Required Permission**: ``system.users.edit`` (Super Admin only)
-    (same as dispatch — abort is the inverse user action).
     """
     repo = DataIngestionRepository(db)
     jobs = await repo.list_jobs_by_pipeline_id(pipeline_id)
@@ -1223,7 +1222,7 @@ class WorkerResponse(BaseModel):
 async def list_workers(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
+        require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> list[WorkerResponse]:
     """Return the set of live worker pods.
@@ -1242,7 +1241,6 @@ async def list_workers(
     list with ``git_sha`` makes "two-pods-on-different-code"
     visible in one screen.
 
-    **Required Permission**: ``backoffice.data_management.view``.
     """
     settings = get_settings()
     live_window = 2 * settings.POD_HEARTBEAT_INTERVAL_SECONDS
@@ -1326,8 +1324,6 @@ async def job_stream_by_id(
     """
     Server-Sent Events endpoint to stream a single job update in real-time.
 
-    **Required Permission**: `backoffice.data_management.view`
-
     Polls the database for status changes and sends updates to the client.
     Stream ends when the job is completed, failed, or the client disconnects.
 
@@ -1339,10 +1335,10 @@ async def job_stream_by_id(
 
     TODO(#459): tighten when sub-perimeter scoping ships
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "view"):
+    if not can_view_module_flow(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.data_management.view",
+            detail="Permission denied",
         )
 
     # Up-front per-job scope check — drops a pool slot before the stream opens
@@ -1410,13 +1406,9 @@ async def get_active_pipelines(
     year: int,
     modules: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> dict[int, str]:
     """Return the active pipeline_id (if any) for each requested module.
-
-    **Required Permission**: ``backoffice.data_management.view``
 
     Plan 310-D / Issue #1062 — bulk read used by the unified frontend
     ``pipelineStateStore`` to drive the "Recalculating..." badge.  Thin
@@ -1445,13 +1437,13 @@ async def get_active_pipelines(
             detail="modules must be a comma-separated list of integers",
         ) from exc
 
-    # Permission: the global ``backoffice.data_management.view`` gate
+    # Permission: the global ``backoffice.configuration.view`` gate
     # (dependency above) is sufficient — the back-office data-management
     # page is global-scope for ``calco2.backoffice.metier`` (and
     # SuperAdmin) by design.  The previous per-module OPA check
     # (``modules.{name}.view``) filtered out every module for
     # ``BackOfficeMetier`` users because that role grants
-    # ``backoffice.data_management.view`` but not the per-module
+    # ``backoffice.configuration.view`` but not the per-module
     # ``modules.X.view`` perms, leaving the "Recalculating…" badge
     # silently broken on the configuration page.  Matches the
     # sibling year-level endpoint's gate (see
@@ -1468,13 +1460,10 @@ async def get_active_pipelines(
 async def get_active_year_level_pipelines(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> list[str]:
     """Return active **year-level** pipeline_ids (``entity_type=GLOBAL_PER_YEAR``).
 
-    **Required Permission**: ``backoffice.data_management:view`` under any scope.
     Both the back-office Data Management page (Backoffice Administrators) and
     the Logs page (Super Admin only) read from this endpoint, so the gate
     accepts affiliation-scoped backoffice grants alongside the bare superadmin
@@ -1513,13 +1502,9 @@ async def get_active_year_level_pipelines(
 async def get_recalculation_status(
     year: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> list[ModuleRecalculationStatus]:
     """Return per-module recalculation status for the given year.
-
-    **Required Permission**: `backoffice.data_management.view`
 
     Derived from existing DataIngestionJob rows — no new DB table.
     Returns an empty list when no completed FACTORS jobs exist for the year.
@@ -1572,12 +1557,10 @@ async def list_pipelines(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
+        require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> PipelineListResponse:
     """Paginated, filtered list of ingestion/recalc pipelines (#1234).
-
-    **Required Permission**: ``backoffice.data_management.view``
 
     Backs the back-office pipeline-operations console — a global view
     complementary to the per-module data-management page.  The unit is
@@ -1601,7 +1584,7 @@ async def list_pipelines(
 
     Permission model matches the single-pipeline endpoint
     (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
-    *non-raising*: the global ``backoffice.data_management.view`` gate
+    *non-raising*: the global ``backoffice.configuration.view`` gate
     (dependency above) covers cross-unit ``MODULE_PER_YEAR`` pipelines
     (recalc/aggregation) and unscoped runs (unit_sync); a pipeline is
     *dropped* (not 403) only when it is unit-pinned
@@ -1696,12 +1679,10 @@ async def get_pipeline_jobs(
     pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
+        require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ) -> PipelineResponse:
     """Return every job in a multi-step pipeline run, ordered by id.
-
-    **Required Permission**: ``backoffice.data_management.view``
 
     Plan 310C — ``_enqueue_stale_recalculations`` (310B) stamps the same
     ``pipeline_id`` on the parent FACTORS job and every fan-out
@@ -1753,12 +1734,11 @@ async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
     current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
+        require_any_scope("view", "backoffice.pipeline_operations")
     ),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
 
-    **Required Permission**: ``backoffice.data_management.view`` — same gate
     as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
 
     Plan 310D — the frontend stale-stats UX subscribes here when a module's
@@ -1909,11 +1889,11 @@ async def recalculate_emissions_for_type(
     year: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
 ) -> SyncStatusResponse:
     """Trigger emission recalculation for a single data entry type.
-
-    **Required Permission**: `system.users.edit` (Super Admin only)
 
     Creates a background job and streams progress via
     ``GET /sync/jobs/{job_id}/stream``.
@@ -1976,13 +1956,13 @@ async def recalculate_emissions_for_module(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     only_stale: bool = True,
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
 ) -> SyncStatusResponse:
     """Trigger bulk emission recalculation for all (or only stale) data entry types.
 
     Bulk recalculation for a module.
-
-    **Required Permission**: `system.users.edit` (Super Admin only)
 
     When ``only_stale=True`` (default), only data entry types where
     ``needs_recalculation=True`` are included.  Returns 400 if no types qualify.
@@ -2071,7 +2051,9 @@ async def sync_units_from_accred(
     syncRequest: SyncUnitRequest,
     request: Request,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.configuration", "edit")
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -2083,8 +2065,6 @@ async def sync_units_from_accred(
     the SSE stream and the job is recoverable on pod crash via the safety
     poller. Provider is resolved from ``current_user.provider`` and stamped
     on the job (#1266).
-
-    **Required Permission**: `system.users.edit` (Super Admin only)
 
     Returns:
         SyncStatusResponse with the persistent job_id and initial state.
@@ -2130,7 +2110,9 @@ async def sync_units_from_accred(
 async def recover_job(
     job_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(
+        require_permission("backoffice.pipeline_operations", "edit")
+    ),
 ):
     """
     Recover a job stuck in RUNNING after a pod crash.
@@ -2138,7 +2120,6 @@ async def recover_job(
     Resets the job to NOT_STARTED and clears the lock. Only allowed
     when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
 
-    **Required Permission**: ``system.users.edit`` (Super Admin only)
     """
     settings = get_settings()
     repo = DataIngestionRepository(db)
@@ -2205,9 +2186,7 @@ async def get_stale_stats(
         ),
     ),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.data_management")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> list[StaleStatsEntry]:
     """Read-only backstop for the aggregation pipeline (Plan 310-D Follow-up 1
     / #1063).
@@ -2224,8 +2203,6 @@ async def get_stale_stats(
     ``why_stale`` bucket and lets operator dashboards alert on
     non-zero values.  No auto-retry: the operator decides what to do
     based on which bucket lit up.
-
-    **Required Permission**: ``backoffice.data_management.view``
     """
     rows = await DataIngestionRepository(db).find_stale_aggregations(older_than_minutes)
     return [StaleStatsEntry(**row) for row in rows]

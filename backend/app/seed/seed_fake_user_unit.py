@@ -5,7 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.db import SessionLocal
-from app.models.user import RoleScope, User, UserProvider
+from app.models.user import OwnScope, UnitScope, User, UserProvider
 from app.providers.test_fixtures import TEST_ROLES, TEST_UNITS, TEST_USERS
 from app.schemas.unit import UnitRead
 from app.schemas.user import UserRead
@@ -63,7 +63,10 @@ async def seed_unit_users(session: AsyncSession) -> None:
 
         for role in roles:
             # Only unit-scoped roles create unit_user associations
-            if not isinstance(role.on, RoleScope) or not role.on.institutional_id:
+            if (
+                not isinstance(role.on, (UnitScope, OwnScope))
+                or not role.on.institutional_id
+            ):
                 continue
             unit_iid = role.on.institutional_id
             unit_read: UnitRead | None = await unit_service.get_by_institutional_id(

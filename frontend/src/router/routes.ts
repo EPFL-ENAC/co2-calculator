@@ -245,7 +245,7 @@ const routes: RouteRecordRaw[] = [
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.*',
               PermissionAction.VIEW,
             ),
           },
@@ -269,7 +269,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
+              'backoffice.configuration',
               PermissionAction.EDIT,
             ),
             meta: {
@@ -285,7 +285,7 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('pages/back-office/PipelineOperationsConsolePage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
+              'backoffice.configuration',
               PermissionAction.EDIT,
             ),
             meta: {
@@ -301,7 +301,7 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.documentation',
               PermissionAction.VIEW,
             ),
             meta: {
@@ -316,7 +316,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.reporting',
               PermissionAction.VIEW,
             ),
             meta: {
@@ -347,7 +347,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
+              'backoffice.users',
               PermissionAction.EDIT,
             ),
             meta: {

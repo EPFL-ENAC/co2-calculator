@@ -31,7 +31,7 @@ async def list_stale_factors(
     year: int = Query(..., description="Report year to scope the query"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(
-        require_permission("backoffice.data_management", "view")
+        require_permission("backoffice.configuration", "view")
     ),
 ) -> list[StaleFactorResponse]:
     """Return factors not present in the latest successful FACTORS ingest.
@@ -44,7 +44,7 @@ async def list_stale_factors(
     this endpoint surfaces them so the UI can warn that linked data
     entries are using outdated factors.
 
-    **Required Permission**: ``backoffice.data_management.view``
+    **Required Permission**: ``backoffice.configuration.view``
     """
     rows = await FactorRepository(db).list_stale_for_year(year)
     responses: list[StaleFactorResponse] = []

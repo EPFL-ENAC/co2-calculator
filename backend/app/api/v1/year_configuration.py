@@ -489,7 +489,7 @@ async def list_year_configurations(
 
     Sorted by year descending (latest first).
     """
-    is_admin = await is_permitted(current_user, "backoffice.data_management", "view")
+    is_admin = await is_permitted(current_user, "backoffice.configuration", "view")
 
     stmt = select(YearConfiguration).where(
         col(YearConfiguration.provider) == current_user.provider
@@ -588,7 +588,7 @@ async def create_year_configuration(
     Returns:
         Created year configuration.
     """
-    if not await is_permitted(current_user, "system.users", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can create year configurations",
@@ -765,7 +765,7 @@ async def update_year_configuration(
     Returns:
         Updated year configuration.
     """
-    if not await is_permitted(current_user, "system.users", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can update year configurations",
@@ -898,7 +898,7 @@ async def upload_reduction_objective_file(
     Returns:
         File metadata.
     """
-    if not await is_permitted(current_user, "system.users", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can upload files",

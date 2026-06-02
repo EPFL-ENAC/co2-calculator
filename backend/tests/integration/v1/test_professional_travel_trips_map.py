@@ -67,6 +67,12 @@ def _std_role(unit_iid: str) -> Role:
     return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=unit_iid))
 
 
+def _metier_role(affiliation: str) -> Role:
+    return Role(
+        role=RoleName.CO2_BACKOFFICE_METIER, on=RoleScope(affiliation=affiliation)
+    )
+
+
 def _global_role() -> Role:
     return Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
@@ -121,12 +127,22 @@ async def _deny_all(user, module_id, action, **_kwargs):
     return {"allow": False}
 
 
-def test_403_when_no_permission(client, monkeypatch):
-    user = _make_user("11111", [_std_role(UNIT_IID)])
+def test_403_when_no_permission_metier(client, monkeypatch):
+    user = _make_user("11111", [_metier_role("SV_TEST")])
     _wire(monkeypatch, user, _deny_all)
     try:
         r = client.get(URL)
         assert r.status_code == 403
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_200_when_standard(client, monkeypatch):
+    user = _make_user("11111", [_std_role(UNIT_IID)])
+    _wire(monkeypatch, user, _allow_all)
+    try:
+        r = client.get(URL)
+        assert r.status_code == 200
     finally:
         app.dependency_overrides.clear()
 
@@ -144,13 +160,12 @@ def test_principal_sees_full_unit_data(client, monkeypatch):
         app.dependency_overrides.clear()
 
 
-def test_global_sees_full_unit_data(client, monkeypatch):
+def test_global_don_t_sees_full_unit_data(client, monkeypatch):
     user = _make_user("99999", [_global_role()])
-    captured = _wire(monkeypatch, user, _allow_all)
+    _wire(monkeypatch, user, _deny_all)
     try:
         r = client.get(URL)
-        assert r.status_code == 200
-        assert captured["filter"] is None
+        assert r.status_code == 403
     finally:
         app.dependency_overrides.clear()
 

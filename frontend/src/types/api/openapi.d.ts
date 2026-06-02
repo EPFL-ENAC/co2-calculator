@@ -825,7 +825,7 @@ export interface paths {
          *     this endpoint surfaces them so the UI can warn that linked data
          *     entries are using outdated factors.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          */
         get: operations["list_stale_factors_v1_factors_stale_get"];
         put?: never;
@@ -1204,7 +1204,7 @@ export interface paths {
          * List Files
          * @description List files in the specified directory.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     **Authorization**:
          *     - Backoffice metier: Can list all data management files
@@ -1358,7 +1358,7 @@ export interface paths {
          * Get Jobs By Status
          * @description Get jobs filtered by status.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     Args:
          *         filter_type: "active" for in-progress jobs, "completed" for finished jobs
@@ -1383,7 +1383,7 @@ export interface paths {
          * Get Jobs By Year
          * @description Get all sync jobs for a specific year.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     Args:
          *         year: The year to filter jobs by
@@ -1411,7 +1411,7 @@ export interface paths {
          * Get Latest Jobs By Year
          * @description Get the current job for each (module_type_id, target_type) combination.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     Args:
          *         year: The year to filter jobs by
@@ -1493,7 +1493,7 @@ export interface paths {
          *     list with ``git_sha`` makes "two-pods-on-different-code"
          *     visible in one screen.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``.
+         *     **Required Permission**: ``backoffice.configuration.view``.
          */
         get: operations["list_workers_v1_sync_workers_get"];
         put?: never;
@@ -1515,7 +1515,7 @@ export interface paths {
          * Job Stream By Id
          * @description Server-Sent Events endpoint to stream a single job update in real-time.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     Polls the database for status changes and sends updates to the client.
          *     Stream ends when the job is completed, failed, or the client disconnects.
@@ -1548,7 +1548,7 @@ export interface paths {
          * Get Active Pipelines
          * @description Return the active pipeline_id (if any) for each requested module.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          *
          *     Plan 310-D / Issue #1062 — bulk read used by the unified frontend
          *     ``pipelineStateStore`` to drive the "Recalculating..." badge.  Thin
@@ -1587,7 +1587,7 @@ export interface paths {
          * Get Active Year Level Pipelines
          * @description Return active **year-level** pipeline_ids (``entity_type=GLOBAL_PER_YEAR``).
          *
-         *     **Required Permission**: ``backoffice.data_management:view`` under any scope.
+         *     **Required Permission**: ``backoffice.configuration:view`` under any scope.
          *     Both the back-office Data Management page (Backoffice Administrators) and
          *     the Logs page (Super Admin only) read from this endpoint, so the gate
          *     accepts affiliation-scoped backoffice grants alongside the bare superadmin
@@ -1636,7 +1636,7 @@ export interface paths {
          * Get Recalculation Status
          * @description Return per-module recalculation status for the given year.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     Derived from existing DataIngestionJob rows — no new DB table.
          *     Returns an empty list when no completed FACTORS jobs exist for the year.
@@ -1664,7 +1664,7 @@ export interface paths {
          * List Pipelines
          * @description Paginated, filtered list of ingestion/recalc pipelines (#1234).
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          *
          *     Backs the back-office pipeline-operations console — a global view
          *     complementary to the per-module data-management page.  The unit is
@@ -1688,7 +1688,7 @@ export interface paths {
          *
          *     Permission model matches the single-pipeline endpoint
          *     (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
-         *     *non-raising*: the global ``backoffice.data_management.view`` gate
+         *     *non-raising*: the global ``backoffice.configuration.view`` gate
          *     (dependency above) covers cross-unit ``MODULE_PER_YEAR`` pipelines
          *     (recalc/aggregation) and unscoped runs (unit_sync); a pipeline is
          *     *dropped* (not 403) only when it is unit-pinned
@@ -1719,7 +1719,7 @@ export interface paths {
          * Get Pipeline Jobs
          * @description Return every job in a multi-step pipeline run, ordered by id.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          *
          *     Plan 310C — ``_enqueue_stale_recalculations`` (310B) stamps the same
          *     ``pipeline_id`` on the parent FACTORS job and every fan-out
@@ -1750,7 +1750,7 @@ export interface paths {
          * Pipeline Stream By Id
          * @description Server-Sent Events stream for every job sharing a ``pipeline_id``.
          *
-         *     **Required Permission**: ``backoffice.data_management.view`` — same gate
+         *     **Required Permission**: ``backoffice.configuration.view`` — same gate
          *     as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
          *
          *     Plan 310D — the frontend stale-stats UX subscribes here when a module's
@@ -1926,7 +1926,7 @@ export interface paths {
          *     non-zero values.  No auto-retry: the operator decides what to do
          *     based on which bucket lit up.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          */
         get: operations["get_stale_stats_v1_sync_health_stale_stats_get"];
         put?: never;
@@ -5834,7 +5834,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "detail": "Permission denied: backoffice.data_management.view"
+                     *       "detail": "Permission denied: backoffice.configuration.view"
                      *     }
                      */
                     "application/json": unknown;
@@ -5898,7 +5898,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "detail": "Permission denied: backoffice.data_management.view"
+                     *       "detail": "Permission denied: backoffice.configuration.view"
                      *     }
                      */
                     "application/json": unknown;

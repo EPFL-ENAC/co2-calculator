@@ -12,13 +12,14 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import (
     GlobalScope,
+    OwnScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     User,
     calculate_user_permissions,
 )
-from app.utils.permissions import has_permission
+from app.utils.permissions import has_permission, resolve_module_scope
 
 logger = get_logger(__name__)
 
@@ -306,11 +307,7 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
     scope = "own"  # Default scope
 
     # Check for global scope (backoffice admin)
-    has_global_scope = any(
-        isinstance(role.on, GlobalScope)
-        or (isinstance(role.on, dict) and role.on.get("scope") == "global")
-        for role in roles
-    )
+    has_global_scope = any(isinstance(role.on, GlobalScope) for role in roles)
 
     if has_global_scope:
         # Global scope: no filters (can see all)
@@ -326,16 +323,13 @@ async def _evaluate_data_filter_policy(input_data: dict) -> dict:
             },
         )
     else:
-        # Collect unit IDs from unit-scoped roles
+        # Unit-scoped roles (principal) contribute a unit filter; own-scoped
+        # roles (standard) fall through to the own (user_id) filter below.
         unit_ids = set()
         for role in roles:
             role_scope = role.on
-            # Handle RoleScope objects
-            if isinstance(role_scope, RoleScope) and role_scope.institutional_id:
+            if isinstance(role_scope, UnitScope) and role_scope.institutional_id:
                 unit_ids.add(role_scope.institutional_id)
-            # Handle dict format
-            elif isinstance(role_scope, dict) and role_scope.get("institutional_id"):
-                unit_ids.add(role_scope["institutional_id"])
         if unit_ids:
             # Unit scope: filter by unit_ids
             scope = "unit"
@@ -620,6 +614,35 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Access to this unit is not permitted.",
+        )
+
+
+def require_module_unit_scope(
+    current_user: User,
+    module_id: str | int,
+    institutional_id: str,
+    action: str = "edit",
+) -> None:
+    """Gate a UNIT-LEVEL module operation: require unit or global breadth.
+
+    Principal (unit) and global pass; a standard user (own breadth) is rejected
+    even though they may edit their own records — validating a module's status
+    is a unit-wide action, not a per-record one (#role-scope redesign).
+    """
+    module_name = (
+        module_id if isinstance(module_id, str) else ModuleTypeEnum(module_id).name
+    )
+    path = _get_module_permission_path(module_name) or "unknown_module"
+    scope = resolve_module_scope(
+        current_user.calculate_permissions(),
+        path,
+        action,
+        institutional_id=institutional_id,
+    )
+    if scope not in ("unit", "global"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permission denied",
         )
 
 

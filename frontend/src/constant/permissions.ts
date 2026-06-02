@@ -173,7 +173,7 @@ export interface UserPermissions {
 export interface FlatUserPermissions {
   'backoffice.reporting'?: ModulePermissions;
   'backoffice.users'?: ModulePermissions;
-  'backoffice.data_management'?: ModulePermissions;
+  'backoffice.configuration'?: ModulePermissions;
   'backoffice.documentation'?: ModulePermissions;
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;

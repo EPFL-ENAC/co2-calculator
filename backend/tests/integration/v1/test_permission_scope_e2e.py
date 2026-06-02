@@ -509,11 +509,12 @@ def _wire_active_pipelines(monkeypatch, user) -> None:
 
 
 class TestActivePipelinesPerYearGate:
-    """The route gates on ``backoffice.data_management:view`` under ANY scope.
+    """Module-flow read gated by ``require_module_or_config_view`` (#862).
 
-    Configuration page (Backoffice Administrator, affiliation-scoped) and
-    Logs page (Super Admin, global) both consume this endpoint — both must
-    pass.
+    Allowed for a backoffice configuration operator (``backoffice.configuration``
+    view — Super Admin) or any module user who can *sync* (``modules.<name>.sync``
+    — principals polling their own upload progress). A metier user without
+    configuration, and a std user without sync, are denied.
     """
 
     def test_superadmin_passes(self, client, monkeypatch):
@@ -522,22 +523,24 @@ class TestActivePipelinesPerYearGate:
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 200, r.text
 
-    def test_scoped_backoffice_metier_passes(self, client, monkeypatch):
-        """Pin the bug fix: a backoffice metier with only
-        ``backoffice.data_management/<aff>`` was 403'd by the old
-        ``require_permission`` strict lookup."""
+    def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
+        """Metier holds reporting/users/documentation/ui_texts only — no
+        configuration and no module sync — so it cannot read pipeline status."""
         user = _user("11111", [_backoffice_scoped("ENAC-SG")])
-        _wire_active_pipelines(monkeypatch, user)
-        r = client.get(ACTIVE_PIPELINES_URL)
-        assert r.status_code == 200, r.text
-
-    def test_principal_denied(self, client, monkeypatch):
-        user = _user("11111", [_principal(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 403, r.text
 
+    def test_principal_passes(self, client, monkeypatch):
+        """A principal can sync modules (modules.<name>.sync) and therefore may
+        poll their own job/pipeline progress."""
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 200, r.text
+
     def test_std_denied(self, client, monkeypatch):
+        """Std has view/edit but no sync on its modules → denied."""
         user = _user("11111", [_std(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)

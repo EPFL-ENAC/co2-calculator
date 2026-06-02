@@ -11,7 +11,28 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+    User,
+    UserProvider,
+)
+
+
+def _unit_or_own_scope(role_name, institutional_id: str):
+    """Pick the explicit scope for a unit-bound role (#role-scope redesign).
+
+    Standard users are own-scoped (they may only touch their own records);
+    every other unit-bound role (principal) is unit-scoped.
+    """
+    name = role_name.value if isinstance(role_name, RoleName) else role_name
+    if name == RoleName.CO2_USER_STD.value:
+        return OwnScope(institutional_id=institutional_id)
+    return UnitScope(institutional_id=institutional_id)
 from app.providers.test_fixtures import (
     TEST_ROLES,
     TEST_USERS,
@@ -188,14 +209,14 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(institutional_id=scope_id),
+                            on=_unit_or_own_scope(role_name, scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(affiliation=scope_id),
+                            on=AffiliationScope(affiliation=scope_id),
                         )
                     )
                 else:
@@ -588,16 +609,16 @@ class AccredRoleProvider(RoleProvider):
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(affiliation=affiliation),
+                            on=AffiliationScope(affiliation=affiliation),
                         )
                     )
                 else:
-                    # Map authorization to role with unit scope
+                    # Map authorization to role with explicit unit/own scope
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(
-                                institutional_id=str(accred_unit_institutional_id)
+                            on=_unit_or_own_scope(
+                                auth_name, str(accred_unit_institutional_id)
                             ),
                         )
                     )

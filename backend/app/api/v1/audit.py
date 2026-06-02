@@ -140,7 +140,7 @@ async def list_audit_logs(
     sort_by: str = Query("changed_at"),
     sort_desc: bool = Query(True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.logs", "view")),
 ):
     """List audit log entries with filtering and pagination."""
     # Validate sort_by parameter to prevent SQL injection
@@ -214,7 +214,7 @@ async def get_audit_stats(
     search: Optional[str] = Query(None),
     module: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.logs", "view")),
 ):
     """Get summary statistics for audit logs, respecting current filters."""
     repo = AuditDocumentRepository(db)
@@ -250,7 +250,7 @@ async def get_audit_stats(
 async def get_audit_log_detail(
     log_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.logs", "view")),
 ):
     """Get full details of a single audit log entry."""
     repo = AuditDocumentRepository(db)
@@ -297,7 +297,7 @@ async def export_audit_logs(
     module: Optional[str] = Query(None),
     format: str = Query("csv", description="Export format: csv or json"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_permission("system.users", "edit")),
+    current_user: User = Depends(require_permission("backoffice.logs", "view")),
 ):
     """Export audit logs as CSV or JSON file download."""
     repo = AuditDocumentRepository(db)
