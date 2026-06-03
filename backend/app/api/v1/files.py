@@ -89,7 +89,7 @@ file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": ("Permission denied: backoffice.configuration view")
+                        "detail": ("Permission denied: backoffice.configuration.view")
                     }
                 }
             },

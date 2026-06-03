@@ -5981,7 +5981,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "detail": "Permission denied: backoffice.configuration view"
+                     *       "detail": "Permission denied: backoffice.configuration.view"
                      *     }
                      */
                     "application/json": unknown;

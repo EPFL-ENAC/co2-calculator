@@ -27,10 +27,8 @@ const hasBackOfficeEditPermission = computed(() => {
 });
 
 const hasSuperAdminRole = computed(() => {
-  // todo: replace with ROLES.SuperAdmin when done!
   return (
-    authStore.user?.roles_raw?.some((x) => x.role === ROLES.BackOfficeMetier) ??
-    false
+    authStore.user?.roles_raw?.some((x) => x.role === ROLES.SuperAdmin) ?? false
   );
 });
 
@@ -41,7 +39,7 @@ function isItemDisabled(item: NavItem): boolean {
   // there is no scenario where a SA should be locked out of a
   // back-office page.
   if (hasSuperAdminRole.value) return false;
-  // if (item.superAdminOnly === true) return true;
+  if (item.superAdminOnly === true) return true;
   if (item.limitedAccess === true && !hasBackOfficeEditPermission.value)
     return true;
   return false;

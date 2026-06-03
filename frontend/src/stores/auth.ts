@@ -223,7 +223,16 @@ export const useAuthStore = defineStore('auth', () => {
     action: PermissionAction = PermissionAction.VIEW,
   ): boolean {
     if (!user.value || !user.value.permissions) return false;
-    return hasUnitScopePermission(user.value.permissions, path, action);
+    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
+    if (!institutionalId) return false;
+    // Restrict to the selected workspace's unit key (or a global key) — the
+    // own-scoped (`/own`) variant must NOT grant unit-level controls.
+    return hasUnitScopePermission(
+      user.value.permissions,
+      path,
+      action,
+      institutionalId,
+    );
   }
 
   /**

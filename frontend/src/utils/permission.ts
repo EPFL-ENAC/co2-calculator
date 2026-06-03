@@ -147,11 +147,15 @@ export function hasBackOfficeAreaPermission(
  * `"unit"`/`"global"` (see `backend/app/utils/permissions.py`). Use this to
  * gate unit-level controls — e.g. validating a module's status — which a
  * standard user must not see even though they can edit their own records.
+ *
+ * Pass `institutionalId` to restrict the unit match to that specific unit
+ * (`path/<institutionalId>`); without it, any unit-scoped key matches.
  */
 export function hasUnitScopePermission(
   permissions: FlatUserPermissions | null | undefined,
   path: string,
   action: PermissionAction = PermissionAction.VIEW,
+  institutionalId?: string,
 ): boolean {
   if (
     !permissions ||
@@ -164,9 +168,12 @@ export function hasUnitScopePermission(
     return false;
   }
   const scopePrefix = `${path}/`;
+  const unitKey = institutionalId ? `${path}/${institutionalId}` : null;
   for (const [key, actions] of Object.entries(permissions)) {
     const isGlobal = key === path;
-    const isUnit = key.startsWith(scopePrefix) && !key.endsWith('/own');
+    const isUnit = unitKey
+      ? key === unitKey
+      : key.startsWith(scopePrefix) && !key.endsWith('/own');
     if (!isGlobal && !isUnit) continue;
     if (Array.isArray(actions) && actions.includes(action)) return true;
   }
