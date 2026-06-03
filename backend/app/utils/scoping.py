@@ -1,13 +1,14 @@
-"""Affiliation-scoping helpers shared by backoffice routers (#459).
+"""Affiliation-scoping helpers shared by backoffice routers (#459, #862).
 
 The pure permission utilities live in ``app.utils.permissions`` and stay
-free of SQLAlchemy / FastAPI. This module owns the SQL-level predicate
-that maps ACCRED affiliation tokens onto ``Unit.path_name``, plus the
+free of SQLAlchemy / FastAPI. This module owns the SQL-level predicate that
+maps a backoffice scope (a set of unit cfs) onto the unit subtree, plus the
 gate helper that raises 403 when the caller is not a backoffice user.
 """
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import func, or_
+from sqlalchemy import and_, exists, func, or_
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col
 
@@ -17,23 +18,28 @@ from app.models.user import User
 from app.utils.permissions import derive_backoffice_affiliations, has_permission
 
 
-def build_affiliation_predicate(affiliations: set[str]) -> ColumnElement[bool]:
-    """Build the SQL predicate matching ``Unit.path_name`` against affiliations.
+def build_scope_subtree_predicate(scope_cfs: set[str]) -> ColumnElement[bool]:
+    """SQL predicate selecting units within the subtree of any scope cf (#862).
 
-    ACCRED ``sortpath`` is a space-separated 4-level hierarchy
-    (e.g. ``"EPFL ENAC ENAC-SG ENAC-IT"``); ``role_provider.py`` extracts
-    LVL3 (``"ENAC-SG"``) as the affiliation token. ``Unit.path_name`` is a
-    separator-joined ancestor list (observed shapes: ``"EPFL > STI > LMSC"``
-    and ``"EPFL ENAC IT4R-TEST"``). Padding the column with leading/trailing
-    spaces lets a single ``% <aff> %`` ILIKE catch the LVL3 token at any
-    position regardless of separator (` > ` or plain space) and avoids false
-    positives like ``SV`` matching ``SVOPS``.
-
-    ``coalesce`` keeps the predicate well-defined when ``path_name`` is NULL
-    (NULL rows simply never match).
+    A backoffice scope token is a unit cf (``institutional_id``) at any level.
+    A row is in scope iff some anchor unit ``A`` with ``A.institutional_id`` in
+    ``scope_cfs`` has its ``institutional_code`` as a token of the row's
+    ``path_institutional_code`` (the indexed, self-inclusive code path), so the
+    anchor itself and all its descendants match. Token-boundary matching avoids
+    false positives like code ``142`` matching ``1420``.
     """
-    padded = func.concat(" ", func.coalesce(col(Unit.path_name), ""), " ")
-    return or_(*[padded.ilike(f"% {aff} %") for aff in affiliations])
+    anchor = aliased(Unit)
+    code = anchor.institutional_code
+    path = col(Unit.path_institutional_code)
+    token_match = or_(
+        path == code,
+        path.like(func.concat(code, " %")),
+        path.like(func.concat("% ", code)),
+        path.like(func.concat("% ", code, " %")),
+    )
+    return exists().where(
+        and_(col(anchor.institutional_id).in_(scope_cfs), token_match)
+    )
 
 
 def gate_backoffice(
@@ -45,8 +51,9 @@ def gate_backoffice(
 
     Raises 403 if the user holds neither the bare ``anchor_path`` key nor any
     ``anchor_path/<aff>`` key granting ``action``. Returns
-    ``(is_global, affiliations)``; callers apply ``build_affiliation_predicate``
-    when ``is_global`` is False.
+    ``(is_global, affiliations)``; callers pass ``affiliations`` as ``scope_cfs``
+    to the report repo, or apply ``build_scope_subtree_predicate`` on a unit
+    query, when ``is_global`` is False.
 
     The default anchor is ``backoffice.reporting`` — the only affiliation-scoped
     backoffice area (#862), and therefore the only one whose affiliations can be
@@ -135,23 +142,3 @@ def require_module_or_config_view():
         return current_user
 
     return _dep
-
-
-def narrow_path_affiliation(
-    requested: list[str] | None,
-    is_global: bool,
-    affiliations: set[str],
-) -> list[str] | None:
-    """Intersect a caller-provided ``path_affiliation`` filter with their scope.
-
-    - ``is_global`` callers pass through unchanged.
-    - Scoped callers: intersect their request with their affiliation set
-      (or default to the full set when they pass nothing).
-    - Returns the narrowed list; an empty list signals "no allowed affiliations"
-      and the caller should short-circuit to an empty result.
-    """
-    if is_global:
-        return requested
-    if requested:
-        return [a for a in requested if a in affiliations]
-    return list(affiliations)

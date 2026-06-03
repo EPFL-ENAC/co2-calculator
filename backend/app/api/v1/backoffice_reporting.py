@@ -11,7 +11,7 @@ from app.core.security import get_current_active_user
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.unit import UnitRead
-from app.utils.scoping import build_affiliation_predicate, gate_backoffice
+from app.utils.scoping import build_scope_subtree_predicate, gate_backoffice
 
 # Services
 logger = get_logger(__name__)
@@ -38,8 +38,8 @@ async def list_affiliations(
 
     Each unit includes its unit_type_label for UI distinction.
 
-    Affiliation-scoped backoffice users (#459) only see units whose
-    ``path_name`` contains one of their affiliations.
+    Affiliation-scoped backoffice users (#862) only see units within the
+    subtree of their scope unit(s).
     """
     is_global, affiliations = gate_backoffice(current_user)
 
@@ -62,7 +62,7 @@ async def list_affiliations(
 
     # 4. Affiliation scoping (#459)
     if not is_global:
-        query = query.where(build_affiliation_predicate(affiliations))
+        query = query.where(build_scope_subtree_predicate(affiliations))
 
     # 5. Sorting and Pagination
     offset = (page - 1) * page_size
@@ -121,7 +121,7 @@ async def list_units(
 
     # 4. Affiliation scoping (#459)
     if not is_global:
-        query = query.where(build_affiliation_predicate(affiliations))
+        query = query.where(build_scope_subtree_predicate(affiliations))
 
     # 5. Sorting and Pagination
     offset = (page - 1) * page_size
