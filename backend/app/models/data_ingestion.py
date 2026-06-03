@@ -370,6 +370,41 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
                 "state = 'NOT_STARTED'::ingestion_state_enum AND locked_by IS NULL"
             ),
         ),
+        # Active-job dedup guards (created in migrations e7f1a2b3c4d5 /
+        # f8a9b1c2d3e4). They back the ON CONFLICT clauses in _chain.py;
+        # mirrored here so Alembic autogenerate stops proposing drops.
+        Index(
+            "uq_aggregation_active",
+            "module_type_id",
+            "year",
+            unique=True,
+            postgresql_where=text(
+                "job_type = 'aggregation' "
+                "AND state IN ("
+                "'NOT_STARTED'::ingestion_state_enum, "
+                "'QUEUED'::ingestion_state_enum, "
+                "'RUNNING'::ingestion_state_enum"
+                ")"
+            ),
+        ),
+        Index(
+            "uq_emission_recalc_active",
+            "module_type_id",
+            "data_entry_type_id",
+            "year",
+            unique=True,
+            postgresql_where=text(
+                "job_type = 'emission_recalc' "
+                "AND state IN ("
+                "'NOT_STARTED'::ingestion_state_enum, "
+                "'QUEUED'::ingestion_state_enum, "
+                "'RUNNING'::ingestion_state_enum"
+                ") "
+                "AND module_type_id IS NOT NULL "
+                "AND data_entry_type_id IS NOT NULL "
+                "AND year IS NOT NULL"
+            ),
+        ),
     )
 
     def __repr__(self) -> str:
@@ -415,6 +450,12 @@ class Pipeline(SQLModel, table=True):
     """
 
     __tablename__ = "pipelines"
+    __table_args__ = (
+        # Lookup indexes created in migration b1f7a2c9d4e0. Mirrored here
+        # so Alembic autogenerate stops proposing spurious drop_index calls.
+        Index("ix_pipelines_status", "status"),
+        Index("ix_pipelines_module_year", "module_type_id", "year"),
+    )
 
     id: UUID = Field(sa_column=Column(SAUUID, primary_key=True))
     # = parent job_type (csv_ingest / factor_ingest / unit_sync / …)

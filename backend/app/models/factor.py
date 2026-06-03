@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from sqlalchemy import ForeignKey, Index, Text
+from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import JSON, Column, Field, Integer, SQLModel
 
@@ -101,6 +101,26 @@ class Factor(FactorBase, table=True):
             "ix_factors_data_entry_type_year",
             "data_entry_type_id",
             "year",
+        ),
+        # Partial unique identity guards (created in migration
+        # b1f0a2c3d4e5). Mirrored here so Alembic autogenerate sees them
+        # on the model side and stops proposing spurious drop_index calls.
+        Index(
+            "uq_factor_identity",
+            "data_entry_type_id",
+            "year",
+            "emission_type_id",
+            text("(classification::text)"),
+            unique=True,
+            postgresql_where=text("year IS NOT NULL"),
+        ),
+        Index(
+            "uq_factor_identity_no_year",
+            "data_entry_type_id",
+            "emission_type_id",
+            text("(classification::text)"),
+            unique=True,
+            postgresql_where=text("year IS NULL"),
         ),
     )
 

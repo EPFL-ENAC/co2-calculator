@@ -104,6 +104,15 @@ class Location(LocationBase, table=True):
             "natural_key",
             unique=True,
         ),
+        # GIN trigram index powering fuzzy keyword search (created in
+        # migration 3f8147b5e516). Mirrored here so Alembic autogenerate
+        # stops proposing a spurious drop_index.
+        Index(
+            "ix_locations_keywords",
+            "keywords",
+            postgresql_using="gin",
+            postgresql_ops={"keywords": "gin_trgm_ops"},
+        ),
     )
 
     # ID: Integer, Primary Key, Auto-Increment
