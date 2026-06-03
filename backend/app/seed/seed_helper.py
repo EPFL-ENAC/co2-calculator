@@ -1,3 +1,4 @@
+import re
 from typing import Dict, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -130,6 +131,28 @@ async def load_factors_map(
         if key_kind not in factors_map:
             factors_map[key_kind] = pf
 
+        # Strategy 3: Normalized label lookup — allows human-readable CSV labels
+        # (e.g. "Agitator / Incubator") to match internal factor keys
+        # (e.g. "equipment_factor_agitator_incubator").
+        if pf.classification and kind_field:
+            norm_kind = normalize_kind_for_lookup(
+                pf.classification.get(kind_field, "") or ""
+            )
+            norm_subkind = (
+                normalize_kind_for_lookup(
+                    pf.classification.get(subkind_field, "") or ""
+                )
+                if subkind_field
+                else ""
+            )
+            if norm_kind:
+                norm_key_full = (
+                    f"_n_:{pf.data_entry_type_id}:{pf_year}:{norm_kind}:{norm_subkind}"
+                )
+                factors_map.setdefault(norm_key_full, pf)
+                norm_key_kind = f"_n_:{pf.data_entry_type_id}:{pf_year}:{norm_kind}"
+                factors_map.setdefault(norm_key_kind, pf)
+
     # logger.info(f"Loaded {len(factors)} factors with {len(factors_map)} lookup keys")
     return factors_map
 
@@ -139,6 +162,20 @@ def normalize_kind(kind: str) -> str:
     # Class names are mostly unique in table_power.csv
     # Just normalize to lowercase for matching
     return kind.lower().strip()
+
+
+def normalize_kind_for_lookup(kind: str) -> str:
+    """Normalize a kind value for flexible label↔key matching.
+
+    Strips internal prefixes (e.g. ``equipment_factor_``, ``equipment_factor_sub_``)
+    and removes all non-alphanumeric characters so that a human-readable CSV label
+    like "Agitator / Incubator" matches the factor key
+    "equipment_factor_agitator_incubator".
+    """
+    v = kind.lower().strip()
+    v = re.sub(r"^equipment_factor_(?:sub_)?", "", v)
+    v = re.sub(r"[^a-z0-9]", "", v)
+    return v
 
 
 def is_in_factors_map(

@@ -27,6 +27,7 @@ from app.repositories.unit_repo import UnitRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
 from app.schemas.user import UserRead
+from app.seed.seed_helper import normalize_kind_for_lookup
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
@@ -935,8 +936,45 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"{(kind_value or '').lower()}"
                     )
                     factor = setup_result["factors_map"].get(key_kind)
+                # Fallback: normalized label lookup (e.g. "Agitator / Incubator"
+                # matches factor key "equipment_factor_agitator_incubator")
+                if not factor:
+                    norm_kind = normalize_kind_for_lookup(kind_value or "")
+                    norm_subkind = normalize_kind_for_lookup(subkind_value or "")
+                    if norm_kind:
+                        norm_key_full = (
+                            f"_n_:{data_entry_type.value}:{year_value}"
+                            f":{norm_kind}:{norm_subkind}"
+                        )
+                        factor = setup_result["factors_map"].get(norm_key_full)
+                        if not factor and subkind_value:
+                            norm_key_kind = (
+                                f"_n_:{data_entry_type.value}:{year_value}:{norm_kind}"
+                            )
+                            factor = setup_result["factors_map"].get(norm_key_kind)
                 if factor:
                     primary_factor_id = factor.id
+                    # Normalize the stored kind/subkind to the canonical factor key
+                    # so that imported entries and manually-created entries use the
+                    # same value (avoiding split sort groups in the table).
+                    if handler.kind_field and handler.kind_field in filtered_row:
+                        canonical = (factor.classification or {}).get(
+                            handler.kind_field
+                        )
+                        if canonical:
+                            filtered_row = {
+                                **filtered_row,
+                                handler.kind_field: canonical,
+                            }
+                    if handler.subkind_field and handler.subkind_field in filtered_row:
+                        canonical_sub = (factor.classification or {}).get(
+                            handler.subkind_field
+                        )
+                        if canonical_sub is not None:
+                            filtered_row = {
+                                **filtered_row,
+                                handler.subkind_field: canonical_sub,
+                            }
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None

@@ -1,6 +1,7 @@
 from typing import Optional, Self
 
 from pydantic import ValidationInfo, field_validator, model_validator
+from sqlalchemy import func
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -156,15 +157,33 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": func.regexp_replace(
+            func.regexp_replace(
+                func.lower(DataEntry.data["equipment_class"].as_string()),
+                "^equipment_factor_",
+                "",
+            ),
+            "[^a-z0-9]",
+            "",
+            "g",
+        ),
+        "sub_class": func.regexp_replace(
+            func.regexp_replace(
+                func.lower(DataEntry.data["sub_class"].as_string()),
+                "^equipment_factor_(sub_)?",
+                "",
+            ),
+            "[^a-z0-9]",
+            "",
+            "g",
+        ),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
         "name": DataEntry.data["name"].as_string(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": DataEntry.data["equipment_class"].as_string(),
+        "sub_class": DataEntry.data["sub_class"].as_string(),
     }
 
     async def pre_compute(self, data_entry, session) -> dict:
