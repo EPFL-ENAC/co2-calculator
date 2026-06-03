@@ -105,6 +105,8 @@ class Factor(FactorBase, table=True):
         # Partial unique identity guards (created in migration
         # b1f0a2c3d4e5). Mirrored here so Alembic autogenerate sees them
         # on the model side and stops proposing spurious drop_index calls.
+        # ddl_if gates the Postgres-only ``::text`` cast expression so
+        # SQLite-backed tests (create_all) skip emitting this index.
         Index(
             "uq_factor_identity",
             "data_entry_type_id",
@@ -113,7 +115,7 @@ class Factor(FactorBase, table=True):
             text("(classification::text)"),
             unique=True,
             postgresql_where=text("year IS NOT NULL"),
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index(
             "uq_factor_identity_no_year",
             "data_entry_type_id",
@@ -121,7 +123,7 @@ class Factor(FactorBase, table=True):
             text("(classification::text)"),
             unique=True,
             postgresql_where=text("year IS NULL"),
-        ),
+        ).ddl_if(dialect="postgresql"),
     )
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)

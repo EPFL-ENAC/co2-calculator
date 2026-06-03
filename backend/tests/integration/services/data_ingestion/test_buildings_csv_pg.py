@@ -85,7 +85,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -115,27 +114,6 @@ from .conftest import (
 )
 
 # ── shared helpers ─────────────────────────────────────────────────────
-
-
-async def _install_aggregation_dedup_index(engine) -> None:
-    """Mirror Plan 310-D's migration: aggregation chain dedup index.
-
-    ``pg_dsn`` builds tables via SQLModel.metadata.create_all and skips
-    Alembic-only DDL.  The aggregation handler binds ON CONFLICT to
-    this partial unique index, so the chain fails without it.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
 
 
 def _stub_provider() -> type:
@@ -670,7 +648,7 @@ async def test_building_embodied_energy_factor_change_propagates_across_entries(
 
 
 @pytest.mark.asyncio
-async def test_energy_combustion_csv_ingest_drives_chain(pg_dsn_with_310b):
+async def test_energy_combustion_csv_ingest_drives_chain(pg_dsn):
     """End-to-end: ``dispatch_csv_and_wait`` pipes a stubbed buildings/
     energy_combustion CSV through ``csv_ingest`` → ``emission_recalc``
     → ``aggregation``.  Pins:
@@ -684,8 +662,7 @@ async def test_energy_combustion_csv_ingest_drives_chain(pg_dsn_with_310b):
     Real CSV row-parsing is unit-tested elsewhere; this test focuses on
     the wiring contract specific to the buildings module's job scope.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as _s:
@@ -725,7 +702,7 @@ async def test_energy_combustion_csv_ingest_drives_chain(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_buildings_csv_reupload_emits_independent_pipeline(pg_dsn_with_310b):
+async def test_buildings_csv_reupload_emits_independent_pipeline(pg_dsn):
     """Re-uploading the same buildings/energy_combustion fixture twice
     produces two independent pipelines — each parent finishes cleanly,
     each fans out its own ``emission_recalc`` + ``aggregation`` chain,
@@ -747,8 +724,7 @@ async def test_buildings_csv_reupload_emits_independent_pipeline(pg_dsn_with_310
     replaced" — the second clause is downstream of bulk-delete and out
     of scope for the chain-wiring tier.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as _s:
@@ -814,7 +790,7 @@ async def test_buildings_csv_reupload_emits_independent_pipeline(pg_dsn_with_310
 
 
 @pytest.mark.asyncio
-async def test_building_rooms_csv_ingest_drives_chain(pg_dsn_with_310b):
+async def test_building_rooms_csv_ingest_drives_chain(pg_dsn):
     """The ``DataEntryTypeEnum.building`` (rooms) flavour of the
     buildings module: ``dispatch_csv_and_wait`` must wire the same
     csv_ingest → emission_recalc → aggregation chain.  Pins that the
@@ -829,8 +805,7 @@ async def test_building_rooms_csv_ingest_drives_chain(pg_dsn_with_310b):
     ``test_base_csv_provider.py`` (formula); covering it here would
     duplicate that scope behind the same Postgres testcontainer.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as _s:

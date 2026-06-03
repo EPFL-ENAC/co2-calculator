@@ -80,15 +80,15 @@ def _make_aggregation(
 
 
 @pytest_asyncio.fixture
-async def pg_app(pg_dsn_with_310b, monkeypatch):
+async def pg_app(pg_dsn, monkeypatch):
     """Wire the FastAPI app to the test Postgres + bypass auth.
 
     Same pattern as ``test_factors_stale_endpoint_pg.py``: use the
-    ``pg_dsn_with_310b`` fixture so the production schema's partial unique
+    ``pg_dsn`` fixture so the production schema's partial unique
     indexes (and any future per-batch DDL added there) are present even
     though our seed doesn't actually need them.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async def override_get_db():

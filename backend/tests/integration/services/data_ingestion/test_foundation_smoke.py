@@ -28,7 +28,6 @@ import dataclasses
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -48,27 +47,6 @@ from .conftest import (
     dispatch_csv_and_wait,
     seeded_year_with_units,
 )
-
-
-async def _install_aggregation_dedup_index(engine) -> None:
-    """Mirror the partial unique index Plan 310-D's migration adds.
-
-    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
-    doesn't run Alembic — so the dedup INSERT in the aggregation chain
-    has no index to bind to.  Install it here.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
 
 
 def _stub_csv_provider() -> type:
@@ -176,7 +154,7 @@ async def test_assert_stats_match_diffs_subset(pg_dsn) -> None:
 
 
 @pytest.mark.asyncio
-async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn_with_310b) -> None:
+async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn) -> None:
     """End-to-end smoke: seed the tree, dispatch a stubbed headcount
     CSV ingest, wait for the chain to FINISH, and assert the stats
     column exists on the targeted CRM.
@@ -185,8 +163,7 @@ async def test_dispatch_csv_and_wait_drives_full_chain(pg_dsn_with_310b) -> None
     values — Units 2-11 will pin the math against scope-specific
     contracts.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:

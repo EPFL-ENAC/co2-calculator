@@ -112,7 +112,7 @@ class Location(LocationBase, table=True):
             "keywords",
             postgresql_using="gin",
             postgresql_ops={"keywords": "gin_trgm_ops"},
-        ),
+        ).ddl_if(dialect="postgresql"),
     )
 
     # ID: Integer, Primary Key, Auto-Increment

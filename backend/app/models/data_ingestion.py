@@ -373,6 +373,9 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
         # Active-job dedup guards (created in migrations e7f1a2b3c4d5 /
         # f8a9b1c2d3e4). They back the ON CONFLICT clauses in _chain.py;
         # mirrored here so Alembic autogenerate stops proposing drops.
+        # ddl_if gates them to Postgres: SQLite drops the partial WHERE,
+        # which would turn these into unconditional uniques and break
+        # tests that legitimately reuse (module_type_id, year).
         Index(
             "uq_aggregation_active",
             "module_type_id",
@@ -386,7 +389,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
                 "'RUNNING'::ingestion_state_enum"
                 ")"
             ),
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index(
             "uq_emission_recalc_active",
             "module_type_id",
@@ -404,7 +407,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
                 "AND data_entry_type_id IS NOT NULL "
                 "AND year IS NOT NULL"
             ),
-        ),
+        ).ddl_if(dialect="postgresql"),
     )
 
     def __repr__(self) -> str:
