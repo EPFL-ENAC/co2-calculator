@@ -167,35 +167,26 @@ generic permission checks cannot — see
 
 ## Role-permission matrix
 
-This matrix is the canonical view of which actions each role grants on each
-resource. The source of truth is
+The canonical human-readable view of which actions each role grants lives on
+the published back-office guide — **[Roles &
+permissions](https://epfl-enac.github.io/co2-calculator-back-office-doc/roles/)**
+(source:
+[`co2-calculator-back-office-doc/docs/roles.md`](https://github.com/EPFL-ENAC/co2-calculator-back-office-doc/blob/main/docs/roles.md)).
+The code source of truth is
 [`app/models/user.py::calculate_user_permissions`](https://github.com/EPFL-ENAC/co2-calculator/blob/main/backend/app/models/user.py)
-— whenever you change a grant there, update this table in the same PR.
+— whenever you change a grant there, update the roles page in the same change
+set. This section documents only the **scope mechanics** the roles page omits.
 
-Legend: `V` = view, `E` = edit, `X` = export, `S` = sync, `-` = no grant.
-Scope is **explicit in the key**: principal grants are unit-scoped
-(`modules.X/<unit>`), standard-user grants are own-scoped
-(`modules.X/<unit>/own`), `backoffice.reporting` is affiliation-scoped for
-metier (`/<aff>`, #459), and all other keys are bare (global). `(U)` = unit,
-`(O)` = own, `(A)` = affiliation below.
+### Scope is explicit in the key
 
-| Permission                       | `calco2.superadmin` | `calco2.backoffice.metier` | `calco2.user.principal` | `calco2.user.standard` |
-| -------------------------------- | ------------------- | -------------------------- | ----------------------- | ---------------------- |
-| `backoffice.reporting`           | V, X                | V, X (A)                   | -                       | -                      |
-| `backoffice.users`               | V, E, X             | V, E, X                    | -                       | -                      |
-| `backoffice.documentation`       | V, E                | V, E                       | -                       | -                      |
-| `backoffice.ui_texts`            | V, E                | V, E                       | -                       | -                      |
-| `backoffice.configuration`       | V, E                | -                          | -                       | -                      |
-| `backoffice.pipeline_operations` | V, E                | -                          | -                       | -                      |
-| `backoffice.logs`                | V                   | -                          | -                       | -                      |
-| `modules.headcount`              | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.equipment`              | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.professional_travel`    | -                   | -                          | V, E, S (U)             | V, E (O)               |
-| `modules.buildings`              | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.purchase`               | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.research_facilities`    | -                   | -                          | V, E, S (U)             | -                      |
-| `modules.external_cloud_and_ai`  | -                   | -                          | V, E, S (U)             | V, E (O)               |
-| `modules.process_emissions`      | -                   | -                          | V, E, S (U)             | -                      |
+`V` = view, `E` = edit, `X` = export, `S` = sync. The grant matrix is on the
+roles page; what it does not show is how scope is encoded in the permission
+key:
+
+- Principal grants are unit-scoped — `modules.X/<unit>`.
+- Standard-user grants are own-scoped — `modules.X/<unit>/own`.
+- `backoffice.reporting` is affiliation-scoped for metier — `/<aff>` (#459).
+- All other `backoffice.*` keys are bare (global).
 
 > **Unit-level module operations** (e.g. PATCH a module's validation status)
 > require **unit** breadth — principal or global. A standard user (own breadth)
