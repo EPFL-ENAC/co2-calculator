@@ -39,7 +39,7 @@ def build_affiliation_predicate(affiliations: set[str]) -> ColumnElement[bool]:
 def gate_backoffice(
     user: User,
     action: str = "view",
-    anchor_path: str = "backoffice.users",
+    anchor_path: str = "backoffice.reporting",
 ) -> tuple[bool, set[str]]:
     """Authorize ``<anchor_path>:<action>`` under any scope; return scope.
 
@@ -48,9 +48,11 @@ def gate_backoffice(
     ``(is_global, affiliations)``; callers apply ``build_affiliation_predicate``
     when ``is_global`` is False.
 
-    The default anchor is ``backoffice.users`` (canonical for backoffice
-    routes); pass ``backoffice.data_management`` for sync/pipeline routes
-    or ``system.users`` for superadmin-only routes.
+    The default anchor is ``backoffice.reporting`` — the only affiliation-scoped
+    backoffice area (#862), and therefore the only one whose affiliations can be
+    derived. Scope-less backoffice pages (users, documentation, ui_texts,
+    configuration, pipeline_operations, logs) gate via ``require_permission``
+    instead, not this helper.
 
     Uses ``has_permission(..., any_scope=True)`` because affiliation-scoped
     users only hold ``<anchor>/<aff>`` keys — ``require_permission``'s
@@ -65,7 +67,7 @@ def gate_backoffice(
     return derive_backoffice_affiliations(perms, anchor_path=anchor_path)
 
 
-def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users"):
+def require_any_scope(action: str = "view", anchor_path: str = "backoffice.reporting"):
     """FastAPI dependency factory: gate ``<anchor_path>:<action>`` any-scope.
 
     Drop-in replacement for ``require_permission`` for routes that only need
@@ -78,7 +80,7 @@ def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users
         @router.get("/jobs")
         async def list_jobs(
             current_user: User = Depends(
-                require_any_scope("view", "backoffice.data_management")
+                require_any_scope("view", "backoffice.pipeline_operations")
             ),
             ...
         ):
@@ -88,6 +90,48 @@ def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users
         current_user: User = Depends(get_current_active_user),
     ) -> User:
         gate_backoffice(current_user, action=action, anchor_path=anchor_path)
+        return current_user
+
+    return _dep
+
+
+def can_view_module_flow(user: User) -> bool:
+    """True if the user may read module-flow pipeline/job status (#862).
+
+    Allowed for any module user who can *sync* at least one module
+    (``modules.<name>.sync`` — the status endpoints track sync/ingestion
+    progress, so only sync-capable users dispatch and need to poll it; a
+    standard user with view/edit but no sync does not) or a backoffice
+    configuration operator (``backoffice.configuration`` view, the Data
+    Management page). A metier user without configuration sees none.
+    """
+    perms = user.calculate_permissions()
+    if has_permission(perms, "backoffice.configuration", "view"):
+        return True
+    return any(
+        key.startswith("modules.") and "sync" in (actions or [])
+        for key, actions in (perms or {}).items()
+    )
+
+
+def require_module_or_config_view():
+    """FastAPI dependency gating module-flow status reads.
+
+    See ``can_view_module_flow`` for the allow rule.
+
+    The Configuration / Data-Management page and the module upload pages both
+    poll these job/pipeline status endpoints (the latter for a principal's own
+    uploads), so the gate mirrors ``/dispatch``'s dual model.
+    """
+
+    async def _dep(
+        current_user: User = Depends(get_current_active_user),
+    ) -> User:
+        if not can_view_module_flow(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
         return current_user
 
     return _dep

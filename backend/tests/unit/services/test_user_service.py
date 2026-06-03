@@ -7,9 +7,10 @@ from sqlmodel import select
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import (
+    GlobalScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     User,
     UserProvider,
 )
@@ -44,7 +45,7 @@ def _make_unit(institutional_id: str, institutional_code: str, **overrides) -> U
 
 
 def _role(role_name: RoleName, institutional_id: str) -> Role:
-    return Role(role=role_name, on=RoleScope(institutional_id=institutional_id))
+    return Role(role=role_name, on=UnitScope(institutional_id=institutional_id))
 
 
 async def _get_unit_users(session, user_id: int) -> list[UnitUser]:
@@ -155,7 +156,7 @@ class TestGetUniqUnitInstitutionalIdFromRoles:
         assert sorted(result) == ["CF_A", "CF_B"]
 
     def test_skips_roles_without_institutional_id(self):
-        role_no_id = Role(role=RoleName.CO2_USER_STD, on=RoleScope())
+        role_no_id = Role(role=RoleName.CO2_USER_STD, on=GlobalScope())
         result = self._svc().get_uniq_unit_institutional_id_from_roles([role_no_id])
         assert result == []
 

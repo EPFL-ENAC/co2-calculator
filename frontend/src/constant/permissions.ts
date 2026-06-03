@@ -73,10 +73,16 @@ export interface BackOfficePermissions {
   reporting?: ModulePermissions;
   /** User management permissions */
   users?: ModulePermissions;
-  /** Data management permissions (CSV upload/download, sync operations) */
-  data_management?: ModulePermissions;
-  /** Documentation permissions */
+  /** Documentation editing permissions */
   documentation?: ModulePermissions;
+  /** UI-texts editing permissions */
+  ui_texts?: ModulePermissions;
+  /** Configuration page (CSV upload, factors, year config) — super admin */
+  configuration?: ModulePermissions;
+  /** Pipeline Operations console — super admin */
+  pipeline_operations?: ModulePermissions;
+  /** Logs page — super admin */
+  logs?: ModulePermissions;
 }
 
 /**
@@ -154,8 +160,7 @@ export interface UserPermissions {
  * @property {ModulePermissions} ['modules.buildings'] - Buildings module permissions
  * @property {ModulePermissions} ['modules.purchase'] - Purchase module permissions
  * @property {ModulePermissions} ['modules.research_facilities'] - Research Facilities module permissions
- * @property {ModulePermissions} ['modules.external_clouds'] - External cloud module permissions
- * @property {ModulePermissions} ['system.users'] - System users module permissions
+ * @property {ModulePermissions} ['modules.external_cloud_and_ai'] - External cloud / AI module permissions
  * @property {ModulePermissions | undefined} [key: string] - Allow for future extensions
  *
  * @example
@@ -171,10 +176,15 @@ export interface UserPermissions {
  * @see {@link UserPermissions} For nested structure representation
  */
 export interface FlatUserPermissions {
+  // One permission per backoffice page (#862). reporting is affiliation-scoped
+  // for metier; configuration / pipeline_operations / logs are super-admin only.
   'backoffice.reporting'?: ModulePermissions;
   'backoffice.users'?: ModulePermissions;
-  'backoffice.data_management'?: ModulePermissions;
   'backoffice.documentation'?: ModulePermissions;
+  'backoffice.ui_texts'?: ModulePermissions;
+  'backoffice.configuration'?: ModulePermissions;
+  'backoffice.pipeline_operations'?: ModulePermissions;
+  'backoffice.logs'?: ModulePermissions;
   'modules.headcount'?: ModulePermissions;
   'modules.equipment'?: ModulePermissions;
   'modules.professional_travel'?: ModulePermissions;
@@ -183,6 +193,7 @@ export interface FlatUserPermissions {
   'modules.research_facilities'?: ModulePermissions;
   'modules.external_cloud_and_ai'?: ModulePermissions;
   'modules.process_emissions'?: ModulePermissions;
-  'system.users'?: ModulePermissions;
+  // Module keys are unit-scoped (``modules.X/<unit>``) or own-scoped
+  // (``modules.X/<unit>/own`` for standard users); both arrive via this index.
   [key: string]: ModulePermissions | undefined;
 }

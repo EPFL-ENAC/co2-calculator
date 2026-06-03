@@ -146,13 +146,10 @@ def _wire(
     app.dependency_overrides[deps_module.get_db] = override_get_db
 
     async def fake_is_permitted(user, path, action="view"):
-        # The list endpoint checks ``backoffice.data_management:view`` (Backoffice
-        # Admin readable). The create/update/upload endpoints now check
-        # ``system.users:edit`` (Super-Admin-only after #862). Both branches
-        # are gated on the same admin flag for this test.
-        if path == "backoffice.data_management" and action == "view":
-            return is_admin
-        if path == "system.users" and action == "edit":
+        # The list endpoint and the create/update/upload endpoints both gate on
+        # ``backoffice.configuration`` (super-admin only, #862): view for the
+        # admin-readable list, edit for mutations. Gated on one admin flag here.
+        if path == "backoffice.configuration" and action in ("view", "edit"):
             return is_admin
         return False
 

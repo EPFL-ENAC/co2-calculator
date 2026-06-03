@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient
 
 import app.api.deps as deps_module
 from app.main import app
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
 
 
 @pytest.fixture
@@ -46,12 +46,12 @@ def _make_user(institutional_id: str, roles: list) -> MagicMock:
 
 def _principal_role(unit_iid: str) -> Role:
     return Role(
-        role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=unit_iid)
+        role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=unit_iid)
     )
 
 
 def _std_role(unit_iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=unit_iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=unit_iid))
 
 
 def _global_role() -> Role:

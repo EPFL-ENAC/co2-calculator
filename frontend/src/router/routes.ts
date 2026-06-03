@@ -245,7 +245,7 @@ const routes: RouteRecordRaw[] = [
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.reporting',
               PermissionAction.VIEW,
             ),
           },
@@ -269,7 +269,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
+              'backoffice.configuration',
               PermissionAction.EDIT,
             ),
             meta: {
@@ -285,8 +285,8 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('pages/back-office/PipelineOperationsConsolePage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
-              PermissionAction.EDIT,
+              'backoffice.pipeline_operations',
+              PermissionAction.VIEW,
             ),
             meta: {
               requiresAuth: true,
@@ -301,7 +301,7 @@ const routes: RouteRecordRaw[] = [
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.documentation',
               PermissionAction.VIEW,
             ),
             meta: {
@@ -316,7 +316,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.reporting',
               PermissionAction.VIEW,
             ),
             meta: {
@@ -332,7 +332,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
             component: () => import('pages/back-office/UITextsEditingPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.ui_texts',
               PermissionAction.VIEW,
             ),
             meta: {
@@ -347,8 +347,8 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
             beforeEnter: requirePermission(
-              'system.users',
-              PermissionAction.EDIT,
+              'backoffice.logs',
+              PermissionAction.VIEW,
             ),
             meta: {
               requiresAuth: true,
@@ -362,7 +362,7 @@ const routes: RouteRecordRaw[] = [
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
             beforeEnter: requirePermission(
-              'backoffice.users',
+              'backoffice.documentation',
               PermissionAction.VIEW,
             ),
             meta: {

@@ -1,19 +1,20 @@
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserBase
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UserBase
 
 
 def test_roles_serialization_and_deserialization():
     roles = [
         Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()),
-        Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")),
+        Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")),
     ]
     user = UserBase(email="test@epfl.ch", user_id=None)
     user.roles = roles  # This sets roles_raw
 
-    # Check serialization: roles should be dicts
+    # Check serialization: roles should be dicts carrying the scope ``kind``
     serialized = user.model_dump()["roles_raw"]
     assert all(isinstance(r, dict) for r in serialized)
     assert serialized[0]["role"] == RoleName.CO2_SUPERADMIN
-    assert serialized[0]["on"]["scope"] == "global"
+    assert serialized[0]["on"]["kind"] == "global"
+    assert serialized[1]["on"]["kind"] == "own"
     assert serialized[1]["on"]["institutional_id"] == "12345"
 
     # Check deserialization: roles should be Role objects
