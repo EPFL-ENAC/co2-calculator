@@ -34,8 +34,11 @@ produces an auditable trail.
 
 The enforcement anchor is [#414 — Enforce permissions across all
 routes](https://github.com/EPFL-ENAC/co2-calculator/issues/414). Backoffice
-scoping by sub-perimeter is being refined under
-[#459](https://github.com/EPFL-ENAC/co2-calculator/issues/459).
+reporting is scoped to a unit subtree: the metier scope token is an ACCRED unit
+cf (`institutional_id`) at any level, resolved to that unit's descendants via
+`path_institutional_code` ([#862](https://github.com/EPFL-ENAC/co2-calculator/issues/862),
+superseding the earlier path_name/sub-perimeter approach of
+[#459](https://github.com/EPFL-ENAC/co2-calculator/issues/459)).
 
 ## Implementation plans and related issues
 
@@ -46,7 +49,8 @@ scoping by sub-perimeter is being refined under
 | [Professional travel permission conflict](../implementation-plans/archive/698-permission-conflict.md)                  | [#698](https://github.com/EPFL-ENAC/co2-calculator/issues/698) | Abandoned   | Standard user with `professional_travel.edit` wrongly redirected.                        |
 | [Tighten unit-scoped permission gates](../implementation-plans/977-tighten-unit-permission-gates.md)                   | [#977](https://github.com/EPFL-ENAC/co2-calculator/issues/977) | Delivered   | Unit gating for `carbon_report` + `unit_results`; drops the coarse `modules.*` fallback. |
 | [Update backoffice permissions](../implementation-plans/862-backoffice-update-permissions.md)                          | [#862](https://github.com/EPFL-ENAC/co2-calculator/issues/862) | In progress | Page-driven model: one permission per backoffice page; removes `system.users`.           |
-| [Backoffice ACCRED affiliation scoping](../implementation-plans/459-backoffice-accred-affiliation-scoping.md)          | [#459](https://github.com/EPFL-ENAC/co2-calculator/issues/459) | In progress | Scope `backoffice.*` by ACCRED sub-perimeter (LVL3).                                     |
+| [Backoffice ACCRED affiliation scoping](../implementation-plans/459-backoffice-accred-affiliation-scoping.md)          | [#459](https://github.com/EPFL-ENAC/co2-calculator/issues/459) | Superseded  | Scope `backoffice.*` by ACCRED sub-perimeter; path_name approach replaced by #862.       |
+| [Affiliation scope by unit subtree](../implementation-plans/862-backoffice-affiliation-scope-by-unit-subtree.md)       | [#862](https://github.com/EPFL-ENAC/co2-calculator/issues/862) | Delivered   | Scope `backoffice.reporting` to a unit-cf subtree; `scope ∩ (affiliation ∪ lvl4)` clamp. |
 
 ## Files handling permissions
 
@@ -57,7 +61,8 @@ Core authorization infrastructure:
 - `app/models/user.py` — `RoleName` enum, User model, and `calculate_user_permissions()`.
 - `app/schemas/user.py` — `UserRead` with the `@computed_field` `permissions`.
 - `app/utils/permissions.py` — runtime check `has_permission()` and `derive_backoffice_affiliations()`.
-- `app/utils/scoping.py` — affiliation gate `gate_backoffice()` and SQL predicate helpers.
+- `app/utils/scoping.py` — affiliation gate `gate_backoffice()` and the
+  `build_scope_subtree_predicate()` unit-subtree SQL predicate.
 - `app/core/security.py` — `require_permission()` route decorator and `is_permitted()`.
 - `app/core/policy.py` — in-code policy evaluation (`query_policy`, resource access).
 - `app/services/authorization_service.py` — `get_data_filters()`, `check_resource_access()`.
@@ -185,7 +190,9 @@ key:
 
 - Principal grants are unit-scoped — `modules.X/<unit>`.
 - Standard-user grants are own-scoped — `modules.X/<unit>/own`.
-- `backoffice.reporting` is affiliation-scoped for metier — `/<aff>` (#459).
+- `backoffice.reporting` is affiliation-scoped for metier — `/<cf>`, where
+  `<cf>` is the granted unit's `institutional_id` at any level; the query
+  resolves it to that unit's subtree (#862).
 - All other `backoffice.*` keys are bare (global).
 
 > **Unit-level module operations** (e.g. PATCH a module's validation status)
@@ -196,12 +203,12 @@ key:
 
 ### Scope summary
 
-| Role                       | Scope       | Notes                                                                               |
-| -------------------------- | ----------- | ----------------------------------------------------------------------------------- |
-| `calco2.superadmin`        | Global      | Every `backoffice.*` page (bare keys); **no `modules.*` grants**                    |
-| `calco2.backoffice.metier` | Affiliation | `backoffice.reporting/<aff>` (scoped) + scope-less users / documentation / ui_texts |
-| `calco2.user.principal`    | Unit        | `view, edit, sync` on every `modules.X/<unit>` for assigned units                   |
-| `calco2.user.standard`     | Own         | `view, edit` on `modules.{professional_travel,external_cloud_and_ai}/<unit>/own`    |
+| Role                       | Scope       | Notes                                                                                           |
+| -------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| `calco2.superadmin`        | Global      | Every `backoffice.*` page (bare keys); **no `modules.*` grants**                                |
+| `calco2.backoffice.metier` | Affiliation | `backoffice.reporting/<cf>` (unit-subtree scoped) + scope-less users / documentation / ui_texts |
+| `calco2.user.principal`    | Unit        | `view, edit, sync` on every `modules.X/<unit>` for assigned units                               |
+| `calco2.user.standard`     | Own         | `view, edit` on `modules.{professional_travel,external_cloud_and_ai}/<unit>/own`                |
 
 ## How permissions are computed
 
@@ -222,7 +229,8 @@ Permissions are computed in-memory. No database writes occur.
 with a **list of action strings** as the value. Module paths carry an explicit
 scope suffix — `/<institutional_id>` (unit, principal) or
 `/<institutional_id>/own` (own, standard user); `backoffice.*` keys are bare
-except `backoffice.reporting/<aff>` for an affiliation-scoped metier.
+except `backoffice.reporting/<cf>` for an affiliation-scoped metier (the cf is
+resolved to a unit subtree at query time).
 
 ```json
 {
@@ -409,8 +417,9 @@ Use it for conditional rendering or to disable buttons. Backend
 - Integration: verify scope filtering with `standard / principal / superadmin`
   fixtures.
 - Update the [matrix](#role-permission-matrix) row, the route docstring, and
-  any changelog/ADR. Mention scope intent (global / unit / own) so reviewers
-  can match the grant against issue #459's sub-perimeter work.
+  any changelog/ADR. Mention scope intent (global / unit / own / affiliation)
+  so reviewers can match the grant against the backoffice subtree-scoping
+  work (#862).
 
 ## Audit trail
 

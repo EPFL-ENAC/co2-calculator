@@ -18,7 +18,10 @@ from app.models.user import (
     UserProvider,
 )
 
-TEST_AFFILIATION = "testaffiliation"
+# Backoffice_metier scope token: the cf (institutional_id) of the ENAC anchor
+# unit below. ACCRED grants the metier role on a unit at any level; scoping
+# resolves that cf to the unit's descendant subtree.
+TEST_AFFILIATION = "13030"
 
 
 def make_test_user_id(user_id: str) -> str:
@@ -79,35 +82,51 @@ def get_test_role_by_user_id(user_id: str) -> RoleName | None:
 
 _PRINCIPAL_ID = TEST_USERS[RoleName.CO2_USER_PRINCIPAL]["institutional_id"]
 
+# A coherent ENAC subtree: lvl2 anchor -> lvl3 -> lvl4. Each unit's own
+# institutional_code is the last token of its (self-inclusive) root->leaf
+# path_institutional_code, mirroring real ACCRED data
+# (" ".join(ancestors + [self])). EPFL root (code 10582 / cf 13029) is an
+# ancestor token only; it is not a stored unit.
 TEST_UNITS: List[Unit] = [
     Unit(
         provider=UserProvider.TEST,
-        institutional_code="TEST-12345",
-        institutional_id="TEST-1119",
-        name="ENAC-IT4R-TEST",
-        level=4,
+        institutional_code="12635",
+        institutional_id="13030",
+        name="ENAC-TEST",
+        level=2,
         principal_user_institutional_id=_PRINCIPAL_ID,
-        path_institutional_code="10582 10583 11435",
-        path_institutional_id="cf-10582 cf-10583 cf-11435",
-        path_name="EPFL ENAC IT4R-TEST",
+        path_institutional_code="10582 12635",
+        path_institutional_id="13029 13030",
+        path_name="EPFL ENAC-TEST",
     ),
     Unit(
         provider=UserProvider.TEST,
-        institutional_code="TEST-10208",
-        institutional_id="TEST-0184",
-        name="IC-TEST",
+        institutional_code="11435",
+        institutional_id="13031",
+        name="ENAC-SG-TEST",
         level=3,
         principal_user_institutional_id=_PRINCIPAL_ID,
-        path_institutional_code="10582 10583 11436",
-        path_institutional_id="cf-10582 cf-10583 cf-11436",
-        path_name="EPFL IC-TEST",
+        path_institutional_code="10582 12635 11435",
+        path_institutional_id="13029 13030 13031",
+        path_name="EPFL ENAC-TEST ENAC-SG-TEST",
+    ),
+    Unit(
+        provider=UserProvider.TEST,
+        institutional_code="14270",
+        institutional_id="13032",
+        name="ENAC-IT4R-TEST",
+        level=4,
+        principal_user_institutional_id=_PRINCIPAL_ID,
+        path_institutional_code="10582 12635 11435 14270",
+        path_institutional_id="13029 13030 13031 13032",
+        path_name="EPFL ENAC-TEST ENAC-SG-TEST ENAC-IT4R-TEST",
     ),
 ]
 
 # Quick lookup helpers
 TEST_UNIT_IDS = [u.institutional_id for u in TEST_UNITS if u.institutional_id]
-# Primary test unit id as a non-optional str for scope construction.
-_TEST_UNIT_IID: str = TEST_UNITS[0].institutional_id or ""
+# Primary (leaf) test unit id as a non-optional str for unit/own scope construction.
+_TEST_UNIT_IID: str = TEST_UNITS[-1].institutional_id or ""
 
 
 # -- Test Roles ---------------------------------------------------------------

@@ -310,19 +310,18 @@ class TestAccredRoleProvider:
     async def test_accred_fetch_roles_with_backoffice_metier(
         self, accred_provider, sample_user_id
     ):
-        """ACCRED sortpath is a 4-level hierarchy; affiliation is LVL3."""
+        """Backoffice_metier affiliation scope is the authorized unit's cf.
+
+        The cf identifies a unit at any hierarchy level; it is used verbatim as
+        the affiliation token (not the accredunitid, not a sortpath level).
+        """
         mock_response = {
             "authorizations": [
                 {
                     "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
                     "state": "active",
                     "accredunitid": "12345",
-                    "reason": {
-                        "resource": {
-                            "cf": "12345",
-                            "sortpath": "EPFL ENAC ENAC-SG ENAC-IT",
-                        }
-                    },
+                    "reason": {"resource": {"cf": "13030"}},
                 }
             ]
         }
@@ -344,40 +343,8 @@ class TestAccredRoleProvider:
         assert len(roles) == 1
         assert roles[0] == Role(
             role=RoleName.CO2_BACKOFFICE_METIER,
-            on=AffiliationScope(affiliation="ENAC-SG"),
+            on=AffiliationScope(affiliation="13030"),
         )
-
-    @pytest.mark.asyncio
-    async def test_accred_backoffice_metier_short_sortpath_skipped(
-        self, accred_provider, sample_user_id
-    ):
-        """Sortpath shorter than 3 levels cannot resolve LVL3 — role is dropped."""
-        mock_response = {
-            "authorizations": [
-                {
-                    "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
-                    "state": "active",
-                    "accredunitid": "12345",
-                    "reason": {"resource": {"cf": "12345", "sortpath": "EPFL ENAC"}},
-                }
-            ]
-        }
-
-        with patch(
-            "app.providers.role_provider.httpx.AsyncClient"
-        ) as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response_obj = AsyncMock()
-            mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = Mock()
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.get.return_value = mock_response_obj
-
-            mock_client_class.return_value = mock_client
-
-            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
-
-        assert roles == []
 
     @pytest.mark.asyncio
     async def test_accred_no_authorizations_found(
