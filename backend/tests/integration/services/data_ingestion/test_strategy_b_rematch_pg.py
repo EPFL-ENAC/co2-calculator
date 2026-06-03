@@ -556,7 +556,7 @@ async def test_headcount_member_factor_values_change_propagates(pg_dsn):
                 "name": "Alice",
                 "user_institutional_id": "M-001",
                 "fte": 1.0,
-                "position_category": "professor",
+                "sius_code": "51",
             },
         )
         s.add(entry)

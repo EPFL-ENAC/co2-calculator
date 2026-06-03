@@ -109,7 +109,7 @@ const chartOptions = computed<EChartsOption>(() => {
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
-        category: te(`headcount_${key}`) ? t(`headcount_${key}`) : key,
+        category: te(key) ? t(key) : key,
         value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },
