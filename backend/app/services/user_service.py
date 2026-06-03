@@ -22,7 +22,7 @@ from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.core.role_priority import pick_role_for_institutional_id
 from app.models.unit import Unit
-from app.models.user import Role, RoleScope, User, UserProvider
+from app.models.user import OwnScope, Role, UnitScope, User, UserProvider
 from app.repositories.user_repo import UpsertUserResult, UserRepository
 from app.services.unit_service import UnitService
 from app.services.unit_user_service import UnitUserService
@@ -50,7 +50,7 @@ class UserService:
 
         unit_institutional_ids: set[str] = set()
         for role in roles:
-            if isinstance(role.on, RoleScope) and role.on.institutional_id:
+            if isinstance(role.on, (UnitScope, OwnScope)) and role.on.institutional_id:
                 unit_institutional_ids.add(role.on.institutional_id)
 
         return list(unit_institutional_ids)

@@ -338,14 +338,14 @@ async def _count_entries_and_emissions_for_module(
 
 @pytest.mark.asyncio
 async def test_plane_csv_persists_csv_source_and_preserves_one_to_one(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """``ModulePerYearCSVProvider`` ingests the plane smoke CSV: every
     row persists with ``source = CSV_MODULE_PER_YEAR``, every entry
     yields exactly one emission row (1-1 invariant), and emissions are
     non-zero (proving the location lookup + factor match worked).
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -415,13 +415,13 @@ async def test_plane_csv_persists_csv_source_and_preserves_one_to_one(
 
 @pytest.mark.asyncio
 async def test_train_csv_persists_csv_source_and_preserves_one_to_one(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Train sibling of the plane CSV smoke: same contracts (CSV source
     enum, 1-1 invariant, non-zero emissions) against the train fixture
     + station-name LocationService lookup.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -482,7 +482,7 @@ async def test_train_csv_persists_csv_source_and_preserves_one_to_one(
 
 @pytest.mark.asyncio
 async def test_train_csv_resolves_station_by_required_country_code(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Regression for issue #1183: the train CSV's required
     ``origin_country_code`` / ``destination_country_code`` columns scope
@@ -495,7 +495,7 @@ async def test_train_csv_resolves_station_by_required_country_code(
     not the Swiss one. (Missing country_code is rejected — covered by the
     unit test ``test_train_enrich_csv_row``.)
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     de_natural_key = Location.compute_natural_key(
@@ -610,14 +610,14 @@ async def test_train_csv_resolves_station_by_required_country_code(
 
 @pytest.mark.asyncio
 async def test_plane_csv_reupload_replaces_old_rows_and_preserves_one_to_one(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Re-uploading the same plane CSV must replace the prior
     ``CSV_MODULE_PER_YEAR`` rows (the bulk path's
     ``_delete_existing_csv_module_per_year_entries`` step) rather than
     accumulate, and the 1-1 invariant must still hold post-reupload.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -735,7 +735,7 @@ async def test_plane_csv_reupload_replaces_old_rows_and_preserves_one_to_one(
 
 @pytest.mark.asyncio
 async def test_plane_unknown_iata_persists_entry_without_emission(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Discovery: an unknown destination IATA causes
     ``LocationService.get_location_by_iata`` to return ``None``,
@@ -750,7 +750,7 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
     which is the legitimate semantics for unresolvable trips and the
     motivation for the discovery test in the spec.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -824,13 +824,13 @@ async def test_plane_unknown_iata_persists_entry_without_emission(
 
 @pytest.mark.asyncio
 async def test_train_unknown_station_persists_entry_without_emission(
-    pg_dsn_with_310b, monkeypatch, tmp_path
+    pg_dsn, monkeypatch, tmp_path
 ) -> None:
     """Train mirror of the unknown-IATA discovery test: unknown station
     name → no Location → ``pre_compute`` returns ``{}`` → entry without
     emission.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -945,7 +945,7 @@ def _make_api_provider(
 
 @pytest.mark.asyncio
 async def test_api_provider_load_data_persists_external_integration_with_zero_overrides(  # noqa: E501
-    pg_dsn_with_310b,
+    pg_dsn,
 ) -> None:
     """``ProfessionalTravelApiProvider._load_data`` must persist:
 
@@ -958,7 +958,7 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
     bug — walking legs and fully-electric trips on green grids would
     silently inherit the fallback).
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -1061,7 +1061,7 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
 
 @pytest.mark.asyncio
 async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
-    pg_dsn_with_310b,
+    pg_dsn,
 ) -> None:
     """V2 fix end-to-end (int zero): a DataEntry persisted with
     ``__kg_co2eq_override__ = 0`` must produce an emission whose
@@ -1071,7 +1071,7 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
     Extends ``test_kg_co2eq_override_async_path_pg.py`` with a
     travel-plane shape (the actual API ingestion target).
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -1111,7 +1111,7 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
         await emission_svc.upsert_by_data_entry(DataEntryResponse.model_validate(e))
         await s.commit()
 
-    verify_engine = create_async_engine(pg_dsn_with_310b, future=True)
+    verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with Vf() as vs:
@@ -1147,14 +1147,14 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
 
 @pytest.mark.asyncio
 async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
-    pg_dsn_with_310b,
+    pg_dsn,
 ) -> None:
     """V2 fix end-to-end (float zero): mirror of the int-zero test,
     pinning that ``__kg_co2eq_override__ = 0.0`` (the type
     ``ProfessionalTravelApiProvider._load_data`` writes after the
     ``float()`` coercion) survives the async path.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:
@@ -1191,7 +1191,7 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
         await emission_svc.upsert_by_data_entry(DataEntryResponse.model_validate(e))
         await s.commit()
 
-    verify_engine = create_async_engine(pg_dsn_with_310b, future=True)
+    verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with Vf() as vs:

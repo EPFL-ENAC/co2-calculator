@@ -11,7 +11,16 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+    User,
+    UserProvider,
+)
 from app.providers.test_fixtures import (
     TEST_ROLES,
     TEST_USERS,
@@ -22,9 +31,17 @@ from app.providers.test_fixtures import (
 logger = get_logger(__name__)
 settings = get_settings()
 
-# ACCRED sortpath hierarchy level used as the backoffice affiliation token.
-# Example: "EPFL ENAC ENAC-SG ENAC-IT" → level 3 = "ENAC-SG".
-AFFILIATION_LEVEL = 3
+
+def _unit_or_own_scope(role_name, institutional_id: str):
+    """Pick the explicit scope for a unit-bound role (#role-scope redesign).
+
+    Standard users are own-scoped (they may only touch their own records);
+    every other unit-bound role (principal) is unit-scoped.
+    """
+    name = role_name.value if isinstance(role_name, RoleName) else role_name
+    if name == RoleName.CO2_USER_STD.value:
+        return OwnScope(institutional_id=institutional_id)
+    return UnitScope(institutional_id=institutional_id)
 
 
 class RoleProvider(ABC):
@@ -188,14 +205,14 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(institutional_id=scope_id),
+                            on=_unit_or_own_scope(role_name, scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(affiliation=scope_id),
+                            on=AffiliationScope(affiliation=scope_id),
                         )
                     )
                 else:
@@ -497,6 +514,7 @@ class AccredRoleProvider(RoleProvider):
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
+                "type": "right",  # decomment on new role calco2.backoffice.admin added
                 "searchauthorization": "calco2.",
             }
 
@@ -565,39 +583,24 @@ class AccredRoleProvider(RoleProvider):
                     # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
                 elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
-                    sortpath = (
-                        auth.get("reason", {}).get("resource", {}).get("sortpath") or ""
-                    )
-                    # ACCRED sortpath is a space-separated hierarchy
-                    # ("EPFL ENAC ENAC-SG ENAC-IT"). Affiliation scoping operates
-                    # at LVL3 (e.g. "ENAC-SG"). Skip authorizations that cannot
-                    # resolve LVL3 — they cannot be scoped meaningfully.
-                    levels = sortpath.split()
-                    if len(levels) < AFFILIATION_LEVEL:
-                        logger.warning(
-                            "Backoffice metier sortpath too short; "
-                            "cannot resolve affiliation; skipping",
-                            extra={
-                                "auth_name": auth_name,
-                                "user_id": user_id,
-                                "sortpath": sortpath,
-                            },
-                        )
-                        continue
-                    affiliation = levels[AFFILIATION_LEVEL - 1]
+                    # Affiliation scope is the authorized unit's cf, which
+                    # identifies a unit at any hierarchy level. Scoping later
+                    # resolves it to that unit's descendant subtree.
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(affiliation=affiliation),
+                            on=AffiliationScope(
+                                affiliation=accred_unit_institutional_id
+                            ),
                         )
                     )
                 else:
-                    # Map authorization to role with unit scope
+                    # Map authorization to role with explicit unit/own scope
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(
-                                institutional_id=str(accred_unit_institutional_id)
+                            on=_unit_or_own_scope(
+                                auth_name, str(accred_unit_institutional_id)
                             ),
                         )
                     )

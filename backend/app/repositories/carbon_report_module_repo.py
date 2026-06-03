@@ -280,22 +280,16 @@ class CarbonReportModuleRepository:
         # Unit.id is expected to be present, but SQL typing can expose Optional.
         return [(unit_id, code) for unit_id, code in rows if unit_id is not None]
 
-    async def _get_descendant_unit_ids(self, values: Optional[List[str]]) -> set[int]:
-        """Resolve hierarchy nodes to descendant unit IDs, including self."""
-        selected_units = await self._get_selected_units(values)
-        if not selected_units:
+    async def _descendants_of_codes(self, codes: set[str]) -> set[int]:
+        """Unit IDs whose path_institutional_code token-matches any ancestor code.
+
+        path_institutional_code is the indexed, self-inclusive root->leaf code
+        path, so a match includes the ancestor unit itself.
+        """
+        if not codes:
             return set()
-
-        selected_ids = {unit_id for unit_id, _ in selected_units}
-        selected_codes = {code for _, code in selected_units if code}
-
-        # No institutional codes — descendants can only be looked up by path,
-        # so return the directly resolved IDs to avoid a full-table scan.
-        if not selected_codes:
-            return selected_ids
-
         path_conditions = []
-        for code in selected_codes:
+        for code in codes:
             # Token-boundary matching for ancestor code in path string.
             path_conditions.extend(
                 [
@@ -305,16 +299,43 @@ class CarbonReportModuleRepository:
                     col(Unit.path_institutional_code).like(f"% {code} %"),
                 ]
             )
-
-        descendants_stmt = select(Unit.id).where(or_(*path_conditions))
-        descendant_ids = {
+        stmt = select(Unit.id).where(or_(*path_conditions))
+        return {
             unit_id
-            for unit_id in (await self.session.exec(descendants_stmt)).all()
+            for unit_id in (await self.session.exec(stmt)).all()
             if unit_id is not None
         }
 
+    async def _get_descendant_unit_ids(self, values: Optional[List[str]]) -> set[int]:
+        """Resolve hierarchy nodes (name/id values) to descendant IDs, incl. self."""
+        selected_units = await self._get_selected_units(values)
+        if not selected_units:
+            return set()
+
+        selected_ids = {unit_id for unit_id, _ in selected_units}
+        selected_codes = {code for _, code in selected_units if code}
+
+        # No institutional codes — descendants can only be looked up by path,
+        # so return the directly resolved IDs to avoid a full-table scan.
         # Ensure selected units are included even if path is null or non-standard.
-        return selected_ids.union(descendant_ids)
+        return selected_ids | await self._descendants_of_codes(selected_codes)
+
+    async def _get_scope_unit_ids(self, scope_cfs: Optional[set[str]]) -> set[int]:
+        """Resolve backoffice scope cfs to their descendant subtree, incl. self.
+
+        Scope tokens are unit cfs (institutional_id) at any level. Resolve each
+        to its institutional_code, then expand via path_institutional_code. An
+        unknown cf contributes nothing — a scoped caller must never widen to all.
+        """
+        if not scope_cfs:
+            return set()
+        stmt = select(Unit.id, Unit.institutional_code).where(
+            col(Unit.institutional_id).in_(scope_cfs)
+        )
+        rows = (await self.session.exec(stmt)).all()
+        anchor_ids = {unit_id for unit_id, _ in rows if unit_id is not None}
+        anchor_codes = {code for _, code in rows if code}
+        return anchor_ids | await self._descendants_of_codes(anchor_codes)
 
     async def _get_direct_unit_ids(self, values: Optional[List[str]]) -> set[int]:
         """Resolve direct unit filter values (ID/name) to unit IDs."""
@@ -325,33 +346,35 @@ class CarbonReportModuleRepository:
         self,
         path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
+        is_global: bool = True,
+        scope_cfs: Optional[set[str]] = None,
     ) -> Optional[set[int]]:
-        """
-        Build the effective unit ID filter with OR semantics.
+        """Effective unit ID filter: ``scope ∩ (affiliation ∪ lvl4)``.
 
-        - Affiliation filter: Gets all descendants (Lvl2+3)
-        - Units filter: Gets direct units (Lvl4)
-        - Result: Union of both sets (OR logic)
+        Endpoint filters keep OR semantics among themselves; the caller's
+        backoffice scope is an AND clamp on top.
 
         Returns:
-            - None when no hierarchy filters provided
-            - set of unit IDs (possibly empty) when at least one
-              filter was provided
+            - None when there is no constraint at all (global caller, no
+              filters) → query returns all units
+            - a concrete set (possibly empty) otherwise
+
+        A scoped (non-global) caller NEVER returns None: it always resolves to
+        its scope subtree, intersected with any filters. ``set()`` → zero rows.
         """
-        all_ids: set[int] = set()
-        any_filter = False
-
+        filter_set: Optional[set[int]] = None
         if path_affiliation is not None:
-            any_filter = True
-            all_ids.update(await self._get_descendant_unit_ids(path_affiliation))
+            filter_set = await self._get_descendant_unit_ids(path_affiliation)
         if path_lvl4 is not None:
-            any_filter = True
-            all_ids.update(await self._get_direct_unit_ids(path_lvl4))
+            filter_set = (filter_set or set()) | await self._get_direct_unit_ids(
+                path_lvl4
+            )
 
-        if not any_filter:
-            return None
+        if is_global:
+            return filter_set
 
-        return all_ids
+        scope_set = await self._get_scope_unit_ids(scope_cfs)
+        return scope_set if filter_set is None else scope_set & filter_set
 
     @staticmethod
     def _apply_report_filters(
@@ -392,6 +415,8 @@ class CarbonReportModuleRepository:
         self,
         path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
+        is_global: bool = True,
+        scope_cfs: Optional[set[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
@@ -413,6 +438,8 @@ class CarbonReportModuleRepository:
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
+            is_global=is_global,
+            scope_cfs=scope_cfs,
         )
 
         # If filters were provided but resolve to no units, short-circuit early.
@@ -870,6 +897,8 @@ class CarbonReportModuleRepository:
         self,
         path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
+        is_global: bool = True,
+        scope_cfs: Optional[set[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
@@ -895,6 +924,8 @@ class CarbonReportModuleRepository:
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
+            is_global=is_global,
+            scope_cfs=scope_cfs,
         )
         # If hierarchy filters were provided but matched no units, return no results.
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
@@ -997,6 +1028,8 @@ class CarbonReportModuleRepository:
         data_entry_type: DataEntryTypeEnum,
         path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
+        is_global: bool = True,
+        scope_cfs: Optional[set[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
@@ -1031,6 +1064,8 @@ class CarbonReportModuleRepository:
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
+            is_global=is_global,
+            scope_cfs=scope_cfs,
         )
         # If hierarchy filters were provided but matched no units, return no results.
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
@@ -1151,6 +1186,8 @@ class CarbonReportModuleRepository:
         self,
         path_affiliation: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
+        is_global: bool = True,
+        scope_cfs: Optional[set[str]] = None,
         completion_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         years: Optional[List[int]] = None,
@@ -1172,6 +1209,8 @@ class CarbonReportModuleRepository:
         hierarchy_unit_ids = await self._resolve_hierarchy_unit_ids(
             path_affiliation=path_affiliation,
             path_lvl4=path_lvl4,
+            is_global=is_global,
+            scope_cfs=scope_cfs,
         )
         # If hierarchy filters were provided but matched no units, return no results.
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:

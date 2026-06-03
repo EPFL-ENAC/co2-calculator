@@ -1,13 +1,14 @@
-"""Affiliation-scoping helpers shared by backoffice routers (#459).
+"""Affiliation-scoping helpers shared by backoffice routers (#459, #862).
 
 The pure permission utilities live in ``app.utils.permissions`` and stay
-free of SQLAlchemy / FastAPI. This module owns the SQL-level predicate
-that maps ACCRED affiliation tokens onto ``Unit.path_name``, plus the
+free of SQLAlchemy / FastAPI. This module owns the SQL-level predicate that
+maps a backoffice scope (a set of unit cfs) onto the unit subtree, plus the
 gate helper that raises 403 when the caller is not a backoffice user.
 """
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import func, or_
+from sqlalchemy import and_, exists, func, or_
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col
 
@@ -17,40 +18,48 @@ from app.models.user import User
 from app.utils.permissions import derive_backoffice_affiliations, has_permission
 
 
-def build_affiliation_predicate(affiliations: set[str]) -> ColumnElement[bool]:
-    """Build the SQL predicate matching ``Unit.path_name`` against affiliations.
+def build_scope_subtree_predicate(scope_cfs: set[str]) -> ColumnElement[bool]:
+    """SQL predicate selecting units within the subtree of any scope cf (#862).
 
-    ACCRED ``sortpath`` is a space-separated 4-level hierarchy
-    (e.g. ``"EPFL ENAC ENAC-SG ENAC-IT"``); ``role_provider.py`` extracts
-    LVL3 (``"ENAC-SG"``) as the affiliation token. ``Unit.path_name`` is a
-    separator-joined ancestor list (observed shapes: ``"EPFL > STI > LMSC"``
-    and ``"EPFL ENAC IT4R-TEST"``). Padding the column with leading/trailing
-    spaces lets a single ``% <aff> %`` ILIKE catch the LVL3 token at any
-    position regardless of separator (` > ` or plain space) and avoids false
-    positives like ``SV`` matching ``SVOPS``.
-
-    ``coalesce`` keeps the predicate well-defined when ``path_name`` is NULL
-    (NULL rows simply never match).
+    A backoffice scope token is a unit cf (``institutional_id``) at any level.
+    A row is in scope iff some anchor unit ``A`` with ``A.institutional_id`` in
+    ``scope_cfs`` has its ``institutional_code`` as a token of the row's
+    ``path_institutional_code`` (the indexed, self-inclusive code path), so the
+    anchor itself and all its descendants match. Token-boundary matching avoids
+    false positives like code ``142`` matching ``1420``.
     """
-    padded = func.concat(" ", func.coalesce(col(Unit.path_name), ""), " ")
-    return or_(*[padded.ilike(f"% {aff} %") for aff in affiliations])
+    anchor = aliased(Unit)
+    code = anchor.institutional_code
+    path = col(Unit.path_institutional_code)
+    token_match = or_(
+        path == code,
+        path.like(func.concat(code, " %")),
+        path.like(func.concat("% ", code)),
+        path.like(func.concat("% ", code, " %")),
+    )
+    return exists().where(
+        and_(col(anchor.institutional_id).in_(scope_cfs), token_match)
+    )
 
 
 def gate_backoffice(
     user: User,
     action: str = "view",
-    anchor_path: str = "backoffice.users",
+    anchor_path: str = "backoffice.reporting",
 ) -> tuple[bool, set[str]]:
     """Authorize ``<anchor_path>:<action>`` under any scope; return scope.
 
     Raises 403 if the user holds neither the bare ``anchor_path`` key nor any
     ``anchor_path/<aff>`` key granting ``action``. Returns
-    ``(is_global, affiliations)``; callers apply ``build_affiliation_predicate``
-    when ``is_global`` is False.
+    ``(is_global, affiliations)``; callers pass ``affiliations`` as ``scope_cfs``
+    to the report repo, or apply ``build_scope_subtree_predicate`` on a unit
+    query, when ``is_global`` is False.
 
-    The default anchor is ``backoffice.users`` (canonical for backoffice
-    routes); pass ``backoffice.data_management`` for sync/pipeline routes
-    or ``system.users`` for superadmin-only routes.
+    The default anchor is ``backoffice.reporting`` — the only affiliation-scoped
+    backoffice area (#862), and therefore the only one whose affiliations can be
+    derived. Scope-less backoffice pages (users, documentation, ui_texts,
+    configuration, pipeline_operations, logs) gate via ``require_permission``
+    instead, not this helper.
 
     Uses ``has_permission(..., any_scope=True)`` because affiliation-scoped
     users only hold ``<anchor>/<aff>`` keys — ``require_permission``'s
@@ -65,7 +74,7 @@ def gate_backoffice(
     return derive_backoffice_affiliations(perms, anchor_path=anchor_path)
 
 
-def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users"):
+def require_any_scope(action: str = "view", anchor_path: str = "backoffice.reporting"):
     """FastAPI dependency factory: gate ``<anchor_path>:<action>`` any-scope.
 
     Drop-in replacement for ``require_permission`` for routes that only need
@@ -78,7 +87,7 @@ def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users
         @router.get("/jobs")
         async def list_jobs(
             current_user: User = Depends(
-                require_any_scope("view", "backoffice.data_management")
+                require_any_scope("view", "backoffice.pipeline_operations")
             ),
             ...
         ):
@@ -93,21 +102,43 @@ def require_any_scope(action: str = "view", anchor_path: str = "backoffice.users
     return _dep
 
 
-def narrow_path_affiliation(
-    requested: list[str] | None,
-    is_global: bool,
-    affiliations: set[str],
-) -> list[str] | None:
-    """Intersect a caller-provided ``path_affiliation`` filter with their scope.
+def can_view_module_flow(user: User) -> bool:
+    """True if the user may read module-flow pipeline/job status (#862).
 
-    - ``is_global`` callers pass through unchanged.
-    - Scoped callers: intersect their request with their affiliation set
-      (or default to the full set when they pass nothing).
-    - Returns the narrowed list; an empty list signals "no allowed affiliations"
-      and the caller should short-circuit to an empty result.
+    Allowed for any module user who can *sync* at least one module
+    (``modules.<name>.sync`` — the status endpoints track sync/ingestion
+    progress, so only sync-capable users dispatch and need to poll it; a
+    standard user with view/edit but no sync does not) or a backoffice
+    configuration operator (``backoffice.configuration`` view, the Data
+    Management page). A metier user without configuration sees none.
     """
-    if is_global:
-        return requested
-    if requested:
-        return [a for a in requested if a in affiliations]
-    return list(affiliations)
+    perms = user.calculate_permissions()
+    if has_permission(perms, "backoffice.configuration", "view"):
+        return True
+    return any(
+        key.startswith("modules.") and "sync" in (actions or [])
+        for key, actions in (perms or {}).items()
+    )
+
+
+def require_module_or_config_view():
+    """FastAPI dependency gating module-flow status reads.
+
+    See ``can_view_module_flow`` for the allow rule.
+
+    The Configuration / Data-Management page and the module upload pages both
+    poll these job/pipeline status endpoints (the latter for a principal's own
+    uploads), so the gate mirrors ``/dispatch``'s dual model.
+    """
+
+    async def _dep(
+        current_user: User = Depends(get_current_active_user),
+    ) -> User:
+        if not can_view_module_flow(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Permission denied",
+            )
+        return current_user
+
+    return _dep

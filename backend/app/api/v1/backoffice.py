@@ -59,9 +59,8 @@ from app.schemas.backoffice import (
     UnitReportingData,
 )
 from app.utils.scoping import (
-    build_affiliation_predicate,
+    build_scope_subtree_predicate,
     gate_backoffice,
-    narrow_path_affiliation,
 )
 
 logger = get_logger(__name__)
@@ -251,11 +250,8 @@ async def list_backoffice_units(
     List units with their reporting completion status and outlier values.
     """
     is_global, affiliations = gate_backoffice(current_user, "view")
-    scoped_path_affiliation = narrow_path_affiliation(
-        filters.path_affiliation, is_global, affiliations
-    )
-    # Scoped caller whose request resolves to no allowed affiliations → empty.
-    if not is_global and not scoped_path_affiliation:
+    # Scoped caller with no granted affiliations → nothing to see.
+    if not is_global and not affiliations:
         return PaginatedUnitReportingData(
             data=[],
             pagination=PaginationMeta(
@@ -273,8 +269,10 @@ async def list_backoffice_units(
         raise HTTPException(status_code=400, detail=ERROR_AT_LEAST_ONE_YEAR)
 
     result = await carbon_report_module_repo.get_reporting_overview(
-        path_affiliation=scoped_path_affiliation,
+        path_affiliation=filters.path_affiliation,
         path_lvl4=filters.path_lvl4,
+        is_global=is_global,
+        scope_cfs=affiliations,
         completion_status=filters.completion_status,
         search=filters.search,
         modules=filters.modules,
@@ -419,7 +417,7 @@ async def get_available_years(
     sorted in descending order (latest first).
 
     Affiliation-scoped backoffice users see only the years where reports
-    exist for units inside their affiliation (#459).
+    exist for units inside their scope subtree (#862).
     """
     is_global, affiliations = gate_backoffice(current_user, "view")
     stmt = select(CarbonReport.year).distinct()
@@ -427,7 +425,7 @@ async def get_available_years(
         if not affiliations:
             return {"years": [], "latest": ""}
         stmt = stmt.join(Unit, col(CarbonReport.unit_id) == col(Unit.id)).where(
-            build_affiliation_predicate(affiliations)
+            build_scope_subtree_predicate(affiliations)
         )
     stmt = stmt.order_by(desc(CarbonReport.year))
     result = await db.exec(stmt)
@@ -448,16 +446,15 @@ async def report_usage(
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
 
     is_global, affiliations = gate_backoffice(current_user, "export")
-    scoped_path_affiliation = narrow_path_affiliation(
-        filters.path_affiliation, is_global, affiliations
-    )
-    if not is_global and not scoped_path_affiliation:
+    if not is_global and not affiliations:
         data = []
     else:
         try:
             data = await CarbonReportModuleRepository(db).get_usage_report(
-                path_affiliation=scoped_path_affiliation,
+                path_affiliation=filters.path_affiliation,
                 path_lvl4=filters.path_lvl4,
+                is_global=is_global,
+                scope_cfs=affiliations,
                 completion_status=filters.completion_status,
                 search=filters.search,
                 modules=filters.modules,
@@ -517,10 +514,7 @@ async def report_detailed(
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
 
     is_global, affiliations = gate_backoffice(current_user, "export")
-    scoped_path_affiliation = narrow_path_affiliation(
-        filters.path_affiliation, is_global, affiliations
-    )
-    scoped_caller_no_affiliations = not is_global and not scoped_path_affiliation
+    scoped_caller_no_affiliations = not is_global and not affiliations
 
     timestamp = datetime.now(timezone.utc).strftime(EXPORT_CSV_TIMESTAMP_FORMAT)
 
@@ -534,8 +528,10 @@ async def report_detailed(
                 try:
                     data = await CarbonReportModuleRepository(db).get_detailed_report(
                         data_entry_type=data_entry_type,
-                        path_affiliation=scoped_path_affiliation,
+                        path_affiliation=filters.path_affiliation,
                         path_lvl4=filters.path_lvl4,
+                        is_global=is_global,
+                        scope_cfs=affiliations,
                         completion_status=filters.completion_status,
                         search=filters.search,
                         modules=filters.modules,
@@ -608,16 +604,15 @@ async def report_results(
         raise HTTPException(status_code=400, detail=ERROR_INVALID_FORMAT)
 
     is_global, affiliations = gate_backoffice(current_user, "export")
-    scoped_path_affiliation = narrow_path_affiliation(
-        filters.path_affiliation, is_global, affiliations
-    )
-    if not is_global and not scoped_path_affiliation:
+    if not is_global and not affiliations:
         data = []
     else:
         try:
             data = await CarbonReportModuleRepository(db).get_results_report(
-                path_affiliation=scoped_path_affiliation,
+                path_affiliation=filters.path_affiliation,
                 path_lvl4=filters.path_lvl4,
+                is_global=is_global,
+                scope_cfs=affiliations,
                 completion_status=filters.completion_status,
                 search=filters.search,
                 years=filters.years,

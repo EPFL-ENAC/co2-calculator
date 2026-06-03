@@ -176,7 +176,7 @@ async def _emissions_for_entry(
 
 @pytest.mark.asyncio
 async def test_new_factor_matches_unmatched_entries_strategy_a(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """Strategy A (JSON-link): a DataEntry with ``primary_factor_id=None``
     whose ``equipment_class`` matches a factor introduced by a fresh
@@ -191,7 +191,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
     to the new factor's id and ``upsert_by_data_entry`` produces fresh
     emissions.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     try:
@@ -283,7 +283,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
 
     # Verify on a fresh engine — entry's primary_factor_id rewritten,
     # emissions present and non-zero.
-    async with _fresh_session(pg_dsn_with_310b) as vs:
+    async with _fresh_session(pg_dsn) as vs:
         refreshed_entry = (
             await vs.execute(select(DataEntry).where(col(DataEntry.id) == entry_id))
         ).scalar_one()
@@ -303,7 +303,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
 
 @pytest.mark.asyncio
 async def test_new_factor_matches_unmatched_entries_strategy_b(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """Strategy B (FK-link): a plane DataEntry seeded BEFORE the matching
     factor exists must produce a non-zero emission once a fresh
@@ -316,7 +316,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
     ``_fetch_factors``'s live B1 classification query, which only
     succeeds once the factor row lands.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     try:
@@ -431,7 +431,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
         await engine.dispose()
 
     # Verify cross-connection — emissions present, non-zero.
-    async with _fresh_session(pg_dsn_with_310b) as vs:
+    async with _fresh_session(pg_dsn) as vs:
         new_rows = await _emissions_for_entry(vs, entry_id)
     new_total = sum((r.kg_co2eq or 0.0) for r in new_rows)
     assert new_total > 0, (
@@ -444,7 +444,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
 
 
 @pytest.mark.asyncio
-async def test_factor_upsert_triggers_recompute(pg_dsn_with_310b):
+async def test_factor_upsert_triggers_recompute(pg_dsn):
     """Existing factor's ``values`` change → ``upsert_factors`` updates
     the row in place (preserving ``id`` and any ``DataEntry.primary_factor_id``
     references) → recalc reflects the new value.
@@ -455,7 +455,7 @@ async def test_factor_upsert_triggers_recompute(pg_dsn_with_310b):
 
     Doubling ``ef_kg_co2eq_per_kwh`` doubles the persisted ``kg_co2eq``.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     try:
@@ -605,7 +605,7 @@ async def test_factor_upsert_triggers_recompute(pg_dsn_with_310b):
     finally:
         await engine.dispose()
 
-    async with _fresh_session(pg_dsn_with_310b) as vs:
+    async with _fresh_session(pg_dsn) as vs:
         new_rows = await _emissions_for_entry(vs, entry_id)
     new_total = sum((r.kg_co2eq or 0.0) for r in new_rows)
     assert new_total == pytest.approx(initial_total * 2.0, rel=1e-3), (
@@ -619,7 +619,7 @@ async def test_factor_upsert_triggers_recompute(pg_dsn_with_310b):
 
 @pytest.mark.asyncio
 async def test_factor_delete_via_reupload_observes_actual_behaviour(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """Discovery test — pin the actual (kept-stale) contract for a CSV
     reupload that omits a factor.
@@ -665,7 +665,7 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     and the contract docstring above must be updated alongside the
     code change.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     try:
@@ -808,7 +808,7 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
         await engine.dispose()
 
     # ── Observed behaviour assertions — pin the contract ────────────────
-    async with _fresh_session(pg_dsn_with_310b) as vs:
+    async with _fresh_session(pg_dsn) as vs:
         persisted_F = (
             await vs.execute(select(Factor).where(col(Factor.id) == factor_F_id))
         ).scalar_one_or_none()

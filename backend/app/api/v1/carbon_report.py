@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
-from app.core.policy import require_unit_access
+from app.core.policy import require_module_unit_scope, require_unit_access
 from app.db import SessionLocal
 from app.models.unit import Unit
 from app.models.user import User
@@ -226,6 +226,14 @@ async def update_carbon_report_module_status(
 
     unit = await db.get(Unit, report.unit_id)
     require_unit_access(current_user, unit)
+    # Validating a module's status is a unit-level action: principal/global
+    # only. A standard user (own breadth) is rejected here even though they may
+    # edit their own records.
+    require_module_unit_scope(
+        current_user,
+        module_type_id,
+        (unit.institutional_id or "") if unit else "",
+    )
 
     module_service = CarbonReportModuleService(db)
     try:

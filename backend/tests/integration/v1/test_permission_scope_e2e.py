@@ -20,20 +20,29 @@ A test of this shape would have caught the regression — these are the tests
 that pin the chain back together.
 """
 
-import re
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from fastapi.testclient import TestClient
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 import app.api.deps as deps_module
+from app.core.constants import ModuleStatus
 from app.main import app
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.unit import Unit
 from app.models.user import (
+    AffiliationScope,
     GlobalScope,
+    OwnScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     calculate_user_permissions,
 )
 
@@ -73,11 +82,11 @@ def _user(institutional_id: str, roles: list) -> MagicMock:
 
 
 def _principal(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=iid))
 
 
 def _std(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
 
 
 def _backoffice() -> Role:
@@ -87,7 +96,7 @@ def _backoffice() -> Role:
 def _backoffice_scoped(affiliation: str) -> Role:
     return Role(
         role=RoleName.CO2_BACKOFFICE_METIER,
-        on=RoleScope(affiliation=affiliation),
+        on=AffiliationScope(affiliation=affiliation),
     )
 
 
@@ -215,269 +224,253 @@ class TestPermissionScopeEndToEnd:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Backoffice ACCRED affiliation scoping (#459)
+# Backoffice affiliation scoping (#862) — over a real in-memory DB.
 #
-# Affiliation-scoped backoffice managers (e.g. an SV-scoped admin) only hold
-# ``backoffice.X/<affiliation>`` permission keys. Endpoints that swap
-# ``require_permission`` for an inline ``any_scope=True`` gate must:
-#   1. let the request through (the user IS a backoffice manager),
-#   2. narrow results to units whose ``path_name`` carries the affiliation.
-# GlobalScope backoffice / superadmin keep the bare keys and bypass narrowing.
+# A backoffice_metier scope token is a unit cf (institutional_id) at any level;
+# scoping resolves it to that unit's descendant subtree via the indexed
+# path_institutional_code. These E2E tests pin the route WIRING (gate → extract
+# affiliations → pass as scope). The scope MATCHING itself is covered with real
+# DB at the unit level by tests/unit/repositories/test_carbon_report_module_repo
+# (TestResolveHierarchyUnitIdsScope, TestGetReportingOverview) and
+# tests/unit/utils/test_scoping (TestBuildScopeSubtreePredicate).
 # ─────────────────────────────────────────────────────────────────────────────
 
 
 BACKOFFICE_UNITS_URL = "/api/v1/backoffice-reporting/units"
 BACKOFFICE_AFFILIATIONS_URL = "/api/v1/backoffice-reporting/affiliations"
+BACKOFFICE_YEARS_URL = "/api/v1/backoffice/years"
+# The reporting overview page — the endpoint whose empty result started #862.
+BACKOFFICE_REPORTING_UNITS_URL = "/api/v1/backoffice/units?years=2024&years=2025"
+
+# Scope cfs (institutional_id) used in tests.
+ENAC_CF = "13030"
+STI_CF = "14000"
+ABSENT_CF = "99999"
 
 
-def _unit(uid: int, iid: str, name: str, path_name: str, level: int = 3) -> Unit:
-    """Construct a fixture Unit (active by default)."""
-    return Unit(
-        id=uid,
-        institutional_code=str(uid),
-        institutional_id=iid,
-        name=name,
-        level=level,
-        path_name=path_name,
-        is_active=True,
-    )
+async def _seed_backoffice_db(session: AsyncSession) -> None:
+    """Seed an ENAC subtree (lvl2→4) and a separate STI subtree.
 
-
-# Two-school fixture: one unit under SV, one under STI.
-_SV_UNIT = _unit(1, "sv-cf", "SV-LAB", "EPFL > SV > SV-LAB")
-_STI_UNIT = _unit(2, "sti-cf", "STI-LAB", "EPFL > STI > STI-LAB")
-
-
-def _wire_backoffice(monkeypatch, user, units: list) -> None:
-    """Wire dependency overrides for the backoffice endpoints.
-
-    Captures every ``where`` clause the route attaches and applies them to the
-    in-memory ``units`` fixture, so SQL-level filters (level, affiliation
-    predicate) actually narrow results. The route uses ``db.exec(query).all()``;
-    we honour ``query.where(...)`` chaining without touching real SQL.
+    path_institutional_code is the self-inclusive root→leaf code path, so a
+    unit is in ENAC's subtree iff ENAC's code (12635) is one of its tokens.
+    ENAC-IT4R has reports for 2024/2025; STI-LAB for 2023.
     """
+    units = [
+        Unit(
+            institutional_code="12635",
+            institutional_id=ENAC_CF,
+            name="ENAC",
+            level=2,
+            path_institutional_code="10582 12635",
+            is_active=True,
+        ),
+        Unit(
+            institutional_code="11435",
+            institutional_id="13031",
+            name="ENAC-SG",
+            level=3,
+            path_institutional_code="10582 12635 11435",
+            is_active=True,
+        ),
+        Unit(
+            institutional_code="14270",
+            institutional_id="13032",
+            name="ENAC-IT4R",
+            level=4,
+            path_institutional_code="10582 12635 11435 14270",
+            is_active=True,
+        ),
+        Unit(
+            institutional_code="13000",
+            institutional_id=STI_CF,
+            name="STI",
+            level=2,
+            path_institutional_code="10582 13000",
+            is_active=True,
+        ),
+        Unit(
+            institutional_code="13500",
+            institutional_id="14500",
+            name="STI-LAB",
+            level=4,
+            path_institutional_code="10582 13000 13500",
+            is_active=True,
+        ),
+    ]
+    session.add_all(units)
+    await session.flush()
+    by_name = {u.name: u for u in units}
+    reports = {"ENAC-IT4R": [2024, 2025], "STI-LAB": [2023]}
+    for name, years in reports.items():
+        unit = by_name[name]
+        project = CarbonProject(
+            unit_id=unit.id, carbon_report_type=CarbonReportType.CALCULATOR
+        )
+        session.add(project)
+        await session.flush()
+        for year in years:
+            session.add(
+                CarbonReport(
+                    year=year,
+                    unit_id=unit.id,
+                    carbon_project_id=project.id,
+                    overall_status=ModuleStatus.NOT_STARTED,
+                )
+            )
+    await session.commit()
+
+
+@pytest_asyncio.fixture
+async def backoffice_db():
+    """In-memory SQLite seeded with the ENAC/STI fixtures; yields a factory."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with factory() as session:
+        await _seed_backoffice_db(session)
+    yield factory
+    await engine.dispose()
+
+
+def _wire_db(user, factory) -> None:
+    """Override the current user and bind the route's db to the seeded engine."""
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
 
-    async def mock_get_db():
-        db = MagicMock()
+    async def override_get_db():
+        async with factory() as session:
+            yield session
 
-        async def mock_exec(query):
-            # Compile the query and emulate the affiliation predicate in
-            # memory. We extract every ``LIKE '% <token> %'`` literal from
-            # the compiled SQL and require a unit's padded ``path_name`` to
-            # contain at least one of them. If no such literal appears, the
-            # query is un-narrowed (global caller) and we return all units.
-            #
-            # Coupled to the exact predicate shape from
-            # ``_affiliation_predicate``: any refactor that drops the
-            # ``LIKE lower('% <aff> %')`` form flips this to "no tokens" →
-            # all rows return → the scoped tests fail with the unscoped
-            # row count. That IS the signal that the predicate moved.
-            compiled = str(query.compile(compile_kwargs={"literal_binds": True}))
-            tokens = re.findall(r"like\s+lower\('% ([^ ]+?) %'\)", compiled, re.I)
-
-            def keep(u: Unit) -> bool:
-                if not tokens:
-                    return True
-                padded = f" {(u.path_name or '').lower()} "
-                return any(f" {t.lower()} " in padded for t in tokens)
-
-            result = MagicMock()
-            result.all = lambda: [u for u in units if keep(u)]
-            return result
-
-        db.exec = mock_exec
-        yield db
-
-    app.dependency_overrides[deps_module.get_db] = mock_get_db
+    app.dependency_overrides[deps_module.get_db] = override_get_db
 
 
 class TestBackofficeAffiliationScopeEndToEnd:
-    """Affiliation-scoped backoffice users only see units inside their
-    sub-perimeter; GlobalScope keeps full reach (#459)."""
+    """Affiliation-scoped backoffice users only see units inside their scope
+    subtree; GlobalScope keeps full reach (#862)."""
 
-    def test_global_backoffice_sees_all_units(self, client, monkeypatch):
-        """Superadmin → bare ``backoffice.users`` key → no narrowing.
-        (CO2_BACKOFFICE_METIER is always sub-perimeter-bound; cross-affiliation
-        reach is exclusive to CO2_SUPERADMIN.)"""
-        user = _user("11111", [_superadmin()])
-        _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
+    def test_global_backoffice_sees_all_units(self, client, backoffice_db):
+        _wire_db(_user("11111", [_superadmin()]), backoffice_db)
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 200, r.text
         names = {u["name"] for u in r.json()}
-        assert names == {"SV-LAB", "STI-LAB"}
+        assert names == {"ENAC", "ENAC-SG", "ENAC-IT4R", "STI", "STI-LAB"}
 
-    def test_scoped_backoffice_sees_only_in_affiliation_units(
-        self, client, monkeypatch
-    ):
-        """SV-scoped caller → only SV unit in the response."""
-        user = _user("11111", [_backoffice_scoped("SV")])
-        _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
+    def test_scoped_backoffice_sees_only_in_subtree_units(self, client, backoffice_db):
+        """ENAC-scoped caller → only ENAC's subtree, never STI."""
+        _wire_db(_user("11111", [_backoffice_scoped(ENAC_CF)]), backoffice_db)
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 200, r.text
         names = {u["name"] for u in r.json()}
-        assert names == {"SV-LAB"}
+        assert names == {"ENAC", "ENAC-SG", "ENAC-IT4R"}
 
     def test_scoped_backoffice_cross_affiliation_returns_empty(
-        self, client, monkeypatch
+        self, client, backoffice_db
     ):
-        """SV-scoped caller against STI-only data → 200 empty list.
-        The gate accepts (the user holds ``backoffice.users/SV``) but the
-        affiliation predicate filters everything out."""
-        user = _user("11111", [_backoffice_scoped("SV")])
-        _wire_backoffice(monkeypatch, user, [_STI_UNIT])
+        """Scope cf with no unit in this DB → gate passes, subtree is empty."""
+        _wire_db(_user("11111", [_backoffice_scoped(ABSENT_CF)]), backoffice_db)
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 200, r.text
         assert r.json() == []
 
-    def test_scoped_backoffice_multi_affiliation_unions(self, client, monkeypatch):
-        """A user holding both SV and STI roles sees the union."""
-        user = _user("11111", [_backoffice_scoped("SV"), _backoffice_scoped("STI")])
-        _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
+    def test_scoped_backoffice_multi_affiliation_unions(self, client, backoffice_db):
+        """Holding both ENAC and STI scopes → the union of both subtrees."""
+        user = _user("11111", [_backoffice_scoped(ENAC_CF), _backoffice_scoped(STI_CF)])
+        _wire_db(user, backoffice_db)
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 200, r.text
         names = {u["name"] for u in r.json()}
-        assert names == {"SV-LAB", "STI-LAB"}
+        assert names == {"ENAC", "ENAC-SG", "ENAC-IT4R", "STI", "STI-LAB"}
 
-    def test_no_backoffice_role_denied(self, client, monkeypatch):
-        """Std user → 403 (still gated on ``backoffice.users.view``)."""
-        user = _user("11111", [_std(UNIT_IID)])
-        _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
+    def test_no_backoffice_role_denied(self, client, backoffice_db):
+        """Std user → 403 (gated on ``backoffice.reporting`` any-scope)."""
+        _wire_db(_user("11111", [_std(UNIT_IID)]), backoffice_db)
         r = client.get(BACKOFFICE_UNITS_URL)
         assert r.status_code == 403, r.text
 
-    def test_superadmin_sees_all_units(self, client, monkeypatch):
-        """Regression guard: superadmin still bypasses narrowing."""
-        user = _user("11111", [_superadmin()])
-        _wire_backoffice(monkeypatch, user, [_SV_UNIT, _STI_UNIT])
-        r = client.get(BACKOFFICE_UNITS_URL)
-        assert r.status_code == 200, r.text
-        assert len(r.json()) == 2
-
-    def test_scoped_backoffice_affiliations_endpoint(self, client, monkeypatch):
-        """``/backoffice/affiliations`` mirrors ``/units`` for narrowing.
-        Build the fixture at level 2/3 (the endpoint filters levels in [2, 3])."""
-        sv_aff = _unit(10, "sv-fac", "SV-FAC", "EPFL > SV", level=2)
-        sti_aff = _unit(11, "sti-fac", "STI-FAC", "EPFL > STI", level=2)
-        user = _user("11111", [_backoffice_scoped("SV")])
-        _wire_backoffice(monkeypatch, user, [sv_aff, sti_aff])
+    def test_scoped_backoffice_affiliations_endpoint(self, client, backoffice_db):
+        """``/affiliations`` shows only lvl2/3 within the ENAC subtree."""
+        _wire_db(_user("11111", [_backoffice_scoped(ENAC_CF)]), backoffice_db)
         r = client.get(BACKOFFICE_AFFILIATIONS_URL)
         assert r.status_code == 200, r.text
         names = {u["name"] for u in r.json()}
-        assert names == {"SV-FAC"}
+        assert names == {"ENAC", "ENAC-SG"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# /api/v1/backoffice/* (six endpoints previously gated by strict
-# ``require_permission`` — Phase 2 / #459 opened them under ``any_scope=True``
-# with server-side affiliation narrowing).
-# ─────────────────────────────────────────────────────────────────────────────
+class TestBackofficeReportingOverviewScoping:
+    """``/backoffice/units`` reporting overview — the page that #862 fixed.
 
-
-BACKOFFICE_YEARS_URL = "/api/v1/backoffice/years"
-
-
-def _wire_backoffice_years(
-    monkeypatch, user, years_by_unit_path: dict[str, list[int]]
-) -> None:
-    """Stub the ``/backoffice/years`` query path.
-
-    ``years_by_unit_path`` maps a unit ``path_name`` → years that unit has
-    reports for. The mock inspects the compiled SQL for the affiliation
-    ILIKE literals (same trick as ``_wire_backoffice``) and returns the
-    union of years whose unit's ``path_name`` matches any literal. With
-    no literals (global caller), all years are returned.
+    Overview rows exist only for units with CarbonReports; the fixture seeds
+    ENAC-IT4R (in ENAC's subtree, years 2024/25) and STI-LAB (outside, 2023).
     """
-    app.dependency_overrides[deps_module.get_current_user] = lambda: user
 
-    async def mock_get_db():
-        db = MagicMock()
+    def _names(self, payload) -> set[str]:
+        return {row["unit_name"] for row in payload["data"]}
 
-        async def mock_exec(query):
-            compiled = str(query.compile(compile_kwargs={"literal_binds": True}))
-            tokens = re.findall(r"like\s+lower\('% ([^ ]+?) %'\)", compiled, re.I)
+    def test_global_sees_in_year_units(self, client, backoffice_db):
+        _wire_db(_user("11111", [_superadmin()]), backoffice_db)
+        r = client.get(BACKOFFICE_REPORTING_UNITS_URL)
+        assert r.status_code == 200, r.text
+        assert self._names(r.json()) == {"ENAC-IT4R"}
 
-            def path_matches(path: str) -> bool:
-                if not tokens:
-                    return True
-                padded = f" {(path or '').lower()} "
-                return any(f" {t.lower()} " in padded for t in tokens)
+    def test_scoped_sees_only_in_subtree(self, client, backoffice_db):
+        _wire_db(_user("11111", [_backoffice_scoped(ENAC_CF)]), backoffice_db)
+        r = client.get(BACKOFFICE_REPORTING_UNITS_URL)
+        assert r.status_code == 200, r.text
+        assert self._names(r.json()) == {"ENAC-IT4R"}
 
-            collected = sorted(
-                {
-                    y
-                    for path, years in years_by_unit_path.items()
-                    if path_matches(path)
-                    for y in years
-                },
-                reverse=True,
-            )
-            result = MagicMock()
-            result.all = lambda: collected
-            return result
+    def test_scoped_cross_affiliation_returns_empty(self, client, backoffice_db):
+        _wire_db(_user("11111", [_backoffice_scoped(STI_CF)]), backoffice_db)
+        r = client.get(BACKOFFICE_REPORTING_UNITS_URL)
+        assert r.status_code == 200, r.text
+        # STI's only report is 2023, outside the requested 2024/25 window.
+        assert r.json()["data"] == []
 
-        db.exec = mock_exec
-        yield db
-
-    app.dependency_overrides[deps_module.get_db] = mock_get_db
+    def test_scoped_out_of_scope_lvl4_filter_empty(self, client, backoffice_db):
+        """ENAC-scoped caller requesting the STI lab → clamped to empty."""
+        _wire_db(_user("11111", [_backoffice_scoped(ENAC_CF)]), backoffice_db)
+        r = client.get(BACKOFFICE_REPORTING_UNITS_URL + "&path_lvl4=STI-LAB")
+        assert r.status_code == 200, r.text
+        assert r.json()["data"] == []
 
 
 class TestBackofficeYearsAffiliationScoping:
-    """``/backoffice/years`` exposes distinct CarbonReport.year values.
+    """``/backoffice/years`` distinct CarbonReport.year values, scope-clamped."""
 
-    For non-global callers the query joins ``Unit`` and applies the
-    affiliation predicate, so scoped users only see years for which their
-    affiliation has reports.
-    """
-
-    YEARS_BY_PATH = {
-        "EPFL > SV > SV-LAB": [2024, 2025],
-        "EPFL > STI > STI-LAB": [2023],
-    }
-
-    def test_global_backoffice_sees_all_years(self, client, monkeypatch):
-        """Superadmin (the only role with cross-affiliation reach) sees every year."""
-        user = _user("11111", [_superadmin()])
-        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+    def test_global_backoffice_sees_all_years(self, client, backoffice_db):
+        _wire_db(_user("11111", [_superadmin()]), backoffice_db)
         r = client.get(BACKOFFICE_YEARS_URL)
         assert r.status_code == 200, r.text
         body = r.json()
         assert set(body["years"]) == {"2023", "2024", "2025"}
         assert body["latest"] == "2025"
 
-    def test_scoped_backoffice_sees_only_in_affiliation_years(
-        self, client, monkeypatch
-    ):
-        user = _user("11111", [_backoffice_scoped("SV")])
-        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+    def test_scoped_backoffice_sees_only_in_subtree_years(self, client, backoffice_db):
+        _wire_db(_user("11111", [_backoffice_scoped(ENAC_CF)]), backoffice_db)
         r = client.get(BACKOFFICE_YEARS_URL)
         assert r.status_code == 200, r.text
         body = r.json()
-        # SV has 2024 + 2025; STI's 2023 must be filtered out.
+        # ENAC subtree has 2024 + 2025; STI's 2023 is clamped out.
         assert set(body["years"]) == {"2024", "2025"}
         assert body["latest"] == "2025"
 
     def test_scoped_backoffice_cross_affiliation_returns_empty(
-        self, client, monkeypatch
+        self, client, backoffice_db
     ):
-        user = _user("11111", [_backoffice_scoped("CDH")])
-        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+        _wire_db(_user("11111", [_backoffice_scoped(ABSENT_CF)]), backoffice_db)
         r = client.get(BACKOFFICE_YEARS_URL)
         assert r.status_code == 200, r.text
         assert r.json() == {"years": [], "latest": ""}
 
-    def test_no_backoffice_role_denied(self, client, monkeypatch):
-        user = _user("11111", [_std(UNIT_IID)])
-        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+    def test_no_backoffice_role_denied(self, client, backoffice_db):
+        _wire_db(_user("11111", [_std(UNIT_IID)]), backoffice_db)
         r = client.get(BACKOFFICE_YEARS_URL)
         assert r.status_code == 403, r.text
 
-    def test_principal_denied_after_backoffice_grant_removal(self, client, monkeypatch):
-        """Pin the Phase 2 removal: CO2_USER_PRINCIPAL no longer grants
-        backoffice.users.edit, so a principal-only user must NOT pass the
-        backoffice gate."""
-        user = _user("11111", [_principal(UNIT_IID)])
-        _wire_backoffice_years(monkeypatch, user, self.YEARS_BY_PATH)
+    def test_principal_denied(self, client, backoffice_db):
+        """CO2_USER_PRINCIPAL does not grant backoffice.reporting → 403."""
+        _wire_db(_user("11111", [_principal(UNIT_IID)]), backoffice_db)
         r = client.get(BACKOFFICE_YEARS_URL)
         assert r.status_code == 403, r.text
 
@@ -509,11 +502,12 @@ def _wire_active_pipelines(monkeypatch, user) -> None:
 
 
 class TestActivePipelinesPerYearGate:
-    """The route gates on ``backoffice.data_management:view`` under ANY scope.
+    """Module-flow read gated by ``require_module_or_config_view`` (#862).
 
-    Configuration page (Backoffice Administrator, affiliation-scoped) and
-    Logs page (Super Admin, global) both consume this endpoint — both must
-    pass.
+    Allowed for a backoffice configuration operator (``backoffice.configuration``
+    view — Super Admin) or any module user who can *sync* (``modules.<name>.sync``
+    — principals polling their own upload progress). A metier user without
+    configuration, and a std user without sync, are denied.
     """
 
     def test_superadmin_passes(self, client, monkeypatch):
@@ -522,22 +516,24 @@ class TestActivePipelinesPerYearGate:
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 200, r.text
 
-    def test_scoped_backoffice_metier_passes(self, client, monkeypatch):
-        """Pin the bug fix: a backoffice metier with only
-        ``backoffice.data_management/<aff>`` was 403'd by the old
-        ``require_permission`` strict lookup."""
+    def test_scoped_backoffice_metier_denied(self, client, monkeypatch):
+        """Metier holds reporting/users/documentation/ui_texts only — no
+        configuration and no module sync — so it cannot read pipeline status."""
         user = _user("11111", [_backoffice_scoped("ENAC-SG")])
-        _wire_active_pipelines(monkeypatch, user)
-        r = client.get(ACTIVE_PIPELINES_URL)
-        assert r.status_code == 200, r.text
-
-    def test_principal_denied(self, client, monkeypatch):
-        user = _user("11111", [_principal(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
         assert r.status_code == 403, r.text
 
+    def test_principal_passes(self, client, monkeypatch):
+        """A principal can sync modules (modules.<name>.sync) and therefore may
+        poll their own job/pipeline progress."""
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_active_pipelines(monkeypatch, user)
+        r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 200, r.text
+
     def test_std_denied(self, client, monkeypatch):
+        """Std has view/edit but no sync on its modules → denied."""
         user = _user("11111", [_std(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)

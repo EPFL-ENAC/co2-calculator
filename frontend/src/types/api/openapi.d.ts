@@ -53,6 +53,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/login-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Login Test
+         * @description Test login endpoint for development.
+         *
+         *     Registered on the router only when ``settings.DEBUG`` is true (see
+         *     bottom of this module). In a production build the route does not
+         *     exist — clients see 404 rather than 403, and the handler code is
+         *     unreachable.
+         */
+        get: operations["login_test_v1_auth_login_test_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/session/exchange": {
         parameters: {
             query?: never;
@@ -491,6 +516,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/modules/{unit_id}/{year}/professional-travel/trips-map": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Professional Travel Trips Map
+         * @description Return plane + train trip legs with geographic coordinates.
+         *
+         *     Powers the three Professional Travel maps (overall + per-mode). The
+         *     frontend aggregates per map; the backend ships raw legs (one per
+         *     ``DataEntry``). Legs missing origin/destination coords are dropped and
+         *     counted in ``dropped_count``.
+         *
+         *     Scope follows the same rules as ``get_submodule``: principals/superadmin
+         *     see the unit's full data; standard users see only their own legs (via
+         *     ``_get_professional_travel_institutional_id_filter``).
+         */
+        get: operations["get_professional_travel_trips_map_v1_modules__unit_id___year__professional_travel_trips_map_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/modules/{unit_id}/{year}/{module_id}/{submodule_id}": {
         parameters: {
             query?: never;
@@ -825,7 +879,7 @@ export interface paths {
          *     this endpoint surfaces them so the UI can warn that linked data
          *     entries are using outdated factors.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
+         *     **Required Permission**: ``backoffice.configuration.view``
          */
         get: operations["list_stale_factors_v1_factors_stale_get"];
         put?: never;
@@ -846,6 +900,10 @@ export interface paths {
         /**
          * Get Class Subclass Map
          * @description Get mapping of equipment classes to subclasses for a given submodule.
+         *
+         *     Scoped to ``year`` so the options match the year-scoped factor lookup in
+         *     ``get_factor`` — otherwise the dropdown could offer a class that has no
+         *     factor for the selected year.
          */
         get: operations["get_class_subclass_map_v1_factors__data_entry_type__class_subclass_map_get"];
         put?: never;
@@ -1204,7 +1262,7 @@ export interface paths {
          * List Files
          * @description List files in the specified directory.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
+         *     **Required Permission**: `backoffice.configuration.view`
          *
          *     **Authorization**:
          *     - Backoffice metier: Can list all data management files
@@ -1283,10 +1341,10 @@ export interface paths {
          * Sync Module Data Entries
          * @description Sync data entries for a specific module.
          *
-         *     **Required Permission**: `system.users.edit` (Super Admin only).
-         *     The previous `modules.*.sync` fallback was scope-blind across modules
-         *     and units, and was removed in #977 — module owners cannot dispatch a
-         *     sync directly from this endpoint.
+         *     **Required Permission**: `backoffice.configuration.edit` (global data-sync)
+         *     OR `modules.{name}.sync` for the unit (principal users uploading from the
+         *     module page). The module-owner path requires `target_type=DATA_ENTRIES`
+         *     with both `carbon_report_module_id` and `module_type_id` in config.
          *
          *     Example of request body for module_type_year:
          *     {
@@ -1328,7 +1386,6 @@ export interface paths {
          * Sync Module Factors
          * @description Sync (recompute) factors for a specific module and data-entry type.
          *
-         *     **Required Permission**: `system.users.edit` (Super Admin only)
          *
          *     ``year`` is **mandatory** for this endpoint — factor updates are always
          *     year-scoped.
@@ -1358,8 +1415,6 @@ export interface paths {
          * Get Jobs By Status
          * @description Get jobs filtered by status.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
-         *
          *     Args:
          *         filter_type: "active" for in-progress jobs, "completed" for finished jobs
          */
@@ -1382,8 +1437,6 @@ export interface paths {
         /**
          * Get Jobs By Year
          * @description Get all sync jobs for a specific year.
-         *
-         *     **Required Permission**: `backoffice.data_management.view`
          *
          *     Args:
          *         year: The year to filter jobs by
@@ -1410,8 +1463,6 @@ export interface paths {
         /**
          * Get Latest Jobs By Year
          * @description Get the current job for each (module_type_id, target_type) combination.
-         *
-         *     **Required Permission**: `backoffice.data_management.view`
          *
          *     Args:
          *         year: The year to filter jobs by
@@ -1457,9 +1508,6 @@ export interface paths {
          *         - 200 with summary on success.
          *         - 404 if ``pipeline_id`` has no jobs (unknown pipeline).
          *         - 409 if every job is already terminal (nothing to abort).
-         *
-         *     **Required Permission**: ``system.users.edit`` (Super Admin only)
-         *     (same as dispatch — abort is the inverse user action).
          */
         post: operations["abort_pipeline_v1_sync_pipelines__pipeline_id__abort_post"];
         delete?: never;
@@ -1492,8 +1540,6 @@ export interface paths {
          *     half-applied view of the other's state.  Surfacing the pods
          *     list with ``git_sha`` makes "two-pods-on-different-code"
          *     visible in one screen.
-         *
-         *     **Required Permission**: ``backoffice.data_management.view``.
          */
         get: operations["list_workers_v1_sync_workers_get"];
         put?: never;
@@ -1514,8 +1560,6 @@ export interface paths {
         /**
          * Job Stream By Id
          * @description Server-Sent Events endpoint to stream a single job update in real-time.
-         *
-         *     **Required Permission**: `backoffice.data_management.view`
          *
          *     Polls the database for status changes and sends updates to the client.
          *     Stream ends when the job is completed, failed, or the client disconnects.
@@ -1547,8 +1591,6 @@ export interface paths {
         /**
          * Get Active Pipelines
          * @description Return the active pipeline_id (if any) for each requested module.
-         *
-         *     **Required Permission**: ``backoffice.data_management.view``
          *
          *     Plan 310-D / Issue #1062 — bulk read used by the unified frontend
          *     ``pipelineStateStore`` to drive the "Recalculating..." badge.  Thin
@@ -1587,7 +1629,6 @@ export interface paths {
          * Get Active Year Level Pipelines
          * @description Return active **year-level** pipeline_ids (``entity_type=GLOBAL_PER_YEAR``).
          *
-         *     **Required Permission**: ``backoffice.data_management:view`` under any scope.
          *     Both the back-office Data Management page (Backoffice Administrators) and
          *     the Logs page (Super Admin only) read from this endpoint, so the gate
          *     accepts affiliation-scoped backoffice grants alongside the bare superadmin
@@ -1636,8 +1677,6 @@ export interface paths {
          * Get Recalculation Status
          * @description Return per-module recalculation status for the given year.
          *
-         *     **Required Permission**: `backoffice.data_management.view`
-         *
          *     Derived from existing DataIngestionJob rows — no new DB table.
          *     Returns an empty list when no completed FACTORS jobs exist for the year.
          *
@@ -1664,8 +1703,6 @@ export interface paths {
          * List Pipelines
          * @description Paginated, filtered list of ingestion/recalc pipelines (#1234).
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
-         *
          *     Backs the back-office pipeline-operations console — a global view
          *     complementary to the per-module data-management page.  The unit is
          *     the *pipeline* (one ``pipeline_id`` = parent + fan-out children);
@@ -1688,7 +1725,7 @@ export interface paths {
          *
          *     Permission model matches the single-pipeline endpoint
          *     (``_check_pipeline_scope_from_jobs`` → ``_check_job_scope``), just
-         *     *non-raising*: the global ``backoffice.data_management.view`` gate
+         *     *non-raising*: the global ``backoffice.configuration.view`` gate
          *     (dependency above) covers cross-unit ``MODULE_PER_YEAR`` pipelines
          *     (recalc/aggregation) and unscoped runs (unit_sync); a pipeline is
          *     *dropped* (not 403) only when it is unit-pinned
@@ -1719,8 +1756,6 @@ export interface paths {
          * Get Pipeline Jobs
          * @description Return every job in a multi-step pipeline run, ordered by id.
          *
-         *     **Required Permission**: ``backoffice.data_management.view``
-         *
          *     Plan 310C — ``_enqueue_stale_recalculations`` (310B) stamps the same
          *     ``pipeline_id`` on the parent FACTORS job and every fan-out
          *     DATA_ENTRIES child it seeds.  The dashboard uses this endpoint to
@@ -1750,7 +1785,6 @@ export interface paths {
          * Pipeline Stream By Id
          * @description Server-Sent Events stream for every job sharing a ``pipeline_id``.
          *
-         *     **Required Permission**: ``backoffice.data_management.view`` — same gate
          *     as the read-only ``GET /sync/pipelines/{pipeline_id}`` endpoint.
          *
          *     Plan 310D — the frontend stale-stats UX subscribes here when a module's
@@ -1794,8 +1828,6 @@ export interface paths {
          * Recalculate Emissions For Type
          * @description Trigger emission recalculation for a single data entry type.
          *
-         *     **Required Permission**: `system.users.edit` (Super Admin only)
-         *
          *     Creates a background job and streams progress via
          *     ``GET /sync/jobs/{job_id}/stream``.
          *
@@ -1825,8 +1857,6 @@ export interface paths {
          * @description Trigger bulk emission recalculation for all (or only stale) data entry types.
          *
          *     Bulk recalculation for a module.
-         *
-         *     **Required Permission**: `system.users.edit` (Super Admin only)
          *
          *     When ``only_stale=True`` (default), only data entry types where
          *     ``needs_recalculation=True`` are included.  Returns 400 if no types qualify.
@@ -1864,8 +1894,6 @@ export interface paths {
          *     poller. Provider is resolved from ``current_user.provider`` and stamped
          *     on the job (#1266).
          *
-         *     **Required Permission**: `system.users.edit` (Super Admin only)
-         *
          *     Returns:
          *         SyncStatusResponse with the persistent job_id and initial state.
          */
@@ -1891,8 +1919,6 @@ export interface paths {
          *
          *     Resets the job to NOT_STARTED and clears the lock. Only allowed
          *     when ``locked_at`` is older than ``STALE_JOB_TIMEOUT_MINUTES`` (default 30 min).
-         *
-         *     **Required Permission**: ``system.users.edit`` (Super Admin only)
          */
         post: operations["recover_job_v1_sync_jobs__job_id__recover_post"];
         delete?: never;
@@ -1925,8 +1951,6 @@ export interface paths {
          *     ``why_stale`` bucket and lets operator dashboards alert on
          *     non-zero values.  No auto-retry: the operator decides what to do
          *     based on which bucket lit up.
-         *
-         *     **Required Permission**: ``backoffice.data_management.view``
          */
         get: operations["get_stale_stats_v1_sync_health_stale_stats_get"];
         put?: never;
@@ -3019,6 +3043,10 @@ export interface components {
             emission_breakdown?: {
                 [key: string]: unknown;
             } | null;
+            /** It Breakdown */
+            it_breakdown?: {
+                [key: string]: unknown;
+            } | null;
             /**
              * Validated Units Count
              * @default 0
@@ -3465,6 +3493,56 @@ export interface components {
          */
         TransportModeEnum: "plane" | "train";
         /**
+         * TripLeg
+         * @description One professional-travel leg with geographic coordinates.
+         *
+         *     Aggregation is left to the client: this is the raw row per DataEntry,
+         *     not a per-route rollup. See ``GET /professional-travel/trips-map``.
+         */
+        TripLeg: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "plane" | "train";
+            /** Origin Lat */
+            origin_lat: number;
+            /** Origin Lng */
+            origin_lng: number;
+            /** Destination Lat */
+            destination_lat: number;
+            /** Destination Lng */
+            destination_lng: number;
+            /** Origin Name */
+            origin_name: string;
+            /** Destination Name */
+            destination_name: string;
+            /** Kg Co2Eq */
+            kg_co2eq: number;
+            /**
+             * Number Of Trips
+             * @default 1
+             */
+            number_of_trips: number;
+        };
+        /**
+         * TripsMapResponse
+         * @description Flat list of trip legs for the professional-travel map.
+         *
+         *     Legs whose origin or destination location could not be resolved to
+         *     coordinates are dropped server-side; ``dropped_count`` lets the UI
+         *     show "X trips not shown" if any.
+         */
+        TripsMapResponse: {
+            /** Legs */
+            legs: components["schemas"]["TripLeg"][];
+            /**
+             * Dropped Count
+             * @default 0
+             */
+            dropped_count: number;
+        };
+        /**
          * UnitRead
          * @description Schema for reading resource data.
          */
@@ -3865,6 +3943,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    login_test_v1_auth_login_test_get: {
+        parameters: {
+            query?: {
+                role?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -4639,6 +4748,42 @@ export interface operations {
             };
         };
     };
+    get_professional_travel_trips_map_v1_modules__unit_id___year__professional_travel_trips_map_get: {
+        parameters: {
+            query?: {
+                carbon_project_type?: number;
+            };
+            header?: never;
+            path: {
+                unit_id: number;
+                year: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripsMapResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_submodule_v1_modules__unit_id___year___module_id___submodule_id__get: {
         parameters: {
             query?: {
@@ -5218,7 +5363,9 @@ export interface operations {
     };
     get_class_subclass_map_v1_factors__data_entry_type__class_subclass_map_get: {
         parameters: {
-            query?: never;
+            query: {
+                year: number;
+            };
             header?: never;
             path: {
                 data_entry_type: components["schemas"]["DataEntryTypeEnum"];
@@ -5834,7 +5981,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "detail": "Permission denied: backoffice.data_management.view"
+                     *       "detail": "Permission denied: backoffice.configuration.view"
                      *     }
                      */
                     "application/json": unknown;
@@ -5898,7 +6045,7 @@ export interface operations {
                 content: {
                     /**
                      * @example {
-                     *       "detail": "Permission denied: backoffice.data_management.view"
+                     *       "detail": "Permission denied: backoffice.configuration.view"
                      *     }
                      */
                     "application/json": unknown;

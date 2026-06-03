@@ -89,7 +89,7 @@ file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": ("Permission denied: backoffice.data_management.view")
+                        "detail": ("Permission denied: backoffice.configuration.view")
                     }
                 }
             },
@@ -110,7 +110,7 @@ async def list_files(
     """
     List files in the specified directory.
 
-    **Required Permission**: `backoffice.data_management.view`
+    **Required Permission**: `backoffice.configuration.view`
 
     **Authorization**:
     - Backoffice metier: Can list all data management files
@@ -123,10 +123,10 @@ async def list_files(
         403: Missing required permission
         400: Invalid file path
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "view"):
+    if not await is_permitted(current_user, "backoffice.configuration", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.data_management.view",
+            detail="Permission denied: requires backoffice.configuration.view",
         )
 
     logger.info(
@@ -153,7 +153,7 @@ async def list_files(
             "content": {
                 "application/json": {
                     "example": {
-                        "detail": ("Permission denied: backoffice.data_management.view")
+                        "detail": ("Permission denied: backoffice.configuration.view")
                     }
                 }
             },
@@ -180,7 +180,7 @@ async def get_file(
     """
     Retrieve a file from file storage.
 
-    **Required Permission**: `backoffice.data_management.view`
+    **Required Permission**: `backoffice.configuration.view`
 
     **Authorization**:
     - Backoffice metier: Can access all data management files
@@ -192,10 +192,10 @@ async def get_file(
         400: Invalid file path
         500: Internal server error
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "view"):
+    if not await is_permitted(current_user, "backoffice.configuration", "view"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.data_management.view",
+            detail="Permission denied: requires backoffice.configuration.view",
         )
 
     logger.info(
@@ -273,12 +273,12 @@ async def upload_temp_files(
     """
     Upload files to the /tmp folder in the file storage.
 
-    **Required Permission**: `backoffice.data_management.edit`
+    **Required Permission**: `backoffice.configuration.edit`
 
     Used for temporary file uploads before processing (e.g., CSV imports).
     """
     perms = current_user.calculate_permissions()
-    can_upload = has_permission(perms, "backoffice.data_management", "edit") or any(
+    can_upload = has_permission(perms, "backoffice.configuration", "edit") or any(
         isinstance(actions, list) and "sync" in actions
         for key, actions in perms.items()
         if key.startswith("modules.")
@@ -287,7 +287,7 @@ async def upload_temp_files(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
-                "Permission denied: requires backoffice.data_management.edit"
+                "Permission denied: requires backoffice.configuration.edit"
                 " or module sync access"
             ),
         )
@@ -322,14 +322,14 @@ async def delete_temp_files(
     """
     Delete files from the /tmp folder.
 
-    **Required Permission**: `backoffice.data_management.edit`
+    **Required Permission**: `backoffice.configuration.edit`
 
     Only files in /tmp/ folder can be deleted.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Permission denied: requires backoffice.data_management.edit",
+            detail="Permission denied: requires backoffice.configuration.edit",
         )
 
     logger.info(

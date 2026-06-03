@@ -39,6 +39,37 @@ export function requirePermission(
 }
 
 /**
+ * Route guard that reads the required permission from the route's own `meta`.
+ *
+ * `meta.requiredPermission` (+ optional `meta.requiredAction`, default view) is
+ * the SINGLE SOURCE OF TRUTH for a page's gate: the router enforces it here and
+ * the back-office sidebar reads the same meta to decide reachability, so they
+ * can never drift. Routes without `requiredPermission` are not gated by this.
+ * Checked any-scope, so affiliation-suffixed keys (`backoffice.reporting/<cf>`)
+ * match too.
+ */
+export function requireMetaPermission(
+  to: RouteLocationNormalized,
+): NavigationGuardReturn {
+  if (window.__LIGHTHOUSE_BYPASS__) return true;
+
+  const path = to.meta.requiredPermission as string | undefined;
+  if (!path) return true;
+  const action =
+    (to.meta.requiredAction as PermissionAction | undefined) ??
+    PermissionAction.VIEW;
+
+  const authStore = useAuthStore();
+  if (authStore.hasUserAnyScopePermission(path, action)) {
+    return true;
+  }
+  console.warn(
+    `[permissionGuard] denied: '${path}' (${action}); redirecting to unauthorized`,
+  );
+  return { name: 'unauthorized' };
+}
+
+/**
  * Route guard that requires edit permission for the module in the route.
  * Standard users without view permission will be blocked entirely.
  * Standard users with view but not edit permission will be redirected to unauthorized.

@@ -55,6 +55,7 @@ const cloudFields: ModuleField[] = [
     id: 'spent_amount',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.spent_amount`,
     type: 'number',
+    required: true,
     editableInline: true,
     min: 0,
     step: 0.01,

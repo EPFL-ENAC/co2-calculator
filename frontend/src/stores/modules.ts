@@ -383,10 +383,10 @@ export const useModuleStore = defineStore('modules', () => {
     if (!(submoduleId in state.taxonomySubmodule)) {
       state.taxonomySubmodule[submoduleId] = null;
     }
-    // always initialize pagination with defaults
+    // always initialize pagination with defaults (newest first)
     state.paginationSubmodule[submoduleId] = {
-      sortBy: undefined,
-      descending: false,
+      sortBy: 'id',
+      descending: true,
       page: 1,
       rowsPerPage: 20,
       rowsNumber: 0,

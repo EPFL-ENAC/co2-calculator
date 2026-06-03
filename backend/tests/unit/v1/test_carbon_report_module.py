@@ -15,7 +15,7 @@ import app.api.v1.carbon_report_module as crm
 from app.core.role_priority import pick_role_for_institutional_id, role_priority_case
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import GlobalScope, Role, RoleName, RoleScope
+from app.models.user import GlobalScope, OwnScope, Role, RoleName, UnitScope
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,12 +33,12 @@ def _user(institutional_id="11111", roles=None):
 
 def _principal(unit_iid=UNIT_IID):
     return Role(
-        role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=unit_iid)
+        role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=unit_iid)
     )
 
 
 def _std(unit_iid=UNIT_IID):
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=unit_iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=unit_iid))
 
 
 def _global():

@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -35,23 +34,6 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 
 from .conftest import ensure_pipeline_for_job
-
-
-async def _install_dedup_index(engine) -> None:
-    """Install ``uq_aggregation_active`` so the aggregation chain's
-    dedup INSERT can pre-check + race-trip safely."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
 
 
 def _csv_ingest_parent() -> DataIngestionJob:
@@ -91,7 +73,6 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
     from app.tasks import ingestion_tasks as ingest_mod
 
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # 1. Persist the parent csv_ingest job.
@@ -293,7 +274,6 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
     from app.tasks import emission_recalculation_tasks as recalc_mod
 
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # 1. Persist the emission_recalc parent (state=RUNNING — the

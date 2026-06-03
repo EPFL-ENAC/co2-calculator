@@ -42,14 +42,14 @@ from tests.integration.services.data_ingestion.test_plan_310b_factor_pipeline_pg
 
 
 @pytest_asyncio.fixture
-async def pg_app(pg_dsn_with_310b, monkeypatch):
+async def pg_app(pg_dsn, monkeypatch):
     """Wire the FastAPI app to the test Postgres + bypass auth.
 
-    Depends on ``pg_dsn_with_310b`` (in conftest) so the Plan 310B
+    Depends on ``pg_dsn`` (in conftest) so the Plan 310B
     partial unique indexes are present — ``upsert_factors`` needs them
     to bind ``ON CONFLICT``.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async def override_get_db():

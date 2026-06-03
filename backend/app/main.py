@@ -158,19 +158,18 @@ app = FastAPI(
 
     Permissions follow a hierarchical dot-notation structure:
 
-    * **backoffice.*** - Administrative features
-        * `backoffice.users` (view, edit) - User management
-        * `backoffice.files` (view) - File storage access
-        * `backoffice.access` (view) - Full backoffice access
+    * **backoffice.*** - One permission per backoffice page
+        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)
+        * `backoffice.users` (view, edit, export) - User management
+        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)
+        * `backoffice.configuration` / `backoffice.pipeline_operations`
+          (view, edit) - super admin only
+        * `backoffice.logs` (view) - super admin only
 
-    * **modules.*** - CO2 calculation modules
-        * `modules.headcount` (view, edit) - Headcount data
-        * `modules.professional_travel` (view, edit, export) - Travel records
-        * `modules.equipment` (view, edit) - Equipment tracking
-        * `modules.surface` (view, edit) - Surface data
-
-    * **system.*** - System-level routes
-        * `system.routes` (view) - System route access
+    * **modules.*** - CO2 calculation modules (unit-scoped `…/<unit>`, or
+      own-scoped `…/<unit>/own` for standard users)
+        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,
+          … (view, edit, sync)
 
     ### Permission Actions
 

@@ -61,7 +61,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -202,27 +201,6 @@ _SPECS: dict[str, _ModuleSpec] = {
 # ---------------------------------------------------------------------------
 
 
-async def _install_aggregation_dedup_index(engine) -> None:
-    """Mirror Plan 310-D's partial unique index for the aggregation chain.
-
-    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
-    doesn't run Alembic — install the index here so the chain's dedup
-    INSERT can bind its ``ON CONFLICT`` target.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
-
-
 def _make_fake_files_store_factory(csv_bytes: bytes):
     """Build a ``make_files_store`` replacement that returns an in-memory fake.
 
@@ -359,7 +337,7 @@ async def _read_emissions_for_entries(
 @pytest.mark.parametrize("module_key", list(_SPECS.keys()))
 @pytest.mark.parametrize("factors_state", ["pre_loaded", "absent"])
 async def test_csv_ingest_standard_module(
-    pg_dsn_with_310b,
+    pg_dsn,
     module_key: str,
     factors_state: str,
 ) -> None:
@@ -372,8 +350,7 @@ async def test_csv_ingest_standard_module(
     spec = _SPECS[module_key]
     year = 2025
 
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         # ── 1. Seed the carbon-report tree ────────────────────────────

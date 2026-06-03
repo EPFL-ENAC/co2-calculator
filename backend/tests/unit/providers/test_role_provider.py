@@ -9,7 +9,15 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, UserProvider
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+    UserProvider,
+)
 from app.providers.role_provider import (
     AccredRoleProvider,
     DefaultRoleProvider,
@@ -74,10 +82,10 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 3
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="12345")
         )
         assert roles[2] == Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())
 
@@ -127,7 +135,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -145,7 +153,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -163,7 +171,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -178,7 +186,7 @@ class TestDefaultRoleProvider:
 
         assert len(roles) == 1
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
 
     @pytest.mark.asyncio
@@ -196,11 +204,11 @@ class TestDefaultRoleProvider:
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 3
-        assert roles[0].on == RoleScope(institutional_id="12345")
+        assert roles[0].on == OwnScope(institutional_id="12345")
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="67890")
+            role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="67890")
         )
-        assert roles[2].on == RoleScope(institutional_id="11111")
+        assert roles[2].on == OwnScope(institutional_id="11111")
 
 
 # ============================================================================
@@ -259,10 +267,10 @@ class TestAccredRoleProvider:
 
         assert len(roles) == 2
         assert roles[0] == Role(
-            role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="12345")
+            role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="12345")
         )
         assert roles[1] == Role(
-            role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="67890")
+            role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="67890")
         )
 
     @pytest.mark.asyncio
@@ -302,19 +310,18 @@ class TestAccredRoleProvider:
     async def test_accred_fetch_roles_with_backoffice_metier(
         self, accred_provider, sample_user_id
     ):
-        """ACCRED sortpath is a 4-level hierarchy; affiliation is LVL3."""
+        """Backoffice_metier affiliation scope is the authorized unit's cf.
+
+        The cf identifies a unit at any hierarchy level; it is used verbatim as
+        the affiliation token (not the accredunitid, not a sortpath level).
+        """
         mock_response = {
             "authorizations": [
                 {
                     "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
                     "state": "active",
                     "accredunitid": "12345",
-                    "reason": {
-                        "resource": {
-                            "cf": "12345",
-                            "sortpath": "EPFL ENAC ENAC-SG ENAC-IT",
-                        }
-                    },
+                    "reason": {"resource": {"cf": "13030"}},
                 }
             ]
         }
@@ -336,40 +343,8 @@ class TestAccredRoleProvider:
         assert len(roles) == 1
         assert roles[0] == Role(
             role=RoleName.CO2_BACKOFFICE_METIER,
-            on=RoleScope(affiliation="ENAC-SG"),
+            on=AffiliationScope(affiliation="13030"),
         )
-
-    @pytest.mark.asyncio
-    async def test_accred_backoffice_metier_short_sortpath_skipped(
-        self, accred_provider, sample_user_id
-    ):
-        """Sortpath shorter than 3 levels cannot resolve LVL3 — role is dropped."""
-        mock_response = {
-            "authorizations": [
-                {
-                    "name": f"{RoleName.CO2_BACKOFFICE_METIER.value}",
-                    "state": "active",
-                    "accredunitid": "12345",
-                    "reason": {"resource": {"cf": "12345", "sortpath": "EPFL ENAC"}},
-                }
-            ]
-        }
-
-        with patch(
-            "app.providers.role_provider.httpx.AsyncClient"
-        ) as mock_client_class:
-            mock_client = AsyncMock()
-            mock_response_obj = AsyncMock()
-            mock_response_obj.json = Mock(return_value=mock_response)
-            mock_response_obj.raise_for_status = Mock()
-            mock_client.__aenter__.return_value = mock_client
-            mock_client.get.return_value = mock_response_obj
-
-            mock_client_class.return_value = mock_client
-
-            roles = await accred_provider.get_roles_by_user_id(sample_user_id)
-
-        assert roles == []
 
     @pytest.mark.asyncio
     async def test_accred_no_authorizations_found(

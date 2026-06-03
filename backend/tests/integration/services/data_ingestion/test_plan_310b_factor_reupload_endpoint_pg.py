@@ -69,7 +69,7 @@ POLL_INTERVAL_SECONDS = 0.1
 
 
 @pytest_asyncio.fixture
-async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
+async def pg_app(pg_dsn, monkeypatch, tmp_path):
     """Wire the FastAPI app to the test Postgres + bypass auth + redirect
     file storage to ``tmp_path``.
 
@@ -92,18 +92,18 @@ async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
     task side.  Without both, the background task would talk to the
     production DB while the request handler talks to the test DB.
 
-    Depends on ``pg_dsn_with_310b`` (in conftest) so the partial unique
+    Depends on ``pg_dsn`` (in conftest) so the partial unique
     indexes Plan 310B's migration adds are present — ``upsert_factors``
     needs them to bind ``ON CONFLICT``.
     """
-    # ``pg_dsn_with_310b`` returns a ``postgresql+asyncpg`` URL.  asyncpg
+    # ``pg_dsn`` returns a ``postgresql+asyncpg`` URL.  asyncpg
     # is strict about tz-aware vs tz-naive datetimes, which trips an
     # unrelated latent issue in app.models.audit (``changed_at`` defaults
     # to naive datetime.utcnow but audit_service writes tz-aware).
     # Production uses ``postgresql+psycopg`` which silently coerces.  Use
     # the same driver here so the test isn't tripped by a model-side bug
     # that's out of scope for #310B.
-    psycopg_dsn = pg_dsn_with_310b.replace("+asyncpg", "+psycopg")
+    psycopg_dsn = pg_dsn.replace("+asyncpg", "+psycopg")
     test_engine = create_async_engine(psycopg_dsn, future=True)
     Sf = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -163,7 +163,7 @@ async def pg_app(pg_dsn_with_310b, monkeypatch, tmp_path):
     # "no such table: pipelines".
     monkeypatch.setattr("app.tasks.emission_recalculation_tasks.SessionLocal", Sf)
 
-    yield {"factory": Sf, "dsn": pg_dsn_with_310b, "tmp_path": tmp_path}
+    yield {"factory": Sf, "dsn": pg_dsn, "tmp_path": tmp_path}
 
     app.dependency_overrides.clear()
     await test_engine.dispose()

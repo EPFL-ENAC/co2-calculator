@@ -2,9 +2,10 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import TYPE_CHECKING, Annotated, List, Literal, Optional, Union
 
 from pydantic import BaseModel
+from pydantic import Field as PydanticField
 from sqlalchemy import DateTime
 from sqlalchemy import Enum as SAEnum
 
@@ -23,17 +24,38 @@ class RoleName(str, Enum):
 
 
 class GlobalScope(BaseModel):
-    scope: str = "global"
+    kind: Literal["global"] = "global"
 
 
-class RoleScope(BaseModel):
-    institutional_id: Optional[str] = None
-    affiliation: Optional[str] = None
+class UnitScope(BaseModel):
+    kind: Literal["unit"] = "unit"
+    institutional_id: str
+
+
+class OwnScope(BaseModel):
+    kind: Literal["own"] = "own"
+    # The unit the records live in. The owner is always the authenticated
+    # current_user, so it is intentionally NOT stored on the scope.
+    institutional_id: str
+
+
+class AffiliationScope(BaseModel):
+    kind: Literal["affiliation"] = "affiliation"
+    affiliation: str
+
+
+# Discriminated union: the scope ``kind`` makes the own / unit / global /
+# affiliation boundary explicit (matches the permission matrix) instead of
+# inferring it from the role.
+Scope = Annotated[
+    Union[GlobalScope, UnitScope, OwnScope, AffiliationScope],
+    PydanticField(discriminator="kind"),
+]
 
 
 class Role(BaseModel):
     role: RoleName
-    on: Union[RoleScope, GlobalScope]
+    on: Scope
 
 
 class UserProvider(int, Enum):
@@ -48,50 +70,39 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     This function maps role-based access control to permission-based access control.
     It processes all user roles and generates a comprehensive permissions structure.
 
-    IMPORTANT: Role domains are independent, with one exception:
+    IMPORTANT: Role domains are independent:
     - Backoffice roles (CO2_BACKOFFICE_METIER) ONLY grant backoffice.* permissions
     - User roles (CO2_USER_*) ONLY grant modules.* permissions
-    - System roles (CO2_SUPERADMIN) grant system.* permissions
-      Exception: CO2_SUPERADMIN also grants full backoffice.* access
+    - CO2_SUPERADMIN grants every backoffice.* page (global)
     - A person can have multiple roles, and permissions combine
+
+    The model is page-driven (#862): one permission per backoffice page.
+    Values are lists of action strings (e.g. ["view", "edit"]); module paths
+    carry a trailing "/<institutional_id>" for unit-scoped grants.
 
     Permission Structure (flat with dot notation):
     {
-        "backoffice.reporting": {"view": bool, "export": bool},
-        "backoffice.users": {"view": bool, "edit": bool},
-        "backoffice.data_management": {
-            "view": bool,
-            "edit": bool,
-            "export": bool,
-            "sync": bool,
-        },
-        "backoffice.documentation": {"view": bool, "edit": bool},
-        "modules.headcount": {"view": bool, "edit": bool},
-        "modules.equipment": {"view": bool, "edit": bool},
-        "modules.professional_travel": {"view": bool, "edit": bool},
-        "modules.buildings": {"view": bool, "edit": bool},
-        "modules.purchase": {"view": bool, "edit": bool},
-        "modules.research_facilities": {"view": bool, "edit": bool},
-        "modules.external_cloud_and_ai": {"view": bool, "edit": bool},
-        "modules.process_emissions": {"view": bool, "edit": bool},
+        "backoffice.reporting": [...],          # affiliation-scoped for metier
+        "backoffice.users": [...],
+        "backoffice.documentation": [...],
+        "backoffice.ui_texts": [...],
+        "backoffice.configuration": [...],      # super admin only
+        "backoffice.pipeline_operations": [...],  # super admin only
+        "backoffice.logs": [...],               # super admin only
+        "modules.<name>/<institutional_id>": [...],
     }
 
     Backoffice Roles (affect backoffice.* ONLY):
-    - CO2_BACKOFFICE_METIER: Full backoffice access including:
-      * backoffice.reporting: view, export (view reports, generate exports)
-      * backoffice.users: view, edit (view user list, assign roles)
-      * backoffice.data_management: view, edit, export, sync
-        (upload/download CSV, trigger sync)
-      * backoffice.documentation: view, edit (view/edit documentation)
+    - CO2_BACKOFFICE_METIER: backoffice.reporting (affiliation-scoped),
+      and scope-less backoffice.users, backoffice.documentation,
+      backoffice.ui_texts. No configuration / pipeline_operations / logs.
+    - CO2_SUPERADMIN: global (bare) grants on every backoffice page above,
+      including configuration / pipeline_operations / logs.
 
     User Roles (affect modules.* ONLY):
-    - CO2_USER_PRINCIPAL: Full module access (view + edit) for the unit
-    - CO2_USER_STD: View and edit access to professional_travel module
-      (own trips only - enforced via resource-level policy)
-
-    System Roles (affect system.* and backoffice.*):
-    - CO2_SUPERADMIN: Super administrator with full system and backoffice access
-      (system.users.edit for role assignment, backoffice.* for admin access)
+    - CO2_USER_PRINCIPAL: Full module access (view + edit + sync) for the unit
+    - CO2_USER_STD: View and edit access to professional_travel and
+      external_cloud_and_ai (own records only - enforced via resource policy)
 
     Args:
         roles: List of Role objects containing role name and scope
@@ -105,54 +116,27 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     # Initialize with no permissions
     permissions: dict[str, list[str]] = {}
 
-    # Helper to check if scope is global (handles both GlobalScope objects and dicts)
-    def is_global_scope(s):
-        if isinstance(s, GlobalScope):
-            return True
-        if isinstance(s, dict):
-            return s.get("scope") == "global"
-        return False
-
-    # Helper to check if scope is role scope (handles both RoleScope objects and dicts)
-    def is_role_scope(s):
-        if isinstance(s, RoleScope):
-            return True
-        if isinstance(s, dict):
-            return "institutional_id" in s or "affiliation" in s
-        return False
-
-    # Helper to check if a scope carries an affiliation (and no institutional_id).
-    # Used to gate backoffice sub-perimeter scoping (#459).
-    def is_affiliation_scope(s):
-        if isinstance(s, RoleScope):
-            return bool(s.affiliation) and s.institutional_id is None
-        if isinstance(s, dict):
-            return bool(s.get("affiliation")) and s.get("institutional_id") is None
-        return False
-
-    def as_scope_key(s):
-        # GlobalScope → no suffix; RoleScope → "/{institutional_id}" or
-        # "/{affiliation}". Affiliation-based scoping (#459) narrows
-        # backoffice.* permissions to a sub-perimeter (ACCRED sortpath).
-        # Empty-string identifiers fall through to the sentinel — defensive
-        # against upstream bugs producing ``institutional_id=""``.
-        if is_global_scope(s):
+    def as_scope_key(scope) -> str:
+        # Encode the scope BREADTH in the permission key so the flat dict is
+        # self-describing for both the backend resolver and the frontend:
+        #   global      → ""             (bare key)
+        #   unit        → "/<unit>"      (all records in the unit)
+        #   own         → "/<unit>/own"  (own records only; owner = current_user)
+        #   affiliation → "/<aff>"       (backoffice sub-perimeter, #459)
+        # A missing identifier falls through to the "/?" sentinel — defensive
+        # against an upstream bug producing an empty institutional_id/affiliation.
+        if scope.kind == "global":
             return ""
-        if isinstance(s, RoleScope):
-            if s.institutional_id:
-                return f"/{s.institutional_id}"
-            if s.affiliation:
-                return f"/{s.affiliation}"
-        elif isinstance(s, dict):
-            if s.get("institutional_id"):
-                return f"/{s['institutional_id']}"
-            if s.get("affiliation"):
-                return f"/{s['affiliation']}"
-        # Default to no scope if unrecognized format (should not grant permissions)
+        if scope.kind == "unit":
+            return f"/{scope.institutional_id}" if scope.institutional_id else "/?"
+        if scope.kind == "own":
+            return f"/{scope.institutional_id}/own" if scope.institutional_id else "/?"
+        if scope.kind == "affiliation":
+            return f"/{scope.affiliation}" if scope.affiliation else "/?"
         return "/?"
 
-    # Helper to merge permission actions and keep unique actions
     def merge_actions(existing, new):
+        # Merge permission actions, keeping them unique.
         if existing:
             return list(set(existing) | set(new))
         return new
@@ -160,47 +144,54 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
     for role in roles:
         role_name = role.role if isinstance(role.role, str) else role.role.value
         scope = role.on
-        # Note: for now scope will apply only to modules.* permissions, backoffice
-        # or system roles will generally be global but can also have institutional scope
-        # for future flexibility (currently treated the same as global since we don't
-        # have affiliation-based permissions yet)
         scope_key = as_scope_key(scope)
 
         # BACKOFFICE ROLES - Only affect backoffice.* permissions
         # Compare using enum value for consistency
         if role_name == RoleName.CO2_BACKOFFICE_METIER.value:
             # CO2_BACKOFFICE_METIER is always sub-perimeter-bound: ACCRED only
-            # ever produces ``RoleScope(affiliation=LVL3)`` for this role. Only
+            # ever produces an AffiliationScope (LVL3) for this role. Only
             # CO2_SUPERADMIN gets cross-affiliation reach (the bare backoffice.*
-            # keys below). Any other scope shape (GlobalScope, institutional_id)
-            # is unconfigured and emits nothing — gate_backoffice will 403 the
-            # caller, surfacing the misconfiguration rather than masking it.
-            if is_affiliation_scope(scope):
+            # keys below). Any other scope kind is unconfigured and emits
+            # nothing — gate_backoffice will 403 the caller, surfacing the
+            # misconfiguration rather than masking it.
+            if scope.kind == "affiliation":
+                # Reporting is the only affiliation-scoped backoffice area
+                # (#862): it filters report data by sub-perimeter, so it
+                # carries the ``/<aff>`` suffix and is the affiliation anchor.
+                # Users, documentation and UI-text editing have no per-unit
+                # data to filter, so metier receives them scope-less.
+                # Configuration, pipeline operations and logs are Super Admin
+                # only and are not granted here.
                 permissions[f"backoffice.reporting{scope_key}"] = merge_actions(
                     permissions.get(f"backoffice.reporting{scope_key}"),
                     ["view", "export"],
                 )
-                permissions[f"backoffice.users{scope_key}"] = merge_actions(
-                    permissions.get(f"backoffice.users{scope_key}"),
+                permissions["backoffice.users"] = merge_actions(
+                    permissions.get("backoffice.users"),
                     ["view", "edit", "export"],
                 )
-                # Backoffice Administrator only gets view + export on
-                # data_management. edit + sync are Super Admin only
-                # (Configuration write + Pipeline Operations) — granting them
-                # here would let a scoped backoffice user trigger syncs or
-                # mutate factor data the moment a route is opened any-scope.
-                permissions[f"backoffice.data_management{scope_key}"] = merge_actions(
-                    permissions.get(f"backoffice.data_management{scope_key}"),
-                    ["view", "export"],
+                permissions["backoffice.documentation"] = merge_actions(
+                    permissions.get("backoffice.documentation"),
+                    ["view", "edit"],
                 )
-                permissions[f"backoffice.documentation{scope_key}"] = merge_actions(
-                    permissions.get(f"backoffice.documentation{scope_key}"),
+                permissions["backoffice.ui_texts"] = merge_actions(
+                    permissions.get("backoffice.ui_texts"),
+                    ["view", "edit"],
+                )
+                # to be removed later on when new right is available
+                permissions["backoffice.configuration"] = merge_actions(
+                    permissions.get("backoffice.configuration"), ["view", "edit"]
+                )
+                permissions["backoffice.pipeline_operations"] = merge_actions(
+                    permissions.get("backoffice.pipeline_operations"),
                     ["view", "edit"],
                 )
 
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
-            if is_role_scope(scope):
+            # Principal is unit-scoped: full module access across the unit.
+            if scope.kind == "unit":
                 permissions[f"modules.headcount{scope_key}"] = merge_actions(
                     permissions.get(f"modules.headcount{scope_key}"),
                     ["view", "edit", "sync"],
@@ -261,7 +252,9 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 )
 
         elif role_name == RoleName.CO2_USER_STD.value:
-            if is_role_scope(scope):
+            # Standard user is own-scoped: own records only. The "/<unit>/own"
+            # key keeps them out of unit-level gates (e.g. PATCH module status).
+            if scope.kind == "own":
                 permissions[f"modules.professional_travel{scope_key}"] = merge_actions(
                     permissions.get(f"modules.professional_travel{scope_key}"),
                     [
@@ -279,35 +272,34 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                     )
                 )
 
-        # SYSTEM ROLES - Affect system.* permissions (and potentially backoffice.*)
+        # SUPER ADMIN - global access to every backoffice page (#862)
         elif role_name == RoleName.CO2_SUPERADMIN.value:
-            if is_global_scope(scope):
-                # Super admin has full system and backoffice access
-                permissions["system.users"] = merge_actions(
-                    permissions.get("system.users"), ["edit"]
-                )
+            if scope.kind == "global":
+                # Bare (global) grants on every backoffice page. reporting is
+                # bare here; CO2_BACKOFFICE_METIER gets it affiliation-scoped.
+                # configuration / pipeline_operations / logs are Super Admin
+                # only — they replace the former system.users gate.
                 permissions["backoffice.reporting"] = merge_actions(
                     permissions.get("backoffice.reporting"), ["view", "export"]
                 )
                 permissions["backoffice.users"] = merge_actions(
-                    permissions.get("backoffice.users"),
-                    [
-                        "view",
-                        "edit",
-                        "export",
-                    ],
-                )
-                permissions["backoffice.data_management"] = merge_actions(
-                    permissions.get("backoffice.data_management"),
-                    [
-                        "view",
-                        "edit",
-                        "export",
-                        "sync",
-                    ],
+                    permissions.get("backoffice.users"), ["view", "edit", "export"]
                 )
                 permissions["backoffice.documentation"] = merge_actions(
                     permissions.get("backoffice.documentation"), ["view", "edit"]
+                )
+                permissions["backoffice.ui_texts"] = merge_actions(
+                    permissions.get("backoffice.ui_texts"), ["view", "edit"]
+                )
+                permissions["backoffice.configuration"] = merge_actions(
+                    permissions.get("backoffice.configuration"), ["view", "edit"]
+                )
+                permissions["backoffice.pipeline_operations"] = merge_actions(
+                    permissions.get("backoffice.pipeline_operations"),
+                    ["view", "edit"],
+                )
+                permissions["backoffice.logs"] = merge_actions(
+                    permissions.get("backoffice.logs"), ["view"]
                 )
 
     return permissions

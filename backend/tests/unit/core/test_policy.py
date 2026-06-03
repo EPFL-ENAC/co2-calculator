@@ -11,7 +11,7 @@ from app.core.policy import (
     is_module_permitted,
     query_policy,
 )
-from app.models.user import Role, RoleName, RoleScope
+from app.models.user import Role, RoleName, UnitScope
 
 
 class TestGetModulePermissionPath:
@@ -86,7 +86,9 @@ class TestCheckModulePermission:
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
-        user.roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="123"))]
+        user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="123"))
+        ]
 
         # Mock policy allows access
         mock_query_policy.return_value = {
@@ -147,7 +149,9 @@ class TestCheckModulePermission:
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
-        user.roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="123"))]
+        user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="123"))
+        ]
 
         mock_query_policy.return_value = {"allow": True}
 
@@ -163,7 +167,9 @@ class TestCheckModulePermission:
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
-        user.roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="123"))]
+        user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="123"))
+        ]
 
         mock_query_policy.return_value = {"allow": True}
 
@@ -202,7 +208,9 @@ class TestCheckModulePermission:
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
-        user.roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="123"))]
+        user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="123"))
+        ]
 
         mock_query_policy.return_value = {"allow": True}
 
@@ -233,7 +241,7 @@ class TestCheckModulePermission:
         user.roles = [
             Role(
                 role=RoleName.CO2_USER_PRINCIPAL,
-                on=RoleScope(institutional_id="0184"),
+                on=UnitScope(institutional_id="0184"),
             )
         ]
 
@@ -272,7 +280,9 @@ class TestCheckModulePermission:
         user = MagicMock()
         user.id = "user-123"
         user.email = "test@example.com"
-        user.roles = [Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(unit="123"))]
+        user.roles = [
+            Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="123"))
+        ]
 
         # Policy returns dict without 'allow' key
         mock_query_policy.return_value = {"reason": "Unknown"}
@@ -295,7 +305,7 @@ class TestQueryPolicyPermissionCheck:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"institutional_id": "123"},
+                        "on": {"kind": "unit", "institutional_id": "123"},
                     }
                 ],
             },
@@ -368,7 +378,7 @@ class TestQueryPolicyDataFilter:
                 "id": 1,
                 "email": "admin@example.com",
                 "roles": [
-                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"scope": "global"}}
+                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
                 ],
             },
             "resource_type": "headcount",
@@ -391,7 +401,7 @@ class TestQueryPolicyDataFilter:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"institutional_id": "123"},
+                        "on": {"kind": "unit", "institutional_id": "123"},
                     }
                 ],
             },
@@ -451,7 +461,7 @@ class TestQueryPolicyResourceAccess:
                 "roles": [
                     {
                         "role": RoleName.CO2_USER_PRINCIPAL.value,
-                        "on": {"institutional_id": "123"},
+                        "on": {"kind": "unit", "institutional_id": "123"},
                     }
                 ],
             },
@@ -476,7 +486,7 @@ class TestQueryPolicyResourceAccess:
                 "id": 1,
                 "email": "admin@example.com",
                 "roles": [
-                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"scope": "global"}}
+                    {"role": RoleName.CO2_SUPERADMIN.value, "on": {"kind": "global"}}
                 ],
             },
             "resource_type": "professional_travel",

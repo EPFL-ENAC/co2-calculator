@@ -826,7 +826,7 @@ const chartOption = computed((): EChartsOption => {
       label: { show: false },
     },
     {
-      name: t('process-emissions.category.refrigerant'),
+      name: t('process-emissions.category.refrigerants'),
       type: 'bar' as const,
       stack: 'total',
       animation: true,
@@ -1176,14 +1176,18 @@ const chartOption = computed((): EChartsOption => {
               }
             }
 
-            emitTooltip({
-              title: name,
-              rows,
-              separatorRow: {
-                label: t('total'),
-                value: formatTonnesForChart(total),
-              },
-            });
+            if (rows.length === 1) {
+              emitTooltip({ rows });
+            } else {
+              emitTooltip({
+                title: name,
+                rows,
+                separatorRow: {
+                  label: t('total'),
+                  value: formatTonnesForChart(total),
+                },
+              });
+            }
             return '';
           },
         },
