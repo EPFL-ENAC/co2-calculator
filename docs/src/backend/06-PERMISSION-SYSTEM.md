@@ -78,8 +78,8 @@ Core:
 - `src/constant/permissions.ts` — permission types/enums mirroring the backend keys.
 - `src/utils/permission.ts` — `hasPermission()`, `hasAnyScopePermission()`, `hasBackOfficeAreaPermission()`.
 - `src/stores/auth.ts` — session store; exposes `permissions` and check helpers.
-- `src/router/guards/permissionGuard.ts` — `requirePermission()`, `requireModuleEditPermission()`.
-- `src/router/routes.ts` — route → required-permission metadata.
+- `src/router/guards/permissionGuard.ts` — `requirePermission()`, `requireMetaPermission()`, `requireModuleEditPermission()`.
+- `src/router/routes.ts` — each back-office route declares its gate in `meta.requiredPermission` / `meta.requiredAction`. This is the **single source of truth**: `requireMetaPermission` enforces it on navigation, and `Co2Sidebar` resolves the route by name to read the same meta when deciding which menu items are reachable — so the router and the nav can never drift. (Replaced the old `superAdminOnly` / `limitedAccess` role flags on `NavItem`, which duplicated and contradicted the route gates.)
 
 Consumers (gated UI): `src/pages/ErrorUnauthorized.vue`, `src/components/layout/{Co2Sidebar,Co2Header}.vue`, `src/components/organisms/layout/Co2ModuleSidebar.vue`, `src/components/organisms/module/{ModuleTable,SubModuleSection,HeadcountMemberSelect}.vue`.
 

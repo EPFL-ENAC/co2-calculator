@@ -514,7 +514,7 @@ class AccredRoleProvider(RoleProvider):
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
-                # "type": "right", # decomment on new role calco2.backoffice.admin added
+                "type": "right",  # decomment on new role calco2.backoffice.admin added
                 "searchauthorization": "calco2.",
             }
 
