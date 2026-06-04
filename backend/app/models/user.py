@@ -179,6 +179,14 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                     permissions.get("backoffice.ui_texts"),
                     ["view", "edit"],
                 )
+                # to be removed later on when new right is available
+                permissions["backoffice.configuration"] = merge_actions(
+                    permissions.get("backoffice.configuration"), ["view", "edit"]
+                )
+                permissions["backoffice.pipeline_operations"] = merge_actions(
+                    permissions.get("backoffice.pipeline_operations"),
+                    ["view", "edit"],
+                )
         # USER ROLES - Only affect modules.* permissions
         elif role_name == RoleName.CO2_USER_PRINCIPAL.value:
             # Principal is unit-scoped: full module access across the unit.
