@@ -29,7 +29,6 @@ import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
-import ResultsFilterPill from 'src/components/layout/ResultsFilterPill.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
 
@@ -431,7 +430,6 @@ const getUncertainty = (
 
 <template>
   <q-page>
-    <ResultsFilterPill />
     <div class="page-grid">
       <q-card flat bordered class="q-pa-xl">
         <div class="flex justify-between items-center">

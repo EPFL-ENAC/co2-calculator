@@ -10,6 +10,7 @@ import { timelineItems } from 'src/constant/timelineItems';
 import { MODULES, type Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTotalResult from 'src/components/organisms/module/ModuleTotalResult.vue';
+import ResultsFilterPanel from 'src/components/layout/ResultsFilterPanel.vue';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import type { ModuleConfig } from 'src/constant/moduleConfig';
 
@@ -178,6 +179,7 @@ function navigateToResults() {
       </q-item>
     </q-list>
     <div class="sidebar-docs-wrapper">
+      <ResultsFilterPanel v-if="isResultsSelected" :collapsed="collapsed" />
       <q-separator />
       <q-item
         class="sidebar-item sidebar-docs"
