@@ -294,7 +294,7 @@ async def get_module(
         )
         member_stats: dict = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="position_category",
+            aggregate_by="sius_code",
             aggregate_field="fte",
             data_entry_type_id=DataEntryTypeEnum.member.value,
         )

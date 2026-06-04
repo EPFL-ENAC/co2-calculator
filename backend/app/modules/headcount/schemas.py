@@ -26,22 +26,12 @@ from app.schemas.factor import (
 
 logger = get_logger(__name__)
 
-POSITION_CATEGORY_VALUES = {
-    "professor",
-    "scientific_collaborator",
-    "postdoctoral_assistant",
-    "doctoral_assistant",
-    "trainee",
-    "technical_administrative_staff",
-    "student",
-    "other",
-}
+SIUS_CODE_VALUES = {"51", "52", "53", "54", "56", "57", "58", "59"}
 
 
 class HeadcountItemResponse(DataEntryResponseGen):
     name: str
-    position_title: Optional[str] = None
-    position_category: Optional[str] = None
+    sius_code: Optional[str] = None
     fte: Optional[float] = None
     user_institutional_id: Optional[str] = None
     note: Optional[str] = None
@@ -53,8 +43,7 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 
 class HeadCountCreate(DataEntryCreate):
     name: str
-    position_title: Optional[str] = None
-    position_category: Optional[str] = None
+    sius_code: str
     fte: Optional[float] = None
     user_institutional_id: str
     note: Optional[str] = None
@@ -75,14 +64,12 @@ class HeadCountCreate(DataEntryCreate):
             raise ValueError("FTE must be at least 0")
         return v
 
-    @field_validator("position_category", mode="after")
+    @field_validator("sius_code", mode="after")
     @classmethod
-    def validate_position_category(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
-        if v not in POSITION_CATEGORY_VALUES:
-            allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
-            raise ValueError(f"position_category must be one of: {allowed_values}")
+    def validate_sius_code(cls, v: str) -> str:
+        if v not in SIUS_CODE_VALUES:
+            allowed_values = ", ".join(sorted(SIUS_CODE_VALUES))
+            raise ValueError(f"sius_code must be one of: {allowed_values}")
         return v
 
 
@@ -112,8 +99,7 @@ class HeadCountStudentUpdate(DataEntryUpdate):
 
 class HeadCountUpdate(DataEntryUpdate):
     name: Optional[str] = None
-    position_title: Optional[str] = None
-    position_category: Optional[str] = None
+    sius_code: Optional[str] = None
     fte: Optional[float] = None
     note: Optional[str] = None
 
@@ -128,14 +114,14 @@ class HeadCountUpdate(DataEntryUpdate):
             raise ValueError("FTE must be at least 0")
         return v
 
-    @field_validator("position_category", mode="after")
+    @field_validator("sius_code", mode="after")
     @classmethod
-    def validate_position_category(cls, v: Optional[str]) -> Optional[str]:
+    def validate_sius_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        if v not in POSITION_CATEGORY_VALUES:
-            allowed_values = ", ".join(sorted(POSITION_CATEGORY_VALUES))
-            raise ValueError(f"position_category must be one of: {allowed_values}")
+        if v not in SIUS_CODE_VALUES:
+            allowed_values = ", ".join(sorted(SIUS_CODE_VALUES))
+            raise ValueError(f"sius_code must be one of: {allowed_values}")
         return v
 
 
@@ -157,21 +143,15 @@ class HeadcountMemberModuleHandler(BaseModuleHandler):
     subkind_field = None
     require_subkind_for_factor = False
     require_factor_to_match = False
-    default_where: list = [
-        DataEntry.data["position_category"].as_string().is_(None)
-        | (DataEntry.data["position_category"].as_string() != "student")
-    ]
+    default_where: list = []
     filter_map: dict[str, Any] = {
         "name": DataEntry.data["name"].as_string(),
-        "position_title": DataEntry.data["position_title"].as_string(),
-        "position_category": DataEntry.data["position_category"].as_string(),
+        "sius_code": DataEntry.data["sius_code"].as_string(),
     }
     sort_map = {
         "id": DataEntry.id,
         "name": DataEntry.data["name"].as_string(),
-        "position_title": DataEntry.data["position_title"].as_string(),
-        "position_category": DataEntry.data["position_category"].as_string(),
-        "fte": DataEntry.data["fte"].as_float(),
+        "sius_code": DataEntry.data["sius_code"].as_string(),
     }
 
     def resolve_computations(

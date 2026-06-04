@@ -42,7 +42,7 @@ from app.modules.buildings.schemas import (
     BuildingEmbodiedEnergyHandlerCreate,
 )
 from app.modules.external_cloud_and_ai.schemas import REQUESTS_FREQUENCY_OPTIONS
-from app.modules.headcount.schemas import POSITION_CATEGORY_VALUES
+from app.modules.headcount.schemas import SIUS_CODE_VALUES
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -311,10 +311,7 @@ def build_external_ai() -> dict:
 def build_headcount() -> dict:
     return {
         "name": fake.name(),
-        "position_title": maybe(fake.job()),
-        "position_category": maybe(
-            random.choice(sorted(POSITION_CATEGORY_VALUES)),  # nosec B311
-        ),
+        "sius_code": random.choice(sorted(SIUS_CODE_VALUES)),  # nosec B311
         "fte": maybe(round(random.uniform(0.1, 1.0), 2)),  # nosec B311
         # user_institutional_id is required (non-Optional) on the create DTO.
         "user_institutional_id": _user_institutional_id(),
