@@ -380,9 +380,6 @@ class _BuildingsFactorValidationMixin:
             )
         return normalized
 
-    # todo: if conversion_factor is None -> 1.0
-    # but should we enforce it to be set explicitly in the factor?
-
 
 class BuildingBaseFactor:
     building_name: str
