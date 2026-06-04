@@ -270,7 +270,13 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
       />
-
+      <UploadCardReferences
+        v-if="getImportRow(submodule).hasOtherUpload"
+        :row="getImportRow(submodule)"
+        :year="selectedYear"
+        @completed="handleReferenceCompleted"
+        @progressing="handleReferenceProgressing"
+      />
       <UploadCardData
         v-if="getImportRow(submodule).hasData"
         :row="getImportRow(submodule)"
@@ -285,13 +291,6 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @abort="handleAbortPipeline"
-      />
-      <UploadCardReferences
-        v-if="getImportRow(submodule).hasOtherUpload"
-        :row="getImportRow(submodule)"
-        :year="selectedYear"
-        @completed="handleReferenceCompleted"
-        @progressing="handleReferenceProgressing"
       />
     </div>
 
