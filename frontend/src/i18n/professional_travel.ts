@@ -42,8 +42,8 @@ export default {
     fr: 'Distance (km)',
   },
   [`${MODULES.ProfessionalTravel}-field-traveler`]: {
-    en: 'Traveler',
-    fr: 'Voyageur',
+    en: 'Name',
+    fr: 'Nom',
   },
   [`${MODULES.ProfessionalTravel}-field-emissions`]: {
     en: 'kg CO₂-eq',
