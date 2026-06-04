@@ -319,6 +319,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
                 f"Haul category could not be determined for data entry {data_entry.id}"
             )
             haul_category = "unknown"
+        # todo: 863 implement new formula
         return [
             EmissionComputation(
                 emission_type=emission_type,
@@ -503,8 +504,7 @@ class TravelPlaneBase:
     category: str
     ef_kg_co2eq_per_km: float
     rfi_adjustment: float
-    # todo adjustment instead of adjustement
-    class_adjustement: float
+    cabin_class: float
     min_distance: float
     max_distance: float
 
@@ -513,7 +513,7 @@ class _TravelPlaneBaseValidationMixin:
     @field_validator(
         "ef_kg_co2eq_per_km",
         "rfi_adjustment",
-        "class_adjustement",
+        "cabin_class",
         "min_distance",
         "max_distance",
         mode="after",
@@ -566,7 +566,7 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
     classification_fields: list[str] = ["category"]
     value_fields: list[str] = [
         "ef_kg_co2eq_per_km",
-        "class_adjustement",
+        "cabin_class",
         "rfi_adjustment",
         "min_distance",
         "max_distance",

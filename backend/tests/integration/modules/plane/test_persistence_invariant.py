@@ -77,7 +77,7 @@ async def test_listing_plane_with_emissions_does_not_pollute_data(
         values={
             "ef_kg_co2eq_per_km": 0.174,
             "rfi_adjustment": 2.7,
-            "class_adjustement": 2,
+            "cabin_class": 2,
         },
         year=2025,
     )
