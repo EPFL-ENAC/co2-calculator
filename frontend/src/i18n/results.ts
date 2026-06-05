@@ -435,7 +435,7 @@ export default {
   },
   'charts-cooling-subcategory': {
     en: 'Cooling',
-    fr: 'Climatisation',
+    fr: 'Refroidissement',
   },
   'charts-ventilation-subcategory': {
     en: 'Ventilation',
