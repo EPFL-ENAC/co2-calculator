@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@quasar/extras": "=1.18.0",
-    "@sentry/vue": "=10.53.0",
+    "@sentry/vue": "=10.55.0",
     "echarts": "=6.1.0",
     "ky": "=1.14.0",
     "maplibre-gl": "=5.24.0",
