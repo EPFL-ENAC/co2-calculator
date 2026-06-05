@@ -89,7 +89,8 @@ async function ensureCsrfToken(): Promise<string | null> {
 
   try {
     return await fetchAndStoreCsrfToken();
-  } catch {
+  } catch (error) {
+    console.warn('CSRF bootstrap failed; processing without a CSRF token.', error);
     return null;
   }
 }
@@ -108,25 +109,31 @@ async function handleCsrfError(
   req: Request,
   options: RequestInit,
 ): Promise<Response | undefined> {
-  const newToken = await bootstrapCsrfToken();
-  if (!newToken) {
-    location.replace(loginPageName);
-    return;
-  }
-
-  const headers = new Headers(options.headers ?? req.headers);
-  headers.set(CSRF_HEADER_NAME, newToken);
-
   try {
-    return await apiNoHooks(req.url, {
-      method: options.method ?? req.method,
-      body: options.body ?? req.body,
-      headers,
-      credentials: 'include',
-      retry: { limit: 0 },
-    });
-  } catch (error) {
-    console.warn('CSRF retry failed:', error);
+    const newToken = await bootstrapCsrfToken();
+
+    if (!newToken) {
+      location.replace(loginPageName);
+      return;
+    }
+
+    const headers = new Headers(options.headers ?? req.headers);
+    headers.set(CSRF_HEADER_NAME, newToken);
+
+    try {
+      return await apiNoHooks(req.url, {
+        method: options.method ?? req.method,
+        body: options.body ?? req.body,
+        headers,
+        credentials: 'include',
+        retry: { limit: 0 },
+      });
+    } catch (error) {
+      console.warn('CSRF retry failed:', error);
+      location.replace(loginPageName);
+      return;
+    }
+  } catch {
     location.replace(loginPageName);
     return;
   }
@@ -346,6 +353,45 @@ export const api = ky.create({
             return await handleCsrfError(req, options);
           } else {
             await handlePermissionError(res, errorResponse);
+            return;
+          }
+        }
+        if (!res.ok) {
+          // Sentry capture for 5xx
+          if (res.status >= 500) {
+            let body: string | undefined;
+            try {
+              body = await res.clone().text();
+            } catch {
+              // Body already consumed elsewhere; not fatal for the report.
+            }
+            void import('@sentry/vue').then(({ captureMessage }) => {
+              captureMessage(`HTTP ${res.status} ${req.method} ${req.url}`, {
+                level: 'error',
+                extra: {
+                  status: res.status,
+                  statusText: res.statusText,
+                  url: req.url,
+                  method: req.method,
+                  body: body?.slice(0, 2000),
+                },
+              });
+            });
+          }
+
+          // Generic toast + skipErrorCodes
+          const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
+          if (!skipCodes.includes(res.status)) {
+            Notify.create({
+              color: 'negative',
+              message: i18n.global.t('http_error_occurred', {
+                status: res.status,
+                text: res.statusText,
+              }),
+              position: 'top',
+              timeout: 3000,
+              actions: [{ icon: 'close', color: 'white' }],
+            });
           }
         } else if (!res.ok) {
           // Capture 5xx in Sentry. 4xx is usually client/business-logic
