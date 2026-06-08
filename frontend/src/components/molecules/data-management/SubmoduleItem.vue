@@ -270,6 +270,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
       />
+
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"
         :row="getImportRow(submodule)"
