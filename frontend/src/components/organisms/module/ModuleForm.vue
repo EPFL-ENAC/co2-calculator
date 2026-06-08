@@ -29,7 +29,7 @@
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-section>
     <q-card-section class="q-pa-none">
-      <q-form @submit.prevent="onSubmit">
+      <q-form novalidate @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
           <div v-if="visibleFields.length === 0" class="text-subtle">
             No form configured
@@ -936,9 +936,11 @@ function validateField(i: ModuleField) {
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
     const n = Number(v);
-    if (Number.isNaN(n)) errors[i.id] = 'Must be a number';
-    if (i.min !== undefined && n < i.min) errors[i.id] = `Min ${i.min}`;
-    if (i.max !== undefined && n > i.max) errors[i.id] = `Max ${i.max}`;
+    if (Number.isNaN(n)) errors[i.id] = $t('validation_number_required');
+    if (i.min !== undefined && n < i.min)
+      errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
+    if (i.max !== undefined && n > i.max)
+      errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
   }
   return !errors[i.id];
 }
