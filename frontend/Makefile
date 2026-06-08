@@ -114,12 +114,12 @@ serve: ## Serve the built SPA locally (requires `make localbuild` first)
 	npm run preview
 
 .PHONY: lighthouse
-lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 3 routes)
+lighthouse: localbuild ## Run Lighthouse audit locally (mirrors CI: builds SPA, injects bypass flag, audits 24 routes)
 	@set -e; \
 	node -e "const fs=require('fs'),p='dist/spa/index.html',h=fs.readFileSync(p,'utf8');fs.writeFileSync(p,h.replace('</head>','<script>window.__LIGHTHOUSE_BYPASS__=true;<\/script></head>'))"; \
 	npm install lighthouse-plugin-ecoindex-core --no-save; \
 	npx --yes lhci collect \
-		--config=.lighthouserc.ci.json \
+		--config=.lighthouserc.json \
 		--startServerCommand="npx serve -s dist/spa -l 8080" \
 		--numberOfRuns=1; \
 	echo ""; \

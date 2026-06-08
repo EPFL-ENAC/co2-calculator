@@ -1,13 +1,13 @@
-name: Lighthouse CI
+name: Lighthouse CI (daily)
 
 
 on:
-  pull_request:
-    branches: [main, dev, stage, 'ci-test/**']
-    paths:
-      - "frontend/**"
-      - ".github/workflows/lighthouse.yml"
-      - "frontend/.lighthouserc.ci.json"
+  schedule:
+    # Every day at 04:00 UTC (offset from integration-tests' 03:30 to avoid pileup)
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+  push:
+    branches: ['ci-test/**']
 
 jobs:
   lighthouse:
@@ -63,26 +63,6 @@ jobs:
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11
         with:
-          configPath: "./frontend/.lighthouserc.ci.json"
+          configPath: "./frontend/.lighthouserc.json"
           uploadArtifacts: true
           temporaryPublicStorage: true
-
-      - name: Comment PR with Lighthouse results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const results = JSON.parse(fs.readFileSync('.lighthouseci/manifest.json'));
-            const comment = `## ⚡ Lighthouse CI Results
-
-            📊 [View full report](${results[0].url})
-
-            Performance scores will be available in the artifacts.`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: comment
-            });
