@@ -201,45 +201,49 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
           "
         />
       </q-card>
-      <q-separator class="q-my-xs" />
-      <q-card
-        flat
-        class="col q-px-lg q-pt-lg q-pb-md"
-        :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
-      >
-        <div class="row items-center q-mb-xs">
-          <q-icon
-            name="legend_toggle"
-            color="accent"
-            size="xs"
-            class="q-mr-sm"
-          />
-          <div class="text-body2 text-weight-medium">
-            {{ $t('data_management_threshold_title') }}
+      <template v-if="!submodule.noThreshold">
+        <q-separator class="q-my-xs" />
+        <q-card
+          flat
+          class="col q-px-lg q-pt-lg q-pb-md"
+          :class="{
+            'submodule-item--disabled': isSubmoduleDisabled(submodule),
+          }"
+        >
+          <div class="row items-center q-mb-xs">
+            <q-icon
+              name="legend_toggle"
+              color="accent"
+              size="xs"
+              class="q-mr-sm"
+            />
+            <div class="text-body2 text-weight-medium">
+              {{ $t('data_management_threshold_title') }}
+            </div>
           </div>
-        </div>
-        <div class="text-caption text-secondary q-mb-sm">
-          {{ $t('data_management_threshold_description') }}
-        </div>
-        <q-input
-          :model-value="getSubmoduleThreshold(submodule)"
-          type="number"
-          dense
-          outlined
-          size="md"
-          :debounce="600"
-          :suffix="$t('tco2eq')"
-          :placeholder="$t('no_threshold')"
-          style="max-width: 500px"
-          @update:model-value="
-            (val: string | number | null) =>
-              updateSubmoduleThreshold(
-                submodule,
-                val === '' || val === null ? null : Number(val),
-              )
-          "
-        />
-      </q-card>
+          <div class="text-caption text-secondary q-mb-sm">
+            {{ $t('data_management_threshold_description') }}
+          </div>
+          <q-input
+            :model-value="getSubmoduleThreshold(submodule)"
+            type="number"
+            dense
+            outlined
+            size="md"
+            :debounce="600"
+            :suffix="$t('tco2eq')"
+            :placeholder="$t('no_threshold')"
+            style="max-width: 500px"
+            @update:model-value="
+              (val: string | number | null) =>
+                updateSubmoduleThreshold(
+                  submodule,
+                  val === '' || val === null ? null : Number(val),
+                )
+            "
+          />
+        </q-card>
+      </template>
       <q-separator v-if="submoduleShowsImportRow(submodule)" class="q-my-xs" />
     </template>
 
