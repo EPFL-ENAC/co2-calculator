@@ -1,6 +1,7 @@
 from typing import Optional, Self
 
 from pydantic import ValidationInfo, field_validator, model_validator
+from sqlalchemy import func
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -144,7 +145,16 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "standby_usage_hours_per_week",
     ]
 
-    # Add the sort_map here
+    # Sort/filter keys MUST read from the same source `to_response` displays,
+    # or the visible column won't match the ordering. equipment_class is shown
+    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class is
+    # factor-preferred-then-data. Factor-only keys (active/standby_power_w) leave
+    # CSV rows with no matched factor (primary_factor_id NULL) with a NULL sort
+    # key — which is correct, since those rows display NULL for those fields too.
+    sub_class_expr = func.coalesce(
+        Factor.classification["sub_class"].as_string(),
+        DataEntry.data["sub_class"].as_string(),
+    )
     sort_map = {
         "id": DataEntry.id,
         "active_usage_hours_per_week": DataEntry.data[
@@ -156,15 +166,15 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": DataEntry.data["equipment_class"].as_string(),
+        "sub_class": sub_class_expr,
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
         "name": DataEntry.data["name"].as_string(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": DataEntry.data["equipment_class"].as_string(),
+        "sub_class": sub_class_expr,
     }
 
     async def pre_compute(self, data_entry, session) -> dict:

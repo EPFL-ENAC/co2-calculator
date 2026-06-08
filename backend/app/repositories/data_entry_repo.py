@@ -652,29 +652,17 @@ class DataEntryRepository:
             _origin_loc: Location | None = None
             _dest_loc: Location | None = None
             # Unpack based on query shape
+            # 1. Extract the common base fields right away
+            data_entry, total_kg_co2eq, primary_factor = row[:3]
+
+            # 2. Unpack only the remaining tail fields
             if is_travel_entry:
                 if is_train_entry or is_plane_entry:
-                    (
-                        data_entry,
-                        total_kg_co2eq,
-                        primary_factor,
-                        member_entry,
-                        _emission,
-                        _origin_loc,
-                        _dest_loc,
-                    ) = row
+                    member_entry, _emission, _origin_loc, _dest_loc = row[3:]
                 else:
-                    (
-                        data_entry,
-                        total_kg_co2eq,
-                        primary_factor,
-                        member_entry,
-                        _emission,
-                    ) = row
+                    member_entry, _emission = row[3:]
             elif is_buildings_entry:
-                data_entry, total_kg_co2eq, primary_factor, building_room = row
-            else:
-                data_entry, total_kg_co2eq, primary_factor = row
+                building_room = row[3]
 
             # Defense-in-depth: detach loaded ORM rows from the session so any
             # accidental mutation (here or downstream) cannot be flushed back to
