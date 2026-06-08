@@ -510,6 +510,7 @@ defineExpose({ downloadPNG });
         class="chart"
         autoresize
         :option="chartOption"
+        :update-options="{ replaceMerge: ['series'] }"
         :style="{ height: chartHeight + 'px' }"
         @vue:mounted="onChartReady"
       />
