@@ -9,12 +9,12 @@
       v-for="row in filters"
       :key="row.key"
       class="filter-panel__row"
-      @click="row.toggle()"
+      @click="row.toggle"
     >
       <span
         class="filter-panel__switch"
         :class="{ 'filter-panel__switch--on': !row.hidden }"
-        :style="!row.hidden && row.color ? { background: row.color } : {}"
+        :style="filterAccentStyle(row)"
       >
         <span class="filter-panel__switch-thumb" />
       </span>
@@ -37,21 +37,23 @@
       :key="row.key"
       class="filter-panel-mini__dot"
       :class="{ 'filter-panel-mini__dot--off': row.hidden }"
-      :style="!row.hidden && row.color ? { background: row.color } : {}"
-      @click="row.toggle()"
+      :style="filterAccentStyle(row)"
+      @click="row.toggle"
     >
+      <ModuleIcon
+        :name="row.iconName"
+        color=""
+        size="md"
+        class="filter-panel-mini__icon"
+      />
+      <span class="filter-panel-mini__circle" />
       <q-tooltip
         anchor="center right"
         self="center left"
         :offset="[6, 0]"
         class="sidebar-tooltip"
       >
-        {{ row.label }} -
-        {{
-          row.hidden
-            ? $t('results_filter_hidden')
-            : $t('results_filter_visible')
-        }}
+        {{ row.label }} - {{ visibilityLabel(row.hidden) }}
       </q-tooltip>
     </div>
   </div>
@@ -62,17 +64,30 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useResultsFiltersStore } from 'src/stores/resultsFilters';
 import { CHART_CATEGORY_COLOR_SCHEMES } from 'src/constant/charts';
+import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 
 defineProps<{ collapsed: boolean }>();
 
 const store = useResultsFiltersStore();
 const { t } = useI18n();
 
+function visibilityLabel(hidden: boolean): string {
+  return hidden ? t('results_filter_hidden') : t('results_filter_visible');
+}
+
+function filterAccentStyle(row: { hidden: boolean; color: string | null }) {
+  if (!row.hidden && row.color) {
+    return { '--filter-accent-color': row.color };
+  }
+  return {};
+}
+
 const filters = computed(() => [
   {
     key: 'research',
     hidden: store.hideResearchFacilities,
     color: CHART_CATEGORY_COLOR_SCHEMES.value.research_facilities,
+    iconName: 'research-facilities',
     label: t('charts-research-facilities-category'),
     tooltip: t('results_filter_pill_research_facilities_tooltip'),
     toggle: () =>
@@ -82,6 +97,7 @@ const filters = computed(() => [
     key: 'additional',
     hidden: store.hideAdditionalData,
     color: null as string | null,
+    iconName: 'addition-datas',
     label: t('results_additional_data'),
     tooltip: t('results_filter_pill_additional_data_tooltip'),
     toggle: () => (store.hideAdditionalData = !store.hideAdditionalData),
@@ -99,6 +115,7 @@ const filters = computed(() => [
   display: flex;
   flex-direction: column;
   gap: 2px;
+  padding: tokens.$spacing-lg tokens.$spacing-md;
 }
 
 .filter-panel__title {
@@ -116,12 +133,7 @@ const filters = computed(() => [
   gap: tokens.$spacing-sm;
   padding: 5px tokens.$spacing-xs;
   border-radius: tokens.$radius-default;
-  cursor: pointer;
   transition: background-color tokens.$transition-default;
-
-  &:hover {
-    background-color: tokens.$color-surface-muted;
-  }
 }
 
 .filter-panel__switch {
@@ -131,10 +143,11 @@ const filters = computed(() => [
   border-radius: 8px;
   background: tokens.$color-border;
   position: relative;
+  cursor: pointer;
   transition: background tokens.$transition-default;
 
   &--on {
-    background: tokens.$color-validated;
+    background: var(--filter-accent-color, #{tokens.$color-validated});
   }
 }
 
@@ -183,28 +196,43 @@ const filters = computed(() => [
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: tokens.$spacing-xs;
-  padding: tokens.$spacing-sm 0;
+  gap: tokens.$spacing-md;
+  padding: tokens.$spacing-sm 0 tokens.$spacing-lg;
 }
 
 .filter-panel-mini__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: tokens.$color-validated;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
   cursor: pointer;
   transition:
-    background tokens.$transition-default,
     opacity tokens.$transition-default,
     transform tokens.$transition-default;
 
   &:hover {
-    transform: scale(1.25);
+    transform: scale(1.15);
   }
 
   &--off {
-    background: tokens.$color-border !important;
     opacity: 0.5;
+  }
+}
+
+.filter-panel-mini__icon {
+  color: var(--filter-accent-color, #{tokens.$color-validated});
+  flex-shrink: 0;
+}
+
+.filter-panel-mini__circle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--filter-accent-color, #{tokens.$color-validated});
+  flex-shrink: 0;
+
+  .filter-panel-mini__dot--off & {
+    background: tokens.$color-border;
   }
 }
 </style>

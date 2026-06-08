@@ -178,8 +178,10 @@ function navigateToResults() {
         </q-tooltip>
       </q-item>
     </q-list>
+    <q-separator v-if="isResultsSelected" />
+    <ResultsFilterPanel v-if="isResultsSelected" :collapsed="collapsed" />
+    <q-separator v-if="isResultsSelected" />
     <div class="sidebar-docs-wrapper">
-      <ResultsFilterPanel v-if="isResultsSelected" :collapsed="collapsed" />
       <q-separator />
       <q-item
         class="sidebar-item sidebar-docs"
