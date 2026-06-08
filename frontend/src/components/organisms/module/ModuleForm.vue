@@ -275,6 +275,14 @@
             />
           </template>
         </q-card-actions>
+        <div
+          v-if="
+            !rowData && $te(`${moduleType}-${submoduleType}-form-disclaimer`)
+          "
+          class="q-mx-lg q-mb-xl q-mt-sm text-caption text-grey-7"
+        >
+          {{ $t(`${moduleType}-${submoduleType}-form-disclaimer`) }}
+        </div>
       </q-form>
     </q-card-section>
     <NoteDialog
