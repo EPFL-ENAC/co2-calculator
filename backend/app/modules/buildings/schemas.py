@@ -389,7 +389,7 @@ class BuildingBaseFactor:
     lighting_kwh_per_square_meter: float
     ef_kg_co2eq_per_kwh: float
     energy_type: str
-    conversion_factor: Optional[float] = None
+    conversion_factor: Optional[float] = 1
 
 
 class BuildingsFactorCreate(
@@ -706,6 +706,19 @@ class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
     building_name: str
     category: str
     ef_kgco2eq_per_m2: float
+
+    @field_validator("category", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        CATEGORY_VALUES = {"new-tech", "new-env", "ren-tech", "ren-env", "demolition"}
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        # should be amongst new-tech, new-env,ren-tech,ren-env,demolition
+        if v.strip() not in CATEGORY_VALUES:
+            raise ValueError(
+                f"{info.field_name} must be one of {sorted(CATEGORY_VALUES)}"
+            )
+        return v.strip()
 
 
 class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):

@@ -114,6 +114,7 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     requests_per_user_per_day: str
     fte_count: float
     note: Optional[str] = None
+    #  __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod

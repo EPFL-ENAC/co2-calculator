@@ -276,6 +276,8 @@ def build_equipment() -> dict:
         equipment_class = fake.word()
         sub_class = maybe(fake.word())
     return {
+        # equipment_id is required (non-Optional) on the create DTO.
+        "equipment_id": fake.bothify(text="INV-#####"),
         "name": fake.word(),
         "equipment_class": equipment_class,
         "sub_class": sub_class,

@@ -52,10 +52,12 @@ class PurchaseHandlerCreate(DataEntryCreate):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: float
-    currency: Optional[str] = None
+    currency: Optional[str] = None  # doc say mandatory, but with default -> optional
     purchase_institutional_code: str
+    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
+    # __kg_co2eq_override__ is used to override the kg_co2eq calculation
 
     @model_validator(mode="before")
     @classmethod
@@ -443,11 +445,12 @@ purchase_common_value_fields: list[str] = [
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
-    purchase_institutional_code: str
-    purchase_additional_code: str
     currency: str
-    ef_kg_co2eq_per_currency: float
+    purchase_category: str
+    purchase_institutional_code: str
     translation_key: Optional[str] = None
+    purchase_additional_code: str
+    ef_kg_co2eq_per_currency: float
 
     @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod

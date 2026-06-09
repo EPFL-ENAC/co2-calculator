@@ -135,6 +135,7 @@ class ProfessionalTravelPlaneHandlerCreate(
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
+    # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -150,6 +151,7 @@ class ProfessionalTravelTrainHandlerCreate(
     user_institutional_id: str
     origin_name: str
     destination_name: str
+    # check if necessary after migration to new reference location for train
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
     # Required for CSV rows lacking a precomputed ``*_natural_key``: the
@@ -157,12 +159,13 @@ class ProfessionalTravelTrainHandlerCreate(
     # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
     # because UI/API rows resolve via ``*_natural_key`` instead; the CSV
     # resolver (``enrich_csv_row``) rejects rows that supply neither.
-    origin_country_code: Optional[str] = None
-    destination_country_code: Optional[str] = None
+    origin_country_code: str
+    destination_country_code: str
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
+    # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -502,9 +505,9 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
 
 class TravelPlaneBase:
     category: str
+    cabin_class: str
     ef_kg_co2eq_per_km: float
     rfi_adjustment: float
-    cabin_class: float
     min_distance: float
     max_distance: float
 

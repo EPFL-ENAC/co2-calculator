@@ -103,13 +103,21 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
 
 
 class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreate):
-    # unit_institutional_id: str #only for data.csv
+    equipment_id: str
     name: str
     equipment_class: str
     sub_class: Optional[str] = None
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
     note: Optional[str] = None
+    # kg_co2eq: Optional[float] = None  # from csv is __kg_co2eq_override__
+
+    @field_validator("equipment_id", "name", "equipment_class", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v.strip()
 
 
 class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdate):
@@ -276,14 +284,18 @@ value_fields: list[str] = [
 
 
 class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
-    # data_entry_type: str #only for upload in datamanagement
+    # equipment_category: str  # only for upload Mandatory (checked in csv upload)
     equipment_class: str
     sub_class: Optional[str] = None
-    active_usage_hours_per_week: int
-    standby_usage_hours_per_week: int
+    active_usage_hours_per_week: int  # make it mandatory
+    standby_usage_hours_per_week: int  # make it mandatory
     active_power_w: float
     standby_power_w: float
     ef_kg_co2eq_per_kwh: float
+    # equipment_category is the routing column (picks scientific/it/other).
+    # It is consumed in the factor CSV provider, not carried on this DTO —
+    # its presence + case-sensitive {scientific,it,other} enum is enforced
+    # there (see base_factor_csv_provider._resolve_data_entry_type).
 
 
 class EquipmentFactorUpdate(_EquipmentFactorValidationMixin, FactorUpdate):
