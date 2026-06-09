@@ -5,8 +5,6 @@
         :type="currentModuleType"
         :has-description="staticModuleConfig.hasDescription"
         :has-description-subtext="staticModuleConfig.hasDescriptionSubtext"
-        :has-tooltip="staticModuleConfig.hasTooltip"
-        :has-tooltip-sub-text="staticModuleConfig.hasTooltipSubText ?? false"
       />
       <!-- module summary is rendered in the sidebar -->
       <q-card class="container container--pa-none" flat>

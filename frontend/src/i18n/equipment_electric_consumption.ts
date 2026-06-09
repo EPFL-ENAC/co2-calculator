@@ -1,13 +1,9 @@
-import { MODULES, SUBMODULE_EQUIPMENT_TYPES } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.EquipmentElectricConsumption]: {
     en: 'Equipment',
     fr: 'Équipements',
-  },
-  [`${MODULES.EquipmentElectricConsumption}-title-tooltip-subtext`]: {
-    en: 'The emissions from the equipment module contribute to Scope 2 of the laboratory’s carbon footprint.',
-    fr: "Les émissions du module équipement contribue au Scope 2 de l'empreinte carbone du laboratoire.",
   },
   [`${MODULES.EquipmentElectricConsumption}-common`]: {
     en: 'Common data and factors | Common data and factors',
@@ -133,43 +129,6 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
       en: 'Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.',
       fr: 'Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.',
     },
-  [`${MODULES.EquipmentElectricConsumption}-scientific-form-title-info-tooltip`]:
-    {
-      en: 'Add a scientific equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
-      fr: 'Ajoutez un équipement scientifique qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
-    },
-  [`${MODULES.EquipmentElectricConsumption}-it-form-title-info-tooltip`]: {
-    en: 'Add an IT equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
-    fr: 'Ajoutez un équipement informatique qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
-  },
-  [`${MODULES.EquipmentElectricConsumption}-other-form-title-info-tooltip`]: {
-    en: 'Add another equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
-    fr: 'Ajoutez un autre équipement qui ne figure pas encore dans votre inventaire. Pensez également à l’ajouter à votre inventaire officiel afin qu’il soit inclus dans les années futures.',
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.power`]: {
-    en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
-    fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.emission`]: {
-    en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
-    fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.class`]: {
-    en: 'The equipment class determines the average power values used for the emission calculation. Update the class if the one from your inventory is not appropriate.',
-    fr: "La classe de l'équipement détermine les valeurs de puissance moyenne utilisées pour le calcul des émissions. Mettez à jour la classe si celle issue de votre inventaire n'est pas appropriée.",
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.subclass`]: {
-    en: 'The sub-class allows a more precise determination of the average power values for some equipment classes.',
-    fr: "La sous-classe permet une détermination plus précise des valeurs de puissance moyenne pour certaines classes d'équipements.",
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.active_usage`]: {
-    en: 'Number of hours per week the equipment is actively in use. It is recommended to make a conservative (not underestimated) estimate.',
-    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est activement utilisé. Il est recommandé de faire une estimation conservatrice (non sous-estimée).",
-  },
-  [`${MODULES.EquipmentElectricConsumption}.tooltips.standby_usage`]: {
-    en: 'Number of hours per week the equipment is on standby (powered on but not actively used). Active and standby hours combined cannot exceed 168 h/wk.',
-    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est en veille (allumé mais non activement utilisé). Les heures actives et standby combinées ne peuvent pas dépasser 168 h/semaine.",
-  },
   equipment_edit_disclaimer: {
     en: `Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.`,
     fr: `Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.`,
@@ -178,11 +137,6 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Total Electricity Use',
     fr: 'Consommation électrique totale',
   },
-  [`${MODULES.EquipmentElectricConsumption}-results-total-electricity-use-tooltip`]:
-    {
-      en: 'Total electricity consumption of all equipment in the unit',
-      fr: "Consommation électrique totale de tous les équipements de l'unité",
-    },
   [`${MODULES.EquipmentElectricConsumption}-results-total-electricity-use-comparison`]:
     {
       en: 'Equivalent to the public lighting network of a town of {residents} residents for a full year.',
@@ -196,11 +150,6 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: "of lab's total",
     fr: 'total du lab',
   },
-  [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total-tooltip`]:
-    {
-      en: "Percentage of the lab's total carbon footprint represented by equipment electricity consumption",
-      fr: "Pourcentage de l'empreinte carbone totale du laboratoire représenté par la consommation électrique des équipements",
-    },
   [`${MODULES.EquipmentElectricConsumption}-results-share-of-lab-total-comparison`]:
     {
       en: 'at EPFL in average Electrical Consumption represents {percentage}.',
@@ -210,29 +159,9 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Year-to-year Evolution',
     fr: "Évolution d'année en année",
   },
-  [`${MODULES.EquipmentElectricConsumption}-results-year-to-year-evolution-tooltip`]:
-    {
-      en: 'Change in electricity consumption compared to the previous year',
-      fr: "Évolution de la consommation électrique par rapport à l'année précédente",
-    },
   [`${MODULES.EquipmentElectricConsumption}-results-year-to-year-evolution-comparison`]:
     {
       en: 'Equivalent to {freezers} freezers a full year.',
       fr: 'Équivalent à {freezers} congélateurs pendant une année complète.',
-    },
-  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Scientific}-table-title-info-tooltip`]:
-    {
-      en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
-    },
-  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.IT}-table-title-info-tooltip`]:
-    {
-      en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
-    },
-  [`${MODULES.EquipmentElectricConsumption}-${SUBMODULE_EQUIPMENT_TYPES.Other}-table-title-info-tooltip`]:
-    {
-      en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
-      fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
     },
 } as const;

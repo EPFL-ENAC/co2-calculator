@@ -42,6 +42,8 @@ const baseModuleFields: ModuleField[] = [
   {
     ...nameField,
     placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-name',
   },
   {
     ...equipmentIdField,
@@ -56,7 +58,8 @@ const baseModuleFields: ModuleField[] = [
     required: true,
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.class`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-equipment_class',
     inputTypeName: 'QSelect',
     readOnly: false,
     editableInline: true,
@@ -74,7 +77,8 @@ const baseModuleFields: ModuleField[] = [
     min: 0,
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.subclass`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-sub_class',
     inputTypeName: 'QSelect',
     editableInline: true,
     readOnly: false,
@@ -94,7 +98,8 @@ const baseModuleFields: ModuleField[] = [
     unit: 'hrs/wk',
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.active_usage`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-active_usage_hours_per_week',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -112,7 +117,8 @@ const baseModuleFields: ModuleField[] = [
     unit: 'hrs/wk',
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.standby_usage`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-standby_usage_hours_per_week',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -128,7 +134,8 @@ const baseModuleFields: ModuleField[] = [
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.power`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-active_power_w',
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
@@ -147,7 +154,8 @@ const baseModuleFields: ModuleField[] = [
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.power`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-standby_power_w',
     readOnly: true,
     hideIn: {
       form: false,
@@ -166,7 +174,8 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.emission`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-kg_co2eq',
   },
   {
     id: 't_co2eq',
@@ -178,7 +187,8 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip: `${MODULES.EquipmentElectricConsumption}.tooltips.emission`,
+    tooltip:
+      'module-equipment-electric-consumption-submodule-scientific-table-t_co2eq',
   },
 ];
 
@@ -186,6 +196,7 @@ const otherModuleFields: ModuleField[] = [
   {
     ...nameField,
     placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`,
+    tooltip: 'module-equipment-electric-consumption-submodule-other-table-name',
   },
   ...baseModuleFields.slice(1),
 ];
@@ -195,6 +206,7 @@ const itmodulefields: ModuleField[] = [
   {
     ...nameField,
     placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`,
+    tooltip: 'module-equipment-electric-consumption-submodule-it-table-name',
   },
   ...baseModuleFields.slice(1).filter((field) => field.id !== 'sub_class'),
 ];
@@ -204,8 +216,6 @@ export const equipmentElectricConsumption: ModuleConfig = {
   type: MODULES.EquipmentElectricConsumption as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   threshold: {
     type: MODULES_THRESHOLD_TYPES[0], // fixed threshold; configurable via backoffice later
     value: 100, // kg CO₂-eq; implicit coloring only
@@ -227,7 +237,6 @@ export const equipmentElectricConsumption: ModuleConfig = {
         'equipment-electric-consumption-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
-      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-scientific-form-title-info-tooltip`,
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.IT,
@@ -236,7 +245,6 @@ export const equipmentElectricConsumption: ModuleConfig = {
       tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,
-      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-it-form-title-info-tooltip`,
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Other,
@@ -246,43 +254,39 @@ export const equipmentElectricConsumption: ModuleConfig = {
         'equipment-electric-consumption-other-equipment-table-title',
       count: 4,
       moduleFields: otherModuleFields,
-      hasFormTooltip: `${MODULES.EquipmentElectricConsumption}-other-form-title-info-tooltip`,
     },
   ],
   resultBigNumbers: [
     {
-      titleKey: 'equipment-electric-consumption-results-total-electricity-use',
+      titleKey: 'equipment-results-total-electricity-use',
       numberKey: 'total_electricity_use',
-      comparisonKey:
-        'equipment-electric-consumption-results-total-electricity-use-comparison',
+      comparisonKey: 'equipment-results-total-electricity-use-comparison',
       comparisonParams: { residents: "10'200" },
       comparisonHighlight: "10'200",
       color: 'negative',
       tooltipKey:
-        'equipment-electric-consumption-results-total-electricity-use-tooltip',
+        'results-equipment-electric-consumption-stats-total-electricity-use-title',
     },
     {
-      titleKey: 'equipment-electric-consumption-results-share-of-lab-total',
+      titleKey: 'equipment-results-share-of-lab-total',
       numberKey: 'share_of_lab_total',
-      unitKey: 'equipment-electric-consumption-results-share-of-lab-total-unit',
-      comparisonKey:
-        'equipment-electric-consumption-results-share-of-lab-total-comparison',
+      unitKey: 'equipment-results-share-of-lab-total-unit',
+      comparisonKey: 'equipment-results-share-of-lab-total-comparison',
       comparisonParams: { percentage: '28%' },
       comparisonHighlight: '28%',
       color: 'negative',
       tooltipKey:
-        'equipment-electric-consumption-results-share-of-lab-total-tooltip',
+        'results-equipment-electric-consumption-stats-share-of-lab-total-title',
     },
     {
-      titleKey: 'equipment-electric-consumption-results-year-to-year-evolution',
+      titleKey: 'equipment-results-year-to-year-evolution',
       numberKey: 'year_to_year_evolution',
-      comparisonKey:
-        'equipment-electric-consumption-results-year-to-year-evolution-comparison',
+      comparisonKey: 'equipment-results-year-to-year-evolution-comparison',
       comparisonParams: { freezers: '3' },
       comparisonHighlight: '3 freezers',
       color: 'positive',
       tooltipKey:
-        'equipment-electric-consumption-results-year-to-year-evolution-tooltip',
+        'results-equipment-electric-consumption-stats-year-to-year-evolution-title',
     },
   ],
 };

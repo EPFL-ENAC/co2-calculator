@@ -16,9 +16,7 @@
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
-          :aria-label="
-            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
-          "
+          :aria-label="$t('module-info-label')"
         >
           <q-tooltip
             v-if="hasTableTooltip"
@@ -26,7 +24,7 @@
             self="top right"
             class="u-tooltip"
           >
-            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -73,7 +71,6 @@
             :has-subtitle="submodule.hasFormSubtitle"
             :has-add-with-note="submodule.hasFormAddWithNote"
             :add-button-label-key="submodule.addButtonLabelKey"
-            :has-tooltip="submodule.hasFormTooltip"
             :unit-id="unitId"
             :year="year"
             :form-defaults="formDefaults"
@@ -100,9 +97,7 @@
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
-          :aria-label="
-            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
-          "
+          :aria-label="$t('module-info-label')"
         >
           <q-tooltip
             v-if="hasTableTooltip"
@@ -110,7 +105,7 @@
             self="top right"
             class="u-tooltip"
           >
-            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -143,7 +138,6 @@
           :has-subtitle="submodule.hasFormSubtitle"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
-          :has-tooltip="submodule.hasFormTooltip"
           :unit-id="unitId"
           :year="year"
           :form-defaults="formDefaults"
@@ -340,7 +334,7 @@ const item = computed(() => {
   }
   return null;
 });
-const { te, t } = useI18n();
+const { t } = useI18n();
 
 const hasModuleForm = computed(() => {
   return (
@@ -356,8 +350,9 @@ const showModuleForm = computed(
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
-  const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
-  return te(tooltipKey);
+  return (
+    t(`module-${props.moduleType}-submodule-${props.submodule.type}`) !== ''
+  );
 });
 
 // actions

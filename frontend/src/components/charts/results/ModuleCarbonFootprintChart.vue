@@ -1365,8 +1365,11 @@ const downloadCSV = () => {
     flat
     class="container container--pa-none full-width module-carbon-chart"
   >
-    <q-card-section class="flex justify-between items-center">
+    <q-card-section class="flex justify-between items-center q-pr-lg">
       <div class="flex items-center no-wrap">
+        <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
+          {{ props.title ?? $t('unit_carbon_footprint_title') }}
+        </span>
         <q-icon
           v-if="!isPrintMode"
           name="o_info"
@@ -1413,9 +1416,6 @@ const downloadCSV = () => {
             </div>
           </q-tooltip>
         </q-icon>
-        <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ props.title ?? $t('unit_carbon_footprint_title') }}
-        </span>
       </div>
 
       <div v-if="!isPrintMode">

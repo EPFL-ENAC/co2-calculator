@@ -1,4 +1,4 @@
-import { MODULES, SUBMODULE_BUILDINGS_TYPES } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   [MODULES.Buildings]: {
@@ -17,11 +17,6 @@ export default {
     en: ' ',
     fr: ' ',
   },
-  [`${MODULES.Buildings}-title-tooltip-title`]: {
-    en: 'Buildings Title Tooltip',
-    fr: 'Buildings Title Tooltip',
-  },
-
   // Rooms submodule
   [`${MODULES.Buildings}.rooms_table_title`]: {
     en: 'Room ({count}) | Rooms ({count})',
@@ -44,10 +39,6 @@ export default {
     fr: 'Ajouter un local',
   },
 
-  [`${MODULES.Buildings}-building-table-title-info-tooltip`]: {
-    en: 'Rooms surfaces are extracted from Archibus and energy consumption data per type of surface are provided by the VPO based on building-specific measurements.',
-    fr: "Les surfaces des locaux sont extraites d'Archibus et les données de consommation énergétique par type de surface sont fournies par la VPO sur la base de mesures spécifiques aux bâtiments EPFL.",
-  },
   [`${MODULES.Buildings}-energy_combustion-form-title`]: {
     en: 'Add a heating type',
     fr: 'Ajouter un type de chauffage',
@@ -130,32 +121,6 @@ export default {
     en: 'Lighting (kWh)',
     fr: 'Éclairage (kWh)',
   },
-  [`${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`]: {
-    en: 'Enter the sources of fossil or non-fossil energy combustion if they are not taken into account in the main module.',
-    fr: "Entrez les sources de combustion d'énergie fossiles ou non-fossiles si celles-ci ne sont pas prises en compte dans le module principal.",
-  },
-
-  // Rooms tooltips
-  [`${MODULES.Buildings}.tooltips.ratio`]: {
-    en: 'Ratio of the room surface allocated to the unit. Default is 1 (100%).',
-    fr: "Ratio de surface du local alloué à l'unité. Par défaut, 1 (100%).",
-  },
-  [`${MODULES.Buildings}.tooltips.heating`]: {
-    en: 'Annual heating energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie de chauffage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
-  },
-  [`${MODULES.Buildings}.tooltips.cooling`]: {
-    en: 'Annual cooling energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie de refroidissement calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
-  },
-  [`${MODULES.Buildings}.tooltips.ventilation`]: {
-    en: 'Annual ventilation energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie de ventilation calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
-  },
-  [`${MODULES.Buildings}.tooltips.lighting`]: {
-    en: 'Annual lighting energy consumption calculated from room surface and SIA room type benchmark (kWh/m²)',
-    fr: "Consommation annuelle d'énergie d'éclairage calculée à partir de la surface du local et du benchmark SIA par type de local (kWh/m²)",
-  },
 
   // Energy combustion submodule
   [`${MODULES.Buildings}-combustion`]: {
@@ -233,16 +198,6 @@ export default {
   [`${MODULES.Buildings}.work_in_progress`]: {
     en: 'work in progress, please validate to confirm your entries',
     fr: "en cours jusqu'à validation de vos entrées",
-  },
-  [`${MODULES.Buildings}-${SUBMODULE_BUILDINGS_TYPES.EnergyCombustion}-table-title-info-tooltip`]:
-    {
-      en: 'Buildings Energy Combustion Tooltip',
-      fr: 'Buildings Energy Combustion Tooltip',
-    },
-
-  [`${MODULES.Buildings}-title-tooltip-subtext`]: {
-    en: 'Buildings Title Tooltip',
-    fr: 'Buildings Title Tooltip',
   },
   'buildings-room-type-office': {
     en: 'Office',

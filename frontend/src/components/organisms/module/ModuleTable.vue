@@ -82,7 +82,7 @@
         >
           <span>{{ col.label }}</span>
           <q-icon
-            v-if="col.tooltip"
+            v-if="col.tooltip && $t(col.tooltip)"
             name="o_info"
             size="16px"
             color="grey-6"

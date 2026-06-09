@@ -21,6 +21,12 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/headcount.ts',
   },
   {
+    topic: t('documentation_editing_rows_buildings_topic'),
+    description: t('documentation_editing_rows_buildings_description'),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/buildings.ts',
+  },
+  {
     topic: t('documentation_editing_rows_professional_travel_topic'),
     description: t(
       'documentation_editing_rows_professional_travel_description',
@@ -28,12 +34,7 @@ const rows = computed(() => [
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/professional_travel.ts',
   },
-  {
-    topic: t('documentation_editing_rows_buildings_topic'),
-    description: t('documentation_editing_rows_buildings_description'),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/buildings.ts',
-  },
+
   {
     topic: t('documentation_editing_rows_equipment_electric_consumption_topic'),
     description: t(

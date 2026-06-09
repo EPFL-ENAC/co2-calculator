@@ -354,7 +354,7 @@ defineExpose({ downloadPNG });
           size="14px"
           color="grey-5"
           class="cursor-pointer q-ml-xs"
-          :aria-label="$t('it-focus-breakdown-bar-title-tooltip')"
+          :aria-label="$t('results-charts-it-focus-breakdown-title')"
         >
           <q-tooltip
             anchor="center right"
@@ -363,7 +363,7 @@ defineExpose({ downloadPNG });
             max-width="min(92vw, 48rem)"
             :offset="[8, 8]"
           >
-            {{ $t('it-focus-breakdown-bar-title-tooltip') }}
+            {{ $t('results-charts-it-focus-breakdown-title') }}
           </q-tooltip>
         </q-icon>
       </div>

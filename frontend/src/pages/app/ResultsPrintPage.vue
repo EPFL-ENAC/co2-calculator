@@ -179,7 +179,7 @@ onMounted(async () => {
             :print-mode="true"
           >
             <template v-if="hasCo2PerKmKg" #tooltip>{{
-              $t('results_total_unit_carbon_footprint_tooltip', {
+              $t('results-stats-total-unit-carbon-footprint-title', {
                 value: $nOrDash(co2PerKmKg, {
                   options: {
                     minimumFractionDigits: 1,
@@ -222,7 +222,7 @@ onMounted(async () => {
             :print-mode="true"
           >
             <template #tooltip>{{
-              $t('results_paris_agreement_tooltip')
+              $t('results-stats-paris-agreement-title')
             }}</template>
           </BigNumber>
         </div>

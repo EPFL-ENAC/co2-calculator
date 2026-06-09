@@ -136,7 +136,7 @@ function getTotalModuleCarbonFootprintTitle(): string {
             :print-mode="true"
           >
             <template #tooltip>{{
-              $t('results_paris_agreement_tooltip')
+              $t('results-stats-paris-agreement-title')
             }}</template>
           </BigNumber>
         </div>
