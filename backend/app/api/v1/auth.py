@@ -418,16 +418,6 @@ async def login_test(
         include_csrf_token=settings.CSRF_ENABLED,
     )
 
-    if settings.CSRF_ENABLED and csrf_token:
-        response.set_cookie(
-            key="csrf_token",
-            value=csrf_token,
-            httponly=False,
-            samesite=settings.CSRF_COOKIE_SAMESITE,
-            path=settings.OAUTH_COOKIE_PATH,
-            secure=settings.CSRF_COOKIE_SECURE,
-        )
-
     await _log_auth_audit_event(
         db=db,
         request=request,

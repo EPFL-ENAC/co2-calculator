@@ -90,7 +90,10 @@ async function ensureCsrfToken(): Promise<string | null> {
   try {
     return await fetchAndStoreCsrfToken();
   } catch (error) {
-    console.warn('CSRF bootstrap failed; processing without a CSRF token.', error);
+    console.warn(
+      'CSRF bootstrap failed; processing without a CSRF token.',
+      error,
+    );
     return null;
   }
 }
