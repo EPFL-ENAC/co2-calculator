@@ -88,7 +88,7 @@ def _global_role() -> Role:
 def _wire(monkeypatch, user, decision_fn):
     app.dependency_overrides[deps_module.get_current_user] = lambda: user
     monkeypatch.setattr(
-        "app.core.policy.get_module_permission_decision",
+        "app.api.v1.carbon_report_module.get_module_permission_decision",
         decision_fn,
     )
     mock_unit = MagicMock()
