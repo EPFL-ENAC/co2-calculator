@@ -44,13 +44,23 @@ class HeadCountStudentResponse(DataEntryResponseGen):
 class HeadCountCreate(DataEntryCreate):
     name: str
     sius_code: str
-    fte: Optional[float] = None
     user_institutional_id: str
+    fte: float
     note: Optional[str] = None
+
+    @field_validator("name", mode="after")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Name cannot be empty")
+        return v.strip()
 
     @field_validator("user_institutional_id", mode="before")
     @classmethod
     def validate_user_institutional_id(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("User institutional ID cannot be empty")
+        # doc says numbers only but user can use letters as well (test-412424 e.g)
         return v.strip()
 
     @field_validator("fte", mode="after")

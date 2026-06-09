@@ -312,7 +312,8 @@ def build_headcount() -> dict:
     return {
         "name": fake.name(),
         "sius_code": random.choice(sorted(SIUS_CODE_VALUES)),  # nosec B311
-        "fte": maybe(round(random.uniform(0.1, 1.0), 2)),  # nosec B311
+        # fte is required (non-Optional) on the create DTO, 0 <= fte <= 1.
+        "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
         # user_institutional_id is required (non-Optional) on the create DTO.
         "user_institutional_id": _user_institutional_id(),
         "note": maybe(fake.sentence(nb_words=6)),
