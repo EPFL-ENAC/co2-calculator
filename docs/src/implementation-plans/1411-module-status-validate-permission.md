@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: delivered
 issue: 1411
 ---
 
@@ -65,12 +65,12 @@ add a second enforcement check.
 
 ### Frontend — consolidate to two files
 
-- **`src/utils/permission.ts` (pure leaf):** keep the existing predicates
+- **`src/utils/permission.ts` (pure leaf):** keep the predicates
   (`hasPermission`, `hasAnyScopePermission`, `hasBackOfficeAreaPermission`,
-  `hasUnitScopePermission`, `getModulePermissionPath`). Fold in from the
-  deleted `constant/permissions.ts`: the `PermissionAction` enum and the
-  `FlatUserPermissions` / `ModulePermissions` types. Add a constant
-  `MODULE_STATUS_PERMISSION = 'module.status'`. No store/http/i18n imports.
+  `getModulePermissionPath`). Fold in from the deleted `constant/permissions.ts`:
+  the `PermissionAction` enum and the `FlatUserPermissions` / `ModulePermissions`
+  types. Add a constant `MODULE_STATUS_PERMISSION = 'module.status'`. No
+  store/http/i18n imports.
 - **Delete `src/constant/permissions.ts`.** Update every importer of
   `PermissionAction` (Co2Header, Co2Sidebar, ModuleTable, SubModuleSection,
   HeadcountMemberSelect, HomePage, routes.ts, permissionGuard.ts) to import it
@@ -127,6 +127,13 @@ export function permissionGuard(to): NavigationGuardReturn {
 `src/router/routes.ts`: module route (~L178) `beforeEnter: [permissionGuard, moduleEnabledGuard()]` + add `moduleEdit: true` to its `meta`. All back-office `beforeEnter: requireMetaPermission` → `permissionGuard`.
 
 `src/router/guards/authGuard.ts`: delete the `meta.roles` block (lines ~39-48) — dead and role-based.
+
+### Frontend — dead code removed (review pass)
+
+The `module.status` approach supersedes scope-inference, so the now-orphaned
+`hasUserUnitScopePermission` (store) and `hasUnitScopePermission` (leaf) — zero
+production consumers — plus their 4 unit tests were removed. This reinforces the
+"dedicated key, never infer breadth on the frontend" rule.
 
 ## Tests (regression)
 

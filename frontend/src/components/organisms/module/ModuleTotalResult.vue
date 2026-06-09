@@ -54,7 +54,7 @@
       </div>
 
       <!-- value area — fixed height, stable layout -->
-      <div class="mtr-sidebar__value-area">
+      <div v-if="canValidate" class="mtr-sidebar__value-area">
         <template v-if="isValidated">
           <div
             class="mtr-sidebar__value"
@@ -66,7 +66,7 @@
             {{ $t('module_total_result_title_unit', { type }) }}
           </span>
         </template>
-        <template v-else>
+        <template v-else-if="canValidate">
           <span class="mtr-sidebar__placeholder">
             {{ $t('module_total_result_placeholder') }}
           </span>
