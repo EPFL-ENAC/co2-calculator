@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { timelineItems } from 'src/constant/timelineItems';
 import { MODULES, type Module } from 'src/constant/modules';

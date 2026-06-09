@@ -8,7 +8,7 @@ import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import type { Module } from 'src/constant/modules';
 import { useTimelineStore } from 'src/stores/modules';
 import { useModuleStore } from 'src/stores/modules';

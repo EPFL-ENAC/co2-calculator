@@ -4,12 +4,9 @@ import { i18n } from 'src/boot/i18n';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
-import {
-  requireMetaPermission,
-  requireModuleEditPermission,
-} from './guards/permissionGuard';
+import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -175,12 +172,10 @@ const routes: RouteRecordRaw[] = [
                 path: `:module(${MODULES_PATTERN})`,
                 name: 'module',
                 component: () => import('pages/app/ModulePage.vue'),
-                beforeEnter: [
-                  requireModuleEditPermission(),
-                  moduleEnabledGuard(),
-                ],
+                beforeEnter: [permissionGuard, moduleEnabledGuard()],
                 meta: {
                   requiresAuth: true,
+                  moduleEdit: true,
                   note: 'Module - data entry (edit permission required)',
                   breadcrumb: false,
                 },
@@ -239,7 +234,7 @@ const routes: RouteRecordRaw[] = [
           },
           // Back Office routes.
           // ``meta.requiredPermission`` (+ ``requiredAction``) is the single
-          // source of truth for each page's gate: ``requireMetaPermission``
+          // source of truth for each page's gate: ``permissionGuard``
           // enforces it and ``Co2Sidebar`` reads the same meta to decide
           // reachability, so router and nav can never drift.
           {
@@ -248,7 +243,7 @@ const routes: RouteRecordRaw[] = [
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.reporting',
               requiredAction: PermissionAction.VIEW,
@@ -258,7 +253,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.users',
               requiredAction: PermissionAction.EDIT,
@@ -272,7 +267,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.configuration',
               requiredAction: PermissionAction.EDIT,
@@ -287,7 +282,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_PIPELINE_OPERATIONS.routeName,
             component: () =>
               import('pages/back-office/PipelineOperationsConsolePage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.pipeline_operations',
               requiredAction: PermissionAction.VIEW,
@@ -302,7 +297,7 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.documentation',
               requiredAction: PermissionAction.VIEW,
@@ -316,7 +311,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.reporting',
               requiredAction: PermissionAction.VIEW,
@@ -330,7 +325,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/ui-texts-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
             component: () => import('pages/back-office/UITextsEditingPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.ui_texts',
               requiredAction: PermissionAction.VIEW,
@@ -344,7 +339,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/logs',
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.logs',
               requiredAction: PermissionAction.VIEW,
@@ -358,7 +353,7 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
-            beforeEnter: requireMetaPermission,
+            beforeEnter: permissionGuard,
             meta: {
               requiredPermission: 'backoffice.documentation',
               requiredAction: PermissionAction.VIEW,

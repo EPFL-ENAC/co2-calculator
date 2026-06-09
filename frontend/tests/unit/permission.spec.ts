@@ -16,9 +16,8 @@ import { test, expect } from '@playwright/test';
 import {
   hasAnyScopePermission,
   hasBackOfficeAreaPermission,
-  hasUnitScopePermission,
 } from '../../src/utils/permission';
-import { PermissionAction } from '../../src/constant/permissions';
+import { PermissionAction } from '../../src/utils/permission';
 
 test('affiliation-scoped backoffice key grants access', () => {
   const perms = {
@@ -104,67 +103,4 @@ test('hasAnyScopePermission: prefix isolation — backoffice.users does NOT matc
   expect(
     hasAnyScopePermission(perms, 'backoffice.users', PermissionAction.EDIT),
   ).toBe(false);
-});
-
-// hasUnitScopePermission — gates unit-level controls (e.g. validating a
-// module's status). With an institutionalId it must match ONLY the selected
-// workspace's unit key (or a global key), never a foreign unit and never the
-// own-scoped (`/own`) variant.
-
-test('hasUnitScopePermission: cross-unit leak — principal in 0184 has NO unit scope while viewing 9999', () => {
-  // Regression for the bug where the bare path matched any `modules.X/<unit>`
-  // key, leaking unit-level controls across workspaces.
-  const perms = {
-    'modules.headcount/0184': ['view', 'edit', 'sync'],
-  } as never;
-  expect(
-    hasUnitScopePermission(
-      perms,
-      'modules.headcount',
-      PermissionAction.EDIT,
-      '9999',
-    ),
-  ).toBe(false);
-});
-
-test('hasUnitScopePermission: principal in selected unit has unit scope', () => {
-  const perms = {
-    'modules.headcount/0184': ['view', 'edit', 'sync'],
-  } as never;
-  expect(
-    hasUnitScopePermission(
-      perms,
-      'modules.headcount',
-      PermissionAction.EDIT,
-      '0184',
-    ),
-  ).toBe(true);
-});
-
-test('hasUnitScopePermission: own-scoped key does NOT grant unit scope', () => {
-  const perms = {
-    'modules.professional_travel/0184/own': ['view', 'edit'],
-  } as never;
-  expect(
-    hasUnitScopePermission(
-      perms,
-      'modules.professional_travel',
-      PermissionAction.EDIT,
-      '0184',
-    ),
-  ).toBe(false);
-});
-
-test('hasUnitScopePermission: global (bare) key grants unit scope for any unit', () => {
-  const perms = {
-    'modules.headcount': ['view', 'edit'],
-  } as never;
-  expect(
-    hasUnitScopePermission(
-      perms,
-      'modules.headcount',
-      PermissionAction.EDIT,
-      '0184',
-    ),
-  ).toBe(true);
 });

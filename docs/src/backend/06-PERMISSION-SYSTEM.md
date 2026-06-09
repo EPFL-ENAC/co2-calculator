@@ -73,15 +73,31 @@ Enforced at (route and service consumers): `app/api/v1/{audit,auth,carbon_report
 
 ### Frontend
 
-Core:
+The frontend checks **permissions only, never roles**. All permission logic
+lives in two files plus one router guard — consumers always call the auth store:
 
-- `src/constant/permissions.ts` — permission types/enums mirroring the backend keys.
-- `src/utils/permission.ts` — `hasPermission()`, `hasAnyScopePermission()`, `hasBackOfficeAreaPermission()`.
-- `src/stores/auth.ts` — session store; exposes `permissions` and check helpers.
-- `src/router/guards/permissionGuard.ts` — `requirePermission()`, `requireMetaPermission()`, `requireModuleEditPermission()`.
-- `src/router/routes.ts` — each back-office route declares its gate in `meta.requiredPermission` / `meta.requiredAction`. This is the **single source of truth**: `requireMetaPermission` enforces it on navigation, and `Co2Sidebar` resolves the route by name to read the same meta when deciding which menu items are reachable — so the router and the nav can never drift. (Replaced the old `superAdminOnly` / `limitedAccess` role flags on `NavItem`, which duplicated and contradicted the route gates.)
+- `src/utils/permission.ts` — store-free **leaf**: the `PermissionAction` enum,
+  the `FlatUserPermissions` types, the `MODULE_STATUS_PERMISSION` constant, and
+  the pure predicates `hasPermission()`, `hasAnyScopePermission()`,
+  `hasBackOfficeAreaPermission()`, `getModulePermissionPath()`. No store
+  imports, so it stays importable by pure unit tests.
+- `src/stores/auth.ts` — **the single entry point** every consumer calls. Holds
+  the session `user`/`permissions` and the stateful helpers `hasUserPermission`,
+  `hasUserModulePermission`, `hasUserCanValidateModuleStatus`,
+  `canUserAccessModule`, `hasUserBackOfficeAreaPermission`,
+  `hasUserAnyScopePermission`; re-exports `PermissionAction` so callers import
+  everything from here.
+- `src/router/guards/permissionGuard.ts` — one `permissionGuard` for
+  `beforeEnter`: module routes (`meta.moduleEdit`) need workspace-scoped
+  view+edit on the route's module; back-office routes declare
+  `meta.requiredPermission` (+ optional `meta.requiredAction`), checked
+  any-scope.
+- `src/router/routes.ts` — `meta.requiredPermission` / `meta.requiredAction`
+  (back-office) and `meta.moduleEdit` (module pages) are the **single source of
+  truth**: `permissionGuard` enforces them and `Co2Sidebar` reads the same meta
+  to decide reachability, so router and nav can never drift.
 
-Consumers (gated UI): `src/pages/ErrorUnauthorized.vue`, `src/components/layout/{Co2Sidebar,Co2Header}.vue`, `src/components/organisms/layout/Co2ModuleSidebar.vue`, `src/components/organisms/module/{ModuleTable,SubModuleSection,HeadcountMemberSelect}.vue`.
+Consumers (gated UI): `src/pages/ErrorUnauthorized.vue`, `src/components/layout/{Co2Sidebar,Co2Header}.vue`, `src/components/organisms/layout/Co2ModuleSidebar.vue`, `src/components/organisms/module/{ModuleTable,SubModuleSection,HeadcountMemberSelect,ModuleTotalResult}.vue`.
 
 ## The three authorization layers
 
@@ -123,6 +139,10 @@ Permissions use dot-notation paths combined with an action:
   Module paths carry an explicit scope suffix: `/<institutional_id>` for
   unit-scoped grants (principal) or `/<institutional_id>/own` for own-scoped
   grants (standard user). See [Explicit RoleScope](../implementation-plans/role-scope-explicit-own-unit.md).
+  Custom **affordance** keys gate a specific UI control rather than a data
+  domain — e.g. `module.status/<institutional_id>` gates the module-status
+  validate button, granted to unit-breadth users (principal) only. Prefer a
+  dedicated key over inferring breadth on the frontend.
 - **Actions**: `view` (read), `edit` (create/update/delete), `export` (data
   export), `sync` (trigger imports — granted on every `modules.*` for
   principals, and the backoffice global sync via `backoffice.configuration`).
@@ -199,7 +219,10 @@ key:
 > require **unit** breadth — principal or global. A standard user (own breadth)
 > is rejected even though they may `edit` their own records, because their key
 > is `modules.X/<unit>/own`, not `modules.X/<unit>`. This is enforced by
-> `resolve_module_scope` / `require_module_unit_scope`.
+> `resolve_module_scope` / `require_module_unit_scope`. The frontend mirrors
+> this for UX by gating the validate button on the dedicated
+> `module.status/<cf>` affordance (granted to principals only); the PATCH stays
+> the source of truth.
 
 ### Scope summary
 
@@ -244,6 +267,7 @@ resolved to a unit subtree at query time).
     "backoffice.pipeline_operations": ["view", "edit"],
     "backoffice.logs": ["view"],
     "modules.headcount/0184": ["view", "edit", "sync"],
+    "module.status/0184": ["edit"],
     "modules.professional_travel/0184/own": ["view", "edit"]
   }
 }
@@ -400,16 +424,20 @@ in [Resource-level policy](#resource-level-policy).
 
 ### 5. Update the frontend
 
+Call the auth store — the single entry point. Never check roles.
+
 ```typescript
-const canEdit = hasPermission(
-  permissions,
+const canEdit = authStore.hasUserPermission(
   "backoffice.your_new_resource",
-  "edit",
+  PermissionAction.EDIT,
 );
 ```
 
-Use it for conditional rendering or to disable buttons. Backend
-`require_permission` remains the source of truth — frontend gating is UX only.
+For a custom affordance key, add a `MODULE_*_PERMISSION` constant and a named
+helper (e.g. `hasUserCanValidateModuleStatus`) so call sites read intent, not a
+raw key string. Use the result for conditional rendering or to disable buttons.
+Backend `require_permission` remains the source of truth — frontend gating is
+UX only.
 
 ### 6. Test and ship
 
