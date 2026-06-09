@@ -1003,6 +1003,15 @@ async def delete_session(
     )
 
     if settings.CSRF_ENABLED:
+        response.set_cookie(
+            key="csrf_token",
+            value="",
+            httponly=False,
+            max_age=0,
+            path=settings.OAUTH_COOKIE_PATH,
+            samesite=settings.CSRF_COOKIE_SAMESITE,
+            secure=settings.CSRF_COOKIE_SECURE,
+        )
         csrf_protect = CsrfProtect()
         csrf_protect.unset_csrf_cookie(response)
 
