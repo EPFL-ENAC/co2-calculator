@@ -222,7 +222,13 @@ def build_train_travel() -> dict:
     return {
         "user_institutional_id": _user_institutional_id(),
         "origin_name": fake.city(),
+        # origin/destination_country_code are required (ISO-2) on the
+        # create DTO — the CSV resolver uses them to disambiguate stations.
+        "origin_country_code": random.choice(["CH", "FR", "DE", "IT"]),  # nosec B311
         "destination_name": fake.city(),
+        "destination_country_code": random.choice(  # nosec B311
+            ["CH", "FR", "DE", "IT"]
+        ),
         "cabin_class": random.choice(["first", "second"]),  # nosec B311
         "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
