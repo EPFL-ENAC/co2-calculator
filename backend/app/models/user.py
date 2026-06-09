@@ -249,6 +249,15 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                         "sync",
                     ],
                 )
+                # Unit-level affordance: validating a module's status. The
+                # frontend gates the sidebar validate button on this key;
+                # standard (own) users never receive it, so the button is
+                # hidden for them. Backend PATCH stays enforced by
+                # ``require_module_unit_scope``.
+                permissions[f"module.status{scope_key}"] = merge_actions(
+                    permissions.get(f"module.status{scope_key}"),
+                    ["edit"],
+                )
 
         elif role_name == RoleName.CO2_USER_STD.value:
             # Standard user is own-scoped: own records only. The "/<unit>/own"

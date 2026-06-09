@@ -30,7 +30,7 @@ stateDiagram-v2
     Home --> ConsolidatedResults: open Results
     Home --> Simulations: open Simulations
 
-    ModuleEntry: ModulePage (requireModuleEditPermission)
+    ModuleEntry: ModulePage (permissionGuard, meta.moduleEdit)
     ModuleEntry --> ModuleEntry: edit activity rows
     ModuleEntry --> ModuleResults: review module
     ModuleResults: ModuleResultsPage
@@ -52,8 +52,9 @@ stateDiagram-v2
 Key gates:
 
 - `validateUnitGuard` rejects unknown units in the URL.
-- `requireModuleEditPermission()` blocks read-only users from `ModulePage`
-  while still letting them open `ModuleResultsPage` and `ResultsPage`.
+- `permissionGuard` (via `meta.moduleEdit`) blocks read-only users from
+  `ModulePage` while still letting them open `ModuleResultsPage` and
+  `ResultsPage`.
 - The `workspace` Pinia store holds the selected `(unit, year)` and survives
   page reloads via `pinia-plugin-persistedstate`.
 
@@ -100,9 +101,9 @@ stateDiagram-v2
 
 Key gates:
 
-- Most back-office routes use `requirePermission('backoffice.users', …)`;
-  the audit logs route is the exception (`LogsPage` uses
-  `system.users:edit`, see `frontend/src/router/routes.ts:265-278`).
+- Back-office routes declare `meta.requiredPermission` (one key per page, e.g.
+  `backoffice.users`, `backoffice.logs`) enforced by `permissionGuard`; see
+  `frontend/src/router/routes.ts`.
 - The audit drawer (`AuditDetailDrawer.vue`) reads from
   `components/audit/*` and the `backofficeDataManagement` store.
 - `UITextsEditingPage` and `DocumentationEditingPage` write changes by

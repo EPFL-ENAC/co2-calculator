@@ -91,6 +91,10 @@ class TestCalculateUserPermissions:
         assert "edit" in result["modules.research_facilities/10208"]
         assert "view" in result["modules.external_cloud_and_ai/10208"]
         assert "edit" in result["modules.external_cloud_and_ai/10208"]
+        # Unit-breadth users may validate a module's status: the
+        # ``module.status/<cf>`` affordance gates the sidebar validate button
+        # (frontend) — standard (own) users never receive it.
+        assert "edit" in result["module.status/10208"]
         # Principal is a unit role only — no backoffice.* grants. Backoffice
         # access requires CO2_BACKOFFICE_METIER (or CO2_SUPERADMIN).
         assert not any(key.startswith("backoffice.") for key in result), (
@@ -117,6 +121,9 @@ class TestCalculateUserPermissions:
         assert "modules.external_cloud_and_ai/10208/own" in result
         assert "view" in result["modules.external_cloud_and_ai/10208/own"]
         assert "edit" in result["modules.external_cloud_and_ai/10208/own"]
+        # Validating a module's status is a unit-level operation: a standard
+        # (own) user must never receive the ``module.status`` affordance.
+        assert not any(key.startswith("module.status") for key in result)
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
@@ -454,9 +461,10 @@ class TestRoleDomainIsolation:
             pytest.param(_r_std(_IID_A), ("modules.",), id="std"),
             pytest.param(
                 _r_principal(_IID_A),
-                # Principal is a unit-area role: only modules.* keys.
+                # Principal is a unit-area role: modules.* data keys plus the
+                # module.status validate-button affordance (both unit-scoped).
                 # (backoffice.users.edit was removed in #459 Phase 2.)
-                ("modules.",),
+                ("modules.", "module.status"),
                 id="principal",
             ),
             pytest.param(_r_backoffice(), ("backoffice.",), id="backoffice"),

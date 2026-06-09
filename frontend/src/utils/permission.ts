@@ -4,12 +4,60 @@
  * These utilities work with the flat permission structure returned by the backend.
  * They provide type-safe, null-safe ways to check user permissions.
  *
- * @see {@link ../constant/permissions | Permission types}
+ * Permission types/enums (mirroring the backend keys) live here too, so this
+ * stays a store-free leaf importable by pure unit tests.
  */
 
-import type { FlatUserPermissions } from 'src/constant/permissions';
-import { PermissionAction } from 'src/constant/permissions';
 import { MODULES, type Module } from 'src/constant/modules';
+
+/** Actions that can be performed on a permission resource. */
+export enum PermissionAction {
+  /** View/read access. */
+  VIEW = 'view',
+  /** Edit/write access (create/update/delete, and the validate affordance). */
+  EDIT = 'edit',
+  /** Export/download access. */
+  EXPORT = 'export',
+}
+
+/** Allowed actions on a single resource, as returned by the backend. */
+export interface ModulePermissions {
+  view?: boolean;
+  edit?: boolean;
+  export?: boolean;
+}
+
+/**
+ * Flat permissions dict as returned by `GET /session`: dot-notation keys with
+ * an action list as value. Module keys carry an explicit scope suffix
+ * (`modules.X/<unit>` or `modules.X/<unit>/own`); the index signature covers
+ * those plus custom affordances like `module.status/<cf>`.
+ */
+export interface FlatUserPermissions {
+  'backoffice.reporting'?: ModulePermissions;
+  'backoffice.users'?: ModulePermissions;
+  'backoffice.documentation'?: ModulePermissions;
+  'backoffice.ui_texts'?: ModulePermissions;
+  'backoffice.configuration'?: ModulePermissions;
+  'backoffice.pipeline_operations'?: ModulePermissions;
+  'backoffice.logs'?: ModulePermissions;
+  'modules.headcount'?: ModulePermissions;
+  'modules.equipment'?: ModulePermissions;
+  'modules.professional_travel'?: ModulePermissions;
+  'modules.buildings'?: ModulePermissions;
+  'modules.purchase'?: ModulePermissions;
+  'modules.research_facilities'?: ModulePermissions;
+  'modules.external_cloud_and_ai'?: ModulePermissions;
+  'modules.process_emissions'?: ModulePermissions;
+  [key: string]: ModulePermissions | undefined;
+}
+
+/**
+ * Custom affordance permission gating the module-status validate button.
+ * Emitted as `module.status/<cf>` (cost center) to unit-breadth users only;
+ * standard (own) users never receive it, so the button is hidden for them.
+ */
+export const MODULE_STATUS_PERMISSION = 'module.status';
 
 /**
  * Check if a user has a specific permission.
@@ -133,48 +181,6 @@ export function hasBackOfficeAreaPermission(
   }
   for (const [key, actions] of Object.entries(permissions)) {
     if (!key.startsWith('backoffice.')) continue;
-    if (Array.isArray(actions) && actions.includes(action)) return true;
-  }
-  return false;
-}
-
-/**
- * Check if the user has UNIT-level (or global) breadth on `path`.
- *
- * Matches a bare `path` key (global / super admin) or a unit-scoped
- * `path/<unit>` key (principal), but NOT the own-scoped `path/<unit>/own`
- * key (standard user). Mirrors the backend `resolve_module_scope` returning
- * `"unit"`/`"global"` (see `backend/app/utils/permissions.py`). Use this to
- * gate unit-level controls — e.g. validating a module's status — which a
- * standard user must not see even though they can edit their own records.
- *
- * Pass `institutionalId` to restrict the unit match to that specific unit
- * (`path/<institutionalId>`); without it, any unit-scoped key matches.
- */
-export function hasUnitScopePermission(
-  permissions: FlatUserPermissions | null | undefined,
-  path: string,
-  action: PermissionAction = PermissionAction.VIEW,
-  institutionalId?: string,
-): boolean {
-  if (
-    !permissions ||
-    typeof permissions !== 'object' ||
-    Array.isArray(permissions)
-  ) {
-    return false;
-  }
-  if (!path || typeof path !== 'string' || path.trim().length === 0) {
-    return false;
-  }
-  const scopePrefix = `${path}/`;
-  const unitKey = institutionalId ? `${path}/${institutionalId}` : null;
-  for (const [key, actions] of Object.entries(permissions)) {
-    const isGlobal = key === path;
-    const isUnit = unitKey
-      ? key === unitKey
-      : key.startsWith(scopePrefix) && !key.endsWith('/own');
-    if (!isGlobal && !isUnit) continue;
     if (Array.isArray(actions) && actions.includes(action)) return true;
   }
   return false;

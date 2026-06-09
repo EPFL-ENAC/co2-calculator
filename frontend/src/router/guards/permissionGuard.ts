@@ -1,115 +1,49 @@
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore, PermissionAction } from 'src/stores/auth';
 import type {
   RouteLocationNormalized,
   NavigationGuardReturn,
 } from 'vue-router';
-import { PermissionAction } from 'src/constant/permissions';
 import type { Module } from 'src/constant/modules';
 
 /**
- * Create a route guard that requires a specific permission under ANY scope.
+ * Single permission guard for route `beforeEnter`.
  *
- * Accepts the bare path (`backoffice.users`) OR any scoped variant
- * (`backoffice.users/ENAC-SG`, `backoffice.users/0184`). This is the
- * right shape for back-office and system routes — affiliation-scoped
- * users and unit-scoped users both pass. Module routes use
- * `requireModuleEditPermission` instead (workspace-scoped).
- *
- * @param path - The permission path (e.g., 'backoffice.users')
- * @param action - The action to check (defaults to 'view')
- * @returns A navigation guard function compatible with Vue Router's `beforeEnter`
+ * - Module routes (`meta.moduleEdit`) require workspace-scoped view AND edit on
+ *   the route's `:module` param (data entry needs edit breadth).
+ * - Back-office routes declare `meta.requiredPermission` (+ optional
+ *   `meta.requiredAction`, default view), checked any-scope so affiliation- and
+ *   unit-suffixed keys match. `meta.requiredPermission` is the single source of
+ *   truth: `Co2Sidebar` reads the same meta for reachability, so router and nav
+ *   can never drift. Routes with neither flag are not gated here.
  */
-export function requirePermission(
-  path: string,
-  action: PermissionAction = PermissionAction.VIEW,
-) {
-  return (): NavigationGuardReturn => {
-    // Lighthouse CI bypass: allow all routes regardless of permissions.
-    if (window.__LIGHTHOUSE_BYPASS__) return true;
-
-    const authStore = useAuthStore();
-    if (authStore.hasUserAnyScopePermission(path, action)) {
-      return true;
-    }
-    console.warn(
-      `[permissionGuard] denied: '${path}' (${action}); redirecting to unauthorized`,
-    );
-    return { name: 'unauthorized' };
-  };
-}
-
-/**
- * Route guard that reads the required permission from the route's own `meta`.
- *
- * `meta.requiredPermission` (+ optional `meta.requiredAction`, default view) is
- * the SINGLE SOURCE OF TRUTH for a page's gate: the router enforces it here and
- * the back-office sidebar reads the same meta to decide reachability, so they
- * can never drift. Routes without `requiredPermission` are not gated by this.
- * Checked any-scope, so affiliation-suffixed keys (`backoffice.reporting/<cf>`)
- * match too.
- */
-export function requireMetaPermission(
+export function permissionGuard(
   to: RouteLocationNormalized,
 ): NavigationGuardReturn {
+  // Lighthouse CI bypass: allow all routes regardless of permissions.
   if (window.__LIGHTHOUSE_BYPASS__) return true;
+
+  const authStore = useAuthStore();
+
+  if (to.meta.moduleEdit) {
+    const module = to.params.module as Module;
+    if (
+      !authStore.hasUserModulePermission(module, PermissionAction.VIEW) ||
+      !authStore.hasUserModulePermission(module, PermissionAction.EDIT)
+    ) {
+      return { name: 'unauthorized' };
+    }
+    return true;
+  }
 
   const path = to.meta.requiredPermission as string | undefined;
   if (!path) return true;
   const action =
     (to.meta.requiredAction as PermissionAction | undefined) ??
     PermissionAction.VIEW;
+  if (authStore.hasUserAnyScopePermission(path, action)) return true;
 
-  const authStore = useAuthStore();
-  if (authStore.hasUserAnyScopePermission(path, action)) {
-    return true;
-  }
   console.warn(
     `[permissionGuard] denied: '${path}' (${action}); redirecting to unauthorized`,
   );
   return { name: 'unauthorized' };
-}
-
-/**
- * Route guard that requires edit permission for the module in the route.
- * Standard users without view permission will be blocked entirely.
- * Standard users with view but not edit permission will be redirected to unauthorized.
- *
- * Exception: professional-travel module allows view permission (read-only access for API data).
- *
- * This guard checks the module parameter from the route and verifies:
- * 1. That the user has view permission (if module is protected)
- * 2. That the user has edit permission (required for data entry, except professional-travel)
- */
-export function requireModuleEditPermission() {
-  return (to: RouteLocationNormalized): NavigationGuardReturn => {
-    // Lighthouse CI bypass: allow all module routes regardless of permissions.
-    if (window.__LIGHTHOUSE_BYPASS__) return true;
-
-    const authStore = useAuthStore();
-    const module = to.params.module as Module;
-
-    // First check if user has view permission (standard users without view should be blocked)
-    const hasViewPermission = authStore.hasUserModulePermission(
-      module,
-      PermissionAction.VIEW,
-    );
-
-    if (!hasViewPermission) {
-      // User doesn't have view permission - block access entirely
-      return { name: 'unauthorized' };
-    }
-
-    // Check if user has edit permission (required for data entry for other modules)
-    const hasEditPermission = authStore.hasUserModulePermission(
-      module,
-      PermissionAction.EDIT,
-    );
-
-    if (hasEditPermission) {
-      return true;
-    } else {
-      // User has view but not edit - redirect to unauthorized
-      return { name: 'unauthorized' };
-    }
-  };
 }

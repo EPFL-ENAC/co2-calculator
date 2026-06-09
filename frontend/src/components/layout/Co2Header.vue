@@ -8,7 +8,7 @@ import { useColorblindStore } from 'src/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
 import { isBackOfficeRoute } from 'src/router/routes';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 
 const authStore = useAuthStore();
 const router = useRouter();

@@ -23,6 +23,7 @@
         </span>
       </template>
       <q-btn
+        v-if="canValidate"
         :icon="toggleIcon"
         unelevated
         no-caps
@@ -74,6 +75,7 @@
 
       <!-- action button -->
       <q-btn
+        v-if="canValidate"
         :icon="toggleIcon"
         :label="validationShortActionLabel"
         unelevated
@@ -125,7 +127,7 @@
           </div>
         </template>
       </div>
-      <div class="module-total-result__button">
+      <div v-if="canValidate" class="module-total-result__button">
         <q-btn
           :outline="isValidated"
           :label="validationLabel"
@@ -145,6 +147,7 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTimelineStore } from 'src/stores/modules';
+import { useAuthStore } from 'src/stores/auth';
 import { Module } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import { MODULE_STATES } from 'src/constant/moduleStates';
@@ -159,7 +162,12 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
+const authStore = useAuthStore();
 const moduleColors = computed(() => getModuleIconColors(props.type));
+
+// Validating a module's status is a unit-level action: hide the button from
+// standard (own-scope) users, who never hold the `module.status` permission.
+const canValidate = computed(() => authStore.hasUserCanValidateModuleStatus());
 
 const isValidated = computed(
   () => timelineStore.itemStates[props.type] === MODULE_STATES.Validated,
