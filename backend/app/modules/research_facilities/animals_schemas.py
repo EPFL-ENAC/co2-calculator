@@ -39,11 +39,11 @@ class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
 
 
 class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    researchfacility_type: Optional[str] = None
-    use: Optional[float] = None
-    use_unit: Optional[str] = None
+    researchfacility_id: str
+    researchfacility_name: str
+    researchfacility_type: str
+    use: float
+    use_unit: str
     note: Optional[str] = None
 
 
@@ -190,23 +190,23 @@ research_facilities_animal_value_fields: list[str] = [
 
 
 class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    researchfacility_type: Optional[str] = None
-    use_unit: Optional[str] = None
-    processemissions_share: Optional[float] = None
-    building_energycombustions_share: Optional[float] = None
-    building_rooms_share: Optional[float] = None
-    purchases_common_share: Optional[float] = None
-    purchases_additional_share: Optional[float] = None
-    equipments_share: Optional[float] = None
+    researchfacility_id: str
+    researchfacility_name: str
+    researchfacility_type: str
+    use_unit: str
+    processemissions_share: float
+    building_energycombustions_share: float
+    building_rooms_share: float
+    purchases_common_share: float
+    purchases_additional_share: float
+    equipments_share: float
     kg_co2eq_sum_processemissions: Optional[float] = None
     kg_co2eq_sum_building_energycombustions: Optional[float] = None
     kg_co2eq_sum_building_rooms: Optional[float] = None
     kg_co2eq_sum_purchases_common: Optional[float] = None
     kg_co2eq_sum_purchases_additional: Optional[float] = None
     kg_co2eq_sum_equipments: Optional[float] = None
-    total_use: Optional[float] = None
+    total_use: float
 
     @field_validator("researchfacility_id", mode="before")
     @classmethod
@@ -232,11 +232,24 @@ class ResearchFacilitiesAnimalFactorCreate(FactorCreate):
         mode="after",
     )
     @classmethod
-    def validate_share(cls, v: Optional[float]) -> Optional[float]:
-        if v is None:
-            return v
+    def validate_share(cls, v: float) -> float:
         if v < 0 or v > 1:
             raise ValueError("Share values must be between 0 and 1")
+        return v
+
+    @field_validator(
+        "kg_co2eq_sum_processemissions",
+        "kg_co2eq_sum_building_energycombustions",
+        "kg_co2eq_sum_building_rooms",
+        "kg_co2eq_sum_purchases_common",
+        "kg_co2eq_sum_purchases_additional",
+        "kg_co2eq_sum_equipments",
+        mode="after",
+    )
+    @classmethod
+    def validate_kg_co2eq_sum(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("kg_co2eq_sum values must be non-negative")
         return v
 
 

@@ -111,15 +111,13 @@ class ExternalCloudHandlerCreate(DataEntryCreate):
 class ExternalAIHandlerCreate(DataEntryCreate):
     provider: str
     usage_type: str
-    requests_per_user_per_day: Optional[str] = None
+    requests_per_user_per_day: str
     fte_count: float
     note: Optional[str] = None
 
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
-    def validate_frequency(cls, v: Optional[str]) -> Optional[str]:
-        if v is None:
-            return v
+    def validate_frequency(cls, v: str) -> str:
         if v not in REQUESTS_FREQUENCY_OPTIONS:
             raise ValueError(
                 "requests_per_user_per_day must be one of:"

@@ -53,7 +53,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
     quantity: Optional[float] = None
     total_spent_amount: float
     currency: Optional[str] = None
-    purchase_institutional_code: Optional[str] = None
+    purchase_institutional_code: str
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
 
@@ -88,8 +88,8 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
     @field_validator("purchase_institutional_code", mode="after")
     @classmethod
-    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and len(v) < 1:
+    def validate_purchase_institutional_code(cls, v: str) -> str:
+        if len(v) < 1:
             raise ValueError(
                 "Purchase institutional code must be at least 1 character long"
             )
@@ -110,7 +110,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
 class PurchaseAdditionalHandlerCreate(DataEntryCreate):
     name: str
     unit: str
-    annual_consumption: Optional[float] = 0
+    annual_consumption: float
     coef_to_kg: float
     note: Optional[str] = None
 
