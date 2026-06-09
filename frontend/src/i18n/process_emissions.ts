@@ -1,6 +1,14 @@
 import { MODULES } from 'src/constant/modules';
 
 export default {
+  documentation_editing_rows_process_emissions_topic: {
+    en: 'Process Emissions',
+    fr: 'Émissions de procédés',
+  },
+  documentation_editing_rows_process_emissions_description: {
+    en: 'Find all text related to process emissions within the application.',
+    fr: "Trouvez tous les textes liés aux émissions de procédés dans l'application.",
+  },
   [MODULES.ProcessEmissions]: {
     en: 'Process emissions',
     fr: 'Emissions de procédés',

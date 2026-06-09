@@ -590,4 +590,13 @@ export default {
     en: 'Each unit has equal weight, independent of FTE size',
     fr: 'Chaque unité a le même poids, indépendamment de la taille en EPT',
   },
+
+  documentation_editing_rows_tooltips_topic: {
+    en: 'Tooltips',
+    fr: 'Info-bulles',
+  },
+  documentation_editing_rows_tooltips_description: {
+    en: 'Find all tooltip texts shown as (ℹ) icons throughout the application.',
+    fr: "Trouvez tous les textes des info-bulles affichées sous forme d'icônes (ℹ) dans l'application.",
+  },
 } as const;

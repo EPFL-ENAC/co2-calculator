@@ -21,10 +21,30 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/headcount.ts',
   },
   {
+    topic: t('documentation_editing_rows_process_emissions_topic'),
+    description: t('documentation_editing_rows_process_emissions_description'),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/process_emissions.ts',
+  },
+  {
     topic: t('documentation_editing_rows_buildings_topic'),
     description: t('documentation_editing_rows_buildings_description'),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/buildings.ts',
+  },
+  {
+    topic: t('documentation_editing_rows_equipment_electric_consumption_topic'),
+    description: t(
+      'documentation_editing_rows_equipment_electric_consumption_description',
+    ),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment_electric_consumption.ts',
+  },
+  {
+    topic: t('documentation_editing_rows_external_cloud_topic'),
+    description: t('documentation_editing_rows_external_cloud_description'),
+    githubUrl:
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/external_cloud.ts',
   },
   {
     topic: t('documentation_editing_rows_professional_travel_topic'),
@@ -33,15 +53,6 @@ const rows = computed(() => [
     ),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/professional_travel.ts',
-  },
-
-  {
-    topic: t('documentation_editing_rows_equipment_electric_consumption_topic'),
-    description: t(
-      'documentation_editing_rows_equipment_electric_consumption_description',
-    ),
-    githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment_electric_consumption.ts',
   },
   {
     topic: t('documentation_editing_rows_purchase_topic'),
@@ -58,10 +69,10 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/research_facilities.ts',
   },
   {
-    topic: t('documentation_editing_rows_external_cloud_topic'),
-    description: t('documentation_editing_rows_external_cloud_description'),
+    topic: t('documentation_editing_rows_tooltips_topic'),
+    description: t('documentation_editing_rows_tooltips_description'),
     githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/external_cloud.ts',
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/tooltips.ts',
   },
   {
     topic: t('documentation_editing_rows_backoffice_topic'),
