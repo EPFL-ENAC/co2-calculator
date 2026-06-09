@@ -93,6 +93,55 @@ def test_resolve_data_entry_type_from_name_valid():
     assert data_entry_type == DataEntryTypeEnum.member
 
 
+def test_resolve_data_entry_type_category_exact_case_accepted():
+    """equipment_category routing accepts the exact lowercase enum name."""
+    handler = MagicMock()
+    handler.category_field = "equipment_category"
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.scientific],
+    }
+
+    data_entry_type = provider._resolve_data_entry_type(
+        row={"equipment_category": "scientific"},
+        setup_result=setup_result,
+        row_idx=1,
+        stats=stats,
+        max_row_errors=5,
+    )
+
+    assert data_entry_type == DataEntryTypeEnum.scientific
+
+
+def test_resolve_data_entry_type_category_wrong_case_rejected():
+    """Doc: equipment_category is case-sensitive — 'Scientific' is rejected."""
+    handler = MagicMock()
+    handler.category_field = "equipment_category"
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+    setup_result = {
+        "handlers": [handler],
+        "valid_entry_types": [DataEntryTypeEnum.scientific],
+    }
+
+    data_entry_type = provider._resolve_data_entry_type(
+        row={"equipment_category": "Scientific"},
+        setup_result=setup_result,
+        row_idx=1,
+        stats=stats,
+        max_row_errors=5,
+    )
+
+    assert data_entry_type is None
+    assert stats["row_errors_count"] == 1
+
+
 def test_resolve_data_entry_type_from_name_invalid():
     provider = ConcreteFactorProvider(
         {"file_path": "tmp/test.csv"}, data_session=MagicMock()

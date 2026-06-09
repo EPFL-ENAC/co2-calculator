@@ -222,7 +222,13 @@ def build_train_travel() -> dict:
     return {
         "user_institutional_id": _user_institutional_id(),
         "origin_name": fake.city(),
+        # origin/destination_country_code are required (ISO-2) on the
+        # create DTO — the CSV resolver uses them to disambiguate stations.
+        "origin_country_code": random.choice(["CH", "FR", "DE", "IT"]),  # nosec B311
         "destination_name": fake.city(),
+        "destination_country_code": random.choice(  # nosec B311
+            ["CH", "FR", "DE", "IT"]
+        ),
         "cabin_class": random.choice(["first", "second"]),  # nosec B311
         "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
@@ -276,6 +282,8 @@ def build_equipment() -> dict:
         equipment_class = fake.word()
         sub_class = maybe(fake.word())
     return {
+        # equipment_id is required (non-Optional) on the create DTO.
+        "equipment_id": fake.bothify(text="INV-#####"),
         "name": fake.word(),
         "equipment_class": equipment_class,
         "sub_class": sub_class,
@@ -299,8 +307,8 @@ def build_external_ai() -> dict:
     return {
         "provider": random.choice(["OpenAI", "Anthropic", "Mistral"]),  # nosec B311
         "usage_type": fake.sentence(nb_words=3),
-        "requests_per_user_per_day": maybe(
-            random.choice(REQUESTS_FREQUENCY_OPTIONS),  # nosec B311
+        "requests_per_user_per_day": random.choice(  # nosec B311
+            REQUESTS_FREQUENCY_OPTIONS
         ),
         # fte_count must be ≥ 0.1 per the schema validator.
         "fte_count": round(random.uniform(0.1, 500.0), 2),  # nosec B311
@@ -312,7 +320,8 @@ def build_headcount() -> dict:
     return {
         "name": fake.name(),
         "sius_code": random.choice(sorted(SIUS_CODE_VALUES)),  # nosec B311
-        "fte": maybe(round(random.uniform(0.1, 1.0), 2)),  # nosec B311
+        # fte is required (non-Optional) on the create DTO, 0 <= fte <= 1.
+        "fte": round(random.uniform(0.1, 1.0), 2),  # nosec B311
         # user_institutional_id is required (non-Optional) on the create DTO.
         "user_institutional_id": _user_institutional_id(),
         "note": maybe(fake.sentence(nb_words=6)),
@@ -333,7 +342,7 @@ def build_purchase() -> dict:
         # total_spent_amount is required (non-Optional) on the create DTO.
         "total_spent_amount": round(random.uniform(100, 10000), 2),  # nosec B311
         "currency": random.choice(["chf", "eur", "usd"]),  # nosec B311
-        "purchase_institutional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
+        "purchase_institutional_code": fake.bothify(text="???-#####"),
         "purchase_additional_code": maybe(fake.bothify(text="???-#####")),  # nosec B311
         "note": maybe(fake.sentence(nb_words=10)),
     }
@@ -386,18 +395,18 @@ def build_process_emissions() -> dict:
 
 def build_research_facility_common() -> dict:
     return {
-        "researchfacility_id": maybe(fake.bothify(text="RF-#####")),
-        "researchfacility_name": maybe(fake.company()),
-        "use": maybe(round(random.uniform(0, 1000), 2)),  # nosec B311
-        "use_unit": maybe(random.choice(["kg", "liter", "hour"])),  # nosec B311
+        "researchfacility_id": fake.bothify(text="RF-#####"),
+        "researchfacility_name": fake.company(),
+        "use": round(random.uniform(0, 1000), 2),  # nosec B311
+        "use_unit": random.choice(["kg", "liter", "hour"]),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
     }
 
 
 def build_research_facility_animal() -> dict:
     payload = build_research_facility_common()
-    payload["researchfacility_type"] = maybe(
-        random.choice(["mice", "fish", "rat"]),  # nosec B311
+    payload["researchfacility_type"] = random.choice(  # nosec B311
+        ["mice", "fish", "rat"]
     )
     return payload
 

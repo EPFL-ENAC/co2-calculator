@@ -1,3 +1,3 @@
-unit_institutional_id,name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week,note
-{unit_institutional_id},Smoke Laptop A,Laptop,Standard,40,128,
-{unit_institutional_id},Smoke Laptop B,Laptop,Standard,40,128,
+unit_institutional_id,equipment_id,name,equipment_class,sub_class,active_usage_hours_per_week,standby_usage_hours_per_week,note
+{unit_institutional_id},INV-0001,Smoke Laptop A,Laptop,Standard,40,128,
+{unit_institutional_id},INV-0002,Smoke Laptop B,Laptop,Standard,40,128,
