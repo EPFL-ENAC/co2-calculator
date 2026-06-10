@@ -43,6 +43,7 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -1171,37 +1172,48 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-            # Note: primary_factor_id is already in payload and
-            # will be in validated.data
-            # No need to set it again
+                # await populate_defaults(
+                #     handler,
+                #     update_payload,
+                #     existing_data,
+                #     setup_result["factor_id_to_factor"],
+                # )
+                # Note: primary_factor_id is already in payload and
+                # will be in validated.data
+                # No need to set it again
 
-            # Populate missing data fields from factor values
-            # (e.g., equipment usage hours, default quantities)
-            # Use O(1) lookup with factor_id_to_factor instead of O(n) loop
+                # Populate missing data fields from factor values
+                # (e.g., equipment usage hours, default quantities)
+                # Use O(1) lookup with factor_id_to_factor instead of O(n) loop
+                # if primary_factor_id and "factor_id_to_factor" in setup_result:
+                #     factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
+
+                #     # Populate defaults from factor if handler defines factor_value_fields
+                #     if (
+                #         factor
+                #         and hasattr(handler, "factor_value_fields")
+                #         and handler.factor_value_fields
+                #     ):
+                #         for field_name in handler.factor_value_fields:
+                #             if field_name not in data or data[field_name] in (None, "", 0):
+                #                 default_value = factor.values.get(field_name)
+                #                 if default_value is not None:
+                #                     data[field_name] = default_value
+                #                     # Throttle logging: only first 5 rows or every 1000 rows
+                #                     if row_idx <= 5 or row_idx % 1000 == 0:
+                #                         logger.debug(
+                #                             f"Row {row_idx}: Populated "
+                #                             f"{field_name}={default_value} from factor"
+                #                         )
+            handler_service = ModuleHandlerService(self.data_session)
             if primary_factor_id and "factor_id_to_factor" in setup_result:
                 factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
+                if factor is not None:
+                    data = await handler_service.populate_defaults(
+                        handler, data, factor
+                    )
 
-                # Populate defaults from factor if handler defines factor_value_fields
-                if (
-                    factor
-                    and hasattr(handler, "factor_value_fields")
-                    and handler.factor_value_fields
-                ):
-                    for field_name in handler.factor_value_fields:
-                        if field_name not in data or data[field_name] in (None, "", 0):
-                            default_value = factor.values.get(field_name)
-                            if default_value is not None:
-                                data[field_name] = default_value
-                                # Throttle logging: only first 5 rows or every 1000 rows
-                                if row_idx <= 5 or row_idx % 1000 == 0:
-                                    logger.debug(
-                                        f"Row {row_idx}: Populated "
-                                        f"{field_name}={default_value} from factor"
-                                    )
-
-            # B-H1 — under ``BULK_PATH_PURE_ASYNC`` the inline path skips
-            # ``prepare_create``, so the parallel ``kg_co2eq_override`` list
-            # is built and discarded.  Persist the override on the data
+            # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
             # the async recalc path (``upsert_by_data_entry`` →
             # ``prepare_create``) still honors it.  The parallel list is
@@ -1385,56 +1397,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             source=source.value if source else None,
             created_by_id=self.job_id,
         )
-
-        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` the runner-driven
-        # ``emission_recalc`` chain (fired by ``csv_ingest_handler`` /
-        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
-        # writes for the bulk path.  Skipping steps 2-3 here doesn't lose
-        # data: the chain reads the freshly-committed data_entries and
-        # writes emissions against the latest factors.  Inline writes
-        # would race the chain's writes for the same primary key.
-        #
-        # When the flag is False (emergency rollback) we keep the legacy
-        # inline write so the chain's emissions become a redundant
-        # overwrite rather than a missing one.
-        #
-        # Seed runs (``is_seed_run=True``) bypass the gate: their
-        # ``_update_job`` is a no-op, so the runner-driven chain never
-        # fires.  Without the inline writes the seeded module ends up
-        # with empty ``data_entry_emissions`` and zero stats.
-        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
-            self, "is_seed_run", False
-        ):
-            return
-
-        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
-        overrides_by_id: dict[int, float] = {
-            resp.id: ov
-            for resp, ov in zip(data_entries_response, batch_kg_co2eq_overrides)
-            if ov is not None and resp.id is not None
-        }
-
-        # 2. Prepare emissions for all created data entries
-        emissions_to_create = []
-        for data_entry_response in data_entries_response:
-            try:
-                emission_objs = await emission_service.prepare_create(
-                    data_entry_response,
-                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
-                )
-                if emission_objs is not None:
-                    emissions_to_create.extend(emission_objs)
-            except Exception as emission_error:
-                logger.warning(
-                    f"Failed to prepare emission for "
-                    f"data_entry_id={data_entry_response.id}: "
-                    f"{str(emission_error)}"
-                )
-
-        # 3. Bulk create emissions
-        if emissions_to_create:
-            await emission_service.bulk_create(emissions_to_create)
-            logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+        # maybe commit !?
+        logger.debug(f"Created {len(data_entries_response)} data entries")
+        await self.data_session.commit()
+        return None
 
     async def _recompute_module_stats(self) -> None:
         """
