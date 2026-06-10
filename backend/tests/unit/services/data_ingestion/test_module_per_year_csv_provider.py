@@ -7,6 +7,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.services.data_ingestion import base_csv_provider as base_csv_provider_module
 from app.services.data_ingestion import csv_providers as csv_providers_module
 from app.services.data_ingestion.csv_providers.module_per_year import (
     ModulePerYearCSVProvider,
@@ -56,7 +57,7 @@ def test_extract_kind_subkind_values_fallback_fields():
 @pytest.mark.asyncio
 async def test_setup_handlers_and_factors_multiple_types(monkeypatch):
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
 
@@ -69,7 +70,7 @@ async def test_setup_handlers_and_factors_multiple_types(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={"k": []}),
     )
@@ -243,7 +244,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
     """ModuleTypeEnum.equipment_electric_consumption + empty factors_map
     raises at setup — the per-row loop is never entered."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(
         module_type_id=ModuleTypeEnum.equipment_electric_consumption.value
@@ -259,7 +260,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),  # the bug shape
     )
@@ -278,7 +279,7 @@ async def test_purchase_with_empty_factors_fails_fast_at_setup(monkeypatch):
     """ModuleTypeEnum.purchase shares the factor-inferred-DET shape;
     same guard fires."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.purchase.value)
 
@@ -292,7 +293,7 @@ async def test_purchase_with_empty_factors_fails_fast_at_setup(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),
     )
@@ -309,7 +310,7 @@ async def test_non_factor_inferred_module_tolerates_empty_factors(monkeypatch):
     carry the DET in a category column that maps to ``DataEntryTypeEnum``
     names directly, so empty factors is a legitimate state."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
 
@@ -323,10 +324,67 @@ async def test_non_factor_inferred_module_tolerates_empty_factors(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),
     )
 
     setup = await provider._setup_handlers_and_factors()  # no raise
     assert setup["factors_map"] == {}
+
+
+@pytest.mark.asyncio
+async def test_setup_raises_when_year_missing(monkeypatch):
+    """Regression: MODULE_PER_YEAR setup must fail loudly without ``year``.
+
+    Factor lookups key on ``{type}:{year}:{kind}:{subkind}``; a missing
+    year silently misses every factor. MODULE_UNIT_SPECIFIC already had
+    this guard — converged into the shared loader."""
+    provider = ModulePerYearCSVProvider(
+        {"file_path": "tmp/test.csv"},  # year deliberately omitted
+        data_session=MagicMock(),
+    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
+
+    with pytest.raises(ValueError, match="year is required"):
+        await provider._setup_handlers_and_factors()
+
+
+@pytest.mark.asyncio
+async def test_resolve_configured_type_accepts_string_id():
+    """Regression: job config may carry data_entry_type_id as a string
+    (JSON payload). MODULE_UNIT_SPECIFIC cast through int(); MODULE_PER_YEAR
+    did not — converged in the shared resolver."""
+    provider = ModulePerYearCSVProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": str(DataEntryTypeEnum.member.value),
+        },
+        data_session=MagicMock(),
+    )
+
+    handler = SimpleNamespace(
+        require_factor_to_match=False,
+        kind_field="kind",
+        subkind_field=None,
+        category_field=None,
+    )
+    setup_result = {"handlers": [handler], "factors_map": {}}
+    stats = _build_stats()
+
+    (
+        data_entry_type,
+        resolved_handler,
+        error_msg,
+    ) = await provider._resolve_handler_and_validate(
+        filtered_row={},
+        factor=None,
+        stats=stats,
+        row_idx=1,
+        max_row_errors=5,
+        setup_result=setup_result,
+    )
+
+    assert data_entry_type == DataEntryTypeEnum.member
+    assert resolved_handler == handler
+    assert error_msg is None
