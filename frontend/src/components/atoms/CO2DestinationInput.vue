@@ -6,6 +6,15 @@
       :class="{ 'destination-input-error': finalError }"
       class="destination-input-card"
     >
+      <q-icon
+        v-if="hint"
+        name="o_info"
+        size="xs"
+        color="grey-6"
+        class="destination-input-hint-icon cursor-pointer"
+      >
+        <q-tooltip class="tooltip">{{ hint }}</q-tooltip>
+      </q-icon>
       <q-card-section class="flex column q-pa-none position-relative">
         <div class="input-wrapper">
           <div class="destination-marker-outer">
@@ -176,6 +185,7 @@ const props = withDefaults(
     };
     transportMode?: 'plane' | 'train';
     disable?: boolean;
+    hint?: string;
   }>(),
   {
     from: '',
@@ -184,6 +194,7 @@ const props = withDefaults(
     errorMessage: '',
     transportMode: undefined,
     disable: false,
+    hint: undefined,
     placeholders: () => ({
       from: '',
       to: '',
@@ -394,8 +405,16 @@ function swapValues() {
 }
 
 .destination-input-card {
+  position: relative;
   margin-bottom: 0;
   border: 1px solid tokens.$field-border-default;
+}
+
+.destination-input-hint-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
 }
 
 .destination-input-card.destination-input-error {

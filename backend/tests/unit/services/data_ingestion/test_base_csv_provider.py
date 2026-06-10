@@ -14,6 +14,7 @@ from app.services.data_ingestion.base_csv_provider import (
     StatsDict,
     _get_expected_columns_from_handlers,
     _get_required_columns_from_handler,
+    _is_blank_data_row,
     _validate_file_path,
 )
 
@@ -119,6 +120,18 @@ def test_get_required_columns_from_handler():
     assert "optional_col" not in result
     assert "data" not in result
     assert "carbon_report_module_id" not in result
+
+
+def test_is_blank_data_row_all_required_empty():
+    assert _is_blank_data_row({"amount": "", "note": "x"}, {"amount"}) is True
+
+
+def test_is_blank_data_row_partial_required_value():
+    assert _is_blank_data_row({"amount": "10", "note": ""}, {"amount"}) is False
+
+
+def test_is_blank_data_row_no_required_columns():
+    assert _is_blank_data_row({"amount": ""}, set()) is False
 
 
 # ======================================================================
@@ -603,6 +616,42 @@ async def test_process_row_missing_unit_mapping_records_error():
     assert stats["rows_skipped"] == 1
     assert stats["row_errors_count"] == 1
     assert stats["row_errors"][0]["row"] == 2
+
+
+@pytest.mark.asyncio
+async def test_process_row_skips_blank_scaffolding_row():
+    """Empty template rows are skipped before required-field validation."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    setup_result = {
+        "handlers": [MagicMock()],
+        "factors_map": {},
+        "expected_columns": {"amount", "note"},
+        "required_columns": {"amount"},
+    }
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        {"amount": "", "note": ""},
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg is None
+    assert result_factor is None
+    assert kg_co2eq_override is None
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"] == []
 
 
 @pytest.mark.asyncio

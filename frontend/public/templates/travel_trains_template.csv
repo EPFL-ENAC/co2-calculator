@@ -1,2 +1,3 @@
-origin_name,destination_name,user_institutional_id,departure_date,number_of_trips,cabin_class,note
-Lausanne Gare,Renens VD,234567,2025-03-12,1,first,
+origin_name,origin_country_code,destination_name,destination_country_code,user_institutional_id,departure_date,number_of_trips,cabin_class,note
+The station name must be entered in the station’s local language,,,,,,,,
+Lausanne ,CH,Renens VD,CH,234567,2025-12-03,1,first,

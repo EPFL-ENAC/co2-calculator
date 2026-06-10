@@ -110,8 +110,7 @@ export interface ModuleField {
   readOnlyDisplayField?: string;
   // Whether to translate option labels through i18n
   optionLabelsAreKeys?: boolean;
-  // i18n key prefix for dynamic factor-sourced options (value is lowercased and appended)
-  // e.g. prefix 'cloud-service-type-' + 'stockage' → t('cloud-service-type-stockage')
+  // When set, option values are translated via i18n using the lowercased value as key
   optionLabelPrefix?: string;
 }
 

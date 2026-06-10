@@ -62,6 +62,10 @@ export default {
     en: 'Add a train trip',
     fr: 'Ajouter un trajet en train',
   },
+  [`${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`]: {
+    en: 'Enter the city or station name in the local language.',
+    fr: 'Saisir la ville ou la gare dans la langue locale.',
+  },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
     en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose.',
     fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet.',

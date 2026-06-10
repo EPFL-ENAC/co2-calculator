@@ -56,6 +56,7 @@ type CommonProps = {
   fieldId: string;
   optionsId: string;
   optionLabelKey?: string;
+  optionLabelPrefix?: string;
   optionOrder?: string[];
   hint?: string;
   cols: TableViewColumnSubset[];
@@ -97,16 +98,22 @@ const classOptions = computed(() => {
   const opts = dynamicOptions['kind'] ?? [];
   const mapped = opts.map((opt) => {
     if (props.optionLabelKey) {
+      const key = props.optionLabelKey.replace(
+        '{value}',
+        opt.value.toLowerCase(),
+      );
       return {
         value: opt.value,
-        label: t(
-          props.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
-        ),
+        label: te(key) ? t(key) : opt.value,
       };
     }
     const kindNode = taxo?.children?.find((node) => node.name === opt.value);
-    if (kindNode?.translation_key && te(kindNode.translation_key)) {
-      return { value: opt.value, label: t(kindNode.translation_key) };
+    const translationKey = kindNode?.translation_key;
+    if (translationKey && te(translationKey)) {
+      return { value: opt.value, label: t(translationKey) };
+    }
+    if (te(opt.value)) {
+      return { value: opt.value, label: t(opt.value) };
     }
     return {
       value: opt.value,
@@ -127,6 +134,12 @@ const subClassOptions = computed(() => {
     const subKindNode = kindNode?.children?.find(
       (child) => child.name === opt.value,
     );
+    if (props.optionLabelPrefix) {
+      return {
+        value: opt.value,
+        label: t(opt.value.toLowerCase(), opt.label || opt.value),
+      };
+    }
     return {
       value: opt.value,
       label: subKindNode ? subKindNode.label : opt.label || opt.value,

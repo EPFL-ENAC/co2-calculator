@@ -27,17 +27,17 @@ from app.services.exchange_rates_service import ExchangeRatesService
 logger = get_logger(__name__)
 
 REQUESTS_FREQUENCY_OPTIONS: list[str] = [
-    "1-5 times per day",
-    "5-20 times per day",
-    "20-100 times per day",
-    ">100 times per day",
+    "1_5",
+    "5_20",
+    "20_100",
+    "gt_100",
 ]
 
 REQUESTS_FREQUENCY_MAP: dict[str, float] = {
-    "1-5 times per day": 3.0,
-    "5-20 times per day": 12.5,
-    "20-100 times per day": 60.0,
-    ">100 times per day": 100.0,
+    "1_5": 3.0,
+    "5_20": 12.5,
+    "20_100": 60.0,
+    "gt_100": 100.0,
 }
 
 
@@ -119,12 +119,13 @@ class ExternalAIHandlerCreate(DataEntryCreate):
     @field_validator("requests_per_user_per_day", mode="after")
     @classmethod
     def validate_frequency(cls, v: str) -> str:
-        if v not in REQUESTS_FREQUENCY_OPTIONS:
+        normalized = v.strip()
+        if normalized not in REQUESTS_FREQUENCY_OPTIONS:
             raise ValueError(
                 "requests_per_user_per_day must be one of:"
                 f" {REQUESTS_FREQUENCY_OPTIONS}"
             )
-        return v
+        return normalized
 
     @field_validator("fte_count", mode="after")
     @classmethod
@@ -174,12 +175,13 @@ class ExternalAIHandlerUpdate(DataEntryUpdate):
     def validate_frequency(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        if v not in REQUESTS_FREQUENCY_OPTIONS:
+        normalized = v.strip()
+        if normalized not in REQUESTS_FREQUENCY_OPTIONS:
             raise ValueError(
                 "requests_per_user_per_day must be one of:"
                 f" {REQUESTS_FREQUENCY_OPTIONS}"
             )
-        return v
+        return normalized
 
     @field_validator("fte_count", mode="after")
     @classmethod
@@ -369,10 +371,10 @@ def _requests_frequency_sort_expr() -> ColumnElement[int]:
     """Return a SQLAlchemy CASE expression mapping frequency strings to ordinals."""
     freq_col = DataEntry.data["requests_per_user_per_day"].as_string()
     return case(
-        (freq_col == "1-5 times per day", 1),
-        (freq_col == "5-20 times per day", 2),
-        (freq_col == "20-100 times per day", 3),
-        (freq_col == ">100 times per day", 4),
+        (freq_col == "1_5", 1),
+        (freq_col == "5_20", 2),
+        (freq_col == "20_100", 3),
+        (freq_col == "gt_100", 4),
         else_=0,
     )
 
