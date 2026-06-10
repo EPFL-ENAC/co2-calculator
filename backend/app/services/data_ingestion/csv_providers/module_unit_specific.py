@@ -1,16 +1,13 @@
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType
-from app.schemas.data_entry import BaseModuleHandler, ModuleHandler
-from app.seed.seed_helper import is_in_factors_map, load_factors_map
+from app.schemas.data_entry import ModuleHandler
 from app.services.data_ingestion.base_csv_provider import (
     BaseCSVProvider,
     StatsDict,
-    _get_expected_columns_from_handlers,
     _get_required_columns_from_handler,
-    _guard_factors_required,
 )
 
 logger = get_logger(__name__)
@@ -32,19 +29,9 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         """
         Setup handlers and factors for MODULE_UNIT_SPECIFIC.
 
-        Requirements:
-        - Single handler for the configured data_entry_type
-        - Loads factors for that specific data_entry_type
-        - Returns required_columns (strict validation)
+        Single handler for the configured data_entry_type, with strict
+        required-column validation derived from the handler's DTO.
         """
-        # Year is required: factor lookups during row processing key on
-        # `{type}:{year}:{kind}:{subkind}`, so a missing year would silently
-        # miss every factor and import rows with primary_factor_id=None.
-        # Symmetric to the MODULE_PER_YEAR guard in
-        # base_csv_provider.py::_resolve_module_per_year_modules.
-        if not self.year:
-            raise ValueError("year is required for MODULE_UNIT_SPECIFIC entity type")
-
         configured_data_entry_type_id = self.config.get("data_entry_type_id")
 
         if configured_data_entry_type_id is None:
@@ -52,81 +39,20 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
                 "data_entry_type must be specified for MODULE_UNIT_SPECIFIC"
             )
 
-        configured_data_entry_type = DataEntryTypeEnum(configured_data_entry_type_id)
-
-        # Load factors for this specific data entry type
-        logger.info(f"Loading factors for data_entry_type={configured_data_entry_type}")
-        type_factors = await load_factors_map(
-            self.data_session, configured_data_entry_type, self.year
+        configured_data_entry_type = DataEntryTypeEnum(
+            int(configured_data_entry_type_id)
         )
-        factors_map = type_factors
 
-        # Get the single handler for this data_entry_type
-        handler = BaseModuleHandler.get_by_type(configured_data_entry_type)
-        handlers = [handler]
+        handlers, factors_map = await self._load_handlers_and_factors(
+            [configured_data_entry_type]
+        )
 
-        # Fail fast when the handler requires a matched factor but none
-        # were loaded — same rationale as MODULE_PER_YEAR (see
-        # ``_guard_factors_required`` docstring); avoids the operator
-        # scrolling through 50 k identical row errors to find out the
-        # real fix is to upload factors first.
-        _guard_factors_required(
-            factors_map=factors_map,
+        return self._assemble_setup_result(
             handlers=handlers,
+            factors_map=factors_map,
             module_label=configured_data_entry_type.name,
-            year=self.year,
+            required_columns=_get_required_columns_from_handler(handlers[0]),
         )
-
-        # Get expected and required columns
-        expected_columns = _get_expected_columns_from_handlers(handlers)
-        required_columns = _get_required_columns_from_handler(handler)
-
-        # Create factor_id_to_factor mapping for O(1) lookup during row processing
-        # This avoids O(n) loop through factors_map for each row
-        factor_id_to_factor: Dict[int, Any] = {}
-        for factor in factors_map.values():
-            factor_id = getattr(factor, "id", None)
-            if factor_id is not None:
-                factor_id_to_factor[factor_id] = factor
-
-        logger.info(
-            f"Setup complete for MODULE_UNIT_SPECIFIC: "
-            f"handlers={len(handlers)}, "
-            f"factors={len(factors_map)}, "
-            f"factor_id_to_factor={len(factor_id_to_factor)}, "
-            f"expected_columns={len(expected_columns)}, "
-            f"required_columns={len(required_columns)}"
-        )
-
-        return {
-            "handlers": handlers,
-            "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
-            "expected_columns": expected_columns,
-            "required_columns": required_columns,
-        }
-
-    def _extract_kind_subkind_values(
-        self,
-        filtered_row: Dict[str, str],
-        handlers: List[Any],
-    ) -> tuple[str, str | None]:
-        """
-        Extract kind and subkind for MODULE_UNIT_SPECIFIC.
-
-        Uses the single handler's kind_field and subkind_field directly.
-        """
-        handler = handlers[0] if handlers else None
-        if not handler:
-            return "", None
-
-        kind_value = (
-            filtered_row.get(handler.kind_field, "") if handler.kind_field else ""
-        )
-        subkind_value = (
-            filtered_row.get(handler.subkind_field) if handler.subkind_field else None
-        )
-        return kind_value, subkind_value
 
     async def _resolve_handler_and_validate(
         self,
@@ -141,35 +67,20 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
         Resolve handler and validate for MODULE_UNIT_SPECIFIC.
 
         Logic:
-        - Use configured data_entry_type_id if present
-        - Otherwise, resolve from handler's category_field (e.g., equipment_category)
-        - Validate required columns are present
-        - Check if kind/subkind exists in factors_map
-        - Validate factor matching if handler requires it
+        - Priority 1/2 (configured data_entry_type_id, then the handler's
+          category column) via the shared base resolver — no factor-based
+          inference for this entity type
+        - Validate required columns are present (strict)
+        - Note: factor validation is handled by ModuleHandlerService
+          when it queries the database in _process_row
         """
-
         handlers = setup_result["handlers"]
-        factors_map = setup_result["factors_map"]
         required_columns = setup_result["required_columns"]
 
-        # Get configured data_entry_type_id
-        configured_data_entry_type_id = self.config.get("data_entry_type_id")
+        data_entry_type, handler = self._resolve_type_from_config_or_category(
+            filtered_row, handlers, row_idx, stats, max_row_errors
+        )
 
-        # Determine data_entry_type
-        data_entry_type: DataEntryTypeEnum | None = None
-
-        if configured_data_entry_type_id is not None:
-            # Priority 1: Configured type from job config
-            data_entry_type = DataEntryTypeEnum(int(configured_data_entry_type_id))
-        else:
-            # Priority 2: Resolve from handler's category_field
-            handler = handlers[0] if handlers else None
-            if handler:
-                data_entry_type = self._resolve_data_entry_type_from_category(
-                    filtered_row, handler, row_idx, stats, max_row_errors
-                )
-
-        # Validate we resolved a type
         if data_entry_type is None:
             error_msg = (
                 "Missing data_entry_type_id in job config or category field in CSV"
@@ -177,47 +88,15 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 
-        # Get handler for the resolved type
-        handler = handlers[0] if handlers else None
-        if not handler:
+        if handler is None:
             error_msg = "No handler available"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 
-        # Check required columns (blank scaffolding rows are skipped earlier
-        # in BaseCSVProvider._process_row before empty values are stripped).
         if required_columns and not required_columns.issubset(filtered_row.keys()):
             missing_fields = required_columns - set(filtered_row.keys())
             error_msg = f"Missing required fields {missing_fields}"
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
-
-        # Check if kind/subkind combination exists in factors map
-        kind_value = (
-            filtered_row.get(handler.kind_field, "") if handler.kind_field else ""
-        )
-        subkind_value = (
-            filtered_row.get(handler.subkind_field) if handler.subkind_field else None
-        )
-
-        match_factors = is_in_factors_map(
-            kind=kind_value,
-            subkind=subkind_value,
-            factors_map=factors_map,
-            require_subkind=handler.require_subkind_for_factor,
-        )
-
-        # Validate factor requirement (check if factor exists in map)
-        # Note: Actual factor lookup is done by ModuleHandlerService in _process_row
-        if match_factors is False and handler.require_factor_to_match:
-            error_msg = (
-                "Probably not part of authorized data entries. "
-                "No matching factor found for kind/subkind"
-            )
-            self._record_row_error(stats, row_idx, error_msg, max_row_errors)
-            return None, None, error_msg
-
-        # Note: Factor data_entry_type validation is now handled by ModuleHandlerService
-        # when it queries the database
 
         return data_entry_type, handler, None
