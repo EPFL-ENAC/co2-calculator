@@ -25,8 +25,13 @@ from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.repositories.unit_repo import UnitRepository
 from app.schemas.carbon_report import CarbonReportCreate
-from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
+from app.schemas.data_entry import (
+    DATA_ENTRY_META_FIELDS,
+    BaseModuleHandler,
+    ModuleHandler,
+)
 from app.schemas.user import UserRead
+from app.seed.seed_helper import load_factors_map
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
@@ -333,7 +338,129 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         pass
 
-    @abstractmethod
+    async def _load_handlers_and_factors(
+        self, entry_types: List[DataEntryTypeEnum]
+    ) -> tuple[List[Any], Dict[str, Any]]:
+        """
+        Load deduplicated handlers and the merged factors map for the
+        given data entry types.
+
+        Year is required: factor lookups during row processing key on
+        ``{type}:{year}:{kind}:{subkind}``, so a missing year would
+        silently miss every factor and import rows with
+        primary_factor_id=None.
+        """
+        if not self.year:
+            raise ValueError(
+                f"year is required for {self.entity_type.name} entity type"
+            )
+
+        # Deduplicate handlers by class to avoid multiple identical
+        # instances (e.g., EquipmentModuleHandler registered for
+        # it/scientific/other)
+        handlers: List[Any] = []
+        seen_handler_classes: set[type[Any]] = set()
+        for entry_type in entry_types:
+            handler = BaseModuleHandler.get_by_type(entry_type)
+            handler_class: type[Any] = type(handler)
+            if handler_class not in seen_handler_classes:
+                handlers.append(handler)
+                seen_handler_classes.add(handler_class)
+
+        factors_map: Dict[str, Any] = {}
+        for entry_type in entry_types:
+            type_factors = await load_factors_map(
+                self.data_session, entry_type, self.year
+            )
+            factors_map.update(type_factors)
+
+        return handlers, factors_map
+
+    def _assemble_setup_result(
+        self,
+        *,
+        handlers: List[Any],
+        factors_map: Dict[str, Any],
+        module_label: str,
+        required_columns: set[str],
+    ) -> Dict[str, Any]:
+        """
+        Build the setup dict returned by ``_setup_handlers_and_factors``.
+
+        Runs the require-factor guard, derives expected columns, and
+        builds the factor_id -> factor map for O(1) lookup during row
+        processing (avoids an O(n) scan of factors_map per row).
+        """
+        _guard_factors_required(
+            factors_map=factors_map,
+            handlers=handlers,
+            module_label=module_label,
+            year=self.year,
+        )
+
+        expected_columns = _get_expected_columns_from_handlers(handlers)
+
+        factor_id_to_factor: Dict[int, Any] = {}
+        for factor in factors_map.values():
+            factor_id = getattr(factor, "id", None)
+            if factor_id is not None:
+                factor_id_to_factor[factor_id] = factor
+
+        logger.info(
+            f"Setup complete for {self.entity_type.name}: "
+            f"handlers={len(handlers)}, "
+            f"factors={len(factors_map)}, "
+            f"factor_id_to_factor={len(factor_id_to_factor)}, "
+            f"expected_columns={len(expected_columns)}, "
+            f"required_columns={len(required_columns)}"
+        )
+
+        return {
+            "handlers": handlers,
+            "factors_map": factors_map,
+            "factor_id_to_factor": factor_id_to_factor,
+            "expected_columns": expected_columns,
+            "required_columns": required_columns,
+        }
+
+    def _resolve_type_from_config_or_category(
+        self,
+        filtered_row: Dict[str, str],
+        handlers: List[Any],
+        row_idx: int,
+        stats: StatsDict,
+        max_row_errors: int,
+    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None"]:
+        """
+        Shared Priority 1/2 of data_entry_type resolution.
+
+        Priority 1: configured ``data_entry_type_id`` from job config
+        (cast through int so string ids from JSON config work).
+        Priority 2: the single handler's category column (e.g.
+        ``equipment_category``) mapping directly to a DataEntryTypeEnum
+        name.
+
+        Returns (data_entry_type, handler); either may be None — callers
+        decide whether that is an error (MODULE_UNIT_SPECIFIC) or the
+        cue for factor-based inference (MODULE_PER_YEAR).
+        """
+        configured_data_entry_type_id = self.config.get("data_entry_type_id")
+
+        if configured_data_entry_type_id is not None:
+            data_entry_type = DataEntryTypeEnum(int(configured_data_entry_type_id))
+            return data_entry_type, handlers[0] if handlers else None
+
+        handler = handlers[0] if len(handlers) == 1 else None
+        if handler is None:
+            return None, None
+
+        resolved_type: DataEntryTypeEnum | None = (
+            self._resolve_data_entry_type_from_category(
+                filtered_row, handler, row_idx, stats, max_row_errors
+            )
+        )
+        return resolved_type, handler
+
     def _extract_kind_subkind_values(
         self,
         filtered_row: Dict[str, str],
@@ -342,12 +469,36 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         Extract kind and subkind values from filtered row.
 
-        Subclasses implement entity-specific extraction logic
-        (e.g., single handler vs. multiple handlers).
+        Tries each handler's kind_field/subkind_field first, then falls
+        back to common field names. Works for single- and multi-handler
+        providers alike.
 
         Returns: (kind_value, subkind_value)
         """
-        pass
+        # Try to find kind/subkind using each handler's fields
+        for handler in handlers:
+            if handler.kind_field and handler.kind_field in filtered_row:
+                kind_value = filtered_row.get(handler.kind_field, "")
+                subkind_value = (
+                    filtered_row.get(handler.subkind_field)
+                    if handler.subkind_field
+                    else None
+                )
+                return kind_value, subkind_value
+
+        # Fallback: try common field names
+        for handler in handlers:
+            subkind_value = None
+            if handler.subkind_field and handler.subkind_field in filtered_row:
+                subkind_value = filtered_row.get(handler.subkind_field)
+
+            for kind_field_name in ("kind", "Kind", "KIND"):
+                if kind_field_name in filtered_row:
+                    kind_value = filtered_row.get(kind_field_name, "")
+                    return kind_value, subkind_value
+
+        # Last resort: return empty if nothing found
+        return "", None
 
     @abstractmethod
     async def _resolve_handler_and_validate(
@@ -918,10 +1069,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
-                # Defense in depth: setup-time guards in the entity-specific
-                # providers (_setup_handlers_and_factors for
-                # MODULE_UNIT_SPECIFIC, _resolve_module_per_year_modules for
-                # MODULE_PER_YEAR) raise before any row reaches this method,
+                # Defense in depth: the setup-time guard in
+                # _load_handlers_and_factors raises before any row
+                # reaches this method,
                 # so reaching this branch with a falsy year would mean a
                 # future caller bypassed setup. Use the same `not self.year`
                 # check the setup-time guard uses so both layers reject the
