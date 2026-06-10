@@ -4,10 +4,12 @@ import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
-from sqlmodel import col
+from sqlmodel import col, select
 
+from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
     DataEntry,
     DataEntrySourceEnum,
@@ -21,6 +23,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.repositories.unit_repo import UnitRepository
@@ -204,8 +207,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     def files_store(self) -> Any:
         """Lazy initialization of files store"""
         if self._files_store is None:
-            from app.api.v1.files import make_files_store
-
             self._files_store = make_files_store()
         return self._files_store
 
@@ -704,11 +705,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Delete entries for all data_entry_types that could be in this module
             # We need to get the valid types for this module
             if self.job and self.job.module_type_id:
-                from app.models.module_type import (
-                    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
-                    ModuleTypeEnum,
-                )
-
                 module_type = ModuleTypeEnum(self.job.module_type_id)
 
                 # If the job targets a specific data_entry_type_id, only delete
@@ -1364,10 +1360,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             and entry.carbon_report_module_id not in self._year_cache
         }
         if module_ids:
-            from sqlmodel import select
-
-            from app.models.carbon_report import CarbonReport, CarbonReportModule
-
             stmt = (
                 select(CarbonReportModule, CarbonReport)
                 .join(
@@ -1472,8 +1464,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "aggregation handler will own the stats writes"
             )
             return
-
-        from app.services.carbon_report_service import CarbonReportService
 
         crm_service = CarbonReportModuleService(self.data_session)
         cr_service = CarbonReportService(self.data_session)
