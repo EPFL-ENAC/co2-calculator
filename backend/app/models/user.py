@@ -20,7 +20,7 @@ class RoleName(str, Enum):
     CO2_USER_STD = "calco2.user.standard"
     CO2_USER_PRINCIPAL = "calco2.user.principal"
     CO2_BACKOFFICE_METIER = "calco2.backoffice.metier"
-    CO2_SUPERADMIN = "calco2.superadmin"
+    CO2_SUPERADMIN = "calco2.backoffice.admin"
 
 
 class GlobalScope(BaseModel):
@@ -177,14 +177,6 @@ def calculate_user_permissions(roles: List[Role]) -> dict:
                 )
                 permissions["backoffice.ui_texts"] = merge_actions(
                     permissions.get("backoffice.ui_texts"),
-                    ["view", "edit"],
-                )
-                # to be removed later on when new right is available
-                permissions["backoffice.configuration"] = merge_actions(
-                    permissions.get("backoffice.configuration"), ["view", "edit"]
-                )
-                permissions["backoffice.pipeline_operations"] = merge_actions(
-                    permissions.get("backoffice.pipeline_operations"),
                     ["view", "edit"],
                 )
         # USER ROLES - Only affect modules.* permissions

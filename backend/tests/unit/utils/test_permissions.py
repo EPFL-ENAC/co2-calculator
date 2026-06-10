@@ -387,9 +387,7 @@ _BACKOFFICE_AFF = "SV"
 _BACKOFFICE_KEYS = frozenset(
     {
         f"backoffice.reporting/{_BACKOFFICE_AFF}",
-        "backoffice.configuration",
         "backoffice.documentation",
-        "backoffice.pipeline_operations",
         "backoffice.ui_texts",
     }
 )
@@ -513,7 +511,7 @@ _COMPOSITION_CASES = [
         # never the super-admin-only pages or a bare reporting key.
         [_r_backoffice()],
         set(_BACKOFFICE_KEYS),
-        _PRINCIPAL_KEYS_A | {"backoffice.reporting"},  # ADD BACK _SUPERADMIN_ONLY_KEYS
+        _PRINCIPAL_KEYS_A | _SUPERADMIN_ONLY_KEYS | {"backoffice.reporting"},
         id="backoffice",
     ),
     pytest.param(
@@ -542,7 +540,7 @@ _COMPOSITION_CASES = [
         # backoffice + principal — super-admin-only pages must stay absent.
         [_r_backoffice(), _r_principal(_IID_A)],
         _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS,
-        {"backoffice.reporting"},  # add back _SUPERADMIN_ONLY_KEYS
+        _SUPERADMIN_ONLY_KEYS | {"backoffice.reporting"},
         id="backoffice+principal",
     ),
     pytest.param(
@@ -691,8 +689,6 @@ class TestBackofficeAffiliationScoping:
         assert set(perms) == {
             "backoffice.reporting/SV",
             "backoffice.users",
-            "backoffice.configuration",
-            "backoffice.pipeline_operations",
             "backoffice.documentation",
             "backoffice.ui_texts",
         }
@@ -714,8 +710,8 @@ class TestBackofficeAffiliationScoping:
         ]
         perms = calculate_user_permissions(roles)
         for key in (
-            # "backoffice.configuration",
-            # "backoffice.pipeline_operations", # TODO add back when permission change
+            "backoffice.configuration",
+            "backoffice.pipeline_operations",
             "backoffice.logs",
         ):
             assert key not in perms

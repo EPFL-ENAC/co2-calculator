@@ -1,4 +1,4 @@
 origin_iata,destination_iata,cabin_class,user_institutional_id,number_of_trips,kg_co2eq
 GVA,ZRH,first,150322,1,152.685
-CDG,JFK,eco,150322,1,420.5
+CDG,JFK,economy,150322,1,420.5
 GVA,LHR,business,200001,2,380.0

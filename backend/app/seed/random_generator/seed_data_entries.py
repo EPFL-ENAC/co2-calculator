@@ -211,7 +211,7 @@ def build_plane_travel() -> dict:
         "user_institutional_id": _user_institutional_id(),
         "origin_iata": fake.lexify(text="???").upper(),
         "destination_iata": fake.lexify(text="???").upper(),
-        "cabin_class": random.choice(["eco", "business", "first"]),  # nosec B311
+        "cabin_class": random.choice(["economy", "business", "first"]),  # nosec B311
         "departure_date": date.today().isoformat(),
         "number_of_trips": random.randint(1, 10),  # nosec B311
         "note": maybe(fake.sentence(nb_words=6)),
