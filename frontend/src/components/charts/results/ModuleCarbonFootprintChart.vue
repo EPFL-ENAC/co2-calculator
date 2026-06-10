@@ -1049,7 +1049,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'professional_travel',
           'train',
-          colors.value.babyBlue.dark,
+          colors.value.babyBlue.light,
         ),
       },
       label: { show: false },
