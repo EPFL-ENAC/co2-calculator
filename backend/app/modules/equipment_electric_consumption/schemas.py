@@ -284,7 +284,6 @@ value_fields: list[str] = [
 
 
 class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
-    # equipment_category: str  # only for upload Mandatory (checked in csv upload)
     equipment_class: str
     sub_class: Optional[str] = None
     active_usage_hours_per_week: int  # make it mandatory
@@ -292,6 +291,7 @@ class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
     active_power_w: float
     standby_power_w: float
     ef_kg_co2eq_per_kwh: float
+    # equipment_category: str  # only for upload Mandatory (checked in csv upload)
     # equipment_category is the routing column (picks scientific/it/other).
     # It is consumed in the factor CSV provider, not carried on this DTO —
     # its presence + case-sensitive {scientific,it,other} enum is enforced

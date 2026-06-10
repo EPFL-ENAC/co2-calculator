@@ -446,11 +446,15 @@ purchase_common_value_fields: list[str] = [
 
 class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
-    purchase_category: str
     purchase_institutional_code: str
     translation_key: Optional[str] = None
     purchase_additional_code: str
     ef_kg_co2eq_per_currency: float
+    # purchase_category: str  # only for upload Mandatory (checked in csv upload)
+    # purchase_category is the routing column (picks the correct data_entry_type).
+    # It is consumed in the factor CSV provider, not carried on this DTO —
+    # its presence + case-sensitive enum is enforced
+    # there (see base_factor_csv_provider._resolve_data_entry_type).
 
     @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod
