@@ -177,18 +177,14 @@
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template
-            v-else-if="
-              col.name === 'action' &&
-              props.submoduleConfig?.hasTableAction !== false
-            "
-          >
+          <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
+              v-if="showTableNote"
               :icon="noteButtonIcon(slotProps.row.note)"
               :color="noteButtonColor(slotProps.row.note)"
               :style="noteButtonStyle(slotProps.row.note)"
               :text-color="noteButtonTextColor(slotProps.row.note)"
-              :disable="isDisabled"
+              :disable="isNoteDisabled"
               unelevated
               no-caps
               dense
@@ -202,7 +198,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="canEdit && hasModuleUpload"
+              v-if="showTableRowActions && canEdit && hasModuleUpload"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
@@ -784,6 +780,25 @@ const isDisabled = computed(
       !canEdit.value),
 );
 
+const showTableRowActions = computed(
+  () => props.submoduleConfig?.hasTableAction !== false,
+);
+
+const showTableNote = computed(
+  () =>
+    showTableRowActions.value || props.submoduleConfig?.hasTableNote === true,
+);
+
+const showTableActions = computed(() => showTableNote.value);
+
+// Notes stay available on read-only tables; only permission and validation block them.
+const isNoteDisabled = computed(
+  () =>
+    !props.isSimulator &&
+    (timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
+);
+
 const filterTerm = ref('');
 const confirmDelete = ref(false);
 const ItemName = ref<string>('');
@@ -922,7 +937,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
-  if (props.submoduleConfig.hasTableAction !== false) {
+  if (showTableActions.value) {
     baseCols.push({
       name: 'action',
       label: $t('common_actions'),
