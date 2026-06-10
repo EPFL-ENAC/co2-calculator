@@ -71,7 +71,7 @@ Option (a) is the cleanest if the design system genuinely wants "fixed-width tok
 
 **Fix**: Either migrate the orphans (`maxColumnWidth: 120` → introduce a `columnMaxSize: 'sm'` token if F1 fix (c) is chosen), OR explicitly document that `maxColumnWidth` remains the canonical API for caps.
 
-### F4. Same in equipment-electric-consumption.ts — plus a semantic gap in the token scale
+### F4. Same in equipment-electr ic-consumption.ts — plus a semantic gap in the token scale
 
 **Evidence**: 4 fields at lines 74, 92, 119, 139 still use `maxColumnWidth: 200/150`. Crucially: the value `150` has NO equivalent in `COLUMN_SIZES` (xs:80 / sm:120 / md:160 / lg:200 / xl:260) — there is no token between sm and md.
 

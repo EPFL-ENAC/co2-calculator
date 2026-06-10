@@ -38,7 +38,7 @@ const rows = computed(() => [
       'documentation_editing_rows_equipment_electric_consumption_description',
     ),
     githubUrl:
-      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment_electric_consumption.ts',
+      'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment.ts',
   },
   {
     topic: t('documentation_editing_rows_external_cloud_topic'),

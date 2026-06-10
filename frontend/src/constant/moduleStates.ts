@@ -22,7 +22,7 @@ export const MODULE_TYPE_IDS = {
   [MODULES.Headcount]: 1,
   [MODULES.ProfessionalTravel]: 2,
   [MODULES.Buildings]: 3,
-  [MODULES.EquipmentElectricConsumption]: 4,
+  [MODULES.Equipment]: 4,
   [MODULES.Purchase]: 5,
   [MODULES.ResearchFacilities]: 6,
   [MODULES.ExternalCloudAndAI]: 7,

@@ -107,7 +107,7 @@ export default {
     en: 'Purchases carbon footprint',
     fr: 'Empreinte carbone des achats',
   },
-  'results_total_module_carbon_footprint_equipment-electric-consumption': {
+  results_total_module_carbon_footprint_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },

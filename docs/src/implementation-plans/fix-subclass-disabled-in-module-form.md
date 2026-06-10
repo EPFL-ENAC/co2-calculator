@@ -52,7 +52,7 @@ if (
 
 ### No other files changed
 
-- `equipment-electric-consumption.ts`: `sub_class.required = true` is correct for classes that have sub-classes.
+- `equipment.ts`: `sub_class.required = true` is correct for classes that have sub-classes.
 - `useEquipmentClassOptions.ts`: already returns `[]` when no sub-classes exist.
 - `ModuleInlineSelect.vue`: already handles this correctly in the table.
 

@@ -147,7 +147,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
     [MODULES.Buildings]: MODULE_STATES.Default,
-    [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
+    [MODULES.Equipment]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.ResearchFacilities]: MODULE_STATES.Default,
     [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
@@ -606,7 +606,7 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       // Module-specific payload adjustments
-      if (moduleType === MODULES.EquipmentElectricConsumption) {
+      if (moduleType === MODULES.Equipment) {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
       }
@@ -881,7 +881,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
   ) {
     const TOP_CLASS_MODULES = [
-      MODULES.EquipmentElectricConsumption,
+      MODULES.Equipment,
       MODULES.Purchase,
       MODULES.ResearchFacilities,
     ];

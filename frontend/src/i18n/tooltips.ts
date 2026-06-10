@@ -52,7 +52,7 @@ export default {
     fr: 'La quantité de chaque gaz à effet de serre émise doit être estimée avant de saisir la valeur dans le calculateur (par ex. en prenant en compte que seulement X % du SF₆ utilisé est finalement émis)',
   },
   'module-buildings-title': { en: '', fr: '' },
-  'module-equipment-electric-consumption-title': {
+  'module-equipment-title': {
     en: "The emissions from the equipment module contribute to Scope 2 of the laboratory's carbon footprint.",
     fr: "Les émissions du module équipement contribue au Scope 2 de l'empreinte carbone du laboratoire.",
   },
@@ -97,15 +97,15 @@ export default {
   'module-buildings-submodule-energy_combustion': { en: '', fr: '' },
 
   // ── Equipment ──────────────────────────────────────────────────────────────
-  'module-equipment-electric-consumption-submodule-scientific': {
+  'module-equipment-submodule-scientific': {
     en: 'Check that the data for your scientific equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
-  'module-equipment-electric-consumption-submodule-it': {
+  'module-equipment-submodule-it': {
     en: 'Check that the data for your IT equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos équipements scientifiques sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
-  'module-equipment-electric-consumption-submodule-other': {
+  'module-equipment-submodule-other': {
     en: 'Check that the data for your other equipment are accurate, especially by updating the active and standby use of each piece of equipment.',
     fr: "Vérifiez que les données de vos autres équipements  sont correctes, en particulier en mettant à jour l'utilisation active et standby de chaque équipement.",
   },
@@ -176,15 +176,15 @@ export default {
   },
 
   // ── Equipment ──────────────────────────────────────────────────────────────
-  'module-equipment-electric-consumption-submodule-scientific-form': {
+  'module-equipment-submodule-scientific-form': {
     en: 'Add a scientific equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
     fr: "Ajoutez un équipement scientifique qui ne figure pas encore dans votre inventaire. Pensez également à l'ajouter à votre inventaire officiel afin qu'il soit inclus dans les années futures.",
   },
-  'module-equipment-electric-consumption-submodule-it-form': {
+  'module-equipment-submodule-it-form': {
     en: 'Add an IT equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
     fr: "Ajoutez un équipement informatique qui ne figure pas encore dans votre inventaire. Pensez également à l'ajouter à votre inventaire officiel afin qu'il soit inclus dans les années futures.",
   },
-  'module-equipment-electric-consumption-submodule-other-form': {
+  'module-equipment-submodule-other-form': {
     en: 'Add another equipment item that is not already in your inventory. Remember to also add it to your official inventory so it is included in future years.',
     fr: "Ajoutez un autre équipement qui ne figure pas encore dans votre inventaire. Pensez également à l'ajouter à votre inventaire officiel afin qu'il soit inclus dans les années futures.",
   },
@@ -315,52 +315,49 @@ export default {
   },
 
   // ── Equipment — scientific table ────────────────────────────────────────────
-  'module-equipment-electric-consumption-submodule-scientific-table-name': {
+  'module-equipment-submodule-scientific-table-name': {
     en: '',
     fr: '',
   },
-  'module-equipment-electric-consumption-submodule-scientific-table-equipment_class':
-    {
-      en: 'The equipment class determines the average power values used for the emission calculation. Update the class if the one from your inventory is not appropriate.',
-      fr: "La classe de l'équipement détermine les valeurs de puissance moyenne utilisées pour le calcul des émissions. Mettez à jour la classe si celle issue de votre inventaire n'est pas appropriée.",
-    },
-  'module-equipment-electric-consumption-submodule-scientific-table-sub_class':
-    {
-      en: 'The sub-class allows a more precise determination of the average power values for some equipment classes.',
-      fr: "La sous-classe permet une détermination plus précise des valeurs de puissance moyenne pour certaines classes d'équipements.",
-    },
-  'module-equipment-electric-consumption-submodule-scientific-table-active_usage_hours_per_week':
-    {
-      en: 'Number of hours per week the equipment is actively in use. It is recommended to make a conservative (not underestimated) estimate.',
-      fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est activement utilisé. Il est recommandé de faire une estimation conservatrice (non sous-estimée).",
-    },
-  'module-equipment-electric-consumption-submodule-scientific-table-standby_usage_hours_per_week':
-    {
-      en: 'Number of hours per week the equipment is on standby (powered on but not actively used). Active and standby hours combined cannot exceed 168 h/wk.',
-      fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est en veille (allumé mais non activement utilisé). Les heures actives et standby combinées ne peuvent pas dépasser 168 h/semaine.",
-    },
-  'module-equipment-electric-consumption-submodule-scientific-table-active_power_w':
-    {
-      en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
-      fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
-    },
-  'module-equipment-electric-consumption-submodule-scientific-table-standby_power_w':
-    { en: '', fr: '' },
-  'module-equipment-electric-consumption-submodule-scientific-table-kg_co2eq': {
+  'module-equipment-submodule-scientific-table-equipment_class': {
+    en: 'The equipment class determines the average power values used for the emission calculation. Update the class if the one from your inventory is not appropriate.',
+    fr: "La classe de l'équipement détermine les valeurs de puissance moyenne utilisées pour le calcul des émissions. Mettez à jour la classe si celle issue de votre inventaire n'est pas appropriée.",
+  },
+  'module-equipment-submodule-scientific-table-sub_class': {
+    en: 'The sub-class allows a more precise determination of the average power values for some equipment classes.',
+    fr: "La sous-classe permet une détermination plus précise des valeurs de puissance moyenne pour certaines classes d'équipements.",
+  },
+  'module-equipment-submodule-scientific-table-active_usage_hours_per_week': {
+    en: 'Number of hours per week the equipment is actively in use. It is recommended to make a conservative (not underestimated) estimate.',
+    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est activement utilisé. Il est recommandé de faire une estimation conservatrice (non sous-estimée).",
+  },
+  'module-equipment-submodule-scientific-table-standby_usage_hours_per_week': {
+    en: 'Number of hours per week the equipment is on standby (powered on but not actively used). Active and standby hours combined cannot exceed 168 h/wk.',
+    fr: "Nombre d'heures par semaine pendant lesquelles l'équipement est en veille (allumé mais non activement utilisé). Les heures actives et standby combinées ne peuvent pas dépasser 168 h/semaine.",
+  },
+  'module-equipment-submodule-scientific-table-active_power_w': {
+    en: 'The average power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
+    fr: "La puissance moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
+  },
+  'module-equipment-submodule-scientific-table-standby_power_w': {
+    en: '',
+    fr: '',
+  },
+  'module-equipment-submodule-scientific-table-kg_co2eq': {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
     fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
   },
-  'module-equipment-electric-consumption-submodule-scientific-table-t_co2eq': {
+  'module-equipment-submodule-scientific-table-t_co2eq': {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',
     fr: "L'incertitude de ces valeurs peut être haute et dépend de la représentativité de la puissance, des heures d'utilisation et des paramètre d'utilisation.",
   },
 
   // ── Equipment — IT and other tables ────────────────────────────────────────
-  'module-equipment-electric-consumption-submodule-it-table-name': {
+  'module-equipment-submodule-it-table-name': {
     en: '',
     fr: '',
   },
-  'module-equipment-electric-consumption-submodule-other-table-name': {
+  'module-equipment-submodule-other-table-name': {
     en: '',
     fr: '',
   },
@@ -450,7 +447,7 @@ export default {
   // appear next to the chart title to give users context about what is
   // included in — or excluded from — the visualisation.
 
-  'module-equipment-electric-consumption-charts': {
+  'module-equipment-charts': {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
     fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
   },
@@ -558,15 +555,15 @@ export default {
   // (e.g. "Total electricity use" for Equipment).
   // A (ℹ) icon can appear on each card to give extra context.
 
-  'results-equipment-electric-consumption-stats-total-electricity-use-title': {
+  'results-equipment-stats-total-electricity-use-title': {
     en: 'Total electricity consumption of all equipment in the unit',
     fr: "Consommation électrique totale de tous les équipements de l'unité",
   },
-  'results-equipment-electric-consumption-stats-share-of-lab-total-title': {
+  'results-equipment-stats-share-of-lab-total-title': {
     en: "Percentage of the lab's total carbon footprint represented by equipment electricity consumption",
     fr: "Pourcentage de l'empreinte carbone totale du laboratoire représenté par la consommation électrique des équipements",
   },
-  'results-equipment-electric-consumption-stats-year-to-year-evolution-title': {
+  'results-equipment-stats-year-to-year-evolution-title': {
     en: 'Change in electricity consumption compared to the previous year',
     fr: "Évolution de la consommation électrique par rapport à l'année précédente",
   },

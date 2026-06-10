@@ -10,18 +10,18 @@ All tooltip text lives in a single file: **`frontend/src/i18n/tooltips.ts`**
 
 Each tooltip has a unique name called a **key**. The key tells the app where the tooltip appears. Use the table below to find the key pattern for the tooltip you want to edit.
 
-| Where you see the (ℹ) icon in the app                                         | Key pattern                                                       | Example                                                                    |
-| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Top-right corner of a module page                                             | `module-{module}-title`                                           | `module-headcount-title`                                                   |
-| Next to a sub-section title (e.g. "Scientific Equipment")                     | `module-{module}-submodule-{submodule}`                           | `module-buildings-submodule-building`                                      |
-| Top of a data-entry form (the dialog that opens when adding or editing a row) | `module-{module}-submodule-{submodule}-form`                      | `module-equipment-electric-consumption-submodule-scientific-form`          |
-| Next to a column header in a data table                                       | `module-{module}-submodule-{submodule}-table-{column}`            | `module-buildings-submodule-building-table-room_allocation_ratio`          |
-| Next to a module chart title                                                  | `module-{module}-charts`                                          | `module-buildings-charts`                                                  |
-| On a summary stat card in the Results page                                    | `results-stats-{stat}-title`                                      | `results-stats-total-unit-carbon-footprint-title`                          |
-| On a chart title or filter badge in the Results page                          | `results-charts-{chart}-title` or `results-charts-{chart}-filter` | `results-charts-it-focus-breakdown-title`                                  |
-| Next to a reduction slider label                                              | `results-reduction-{category}`                                    | `results-reduction-professional_travel`                                    |
-| On a module-specific stat card in the Results page                            | `results-{module}-stats-{stat}-title`                             | `results-equipment-electric-consumption-stats-total-electricity-use-title` |
-| In the admin back-office pages                                                | `backoffice-{page}-{description}`                                 | `backoffice-data-management-open-year-disabled`                            |
+| Where you see the (ℹ) icon in the app                                         | Key pattern                                                       | Example                                                           |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Top-right corner of a module page                                             | `module-{module}-title`                                           | `module-headcount-title`                                          |
+| Next to a sub-section title (e.g. "Scientific Equipment")                     | `module-{module}-submodule-{submodule}`                           | `module-buildings-submodule-building`                             |
+| Top of a data-entry form (the dialog that opens when adding or editing a row) | `module-{module}-submodule-{submodule}-form`                      | `module-equipment-submodule-scientific-form`                      |
+| Next to a column header in a data table                                       | `module-{module}-submodule-{submodule}-table-{column}`            | `module-buildings-submodule-building-table-room_allocation_ratio` |
+| Next to a module chart title                                                  | `module-{module}-charts`                                          | `module-buildings-charts`                                         |
+| On a summary stat card in the Results page                                    | `results-stats-{stat}-title`                                      | `results-stats-total-unit-carbon-footprint-title`                 |
+| On a chart title or filter badge in the Results page                          | `results-charts-{chart}-title` or `results-charts-{chart}-filter` | `results-charts-it-focus-breakdown-title`                         |
+| Next to a reduction slider label                                              | `results-reduction-{category}`                                    | `results-reduction-professional_travel`                           |
+| On a module-specific stat card in the Results page                            | `results-{module}-stats-{stat}-title`                             | `results-equipment-stats-total-electricity-use-title`             |
+| In the admin back-office pages                                                | `backoffice-{page}-{description}`                                 | `backoffice-data-management-open-year-disabled`                   |
 
 Replace `{module}`, `{submodule}`, `{column}`, etc. with the slug from the tables at the bottom of this guide.
 
@@ -69,16 +69,16 @@ Ask a developer to help with step 2 if needed.
 
 Use the **Slug** column exactly as written when building a key. Modules are listed in the order they appear in the app.
 
-| Module              | Slug                             |
-| ------------------- | -------------------------------- |
-| Headcount           | `headcount`                      |
-| Process Emissions   | `process-emissions`              |
-| Buildings           | `buildings`                      |
-| Equipment           | `equipment-electric-consumption` |
-| External Cloud & AI | `external-cloud-and-ai`          |
-| Professional Travel | `professional-travel`            |
-| Purchase            | `purchase`                       |
-| Research Facilities | `research-facilities`            |
+| Module              | Slug                    |
+| ------------------- | ----------------------- |
+| Headcount           | `headcount`             |
+| Process Emissions   | `process-emissions`     |
+| Buildings           | `buildings`             |
+| Equipment           | `equipment`             |
+| External Cloud & AI | `external-cloud-and-ai` |
+| Professional Travel | `professional-travel`   |
+| Purchase            | `purchase`              |
+| Research Facilities | `research-facilities`   |
 
 ---
 

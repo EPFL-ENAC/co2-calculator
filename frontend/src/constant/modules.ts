@@ -5,7 +5,7 @@ export const MODULES = {
   ProfessionalTravel: 'professional-travel',
   ProcessEmissions: 'process-emissions',
   Buildings: 'buildings',
-  EquipmentElectricConsumption: 'equipment-electric-consumption',
+  Equipment: 'equipment',
   Purchase: 'purchase',
   ResearchFacilities: 'research-facilities',
   ExternalCloudAndAI: 'external-cloud-and-ai',
@@ -149,7 +149,7 @@ type BuildingsProps = {
 };
 
 type EquipmentElectricConsumptionProps = {
-  moduleType: typeof MODULES.EquipmentElectricConsumption;
+  moduleType: typeof MODULES.Equipment;
   submoduleType?: AllSubmoduleTypes; // EquipmentElectricConsumptionSubType;
 };
 
@@ -270,7 +270,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
     [MODULES.Buildings]: 'buildings',
-    [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
+    [MODULES.Equipment]: 'equipment',
     [MODULES.Purchase]: 'purchase',
     [MODULES.ResearchFacilities]: 'research_facilities',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',

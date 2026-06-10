@@ -1,4 +1,4 @@
-import { MODULES } from 'src/constant/modules';
+import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 
 export default {
   [MODULES.ExternalCloudAndAI]: {

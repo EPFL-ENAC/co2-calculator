@@ -516,7 +516,7 @@ const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
   'charts-buildings-energy-combustion-category',
   'charts-buildings-room-category',
-  'charts-equipment-electric-consumption-category',
+  'charts-equipment-category',
   'charts-external-cloud-category',
   'charts-professional-travel-category',
   'charts-purchases-category',

@@ -33,7 +33,7 @@ export const MODULE_CARDS: ModuleCard[] = [
     active: true,
   },
   {
-    module: MODULES.EquipmentElectricConsumption,
+    module: MODULES.Equipment,
     active: true,
   },
   {

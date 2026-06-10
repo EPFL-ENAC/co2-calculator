@@ -14,7 +14,7 @@ import {
 const nameField: ModuleField = {
   id: 'name',
   label: 'Equipment Name',
-  labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.name`,
+  labelKey: `${MODULES.Equipment}.inputs.name`,
   type: 'text',
   required: true,
   sortable: true,
@@ -26,7 +26,7 @@ const nameField: ModuleField = {
 const equipmentIdField: ModuleField = {
   id: 'equipment_id',
   label: 'Equipment ID',
-  labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.equipment_id`,
+  labelKey: `${MODULES.Equipment}.inputs.equipment_id`,
   type: 'text',
   required: false,
   sortable: false,
@@ -41,25 +41,23 @@ const equipmentIdField: ModuleField = {
 const baseModuleFields: ModuleField[] = [
   {
     ...nameField,
-    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`,
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-name',
+    placeholder: `${MODULES.Equipment}.inputs.name-placeholder-scientific`,
+    tooltip: 'module-equipment-submodule-scientific-table-name',
   },
   {
     ...equipmentIdField,
-    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.equipment_id`,
+    placeholder: `${MODULES.Equipment}.inputs.equipment_id`,
   },
   {
     id: 'equipment_class',
     optionsId: 'kind',
     label: 'Class',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.class`,
+    labelKey: `${MODULES.Equipment}.inputs.class`,
     type: 'select',
     required: true,
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-equipment_class',
+    tooltip: 'module-equipment-submodule-scientific-table-equipment_class',
     inputTypeName: 'QSelect',
     readOnly: false,
     editableInline: true,
@@ -71,14 +69,13 @@ const baseModuleFields: ModuleField[] = [
     id: 'sub_class',
     optionsId: 'subkind',
     label: 'Sub-class',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.subclass`,
+    labelKey: `${MODULES.Equipment}.inputs.subclass`,
     type: 'select',
     required: true,
     min: 0,
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-sub_class',
+    tooltip: 'module-equipment-submodule-scientific-table-sub_class',
     inputTypeName: 'QSelect',
     editableInline: true,
     readOnly: false,
@@ -89,7 +86,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'active_usage_hours_per_week',
     label: 'Active usage',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.active_usage`,
+    labelKey: `${MODULES.Equipment}.inputs.active_usage`,
     type: 'number',
     required: true,
     min: 0,
@@ -99,7 +96,7 @@ const baseModuleFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-active_usage_hours_per_week',
+      'module-equipment-submodule-scientific-table-active_usage_hours_per_week',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -108,7 +105,7 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'standby_usage_hours_per_week',
     label: 'Standby usage',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.standby_usage`,
+    labelKey: `${MODULES.Equipment}.inputs.standby_usage`,
     type: 'number',
     required: true,
     min: 0,
@@ -118,7 +115,7 @@ const baseModuleFields: ModuleField[] = [
     sortable: true,
     align: 'left',
     tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-standby_usage_hours_per_week',
+      'module-equipment-submodule-scientific-table-standby_usage_hours_per_week',
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
@@ -127,15 +124,14 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'active_power_w',
     label: 'Active power',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.active_power`,
+    labelKey: `${MODULES.Equipment}.inputs.active_power`,
     type: 'number',
     required: true,
     min: 0,
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-active_power_w',
+    tooltip: 'module-equipment-submodule-scientific-table-active_power_w',
     readOnly: true,
     ratio: '3/12',
     icon: 'o_electric_bolt',
@@ -147,15 +143,14 @@ const baseModuleFields: ModuleField[] = [
   {
     id: 'standby_power_w',
     label: 'Standby Power',
-    labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.standby_power`,
+    labelKey: `${MODULES.Equipment}.inputs.standby_power`,
     type: 'number',
     required: true,
     min: 0,
     unit: 'W',
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-standby_power_w',
+    tooltip: 'module-equipment-submodule-scientific-table-standby_power_w',
     readOnly: true,
     hideIn: {
       form: false,
@@ -174,8 +169,7 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-kg_co2eq',
+    tooltip: 'module-equipment-submodule-scientific-table-kg_co2eq',
   },
   {
     id: 't_co2eq',
@@ -187,16 +181,15 @@ const baseModuleFields: ModuleField[] = [
     },
     sortable: true,
     align: 'left',
-    tooltip:
-      'module-equipment-electric-consumption-submodule-scientific-table-t_co2eq',
+    tooltip: 'module-equipment-submodule-scientific-table-t_co2eq',
   },
 ];
 
 const otherModuleFields: ModuleField[] = [
   {
     ...nameField,
-    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-other`,
-    tooltip: 'module-equipment-electric-consumption-submodule-other-table-name',
+    placeholder: `${MODULES.Equipment}.inputs.name-placeholder-other`,
+    tooltip: 'module-equipment-submodule-other-table-name',
   },
   ...baseModuleFields.slice(1),
 ];
@@ -205,15 +198,15 @@ const otherModuleFields: ModuleField[] = [
 const itmodulefields: ModuleField[] = [
   {
     ...nameField,
-    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-it`,
-    tooltip: 'module-equipment-electric-consumption-submodule-it-table-name',
+    placeholder: `${MODULES.Equipment}.inputs.name-placeholder-it`,
+    tooltip: 'module-equipment-submodule-it-table-name',
   },
   ...baseModuleFields.slice(1).filter((field) => field.id !== 'sub_class'),
 ];
 
-export const equipmentElectricConsumption: ModuleConfig = {
+export const equipment: ModuleConfig = {
   id: 'module_elec_001',
-  type: MODULES.EquipmentElectricConsumption as Module,
+  type: MODULES.Equipment as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
   threshold: {
@@ -233,8 +226,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       id: SUBMODULE_EQUIPMENT_TYPES.Scientific,
       type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
       // name: 'Scientific Equipment',
-      tableNameKey:
-        'equipment-electric-consumption-scientific-equipment-table-title',
+      tableNameKey: 'equipment-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
     },
@@ -242,7 +234,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       id: SUBMODULE_EQUIPMENT_TYPES.IT,
       type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
       // name: 'IT Equipment',
-      tableNameKey: 'equipment-electric-consumption-it-equipment-table-title',
+      tableNameKey: 'equipment-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,
     },
@@ -250,8 +242,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       id: SUBMODULE_EQUIPMENT_TYPES.Other,
       type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
       // name: 'Other',
-      tableNameKey:
-        'equipment-electric-consumption-other-equipment-table-title',
+      tableNameKey: 'equipment-other-equipment-table-title',
       count: 4,
       moduleFields: otherModuleFields,
     },
@@ -264,8 +255,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       comparisonParams: { residents: "10'200" },
       comparisonHighlight: "10'200",
       color: 'negative',
-      tooltipKey:
-        'results-equipment-electric-consumption-stats-total-electricity-use-title',
+      tooltipKey: 'results-equipment-stats-total-electricity-use-title',
     },
     {
       titleKey: 'equipment-results-share-of-lab-total',
@@ -275,8 +265,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       comparisonParams: { percentage: '28%' },
       comparisonHighlight: '28%',
       color: 'negative',
-      tooltipKey:
-        'results-equipment-electric-consumption-stats-share-of-lab-total-title',
+      tooltipKey: 'results-equipment-stats-share-of-lab-total-title',
     },
     {
       titleKey: 'equipment-results-year-to-year-evolution',
@@ -285,8 +274,7 @@ export const equipmentElectricConsumption: ModuleConfig = {
       comparisonParams: { freezers: '3' },
       comparisonHighlight: '3 freezers',
       color: 'positive',
-      tooltipKey:
-        'results-equipment-electric-consumption-stats-year-to-year-evolution-title',
+      tooltipKey: 'results-equipment-stats-year-to-year-evolution-title',
     },
   ],
 };

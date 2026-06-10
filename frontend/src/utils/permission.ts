@@ -190,13 +190,13 @@ export function hasBackOfficeAreaPermission(
  * Maps frontend module names to backend permission paths.
  * Only modules with defined permissions are included.
  *
- * @param module - The frontend module identifier (e.g., 'headcount', 'equipment-electric-consumption')
+ * @param module - The frontend module identifier (e.g., 'headcount', 'equipment')
  * @returns The permission path (e.g., 'modules.headcount', 'modules.equipment') or null if not protected
  */
 export function getModulePermissionPath(module: Module): string | null {
   const modulePermissionMap: Record<Module, string | null> = {
     [MODULES.Headcount]: 'modules.headcount',
-    [MODULES.EquipmentElectricConsumption]: 'modules.equipment',
+    [MODULES.Equipment]: 'modules.equipment',
     [MODULES.ProfessionalTravel]: 'modules.professional_travel',
     [MODULES.Buildings]: 'modules.buildings',
     [MODULES.Purchase]: 'modules.purchase',

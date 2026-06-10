@@ -5,8 +5,7 @@ import { MODULES } from 'src/constant/modules';
 export const EMISSION_TYPE_BREAKDOWN_INFO_KEYS: Partial<
   Record<Module, string>
 > = {
-  [MODULES.EquipmentElectricConsumption]:
-    'module-equipment-electric-consumption-charts',
+  [MODULES.Equipment]: 'module-equipment-charts',
   [MODULES.Buildings]: 'module-buildings-charts',
   [MODULES.ExternalCloudAndAI]: 'module-external-cloud-and-ai-charts',
   [MODULES.ResearchFacilities]: 'module-research-facilities-charts',

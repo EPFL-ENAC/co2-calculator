@@ -592,7 +592,7 @@ const subkindFieldId = computed(() => {
 //   saved value is preserved.
 const factorValueFieldIds: string[] = [];
 const factorDefaultFieldIds: string[] = [];
-if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+if (props.moduleType === MODULES.Equipment) {
   factorValueFieldIds.push('active_power_w', 'standby_power_w');
   factorDefaultFieldIds.push(
     'active_usage_hours_per_week',
