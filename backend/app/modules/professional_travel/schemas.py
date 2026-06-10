@@ -252,6 +252,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     response_dto = ProfessionalTravelPlaneHandlerResponse
 
     kind_field: str = "category"
+    subkind_field: str = "cabin_class"
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute flight distance and haul category
@@ -516,7 +517,6 @@ class _TravelPlaneBaseValidationMixin:
     @field_validator(
         "ef_kg_co2eq_per_km",
         "rfi_adjustment",
-        "cabin_class",
         "min_distance",
         "max_distance",
         mode="after",
@@ -526,6 +526,20 @@ class _TravelPlaneBaseValidationMixin:
         cls, v: Optional[float], info: ValidationInfo
     ) -> Optional[float]:
         return _validate_non_negative_float(v, info.field_name or "")
+
+    @field_validator("cabin_class", mode="after")
+    @classmethod
+    def validate_cabin_class(cls, v: str) -> str:
+        valid_cabin_classes = [
+            "economy",
+            "business",
+            "first",
+        ]
+        if not v:
+            raise ValueError("Cabin class is required")
+        if v not in valid_cabin_classes:
+            raise ValueError("Invalid cabin class")
+        return v
 
     @field_validator("category", mode="after")
     @classmethod
@@ -564,10 +578,9 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
     registration_keys = [DataEntryTypeEnum.plane]
     emission_type: EmissionType = EmissionType.professional_travel__plane
 
-    classification_fields: list[str] = ["category"]
+    classification_fields: list[str] = ["category", "cabin_class"]
     value_fields: list[str] = [
         "ef_kg_co2eq_per_km",
-        "cabin_class",
         "rfi_adjustment",
         "min_distance",
         "max_distance",
