@@ -39,11 +39,12 @@ async def test_resolve_primary_factor_id_with_subkind(service):
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
     payload = {"kind": "ClassA", "subkind": "SubA1"}
-    result = await service.resolve_primary_factor_id(
+    result, resolved_factor = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result["primary_factor_id"] == 42
+    assert resolved_factor is factor
     service.factor_service.get_by_classification.assert_awaited_once_with(
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
@@ -60,7 +61,7 @@ async def test_resolve_primary_factor_id_no_subkind_field(service):
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
     payload = {"name": "natural_gas"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.energy_combustion, year=2025
     )
 
@@ -79,11 +80,12 @@ async def test_resolve_primary_factor_id_no_kind_field(service):
     handler = _make_handler(kind_field=None, subkind_field=None)
 
     payload = {"foo": "bar"}
-    result = await service.resolve_primary_factor_id(
+    result, resolved_factor = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result == {"foo": "bar"}
+    assert resolved_factor is None
     assert "primary_factor_id" not in result
 
 
@@ -95,7 +97,7 @@ async def test_resolve_primary_factor_id_merges_existing_data(service):
 
     payload = {"kind": "ClassA"}
     existing = {"subkind": "SubB1"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.scientific,
@@ -121,7 +123,7 @@ async def test_resolve_if_changed_no_existing_data(service):
     factor = SimpleNamespace(id=5)
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "A", "subkind": "B"},
         DataEntryTypeEnum.scientific,
@@ -139,7 +141,7 @@ async def test_resolve_if_changed_kind_changed(service):
     factor = SimpleNamespace(id=99)
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, resolved_factor = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "NewClass", "subkind": "Sub1"},
         DataEntryTypeEnum.scientific,
@@ -150,13 +152,14 @@ async def test_resolve_if_changed_kind_changed(service):
 
     assert result["subkind"] is None
     assert result["primary_factor_id"] == 99
+    assert resolved_factor is factor
 
 
 @pytest.mark.asyncio
 async def test_resolve_if_changed_nothing_changed(service):
     handler = _make_handler()
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, resolved_factor = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "Same", "subkind": "Sub"},
         DataEntryTypeEnum.scientific,
@@ -166,6 +169,7 @@ async def test_resolve_if_changed_nothing_changed(service):
     )
 
     assert "primary_factor_id" not in result
+    assert resolved_factor is None
 
 
 # ── get_taxonomy ────────────────────────────────────────────

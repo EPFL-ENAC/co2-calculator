@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional, TypedDict
 from sqlmodel import col, select
 
 from app.api.v1.files import make_files_store
-from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
@@ -35,7 +34,6 @@ from app.schemas.data_entry import (
 )
 from app.schemas.user import UserRead
 from app.seed.seed_helper import load_factors_map
-from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
@@ -1172,39 +1170,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-                # await populate_defaults(
-                #     handler,
-                #     update_payload,
-                #     existing_data,
-                #     setup_result["factor_id_to_factor"],
-                # )
-                # Note: primary_factor_id is already in payload and
-                # will be in validated.data
-                # No need to set it again
-
-                # Populate missing data fields from factor values
-                # (e.g., equipment usage hours, default quantities)
-                # Use O(1) lookup with factor_id_to_factor instead of O(n) loop
-                # if primary_factor_id and "factor_id_to_factor" in setup_result:
-                #     factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-
-                #     # Populate defaults from factor if handler defines factor_value_fields
-                #     if (
-                #         factor
-                #         and hasattr(handler, "factor_value_fields")
-                #         and handler.factor_value_fields
-                #     ):
-                #         for field_name in handler.factor_value_fields:
-                #             if field_name not in data or data[field_name] in (None, "", 0):
-                #                 default_value = factor.values.get(field_name)
-                #                 if default_value is not None:
-                #                     data[field_name] = default_value
-                #                     # Throttle logging: only first 5 rows or every 1000 rows
-                #                     if row_idx <= 5 or row_idx % 1000 == 0:
-                #                         logger.debug(
-                #                             f"Row {row_idx}: Populated "
-                #                             f"{field_name}={default_value} from factor"
-                #                         )
             handler_service = ModuleHandlerService(self.data_session)
             if primary_factor_id and "factor_id_to_factor" in setup_result:
                 factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
@@ -1404,94 +1369,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
     async def _recompute_module_stats(self) -> None:
         """
-        Recompute stats for all affected carbon report modules and parent reports.
-
-        For MODULE_PER_YEAR: recomputes stats for each module in unit_to_module_map,
-        then recomputes stats for each affected carbon report.
-        For MODULE_UNIT_SPECIFIC: recomputes stats for self.carbon_report_module_id,
-        then recomputes stats for the parent carbon report.
-
-        Plan 310-D — when ``BULK_PATH_PURE_ASYNC`` is set, the runner-driven
+        Plan 310-D —  the runner-driven
         ``aggregation`` handler (chained by ``emission_recalc`` after the
         data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
-        for the bulk path.  Skipping inline here avoids racing the chain's
-        eventual write for the same module row; the dashboard's stale-stats
-        UX surfaces the gap until the chain completes.
-
-        Seed runs (``is_seed_run=True``) bypass the gate: their
-        ``_update_job`` is a no-op so the chain never fires.  Without the
-        inline recompute the seeded module's stats stay at zero.
+        for the bulk path.
         """
-        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
-            self, "is_seed_run", False
-        ):
-            logger.debug(
-                "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
-                "aggregation handler will own the stats writes"
-            )
-            return
-
-        crm_service = CarbonReportModuleService(self.data_session)
-        cr_service = CarbonReportService(self.data_session)
-        module_ids_to_recompute: set[int] = set()
-        carbon_report_ids_to_recompute: set[int] = set()
-
-        # Collect module IDs and carbon report IDs based on entity type
-        if self.entity_type == EntityType.MODULE_PER_YEAR:
-            # Resolve carbon_report_module_ids if not already done
-            if (
-                not hasattr(self, "_unit_to_module_map")
-                or self._unit_to_module_map is None
-            ):
-                logger.warning(
-                    "unit_to_module_map not available for stats recomputation"
-                )
-                return
-            module_ids_to_recompute = set(self._unit_to_module_map.values())
-            # Extract unique carbon_report_ids from modules
-            # Need to fetch modules to get their carbon_report_id
-            for module_id in module_ids_to_recompute:
-                module = await crm_service.repo.get(module_id)
-                if module:
-                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
-        elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
-            if self.carbon_report_module_id:
-                module_ids_to_recompute.add(self.carbon_report_module_id)
-                # Get the carbon_report_id from the module
-                module = await crm_service.repo.get(self.carbon_report_module_id)
-                if module:
-                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
-            else:
-                logger.warning(
-                    "carbon_report_module_id not set for MODULE_UNIT_SPECIFIC"
-                )
-                return
-
-        # Recompute stats for each module
-        for module_id in module_ids_to_recompute:
-            try:
-                await crm_service.recompute_stats(module_id)
-                logger.info(f"Recomputed stats for carbon_report_module_id={module_id}")
-            except Exception as stats_error:
-                logger.error(
-                    "Failed to recompute stats for carbon_report_module_id=%s: %s",
-                    module_id,
-                    stats_error,
-                    exc_info=True,
-                )
-
-        # Recompute stats for each affected carbon report
-        for carbon_report_id in carbon_report_ids_to_recompute:
-            try:
-                await cr_service.recompute_report_stats(carbon_report_id)
-                logger.info(f"Recomputed stats for carbon_report_id={carbon_report_id}")
-            except Exception as stats_error:
-                logger.error(
-                    "Failed to recompute stats for carbon_report_id=%s: %s",
-                    carbon_report_id,
-                    stats_error,
-                    exc_info=True,
-                )
+        return
 
     def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
         """
