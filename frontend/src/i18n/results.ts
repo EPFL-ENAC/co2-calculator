@@ -502,7 +502,7 @@ export default {
     fr: 'LN2',
   },
   'charts-research-facilities-category': {
-    en: 'Research Facilities',
+    en: 'Research facilities',
     fr: 'Infrastructures de recherche',
   },
   'charts-equipment-category': {
@@ -543,7 +543,7 @@ export default {
   },
   'charts-equipment-electric-consumption-category': {
     en: 'Equipment',
-    fr: 'Équipement',
+    fr: 'Équipements',
   },
   'charts-external-cloud-category': {
     en: 'External clouds & AI',
