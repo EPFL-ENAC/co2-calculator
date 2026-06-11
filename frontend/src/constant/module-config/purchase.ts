@@ -80,10 +80,44 @@ const purchaseFields: ModuleField[] = [
     sortable: true,
     ratio: '1/4',
     columnSize: 'xs',
+
     options: [
-      { value: 'chf', label: 'CHF' },
-      { value: 'eur', label: 'EUR' },
-      { value: 'usd', label: 'USD' },
+      {
+        value: 'aud',
+        label: 'AUD',
+      },
+      {
+        value: 'cad',
+        label: 'CAD',
+      },
+      {
+        value: 'chf',
+        label: 'CHF',
+      },
+      {
+        value: 'cny',
+        label: 'CNY',
+      },
+      {
+        value: 'eur',
+        label: 'EUR',
+      },
+      {
+        value: 'gbp',
+        label: 'GBP',
+      },
+      {
+        value: 'jpy',
+        label: 'JPY',
+      },
+      {
+        value: 'sek',
+        label: 'SEK',
+      },
+      {
+        value: 'usd',
+        label: 'USD',
+      },
     ],
   },
   {

@@ -103,7 +103,17 @@ class PurchaseHandlerCreate(DataEntryCreate):
         if v is None:
             return "chf"
         normalized_v = v.strip().lower()
-        valid_currencies = ["chf", "eur", "usd"]
+        valid_currencies = [
+            "aud",
+            "cad",
+            "chf",
+            "cny",
+            "eur",
+            "gbp",
+            "jpy",
+            "sek",
+            "usd",
+        ]
         if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
@@ -158,7 +168,17 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         if v is None:
             return v
         normalized_v = v.strip().lower()
-        valid_currencies = ["chf", "eur", "usd"]
+        valid_currencies = [
+            "aud",
+            "cad",
+            "chf",
+            "cny",
+            "eur",
+            "gbp",
+            "jpy",
+            "sek",
+            "usd",
+        ]
         if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
