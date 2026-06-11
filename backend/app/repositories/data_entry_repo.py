@@ -752,10 +752,22 @@ class DataEntryRepository:
         ``number_of_trips``. Rows whose origin or destination location did not
         resolve are dropped and counted into the returned ``dropped`` total.
         """
-        emission_agg_q = select(
-            DataEntryEmission.data_entry_id,
-            func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-        ).group_by(col(DataEntryEmission.data_entry_id))
+        # Scope the per-entry emission rollup to THIS module's entries. Without
+        # it, the subquery seq-scans and aggregates the whole emissions table
+        # (~700k rows) on every call — and the mode loop below runs it twice —
+        # which dominates the query (seconds on a cold cache). Restricting by
+        # data_entry_id turns that into an indexed lookup of the module's rows.
+        module_entry_ids = select(col(DataEntry.id)).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id
+        )
+        emission_agg_q = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+            .group_by(col(DataEntryEmission.data_entry_id))
+        )
         if ROLLUP_EMISSION_TYPE_IDS:
             emission_agg_q = emission_agg_q.where(
                 col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
@@ -785,6 +797,10 @@ class DataEntryRepository:
         ):
             OriginLocation = aliased(Location)
             DestLocation = aliased(Location)
+            # Traveler identity (SCIPER) stored on the entry. The display name is
+            # resolved later from the unit's headcount roster (the canonical
+            # source), not the User table — see ``get_professional_travel_trips_map``.
+            traveler_id_key = DataEntry.data["user_institutional_id"].as_string()
 
             select_entities: list[Any] = [
                 OriginLocation.latitude,
@@ -795,6 +811,7 @@ class DataEntryRepository:
                 DestLocation.name,
                 emission_agg.c.total_kg_co2eq,
                 DataEntry.data["number_of_trips"].as_float(),
+                traveler_id_key,
             ]
             statement: Select[Any] = (
                 sa_select(*select_entities)
@@ -834,10 +851,21 @@ class DataEntryRepository:
             statement = statement.limit(remaining)
             result = await self.session.execute(statement)
             for row in result.all():
-                (o_lat, o_lng, o_name, d_lat, d_lng, d_name, kg, n_trips) = row
+                (
+                    o_lat,
+                    o_lng,
+                    o_name,
+                    d_lat,
+                    d_lng,
+                    d_name,
+                    kg,
+                    n_trips,
+                    traveler_id,
+                ) = row
                 if o_lat is None or o_lng is None or d_lat is None or d_lng is None:
                     dropped += 1
                     continue
+                tid = traveler_id or ""
                 legs.append(
                     {
                         "mode": mode,
@@ -849,6 +877,10 @@ class DataEntryRepository:
                         "destination_name": d_name or "",
                         "kg_co2eq": float(kg or 0.0),
                         "number_of_trips": int(n_trips) if n_trips is not None else 1,
+                        "traveler_id": tid,
+                        # traveler_name is filled from the headcount roster in the
+                        # service; default to the SCIPER until then.
+                        "traveler_name": tid,
                     }
                 )
 

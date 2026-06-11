@@ -95,9 +95,26 @@
           <chart-empty-state v-else />
         </template>
       </div>
+      <!-- ProfessionalTravel: the PNG download sits directly under the chart
+           (no divider above it); a divider then separates the trips map below,
+           all within the same card. -->
       <template v-if="type === MODULES.ProfessionalTravel && !isPrintMode">
-        <q-separator class="q-my-lg" />
-        <div class="q-mx-lg">
+        <q-card-section class="flex justify-start q-gutter-sm q-px-lg">
+          <q-btn
+            unelevated
+            no-caps
+            outline
+            icon="o_download"
+            :label="$t('common_download_as_png')"
+            size="xs"
+            dense
+            color="black"
+            class="text-weight-bold q-px-sm"
+            @click="downloadPNG"
+          />
+        </q-card-section>
+        <q-separator />
+        <div class="q-mx-lg q-my-lg">
           <div class="text-body1 text-weight-medium q-mb-sm text-black">
             {{ $t(`${MODULES.ProfessionalTravel}-trips-map-title-overall`) }}
           </div>
@@ -113,7 +130,15 @@
       </template>
     </template>
   </q-card-section>
-  <template v-if="type !== 'headcount' && !isPrintMode">
+  <!-- ProfessionalTravel renders its own download button under the chart
+       (above), so it is excluded here to avoid a duplicate. -->
+  <template
+    v-if="
+      type !== 'headcount' &&
+      type !== MODULES.ProfessionalTravel &&
+      !isPrintMode
+    "
+  >
     <q-separator />
     <q-card-section class="flex justify-start q-gutter-sm">
       <q-btn
@@ -154,6 +179,8 @@ import {
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 import { getHeadcountChartKeys } from 'src/utils/headcountChart';
+import { getHeadcountMembers } from 'src/api/modules';
+import { resolveTravelerNames } from 'src/utils/trips-map-data';
 
 const props = withDefaults(
   defineProps<{
@@ -275,11 +302,29 @@ function fetchTopClassBreakdownIfNeeded() {
   }
 }
 
+// SCIPER → display name for the unit's headcount roster. The trips-map API
+// ships only the traveler SCIPER; we resolve names here (the same headcount
+// endpoint the member table already uses) instead of on the backend.
+const travelerNames = ref<Map<string, string>>(new Map());
+
+async function loadTravelerNames(unitId: number, year: number | string) {
+  try {
+    const members = await getHeadcountMembers(unitId, year);
+    travelerNames.value = new Map(
+      members.map((m) => [m.institutional_id, m.name]),
+    );
+  } catch (err) {
+    // Non-fatal: legs simply fall back to showing the raw SCIPER.
+    console.error('Failed to load headcount members for trips map', err);
+  }
+}
+
 function fetchTripsMapIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
   if (unitId && year && props.type === MODULES.ProfessionalTravel) {
     void moduleStore.getProfessionalTravelTripsMap(unitId, String(year));
+    void loadTravelerNames(unitId, year);
   }
 }
 
@@ -300,7 +345,12 @@ watch(
   () => fetchTripsMapIfNeeded(),
 );
 
-const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
+const tripsMapLegs = computed(() =>
+  resolveTravelerNames(
+    moduleStore.state.tripsMap?.legs ?? [],
+    travelerNames.value,
+  ),
+);
 
 // Re-fetch top-class breakdown when the module type changes (e.g. navigating
 // from purchases to equipment) so stale data from the previous module is replaced.

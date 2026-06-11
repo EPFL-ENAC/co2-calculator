@@ -685,11 +685,16 @@ class DataEntryService:
 
         Frontend aggregates per-map (undirected by default), so this is one
         leg per source ``DataEntry``, not a per-route rollup.
+
+        Each leg carries the traveler's SCIPER (``traveler_id``); the frontend
+        resolves it to a display name via the headcount-members endpoint it
+        already calls (``traveler_name`` defaults to the SCIPER until then).
         """
         legs, dropped = await self.repo.get_professional_travel_trip_legs(
             carbon_report_module_id=carbon_report_module_id,
             institutional_id_filter=institutional_id_filter,
         )
+
         return TripsMapResponse(
             legs=[TripLeg(**leg) for leg in legs],
             dropped_count=dropped,

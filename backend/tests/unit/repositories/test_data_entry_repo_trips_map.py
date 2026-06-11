@@ -324,6 +324,51 @@ async def test_leg_carries_number_of_trips(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_legs_carry_traveler_id_with_sciper_name_fallback(
+    db_session: AsyncSession,
+):
+    """Each leg exposes its traveler (SCIPER) so a unit manager can filter by
+    person. The repo does not resolve display names — that is the service's job
+    via the headcount roster — so ``traveler_name`` defaults to the SCIPER here.
+    """
+    repo = DataEntryRepository(db_session)
+    module_id = await _seed_module(db_session)
+    await _seed_location(
+        db_session,
+        mode=TransportModeEnum.plane,
+        name="Geneva Airport",
+        lat=46.2381,
+        lng=6.1090,
+        iata="GVA",
+    )
+
+    await _seed_plane(
+        db_session,
+        module_id=module_id,
+        origin_iata="GVA",
+        destination_iata="GVA",
+        kg_co2eq=1.0,
+        user_iid="alice",
+    )
+    await _seed_plane(
+        db_session,
+        module_id=module_id,
+        origin_iata="GVA",
+        destination_iata="GVA",
+        kg_co2eq=2.0,
+        user_iid="bob",
+    )
+
+    legs, _dropped = await repo.get_professional_travel_trip_legs(
+        carbon_report_module_id=module_id,
+    )
+
+    by_id = {leg["traveler_id"]: leg["traveler_name"] for leg in legs}
+    assert by_id["alice"] == "alice"  # SCIPER fallback (no roster at repo layer)
+    assert by_id["bob"] == "bob"
+
+
+@pytest.mark.asyncio
 async def test_train_join_disambiguates_same_name_stations(
     db_session: AsyncSession,
 ):

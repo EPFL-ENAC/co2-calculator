@@ -10,3 +10,7 @@ storybook-static
 AGENTS.md
 .worktrees
 .claude/scheduled_tasks.lock
+
+# Local DB dumps + secrets (never commit)
+*.pgdump
+app_dump*

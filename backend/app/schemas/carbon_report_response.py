@@ -90,6 +90,8 @@ class TripLeg(BaseModel):
     destination_name: str
     kg_co2eq: float
     number_of_trips: int = 1
+    traveler_id: str = ""
+    traveler_name: str = ""
 
 
 class TripsMapResponse(BaseModel):

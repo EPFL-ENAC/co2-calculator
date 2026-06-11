@@ -51,6 +51,8 @@ export interface TripLeg {
   destination_name: string;
   kg_co2eq: number;
   number_of_trips: number;
+  traveler_id: string;
+  traveler_name: string;
 }
 
 export interface TripsMapResponse {
