@@ -23,10 +23,29 @@ const nameField: ModuleField = {
   ratio: '1/1',
 };
 
+const equipmentIdField: ModuleField = {
+  id: 'equipment_id',
+  label: 'Equipment ID',
+  labelKey: `${MODULES.EquipmentElectricConsumption}.inputs.equipment_id`,
+  type: 'text',
+  required: false,
+  sortable: false,
+  align: 'left',
+  readOnly: false,
+  hideIn: {
+    table: true,
+  },
+  ratio: '1/1',
+};
+
 const baseModuleFields: ModuleField[] = [
   {
     ...nameField,
     placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`,
+  },
+  {
+    ...equipmentIdField,
+    placeholder: `${MODULES.EquipmentElectricConsumption}.inputs.equipment_id`,
   },
   {
     id: 'equipment_class',

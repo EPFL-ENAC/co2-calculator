@@ -50,6 +50,10 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     en: 'Name',
     fr: 'Nom',
   },
+  [`${MODULES.EquipmentElectricConsumption}.inputs.equipment_id`]: {
+    en: 'Equipment ID (yellow tag)',
+    fr: "ID d'équipement (étiquette jaune)",
+  },
   [`${MODULES.EquipmentElectricConsumption}.inputs.name-placeholder-scientific`]:
     {
       en: 'e.g., Agitator, Centrifuge',
