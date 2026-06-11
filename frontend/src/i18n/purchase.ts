@@ -82,12 +82,12 @@ export default {
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
     {
-      en: 'IT Equipments ({count})',
+      en: 'IT equipments ({count})',
       fr: 'Équipements informatiques ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-form-title`]:
     {
-      en: 'Add IT Equipment',
+      en: 'Add IT equipment',
       fr: 'Ajouter un équipement informatique',
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title`]:
@@ -157,8 +157,8 @@ export default {
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title-info-tooltip`]:
     {
-      en: 'Purchase It Equipment Tooltip',
-      fr: 'Purchase It Equipment Tooltip',
+      en: 'Purchase It equipment Tooltip',
+      fr: 'Purchase It equipment Tooltip',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ConsumablePurchases}-table-title-info-tooltip`]:
     {

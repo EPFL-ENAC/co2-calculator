@@ -3,7 +3,7 @@ import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 export default {
   [MODULES.ExternalCloudAndAI]: {
     en: 'External clouds & AI',
-    fr: 'Clouds Externes & IA',
+    fr: 'Clouds externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
     en: 'Enter external clouds usage data to estimate the carbon footprint.',
