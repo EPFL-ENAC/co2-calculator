@@ -1,3 +1,48 @@
+# [0.12.0](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.11.1...v0.12.0) (2026-06-11)
+
+
+### Bug Fixes
+
+* **1181:** use data_entry for sort ([c8f95d3](https://github.com/EPFL-ENAC/co2-calculator/commit/c8f95d3c7bb80e9b5ba91276ffa76d7181409cec))
+* **1415:** add more validation and tests ([c389bda](https://github.com/EPFL-ENAC/co2-calculator/commit/c389bda0fe13b1f67e2e1f1daafcb6d26b273fdd))
+* add tuple in test for factors ([0d1b137](https://github.com/EPFL-ENAC/co2-calculator/commit/0d1b1375716859c7c7aa5d6e6138c34f68f49b5d))
+* **chart-colors:** update train color scheme to use lighter shade of baby blue ([3b26515](https://github.com/EPFL-ENAC/co2-calculator/commit/3b26515711344b8d53d37f09f386ccaa9b2b0524))
+* **lighthouse:** single config + nightly cron ([#1332](https://github.com/EPFL-ENAC/co2-calculator/issues/1332)) ([6de5cda](https://github.com/EPFL-ENAC/co2-calculator/commit/6de5cda8647cb205b562ffafd3f86d09cdc27c98))
+* **permissions:** hide module-status validate button from standard users ([#1411](https://github.com/EPFL-ENAC/co2-calculator/issues/1411)) ([88ff1fc](https://github.com/EPFL-ENAC/co2-calculator/commit/88ff1fc13e16ecc33cb71d73a2afacf59fe0c6f4))
+* **refactor-csv:** integration patch ([1ca3283](https://github.com/EPFL-ENAC/co2-calculator/commit/1ca3283262ecff6a95aea860f04230b12f45bd29))
+* **schemas:** align module schemas with data-description doc ([#1415](https://github.com/EPFL-ENAC/co2-calculator/issues/1415)) ([eb8b76d](https://github.com/EPFL-ENAC/co2-calculator/commit/eb8b76d71c702e624fcd20cdef3d6ecf3cf9f8b2)), closes [back-office-doc#4](https://github.com/back-office-doc/issues/4)
+* **seed:** build_train_travel emits mandatory country codes ([#1415](https://github.com/EPFL-ENAC/co2-calculator/issues/1415)) ([8dd9162](https://github.com/EPFL-ENAC/co2-calculator/commit/8dd9162ff412bb8ca41a70cf0cb038f438110791))
+* standardize capitalization for "IT equipment" across multiple i18n files ([d42ace8](https://github.com/EPFL-ENAC/co2-calculator/commit/d42ace8d4e282c0bfd64eee9b1a2857ec0afd60c))
+* **tests:** cleanup legacy path for emissions ([2c0d150](https://github.com/EPFL-ENAC/co2-calculator/commit/2c0d150b313602267fdddf68f5af5fffa6e1547f))
+* **travel:** make schema validate properly the data ([f584da6](https://github.com/EPFL-ENAC/co2-calculator/commit/f584da6bc53b140389fee4339c3079bcda280bb1))
+
+
+### Features
+
+* **1480:** add override classification ([d511b6c](https://github.com/EPFL-ENAC/co2-calculator/commit/d511b6caa8c1b3cd83a507847c86da30ab1b3402))
+* **1480:** simplify execution flow ([bccb3e1](https://github.com/EPFL-ENAC/co2-calculator/commit/bccb3e1f8478e665729dcc54b45ffd91a3bf5e97))
+* add module icon and circle to filter mini-dot ([9a9925d](https://github.com/EPFL-ENAC/co2-calculator/commit/9a9925d90787e7e811d3a8a2267ece53e2684983))
+* **charts:** add ChartEmptyState component for improved no-data handling ([433e158](https://github.com/EPFL-ENAC/co2-calculator/commit/433e1587fbde893ba0c8b4322abb7f088a705250))
+* **data-management:** add forceInputsDeactivated flag and update checkbox behavior ([478da63](https://github.com/EPFL-ENAC/co2-calculator/commit/478da631973bcb882f6c08d8b20a29c751633ac8))
+* disable native validation and use i18n messages ([d7b93f2](https://github.com/EPFL-ENAC/co2-calculator/commit/d7b93f213bd31e530c2afc27a121603ba00d70b0))
+* disallow thresholds for headcount module ([f3f1060](https://github.com/EPFL-ENAC/co2-calculator/commit/f3f1060109f20166b420b47153151eb8a07d0ecf))
+* display form disclaimer for new module entries ([4b8459d](https://github.com/EPFL-ENAC/co2-calculator/commit/4b8459d03bdf00dd07dc5001e88bd9ca1b095237))
+* enhance data entry emission service and update emission type mappings ([0d7e157](https://github.com/EPFL-ENAC/co2-calculator/commit/0d7e1575fdf52b5ed7875e8b68091c3ea3bf6d5e))
+* **factor-building-rooms:** conversion_factor is optional and default to 1 as per doc ([d8a0006](https://github.com/EPFL-ENAC/co2-calculator/commit/d8a0006be79b05ddc09d8ca0ddb9df10ba26bc3b))
+* Hide headcount fields in form and drop constraints ([4ddcd4d](https://github.com/EPFL-ENAC/co2-calculator/commit/4ddcd4dea922159a111065bd3703b204511c570d))
+* **input:** add tooltip support for CO2 destination input and update related modules ([80660dd](https://github.com/EPFL-ENAC/co2-calculator/commit/80660ddc3f45337c785fa44da321e394509ac5e0))
+* **module-table:** enhance module upload visibility based on input activation state ([5700480](https://github.com/EPFL-ENAC/co2-calculator/commit/570048097fe302ef130e4f38d3607128fa0737b1))
+* **module-table:** enhance table action visibility and note handling ([958966f](https://github.com/EPFL-ENAC/co2-calculator/commit/958966ffc9025bbbc40271137046a97698962b8d))
+* **module-table:** remove view only badge ([51a76cf](https://github.com/EPFL-ENAC/co2-calculator/commit/51a76cfc01ec04f7241a78dc7bcea069241e9f7a))
+* move UploadCardReferences before UploadCardData ([a8e06c3](https://github.com/EPFL-ENAC/co2-calculator/commit/a8e06c30662aa4d751fbdecd0a505187d51a3167))
+* preserve chart series on update and fix FR label ([8678e52](https://github.com/EPFL-ENAC/co2-calculator/commit/8678e52d3eea027161823a3cf899932f79a76d3b))
+* rename ProfessionalTravel traveler label to Name ([8575fcf](https://github.com/EPFL-ENAC/co2-calculator/commit/8575fcf3cb15c7dc055cbe28acb96570ac4bf6d1))
+* replace ResultsFilterPill with ResultsFilterPanel ([31e381f](https://github.com/EPFL-ENAC/co2-calculator/commit/31e381fb405b983fb26f880103b6efb055bd94a5))
+* respect auth when computing visible modules ([a4f3478](https://github.com/EPFL-ENAC/co2-calculator/commit/a4f3478bf993ee1d093e00b3015e9221a2b79292))
+* restrict temp file upload permission ([ef37b48](https://github.com/EPFL-ENAC/co2-calculator/commit/ef37b48bf8cd03a4b537bf51c87e697c80614bc2))
+* rollback fawlty tests ([c83481e](https://github.com/EPFL-ENAC/co2-calculator/commit/c83481e73f8f6ad7ff7e33502d5984ae5d64f5d9))
+* **styles:** add q-select component overrides for improved styling ([becf615](https://github.com/EPFL-ENAC/co2-calculator/commit/becf615a57f35944e4076e46fcc74685b8689517))
+* swap headcount position_category to sius_code ([37b31f0](https://github.com/EPFL-ENAC/co2-calculator/commit/37b31f0ee2b14efc22fea8bc64c2206235f7e772))
 ## [0.11.1](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.10.2...v0.11.1) (2026-06-03)
 
 
