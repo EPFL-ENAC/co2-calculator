@@ -64,7 +64,6 @@
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
-      <q-separator />
       <div
         v-if="isInputDeactivated"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
@@ -94,11 +93,6 @@
             :module-color="submoduleColor"
             @submit="submitForm"
           />
-        </div>
-        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
-          <q-badge color="warning" class="q-px-md q-py-sm">
-            {{ $t('common_view_only') }}
-          </q-badge>
         </div>
       </template>
     </q-card-section>
@@ -165,7 +159,7 @@
           :is-simulator="isSimulator"
         />
       </div>
-      <q-separator />
+
       <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
         <module-form
           ref="formRef"
@@ -390,13 +384,6 @@ const hasModuleForm = computed(() => {
 
 const showModuleForm = computed(
   () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
-);
-
-const showViewOnlyBadge = computed(
-  () =>
-    Boolean(props.submodule.moduleFields) &&
-    !isFormDisabled.value &&
-    !canEdit.value,
 );
 
 // Map data is fetched once at the module-charts level (ModuleCharts.vue

@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div v-if="hasModuleUpload" class="q-gutter-sm">
+    <div v-if="hasModuleUpload && !isInputDeactivated" class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -368,6 +368,7 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useAuthStore } from 'src/stores/auth';
 import {
   useBackofficeDataManagement,
@@ -703,6 +704,14 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const yearConfigStore = useYearConfigStore();
+
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[props.submoduleType as string];
+  return subConfig?.inputs_deactivated ?? false;
+});
 
 const moduleColors = computed(() =>
   getModuleIconColors(String(props.moduleType), String(props.submoduleType)),
