@@ -59,8 +59,8 @@ TEST_USERS: Dict[RoleName, Dict[str, str]] = {
         "function": "Tester",
     },
     RoleName.CO2_SUPERADMIN: {
-        "institutional_id": make_test_user_id("testuser_calco2.superadmin"),
-        "email": "testuser_calco2.superadmin@example.org",
+        "institutional_id": make_test_user_id("testuser_calco2.backoffice.admin"),
+        "email": "testuser_calco2.backoffice.admin@example.org",
         "display_name": "Test User Superadmin",
         "function": "Tester",
     },

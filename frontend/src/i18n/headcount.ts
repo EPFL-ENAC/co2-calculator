@@ -48,8 +48,8 @@ export default {
     fr: 'En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.',
   },
   [`${MODULES.Headcount}-charts-title`]: {
-    en: 'FTE per position',
-    fr: 'EPT par poste',
+    en: 'FTE per function',
+    fr: 'EPT par fonction',
   },
   [`${MODULES.Headcount}-charts-no-data-message`]: {
     en: 'No data available for FTE per position.',
@@ -78,13 +78,9 @@ export default {
     en: 'Full-Time Equivalent (FTE)',
     fr: 'Équivalent plein-temps (EPT)',
   },
-  [`${MODULES.Headcount}-member-form-field-position-label`]: {
-    en: 'Position',
-    fr: 'Position',
-  },
-  [`${MODULES.Headcount}-member-form-field-position-category-label`]: {
-    en: 'Position',
-    fr: 'Position',
+  [`${MODULES.Headcount}-member-form-field-function-label`]: {
+    en: 'Function',
+    fr: 'Fonction',
   },
   [`${MODULES.Headcount}-member-form-field-name-label`]: {
     en: 'Name',
@@ -129,9 +125,9 @@ export default {
     en: 'lorem ipsum',
     fr: 'Texte d’exemple',
   },
-  'headcount-member-position-category-required': {
-    en: 'Position is required',
-    fr: 'La position est obligatoire',
+  'headcount-member-function-required': {
+    en: 'Function is required',
+    fr: 'La fonction est obligatoire',
   },
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",

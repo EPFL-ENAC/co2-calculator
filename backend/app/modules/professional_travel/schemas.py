@@ -3,8 +3,10 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ValidationInfo, field_validator
 from sqlalchemy.orm import aliased
+from sqlmodel import col, select
 
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
@@ -25,6 +27,7 @@ from app.schemas.factor import (
     FactorResponseGen,
     FactorUpdate,
 )
+from app.services.factor_service import FactorService
 from app.services.location_service import LocationService
 from app.utils.distance_geography import (
     _determine_train_countrycode,
@@ -36,6 +39,29 @@ from app.utils.distance_geography import (
 logger = get_logger(__name__)
 
 MemberEntry = aliased(DataEntry)
+
+
+async def _get_report_year_for_module(
+    session: Any,
+    carbon_report_module_id: int | None,
+) -> int | None:
+    """Resolve the calculation year for factor lookups on a data entry."""
+    if carbon_report_module_id is None:
+        return None
+    stmt = (
+        select(CarbonReport.year, CarbonReport.reference_year)
+        .join(
+            CarbonReportModule,
+            col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+        )
+        .where(col(CarbonReportModule.id) == carbon_report_module_id)
+    )
+    result = await session.exec(stmt)
+    row = result.one_or_none()
+    if row is None:
+        return None
+    year, reference_year = row
+    return year if year is not None else reference_year
 
 
 def _validate_non_negative_float(
@@ -64,7 +90,7 @@ class PlaneCabinClassValidationMixin:
     @field_validator("cabin_class", mode="after")
     @classmethod
     def validate_cabin_class(cls, v: Optional[str]) -> Optional[str]:
-        valid_classes = ["first", "business", "eco"]
+        valid_classes = ["first", "business", "economy"]
         if v is not None and v.lower() not in valid_classes:
             raise ValueError(
                 f"Invalid cabin class '{v}', must be one of {valid_classes}"
@@ -135,6 +161,7 @@ class ProfessionalTravelPlaneHandlerCreate(
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
+    # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -150,6 +177,7 @@ class ProfessionalTravelTrainHandlerCreate(
     user_institutional_id: str
     origin_name: str
     destination_name: str
+    # check if necessary after migration to new reference location for train
     origin_natural_key: Optional[str] = None
     destination_natural_key: Optional[str] = None
     # Required for CSV rows lacking a precomputed ``*_natural_key``: the
@@ -157,12 +185,13 @@ class ProfessionalTravelTrainHandlerCreate(
     # country (e.g. Bern, CH vs Berne, DE). Optional at the schema level
     # because UI/API rows resolve via ``*_natural_key`` instead; the CSV
     # resolver (``enrich_csv_row``) rejects rows that supply neither.
-    origin_country_code: Optional[str] = None
-    destination_country_code: Optional[str] = None
+    origin_country_code: str
+    destination_country_code: str
     departure_date: Optional[date] = None
     number_of_trips: int = 1
     cabin_class: str
     note: Optional[str] = None
+    # __kg_co2eq_override__ for kg_co2eq
 
     @field_validator("number_of_trips", mode="after")
     @classmethod
@@ -249,6 +278,7 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     response_dto = ProfessionalTravelPlaneHandlerResponse
 
     kind_field: str = "category"
+    subkind_field: str = "cabin_class"
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """Compute flight distance and haul category
@@ -298,8 +328,23 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
                 destination_iata,
             )
             return {}
-        # TODO: find factors depending on distance not get_haul_category
-        haul_category = get_haul_category(distance_one_trip_km)
+        year = await _get_report_year_for_module(
+            session, data_entry.carbon_report_module_id
+        )
+        plane_factors = await FactorService(session).list_by_data_entry_type(
+            DataEntryTypeEnum.plane,
+            year=year,
+        )
+        haul_category = get_haul_category(distance_one_trip_km, plane_factors)
+        if haul_category is None:
+            logger.warning(
+                "plane.pre_compute: skipping entry id=%s — no haul band matches "
+                "distance %s km for year=%s",
+                getattr(data_entry, "id", None),
+                distance_one_trip_km,
+                year,
+            )
+            return {}
         distance_km = distance_one_trip_km * number_of_trips
         return {
             "distance_one_trip_km": distance_one_trip_km,
@@ -319,13 +364,14 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
                 f"Haul category could not be determined for data entry {data_entry.id}"
             )
             haul_category = "unknown"
+        cabin_class = data_entry.data.get("cabin_class")
         return [
             EmissionComputation(
                 emission_type=emission_type,
                 factor_query=FactorQuery(
                     data_entry_type=DataEntryTypeEnum.plane,
                     kind=haul_category,
-                    subkind=None,
+                    subkind=cabin_class,
                     context={},
                 ),
                 formula_key="ef_kg_co2eq_per_km",
@@ -501,10 +547,9 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
 
 class TravelPlaneBase:
     category: str
+    cabin_class: str
     ef_kg_co2eq_per_km: float
     rfi_adjustment: float
-    # todo adjustment instead of adjustement
-    class_adjustement: float
     min_distance: float
     max_distance: float
 
@@ -513,7 +558,6 @@ class _TravelPlaneBaseValidationMixin:
     @field_validator(
         "ef_kg_co2eq_per_km",
         "rfi_adjustment",
-        "class_adjustement",
         "min_distance",
         "max_distance",
         mode="after",
@@ -524,19 +568,25 @@ class _TravelPlaneBaseValidationMixin:
     ) -> Optional[float]:
         return _validate_non_negative_float(v, info.field_name or "")
 
+    @field_validator("cabin_class", mode="after")
+    @classmethod
+    def validate_cabin_class(cls, v: str) -> str:
+        valid_cabin_classes = [
+            "economy",
+            "business",
+            "first",
+        ]
+        if not v:
+            raise ValueError("Cabin class is required")
+        if v not in valid_cabin_classes:
+            raise ValueError("Invalid cabin class")
+        return v
+
     @field_validator("category", mode="after")
     @classmethod
     def validate_category(cls, v: str) -> str:
-        valid_categories = [
-            "very_short_haul",
-            "short_haul",
-            "medium_haul",
-            "long_haul",
-        ]
         if not v:
             raise ValueError("Category is required")
-        if v not in valid_categories:
-            raise ValueError("Invalid category")
         return v
 
 
@@ -563,10 +613,9 @@ class TravelPlaneFactorHandler(BaseFactorHandler):
     registration_keys = [DataEntryTypeEnum.plane]
     emission_type: EmissionType = EmissionType.professional_travel__plane
 
-    classification_fields: list[str] = ["category"]
+    classification_fields: list[str] = ["category", "cabin_class"]
     value_fields: list[str] = [
         "ef_kg_co2eq_per_km",
-        "class_adjustement",
         "rfi_adjustment",
         "min_distance",
         "max_distance",

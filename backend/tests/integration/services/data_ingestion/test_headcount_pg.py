@@ -227,7 +227,7 @@ async def test_headcount_member_csv_no_factors_persists_entries_without_emission
             "name": f"Member {i}",
             "user_institutional_id": f"M-{i:03d}",
             "fte": fte,
-            "position_category": "professor",
+            "sius_code": "51",
         }
         for i, fte in enumerate([1.0, 0.8, 0.5], start=1)
     ]
@@ -342,7 +342,7 @@ async def test_headcount_member_csv_with_factors_produces_fte_weighted_stats(
             "name": f"Member {i}",
             "user_institutional_id": f"M-{i:03d}",
             "fte": fte,
-            "position_category": "professor",
+            "sius_code": "51",
         }
         for i, fte in enumerate(ftes, start=1)
     ]
@@ -570,7 +570,7 @@ async def test_headcount_member_reupload_with_new_ftes_refreshes_stats(
             "name": f"Member {i}",
             "user_institutional_id": f"M-{i:03d}",
             "fte": fte,
-            "position_category": "professor",
+            "sius_code": "51",
         }
         for i, fte in enumerate(initial_ftes, start=1)
     ]

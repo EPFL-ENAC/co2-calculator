@@ -92,11 +92,11 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     fr: 'Équipements scientifiques',
   },
   [`${MODULES.EquipmentElectricConsumption}-it`]: {
-    en: 'IT Equipment',
+    en: 'IT equipment',
     fr: 'Équipements IT',
   },
   [`${MODULES.EquipmentElectricConsumption}-other`]: {
-    en: 'Other Equipment',
+    en: 'Other equipment',
     fr: 'Autres équipements',
   },
   [`${MODULES.EquipmentElectricConsumption}-scientific-equipment-table-title`]:

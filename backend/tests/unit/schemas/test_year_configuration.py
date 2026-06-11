@@ -186,13 +186,14 @@ class TestReductionObjectiveGoal:
 
 class TestYearConfigurationUpdateValidation:
     def test_valid_thresholds(self):
+        # Use module "2" (professional travel) — headcount ("1") has no thresholds
         update = YearConfigurationUpdate(
             config={
                 "modules": {
-                    "1": {
+                    "2": {
                         "submodules": {
-                            "10": {"threshold": 100.0},
-                            "11": {"threshold": None},
+                            "20": {"threshold": 100.0},
+                            "21": {"threshold": None},
                         }
                     }
                 }
@@ -200,14 +201,30 @@ class TestYearConfigurationUpdateValidation:
         )
         assert update.config is not None
 
-    def test_negative_threshold_rejected(self):
-        with pytest.raises(ValidationError, match="threshold.*must be a number >= 0"):
+    def test_headcount_threshold_rejected(self):
+        with pytest.raises(
+            ValidationError, match="threshold cannot be set for module 1"
+        ):
             YearConfigurationUpdate(
                 config={
                     "modules": {
                         "1": {
                             "submodules": {
-                                "10": {"threshold": -5.0},
+                                "1": {"threshold": 100.0},
+                            }
+                        }
+                    }
+                }
+            )
+
+    def test_negative_threshold_rejected(self):
+        with pytest.raises(ValidationError, match="threshold.*must be a number >= 0"):
+            YearConfigurationUpdate(
+                config={
+                    "modules": {
+                        "2": {
+                            "submodules": {
+                                "20": {"threshold": -5.0},
                             }
                         }
                     }
@@ -219,9 +236,9 @@ class TestYearConfigurationUpdateValidation:
             YearConfigurationUpdate(
                 config={
                     "modules": {
-                        "1": {
+                        "2": {
                             "submodules": {
-                                "10": {"threshold": "abc"},
+                                "20": {"threshold": "abc"},
                             }
                         }
                     }

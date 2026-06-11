@@ -96,10 +96,11 @@ State lives in `frontend/src/stores/`. The active stores are:
 
 Defined in `frontend/src/router/routes.ts`. All authenticated routes nest
 under `/:language(en|fr)/`; the workspace routes nest further under
-`/:unit/:year/`. Three guards from `router/guards/`:
+`/:unit/:year/`. Guards from `router/guards/`:
 
-- `requirePermission(resource, action)` — back-office and system pages.
-- `requireModuleEditPermission()` — module data-entry pages.
+- `permissionGuard` — one guard for all gated routes: back-office pages
+  (`meta.requiredPermission`, any-scope) and module data-entry pages
+  (`meta.moduleEdit`, workspace-scoped view+edit).
 - `validateUnitGuard`, `redirectToWorkspaceIfSelectedGuard` — workspace.
 
 ## API Layer

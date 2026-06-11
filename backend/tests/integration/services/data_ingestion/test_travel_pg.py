@@ -244,8 +244,12 @@ async def _seed_plane_factor(session: AsyncSession) -> int:
         data_entry_type_id=DataEntryTypeEnum.plane.value,
         # The trimmed CSV's GVA→CDG distance lands in the very_short_haul
         # bucket (haul category derived in pre_compute).
-        classification={"category": "very_short_haul"},
-        values={"ef_kg_co2eq_per_km": 0.1},
+        classification={"category": "very_short_haul", "cabin_class": "economy"},
+        values={
+            "ef_kg_co2eq_per_km": 0.1,
+            "min_distance": 0,
+            "max_distance": 800,
+        },
         year=YEAR,
     )
     session.add(factor)
@@ -978,7 +982,7 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
             "kg_co2eq": 0,  # int zero
             "OUT_CO2_CORRECTED": 999.0,  # must NOT win
             "number_of_trips": 1,
-            "cabin_class": "eco",
+            "cabin_class": "economy",
         },
         {
             "carbon_report_module_id": module_id,
@@ -988,7 +992,7 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
             "kg_co2eq": 0.0,  # float zero
             "OUT_CO2_CORRECTED": 999.0,
             "number_of_trips": 1,
-            "cabin_class": "eco",
+            "cabin_class": "economy",
         },
         {
             "carbon_report_module_id": module_id,
@@ -998,7 +1002,7 @@ async def test_api_provider_load_data_persists_external_integration_with_zero_ov
             "kg_co2eq": None,  # missing → fallback applies
             "OUT_CO2_CORRECTED": 5.0,
             "number_of_trips": 1,
-            "cabin_class": "eco",
+            "cabin_class": "economy",
         },
     ]
 
@@ -1090,7 +1094,7 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
                 "user_institutional_id": "U-API-0",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
-                "cabin_class": "eco",
+                "cabin_class": "economy",
                 "number_of_trips": 1,
                 # Override is the V2 boundary: int zero — a plane trip
                 # someone manually corrected to 0 (e.g. cancelled).  Must
@@ -1173,7 +1177,7 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
                 "user_institutional_id": "U-API-1",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
-                "cabin_class": "eco",
+                "cabin_class": "economy",
                 "number_of_trips": 1,
                 KG_CO2EQ_OVERRIDE_KEY: 0.0,
             },

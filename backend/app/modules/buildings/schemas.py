@@ -94,17 +94,16 @@ VALID_ROOM_TYPES: list[Optional[str]] = [
 class BuildingRoomHandlerCreate(DataEntryCreate):
     building_name: str
     room_name: str
-    room_type: Optional[str] = None
+    room_type: str
     room_allocation_ratio: Optional[float] = None
     note: Optional[str] = None
 
     @field_validator("room_type", mode="after")
     @classmethod
-    def validate_room_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in VALID_ROOM_TYPES:
-            raise ValueError(
-                f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
-            )
+    def validate_room_type(cls, v: str) -> str:
+        valid = [r for r in VALID_ROOM_TYPES if r]
+        if v not in valid:
+            raise ValueError(f"room_type must be one of: {valid}")
         return v
 
     @field_validator("room_allocation_ratio", mode="after")
@@ -380,9 +379,6 @@ class _BuildingsFactorValidationMixin:
             )
         return normalized
 
-    # todo: if conversion_factor is None -> 1.0
-    # but should we enforce it to be set explicitly in the factor?
-
 
 class BuildingBaseFactor:
     building_name: str
@@ -393,7 +389,7 @@ class BuildingBaseFactor:
     lighting_kwh_per_square_meter: float
     ef_kg_co2eq_per_kwh: float
     energy_type: str
-    conversion_factor: float
+    conversion_factor: Optional[float] = 1
 
 
 class BuildingsFactorCreate(
@@ -685,17 +681,44 @@ class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
     category: str
     ef_kgco2eq_per_m2: float
 
+    @field_validator("ef_kgco2eq_per_m2", mode="after")
+    @classmethod
+    def validate_ef_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
 
 class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
     building_name: Optional[str] = None
     category: Optional[str] = None
     ef_kgco2eq_per_m2: Optional[float] = None
 
+    @field_validator("ef_kgco2eq_per_m2", mode="after")
+    @classmethod
+    def validate_ef_non_negative(
+        cls, v: Optional[float], info: ValidationInfo
+    ) -> Optional[float]:
+        return _validate_non_negative_float(v, info.field_name or "")
+
 
 class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
     building_name: str
     category: str
     ef_kgco2eq_per_m2: float
+
+    @field_validator("category", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        CATEGORY_VALUES = {"new-tech", "new-env", "ren-tech", "ren-env", "demolition"}
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        # should be amongst new-tech, new-env,ren-tech,ren-env,demolition
+        if v.strip() not in CATEGORY_VALUES:
+            raise ValueError(
+                f"{info.field_name} must be one of {sorted(CATEGORY_VALUES)}"
+            )
+        return v.strip()
 
 
 class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):

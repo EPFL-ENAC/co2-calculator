@@ -47,7 +47,7 @@ import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
 } from 'src/api/modules';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 
 const { t: $t } = useI18n();
 

@@ -438,7 +438,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 category_value = row.get(category_field, "").strip()
                 if category_value:
                     try:
-                        return DataEntryTypeEnum[category_value.lower()]
+                        # Case-sensitive: the category column (e.g.
+                        # equipment_category) must match a DataEntryTypeEnum
+                        # member name exactly (doc: {scientific,it,other}).
+                        return DataEntryTypeEnum[category_value]
                     except KeyError:
                         error_msg = f"Invalid {category_field}: {category_value}"
                         self._record_row_error(

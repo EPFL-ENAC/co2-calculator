@@ -69,6 +69,14 @@ export default {
     en: 'For the mice and fish facilities of the CPG unit, we consider only the annual housing component, and not phenotyping or UDP.',
     fr: "Pour les animaleries rongeurs et poissons de l'unité CPG, nous ne considérons que la partie hébergement annuel et non le phénotypage ou UDP.",
   },
+  fish: {
+    en: 'Fish',
+    fr: 'Poissons',
+  },
+  mice: {
+    en: 'Mice',
+    fr: 'Rongeurs',
+  },
   [`${MODULES.ResearchFacilities}-title-tooltip-subtext`]: {
     en: 'The methodology used to calculate the carbon footprint of research facilities is documented in the Documentation pages',
     fr: "La méthodologie utilisée pour calculer de l'empreinte carbone des infrastructures de recherche est documentée dans les pages Documentation",

@@ -3,7 +3,7 @@ import { MODULES, SUBMODULE_EXTERNAL_CLOUD_TYPES } from 'src/constant/modules';
 export default {
   [MODULES.ExternalCloudAndAI]: {
     en: 'External clouds & AI',
-    fr: 'Clouds Externes & IA',
+    fr: 'Clouds externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
     en: 'Enter external clouds usage data to estimate the carbon footprint.',
@@ -119,19 +119,29 @@ export default {
       fr: 'External AI Tooltip',
     },
 
+  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-form-disclaimer`]:
+    {
+      en: "The unit's external cloud management lead enters the data for the entire team",
+      fr: "Le responsable de la gestion des clouds externes de l'unité remplit les données pour toute l'équipe",
+    },
+  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}-form-disclaimer`]:
+    {
+      en: 'Each member of the unit is responsible for recording their personal usage associated with their FTE',
+      fr: "Chaque membre de l'unité est responsable de saisir son utilisation personnelle associé à son EPT",
+    },
   [`${MODULES.ExternalCloudAndAI}-title-tooltip-subtext`]: {
     en: 'You can add data one at a time using the Add button below, or upload several entries at once using a file that follows the template.',
     fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
   },
-  'external-cloud-service-type-storage': {
+  storage: {
     en: 'Storage',
     fr: 'Stockage',
   },
-  'external-cloud-service-type-compute': {
+  compute: {
     en: 'Compute',
     fr: 'Calcul',
   },
-  'external-cloud-service-type-virtualisation': {
+  virtualisation: {
     en: 'Virtualisation',
     fr: 'Virtualisation',
   },

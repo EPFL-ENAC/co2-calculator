@@ -201,8 +201,15 @@ async def test_travel_plane_factor_values_change_propagates(pg_dsn):
         factor = Factor(
             emission_type_id=EmissionType.professional_travel__plane.value,
             data_entry_type_id=DataEntryTypeEnum.plane.value,
-            classification={"category": "very_short_haul"},
-            values={"ef_kg_co2eq_per_km": 0.1},
+            classification={
+                "category": "very_short_haul",
+                "cabin_class": "economy",
+            },
+            values={
+                "ef_kg_co2eq_per_km": 0.1,
+                "min_distance": 0,
+                "max_distance": 800,
+            },
             year=2025,
         )
         s.add(factor)
@@ -217,7 +224,7 @@ async def test_travel_plane_factor_values_change_propagates(pg_dsn):
                 "user_institutional_id": "U-001",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
-                "cabin_class": "eco",
+                "cabin_class": "economy",
                 "number_of_trips": 1,
             },
         )
@@ -304,8 +311,15 @@ async def test_travel_plane_factor_drop_clears_emission(pg_dsn):
         factor = Factor(
             emission_type_id=EmissionType.professional_travel__plane.value,
             data_entry_type_id=DataEntryTypeEnum.plane.value,
-            classification={"category": "very_short_haul"},
-            values={"ef_kg_co2eq_per_km": 0.1},
+            classification={
+                "category": "very_short_haul",
+                "cabin_class": "economy",
+            },
+            values={
+                "ef_kg_co2eq_per_km": 0.1,
+                "min_distance": 0,
+                "max_distance": 800,
+            },
             year=2025,
         )
         s.add(factor)
@@ -320,7 +334,7 @@ async def test_travel_plane_factor_drop_clears_emission(pg_dsn):
                 "user_institutional_id": "U-001",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
-                "cabin_class": "eco",
+                "cabin_class": "economy",
                 "number_of_trips": 1,
             },
         )
@@ -556,7 +570,7 @@ async def test_headcount_member_factor_values_change_propagates(pg_dsn):
                 "name": "Alice",
                 "user_institutional_id": "M-001",
                 "fte": 1.0,
-                "position_category": "professor",
+                "sius_code": "51",
             },
         )
         s.add(entry)

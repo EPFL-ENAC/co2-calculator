@@ -90,15 +90,16 @@ under the `backend-integration` flag.
 `python-security` (`uvx uv-audit` + Bandit), `codeql` (JavaScript +
 Python matrix), `secrets-scan` (TruffleHog).
 
-### `lighthouse.yml` — Lighthouse CI
+### `lighthouse.yml` — Lighthouse CI (daily)
 
-**Trigger:** PR touching `frontend/**` or its config. **Job:**
-`lighthouse` audits 5 critical routes via
-`frontend/.lighthouserc.ci.json`. The build injects
+**Trigger:** daily cron (04:00 UTC), `workflow_dispatch`, push to
+`ci-test/**`. **Job:** `lighthouse` audits all 24 routes via
+`frontend/.lighthouserc.json` (single source of truth, shared with
+`make lighthouse`). The build injects
 `window.__LIGHTHOUSE_BYPASS__ = true` into the served `index.html`
 so navigation guards skip auth in CI; the flag never reaches
-production builds. Full 24-route sweep stays local
-(`make lighthouse`).
+production builds. The full sweep runs nightly off the PR critical
+path; reproduce locally with `make lighthouse`.
 
 ### `deploy.yml` — App Deploy
 
@@ -201,7 +202,7 @@ make ci       # full simulation
 - **CodeQL fails on Python:** confirm `language: [javascript, python]`
   matrix and that `pyproject.toml` is detected.
 - **Lighthouse times out:** raise the per-run budget in
-  `frontend/.lighthouserc.ci.json` or trim the URL list.
+  `frontend/.lighthouserc.json` or trim the URL list.
 - **Deploy step missing chart version:** check that
   `publish_chart.yaml` ran first; the `deploy` job consumes its
   `chart_version` output.

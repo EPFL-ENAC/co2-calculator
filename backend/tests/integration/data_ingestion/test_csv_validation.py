@@ -26,14 +26,14 @@ class TestCSVValidationErrors:
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
         # Empty CSV (headers only)
-        csv_text = "unit_institutional_id,name,position_category\n"
+        csv_text = "unit_institutional_id,name,function\n"
 
         # Should fail with specific error message
         with pytest.raises(ValueError, match="CSV file is empty"):
             await provider._validate_csv_headers(
                 csv_text,
-                expected_columns={"unit_institutional_id", "name", "position_category"},
-                required_columns={"unit_institutional_id", "name", "position_category"},
+                expected_columns={"unit_institutional_id", "name", "sius_code"},
+                required_columns={"unit_institutional_id", "name", "sius_code"},
             )
 
     @pytest.mark.asyncio
@@ -48,15 +48,15 @@ class TestCSVValidationErrors:
         mock_session = AsyncMock()
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
-        # CSV missing required column (position_category)
+        # CSV missing required column (function)
         csv_text = "unit_institutional_id,name\nUNIT001,John Doe\n"
 
         # Should fail with specific error message
         with pytest.raises(ValueError, match="missing required columns"):
             await provider._validate_csv_headers(
                 csv_text,
-                expected_columns={"unit_institutional_id", "name", "position_category"},
-                required_columns={"unit_institutional_id", "name", "position_category"},
+                expected_columns={"unit_institutional_id", "name", "sius_code"},
+                required_columns={"unit_institutional_id", "name", "sius_code"},
             )
 
 

@@ -14,6 +14,7 @@ from app.services.data_ingestion.base_csv_provider import (
     StatsDict,
     _get_expected_columns_from_handlers,
     _get_required_columns_from_handler,
+    _is_blank_data_row,
     _validate_file_path,
 )
 
@@ -119,6 +120,18 @@ def test_get_required_columns_from_handler():
     assert "optional_col" not in result
     assert "data" not in result
     assert "carbon_report_module_id" not in result
+
+
+def test_is_blank_data_row_all_required_empty():
+    assert _is_blank_data_row({"amount": "", "note": "x"}, {"amount"}) is True
+
+
+def test_is_blank_data_row_partial_required_value():
+    assert _is_blank_data_row({"amount": "10", "note": ""}, {"amount"}) is False
+
+
+def test_is_blank_data_row_no_required_columns():
+    assert _is_blank_data_row({"amount": ""}, set()) is False
 
 
 # ======================================================================
@@ -606,6 +619,42 @@ async def test_process_row_missing_unit_mapping_records_error():
 
 
 @pytest.mark.asyncio
+async def test_process_row_skips_blank_scaffolding_row():
+    """Empty template rows are skipped before required-field validation."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    setup_result = {
+        "handlers": [MagicMock()],
+        "factors_map": {},
+        "expected_columns": {"amount", "note"},
+        "required_columns": {"amount"},
+    }
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        {"amount": "", "note": ""},
+        row_idx=1,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg is None
+    assert result_factor is None
+    assert kg_co2eq_override is None
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"] == []
+
+
+@pytest.mark.asyncio
 async def test_process_row_validation_error_records_error(monkeypatch):
     """Test _process_row records handler validation errors."""
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
@@ -964,72 +1013,6 @@ async def test_process_row_consumes_dumb_csv_fixture_for_plane():
 # ======================================================================
 
 
-@pytest.fixture
-def legacy_inline_emissions(monkeypatch):
-    """Force ``BULK_PATH_PURE_ASYNC=False`` so the legacy inline-write path
-    in ``_process_batch`` / ``_recompute_module_stats`` runs (used by the
-    pre-310D batch tests).
-
-    Patches ``get_settings`` on the provider module directly because
-    the runtime gate reads through ``get_settings()``'s ``lru_cache``
-    — a ``setenv`` after first settings load wouldn't take effect.
-    Bypassing the cache via the monkeypatch keeps the fixture
-    self-contained.
-    """
-    from app.services.data_ingestion import base_csv_provider
-
-    fake = MagicMock()
-    fake.BULK_PATH_PURE_ASYNC = False
-    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake)
-
-
-@pytest.mark.asyncio
-async def test_process_batch_creates_emissions(legacy_inline_emissions):
-    """Test _process_batch creates emissions from prepared objects.
-
-    Pinned against the legacy path (``BULK_PATH_PURE_ASYNC=False``); the
-    pure-async path is covered by
-    ``test_process_batch_skips_emissions_when_pure_async``.
-    """
-    config = {"file_path": "tmp/test.csv"}
-    provider = ConcreteCSVProvider(config, data_session=MagicMock())
-
-    # Pre-populate year cache to avoid DB query in _process_batch
-    provider._year_cache = {999: 2025}
-
-    data_entry_service = MagicMock()
-    emission_service = AsyncMock()
-
-    created_entry = SimpleNamespace(id=1, carbon_report_module_id=999)
-    data_entry_service.bulk_create = AsyncMock(return_value=[created_entry])
-    emission_service.prepare_create = AsyncMock(return_value=[SimpleNamespace(id=9)])
-    emission_service.bulk_create = AsyncMock()
-
-    # Mock batch entry with carbon_report_module_id
-    batch_entry = MagicMock()
-    batch_entry.carbon_report_module_id = 999
-    batch = [batch_entry]
-
-    user = SimpleNamespace(
-        id=1,
-        email="test@example.com",
-        display_name="Test User",
-        provider=UserProvider.DEFAULT,
-        institutional_id="default-1441",
-    )
-
-    # No CSV kg_co2eq overrides for this batch (parallel list of None).
-    await provider._process_batch(
-        batch, data_entry_service, emission_service, user, [None]
-    )
-
-    data_entry_service.bulk_create.assert_awaited_once()
-    emission_service.prepare_create.assert_awaited_once_with(
-        created_entry, kg_co2eq_override=None
-    )
-    emission_service.bulk_create.assert_awaited_once()
-
-
 @pytest.mark.asyncio
 async def test_process_batch_skips_emissions_when_pure_async():
     """Plan 310-D — under ``BULK_PATH_PURE_ASYNC=True`` (the default),
@@ -1037,8 +1020,10 @@ async def test_process_batch_skips_emissions_when_pure_async():
     data_entry_emissions; the runner-driven ``emission_recalc`` chain
     owns those writes via the ``csv_ingest_handler`` post-success
     fan-out."""
+    data_session = MagicMock()
+    data_session.commit = AsyncMock()
     config = {"file_path": "tmp/test.csv"}
-    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider = ConcreteCSVProvider(config, data_session=data_session)
     provider._year_cache = {999: 2025}
 
     data_entry_service = MagicMock()
@@ -1087,70 +1072,6 @@ async def test_recompute_module_stats_skips_when_pure_async():
         await provider._recompute_module_stats()
 
     mock_recompute.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_process_batch_routes_kg_co2eq_overrides_by_id(
-    legacy_inline_emissions,
-):
-    """Carrier flow regression: a batch with kg_co2eq overrides aligned to
-    its inputs must produce a {data_entry.id: kg_co2eq} dict and forward
-    each override per-call to ``prepare_create``.
-
-    This covers the end-to-end carrier path that the unit-level _process_row
-    and prepare_create tests cover only in isolation.
-
-    Pinned against the legacy inline-write path (Plan 310-D's pure-async
-    path skips emissions entirely; carrier routing still matters for
-    rollback semantics).
-    """
-    config = {"file_path": "tmp/test.csv"}
-    provider = ConcreteCSVProvider(config, data_session=MagicMock())
-    provider._year_cache = {999: 2025}
-
-    data_entry_service = MagicMock()
-    emission_service = AsyncMock()
-
-    # bulk_create preserves input order — return three responses with
-    # incrementing IDs aligned to the input batch.
-    created_entries = [
-        SimpleNamespace(id=10, carbon_report_module_id=999),
-        SimpleNamespace(id=11, carbon_report_module_id=999),
-        SimpleNamespace(id=12, carbon_report_module_id=999),
-    ]
-    data_entry_service.bulk_create = AsyncMock(return_value=created_entries)
-    emission_service.prepare_create = AsyncMock(return_value=[SimpleNamespace(id=99)])
-    emission_service.bulk_create = AsyncMock()
-
-    batch = []
-    for _ in range(3):
-        e = MagicMock()
-        e.carbon_report_module_id = 999
-        batch.append(e)
-
-    user = SimpleNamespace(
-        id=1,
-        email="test@example.com",
-        display_name="Test User",
-        provider=UserProvider.DEFAULT,
-        institutional_id="default-1441",
-    )
-
-    # Two of three rows have an override; the middle one does not.
-    overrides = [152.685, None, 380.0]
-
-    await provider._process_batch(
-        batch, data_entry_service, emission_service, user, overrides
-    )
-
-    # prepare_create must be called once per response, with the override
-    # routed by data_entry.id (not by index, not by formula path).
-    assert emission_service.prepare_create.await_count == 3
-    actual_calls = {
-        call.args[0].id: call.kwargs.get("kg_co2eq_override")
-        for call in emission_service.prepare_create.await_args_list
-    }
-    assert actual_calls == {10: 152.685, 11: None, 12: 380.0}
 
 
 # ======================================================================

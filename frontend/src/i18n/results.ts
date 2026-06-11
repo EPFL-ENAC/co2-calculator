@@ -435,7 +435,7 @@ export default {
   },
   'charts-cooling-subcategory': {
     en: 'Cooling',
-    fr: 'Climatisation',
+    fr: 'Refroidissement',
   },
   'charts-ventilation-subcategory': {
     en: 'Ventilation',
@@ -722,7 +722,7 @@ export default {
     fr: 'Reste',
   },
   'charts-equipment-it': {
-    en: 'IT Equipment',
+    en: 'IT equipment',
     fr: 'Équipements IT',
   },
   'charts-buildings-it': {
@@ -1138,6 +1138,18 @@ export default {
   results_filter_pill_additional_data_tooltip: {
     en: "These emissions are calculated based on EPFL's general assumptions.",
     fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
+  },
+  results_filter_panel_title: {
+    en: 'Display filters',
+    fr: "Filtres d'affichage",
+  },
+  results_filter_visible: {
+    en: 'Visible',
+    fr: 'Visible',
+  },
+  results_filter_hidden: {
+    en: 'Hidden',
+    fr: 'Masqué',
   },
   'it-title': {
     en: 'IT focus',

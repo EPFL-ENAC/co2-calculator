@@ -450,11 +450,6 @@ class TestLoadDataKgCo2eqHandling:
                 "professional_travel_api_provider.DataEntryService",
                 return_value=mock_service,
             ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
             caplog.at_level(
                 logging.WARNING,
                 logger="app.services.data_ingestion."
@@ -497,26 +492,12 @@ class TestLoadDataKgCo2eqHandling:
         itself is path-independent and would also pass under the
         async path; this test specifically pins the override carrier.
         """
-        from app.services.data_ingestion.api_providers import (
-            professional_travel_api_provider as travel_mod,
-        )
 
         # Patch ``get_settings`` on the provider module so the gate
         # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
         # needing to clear the lru_cache.  The other settings reads
         # in this module (Tableau creds) need the real values, so we
         # delegate every other attribute to the cached Settings.
-        fake_settings = MagicMock()
-        fake_settings.BULK_PATH_PURE_ASYNC = False
-        real = travel_mod.get_settings()
-        fake_settings.configure_mock(
-            **{
-                attr: getattr(real, attr)
-                for attr in dir(real)
-                if not attr.startswith("_") and attr != "BULK_PATH_PURE_ASYNC"
-            }
-        )
-        monkeypatch.setattr(travel_mod, "get_settings", lambda: fake_settings)
         provider = _make_provider()
         provider.user = None  # bypass UserRead.model_validate on MagicMock
 
@@ -524,26 +505,15 @@ class TestLoadDataKgCo2eqHandling:
 
         async def fake_bulk_create(entries, *_args, **_kwargs):
             captured_entries.extend(entries)
-            # Mimic real bulk_create: order-preserving response with IDs.
             return [MagicMock(id=i) for i, _ in enumerate(entries, start=1)]
 
         mock_service = MagicMock()
         mock_service.bulk_create = AsyncMock(side_effect=fake_bulk_create)
-        mock_emission_service = MagicMock()
-        mock_emission_service.prepare_create = AsyncMock(return_value=[])
-        mock_emission_service.bulk_create = AsyncMock()
 
-        with (
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryService",
-                return_value=mock_service,
-            ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "professional_travel_api_provider.DataEntryService",
+            return_value=mock_service,
         ):
             await provider._load_data(
                 [
@@ -569,21 +539,10 @@ class TestLoadDataKgCo2eqHandling:
                 f"kg_co2eq leaked into DataEntry.data: {entry.data!r}"
             )
 
-        # B-H1 — the valid float reaches prepare_create as the override; the
-        # garbage one resolves to None (no override) — verified through the
-        # {id: ov} routing built inside ``_load_data``.
-        prepare_calls = mock_emission_service.prepare_create.await_args_list
-        overrides_by_id = {
-            call.args[0].id: call.kwargs.get("kg_co2eq_override")
-            for call in prepare_calls
-        }
-        assert overrides_by_id == {1: 152.685, 2: None}
-
-        # B-H1 — the parseable override is also persisted under the reserved
+        # B-H1 — the parseable override is persisted under the reserved
         # ``__kg_co2eq_override__`` carrier so the async recalc path picks
         # it up via ``prepare_create``'s data-keyed fallback.  Garbage
-        # values are dropped (no carrier set) — operators see the WARNING
-        # logged above and the row falls back to formula-based emissions.
+        # values are dropped (no carrier set).
         assert captured_entries[0].data.get("__kg_co2eq_override__") == 152.685
         assert "__kg_co2eq_override__" not in captured_entries[1].data
 
@@ -601,21 +560,11 @@ class TestLoadDataKgCo2eqHandling:
 
         mock_service = MagicMock()
         mock_service.bulk_create = AsyncMock(return_value=[MagicMock(id=1)])
-        mock_emission_service = MagicMock()
-        mock_emission_service.prepare_create = AsyncMock()
-        mock_emission_service.bulk_create = AsyncMock()
 
-        with (
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryService",
-                return_value=mock_service,
-            ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "professional_travel_api_provider.DataEntryService",
+            return_value=mock_service,
         ):
             await provider._load_data(
                 [
@@ -628,8 +577,5 @@ class TestLoadDataKgCo2eqHandling:
                 ]
             )
 
-        # data_entries STILL written.
+        # data_entries STILL written; emissions are now owned by the async chain.
         mock_service.bulk_create.assert_awaited_once()
-        # Emissions writes are skipped — chain handles them.
-        mock_emission_service.prepare_create.assert_not_awaited()
-        mock_emission_service.bulk_create.assert_not_awaited()

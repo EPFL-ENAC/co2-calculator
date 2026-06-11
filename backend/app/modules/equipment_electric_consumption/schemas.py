@@ -1,6 +1,7 @@
 from typing import Optional, Self
 
 from pydantic import ValidationInfo, field_validator, model_validator
+from sqlalchemy import func
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -102,13 +103,21 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
 
 
 class EquipmentHandlerCreate(_EquipmentUsageHoursValidationMixin, DataEntryCreate):
-    # unit_institutional_id: str #only for data.csv
+    equipment_id: str
     name: str
     equipment_class: str
     sub_class: Optional[str] = None
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
     note: Optional[str] = None
+    # kg_co2eq: Optional[float] = None  # from csv is __kg_co2eq_override__
+
+    @field_validator("equipment_id", "name", "equipment_class", mode="after")
+    @classmethod
+    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
+        if not v.strip():
+            raise ValueError(f"{info.field_name} cannot be empty")
+        return v.strip()
 
 
 class EquipmentHandlerUpdate(_EquipmentUsageHoursValidationMixin, DataEntryUpdate):
@@ -144,7 +153,16 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "standby_usage_hours_per_week",
     ]
 
-    # Add the sort_map here
+    # Sort/filter keys MUST read from the same source `to_response` displays,
+    # or the visible column won't match the ordering. equipment_class is shown
+    # from DataEntry.data (the factor `class` lookup is a dead key); sub_class is
+    # factor-preferred-then-data. Factor-only keys (active/standby_power_w) leave
+    # CSV rows with no matched factor (primary_factor_id NULL) with a NULL sort
+    # key — which is correct, since those rows display NULL for those fields too.
+    sub_class_expr = func.coalesce(
+        Factor.classification["sub_class"].as_string(),
+        DataEntry.data["sub_class"].as_string(),
+    )
     sort_map = {
         "id": DataEntry.id,
         "active_usage_hours_per_week": DataEntry.data[
@@ -156,15 +174,15 @@ class EquipmentModuleHandler(BaseModuleHandler):
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": DataEntry.data["equipment_class"].as_string(),
+        "sub_class": sub_class_expr,
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
         "name": DataEntry.data["name"].as_string(),
-        "equipment_class": Factor.classification["equipment_class"].as_string(),
-        "sub_class": Factor.classification["sub_class"].as_string(),
+        "equipment_class": DataEntry.data["equipment_class"].as_string(),
+        "sub_class": sub_class_expr,
     }
 
     async def pre_compute(self, data_entry, session) -> dict:
@@ -198,10 +216,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
             # default active_hours and standby_hours should be retrieved from the factor
             #  if not provided by the user
             # in fine it should never happened
-            if active_hours is None:
-                active_hours = factor_values.get("active_usage_hours_per_week")
-            if standby_hours is None:
-                standby_hours = factor_values.get("standby_usage_hours_per_week")
+            # if active_hours is None:
+            #     active_hours = factor_values.get("active_usage_hours_per_week")
+            # if standby_hours is None:
+            #     standby_hours = factor_values.get("standby_usage_hours_per_week")
             if active_hours is None or standby_hours is None:
                 return None
             active_power_w = factor_values.get("active_power_w")
@@ -266,14 +284,18 @@ value_fields: list[str] = [
 
 
 class EquipmentFactorCreate(_EquipmentFactorValidationMixin, FactorCreate):
-    # data_entry_type: str #only for upload in datamanagement
     equipment_class: str
     sub_class: Optional[str] = None
-    active_usage_hours_per_week: int
-    standby_usage_hours_per_week: int
+    active_usage_hours_per_week: int  # make it mandatory
+    standby_usage_hours_per_week: int  # make it mandatory
     active_power_w: float
     standby_power_w: float
     ef_kg_co2eq_per_kwh: float
+    # equipment_category: str  # only for upload Mandatory (checked in csv upload)
+    # equipment_category is the routing column (picks scientific/it/other).
+    # It is consumed in the factor CSV provider, not carried on this DTO —
+    # its presence + case-sensitive {scientific,it,other} enum is enforced
+    # there (see base_factor_csv_provider._resolve_data_entry_type).
 
 
 class EquipmentFactorUpdate(_EquipmentFactorValidationMixin, FactorUpdate):

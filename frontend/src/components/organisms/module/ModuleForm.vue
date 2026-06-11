@@ -29,7 +29,7 @@
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-section>
     <q-card-section class="q-pa-none">
-      <q-form @submit.prevent="onSubmit">
+      <q-form novalidate @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
           <div v-if="visibleFields.length === 0" class="text-subtle">
             No form configured
@@ -139,6 +139,7 @@
                   :error-message="errors.origin || errors.destination || ''"
                   :transport-mode="getTravelMode()"
                   :disable="inp.disable"
+                  :hint="inp.tooltip ? $t(inp.tooltip) : undefined"
                   @update:from="
                     (val) => {
                       form.origin = val;
@@ -274,6 +275,14 @@
             />
           </template>
         </q-card-actions>
+        <div
+          v-if="
+            !rowData && $te(`${moduleType}-${submoduleType}-form-disclaimer`)
+          "
+          class="q-mx-lg q-mb-xl q-mt-sm text-caption text-grey-7"
+        >
+          {{ $t(`${moduleType}-${submoduleType}-form-disclaimer`) }}
+        </div>
       </q-form>
     </q-card-section>
     <NoteDialog
@@ -452,11 +461,9 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label:
-              inp.optionLabelPrefix &&
-              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                : o.label,
+            label: inp.optionLabelPrefix
+              ? $t(o.value.toLowerCase(), o.label)
+              : o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
@@ -511,16 +518,23 @@ function getFilteredOptions(
   const opts = filteredOptionsMap.value[inp.id] ?? [];
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
-      opt.label = $t(
-        inp.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+      const key = inp.optionLabelKey.replace(
+        '{value}',
+        opt.value.toLowerCase(),
       );
+      opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
     const taxoOptNode = taxoNode?.children?.find(
       (node) => node.name === opt.value,
     );
-    if (taxoOptNode?.translation_key && $te(taxoOptNode.translation_key)) {
-      opt.label = $t(taxoOptNode.translation_key);
+    const translationKey = taxoOptNode?.translation_key;
+    if (translationKey && $te(translationKey)) {
+      opt.label = $t(translationKey);
+      return;
+    }
+    if ($te(opt.value)) {
+      opt.label = $t(opt.value);
       return;
     }
     if (taxoOptNode) {
@@ -930,9 +944,11 @@ function validateField(i: ModuleField) {
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
     const n = Number(v);
-    if (Number.isNaN(n)) errors[i.id] = 'Must be a number';
-    if (i.min !== undefined && n < i.min) errors[i.id] = `Min ${i.min}`;
-    if (i.max !== undefined && n > i.max) errors[i.id] = `Max ${i.max}`;
+    if (Number.isNaN(n)) errors[i.id] = $t('validation_number_required');
+    if (i.min !== undefined && n < i.min)
+      errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
+    if (i.max !== undefined && n > i.max)
+      errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
   }
   return !errors[i.id];
 }

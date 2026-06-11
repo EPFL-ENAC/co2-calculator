@@ -42,8 +42,8 @@ export default {
     fr: 'Distance (km)',
   },
   [`${MODULES.ProfessionalTravel}-field-traveler`]: {
-    en: 'Traveler',
-    fr: 'Voyageur',
+    en: 'Name',
+    fr: 'Nom',
   },
   [`${MODULES.ProfessionalTravel}-field-emissions`]: {
     en: 'kg CO₂-eq',
@@ -61,6 +61,10 @@ export default {
   [`${MODULES.ProfessionalTravel}-train-form-title`]: {
     en: 'Add a train trip',
     fr: 'Ajouter un trajet en train',
+  },
+  [`${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`]: {
+    en: 'Enter the city or station name in the local language.',
+    fr: 'Saisir la ville ou la gare dans la langue locale.',
   },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
     en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose.',

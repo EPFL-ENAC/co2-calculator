@@ -48,7 +48,7 @@ class CarbonReportModuleWorkflow:
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_service = ModuleHandlerService(self.session)
-            create_payload = await handler_service.resolve_primary_factor_id(
+            create_payload, factor = await handler_service.resolve_primary_factor_id(
                 handler, create_payload, data_entry_type, year=year
             )
 
@@ -162,7 +162,13 @@ class CarbonReportModuleWorkflow:
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
             existing_data = existing_entry.data if existing_entry else {}
+            # Overlay the incoming partial PATCH on the persisted data so factor
+            # resolution and validation see the full record. A classification
+            # PATCH (e.g. sub_class only) otherwise drops the persisted kind
+            # (equipment_class) — resolving the factor with an empty kind and
+            # validating an incomplete entity (issue: lost equipment_class).
             update_payload = {
+                **existing_data,
                 **item_data,
                 "data_entry_type_id": data_entry_type_id,
                 "carbon_report_module_id": carbon_report_module.id,
@@ -170,7 +176,7 @@ class CarbonReportModuleWorkflow:
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_service = ModuleHandlerService(self.session)
-            update_payload = await handler_service.resolve_primary_factor_if_changed(
+            update_payload, _ = await handler_service.resolve_primary_factor_if_changed(
                 handler,
                 update_payload,
                 data_entry_type,

@@ -101,31 +101,67 @@ def calculate_train_distance(origin_station: Location, dest_station: Location) -
     return round(adjusted_distance)
 
 
-def get_haul_category(distance_km: float) -> str:
-    """
-    Determine plane haul category based on distance.
+def _get_factor_distance_bounds(
+    factor: Factor,
+) -> tuple[float | None, float | None]:
+    """Read ``min_distance`` / ``max_distance`` from uploaded plane factors."""
+    values = factor.values or {}
+    min_distance = values.get("min_distance")
+    max_distance = values.get("max_distance")
+    return (
+        float(min_distance) if min_distance is not None else None,
+        float(max_distance) if max_distance is not None else None,
+    )
 
-    Categories:
-        - very_short_haul: < 800 km
-        - short_haul: 800-1500 km
-        - medium_haul: 1500-4000 km
-        - long_haul: > 4000 km
+
+def _distance_in_factor_band(
+    distance_km: float,
+    min_distance_km: float | None,
+    max_distance_km: float | None,
+) -> bool:
+    """Return True when distance falls in [min, max) per factor CSV semantics."""
+    if min_distance_km is not None and distance_km < min_distance_km:
+        return False
+    if max_distance_km is not None and distance_km >= max_distance_km:
+        return False
+    return True
+
+
+def _plane_haul_bands_from_factors(
+    factors: list[Factor],
+) -> list[tuple[str, float | None, float | None]]:
+    """Build unique haul bands from uploaded plane factors."""
+    bands: dict[str, tuple[float | None, float | None]] = {}
+    for factor in factors:
+        category = (factor.classification or {}).get("category")
+        if not category or category in bands:
+            continue
+        min_distance_km, max_distance_km = _get_factor_distance_bounds(factor)
+        if min_distance_km is None and max_distance_km is None:
+            continue
+        bands[category] = (min_distance_km, max_distance_km)
+    return sorted(
+        (category, bounds[0], bounds[1]) for category, bounds in bands.items()
+    )
+
+
+def get_haul_category(distance_km: float, factors: list[Factor]) -> str | None:
+    """
+    Determine plane haul category from uploaded factor distance bands.
 
     Args:
-        distance_km: Distance in kilometers (float)
+        distance_km: Distance in kilometers
+        factors: Plane factors loaded for the report year
 
     Returns:
-        Haul category string: 'very_short_haul', 'short_haul',
-        'medium_haul', or 'long_haul'
+        Matching ``classification.category`` value, or ``None`` when no band matches
     """
-    if distance_km < 800:
-        return "very_short_haul"
-    elif distance_km < 1500:
-        return "short_haul"
-    elif distance_km < 4000:
-        return "medium_haul"
-    else:
-        return "long_haul"
+    for category, min_distance_km, max_distance_km in _plane_haul_bands_from_factors(
+        factors
+    ):
+        if _distance_in_factor_band(distance_km, min_distance_km, max_distance_km):
+            return category
+    return None
 
 
 def resolve_flight_factor(
@@ -148,7 +184,9 @@ def resolve_flight_factor(
         Tuple of (distance_km, matched factor or None)
     """
     distance_km = calculate_plane_distance(origin, dest)
-    category = get_haul_category(distance_km)
+    category = get_haul_category(distance_km, factors)
+    if category is None:
+        return distance_km, None
     factor = next(
         (f for f in factors if f.classification.get("category") == category),
         None,

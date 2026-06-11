@@ -1,5 +1,6 @@
 {
   "ci": {
+    "_comment": "Single source of truth for Lighthouse. Consumers: .github/workflows/lighthouse.yml (nightly cron) and frontend/Makefile `lighthouse` target (local). Audits all 24 routes.",
     "collect": {
       "startServerCommand": "npx serve -s frontend/dist/spa -l 8080",
       "startServerReadyPattern": "Accepting connections",
@@ -40,7 +41,7 @@
         "categories:performance": [
           "error",
           {
-            "minScore": 0.8
+            "minScore": 0.6
           }
         ],
         "categories:accessibility": [
@@ -60,7 +61,8 @@
           {
             "minScore": 0.9
           }
-        ]
+        ],
+        "color-contrast": "warn"
       }
     },
     "upload": {

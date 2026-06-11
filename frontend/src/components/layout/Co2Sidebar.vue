@@ -3,7 +3,7 @@ import { ref } from 'vue';
 import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 
 interface Props {
   items: Record<string, NavItem>;
@@ -21,7 +21,7 @@ function navigateToRoute(routeName: string) {
 function isItemDisabled(item: NavItem): boolean {
   // Page-driven gating (#862): reachability is derived from the target route's
   // own `meta.requiredPermission` — the single source of truth that the router
-  // guard (`requireMetaPermission`) also enforces, so sidebar and router agree.
+  // guard (`permissionGuard`) also enforces, so sidebar and router agree.
   // Checked any-scope so affiliation-suffixed keys match; super admin holds
   // every backoffice key and passes naturally.
   const meta = router.resolve({ name: item.routeName }).meta;

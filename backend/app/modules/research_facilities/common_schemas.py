@@ -45,18 +45,39 @@ class ResearchFacilitiesCommonHandlerResponse(DataEntryResponseGen):
 
 
 class ResearchFacilitiesCommonHandlerCreate(DataEntryCreate):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    use: Optional[float] = None
-    use_unit: Optional[str] = None
+    researchfacility_id: str
+    researchfacility_name: str
+    use: float
+    use_unit: str
     note: Optional[str] = None
+    kg_co2eq: Optional[float] = None
 
     @field_validator("researchfacility_id", mode="before")
     @classmethod
     def _validate_researchfacility_id_response(cls, v: object) -> Optional[str]:
         if v is None:
-            return None
+            raise ValueError("researchfacility_id is required")
         return str(v)
+
+    @field_validator("researchfacility_name", mode="before")
+    @classmethod
+    def _validate_researchfacility_name_response(cls, v: object) -> Optional[str]:
+        if v is None:
+            raise ValueError("researchfacility_name is required")
+        return str(v)
+
+    @field_validator("use", mode="before")
+    @classmethod
+    def _validate_use_response(cls, v: object) -> Optional[float]:
+        if v is None:
+            raise ValueError("use is required")
+        if not isinstance(v, (int, float)):
+            raise ValueError("use must be a number")
+        if v < 0:
+            raise ValueError("use must be a positive number or zero")
+        return float(v)
+
+    # TODO: validation for use_unit: it was not done!
 
 
 class ResearchFacilitiesCommonHandlerUpdate(DataEntryUpdate):
@@ -173,17 +194,24 @@ research_facilities_common_value_fields: list[str] = [
 
 
 class ResearchFacilitiesCommonFactorCreate(FactorCreate):
-    researchfacility_id: Optional[str] = None
+    researchfacility_id: str
     researchfacility_name: str
-    use_unit: str
     kg_co2eq_sum: Optional[float] = None
     total_use: float
+    use_unit: str
 
     @field_validator("total_use", mode="after")
     @classmethod
     def validate_total_use(cls, v: float) -> float:
         if v < 0:
             raise ValueError("total_use must be non-negative")
+        return v
+
+    @field_validator("kg_co2eq_sum", mode="after")
+    @classmethod
+    def validate_kg_co2eq_sum(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("kg_co2eq_sum must be non-negative")
         return v
 
 

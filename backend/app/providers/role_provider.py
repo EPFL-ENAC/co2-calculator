@@ -514,7 +514,7 @@ class AccredRoleProvider(RoleProvider):
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
-                "type": "right",  # decomment on new role calco2.backoffice.admin added
+                "type": "right",
                 "searchauthorization": "calco2.",
             }
 
@@ -549,14 +549,18 @@ class AccredRoleProvider(RoleProvider):
             # "calco2.backoffice.metier"  # CO2 Calculator - Backoffice Admin role.
             # # For backoffice admins. They can report, monitor
             # # usage and results, and update documentation/data.
-            # "calco2.superadmin"     # CO2 Calculator - Super Admin.
+            # "calco2.backoffice.admin"     # CO2 Calculator - Super Admin.
             # # For service managers or business owners. They can
             # # assign all roles and scopes, and access IT admin tools.
+            VALID_ROLES = {role.value for role in RoleName.__members__.values()}
             for auth in authorizations:
                 auth_name = auth.get("name", "")
 
                 # Only process authorizations starting with "co2."
                 if not auth_name.startswith("calco2."):
+                    continue
+                # if authorizations do not match the expected enum skip
+                if auth_name not in VALID_ROLES:
                     continue
 
                 # Check if authorization is active

@@ -64,7 +64,6 @@
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
-      <q-separator />
       <div
         v-if="isInputDeactivated"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
@@ -94,11 +93,6 @@
             :module-color="submoduleColor"
             @submit="submitForm"
           />
-        </div>
-        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
-          <q-badge color="warning" class="q-px-md q-py-sm">
-            {{ $t('common_view_only') }}
-          </q-badge>
         </div>
       </template>
     </q-card-section>
@@ -165,7 +159,7 @@
           :is-simulator="isSimulator"
         />
       </div>
-      <q-separator />
+
       <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
         <module-form
           ref="formRef"
@@ -207,7 +201,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import type {
   ModuleResponse,
   Threshold,
@@ -390,10 +384,6 @@ const hasModuleForm = computed(() => {
 
 const showModuleForm = computed(
   () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
-);
-
-const showViewOnlyBadge = computed(
-  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
 );
 
 // Map data is fetched once at the module-charts level (ModuleCharts.vue

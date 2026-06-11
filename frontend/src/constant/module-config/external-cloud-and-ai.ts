@@ -31,7 +31,7 @@ const cloudFields: ModuleField[] = [
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
     optionsId: 'subkind',
-    optionLabelPrefix: 'external-cloud-service-type-',
+    optionLabelPrefix: 'external-cloud',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -147,19 +147,19 @@ const externalAIFields: ModuleField[] = [
     columnSize: 'sm',
     options: [
       {
-        value: '1-5 times per day',
+        value: '1_5',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`,
       },
       {
-        value: '5-20 times per day',
+        value: '5_20',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.5_20`,
       },
       {
-        value: '20-100 times per day',
+        value: '20_100',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.20_100`,
       },
       {
-        value: '>100 times per day',
+        value: 'gt_100',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.gt_100`,
       },
     ],

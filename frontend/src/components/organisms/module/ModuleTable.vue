@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div v-if="hasModuleUpload" class="q-gutter-sm">
+    <div v-if="hasModuleUpload && !isInputDeactivated" class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -144,6 +144,7 @@
               :field-id="col.field"
               :options-id="col.optionsId"
               :option-label-key="col.optionLabelKey"
+              :option-label-prefix="col.optionLabelPrefix"
               :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
@@ -176,18 +177,14 @@
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template
-            v-else-if="
-              col.name === 'action' &&
-              props.submoduleConfig?.hasTableAction !== false
-            "
-          >
+          <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
+              v-if="showTableNote"
               :icon="noteButtonIcon(slotProps.row.note)"
               :color="noteButtonColor(slotProps.row.note)"
               :style="noteButtonStyle(slotProps.row.note)"
               :text-color="noteButtonTextColor(slotProps.row.note)"
-              :disable="isDisabled"
+              :disable="isNoteDisabled"
               unelevated
               no-caps
               dense
@@ -201,7 +198,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="canEdit && hasModuleUpload"
+              v-if="showTableRowActions && canEdit && hasModuleUpload"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
@@ -315,42 +312,48 @@
         />
       </q-card-section>
       <q-separator />
-      <q-card-section class="q-py-lg q-px-md">
-        <span class="text-body1">
-          {{
-            $t('common_delete_dialog_description', {
-              item: ItemName || 'this item',
-            })
-          }}
-        </span>
-      </q-card-section>
-      <q-separator />
-      <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
-        <q-btn
-          color="grey-4"
-          text-color="primary"
-          :label="$t('common_cancel')"
-          unelevated
-          no-caps
-          outline
-          size="md"
-          class="text-weight-medium col"
-          @click="confirmDelete = false"
-        />
-        <q-btn
-          :style="{
-            background: moduleColors.bgColorLighter,
-            color: moduleColors.buttonTextColor,
-            border: `1px solid ${moduleColors.buttonTextColor}`,
-          }"
-          :label="$t('common_delete')"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium col"
-          @click="onConfirmDelete"
-        />
-      </q-card-actions>
+      <!-- q-form so Enter submits the dialog (autofocus on the submit button
+           gives the native form an Enter target — there are no text inputs). -->
+      <q-form @submit.prevent="onConfirmDelete">
+        <q-card-section class="q-py-lg q-px-md">
+          <span class="text-body1">
+            {{
+              $t('common_delete_dialog_description', {
+                item: ItemName || 'this item',
+              })
+            }}
+          </span>
+        </q-card-section>
+        <q-separator />
+        <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
+          <q-btn
+            type="button"
+            color="grey-4"
+            text-color="primary"
+            :label="$t('common_cancel')"
+            unelevated
+            no-caps
+            outline
+            size="md"
+            class="text-weight-medium col"
+            @click="confirmDelete = false"
+          />
+          <q-btn
+            type="submit"
+            autofocus
+            :style="{
+              background: moduleColors.bgColorLighter,
+              color: moduleColors.buttonTextColor,
+              border: `1px solid ${moduleColors.buttonTextColor}`,
+            }"
+            :label="$t('common_delete')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium col"
+          />
+        </q-card-actions>
+      </q-form>
     </q-card>
   </q-dialog>
 </template>
@@ -371,13 +374,14 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useAuthStore } from 'src/stores/auth';
 import {
   useBackofficeDataManagement,
   TargetType,
 } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import type {
@@ -706,6 +710,14 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const yearConfigStore = useYearConfigStore();
+
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[props.submoduleType as string];
+  return subConfig?.inputs_deactivated ?? false;
+});
 
 const moduleColors = computed(() =>
   getModuleIconColors(String(props.moduleType), String(props.submoduleType)),
@@ -780,6 +792,25 @@ const isDisabled = computed(
     !props.isSimulator &&
     (props.disable ||
       timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
+);
+
+const showTableRowActions = computed(
+  () => props.submoduleConfig?.hasTableAction !== false,
+);
+
+const showTableNote = computed(
+  () =>
+    showTableRowActions.value || props.submoduleConfig?.hasTableNote === true,
+);
+
+const showTableActions = computed(() => showTableNote.value);
+
+// Notes stay available on read-only tables; only permission and validation block them.
+const isNoteDisabled = computed(
+  () =>
+    !props.isSimulator &&
+    (timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
       !canEdit.value),
 );
 
@@ -921,7 +952,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
-  if (props.submoduleConfig.hasTableAction !== false) {
+  if (showTableActions.value) {
     baseCols.push({
       name: 'action',
       label: $t('common_actions'),
@@ -952,6 +983,8 @@ const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
     if (node.name && node.label) {
       if (node.translation_key && $te(node.translation_key)) {
         map[node.name] = $t(node.translation_key);
+      } else if ($te(node.name)) {
+        map[node.name] = $t(node.name);
       } else {
         map[node.name] = node.label;
       }
@@ -1002,6 +1035,7 @@ function renderCell(
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
     optionLabelPrefix?: string;
+    optionLabelKey?: string;
     optionsId?: string;
   },
 ) {
@@ -1035,7 +1069,11 @@ function renderCell(
   }
   // Factor-sourced options: translate using optionLabelPrefix
   if (col.optionLabelPrefix && typeof val === 'string') {
-    const key = `${col.optionLabelPrefix}${val.toLowerCase()}`;
+    return $t(val.toLowerCase(), val);
+  }
+  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, mice)
+  if (col.optionLabelKey && typeof val === 'string') {
+    const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
   // Factor-sourced kind/subkind: look up label from taxonomy
