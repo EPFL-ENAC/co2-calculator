@@ -45,7 +45,10 @@ from app.models.data_entry_emission import EmissionType
 from app.models.data_ingestion import EntityType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
-from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.data_entry_emission_service import (
+    KG_CO2EQ_OVERRIDE_KEY,
+    DataEntryEmissionService,
+)
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_csv_provider import BaseCSVProvider
 
@@ -141,6 +144,7 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     with open(fixture_path, encoding="utf-8") as f:
         for raw_row in csv.DictReader(f):
             kg_str = raw_row.pop("kg_co2eq")  # carry out-of-band, never persist
+            kg_override = float(kg_str)
             row_data = {
                 "origin_iata": raw_row["origin_iata"],
                 "destination_iata": raw_row["destination_iata"],
@@ -149,14 +153,18 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
                 "number_of_trips": int(raw_row["number_of_trips"]),
                 "primary_factor_id": None,
             }
+            # Mirror _process_row: persist the override under the carrier key
+            # so the async recalc chain can read it via prepare_create.
+            entry_data = dict(row_data)
+            entry_data[KG_CO2EQ_OVERRIDE_KEY] = kg_override
             batch.append(
                 DataEntry(
                     carbon_report_module_id=module.id,
                     data_entry_type_id=DataEntryTypeEnum.plane,
-                    data=dict(row_data),
+                    data=entry_data,
                 )
             )
-            overrides.append(float(kg_str))
+            overrides.append(kg_override)
             expected_originals.append(row_data)
 
     assert len(batch) >= 2, (
@@ -202,14 +210,14 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     for original in expected_originals:
         route = (original["origin_iata"], original["destination_iata"])
         e = persisted_by_route[route]
-        assert e.data == original, (
-            f"DataEntry.data was mutated by the import.\n"
-            f"  expected: {original!r}\n"
-            f"  actual:   {e.data!r}"
-        )
         assert "kg_co2eq" not in e.data, (
             f"kg_co2eq leaked into DataEntry.data: {e.data!r}"
         )
+        for key, val in original.items():
+            assert e.data.get(key) == val, (
+                f"DataEntry.data[{key!r}] mismatch for {route}: "
+                f"expected {val!r}, got {e.data.get(key)!r}"
+            )
 
     # ---------- assert (2): __kg_co2eq_override__ carrier is persisted -----
     # The async recalc chain reads this key from DataEntry.data as a fallback
