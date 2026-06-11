@@ -123,6 +123,10 @@ class ModuleHandler(Protocol[T]):
 
     # kind/subkind fields
     kind_field: Optional[str] = None
+    # Alternate kind key: when present on the entry it overrides kind_field
+    # for factor lookup; factors carrying it are excluded from the
+    # kind_field fallback match (those rows are implicit averages).
+    kind_field_override: Optional[str] = None
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
@@ -206,6 +210,11 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Name of the data-dict key that holds the primary classification value
     # used to look up a matching Factor (e.g. "equipment_class", "category").
     kind_field: Optional[str] = None
+    # Alternate kind key (e.g. "purchase_additional_code"): when the entry
+    # carries a value for it, it overrides kind_field for factor lookup.
+    # When absent, only factors WITHOUT this classification key are eligible
+    # for the kind_field match (those rows are implicit averages).
+    kind_field_override: Optional[str] = None
     # Name of the data-dict key for the secondary classification value
     # (e.g. "sub_class"). Used together with kind_field for a more precise
     # factor match. None means the module has no sub-classification.

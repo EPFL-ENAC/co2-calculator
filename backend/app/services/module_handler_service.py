@@ -4,7 +4,7 @@ Owns all DB-dependent logic that was previously on BaseModuleHandler,
 breaking the circular dependency between schemas and services.
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -56,6 +56,12 @@ class ModuleHandlerService:
                 if key not in data:
                     data[key] = value
 
+        if getattr(handler, "kind_field_override", None):
+            payload["primary_factor_id"] = await self._resolve_with_kind_override(
+                handler, data, data_entry_type_id, year
+            )
+            return payload
+
         kind = data.get(handler.kind_field, "")
         subkind = data.get(handler.subkind_field, "") if handler.subkind_field else None
 
@@ -67,6 +73,97 @@ class ModuleHandlerService:
         )
         payload["primary_factor_id"] = factor.id if factor else None
         return payload
+
+    async def _resolve_with_kind_override(
+        self,
+        handler: "ModuleHandler",
+        data: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+    ) -> Optional[int]:
+        """Resolve a factor id using the override-key-first rule.
+
+        The kind_field_override value (e.g. purchase_additional_code) is the
+        primary lookup key: a factor carrying it always wins.  Without it
+        (or when it matches nothing), fall back to kind_field — but only
+        among factors that do NOT carry the override key, since those rows
+        are the implicit per-code averages.
+        """
+        override_field = handler.kind_field_override
+        if override_field is None or handler.kind_field is None:
+            raise ValueError("kind_field and kind_field_override must be set")
+
+        kind = data.get(handler.kind_field)
+        if not kind:
+            raise ValueError(
+                f"{handler.kind_field} is required to resolve a factor "
+                f"for {data_entry_type_id}"
+            )
+
+        code = data.get(override_field)
+        if code:
+            factor_id = await self._match_by_override(
+                handler, kind, code, data_entry_type_id, year
+            )
+            if factor_id is not None:
+                return factor_id
+
+        factors = await self.factor_service.get_factors(
+            data_entry_type=data_entry_type_id,
+            year=year,
+            **{handler.kind_field: kind},
+        )
+        eligible = [
+            f for f in factors if not (f.classification or {}).get(override_field)
+        ]
+        if len(eligible) > 1:
+            raise ValueError(
+                f"Ambiguous factor data: {len(eligible)} factors without "
+                f"{override_field} match {handler.kind_field}={kind!r} "
+                f"for {data_entry_type_id} in {year}"
+            )
+        return eligible[0].id if eligible else None
+
+    async def _match_by_override(
+        self,
+        handler: "ModuleHandler",
+        kind: str,
+        code: str,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+    ) -> Optional[int]:
+        """Match a factor by the override key alone.
+
+        A single match wins regardless of kind (the override key is the
+        discrete, authoritative classification).  When several factors share
+        the override value, the entry's kind disambiguates; if it can't,
+        the factor data is ambiguous and we never pick silently.
+        """
+        override_field = handler.kind_field_override
+        if override_field is None or handler.kind_field is None:
+            raise ValueError("kind_field and kind_field_override must be set")
+        classification: dict[str, Any] = {override_field: code}
+        factors = await self.factor_service.get_factors(
+            data_entry_type=data_entry_type_id,
+            year=year,
+            **classification,
+        )
+        if not factors:
+            return None
+        if len(factors) == 1:
+            return factors[0].id
+        same_kind = [
+            f
+            for f in factors
+            if (f.classification or {}).get(handler.kind_field) == kind
+        ]
+        if len(same_kind) == 1:
+            return same_kind[0].id
+        raise ValueError(
+            f"Ambiguous factor data: {len(factors)} factors match "
+            f"{override_field}={code!r} and {handler.kind_field}={kind!r} "
+            f"cannot disambiguate for {data_entry_type_id} in {year}"
+        )
 
     async def resolve_primary_factor_if_changed(
         self,
@@ -101,12 +198,16 @@ class ModuleHandlerService:
         subkind_changed = (handler_subkind_field in item_data) and (
             item_data[handler_subkind_field] != existing_data.get(handler_subkind_field)
         )
+        override_field = getattr(handler, "kind_field_override", None) or ""
+        override_changed = (override_field in item_data) and (
+            item_data[override_field] != existing_data.get(override_field)
+        )
 
         if kind_changed:
             update_payload[handler_subkind_field] = None
             update_payload["primary_factor_id"] = None
 
-        if kind_changed or subkind_changed:
+        if kind_changed or subkind_changed or override_changed:
             update_payload = await self.resolve_primary_factor_id(
                 handler,
                 update_payload,

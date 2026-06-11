@@ -199,6 +199,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
     response_dto = PurchaseHandlerResponse
 
     kind_field: str = "purchase_institutional_code"
+    # purchase_additional_code is optional on entries but is the primary
+    # factor key when present: it overrides the institutional-code match.
+    kind_field_override: Optional[str] = "purchase_additional_code"
     subkind_field: Optional[str] = ""
     # purchase_institutional_code is not always present, so we can't 100% rely on it
     # for matching entries to factors
@@ -461,6 +464,16 @@ class PurchaseCommonFactorCreate(FactorCreate):
     def validate_ef(cls, v: float) -> float:
         if v < 0:
             raise ValueError("ef_kg_co2eq_per_currency must be non-negative")
+        return v
+
+    @field_validator("purchase_institutional_code", mode="after")
+    @classmethod
+    def validate_institutional_code(cls, v: str) -> str:
+        # Always present on factors: the additional-code-less rows are the
+        # per-institutional-code averages, so a factor without an
+        # institutional code could never be matched.
+        if not v.strip():
+            raise ValueError("purchase_institutional_code must not be empty")
         return v
 
 
