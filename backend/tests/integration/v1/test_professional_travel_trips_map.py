@@ -41,6 +41,8 @@ ALL_LEGS = [
         "origin_name": "Geneva Airport",
         "destination_name": "JFK",
         "kg_co2eq": 1234.5,
+        "traveler_id": "alice",
+        "traveler_name": "Alice Dupont",
     },
     {
         "mode": "train",
@@ -51,6 +53,8 @@ ALL_LEGS = [
         "origin_name": "Lausanne",
         "destination_name": "Paris",
         "kg_co2eq": 10.0,
+        "traveler_id": "bob",
+        "traveler_name": "Bob Martin",
     },
 ]
 
@@ -101,7 +105,10 @@ def _wire(monkeypatch, user, decision_fn):
     captured: dict = {}
     mock_service = MagicMock()
 
-    async def mock_trips_map(carbon_report_module_id, institutional_id_filter=None):
+    async def mock_trips_map(
+        carbon_report_module_id,
+        institutional_id_filter=None,
+    ):
         captured["filter"] = institutional_id_filter
         legs = ALL_LEGS
         if institutional_id_filter is not None:
@@ -164,6 +171,12 @@ def test_principal_sees_full_unit_data(client, monkeypatch):
         assert captured["filter"] is None
         legs = r.json()["legs"]
         assert len(legs) == 2
+        # Each leg carries its traveler so the manager can filter by person.
+        assert {leg["traveler_id"] for leg in legs} == {"alice", "bob"}
+        assert {leg["traveler_name"] for leg in legs} == {
+            "Alice Dupont",
+            "Bob Martin",
+        }
     finally:
         app.dependency_overrides.clear()
 

@@ -267,6 +267,18 @@ export default {
     en: '{count} trip | {count} trips',
     fr: '{count} voyage | {count} voyages',
   },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-mode`]: {
+    en: 'Mode',
+    fr: 'Mode',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-avg`]: {
+    en: 'Avg / trip',
+    fr: 'Moy. / trajet',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-travelers`]: {
+    en: 'Traveler | Travelers',
+    fr: 'Voyageur | Voyageurs',
+  },
   [`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`]: {
     en: 'Emissions',
     fr: 'Émissions',
@@ -274,5 +286,29 @@ export default {
   [`${MODULES.ProfessionalTravel}-trips-map-legend-trips`]: {
     en: 'Trips',
     fr: 'Voyages',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-title`]: {
+    en: 'Unit members',
+    fr: "Membres de l'unité",
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-label`]: {
+    en: '({shown}/{total} shown)',
+    fr: '({shown}/{total} affichés)',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-aria`]: {
+    en: 'Filter trips by unit member',
+    fr: "Filtrer les voyages par membre de l'unité",
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-all`]: {
+    en: 'All',
+    fr: 'Tout',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-mode-aria`]: {
+    en: 'Filter trips by mode',
+    fr: 'Filtrer les voyages par mode',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-none`]: {
+    en: 'None',
+    fr: 'Aucun',
   },
 } as const;

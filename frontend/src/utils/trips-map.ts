@@ -1,79 +1,45 @@
-import type { TripLeg } from 'src/stores/modules';
+import { MODULES } from 'src/constant/modules';
+import { formatKgCo2eq } from 'src/utils/number';
+import type { AggregatedLeg } from 'src/utils/trips-map-data';
 
-export interface AggregatedLeg {
-  mode: 'plane' | 'train';
-  from: [number, number];
-  to: [number, number];
-  fromName: string;
-  toName: string;
-  tripCount: number;
-  totalKgCo2eq: number;
-}
+// Pure aggregation + member-filter helpers live in ./trips-map-data (i18n-free
+// so they're unit-testable in Node); re-exported here so callers have a single
+// trips-map entry point.
+export type { AggregatedLeg, TravelerTotal } from 'src/utils/trips-map-data';
+export {
+  aggregateLegs,
+  travelerTotals,
+  travelerRouteKeys,
+  legsToRender,
+  toggleTravelerSelection,
+} from 'src/utils/trips-map-data';
 
-// Reversed-magma emissions ramp (low = pale gold, high = deep indigo). The CSS
-// gradient drives the legend; the maplibre expression drives the lines — same
-// stops, two forms.
+// Turbo emissions ramp, right half only (green → red). The CSS gradient drives
+// the legend; the maplibre expression drives the lines — same stops, two forms.
 export const CO2_RAMP_CSS =
-  'linear-gradient(to right, #fec287, #de4968 40%, #8c2981 70%, #3b0f70)';
+  'linear-gradient(to right, #1ae4b6 0%, #4bf57f 20%, #8fff49 40%, #c5ee36 55%, #f3c63a 70%, #fd902a 82%, #ef5911 92%, #c42503 100%)';
 
 export const LINE_COLOR_EXPR = [
   'interpolate',
   ['linear'],
   ['get', 'intensity'],
   0,
-  '#fec287',
+  '#1ae4b6',
+  0.2,
+  '#4bf57f',
   0.4,
-  '#de4968',
+  '#8fff49',
+  0.55,
+  '#c5ee36',
   0.7,
-  '#8c2981',
+  '#f3c63a',
+  0.82,
+  '#fd902a',
+  0.92,
+  '#ef5911',
   1,
-  '#3b0f70',
+  '#c42503',
 ];
-
-// Merge raw legs into one route per (mode, endpoint-pair), summing trips and
-// emissions. Direction is normalised so A→B and B→A collapse together. Sorted
-// heaviest-emitting first.
-export function aggregateLegs(
-  legs: TripLeg[],
-  modeFilter?: 'plane' | 'train',
-): AggregatedLeg[] {
-  const filtered = modeFilter
-    ? legs.filter((l) => l.mode === modeFilter)
-    : legs;
-
-  const buckets = new Map<string, AggregatedLeg>();
-  for (const l of filtered) {
-    const a: [number, number] = [l.origin_lng, l.origin_lat];
-    const b: [number, number] = [l.destination_lng, l.destination_lat];
-    let from = a;
-    let to = b;
-    let fromName = l.origin_name;
-    let toName = l.destination_name;
-    if (`${b[0]},${b[1]}` < `${a[0]},${a[1]}`) {
-      from = b;
-      to = a;
-      fromName = l.destination_name;
-      toName = l.origin_name;
-    }
-    const key = `${l.mode}|${from[0]},${from[1]}|${to[0]},${to[1]}`;
-    const existing = buckets.get(key);
-    if (existing) {
-      existing.tripCount += l.number_of_trips;
-      existing.totalKgCo2eq += l.kg_co2eq;
-    } else {
-      buckets.set(key, {
-        mode: l.mode,
-        from,
-        to,
-        fromName,
-        toName,
-        tripCount: l.number_of_trips,
-        totalKgCo2eq: l.kg_co2eq,
-      });
-    }
-  }
-  return [...buckets.values()].sort((a, b) => b.totalKgCo2eq - a.totalKgCo2eq);
-}
 
 // Quadratic-bezier arc between the endpoints, bowed `bulge` degrees off the
 // midpoint (perpendicular to travel direction). Bulge 0 → a straight line.
@@ -130,8 +96,13 @@ export function logNorm(value: number, min: number, max: number): number {
 }
 
 // One LineString per route. Colour encodes emissions, width encodes trip
-// volume — each log-normalised across the visible routes.
-export function buildTripsGeoJson(legs: AggregatedLeg[]) {
+// volume — each log-normalised across the visible routes. When `highlightKeys`
+// is set (member hover), routes not in it get `dim: 1` so the paint layer greys
+// them out; `null` means nothing is dimmed.
+export function buildTripsGeoJson(
+  legs: AggregatedLeg[],
+  highlightKeys: Set<string> | null = null,
+) {
   type GeoFeature = {
     type: 'Feature';
     properties: Record<string, unknown>;
@@ -161,6 +132,7 @@ export function buildTripsGeoJson(legs: AggregatedLeg[]) {
       leg.to,
       baseBulge(leg.from, leg.to, leg.mode),
     );
+    const dim = highlightKeys !== null && !highlightKeys.has(leg.key) ? 1 : 0;
     features.push({
       type: 'Feature',
       properties: {
@@ -171,6 +143,10 @@ export function buildTripsGeoJson(legs: AggregatedLeg[]) {
         totalKgCo2eq: leg.totalKgCo2eq,
         intensity,
         lineWidth,
+        dim,
+        // JSON-encoded: MapLibre stringifies array/object props on the way back
+        // out of interaction events, so encode explicitly and parse in the popup.
+        travelers: JSON.stringify(leg.travelers),
       },
       geometry: { type: 'LineString', coordinates: coords },
     });
@@ -193,4 +169,83 @@ export function buildEndpointFeatures(legs: AggregatedLeg[]) {
       geometry: { type: 'Point' as const, coordinates: p },
     })),
   };
+}
+
+// ── Hover popup ──────────────────────────────────────────────────────────────
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function popupRow(label: string, value: string): string {
+  return (
+    `<div class="row justify-between no-wrap">` +
+    `<span class="text-grey-7 q-mr-md">${label}</span>` +
+    `<span class="text-weight-medium">${value}</span></div>`
+  );
+}
+
+// Travelers come through MapLibre as a JSON string (see buildTripsGeoJson); be
+// lenient and also accept a raw array (direct calls / tests).
+function parseTravelers(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string' && value.length) {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch {
+      /* not JSON — ignore */
+    }
+  }
+  return [];
+}
+
+// HTML for the leg hover popup, built from a MapLibre feature's properties.
+// Compact, styled only with Quasar utility classes (no custom CSS) on top of
+// MapLibre's default popup card. `t` is passed in since i18n lives in the
+// component (it accepts an optional plural count). text-black: the popup renders
+// inside .module-charts, which sets a teal text colour — pin a neutral base so
+// the title/values aren't tinted.
+export function buildLegPopupHtml(
+  props: Record<string, unknown> | null,
+  t: (key: string, plural?: number) => string,
+): string {
+  const mode = String(props?.mode ?? '');
+  const fromName = String(props?.fromName ?? '');
+  const toName = String(props?.toName ?? '');
+  const tripCount = Number(props?.tripCount ?? 0);
+  const total = Number(props?.totalKgCo2eq ?? 0);
+  const avg = tripCount > 0 ? total / tripCount : 0;
+  const travelers = parseTravelers(props?.travelers);
+  const k = `${MODULES.ProfessionalTravel}-trips-map`;
+
+  // Travelers go last on a single line. The value sits flush right when it fits
+  // (margin-left:auto), and when it's too long it fills the remaining width and
+  // truncates with a trailing "…" (single-line text-overflow, which works with
+  // any alignment — unlike the multi-line clamp). min-width:0 lets the flex item
+  // shrink below its content so the ellipsis can kick in.
+  let travelersBlock = '';
+  if (travelers.length) {
+    const label = t(`${k}-popup-travelers`, travelers.length);
+    const names = travelers.join(', ');
+    travelersBlock =
+      `<div class="row no-wrap items-baseline q-mt-xs">` +
+      `<span class="text-grey-7 q-mr-md">${label}</span>` +
+      `<span class="ellipsis text-weight-medium" style="min-width:0;margin-left:auto">${escapeHtml(names)}</span>` +
+      `</div>`;
+  }
+
+  return (
+    `<div class="text-caption text-black" style="line-height:1.5; max-width:240px">` +
+    `<div class="text-weight-bold q-mb-xs">${escapeHtml(fromName)} ↔ ${escapeHtml(toName)}</div>` +
+    popupRow(t(`${k}-popup-mode`), escapeHtml(t(mode))) +
+    popupRow(t(`${k}-legend-trips`), String(tripCount)) +
+    popupRow(t(`${k}-legend-emissions`), escapeHtml(formatKgCo2eq(total))) +
+    popupRow(t(`${k}-popup-avg`), escapeHtml(formatKgCo2eq(avg))) +
+    travelersBlock +
+    `</div>`
+  );
 }

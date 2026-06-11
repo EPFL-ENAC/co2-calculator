@@ -33,20 +33,6 @@
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div
-        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
-        class="q-mx-lg q-mt-lg"
-      >
-        <trips-map
-          :legs="tripsMapLegs"
-          :mode-filter="tripsMapMode"
-          :loading="moduleStore.state.loadingTripsMap"
-          :aria-label="
-            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
-          "
-          :testid="`trips-map-${tripsMapMode}`"
-        />
-      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -64,6 +50,7 @@
           :module-color-lighter="submoduleLighterColor"
         />
       </div>
+      <q-separator />
       <div
         v-if="isInputDeactivated"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
@@ -130,20 +117,6 @@
     </q-card-section>
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div
-        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
-        class="q-mx-lg q-mt-lg"
-      >
-        <trips-map
-          :legs="tripsMapLegs"
-          :mode-filter="tripsMapMode"
-          :loading="moduleStore.state.loadingTripsMap"
-          :aria-label="
-            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
-          "
-          :testid="`trips-map-${tripsMapMode}`"
-        />
-      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -159,7 +132,7 @@
           :is-simulator="isSimulator"
         />
       </div>
-
+      <q-separator />
       <div v-if="hasModuleForm && !disable && canEdit" class="q-mx-lg">
         <module-form
           ref="formRef"
@@ -196,7 +169,6 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import TripsMap from 'src/components/molecules/TripsMap.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
@@ -209,11 +181,7 @@ import type {
   EnumSubmoduleType,
   Module,
 } from 'src/constant/modules';
-import {
-  enumSubmodule,
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-} from 'src/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
@@ -385,18 +353,6 @@ const hasModuleForm = computed(() => {
 const showModuleForm = computed(
   () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
 );
-
-// Map data is fetched once at the module-charts level (ModuleCharts.vue
-// triggers `getProfessionalTravelTripsMap`); the plane/train cards just
-// filter and render. tripsMapMode is non-null only when the submodule
-// opts in via `topVisualization: 'trips-map'` and identifies as plane/train.
-const tripsMapMode = computed<'plane' | 'train' | null>(() => {
-  if (props.submodule.topVisualization !== 'trips-map') return null;
-  if (props.submodule.id === 'plane') return 'plane';
-  if (props.submodule.id === 'train') return 'train';
-  return null;
-});
-const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
