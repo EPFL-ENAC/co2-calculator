@@ -38,7 +38,7 @@ const memberFields: ModuleField[] = [
     icon: 'o_assignment_ind',
     optionLabelsAreKeys: true,
     columnSize: 'sm',
-    readOnly: true,
+
     options: [
       { value: '51', label: '51' },
       { value: '52', label: '52' },
