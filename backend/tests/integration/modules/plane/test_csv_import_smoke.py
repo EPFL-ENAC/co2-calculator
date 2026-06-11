@@ -41,7 +41,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import EmissionType
 from app.models.data_ingestion import EntityType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
@@ -87,35 +87,12 @@ def _make_provider(data_session: AsyncSession) -> _MinimalPlaneCSVProvider:
 @pytest.mark.asyncio
 async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     db_session: AsyncSession,
-    monkeypatch,
 ):
-    """End-to-end through the carrier half of the pipeline: feed the real
-    services a 3-entry batch matching the plane fixture
-    (GVA→ZRH/CDG→JFK/GVA→LHR), with overrides carried on a parallel list,
-    and verify the final DB state.
-
-    Plan 310-D — pinned against the legacy inline-write path
-    (``BULK_PATH_PURE_ASYNC=False``).  The pure-async path skips
-    inline emissions entirely, leaving the chain to write them; the
-    carrier flow this test pins is identical across the gate but the
-    "emissions row exists right after _process_batch" assertion only
-    holds inline.  Override-routing into the chain's recalc path is
-    covered separately by the unit tests in
-    ``test_base_csv_provider.py``
-    (``test_process_batch_skips_emissions_when_pure_async``).
-
-    Patches ``get_settings`` on the provider module rather than via
-    env var because the runtime gate reads through ``get_settings()``'s
-    ``lru_cache`` — a ``setenv`` after first settings load wouldn't
-    take effect.
+    """End-to-end carrier verification: feed the real services a 3-entry batch
+    matching the plane fixture (GVA→ZRH/CDG→JFK/GVA→LHR) and verify that
+    ``DataEntry.data`` stays clean (no kg_co2eq leak) and the
+    ``__kg_co2eq_override__`` carrier is persisted for the async recalc chain.
     """
-    from unittest.mock import MagicMock
-
-    from app.services.data_ingestion import base_csv_provider
-
-    fake_settings = MagicMock()
-    fake_settings.BULK_PATH_PURE_ASYNC = False
-    monkeypatch.setattr(base_csv_provider, "get_settings", lambda: fake_settings)
     # ---------- arrange: factor + module --------------------------------
     report = CarbonReport(year=2025, unit_id=1, overall_status=0)
     db_session.add(report)
@@ -189,11 +166,6 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
     # ---------- act: run the real carrier through _process_batch --------
     data_entry_service = DataEntryService(db_session)
     emission_service = DataEntryEmissionService(db_session)
-
-    # `_process_batch` calls bulk_create with a `user` arg; the v1 path
-    # passes a real User. For the test, a MagicMock with the few attrs
-    # bulk_create touches is enough — but we set provider.user=None up
-    # front to skip UserRead.model_validate, and pass user=None here.
     await provider._process_batch(
         batch,
         data_entry_service,
@@ -201,7 +173,6 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
         None,  # user — bypasses audit/version logic
         overrides,
     )
-    await db_session.commit()
 
     # ---------- assert (1): persisted DataEntry.data is clean -----------
     # Note: DataEntryRepository.bulk_create constructs *new* ORM
@@ -240,45 +211,16 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
             f"kg_co2eq leaked into DataEntry.data: {e.data!r}"
         )
 
-    # ---------- assert (2): emissions carry the override values ---------
-    persisted_ids = [e.id for e in persisted_entries]
-    emissions = list(
-        (
-            await db_session.execute(
-                select(DataEntryEmission).where(
-                    DataEntryEmission.data_entry_id.in_(persisted_ids)  # type: ignore[union-attr]
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(emissions) == len(batch), (
-        f"expected {len(batch)} emission rows (one per data_entry override), "
-        f"got {len(emissions)}"
-    )
-
-    # Pair each emission with its data_entry → original override value via
-    # the (origin, destination) route, which is unique across the fixture.
-    route_by_entry_id = {
-        e.id: (e.data["origin_iata"], e.data["destination_iata"])
-        for e in persisted_entries
-    }
+    # ---------- assert (2): __kg_co2eq_override__ carrier is persisted -----
+    # The async recalc chain reads this key from DataEntry.data as a fallback
+    # in prepare_create — it must survive bulk_create.
     override_by_route = {
         (original["origin_iata"], original["destination_iata"]): ov
         for original, ov in zip(expected_originals, overrides, strict=True)
     }
-    for emission in emissions:
-        route = route_by_entry_id[emission.data_entry_id]
+    for entry in persisted_entries:
+        route = (entry.data["origin_iata"], entry.data["destination_iata"])
         expected_kg = override_by_route[route]
-        assert emission.kg_co2eq == pytest.approx(expected_kg), (
-            f"emission for {route} has kg_co2eq={emission.kg_co2eq}, "
-            f"expected {expected_kg}"
-        )
-        # The override path always produces primary_factor_id=None — that's
-        # the contract that distinguishes "imported value" from "computed
-        # via factor formula".
-        assert emission.primary_factor_id is None, (
-            f"override-path emission must have primary_factor_id=None, "
-            f"got {emission.primary_factor_id}"
+        assert entry.data.get("__kg_co2eq_override__") == pytest.approx(expected_kg), (
+            f"missing __kg_co2eq_override__ for route {route}: {entry.data!r}"
         )

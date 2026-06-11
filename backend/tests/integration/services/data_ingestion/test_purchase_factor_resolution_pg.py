@@ -76,7 +76,10 @@ async def session_factory(pg_dsn):
 async def _resolve(session: AsyncSession, det: DataEntryTypeEnum, payload: dict):
     handler = BaseModuleHandler.get_by_type(det)
     service = ModuleHandlerService(session)
-    return await service.resolve_primary_factor_id(handler, payload, det, year=_YEAR)
+    result, _ = await service.resolve_primary_factor_id(
+        handler, payload, det, year=_YEAR
+    )
+    return result
 
 
 async def _factor_ef(session: AsyncSession, factor_id: int) -> float:
