@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { MODULES } from 'src/constant/modules';
+import { MODULES_LIST } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import { MODULE_CARDS } from 'src/constant/moduleCards';
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
@@ -21,6 +21,8 @@ const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const yearConfigStore = useYearConfigStore();
 
+const hasModulePermission = authStore.hasUserModulePermission;
+
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
 );
@@ -36,11 +38,13 @@ const validatedTotals = computed(() => {
   return moduleStore.state.validatedTotals;
 });
 
-const firstEditableModule = computed(() => {
-  return Object.values(MODULES).find((module) =>
-    hasModulePermission(module, PermissionAction.EDIT),
-  );
-});
+const firstEditableModule = computed(() =>
+  MODULES_LIST.find(
+    (module) =>
+      yearConfigStore.isModuleVisible(module) &&
+      authStore.canUserAccessModule(module),
+  ),
+);
 
 const moduleCardTotals = computed(() => {
   const modules = validatedTotals.value?.modules;
@@ -52,12 +56,6 @@ const moduleCardTotals = computed(() => {
   );
 });
 
-function hasModulePermission(
-  module: Module,
-  action: PermissionAction,
-): boolean {
-  return authStore.hasUserModulePermission(module, action);
-}
 const timelineStore = useTimelineStore();
 
 const moduleCardsWithStatus = computed(() =>
