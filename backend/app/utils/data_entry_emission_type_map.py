@@ -167,7 +167,7 @@ _AI_USE_MAP: dict[str, EmissionType] = {
 _PLANE_CABIN_MAP: dict[str, EmissionType] = {
     "first": EmissionType.professional_travel__plane__first,
     "business": EmissionType.professional_travel__plane__business,
-    "eco": EmissionType.professional_travel__plane__eco,
+    "economy": EmissionType.professional_travel__plane__eco,
 }
 
 _TRAIN_CLASS_MAP: dict[str, EmissionType] = {
