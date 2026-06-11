@@ -75,7 +75,7 @@ from .conftest import seeded_year_with_units
 # already cached on the row.
 _YEAR = 2025
 _HAUL = "long_haul"
-_CABIN = "eco"
+_CABIN = "economy"
 _DISTANCE_KM = 5_000.0
 _RFI = 1.9
 _INITIAL_EF = 0.10  # kg_co2eq per km
@@ -136,10 +136,12 @@ async def test_recalc_uniform_across_source_types(pg_dsn) -> None:
         factor = Factor(
             emission_type_id=EmissionType.professional_travel__plane.value,
             data_entry_type_id=DataEntryTypeEnum.plane.value,
-            classification={"category": _HAUL},
+            classification={"category": _HAUL, "cabin_class": _CABIN},
             values={
                 "ef_kg_co2eq_per_km": _INITIAL_EF,
                 "rfi_adjustment": _RFI,
+                "min_distance": 3500,
+                "max_distance": 20000,
             },
             year=_YEAR,
         )

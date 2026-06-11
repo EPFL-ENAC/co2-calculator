@@ -377,7 +377,7 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
                     "user_institutional_id": "U-001",
                     "origin_iata": "GVA",
                     "destination_iata": "CDG",
-                    "cabin_class": "eco",
+                    "cabin_class": "economy",
                     "number_of_trips": 1,
                 },
             )
@@ -409,8 +409,15 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
             new_factor = Factor(
                 emission_type_id=EmissionType.professional_travel__plane.value,
                 data_entry_type_id=DataEntryTypeEnum.plane.value,
-                classification={"category": "very_short_haul"},
-                values={"ef_kg_co2eq_per_km": 0.1},
+                classification={
+                    "category": "very_short_haul",
+                    "cabin_class": "economy",
+                },
+                values={
+                    "ef_kg_co2eq_per_km": 0.1,
+                    "min_distance": 0,
+                    "max_distance": 800,
+                },
                 year=2025,
             )
             repo = FactorRepository(s)
