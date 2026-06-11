@@ -451,7 +451,7 @@ class PurchaseCommonFactorCreate(FactorCreate):
     currency: str
     purchase_institutional_code: str
     translation_key: Optional[str] = None
-    purchase_additional_code: str
+    purchase_additional_code: Optional[str] = None
     ef_kg_co2eq_per_currency: float
     # purchase_category: str  # only for upload Mandatory (checked in csv upload)
     # purchase_category is the routing column (picks the correct data_entry_type).
