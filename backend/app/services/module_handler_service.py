@@ -57,11 +57,26 @@ class ModuleHandlerService:
                     data[key] = value
 
         if getattr(handler, "kind_field_override", None):
-            payload["primary_factor_id"] = await self._resolve_with_kind_override(
+            # Handlers with kind_field_override resolve through the
+            # override-key-first rule instead of the kind/subkind match.
+            factor_id = await self._resolve_with_kind_override(
                 handler, data, data_entry_type_id, year
             )
-            return payload
+        else:
+            factor_id = await self._resolve_by_classification(
+                handler, data, data_entry_type_id, year
+            )
+        payload["primary_factor_id"] = factor_id
+        return payload
 
+    async def _resolve_by_classification(
+        self,
+        handler: "ModuleHandler",
+        data: dict,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+    ) -> Optional[int]:
+        """Resolve a factor id by the classic kind/subkind classification."""
         kind = data.get(handler.kind_field, "")
         subkind = data.get(handler.subkind_field, "") if handler.subkind_field else None
 
@@ -71,8 +86,7 @@ class ModuleHandlerService:
             subkind=subkind if subkind else None,
             year=year,
         )
-        payload["primary_factor_id"] = factor.id if factor else None
-        return payload
+        return factor.id if factor else None
 
     async def _resolve_with_kind_override(
         self,
@@ -113,16 +127,24 @@ class ModuleHandlerService:
             year=year,
             **{handler.kind_field: kind},
         )
-        eligible = [
+        if not factors:
+            return None
+        if len(factors) == 1:
+            # A single row for this kind is authoritative even when it
+            # carries an override code (the common case in factor data).
+            return factors[0].id
+        # Several rows share the kind: only the override-code-less row
+        # (the implicit per-kind average) may stand in for all of them.
+        averages = [
             f for f in factors if not (f.classification or {}).get(override_field)
         ]
-        if len(eligible) > 1:
+        if len(averages) != 1:
             raise ValueError(
-                f"Ambiguous factor data: {len(eligible)} factors without "
-                f"{override_field} match {handler.kind_field}={kind!r} "
-                f"for {data_entry_type_id} in {year}"
+                f"Ambiguous factor data: {len(factors)} factors match "
+                f"{handler.kind_field}={kind!r} with {len(averages)} average "
+                f"rows (need exactly 1) for {data_entry_type_id} in {year}"
             )
-        return eligible[0].id if eligible else None
+        return averages[0].id
 
     async def _match_by_override(
         self,
@@ -204,8 +226,14 @@ class ModuleHandlerService:
         )
 
         if kind_changed:
-            update_payload[handler_subkind_field] = None
+            if handler_subkind_field:
+                update_payload[handler_subkind_field] = None
             update_payload["primary_factor_id"] = None
+            # The stored override code belonged to the old kind; unless the
+            # request supplies a new one, clear it so resolution follows the
+            # new kind instead of the stale, more-specific code.
+            if override_field and override_field not in item_data:
+                update_payload[override_field] = None
 
         if kind_changed or subkind_changed or override_changed:
             update_payload = await self.resolve_primary_factor_id(

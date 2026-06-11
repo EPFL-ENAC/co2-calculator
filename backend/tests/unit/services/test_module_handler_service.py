@@ -410,6 +410,75 @@ async def test_purchase_if_changed_additional_code_cleared_falls_back(service):
 
 
 @pytest.mark.asyncio
+async def test_purchase_if_changed_kind_change_clears_stale_override(service):
+    """Changing A without sending B must clear the stored B, not reuse it.
+
+    Regression: with A=41112200/B=VC02 stored, updating only A to 41112201
+    left VC02 in the merged data, so the override lookup kept resolving the
+    OLD code's factor and the A change was silently ignored.
+    """
+    handler = _purchase_handler()
+    new_factor = _purchase_factor(81, "41112201")
+    service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
+
+    result = await service.resolve_primary_factor_if_changed(
+        handler,
+        {"purchase_institutional_code": "41112201"},
+        DataEntryTypeEnum.services,
+        item_data={"purchase_institutional_code": "41112201"},
+        existing_data={
+            "purchase_institutional_code": "41112200",
+            "purchase_additional_code": "VC02",
+        },
+        year=2025,
+    )
+
+    assert result["purchase_additional_code"] is None
+    assert result["primary_factor_id"] == 81
+    assert "" not in result
+    # Resolution went through the new institutional code, not the stale B.
+    service.factor_service.get_factors.assert_awaited_once_with(
+        data_entry_type=DataEntryTypeEnum.services,
+        year=2025,
+        purchase_institutional_code="41112201",
+    )
+
+
+@pytest.mark.asyncio
+async def test_purchase_if_changed_kind_and_override_both_change(service):
+    """When the request supplies both A and B, the new B is used, not cleared."""
+    handler = _purchase_handler()
+    new_factor = _purchase_factor(91, "41112201", additional_code="VC99")
+    service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
+
+    result = await service.resolve_primary_factor_if_changed(
+        handler,
+        {
+            "purchase_institutional_code": "41112201",
+            "purchase_additional_code": "VC99",
+        },
+        DataEntryTypeEnum.services,
+        item_data={
+            "purchase_institutional_code": "41112201",
+            "purchase_additional_code": "VC99",
+        },
+        existing_data={
+            "purchase_institutional_code": "41112200",
+            "purchase_additional_code": "VC02",
+        },
+        year=2025,
+    )
+
+    assert result["purchase_additional_code"] == "VC99"
+    assert result["primary_factor_id"] == 91
+    service.factor_service.get_factors.assert_awaited_once_with(
+        data_entry_type=DataEntryTypeEnum.services,
+        year=2025,
+        purchase_additional_code="VC99",
+    )
+
+
+@pytest.mark.asyncio
 async def test_purchase_if_changed_nothing_changed_no_lookup(service):
     handler = _purchase_handler()
     service.factor_service.get_factors = AsyncMock()
@@ -451,7 +520,13 @@ async def test_purchase_if_changed_nothing_changed_no_lookup(service):
 # │ A=unknown, B=None│ None (no factor; require_factor_to_match=False)  │
 # │ A=999, B=3       │ ValueError (B ambiguous, no factor agrees on A)  │
 # │ A=X, 2 avg rows  │ ValueError (ambiguous factor data, never guess)  │
+# │ A=5, B=None      │ 9 (single row for A wins even though it has a B) │
 # └──────────────────┴──────────────────────────────────────────────────┘
+#
+# The single-row rule (last line) reflects real factor data: most
+# institutional codes have exactly one row and it carries an additional
+# code (e.g. 23152900 → FA0).  The average-row exclusion only applies
+# when SEVERAL rows share the institutional code.
 #
 # Factor pool below includes rows that factor validation should reject
 # (ids 6 and 8 have no institutional code — see
@@ -467,6 +542,8 @@ _TRUTH_TABLE_FACTORS = [
     SimpleNamespace(id=6, classification={"purchase_additional_code": "3"}),
     _purchase_factor(7, "3", additional_code="3"),
     SimpleNamespace(id=8, classification={}),
+    # Sole row for A=5 — carries a B but is still the authoritative match.
+    _purchase_factor(9, "5", additional_code="99"),
 ]
 
 
@@ -497,6 +574,8 @@ def truth_table_service(service):
         ("1", "NOPE", 3),
         # Unknown A without B → no factor (require_factor_to_match=False).
         ("999", None, None),
+        # Single row for A wins even though it carries a B (real-data shape).
+        ("5", None, 9),
     ],
 )
 @pytest.mark.asyncio
@@ -670,13 +749,21 @@ async def test_smoke_csv_unknown_additional_code_falls_back(smoke_service):
 
 
 @pytest.mark.asyncio
-async def test_smoke_csv_institutional_code_without_average_row(smoke_service):
-    """A code whose only row carries an additional_code yields no factor."""
+async def test_smoke_csv_single_row_with_code_is_authoritative(smoke_service):
+    """A code whose ONLY row carries an additional_code still matches it.
+
+    This is the common shape in real factor data (e.g. 23152900 →  FA0):
+    most institutional codes have exactly one row, and that row carries an
+    additional code.  The average-row exclusion only kicks in when several
+    rows share the institutional code.
+    """
     handler = _purchase_handler()
-    # 91111500 only exists with additional_code AA66 — no average row.
+    # 91111500 only exists with additional_code AA66.
     payload = {"purchase_institutional_code": "91111500"}
     result = await smoke_service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
-    assert result["primary_factor_id"] is None
+    factors = _load_smoke_factors()
+    chosen = next(f for f in factors if f.id == result["primary_factor_id"])
+    assert chosen.classification["purchase_additional_code"] == "AA66"
