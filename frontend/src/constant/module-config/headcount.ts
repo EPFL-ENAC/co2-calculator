@@ -28,8 +28,6 @@ const memberFields: ModuleField[] = [
     ratio: '1/4',
     icon: 'o_filter_drama',
     columnSize: 'sm',
-    readOnly: true,
-    hideIn: { form: true },
   },
   {
     id: 'sius_code',
@@ -51,7 +49,6 @@ const memberFields: ModuleField[] = [
       { value: '58', label: '58' },
       { value: '59', label: '59' },
     ],
-    hideIn: { form: true },
   },
   {
     id: 'user_institutional_id',
@@ -59,8 +56,6 @@ const memberFields: ModuleField[] = [
     type: 'text',
     sortable: false,
     ratio: '1/4',
-    readOnly: true,
-    hideIn: { form: true },
   },
   {
     id: 'fte',
@@ -72,8 +67,6 @@ const memberFields: ModuleField[] = [
     sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
-    readOnly: true,
-    hideIn: { form: true },
   },
 ];
 
