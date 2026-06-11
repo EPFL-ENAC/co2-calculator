@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.factor import Factor
 from app.models.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
 
@@ -32,7 +33,7 @@ class ModuleHandlerService:
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
         existing_data: Optional[dict] = None,
-    ) -> dict:
+    ) -> tuple[dict, Optional[Factor]]:
         """Resolve and set primary_factor_id on the payload.
 
         Looks up the factor by classification using the handler's
@@ -48,7 +49,7 @@ class ModuleHandlerService:
             existing_data: Existing data entry data for merging on updates
         """
         if handler.kind_field is None:
-            return payload
+            return payload, None
 
         data = payload.copy()
         if existing_data:
@@ -62,12 +63,13 @@ class ModuleHandlerService:
             factor_id = await self._resolve_with_kind_override(
                 handler, data, data_entry_type_id, year
             )
+            factor = None
         else:
-            factor_id = await self._resolve_by_classification(
+            factor_id, factor = await self._resolve_by_classification(
                 handler, data, data_entry_type_id, year
             )
         payload["primary_factor_id"] = factor_id
-        return payload
+        return payload, factor
 
     async def _resolve_by_classification(
         self,
@@ -75,7 +77,7 @@ class ModuleHandlerService:
         data: dict,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
-    ) -> Optional[int]:
+    ) -> tuple[Optional[int], Optional[Factor]]:
         """Resolve a factor id by the classic kind/subkind classification."""
         kind = data.get(handler.kind_field, "")
         subkind = data.get(handler.subkind_field, "") if handler.subkind_field else None
@@ -86,7 +88,7 @@ class ModuleHandlerService:
             subkind=subkind if subkind else None,
             year=year,
         )
-        return factor.id if factor else None
+        return factor.id if factor else None, factor
 
     async def _resolve_with_kind_override(
         self,
@@ -187,6 +189,30 @@ class ModuleHandlerService:
             f"cannot disambiguate for {data_entry_type_id} in {year}"
         )
 
+    async def populate_defaults(
+        self,
+        handler: "ModuleHandler",
+        data: dict,
+        factor: Factor,
+    ) -> dict:
+        primary_factor_id = data.get("primary_factor_id")
+        if primary_factor_id == factor.id:
+            if (
+                factor
+                and hasattr(handler, "factor_value_fields")
+                and handler.factor_value_fields
+            ):
+                for field_name in handler.factor_value_fields:
+                    if field_name not in data or data[field_name] in (None, "", 0):
+                        default_value = factor.values.get(field_name)
+                        if default_value is not None:
+                            data[field_name] = default_value
+                            logger.debug(
+                                f"{field_name}={default_value} from factor populated"
+                            )
+
+        return data
+
     async def resolve_primary_factor_if_changed(
         self,
         handler: "ModuleHandler",
@@ -195,7 +221,7 @@ class ModuleHandlerService:
         item_data: dict,
         existing_data: dict | None,
         year: int,
-    ) -> dict:
+    ) -> tuple[dict, Optional[Factor]]:
         """Resolve primary_factor_id when classification fields change.
 
         Args:
@@ -208,7 +234,7 @@ class ModuleHandlerService:
         """
         handler_kind_field = handler.kind_field or ""
         handler_subkind_field = handler.subkind_field or ""
-
+        factor = None
         if existing_data is None:
             return await self.resolve_primary_factor_id(
                 handler, update_payload, data_entry_type, existing_data=None, year=year
@@ -236,15 +262,21 @@ class ModuleHandlerService:
                 update_payload[override_field] = None
 
         if kind_changed or subkind_changed or override_changed:
-            update_payload = await self.resolve_primary_factor_id(
+            update_payload, factor = await self.resolve_primary_factor_id(
                 handler,
                 update_payload,
                 data_entry_type,
                 existing_data=existing_data,
                 year=year,
             )
+            # kind_changed or subkind_changed for some module handlers we need default
+            # it's done already in the base_csv_provider do the same here
+            if factor is not None:
+                update_payload = await self.populate_defaults(
+                    handler, update_payload, factor
+                )
 
-        return update_payload
+        return update_payload, factor
 
     async def get_taxonomy(
         self,

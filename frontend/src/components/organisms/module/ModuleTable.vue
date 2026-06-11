@@ -312,42 +312,48 @@
         />
       </q-card-section>
       <q-separator />
-      <q-card-section class="q-py-lg q-px-md">
-        <span class="text-body1">
-          {{
-            $t('common_delete_dialog_description', {
-              item: ItemName || 'this item',
-            })
-          }}
-        </span>
-      </q-card-section>
-      <q-separator />
-      <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
-        <q-btn
-          color="grey-4"
-          text-color="primary"
-          :label="$t('common_cancel')"
-          unelevated
-          no-caps
-          outline
-          size="md"
-          class="text-weight-medium col"
-          @click="confirmDelete = false"
-        />
-        <q-btn
-          :style="{
-            background: moduleColors.bgColorLighter,
-            color: moduleColors.buttonTextColor,
-            border: `1px solid ${moduleColors.buttonTextColor}`,
-          }"
-          :label="$t('common_delete')"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium col"
-          @click="onConfirmDelete"
-        />
-      </q-card-actions>
+      <!-- q-form so Enter submits the dialog (autofocus on the submit button
+           gives the native form an Enter target — there are no text inputs). -->
+      <q-form @submit.prevent="onConfirmDelete">
+        <q-card-section class="q-py-lg q-px-md">
+          <span class="text-body1">
+            {{
+              $t('common_delete_dialog_description', {
+                item: ItemName || 'this item',
+              })
+            }}
+          </span>
+        </q-card-section>
+        <q-separator />
+        <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
+          <q-btn
+            type="button"
+            color="grey-4"
+            text-color="primary"
+            :label="$t('common_cancel')"
+            unelevated
+            no-caps
+            outline
+            size="md"
+            class="text-weight-medium col"
+            @click="confirmDelete = false"
+          />
+          <q-btn
+            type="submit"
+            autofocus
+            :style="{
+              background: moduleColors.bgColorLighter,
+              color: moduleColors.buttonTextColor,
+              border: `1px solid ${moduleColors.buttonTextColor}`,
+            }"
+            :label="$t('common_delete')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium col"
+          />
+        </q-card-actions>
+      </q-form>
     </q-card>
   </q-dialog>
 </template>

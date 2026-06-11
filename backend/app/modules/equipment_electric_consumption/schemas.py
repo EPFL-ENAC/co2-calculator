@@ -216,10 +216,10 @@ class EquipmentModuleHandler(BaseModuleHandler):
             # default active_hours and standby_hours should be retrieved from the factor
             #  if not provided by the user
             # in fine it should never happened
-            if active_hours is None:
-                active_hours = factor_values.get("active_usage_hours_per_week")
-            if standby_hours is None:
-                standby_hours = factor_values.get("standby_usage_hours_per_week")
+            # if active_hours is None:
+            #     active_hours = factor_values.get("active_usage_hours_per_week")
+            # if standby_hours is None:
+            #     standby_hours = factor_values.get("standby_usage_hours_per_week")
             if active_hours is None or standby_hours is None:
                 return None
             active_power_w = factor_values.get("active_power_w")

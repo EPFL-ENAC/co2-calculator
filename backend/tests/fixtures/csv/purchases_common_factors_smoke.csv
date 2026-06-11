@@ -1,0 +1,12 @@
+currency,purchase_category,purchase_institutional_code,purchase_institutional_description,purchase_additional_code,ef_kg_co2eq_per_currency
+eur,biological_chemical_gaseous_product,12000000,"Produits chimiques, biochimiques et gazeux",N,0.5
+eur,biological_chemical_gaseous_product,51000000,Médicaments et produits pharmaceutiques,LA0,0.5
+eur,biological_chemical_gaseous_product,51100000,Médicaments anti-infectieux,LA05,0.41
+eur,consumable_accessories,10000000,"Fournitures, accessoires et matériel pour plantes et animaux vivants",K,0.5
+eur,it_equipment,43000000,"Composants, fournitures et équipements informatiques et de communication",I,0.5
+eur,scientific_equipment,23000000,Machines et accessoires pour la transformation et la fabrication industrielle,RA1,0.5
+eur,services,47100000,"Traitement, fournitures et élimination de l'eau et de l'eau usée",JA13,0.34
+eur,services,55000000,Produits publiés,C,0.5
+eur,services,91111500,Services de blanchissage,AA66,0.21
+eur,biological_chemical_gaseous_product,51100000,Médicaments anti-infectieux,,0.455
+eur,biological_chemical_gaseous_product,A,Médicaments,,0.9

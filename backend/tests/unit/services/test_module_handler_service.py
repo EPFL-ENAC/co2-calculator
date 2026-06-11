@@ -39,11 +39,12 @@ async def test_resolve_primary_factor_id_with_subkind(service):
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
     payload = {"kind": "ClassA", "subkind": "SubA1"}
-    result = await service.resolve_primary_factor_id(
+    result, resolved_factor = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result["primary_factor_id"] == 42
+    assert resolved_factor is factor
     service.factor_service.get_by_classification.assert_awaited_once_with(
         data_entry_type=DataEntryTypeEnum.scientific,
         kind="ClassA",
@@ -60,7 +61,7 @@ async def test_resolve_primary_factor_id_no_subkind_field(service):
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
     payload = {"name": "natural_gas"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.energy_combustion, year=2025
     )
 
@@ -79,11 +80,12 @@ async def test_resolve_primary_factor_id_no_kind_field(service):
     handler = _make_handler(kind_field=None, subkind_field=None)
 
     payload = {"foo": "bar"}
-    result = await service.resolve_primary_factor_id(
+    result, resolved_factor = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.scientific, year=2025
     )
 
     assert result == {"foo": "bar"}
+    assert resolved_factor is None
     assert "primary_factor_id" not in result
 
 
@@ -95,7 +97,7 @@ async def test_resolve_primary_factor_id_merges_existing_data(service):
 
     payload = {"kind": "ClassA"}
     existing = {"subkind": "SubB1"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.scientific,
@@ -121,7 +123,7 @@ async def test_resolve_if_changed_no_existing_data(service):
     factor = SimpleNamespace(id=5)
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "A", "subkind": "B"},
         DataEntryTypeEnum.scientific,
@@ -139,7 +141,7 @@ async def test_resolve_if_changed_kind_changed(service):
     factor = SimpleNamespace(id=99)
     service.factor_service.get_by_classification = AsyncMock(return_value=factor)
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, resolved_factor = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "NewClass", "subkind": "Sub1"},
         DataEntryTypeEnum.scientific,
@@ -150,13 +152,14 @@ async def test_resolve_if_changed_kind_changed(service):
 
     assert result["subkind"] is None
     assert result["primary_factor_id"] == 99
+    assert resolved_factor is factor
 
 
 @pytest.mark.asyncio
 async def test_resolve_if_changed_nothing_changed(service):
     handler = _make_handler()
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, resolved_factor = await service.resolve_primary_factor_if_changed(
         handler,
         {"kind": "Same", "subkind": "Sub"},
         DataEntryTypeEnum.scientific,
@@ -166,6 +169,7 @@ async def test_resolve_if_changed_nothing_changed(service):
     )
 
     assert "primary_factor_id" not in result
+    assert resolved_factor is None
 
 
 # ── get_taxonomy ────────────────────────────────────────────
@@ -241,7 +245,7 @@ async def test_purchase_additional_code_overrides_institutional_code(service):
         "purchase_institutional_code": "A",
         "purchase_additional_code": "ADD-1",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -264,7 +268,7 @@ async def test_purchase_unknown_additional_code_falls_back_to_institutional(serv
         "purchase_institutional_code": "B",
         "purchase_additional_code": "TYPO",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -286,7 +290,7 @@ async def test_purchase_no_additional_code_uses_average_row_only(service):
     service.factor_service.get_factors = AsyncMock(return_value=[specific, average])
 
     payload = {"purchase_institutional_code": "C"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -319,7 +323,7 @@ async def test_purchase_no_match_at_all_sets_none(service):
     service.factor_service.get_factors = AsyncMock(return_value=[])
 
     payload = {"purchase_institutional_code": "ZZZ"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -339,7 +343,7 @@ async def test_purchase_additional_code_from_existing_data(service):
         "purchase_institutional_code": "E",
         "purchase_additional_code": "ADD-5",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.services,
@@ -366,7 +370,7 @@ async def test_purchase_if_changed_additional_code_change_re_resolves(service):
         return_value=[_purchase_factor(61, "F", additional_code="ADD-NEW")]
     )
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_additional_code": "ADD-NEW"},
         DataEntryTypeEnum.services,
@@ -389,7 +393,7 @@ async def test_purchase_if_changed_additional_code_cleared_falls_back(service):
         return_value=[_purchase_factor(72, "G")]
     )
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_additional_code": None},
         DataEntryTypeEnum.services,
@@ -421,7 +425,7 @@ async def test_purchase_if_changed_kind_change_clears_stale_override(service):
     new_factor = _purchase_factor(81, "41112201")
     service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_institutional_code": "41112201"},
         DataEntryTypeEnum.services,
@@ -451,7 +455,7 @@ async def test_purchase_if_changed_kind_and_override_both_change(service):
     new_factor = _purchase_factor(91, "41112201", additional_code="VC99")
     service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {
             "purchase_institutional_code": "41112201",
@@ -483,7 +487,7 @@ async def test_purchase_if_changed_nothing_changed_no_lookup(service):
     handler = _purchase_handler()
     service.factor_service.get_factors = AsyncMock()
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"note": "updated"},
         DataEntryTypeEnum.services,
@@ -587,7 +591,7 @@ async def test_purchase_resolution_truth_table(
         "purchase_institutional_code": institutional,
         "purchase_additional_code": additional,
     }
-    result = await truth_table_service.resolve_primary_factor_id(
+    result, _ = await truth_table_service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -697,7 +701,7 @@ async def test_smoke_csv_additional_code_wins(smoke_service):
         "purchase_institutional_code": "51100000",
         "purchase_additional_code": "LA05",
     }
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -715,7 +719,7 @@ async def test_smoke_csv_no_additional_code_picks_average_row(smoke_service):
     """Without additional_code, 51100000 resolves to the code-less average row."""
     handler = _purchase_handler()
     payload = {"purchase_institutional_code": "51100000"}
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -736,7 +740,7 @@ async def test_smoke_csv_unknown_additional_code_falls_back(smoke_service):
         "purchase_institutional_code": "51100000",
         "purchase_additional_code": "NOPE",
     }
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -760,7 +764,7 @@ async def test_smoke_csv_single_row_with_code_is_authoritative(smoke_service):
     handler = _purchase_handler()
     # 91111500 only exists with additional_code AA66.
     payload = {"purchase_institutional_code": "91111500"}
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
