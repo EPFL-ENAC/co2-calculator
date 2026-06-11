@@ -454,7 +454,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     professional_travel: {
       plane: colors.value.babyBlue.darker,
-      train: colors.value.babyBlue.default,
+      train: colors.value.babyBlue.light,
     },
     external_cloud_and_ai: {
       clouds: colors.value.lavender.darker,
