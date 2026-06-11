@@ -164,7 +164,7 @@ canonical identifiers live in the `RoleName` enum in
 - `calco2.user.principal` — Unit manager, unit-scope access (all modules).
 - `calco2.backoffice.metier` — Backoffice administrator: affiliation-scoped
   reporting plus scope-less users / documentation / ui_texts.
-- `calco2.superadmin` — Super administrator with every backoffice page,
+- `calco2.backoffice.admin` — Super administrator with every backoffice page,
   including configuration / pipeline_operations / logs (no `modules.*` grants).
 
 ### Scopes
@@ -228,7 +228,7 @@ key:
 
 | Role                       | Scope       | Notes                                                                                           |
 | -------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `calco2.superadmin`        | Global      | Every `backoffice.*` page (bare keys); **no `modules.*` grants**                                |
+| `calco2.backoffice.admin`  | Global      | Every `backoffice.*` page (bare keys); **no `modules.*` grants**                                |
 | `calco2.backoffice.metier` | Affiliation | `backoffice.reporting/<cf>` (unit-subtree scoped) + scope-less users / documentation / ui_texts |
 | `calco2.user.principal`    | Unit        | `view, edit, sync` on every `modules.X/<unit>` for assigned units                               |
 | `calco2.user.standard`     | Own         | `view, edit` on `modules.{professional_travel,external_cloud_and_ai}/<unit>/own`                |
