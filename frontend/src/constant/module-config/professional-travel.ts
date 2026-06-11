@@ -152,13 +152,21 @@ const planeFields: ModuleField[] = [
   },
 ];
 
+const trainLocationTooltip = `${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`;
+
 const trainFields: ModuleField[] = [
   ...buildTravelFields(
-    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+    {
+      id: 'origin_name',
+      labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+      tooltip: trainLocationTooltip,
+    },
     {
       id: 'destination_name',
       labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+      tooltip: trainLocationTooltip,
     },
+    { directionInputTooltip: trainLocationTooltip },
   ),
   {
     id: 'cabin_class',
@@ -258,11 +266,14 @@ function buildTravelFields(
   origin: {
     id: string;
     labelKey: string;
+    tooltip?: string;
   },
   destination: {
     id: string;
     labelKey: string;
+    tooltip?: string;
   },
+  options?: { directionInputTooltip?: string },
 ): ModuleField[] {
   return [
     {
@@ -277,6 +288,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { table: true },
+      tooltip: options?.directionInputTooltip,
     },
     {
       id: origin.id,
@@ -287,6 +299,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { form: true },
+      tooltip: origin.tooltip,
     },
     {
       id: destination.id,
@@ -297,6 +310,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { form: true },
+      tooltip: destination.tooltip,
     },
     ...commonTravelFields.slice(3),
   ];

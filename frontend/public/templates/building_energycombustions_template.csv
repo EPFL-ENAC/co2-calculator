@@ -1,2 +1,8 @@
 name,unit,quantity,note
-Pellets,kg,1200,
+natural_gas,kWh,1200,
+heating_oil,kWh,800,
+biomethane,kWh,500,
+propane,kWh,15000,
+pellets,kg,3000,
+forest_chips,kg,4000,
+wood_logs,kg,2000,

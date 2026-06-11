@@ -189,28 +189,32 @@ export default {
     fr: 'Quantité',
   },
 
-  // Combustion type options (stored as i18n keys in DB)
-  buildings_combustion_type_natural_gas: {
+  // Combustion type options (stored as translation keys in factor data)
+  natural_gas: {
     en: 'Natural gas',
     fr: 'Gaz naturel',
   },
-  buildings_combustion_type_heating_oil: {
+  heating_oil: {
     en: 'Heating oil',
     fr: 'Mazout',
   },
-  buildings_combustion_type_biomethane: {
+  biomethane: {
     en: 'Biomethane',
     fr: 'Biométhane',
   },
-  buildings_combustion_type_pellets: {
+  propane: {
+    en: 'Propane',
+    fr: 'Propane',
+  },
+  pellets: {
     en: 'Pellets',
     fr: 'Granulés de bois',
   },
-  buildings_combustion_type_forest_chips: {
+  forest_chips: {
     en: 'Forest chips',
     fr: 'Plaquettes forestières',
   },
-  buildings_combustion_type_wood_logs: {
+  wood_logs: {
     en: 'Wood logs',
     fr: 'Bois bûche',
   },

@@ -44,6 +44,13 @@ logger = get_logger(__name__)
 BATCH_SIZE = 1000
 
 
+def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
+    """Return True when every required column is empty or absent in the raw row."""
+    if not required_columns:
+        return False
+    return all(not (row.get(col) or "").strip() for col in required_columns)
+
+
 def _validate_file_path(file_path: str) -> None:
     """
     Validate file_path to prevent directory traversal attacks.
@@ -851,6 +858,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         try:
             handlers = setup_result["handlers"]
             expected_columns = setup_result["expected_columns"]
+            required_columns = setup_result.get("required_columns", set())
+
+            # Template scaffolding rows keep required columns empty; skip them
+            # before stripping blanks into filtered_row.
+            if required_columns and _is_blank_data_row(row, required_columns):
+                stats["rows_skipped"] += 1
+                return None, None, None, None
 
             # Extract kg_co2eq override from the raw row (carried out-of-band).
             # Bypasses expected_columns intentionally: not every handler lists

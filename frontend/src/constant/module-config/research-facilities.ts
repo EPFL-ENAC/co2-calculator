@@ -65,6 +65,7 @@ const animalFields: ModuleField[] = [
     ratio: '1/5',
     hideIn: { form: true },
     sortable: true,
+    optionLabelKey: '{value}',
   },
   {
     id: 'use',

@@ -184,7 +184,8 @@ class ModuleUnitSpecificCSVProvider(BaseCSVProvider):
             self._record_row_error(stats, row_idx, error_msg, max_row_errors)
             return None, None, error_msg
 
-        # Check required columns
+        # Check required columns (blank scaffolding rows are skipped earlier
+        # in BaseCSVProvider._process_row before empty values are stripped).
         if required_columns and not required_columns.issubset(filtered_row.keys()):
             missing_fields = required_columns - set(filtered_row.keys())
             error_msg = f"Missing required fields {missing_fields}"

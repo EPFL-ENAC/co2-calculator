@@ -22,11 +22,11 @@ const TEMPLATE_MAP: Record<string, string> = {
   [`${MODULES.Buildings}:${SUBMODULE_BUILDINGS_TYPES.EnergyCombustion}`]:
     'building_energycombustions_template.csv',
   [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Scientific}`]:
-    'equipments_scientific_template.csv',
+    'equipment_scientific_template.csv',
   [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.IT}`]:
-    'equipments_IT_template.csv',
+    'equipment_IT_template.csv',
   [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Other}`]:
-    'equipments_other_template.csv',
+    'equipment_other_template.csv',
 
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}`]:
     'purchases_biological_chemical_gaseous_template.csv',

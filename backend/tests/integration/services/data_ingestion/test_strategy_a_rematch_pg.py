@@ -277,7 +277,7 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
             "provider": "openai",
             "usage_type": "chat",
             "fte_count": 1.0,
-            "requests_per_user_per_day": "5-20 times per day",
+            "requests_per_user_per_day": "5_20",
         },
     )
     s.add(entry)

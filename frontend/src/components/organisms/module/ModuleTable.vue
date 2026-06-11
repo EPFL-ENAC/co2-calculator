@@ -144,6 +144,7 @@
               :field-id="col.field"
               :options-id="col.optionsId"
               :option-label-key="col.optionLabelKey"
+              :option-label-prefix="col.optionLabelPrefix"
               :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
@@ -952,6 +953,8 @@ const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
     if (node.name && node.label) {
       if (node.translation_key && $te(node.translation_key)) {
         map[node.name] = $t(node.translation_key);
+      } else if ($te(node.name)) {
+        map[node.name] = $t(node.name);
       } else {
         map[node.name] = node.label;
       }
@@ -1002,6 +1005,7 @@ function renderCell(
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
     optionLabelPrefix?: string;
+    optionLabelKey?: string;
     optionsId?: string;
   },
 ) {
@@ -1035,7 +1039,11 @@ function renderCell(
   }
   // Factor-sourced options: translate using optionLabelPrefix
   if (col.optionLabelPrefix && typeof val === 'string') {
-    const key = `${col.optionLabelPrefix}${val.toLowerCase()}`;
+    return $t(val.toLowerCase(), val);
+  }
+  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, mice)
+  if (col.optionLabelKey && typeof val === 'string') {
+    const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
   // Factor-sourced kind/subkind: look up label from taxonomy

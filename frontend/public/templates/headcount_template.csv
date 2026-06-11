@@ -1,8 +1,10 @@
-name,position_title,position_category,user_institutional_id,fte,note
-Peter,Professor,professor,150322,1.00,
-Hirling,Technical adjoint,technical_administrative_staff,150333,1.00,
-Michel,Infrastructure manager,scientific_collaborator,150356,1.00,
-Anna,Post-doctoral researcher,postdoctoral_assistant,166495,0.30,
-Sacha,Adjoint doctoral,doctoral_assistant,173934,0.90,
-Cécile,Trainee,trainee,208982,0.10,
-Laurence,Assistant extern,other,240502,0.80,
+name,sius_code,user_institutional_id,fte,note
+Peter,51,150322,1,
+Hirling,52,150333,1,
+Michel,53,150356,1,
+Anna,54,166495,0.3,
+Sacha,55,173934,0.9,
+Cécile,56,208982,0.1,
+Laurence,57,240502,0.8,
+Lucas,58,150339,1,
+Michelle,59,150359,1,

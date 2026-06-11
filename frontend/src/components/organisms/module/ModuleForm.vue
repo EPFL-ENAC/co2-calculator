@@ -139,6 +139,7 @@
                   :error-message="errors.origin || errors.destination || ''"
                   :transport-mode="getTravelMode()"
                   :disable="inp.disable"
+                  :hint="inp.tooltip ? $t(inp.tooltip) : undefined"
                   @update:from="
                     (val) => {
                       form.origin = val;
@@ -452,11 +453,9 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label:
-              inp.optionLabelPrefix &&
-              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                : o.label,
+            label: inp.optionLabelPrefix
+              ? $t(o.value.toLowerCase(), o.label)
+              : o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
@@ -511,16 +510,23 @@ function getFilteredOptions(
   const opts = filteredOptionsMap.value[inp.id] ?? [];
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
-      opt.label = $t(
-        inp.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+      const key = inp.optionLabelKey.replace(
+        '{value}',
+        opt.value.toLowerCase(),
       );
+      opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
     const taxoOptNode = taxoNode?.children?.find(
       (node) => node.name === opt.value,
     );
-    if (taxoOptNode?.translation_key && $te(taxoOptNode.translation_key)) {
-      opt.label = $t(taxoOptNode.translation_key);
+    const translationKey = taxoOptNode?.translation_key;
+    if (translationKey && $te(translationKey)) {
+      opt.label = $t(translationKey);
+      return;
+    }
+    if ($te(opt.value)) {
+      opt.label = $t(opt.value);
       return;
     }
     if (taxoOptNode) {
