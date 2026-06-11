@@ -1139,6 +1139,18 @@ export default {
     en: "These emissions are calculated based on EPFL's general assumptions.",
     fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
   },
+  results_filter_panel_title: {
+    en: 'Display filters',
+    fr: "Filtres d'affichage",
+  },
+  results_filter_visible: {
+    en: 'Visible',
+    fr: 'Visible',
+  },
+  results_filter_hidden: {
+    en: 'Hidden',
+    fr: 'Masqué',
+  },
   'it-title': {
     en: 'IT focus',
     fr: 'Focus numérique',
