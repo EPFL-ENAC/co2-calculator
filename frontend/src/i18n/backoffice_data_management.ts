@@ -510,7 +510,7 @@ export default {
     fr: 'Équipements scientifiques',
   },
   data_management_submodule_it_equipment: {
-    en: 'IT Equipment',
+    en: 'IT equipment',
     fr: 'Équipements IT',
   },
   data_management_submodule_consumables_accessories: {

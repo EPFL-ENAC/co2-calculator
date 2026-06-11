@@ -722,7 +722,7 @@ export default {
     fr: 'Reste',
   },
   'charts-equipment-it': {
-    en: 'IT Equipment',
+    en: 'IT equipment',
     fr: 'Équipements IT',
   },
   'charts-buildings-it': {
