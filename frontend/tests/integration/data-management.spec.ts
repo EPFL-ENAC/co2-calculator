@@ -630,6 +630,351 @@ test.describe('back-office data-management — happy paths', () => {
     );
   });
 
+  test('1216a — successful API ingestion (no CSV) turns the data card button green', async ({
+    page,
+  }) => {
+    // Issue #1216: when only ``latest_api_data_job`` is present and
+    // SUCCESS, the data card must signal success — the operator can't
+    // otherwise distinguish "API connected, data loaded" from "nothing
+    // uploaded yet".  Previously ``dataButtonColor`` only inspected
+    // ``lastDataJob`` (the CSV path) and returned ``accent`` for an
+    // API-only row, leaving the card visually identical to an empty
+    // one.  Fix is in ``useUploadCard.dataButtonColor``.
+    const apiSuccess = {
+      job_id: 301,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 0, // API
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: { rows_processed: 42, timestamp: '2024-01-15T00:00:00Z' },
+    };
+
+    const yearConfigApiOnly = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: apiSuccess,
+                latest_api_data_job: apiSuccess,
+                // No latest_data_job — only the API path imported rows.
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigApiOnly(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    // The "Add Data" button on the data card must carry Quasar's
+    // ``bg-positive`` class — that's the visual signal that the row
+    // already has data (green border via cardStyle + green button).
+    const dataBtn = page
+      .getByRole('button', { name: /add data|reupload data/i })
+      .first();
+    await expect(dataBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toHaveClass(/bg-positive/);
+  });
+
+  test('1216b — FACTORS card renders before DATA card in the upload row (regression)', async ({
+    page,
+  }) => {
+    // Issue #1216: the screenshot showed the DATA card rendered before
+    // FACTORS on Equipments / Purchases (which both flow through
+    // ``ModuleUploadsSection``'s common-uploads branch).  Commit
+    // 69c5a3d8 fixed the markup; this test pins the order so a future
+    // refactor can't silently revert it.  We use Headcount-member
+    // (per-submodule path through ``SubmoduleItem``) which shares the
+    // same FACTORS-first ordering rule.
+    await mockBackend(page);
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    const factorBtn = page
+      .getByRole('button', { name: /(re)?upload factors|add factors/i })
+      .first();
+    const dataBtn = page
+      .getByRole('button', { name: /(re)?upload data|add data/i })
+      .first();
+
+    await expect(factorBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toBeVisible();
+
+    // Compare bounding-box ``y`` (cards sit on one row → factor must
+    // be left of data, i.e. smaller ``x``).
+    const [factorBox, dataBox] = await Promise.all([
+      factorBtn.boundingBox(),
+      dataBtn.boundingBox(),
+    ]);
+    expect(factorBox).not.toBeNull();
+    expect(dataBox).not.toBeNull();
+    expect(factorBox!.x).toBeLessThan(dataBox!.x);
+  });
+
+  test('1216c — FACTORS card renders before DATA card in the common-uploads row (regression)', async ({
+    page,
+  }) => {
+    // Issue #1216 follow-up: ``ModuleUploadsSection.vue`` has a
+    // SEPARATE template block (the common-uploads section, lines
+    // 68-125) that renders factor + data cards for modules with
+    // module-level (rather than per-submodule) uploads — Equipment
+    // and Purchases.  The 1216b test only exercises the per-submodule
+    // path through ``SubmoduleItem.vue``; this test pins the same
+    // FACTORS-first ordering rule on the common-uploads path so a
+    // refactor of ``ModuleUploadsSection`` can't silently regress
+    // half the data-management UI.
+    //
+    // We use Equipment (module 4): its single common upload renders
+    // both cards unconditionally (no ``noData``/``noFactors`` on the
+    // common entry) and its three submodules are all
+    // ``noData=noFactors=true`` — so the only factor/data buttons on
+    // the page after expanding Equipment come from the common-uploads
+    // block, which makes ``.first()`` unambiguous.
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...buildYearConfig({ year }),
+            config: {
+              modules: {
+                '4': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  submodules: {},
+                },
+              },
+              reduction_objectives: {
+                files: {
+                  institutional_footprint: null,
+                  population_projections: null,
+                  unit_scenarios: null,
+                },
+                goals: [],
+                institutional_footprint: [],
+                population_projections: [],
+                unit_scenarios: [],
+              },
+            },
+          }),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Module-level expand for Equipment.  Headcount stays collapsed,
+    // so it contributes no factor/data buttons to the DOM.
+    const equipmentExpand = page
+      .getByRole('button', { name: /expand/i })
+      .filter({ hasText: /equipment/i })
+      .first();
+    await expect(equipmentExpand).toBeVisible({ timeout: 10000 });
+    await equipmentExpand.click();
+
+    const factorBtn = page
+      .getByRole('button', { name: /(re)?upload factors|add factors/i })
+      .first();
+    const dataBtn = page
+      .getByRole('button', { name: /(re)?upload data|add data/i })
+      .first();
+
+    await expect(factorBtn).toBeVisible({ timeout: 10000 });
+    await expect(dataBtn).toBeVisible();
+
+    // Same bounding-box assertion as 1216b: cards sit on one row, so
+    // FACTORS must be left of DATA (smaller ``x``).
+    const [factorBox, dataBox] = await Promise.all([
+      factorBtn.boundingBox(),
+      dataBtn.boundingBox(),
+    ]);
+    expect(factorBox).not.toBeNull();
+    expect(dataBox).not.toBeNull();
+    expect(factorBox!.x).toBeLessThan(dataBox!.x);
+  });
+
+  test('1215a — Incomplete badge renders when backend sets module.incomplete=true', async ({
+    page,
+  }) => {
+    // Issue #1215: the badge is now driven by the backend-emitted
+    // ``incomplete`` flag, not by a frontend derivation. This test
+    // pins the new contract: backend says incomplete → badge visible.
+    const yearConfigIncomplete = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: true,
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: null,
+                latest_data_job: null,
+                incomplete: true,
+                incomplete_reasons: ['missing_factor'],
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: null,
+            population_projections: null,
+            unit_scenarios: null,
+          },
+          goals: [],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigIncomplete(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Module-level Incomplete badge is part of the collapsed module
+    // header — visible without expanding.
+    const badge = page.getByText(/incomplete|incomplet/i).first();
+    await expect(badge).toBeVisible({ timeout: 10000 });
+  });
+
+  test('1215b — no Incomplete badge when backend says complete despite errored jobs (regression)', async ({
+    page,
+  }) => {
+    // Issue #1215 regression: previously the frontend treated
+    // ``result === 2`` (errored job) as "Incomplete", leaving the
+    // badge stuck on after a user re-uploaded successfully. With the
+    // backend now owning the flag, an errored job that still exists
+    // means "present" — the badge stays hidden. The upload-card
+    // surfaces the error inline; the module-level badge is for
+    // *missing* uploads only.
+    const erroredFactor = {
+      job_id: 999,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2024,
+      ingestion_method: 1,
+      target_type: 1,
+      state: 3,
+      result: 2,
+      status_message: 'Factor ingestion failed',
+      meta: {},
+    };
+    // Reduction-objectives reuses the same "Incomplete" label — fully
+    // populate it so the only signal left is module.incomplete (= false here).
+    const fileMeta = {
+      path: '/uploads/x.csv',
+      filename: 'x.csv',
+      uploaded_at: '2024-01-01T00:00:00Z',
+    };
+    const yearConfigStaleErroredJob = (year: number) => ({
+      ...buildYearConfig({ year }),
+      config: {
+        modules: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: false, // backend says complete (job exists)
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: erroredFactor, // errored but PRESENT
+                latest_data_job: null,
+                incomplete: false,
+                incomplete_reasons: [],
+              },
+            },
+          },
+        },
+        reduction_objectives: {
+          files: {
+            institutional_footprint: fileMeta,
+            population_projections: fileMeta,
+            unit_scenarios: fileMeta,
+          },
+          goals: [
+            {
+              target_year: 2030,
+              reduction_percentage: 50,
+              reference_year: 2024,
+            },
+          ],
+          institutional_footprint: [],
+          population_projections: [],
+          unit_scenarios: [],
+        },
+      },
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigStaleErroredJob(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Wait for the page to settle before asserting absence.
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    // No "Incomplete" badge anywhere — even though latest_factor_job
+    // has result=2 (errored). Match the i18n keys ``common_filter_incomplete``
+    // would render as ("Incomplete" / "Incomplet").
+    await expect(page.getByText(/^incomplete$|^incomplet$/i)).toHaveCount(0);
+  });
+
   test('8 — year-level reload-rehydrate (Issue #867): GET /sync/active-pipelines/year/{year} fires on mount and on year change', async ({
     page,
   }) => {
@@ -776,13 +1121,13 @@ async function expandHeadcountAndMember(page: Page): Promise<void> {
  *
  * Uses the shared `installInitScripts` + `mockBackend` helpers so the
  * page renders past the auth/permission guards (Lighthouse bypass) and
- * has stubs for every endpoint the page hits on mount (auth/me,
+ * has stubs for every endpoint the page hits on mount (GET /session,
  * active-pipelines, active-pipelines/year, year-configuration, ...).
  *
  * The button is disabled when `anyModuleIncomplete || is_started` —
  * `anyModuleIncomplete` iterates `MODULES_LIST` (8 modules) and checks
  * `isReductionObjectiveIncomplete`.  To reach the "enabled" branch we
- * mark every module disabled (so `isModuleIncomplete` short-circuits)
+ * mark every module disabled (so the backend-emitted `incomplete` flag stays false)
  * and supply a complete `reduction_objectives` (one goal + all 3 files).
  */
 

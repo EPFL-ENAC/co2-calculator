@@ -524,6 +524,72 @@ async def test_unit_sync_handler_raises_when_no_target_year_anywhere():
         await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
 
 
+@pytest.mark.asyncio
+async def test_unit_sync_handler_rejects_default_provider():
+    """UserProvider.DEFAULT has no unit source (no API, no fixture).
+    The handler must fail loudly rather than silently fall through."""
+    from app.models.user import UserProvider
+
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
+    job.provider = UserProvider.DEFAULT
+    with pytest.raises(ValueError, match="UserProvider.DEFAULT has no unit source"):
+        await unit_sync_mod.unit_sync_handler(job, MagicMock(), MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_unit_sync_handler_passes_job_provider_to_factories():
+    """The handler must resolve unit/role providers from ``job.provider``,
+    not a hardcoded constant — otherwise TEST users see ACCRED units."""
+    from app.models.user import UserProvider
+
+    job = _make_job(job_type="unit_sync", meta={"config": {"target_year": 2025}})
+    job.provider = UserProvider.TEST
+
+    job_session = MagicMock()
+    job_session.commit = AsyncMock()
+    data_session = MagicMock()
+    _no_year_cfg = MagicMock()
+    _no_year_cfg.scalar_one_or_none = MagicMock(return_value=None)
+    data_session.execute = AsyncMock(return_value=_no_year_cfg)
+
+    repo = MagicMock()
+    repo.update_ingestion_job = AsyncMock()
+
+    unit_provider = MagicMock()
+    unit_provider.fetch_all_units = AsyncMock(return_value=([], []))
+    unit_provider.map_api_unit = MagicMock(side_effect=lambda u: MagicMock())
+    role_provider = MagicMock()
+    role_provider.map_api_user = MagicMock(return_value=MagicMock())
+
+    unit_service = MagicMock()
+    unit_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+    user_service = MagicMock()
+    user_service.bulk_upsert = AsyncMock(return_value=MagicMock(data=[]))
+    carbon_report_service = MagicMock()
+    carbon_report_service.bulk_upsert = AsyncMock(return_value=[])
+    carbon_report_service.ensure_modules_for_reports = AsyncMock()
+
+    get_unit_provider_mock = MagicMock(return_value=unit_provider)
+    get_role_provider_mock = MagicMock(return_value=role_provider)
+
+    with (
+        patch.object(unit_sync_mod, "DataIngestionRepository", return_value=repo),
+        patch.object(unit_sync_mod, "get_unit_provider", get_unit_provider_mock),
+        patch.object(unit_sync_mod, "get_role_provider", get_role_provider_mock),
+        patch.object(unit_sync_mod, "UnitService", return_value=unit_service),
+        patch.object(unit_sync_mod, "UserService", return_value=user_service),
+        patch.object(
+            unit_sync_mod,
+            "CarbonReportService",
+            return_value=carbon_report_service,
+        ),
+    ):
+        await unit_sync_mod.unit_sync_handler(job, job_session, data_session)
+
+    get_unit_provider_mock.assert_called_once_with(UserProvider.TEST)
+    get_role_provider_mock.assert_called_once_with(UserProvider.TEST)
+
+
 # ---------------------------------------------------------------------------
 # unit_sync ↔ aggregation concurrency safety (#1236) — both rewrite
 # ``carbon_reports`` for the same (unit, year); the SAME advisory-lock

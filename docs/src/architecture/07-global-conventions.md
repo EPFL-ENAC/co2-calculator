@@ -294,7 +294,6 @@ System must meet these baseline performance requirements:
 **Best practices:**
 
 - Stateless design for horizontal scaling
-- Redis caching for emission factors
 - Database connection pooling
 - CDN for static assets
 - Lazy loading for frontend routes

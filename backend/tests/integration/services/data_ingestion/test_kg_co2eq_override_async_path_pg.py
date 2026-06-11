@@ -38,7 +38,7 @@ from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 
 @pytest.mark.asyncio
-async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
+async def test_kg_co2eq_override_survives_async_recalc(pg_dsn):
     """B-H1 — a DataEntry persisted with ``__kg_co2eq_override__`` survives
     the async path: ``EmissionRecalculationWorkflow`` →
     ``upsert_by_data_entry`` produces an emission whose ``kg_co2eq`` equals
@@ -48,7 +48,7 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
     deterministic, distinguishable value (~50.0) so the override (999.0)
     cannot accidentally collide with the formula's output.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # ── 1. Seed the carbon-report graph + factor + data entry ──────────
@@ -131,7 +131,7 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
 
     # Read back on a separate engine — proves the override-derived emission
     # committed and is visible across connections.
-    verify_engine = create_async_engine(pg_dsn_with_310b, future=True)
+    verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with Vf() as vs:
@@ -171,14 +171,14 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
+async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn):
     """B-H1 — covers the exact call-path the runner-driven chain takes:
     ``EmissionRecalculationWorkflow.recalculate_for_data_entry_type`` →
     ``upsert_by_data_entry`` → ``prepare_create``.  The persisted
     ``__kg_co2eq_override__`` carrier must survive that hop and produce
     emissions whose ``kg_co2eq`` equals the override.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     override_value = 777.0
@@ -248,7 +248,7 @@ async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
         f"recalc workflow processed no entries: {result}"
     )
 
-    verify_engine = create_async_engine(pg_dsn_with_310b, future=True)
+    verify_engine = create_async_engine(pg_dsn, future=True)
     Vf = async_sessionmaker(verify_engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with Vf() as vs:
@@ -275,13 +275,13 @@ async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_kg_co2eq_override_function_arg_takes_precedence(pg_dsn_with_310b):
+async def test_kg_co2eq_override_function_arg_takes_precedence(pg_dsn):
     """B-H1 — when both the function-arg ``kg_co2eq_override`` and the
     persisted ``__kg_co2eq_override__`` carrier are present, the function
     arg wins.  Pins the legacy inline-path semantics so existing
     ``_process_batch`` tests stay green.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:

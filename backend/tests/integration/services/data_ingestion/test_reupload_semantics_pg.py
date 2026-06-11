@@ -78,45 +78,6 @@ from .conftest import (
 # extracting to conftest is a cross-Unit refactor we deliberately defer.
 
 
-async def _install_emission_recalc_dedup_index(engine) -> None:
-    """Create ``uq_emission_recalc_active`` (PR #1074 partial unique index)."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_emission_recalc_active "
-                "ON data_ingestion_jobs "
-                "(module_type_id, data_entry_type_id, year) "
-                "WHERE job_type = 'emission_recalc' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ") "
-                "AND module_type_id IS NOT NULL "
-                "AND data_entry_type_id IS NOT NULL "
-                "AND year IS NOT NULL"
-            )
-        )
-
-
-async def _install_aggregation_dedup_index(engine) -> None:
-    """Create ``uq_aggregation_active`` so the ``csv_ingest →
-    emission_recalc → aggregation`` chain's dedup INSERT can pre-check
-    + race-trip safely under ``BULK_PATH_PURE_ASYNC``."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
-
-
 # --------------------------------------------------------------------------- #
 # CSV builders — minimal headcount.member rows shaped so the real provider   #
 # accepts them: ``unit_institutional_id`` ties to a seeded Unit, the columns #
@@ -276,7 +237,7 @@ async def _demote_prior_is_current(
 
 
 @pytest.mark.asyncio
-async def test_data_reupload_replaces_old_rows(pg_dsn_with_310b, monkeypatch, tmp_path):
+async def test_data_reupload_replaces_old_rows(pg_dsn, monkeypatch, tmp_path):
     """Pin: a second ``data.csv`` upload for the same
     ``(module=headcount, det=member, year)`` REPLACES the prior CSV
     entries — old rows are deleted, new rows inserted, and the second
@@ -291,9 +252,7 @@ async def test_data_reupload_replaces_old_rows(pg_dsn_with_310b, monkeypatch, tm
     deletion query).
     """
     _redirect_files_storage(monkeypatch, tmp_path)
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_emission_recalc_dedup_index(engine)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # Seed a year + 1 unit + the seven module CRMs.  The CSV's
@@ -435,7 +394,6 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
     asyncpg connection.
     """
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # Seed a parent factor_ingest job — the chains are children of this row.
@@ -538,9 +496,7 @@ async def test_factor_reupload_dedup_via_partial_unique_index(pg_dsn):
 
 
 @pytest.mark.asyncio
-async def test_data_reupload_replaces_kg_co2eq_overrides(
-    pg_dsn_with_310b, monkeypatch, tmp_path
-):
+async def test_data_reupload_replaces_kg_co2eq_overrides(pg_dsn, monkeypatch, tmp_path):
     """Pin: a row uploaded with ``kg_co2eq=42.0`` (override carrier)
     is REPLACED — not preserved — when the same ``(module, det, year)``
     is re-uploaded with the same logical row but no override.  Replace
@@ -555,9 +511,7 @@ async def test_data_reupload_replaces_kg_co2eq_overrides(
     the new one is INSERTed, so nothing carries over.
     """
     _redirect_files_storage(monkeypatch, tmp_path)
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_emission_recalc_dedup_index(engine)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as s:

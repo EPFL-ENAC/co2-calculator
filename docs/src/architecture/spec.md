@@ -39,9 +39,9 @@ The co2-calculator gives each lab a single, secure, multilingual web app to ente
 
 ## 3. HOW — high-level architecture
 
-See [System Overview](02-system-overview.md) for the canonical diagrams (ingress, frontend pods, FastAPI backend, Celery workers, PostgreSQL, S3, Entra ID).
+See [System Overview](02-system-overview.md) for the canonical diagrams (ingress, frontend pods, FastAPI backend, PostgreSQL, S3, Entra ID).
 
-The stack is Vue 3 + Quasar on the frontend, FastAPI on the backend, Celery + Redis for async jobs, PostgreSQL behind PgBouncer for persistence, and EPFL S3 for object storage. Authentication runs through Microsoft Entra ID via OIDC.
+The stack is Vue 3 + Quasar on the frontend, FastAPI on the backend, in-process async jobs (asyncio, no broker), PostgreSQL behind PgBouncer for persistence, and EPFL S3 for object storage. Authentication runs through Microsoft Entra ID via OIDC.
 
 ## 4. Decisions trail
 

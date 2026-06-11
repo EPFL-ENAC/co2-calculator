@@ -25,11 +25,24 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
   const backofficeDataManagement = useBackofficeDataManagement();
   const {
     isSubmoduleEnabled,
-    isSubmoduleIncomplete,
     isSubmoduleInputsDeactivated,
     getModule,
     getModuleNameFromSubmodule,
   } = yearConfigStore;
+
+  /**
+   * Issue #1215 — read the backend-computed flag from the enriched
+   * submodule dict. Common-uploads (no ``dataEntryTypeId``) inherit
+   * their module-level rollup since they have no per-submodule entry.
+   */
+  function isSubmoduleIncomplete(sub: SubmoduleConfig): boolean {
+    const mod =
+      yearConfigStore.config?.config?.modules?.[String(sub.moduleTypeId)];
+    if (sub.dataEntryTypeId === undefined) {
+      return !!mod?.incomplete;
+    }
+    return !!mod?.submodules?.[String(sub.dataEntryTypeId)]?.incomplete;
+  }
 
   function toSyncJobResponse(
     job?: SyncJobSummary | null,
@@ -86,7 +99,9 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
     const filePath = jobMeta?.processed_file_path as string;
     if (!filePath) return;
     const a = document.createElement('a');
-    a.href = `/api/v1/files/${filePath}`;
+    // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
+    // strips the extension without backend Content-Disposition).
+    a.href = `/api/v1/files/${filePath}?d=true`;
     a.download = filePath.split('/').pop() || filePath;
     document.body.appendChild(a);
     a.click();

@@ -3,7 +3,7 @@
 Covers:
 - ``get_recalculation_status_by_year`` (Plan 310B)
 - ``set_started_at`` plus state-driven ``finished_at`` auto-stamping in
-  ``update_ingestion_job``, ``cancel_job`` (Plan 310C observability columns)
+  ``update_ingestion_job`` (Plan 310C observability columns)
 - ``get_current_pipeline_id_for_module`` (Plan 310D stale-stats UX)
 """
 
@@ -585,31 +585,16 @@ async def test_update_ingestion_job_finished_at_idempotent_on_repeat_calls(
     assert second_value == first_value
 
 
-@pytest.mark.asyncio
-async def test_cancel_job_stamps_finished_at(db_session: AsyncSession):
-    """``cancel_job`` is a terminal transition — must populate ``finished_at``.
-
-    Without this, observability queries that filter on ``finished_at IS
-    NOT NULL`` silently miss cancelled jobs even though they are
-    lifecycle-FINISHED.
-    """
-    repo = DataIngestionRepository(db_session)
-    job = _make_pending_job()
-    job.state = IngestionState.RUNNING
-    job.is_current = True
-    db_session.add(job)
-    await db_session.flush()
-    assert job.id is not None
-    assert job.finished_at is None
-
-    cancelled = await repo.cancel_job(job.id)
-    await db_session.commit()
-
-    assert cancelled is not None
-    refreshed = await _reload_job(db_session, job.id)
-    assert refreshed.state == IngestionState.FINISHED
-    assert refreshed.result == IngestionResult.ERROR
-    assert refreshed.finished_at is not None
+# NOTE: ``test_cancel_job_stamps_finished_at`` was removed alongside
+# ``DataIngestionRepository.cancel_job`` itself.  The cancel surface
+# was a single-job operation that became structurally wrong after the
+# pipeline-debug refactor (#1236): a typical chain has csv_ingest →
+# emission_recalc(N) → aggregation, and cancelling one link orphaned
+# the rest.  The replacement — ``abort_pipeline`` — operates on
+# ``pipeline_id`` and is covered by the integration test
+# ``test_abort_pipeline_endpoint_pg.py`` (PG-only because it asserts
+# the runner's preemption-via-cleared-lock contract that SQLite can't
+# faithfully model).
 
 
 # ======================================================================

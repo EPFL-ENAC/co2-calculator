@@ -33,7 +33,10 @@ async def test_list_carbon_reports_by_unit_returns_list():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.list_carbon_reports_by_unit(1, db, _user())
         assert result == mock_reports
     finally:
@@ -53,7 +56,10 @@ async def test_get_carbon_report_by_unit_and_year_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.get_carbon_report_by_unit_and_year(
                 1, 2024, db, _user()
             )
@@ -71,7 +77,10 @@ async def test_get_carbon_report_by_unit_and_year_not_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await module.get_carbon_report_by_unit_and_year(1, 2024, db, _user())
         assert exc.value.status_code == 404
@@ -93,7 +102,10 @@ async def test_create_carbon_report_commits_and_returns():
     module.CarbonReportService = lambda db: svc
     try:
         payload = MagicMock()
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.create_carbon_report(payload, db, _user())
         assert result == new_report
         db.commit.assert_awaited_once()
@@ -114,7 +126,10 @@ async def test_get_carbon_report_found():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.get_carbon_report(42, db, _user())
         assert result == report
     finally:
@@ -155,7 +170,11 @@ async def test_list_carbon_report_modules_found():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        result = await module.list_carbon_report_modules(1, db, _user())
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.list_carbon_report_modules(1, db, _user())
         assert result == modules
     finally:
         module.CarbonReportService = orig_report
@@ -199,9 +218,13 @@ async def test_update_status_success():
     module.CarbonReportModuleService = lambda db: module_svc
     try:
         update_payload = MagicMock()
-        result = await module.update_carbon_report_module_status(
-            1, 2, update_payload, db, _user()
-        )
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            result = await module.update_carbon_report_module_status(
+                1, 2, update_payload, db, _user()
+            )
         assert result == updated
         db.commit.assert_awaited_once()
     finally:
@@ -241,10 +264,14 @@ async def test_update_status_module_not_found():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        with pytest.raises(HTTPException) as exc:
-            await module.update_carbon_report_module_status(
-                1, 2, MagicMock(), db, _user()
-            )
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await module.update_carbon_report_module_status(
+                    1, 2, MagicMock(), db, _user()
+                )
         assert exc.value.status_code == 404
     finally:
         module.CarbonReportService = orig_report
@@ -265,10 +292,14 @@ async def test_update_status_value_error_raises_400():
     module.CarbonReportService = lambda db: report_svc
     module.CarbonReportModuleService = lambda db: module_svc
     try:
-        with pytest.raises(HTTPException) as exc:
-            await module.update_carbon_report_module_status(
-                1, 2, MagicMock(), db, _user()
-            )
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
+            with pytest.raises(HTTPException) as exc:
+                await module.update_carbon_report_module_status(
+                    1, 2, MagicMock(), db, _user()
+                )
         assert exc.value.status_code == 400
         assert "bad status" in exc.value.detail
     finally:
@@ -296,7 +327,10 @@ async def test_get_simulator_explore_found_fresh_no_refresh():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.get_simulator_explore_carbon_report(
                 1, 2024, background_tasks, db, _user()
             )
@@ -316,7 +350,10 @@ async def test_get_simulator_explore_not_found_raises_404():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             with pytest.raises(HTTPException) as exc:
                 await module.get_simulator_explore_carbon_report(
                     1, 2024, MagicMock(), db, _user()
@@ -343,7 +380,10 @@ async def test_get_simulator_explore_expired_schedules_background_refresh():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.get_simulator_explore_carbon_report(
                 1, 2024, background_tasks, db, _user()
             )
@@ -374,7 +414,10 @@ async def test_get_simulator_explore_null_last_updated_schedules_refresh():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.get_simulator_explore_carbon_report(
                 1, 2024, background_tasks, db, _user()
             )
@@ -398,7 +441,10 @@ async def test_create_simulator_explore_commits_and_returns():
     original = module.CarbonReportService
     module.CarbonReportService = lambda db: svc
     try:
-        with patch.object(module, "require_unit_access"):
+        with (
+            patch.object(module, "require_unit_access"),
+            patch.object(module, "require_module_unit_scope"),
+        ):
             result = await module.create_simulator_explore_carbon_report(
                 1, 2024, db, _user()
             )

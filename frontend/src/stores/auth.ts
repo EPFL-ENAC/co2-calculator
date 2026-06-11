@@ -2,34 +2,50 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import {
   api,
+  API_EXCHANGE_URL,
   API_LOGIN_URL,
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
+  API_ME_URL,
 } from 'src/api/http';
 import { Router } from 'vue-router';
 import { computed } from 'vue';
-import { PermissionAction } from 'src/constant/permissions';
-import { hasPermission, getModulePermissionPath } from 'src/utils/permission';
+import {
+  PermissionAction,
+  type FlatUserPermissions,
+} from 'src/constant/permissions';
+import {
+  hasPermission,
+  hasAnyScopePermission,
+  hasBackOfficeAreaPermission,
+  hasUnitScopePermission,
+  getModulePermissionPath,
+} from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
+import type { components } from 'src/types/api/openapi';
 import { useWorkspaceStore } from './workspace';
-interface User {
-  id: string;
-  email: string;
-  display_name?: string;
-  is_user_test?: boolean;
-  institutional_id?: string;
+
+// `UserRead` comes from the FastAPI OpenAPI schema (issue #217 POC).
+// `permissions` and `roles_raw` are intentionally widened in the backend
+// schema (`additionalProperties: true`, computed fields), so we keep their
+// runtime-accurate narrowing locally instead of casting at every call site.
+type GeneratedUserRead = components['schemas']['UserRead'];
+type User = Omit<
+  GeneratedUserRead,
+  'permissions' | 'roles_raw' | 'institutional_id'
+> & {
+  permissions?: FlatUserPermissions;
+  // `roles_raw` is normalized to `[]` at the API boundary in `getUser()`, so
+  // callers can safely `.map()` without an optional guard.
   roles_raw: Array<{
     role: string;
     on: { unit?: string; affiliation?: string } | 'global';
   }>;
-  permissions?: {
-    [key: string]: {
-      view?: boolean;
-      edit?: boolean;
-      export?: boolean;
-    };
-  };
-}
+  // Backend uses `response_model_exclude_none=True`, which strips
+  // `institutional_id` from the wire when null even though the generated
+  // type marks it required. Reflect runtime reality locally.
+  institutional_id?: string;
+};
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null);
@@ -42,7 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
     const name =
       user.value.display_name ||
       user.value.email.split('@')[0] ||
-      user.value.id ||
+      String(user.value.id) ||
       '?';
     return name;
   });
@@ -56,7 +72,11 @@ export const useAuthStore = defineStore('auth', () => {
     inflight = (async () => {
       try {
         loading.value = true;
-        const u = await api.get('auth/me').json<User>();
+        const raw = await api.get(API_ME_URL).json<User>();
+        // Backend serializes roles as `[]` or omits the field under
+        // `response_model_exclude_none=True`. Normalize once here so
+        // every call site can treat `roles_raw` as a non-optional array.
+        const u: User = { ...raw, roles_raw: raw.roles_raw ?? [] };
         user.value = u;
         return u;
       } catch {
@@ -80,10 +100,24 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.replace(API_LOGIN_URL);
   }
 
+  /**
+   * Trade the single-use OAuth-callback code for session cookies (BFF
+   * leg 2; ADR-019). Run from the /auth/complete landing page after the
+   * IdP redirect lands there with a `#code=<...>` fragment.
+   */
+  async function exchange(code: string): Promise<User | null> {
+    await api
+      .post(API_EXCHANGE_URL, { json: { code }, retry: { limit: 0 } })
+      .json<{ id: number; email: string }>();
+    // The backend already wrote the cookies; hydrate the full user
+    // profile (roles, permissions, display_name) via /session.
+    return await getUser();
+  }
+
   async function logout(router: Router) {
     try {
       loading.value = true;
-      await api.post(API_LOGOUT_URL);
+      await api.delete(API_LOGOUT_URL);
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
@@ -124,11 +158,17 @@ export const useAuthStore = defineStore('auth', () => {
       action,
     );
     if (globallyPermitted) return true;
-    // append workspace context to permission path if available
+    // append workspace context to permission path if available. A unit-context
+    // lookup matches either the unit-scoped key (principal) or the own-scoped
+    // key (standard user, ``modules.X/<unit>/own``) — mirrors the backend
+    // ``has_permission``. Unit-level controls use ``hasUserUnitScopePermission``.
     const institutionalId = workspaceStore.selectedUnit?.institutional_id;
     if (institutionalId) {
-      path = `${path}/${institutionalId}`;
-      return hasPermission(user.value.permissions, path, action);
+      const unitPath = `${path}/${institutionalId}`;
+      return (
+        hasPermission(user.value.permissions, unitPath, action) ||
+        hasPermission(user.value.permissions, `${unitPath}/own`, action)
+      );
     }
     return false;
   }
@@ -150,6 +190,65 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(path, action);
   }
 
+  function canUserAccessModule(module: Module): boolean {
+    const path = getModulePermissionPath(module);
+    if (!path) return true; // Unprotected module, accessible to all users
+    return (
+      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
+      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+    );
+  }
+
+  /**
+   * Check if the current user can access the back-office area (any
+   * `backoffice.*` permission granting `action`). Use for generic entry
+   * points (e.g. the header button) that should appear for any back-office
+   * user regardless of role, sub-domain, or affiliation.
+   */
+  function hasUserBackOfficeAreaPermission(
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    return hasBackOfficeAreaPermission(user.value.permissions, action);
+  }
+
+  /**
+   * Check if the current user has UNIT-level (or global) breadth on `path`
+   * for the selected workspace — i.e. a unit-scoped key, NOT the own-scoped
+   * (`/own`) variant. Use to gate unit-level controls such as validating a
+   * module's status, which standard (own-scoped) users must not see.
+   */
+  function hasUserUnitScopePermission(
+    path: string,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
+    if (!institutionalId) return false;
+    // Restrict to the selected workspace's unit key (or a global key) — the
+    // own-scoped (`/own`) variant must NOT grant unit-level controls.
+    return hasUnitScopePermission(
+      user.value.permissions,
+      path,
+      action,
+      institutionalId,
+    );
+  }
+
+  /**
+   * Check if the current user has `action` on `path` under ANY scope
+   * (bare path OR any `path/<*>` variant). Use for back-office route
+   * guards and menu gates that should accept GlobalScope, unit-scoped,
+   * and affiliation-scoped users alike.
+   */
+  function hasUserAnyScopePermission(
+    path: string,
+    action: PermissionAction = PermissionAction.VIEW,
+  ): boolean {
+    if (!user.value || !user.value.permissions) return false;
+    return hasAnyScopePermission(user.value.permissions, path, action);
+  }
+
   return {
     user,
     loading,
@@ -159,8 +258,13 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     login_test,
     logout,
+    exchange,
     isAuthenticated,
     hasUserPermission,
+    hasUserUnitScopePermission,
     hasUserModulePermission,
+    canUserAccessModule,
+    hasUserBackOfficeAreaPermission,
+    hasUserAnyScopePermission,
   };
 });

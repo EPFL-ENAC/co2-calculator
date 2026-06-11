@@ -4,13 +4,11 @@ The CO₂ Calculator allows to assess the carbon footprint of a unit, in accorda
 
 **Project Status:** Under active development (v0.x.x internal/non-public releases)
 
-**Access the platform:**
+**Access the platform:** See [Environments](docs/src/architecture/05-environments.md)
+for the dev / stage / pre-production URLs and deployment topology.
 
-- **dev:** [https://co2-calculator-dev.epfl.ch/](https://co2-calculator-dev.epfl.ch/)
-- **stage:** [https://co2-calculator-stage.epfl.ch/](https://co2-calculator-stage.epfl.ch/)
-- **pre-production:** [https://co2-calculator.epfl.ch/](https://co2-calculator.epfl.ch/)
-
-> **Note:** Pre-production serves internal releases (v0.x.x) until final v1.0.0 public release. Production environment will activate with v1.0.0.
+> **Note:** Pre-production serves internal releases (v0.x.x) until the final
+> v1.0.0 public release. The production environment activates with v1.0.0.
 
 ## 🚀 Quick Start
 
@@ -132,7 +130,7 @@ export default {
 
 All translation changes must be submitted via GitHub pull request:
 
-1. Create a feature branch from `main`
+1. Create a feature branch from `dev`
 2. Make your changes to the translation files
 3. Commit with a conventional commit message (e.g., `feat(i18n): add dashboard translations`)
 4. Push your branch and open a pull request

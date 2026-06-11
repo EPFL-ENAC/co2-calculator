@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, inject, ref, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
+import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
 import {
   useBackofficeDataManagement,
@@ -14,6 +15,7 @@ import type {
   JobUpdatePayload,
   InitiateSyncParams,
 } from 'src/stores/backofficeDataManagement';
+import type { PipelineJob } from 'src/stores/pipelineStream';
 import { useFilesStore, type FileObject } from 'src/stores/files';
 import { Notify } from 'quasar';
 
@@ -43,8 +45,28 @@ const isLoading = ref(false);
 // authoritative "last successful upload" lives on the parent year-config row
 // (``row.lastReferenceJob``).  We read whichever is more recent.
 const localJob = ref<SyncJobResponse | undefined>(undefined);
+
+// Live pipeline-SSE jobs keyed by job_id (provided by ``ModuleConfig``).
+// On a hard reload mid-upload the ``localJob`` ref is empty (no upload
+// click happened this session) AND the per-job SSE in
+// ``useDataEntryDialog`` is gone — without this overlay the row would
+// freeze on ``props.row.lastReferenceJob``'s snapshot.  Falls back to
+// the snapshot when no live entry exists (steady state).  See
+// ``mergeLivePipelineJob`` for the merge semantics.
+const livePipelineJobsById = inject<
+  ComputedRef<ReadonlyMap<number, PipelineJob>>
+>(
+  'livePipelineJobsById',
+  computed(() => new Map()),
+);
+
 const lastJob = computed<SyncJobResponse | undefined>(
-  () => localJob.value ?? props.row.lastReferenceJob,
+  () =>
+    localJob.value ??
+    mergeLivePipelineJob(
+      props.row.lastReferenceJob,
+      livePipelineJobsById.value,
+    ),
 );
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isJobStuck = computed(
@@ -136,16 +158,27 @@ function downloadLastCsv(): void {
     .processed_file_path as string;
   if (!filePath) return;
   const a = document.createElement('a');
-  a.href = `/api/v1/files/${filePath}`;
+  // ``?d=true`` — see useUploadCard.downloadLastCsv for why (Safari
+  // strips the extension without backend Content-Disposition).
+  a.href = `/api/v1/files/${filePath}?d=true`;
   a.download = filePath.split('/').pop() || filePath;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 }
 
-async function handleCancelJob() {
-  if (!lastJob.value?.job_id) return;
-  await backofficeDataManagement.cancelJob(lastJob.value.job_id, props.year);
+// Module-scoped pipeline_id (provided by ModuleConfig — single SSE
+// subscriber).  References uploads run under their own pipeline kind
+// (``reference_ingest``) but live inside the same ModuleConfig provide
+// scope, so this resolves to the active reference pipeline when one is
+// in flight.
+const currentPipelineId =
+  inject<ComputedRef<string | null>>('currentPipelineId');
+
+async function handleAbortPipeline() {
+  const pipelineId = currentPipelineId?.value;
+  if (!pipelineId) return;
+  await backofficeDataManagement.abortPipeline(pipelineId);
   localJob.value = undefined;
 }
 
@@ -363,7 +396,7 @@ function isErrorOrWarning(): boolean {
           size="sm"
           :label="$t('data_management_cancel_job')"
           class="text-weight-medium"
-          @click="handleCancelJob"
+          @click="handleAbortPipeline"
         />
       </div>
 

@@ -3,10 +3,9 @@ unique index.
 
 The migration creates a partial unique index on ``(module_type_id, year)``
 restricted to ``job_type = 'aggregation' AND state IN
-(NOT_STARTED, QUEUED, RUNNING)``.  The shared ``pg_dsn`` fixture builds
-the schema via ``SQLModel.metadata.create_all`` which doesn't run
-Alembic, so this file inlines the DDL via a local fixture (mirrors the
-pattern in ``conftest.py``'s ``_install_plan_310b_indexes``).
+(NOT_STARTED, QUEUED, RUNNING)``.  The index is declared on the
+``DataIngestionJob`` model, so the shared ``pg_dsn`` fixture builds it via
+``SQLModel.metadata.create_all`` — no inline DDL needed.
 
 What we cover:
 
@@ -23,8 +22,6 @@ What we cover:
 """
 
 import pytest
-import pytest_asyncio
-from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -36,34 +33,6 @@ from app.models.data_ingestion import (
     IngestionState,
 )
 from app.models.user import UserProvider
-
-_DEDUP_INDEX_DDL = (
-    "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-    "ON data_ingestion_jobs (module_type_id, year) "
-    "WHERE job_type = 'aggregation' "
-    "AND state IN ("
-    "'NOT_STARTED'::ingestion_state_enum, "
-    "'QUEUED'::ingestion_state_enum, "
-    "'RUNNING'::ingestion_state_enum"
-    ")"
-)
-
-
-@pytest_asyncio.fixture(scope="function")
-async def pg_dsn_with_aggregation_dedup(pg_dsn):
-    """``pg_dsn`` plus the Plan 310-D ``uq_aggregation_active`` index.
-
-    Inlined locally instead of extending the shared
-    ``pg_dsn_with_310b`` fixture — that one's scope is Plan 310B
-    factor indexes; mixing in unrelated DDL hurts maintainability.
-    """
-    engine = create_async_engine(pg_dsn, future=True)
-    try:
-        async with engine.begin() as conn:
-            await conn.execute(text(_DEDUP_INDEX_DDL))
-    finally:
-        await engine.dispose()
-    yield pg_dsn
 
 
 def _make_aggregation_job(
@@ -88,11 +57,11 @@ def _make_aggregation_job(
 
 @pytest.mark.asyncio
 async def test_two_active_aggregation_jobs_same_scope_raises(
-    pg_dsn_with_aggregation_dedup,
+    pg_dsn,
 ):
     """Two NOT_STARTED aggregation rows for the same (module_type_id,
     year) violate the partial unique index → second insert raises."""
-    engine = create_async_engine(pg_dsn_with_aggregation_dedup, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with factory() as session:
@@ -109,13 +78,13 @@ async def test_two_active_aggregation_jobs_same_scope_raises(
 
 @pytest.mark.asyncio
 async def test_finished_does_not_block_new_active(
-    pg_dsn_with_aggregation_dedup,
+    pg_dsn,
 ):
     """FINISHED rows are outside the dedup window — a NOT_STARTED
     aggregation can be inserted alongside an already-FINISHED one for
     the same scope.  Otherwise historical jobs would permanently block
     new aggregations."""
-    engine = create_async_engine(pg_dsn_with_aggregation_dedup, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with factory() as session:
@@ -143,12 +112,12 @@ async def test_finished_does_not_block_new_active(
 
 
 @pytest.mark.asyncio
-async def test_different_scopes_both_succeed(pg_dsn_with_aggregation_dedup):
+async def test_different_scopes_both_succeed(pg_dsn):
     """Dedup is per-(module_type_id, year) scope.  Different module
     types or different years run in parallel — covering all three
     cross-product cases (different module, different year, different
     both)."""
-    engine = create_async_engine(pg_dsn_with_aggregation_dedup, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with factory() as session:
@@ -163,11 +132,11 @@ async def test_different_scopes_both_succeed(pg_dsn_with_aggregation_dedup):
 
 @pytest.mark.asyncio
 async def test_non_aggregation_job_type_unaffected(
-    pg_dsn_with_aggregation_dedup,
+    pg_dsn,
 ):
     """The partial index is scoped to ``job_type = 'aggregation'``;
     other job types share the table without dedup interference."""
-    engine = create_async_engine(pg_dsn_with_aggregation_dedup, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     try:
         async with factory() as session:

@@ -313,8 +313,8 @@ export default {
   // and their fake ``setTimeout`` success toast — the success / error
   // notifications below are now driven by the real SSE stream.
   data_management_year_sync_in_progress: {
-    en: 'Setting up year {year}: syncing units from Accred…',
-    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred…",
+    en: 'Setting up year {year}: syncing units from Accred and creating carbon reports …',
+    fr: "Configuration de l'année {year} : synchronisation des unités depuis Accred et création de rapports de carbone…",
   },
   data_management_year_sync_in_progress_caption: {
     en: 'This may take a few minutes. CSV uploads are paused until the sync completes.',
@@ -422,11 +422,11 @@ export default {
   },
   data_management_uncertainty_medium: {
     en: 'Medium',
-    fr: 'Moyenne',
+    fr: 'Moyen',
   },
   data_management_uncertainty_high: {
     en: 'High',
-    fr: 'Élevée',
+    fr: 'Élevé',
   },
   data_management_equipment_common_description: {
     en: 'Upload shared equipment activity data and emission factors used across all equipment submodules.',
@@ -511,7 +511,7 @@ export default {
   },
   data_management_submodule_it_equipment: {
     en: 'IT Equipment',
-    fr: 'Équipements informatiques',
+    fr: 'Équipements IT',
   },
   data_management_submodule_consumables_accessories: {
     en: 'Consumables & Accessories',
@@ -534,8 +534,8 @@ export default {
     fr: 'Autres achats',
   },
   data_management_submodule_additional_purchases: {
-    en: 'Additional Purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized Purchases',
+    fr: 'Achats Centralisés',
   },
   data_management_submodule_research_facilities: {
     en: 'Research Facilities',

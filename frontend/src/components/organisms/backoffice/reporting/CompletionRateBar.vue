@@ -9,6 +9,7 @@ interface Props {
   totalUnits: number;
   scopeLabel?: string;
   helperText?: string;
+  printMode?: boolean;
 }
 
 const { t } = useI18n();
@@ -17,6 +18,7 @@ const props = withDefaults(defineProps<Props>(), {
   title: undefined,
   scopeLabel: undefined,
   helperText: undefined,
+  printMode: false,
 });
 
 const resolvedTitle = computed(
@@ -28,6 +30,8 @@ const resolvedHelperText = computed(
 const resolvedScopeLabel = computed(
   () => props.scopeLabel ?? t('backoffice_reporting_completion_bar_scope'),
 );
+
+const printMode = computed(() => props.printMode);
 
 const percentage = computed(() => {
   if (props.totalUnits <= 0) {
@@ -52,16 +56,18 @@ const barColor = computed(() => {
     <q-card-section class="q-pa-lg">
       <div class="row items-center justify-between q-mb-md">
         <div class="text-h6 text-weight-medium">{{ resolvedTitle }}</div>
-        <q-icon
-          :name="outlinedInfo"
-          size="sm"
-          class="cursor-pointer text-primary"
-          :aria-label="$t('module-info-label')"
-        >
-          <q-tooltip class="u-tooltip">
-            {{ resolvedHelperText }}
-          </q-tooltip>
-        </q-icon>
+        <template v-if="!printMode">
+          <q-icon
+            :name="outlinedInfo"
+            size="sm"
+            class="cursor-pointer text-primary"
+            :aria-label="$t('module-info-label')"
+          >
+            <q-tooltip class="u-tooltip">
+              {{ resolvedHelperText }}
+            </q-tooltip>
+          </q-icon>
+        </template>
       </div>
 
       <div class="row items-center justify-between q-mb-sm text-body1">

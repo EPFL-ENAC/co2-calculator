@@ -462,6 +462,7 @@ Maintain comprehensive and up-to-date security documentation to ensure complianc
 
 ## 8. Links
 
+- [Security documentation repo](https://github.com/EPFL-ENAC/co2-calculator-security-doc)
 - [Workflow schedule](https://github.com/marketplace/actions/schedule-workflow)
 - [GitHub secret scanning](https://docs.github.com/en/code-security/concepts/secret-security/about-secret-scanning)
 - [SonarCloud](https://sonarcloud.io)

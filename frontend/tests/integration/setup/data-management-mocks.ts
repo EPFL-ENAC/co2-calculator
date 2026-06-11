@@ -89,19 +89,26 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
   const baseHeadcount = {
     enabled: true,
     uncertainty_tag: 'medium',
+    // Issue #1215 — backend-computed module-level "Incomplete" flag.
+    // Default: complete (factor + data both SUCCESS below).
+    incomplete: false,
     submodules: {
-      // member — required factor + data both SUCCESS so isModuleIncomplete=false
+      // member — required factor + data both SUCCESS, backend incomplete=false
       '1': {
         enabled: true,
         threshold: null,
         latest_factor_job: SUCCESS_FACTOR_JOB,
         latest_data_job: SUCCESS_DATA_JOB,
+        incomplete: false,
+        incomplete_reasons: [],
       },
       // student — noData=true, only factor required
       '2': {
         enabled: true,
         threshold: null,
         latest_factor_job: SUCCESS_FACTOR_JOB,
+        incomplete: false,
+        incomplete_reasons: [],
       },
     },
   };
@@ -289,12 +296,15 @@ export async function mockBackend(
     }
   });
 
-  // auth/me — 401 so getUser() resolves to null without crashing.
+  // GET /session — 401 so getUser() resolves to null without crashing.
   // The Lighthouse bypass means we never read user.value, so 401 is
   // safe (and matches the production "not yet logged in" state).
-  await page.route('**/api/v1/auth/me', (route) =>
-    route.fulfill({ status: 401, body: '' }),
-  );
+  await page.route('**/api/v1/session', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ status: 401, body: '' });
+    }
+    return route.continue();
+  });
 
   // year-configuration GET / POST / PATCH
   await page.route(/.*\/api\/v1\/year-configuration\/(\d+)$/, async (route) => {

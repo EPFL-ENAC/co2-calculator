@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref } from 'vue';
 import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
-import { ROLES } from 'src/constant/roles';
 import { PermissionAction } from 'src/constant/permissions';
 
 interface Props {
@@ -19,27 +18,19 @@ function navigateToRoute(routeName: string) {
   router.push({ name: routeName });
 }
 
-const hasBackOfficeEditPermission = computed(() => {
-  return authStore.hasUserPermission('backoffice.users', PermissionAction.EDIT);
-});
-
-const hasSuperAdminRole = computed(() => {
-  return (
-    authStore.user?.roles_raw?.some((x) => x.role === ROLES.SuperAdmin) ?? false
-  );
-});
-
 function isItemDisabled(item: NavItem): boolean {
-  // Super-admin trumps all gates — SA sees every menu item.  Applies
-  // to ``limitedAccess`` items too (Pipeline Operations, Data
-  // Management, User Management), not just plain unrestricted ones —
-  // there is no scenario where a SA should be locked out of a
-  // back-office page.
-  if (hasSuperAdminRole.value) return false;
-  if (item.superAdminOnly === true) return true;
-  if (item.limitedAccess === true && !hasBackOfficeEditPermission.value)
-    return true;
-  return false;
+  // Page-driven gating (#862): reachability is derived from the target route's
+  // own `meta.requiredPermission` — the single source of truth that the router
+  // guard (`requireMetaPermission`) also enforces, so sidebar and router agree.
+  // Checked any-scope so affiliation-suffixed keys match; super admin holds
+  // every backoffice key and passes naturally.
+  const meta = router.resolve({ name: item.routeName }).meta;
+  const path = meta.requiredPermission as string | undefined;
+  if (!path) return false;
+  const action =
+    (meta.requiredAction as PermissionAction | undefined) ??
+    PermissionAction.VIEW;
+  return !authStore.hasUserAnyScopePermission(path, action);
 }
 </script>
 

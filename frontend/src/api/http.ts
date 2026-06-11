@@ -13,12 +13,30 @@ export type ApiOptions = Options;
 export const API_BASE_URL = '/api/v1/';
 export const API_LOGIN_URL = '/api/v1/auth/login';
 export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
-export const API_ME_URL = 'auth/me';
-export const API_REFRESH_URL = 'auth/refresh';
-export const API_LOGOUT_URL = 'auth/logout';
+// All three session verbs hit the same path; the interceptor predicates
+// disambiguate by HTTP method (see isRefresh / isSessionCheck below).
+export const API_ME_URL = 'session';
+export const API_REFRESH_URL = 'session';
+export const API_LOGOUT_URL = 'session';
+export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
 
-const isRefresh = (u: string) => u.endsWith(API_REFRESH_URL);
+const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
+const endsWithSessionExchange = (u: string) =>
+  /\/session\/exchange(?:\?.*)?$/.test(u);
+const isRefresh = (u: string, m: string) =>
+  endsWithSession(u) && m.toUpperCase() === 'POST';
+const isSessionCheck = (u: string, m: string) =>
+  endsWithSession(u) && m.toUpperCase() === 'GET';
+// /session/exchange is the BFF cookie-exchange POST run by AuthCompletePage.
+// 401 from this endpoint means an expired/consumed/unknown exchange code —
+// an EXPECTED failure mode that the page renders as its own failure UI
+// (with a retry button). It MUST NOT trigger the global login redirect
+// (location.replace(loginPageName)), and it MUST NOT trigger the global
+// pre-retry refresh attempt (there's no refresh cookie yet during the BFF
+// handshake — the exchange IS what mints the cookies).
+const isExchange = (u: string, m: string) =>
+  endsWithSessionExchange(u) && m.toUpperCase() === 'POST';
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -34,28 +52,40 @@ export const api = ky.create({
   },
   hooks: {
     beforeRetry: [
-      // For any non-refresh call, try to refresh before retrying
+      // For any non-refresh call, try to refresh before retrying.
+      // Exception: /session/exchange — it predates the cookies, so a
+      // refresh attempt here would hit the same 401 wall and bounce.
       async ({ request }) => {
-        if (!isRefresh(request.url))
-          // do not retry 'refresh' itself
+        if (
+          !isRefresh(request.url, request.method) &&
+          !isExchange(request.url, request.method)
+        )
           await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
       },
     ],
     afterResponse: [
       async (req, options, res) => {
         if (res.status === 401) {
-          if (isRefresh(req.url)) {
+          if (isRefresh(req.url, req.method)) {
             // If refresh returns 401, let it pass through and be handled by
             // next api call, which will trigger the login redirect. This prevents infinite
             // loops in case the refresh token is also expired or invalid.
             return;
           }
           // If still 401 after refresh, redirect to login
-          const isSessionCheck = req.url.endsWith(API_ME_URL);
-          if (isSessionCheck) {
+          if (isSessionCheck(req.url, req.method)) {
             // For session check, do not redirect, just return
             // This prevents redirect loops during session validation
             // vue Router guard will handle the redirection
+            return;
+          }
+          if (isExchange(req.url, req.method)) {
+            // BFF cookie-exchange: 401 means expired/consumed/unknown
+            // code. Let the caller (authStore.exchange via
+            // AuthCompletePage) see the error so the page can render
+            // its "exchange failed, retry login" state — bypassing the
+            // global redirect would otherwise loop the user back through
+            // /login and hide the actual failure reason.
             return;
           } else {
             // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
@@ -206,13 +236,28 @@ export const api = ky.create({
 
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
           if (!skipCodes.includes(res.status)) {
-            // For other errors, show a generic error toast
+            // Surface the backend's error detail when present — the bare status
+            // line ("400 Bad Request") doesn't tell the user what to fix.
+            let detail: string | undefined;
+            try {
+              const cloned = res.clone();
+              if (!cloned.bodyUsed) {
+                const body = (await cloned.json()) as { detail?: unknown };
+                if (typeof body?.detail === 'string') {
+                  detail = body.detail;
+                }
+              }
+            } catch {
+              // Non-JSON body; fall back to the generic status message.
+            }
             Notify.create({
               color: 'negative',
-              message: i18n.global.t('http_error_occurred', {
-                status: res.status,
-                text: res.statusText,
-              }),
+              message:
+                detail ??
+                i18n.global.t('http_error_occurred', {
+                  status: res.status,
+                  text: res.statusText,
+                }),
               position: 'top',
               timeout: 3000,
               actions: [{ icon: 'close', color: 'white' }],

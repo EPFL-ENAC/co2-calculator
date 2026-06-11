@@ -23,6 +23,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
 from app.core.security import is_permitted
+from app.core.submodule_mandatoriness import (
+    MODULES_REQUIRING_COMMON_FACTOR,
+    get_submodule_mandatoriness,
+)
 from app.models.audit import AuditChangeTypeEnum, AuditDocument
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -155,6 +159,81 @@ def _enrich_config_with_jobs(
             common_job = _pick_latest_job(job_lookup, m_id, None, target_val)
             module_val[field_name] = common_job.model_dump() if common_job else None
     return config
+
+
+def _enrich_config_with_incomplete_flags(config: dict) -> dict:
+    """Inject backend-computed ``incomplete`` + ``incomplete_reasons`` per #1215.
+
+    A submodule is incomplete iff a *mandatory* upload (factor or
+    reference) is missing. An errored job (``result == 2``) is NOT
+    missing — the upload-card surfaces error state independently.
+    Must run after ``_enrich_config_with_jobs`` (depends on the
+    ``latest_*_job`` keys it writes).
+    """
+    for module_key, module_val in config.get("modules", {}).items():
+        if not isinstance(module_val, dict):
+            continue
+        try:
+            module_type_id = int(module_key)
+        except (ValueError, TypeError):
+            continue
+        _annotate_module_incomplete(module_val, module_type_id)
+    return config
+
+
+def _annotate_module_incomplete(module_val: dict, module_type_id: int) -> None:
+    """Annotate each submodule, then roll up to the module's ``incomplete``.
+
+    Disabled modules carry ``incomplete=False`` regardless of state —
+    matches the legacy frontend gate.
+    """
+    common_factor_present = module_val.get("latest_common_factor_job") is not None
+    any_enabled_incomplete = False
+    submodules = module_val.get("submodules", {})
+    if isinstance(submodules, dict):
+        for sub_key, sub_val in submodules.items():
+            if not isinstance(sub_val, dict):
+                continue
+            try:
+                data_entry_type_id = int(sub_key)
+            except (ValueError, TypeError):
+                continue
+            reasons = _submodule_incomplete_reasons(
+                sub_val, module_type_id, data_entry_type_id, common_factor_present
+            )
+            sub_val["incomplete"] = bool(reasons)
+            sub_val["incomplete_reasons"] = reasons
+            if reasons and sub_val.get("enabled", True):
+                any_enabled_incomplete = True
+    if not module_val.get("enabled", True):
+        module_val["incomplete"] = False
+        return
+    needs_common = (
+        module_type_id in MODULES_REQUIRING_COMMON_FACTOR and not common_factor_present
+    )
+    module_val["incomplete"] = any_enabled_incomplete or needs_common
+
+
+def _submodule_incomplete_reasons(
+    sub_val: dict,
+    module_type_id: int,
+    data_entry_type_id: int,
+    common_factor_present: bool,
+) -> list[str]:
+    """Return missing-mandatory reasons for one submodule.
+
+    A mandatory factor is satisfied by either the submodule's own
+    ``latest_factor_job`` or the module's ``latest_common_factor_job``
+    (matches the legacy frontend rule). Reference has no such fallback.
+    """
+    rules = get_submodule_mandatoriness(module_type_id, data_entry_type_id)
+    reasons: list[str] = []
+    has_factor = sub_val.get("latest_factor_job") is not None or common_factor_present
+    if rules.mandatory_factor and not has_factor:
+        reasons.append("missing_factor")
+    if rules.mandatory_reference and sub_val.get("latest_reference_job") is None:
+        reasons.append("missing_reference")
+    return reasons
 
 
 def _pick_latest_job(
@@ -335,14 +414,15 @@ async def create_audit_entry(
 ) -> None:
     """Create audit entry for year configuration change.
 
-    Args:
-        session: Database session.
-        year: Configuration year.
-        change_type: Type of change (CREATE/UPDATE/DELETE).
-        user: User making the change.
-        data_snapshot: Full configuration snapshot.
-        data_diff: Optional diff between old and new config.
+    ``YearConfiguration`` is keyed by ``(year, provider)``; the audit chain
+    must mirror that so two providers don't interleave their version
+    counters. Encode ``entity_id`` as ``year * 10 + provider.value`` —
+    ``UserProvider`` is 0/1/2 so this stays collision-free with adjacent
+    years. The ``data_snapshot`` always includes ``provider`` so the
+    encoded id is recoverable.
     """
+    entity_id = year * 10 + int(user.provider)
+
     # Calculate hash for integrity chain
     snapshot_str = str(data_snapshot)
     current_hash = hashlib.sha256(snapshot_str.encode()).hexdigest()
@@ -352,7 +432,7 @@ async def create_audit_entry(
     stmt = (
         select(AuditDocument)
         .where(col(AuditDocument.entity_type) == "year_configuration")
-        .where(col(AuditDocument.entity_id) == year)
+        .where(col(AuditDocument.entity_id) == entity_id)
         .where(col(AuditDocument.is_current))
         .order_by(col(AuditDocument.version).desc())
     )
@@ -370,7 +450,7 @@ async def create_audit_entry(
     # Create new audit entry
     audit_entry = AuditDocument(
         entity_type="year_configuration",
-        entity_id=year,
+        entity_id=entity_id,
         version=new_version,
         is_current=True,
         data_snapshot=data_snapshot,
@@ -400,16 +480,20 @@ async def list_year_configurations(
 ):
     """List year configurations available to the caller.
 
-    Backoffice data managers see every row (admin-equivalent for this purpose);
-    everyone else only sees years where ``is_started`` is true. This is what
-    drives the workspace year selector — closed years stay hidden from regular
-    users until backoffice opens them.
+    Results are always scoped to ``current_user.provider`` — a TEST user
+    never sees ACCRED rows and vice versa. Backoffice data managers
+    additionally bypass the ``is_started`` filter (regular users only
+    see opened years). This is what drives the workspace year selector
+    — closed years stay hidden from regular users until backoffice
+    opens them.
 
     Sorted by year descending (latest first).
     """
-    is_admin = await is_permitted(current_user, "backoffice.data_management", "view")
+    is_admin = await is_permitted(current_user, "backoffice.configuration", "view")
 
-    stmt = select(YearConfiguration)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.provider) == current_user.provider
+    )
     if not is_admin:
         stmt = stmt.where(col(YearConfiguration.is_started).is_(True))
     stmt = stmt.order_by(col(YearConfiguration.year).desc())
@@ -446,7 +530,10 @@ async def get_year_configuration(
     Returns:
         Year configuration enriched with latest sync job per submodule.
     """
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -461,6 +548,7 @@ async def get_year_configuration(
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
     recalculation_status = _build_recalculation_status(recalc_rows)
@@ -488,7 +576,7 @@ async def create_year_configuration(
 ):
     """Create initial year configuration.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Returns 409 if a configuration already exists for the year.
 
     Args:
@@ -500,18 +588,24 @@ async def create_year_configuration(
     Returns:
         Created year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can create year configurations",
+            detail="Only super administrators can create year configurations",
         )
 
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     existing = (await db.exec(stmt)).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Configuration for year {year} already exists",
+            detail=(
+                f"Configuration for year {year} provider "
+                f"{current_user.provider.name} already exists"
+            ),
         )
 
     config_data = (
@@ -530,6 +624,7 @@ async def create_year_configuration(
     # ``is_started: true``).  Callers may still override here.
     new_config = YearConfiguration(
         year=year,
+        provider=current_user.provider,
         is_started=payload.is_started
         if payload and payload.is_started is not None
         else False,
@@ -538,6 +633,7 @@ async def create_year_configuration(
     db.add(new_config)
 
     snapshot = {
+        "provider": current_user.provider.name,
         "is_started": new_config.is_started,
         "config": new_config.config,
     }
@@ -573,6 +669,7 @@ async def create_year_configuration(
         target_type=TargetType.REFERENCE_DATA,
         entity_type=EntityType.GLOBAL_PER_YEAR,
         state=IngestionState.NOT_STARTED,
+        provider=current_user.provider,
         pipeline_id=pipeline_id,
         meta={"config": {"target_year": year}},
     )
@@ -620,8 +717,22 @@ async def create_year_configuration(
         },
     )
 
-    response = YearConfigurationResponse.model_validate(new_config)
-    response.pipeline_id = str(pipeline_id)
+    # Issue #1215 — freshly-created years have no jobs yet; enrich so the
+    # response carries ``incomplete=True`` on every mandatory submodule.
+    # Otherwise the frontend reads ``undefined`` → false and the operator
+    # sees a deceptively-complete UI before uploading anything.
+    enriched_config = copy.deepcopy(new_config.config)
+    _enrich_config_with_jobs(enriched_config, {})
+    _enrich_config_with_incomplete_flags(enriched_config)
+    response = YearConfigurationResponse(
+        year=new_config.year,
+        is_started=new_config.is_started,
+        configuration_completed=new_config.configuration_completed,
+        config=enriched_config,
+        recalculation_status=[],
+        updated_at=new_config.updated_at,
+        pipeline_id=str(pipeline_id),
+    )
     return response
 
 
@@ -638,7 +749,7 @@ async def update_year_configuration(
 ):
     """Partially update year configuration.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Validates:
     - reduction_percentage must be between 0 and 1
     - target_year must be > year
@@ -654,10 +765,10 @@ async def update_year_configuration(
     Returns:
         Updated year configuration.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can update year configurations",
+            detail="Only super administrators can update year configurations",
         )
 
     # Validate reduction objectives goals if provided
@@ -682,7 +793,10 @@ async def update_year_configuration(
                     ),
                 )
 
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -693,6 +807,7 @@ async def update_year_configuration(
 
     # Get old snapshot for audit
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -705,6 +820,7 @@ async def update_year_configuration(
     db.add(result)
 
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -737,6 +853,7 @@ async def update_year_configuration(
 
     enriched_config = copy.deepcopy(result.config)
     _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
 
     recalc_rows = await repo.get_recalculation_status_by_year(year)
     recalculation_status = _build_recalculation_status(recalc_rows)
@@ -765,7 +882,7 @@ async def upload_reduction_objective_file(
 ):
     """Upload file for reduction objectives.
 
-    Only accessible to backoffice data managers (CO2_BACKOFFICE_METIER).
+    Only accessible to super administrators (CO2_SUPERADMIN).
     Categories:
     - footprint: institutional_footprint
     - population: population_projections
@@ -781,10 +898,10 @@ async def upload_reduction_objective_file(
     Returns:
         File metadata.
     """
-    if not await is_permitted(current_user, "backoffice.data_management", "edit"):
+    if not await is_permitted(current_user, "backoffice.configuration", "edit"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only backoffice data managers can upload files",
+            detail="Only super administrators can upload files",
         )
 
     # Validate file extension
@@ -823,7 +940,10 @@ async def upload_reduction_objective_file(
     config_key = category_map[category]
 
     # Update configuration
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     if not result:
@@ -838,6 +958,7 @@ async def upload_reduction_objective_file(
     # Capture old state for audit diff before any mutation
     old_config = copy.deepcopy(result.config)
     old_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": old_config,
     }
@@ -882,6 +1003,7 @@ async def upload_reduction_objective_file(
 
     # Create audit entry with diff
     new_snapshot = {
+        "provider": current_user.provider.name,
         "is_started": result.is_started,
         "config": result.config,
     }
@@ -945,7 +1067,10 @@ async def check_emission_threshold(
         Whether threshold is exceeded and threshold value.
     """
     # Get configuration
-    stmt = select(YearConfiguration).where(col(YearConfiguration.year) == year)
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == current_user.provider,
+    )
     result = (await db.exec(stmt)).first()
 
     config = result.config if result else generate_default_year_config()

@@ -13,9 +13,9 @@ export default defineConfigWithVueTs([
   vueTsConfigs.recommended,
   prettier,
 
-  // 👇 Node environment for Quasar config
+  // 👇 Node environment for Quasar config and CLI scripts
   {
-    files: ['quasar.config.js'],
+    files: ['quasar.config.js', 'scripts/**/*.{js,mjs,cjs}'],
     languageOptions: {
       globals: {
         ...globals.node, // __dirname, require, process, etc.
@@ -39,6 +39,10 @@ export default defineConfigWithVueTs([
       // resolution). Linting them as TS/Vue source flags browser globals
       // like `window` as undefined.
       'public/**',
+      // Auto-generated from FastAPI OpenAPI schema (see scripts/gen-api-types.mjs).
+      // Linting upstream-generated declaration files just creates churn on
+      // every regeneration; the generator's own output is the source of truth.
+      'src/types/api/openapi.d.ts',
     ],
   },
 ]);

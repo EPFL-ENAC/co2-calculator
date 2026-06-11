@@ -1,12 +1,16 @@
 ---
-status: in-progress
+status: delivered
 issue: 310-d
-last_updated: 2026-05-07
+last_updated: 2026-05-29
 title: "310-d Architecture follow-ups (#1062 / #1063 / #1064)"
 summary: "Three architectural follow-ups staged from the 310-D landing — passive-monitoring backstop, unified pipeline state store, and DedupConfig generalisation. Each is tracked on a dedicated GitHub issue and lands in the post-merge fix batch."
 ---
 
 # 310-d Architecture follow-ups
+
+> **Delivered** in post-merge fix batch PR #1079. #1 stale-stats endpoint
+> (`f99a03bd`, #1063), #2 `DedupConfig` (#1064), #3 `pipelineState` store +
+> active-pipelines endpoint (`e3094ef6`, #1062). Parent tracking issue #1057.
 
 The 310-D pipeline shipped a runner-driven aggregation chain plus a
 reactive frontend story. Three architecture-shaped follow-ups were

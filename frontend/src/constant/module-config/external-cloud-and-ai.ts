@@ -24,6 +24,7 @@ const cloudFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
+    columnSize: 'md',
   },
   {
     id: 'service_type',
@@ -41,6 +42,7 @@ const cloudFields: ModuleField[] = [
     editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
+    columnSize: 'md',
   },
   // {
   //   id: 'region',
@@ -53,12 +55,14 @@ const cloudFields: ModuleField[] = [
     id: 'spent_amount',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.spent_amount`,
     type: 'number',
+    required: true,
     editableInline: true,
     min: 0,
     step: 0.01,
     ratio: '3/4',
     hideIn: { form: false },
     sortable: true,
+    columnSize: 'sm',
   },
   {
     id: 'currency',
@@ -69,6 +73,7 @@ const cloudFields: ModuleField[] = [
     editableInline: true,
     hideIn: { form: false },
     sortable: true,
+    columnSize: 'sm',
     options: [
       { value: 'eur', label: 'EUR' },
       { value: 'chf', label: 'CHF' },
@@ -81,6 +86,7 @@ const cloudFields: ModuleField[] = [
     type: 'number',
     hideIn: { form: true },
     sortable: true,
+    columnSize: 'sm',
   },
 ];
 
@@ -97,6 +103,7 @@ const externalAIFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
+    columnSize: 'md',
   },
   {
     id: 'usage_type',
@@ -110,6 +117,7 @@ const externalAIFields: ModuleField[] = [
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
+    columnSize: 'md',
   },
   {
     id: 'fte_count',
@@ -123,6 +131,7 @@ const externalAIFields: ModuleField[] = [
     sortable: true,
     hideIn: { table: false },
     defaultFrom: 'total_fte',
+    columnSize: 'sm',
   },
   {
     id: 'requests_per_user_per_day',
@@ -135,6 +144,7 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     sortable: true,
     hideIn: { table: false },
+    columnSize: 'sm',
     options: [
       {
         value: '1-5 times per day',
@@ -161,6 +171,7 @@ const externalAIFields: ModuleField[] = [
     hideIn: { form: true },
     sortable: true,
     ratio: '4/12',
+    columnSize: 'sm',
   },
 ];
 

@@ -100,6 +100,56 @@ def test_parse_locations_filters_by_transport_mode():
 
 
 @pytest.mark.asyncio
+async def test_ingest_locations_replaces_same_mode_only(db_session):
+    """A train reference upload must ERASE prior train rows and re-insert,
+    while leaving plane rows untouched (scoped replace, like building rooms).
+    Without this, re-uploading from a new source accumulates stale stations
+    and orphans nothing it should keep."""
+    from sqlalchemy import select
+
+    from app.models.location import Location, TransportModeEnum
+
+    db_session.add(
+        Location(
+            transport_mode=TransportModeEnum.train,
+            name="StaleStation",
+            latitude=40.0,
+            longitude=2.0,
+            country_code="ES",
+            natural_key="train:es:stalestation:40.0:2.0",
+        )
+    )
+    db_session.add(
+        Location(
+            transport_mode=TransportModeEnum.plane,
+            name="KeepAirport",
+            latitude=48.0,
+            longitude=2.0,
+            country_code="FR",
+            iata_code="CDG",
+            natural_key="plane:CDG",
+        )
+    )
+    await db_session.flush()
+
+    provider = ReferenceDataCSVProvider(config={"job_id": 1}, data_session=db_session)
+    # 10-column row order: mode, airport_size, name, lat, lon, continent,
+    # country_code, municipality, iata_code, keywords.
+    new_rows = [
+        ["train", "", "FreshStation", "46.0", "6.0", "", "CH", "", "", "FreshStation"],
+    ]
+
+    await provider._ingest_locations_sqlite(new_rows, DataEntryTypeEnum.train)
+
+    names = {
+        loc.name for loc in (await db_session.execute(select(Location))).scalars().all()
+    }
+    assert "StaleStation" not in names, "prior train rows must be erased on reupload"
+    assert "FreshStation" in names, "new train rows must be inserted"
+    assert "KeepAirport" in names, "a train upload must not touch plane rows"
+
+
+@pytest.mark.asyncio
 async def test_validate_connection_requires_file_path():
     provider = _make_provider()
     assert await provider.validate_connection() is False

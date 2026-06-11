@@ -36,6 +36,7 @@ import {
   RESULTS_CATEGORY_ORDER,
 } from 'src/constant/charts';
 import { MODULE_STATES } from 'src/constant/moduleStates';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 
 interface Props {
   hideResearchFacilities?: boolean;
@@ -147,6 +148,11 @@ const onChartReady = async () => {
   if (!chart) return;
   attach(chart);
 };
+
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'reduction-objective-unit');
+
+defineExpose({ downloadPNG });
 
 function tooltipSortIndex(seriesName: string): number {
   const idx = TOOLTIP_CATEGORY_ORDER.indexOf(

@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.main import app
 from app.models.data_ingestion import IngestionMethod
 from app.models.module_type import ModuleTypeEnum
-from app.models.user import Role, RoleName, User
+from app.models.user import GlobalScope, Role, RoleName, User
 
 # Test fixtures directory
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -36,8 +36,8 @@ async def test_user(db_session: AsyncSession):
     user = User(
         institutional_id="TEST001",
         email="test@example.com",
-        full_name="Test User",
-        roles=[Role(role=RoleName.CO2_BACKOFFICE_METIER, on={"scope": "global"})],
+        display_name="Test User",
+        roles_raw=[Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope()).model_dump()],
     )
     db_session.add(user)
     await db_session.commit()

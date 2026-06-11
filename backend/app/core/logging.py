@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 import sys
 from datetime import UTC, datetime
 from typing import Any, Dict, Optional
@@ -11,6 +12,51 @@ import httpx
 from app.core.config import get_settings
 
 settings = get_settings()
+
+# OAuth + token query params that uvicorn.access would otherwise log verbatim
+# as part of the request URL. The OAuth `code` is single-use and already
+# consumed by the time the log line is written, but logging it is still bad
+# hygiene (logs get copied, exported, indexed). Defense-in-depth scrub.
+_REDACT_QS_PARAMS = (
+    "code",
+    "state",
+    "session_state",
+    "id_token",
+    "access_token",
+    "refresh_token",
+    "token",
+)
+_REDACT_QS_RE = re.compile(
+    r"(?<=[?&])(" + "|".join(_REDACT_QS_PARAMS) + r")=[^&\s\"']+",
+    re.IGNORECASE,
+)
+
+
+class _RedactSensitiveQueryStringFilter(logging.Filter):
+    """Replace sensitive query-param values in URLs with ``<redacted>``.
+
+    Installed on the ``uvicorn.access`` logger so the OAuth callback URL
+    (``GET /api/v1/auth/callback?code=...&state=...``) never lands in
+    structured access logs in cleartext. Affects ``record.msg`` and
+    ``record.args``; downstream formatters see the scrubbed text.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            if record.args:
+                record.args = tuple(
+                    _REDACT_QS_RE.sub(r"\1=<redacted>", a) if isinstance(a, str) else a
+                    for a in record.args
+                )
+            if isinstance(record.msg, str):
+                record.msg = _REDACT_QS_RE.sub(r"\1=<redacted>", record.msg)
+        except Exception:  # nosec B110
+            # Logging filters MUST NOT raise (Python contract: a raising
+            # filter would drop the log line entirely). The scrub is
+            # best-effort; on any failure we let the original record
+            # through unmodified rather than losing it.
+            pass
+        return True
 
 
 class JsonFormatter(logging.Formatter):
@@ -154,6 +200,9 @@ def setup_logging() -> None:
         lg = logging.getLogger(name)
         lg.handlers = []
         lg.propagate = True
+
+    # Scrub OAuth/token query params from access logs (see filter docstring).
+    logging.getLogger("uvicorn.access").addFilter(_RedactSensitiveQueryStringFilter())
 
     # Optional: add Loki handler if enabled
     if settings.LOKI_ENABLED and settings.LOKI_URL:

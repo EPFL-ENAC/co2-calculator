@@ -88,6 +88,7 @@ from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
+from app.repositories.data_ingestion import DataIngestionRepository
 
 PG_IMAGE = "postgres:16-alpine"
 PG_CONTAINER_NAME = "test-data-ingestion-postgres"
@@ -175,6 +176,10 @@ async def pg_dsn(postgres_container):
     url = postgres_container["url"]
     engine = create_async_engine(url, future=True)
     async with engine.begin() as conn:
+        # Mirror migration 3f8147b5e516: the GIN trigram index on
+        # locations.keywords needs pg_trgm. create_all (not Alembic) builds
+        # the schema here, so install the extension before create_all.
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
     await engine.dispose()
@@ -189,53 +194,6 @@ async def pg_session(pg_dsn):
     async with factory() as session:
         yield session
     await engine.dispose()
-
-
-async def _install_plan_310b_indexes(engine) -> None:
-    """Create the partial unique indexes that Plan 310B's migration adds.
-
-    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
-    doesn't know about the migration's bare DDL.  Mirror it here so
-    ``ON CONFLICT`` inference can find the index it needs to bind to.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity "
-                "ON factors (data_entry_type_id, year, emission_type_id, "
-                "(classification::text)) "
-                "WHERE year IS NOT NULL"
-            )
-        )
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_factor_identity_no_year "
-                "ON factors (data_entry_type_id, emission_type_id, "
-                "(classification::text)) "
-                "WHERE year IS NULL"
-            )
-        )
-
-
-@pytest_asyncio.fixture(scope="function")
-async def pg_dsn_with_310b(pg_dsn):
-    """``pg_dsn`` plus Plan 310B's migration-only partial unique indexes.
-
-    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
-    doesn't run Alembic and therefore never creates the
-    ``uq_factor_identity`` / ``uq_factor_identity_no_year`` partial unique
-    indexes that ``factor_repo.upsert_factors`` needs to bind its
-    ``ON CONFLICT`` clause.  Tests that exercise the upsert path (or any
-    code reachable from it) should depend on this fixture instead of the
-    bare ``pg_dsn`` so the production schema is mirrored without
-    copy-pasting the DDL into each test file.
-    """
-    engine = create_async_engine(pg_dsn, future=True)
-    try:
-        await _install_plan_310b_indexes(engine)
-    finally:
-        await engine.dispose()
-    yield pg_dsn
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +225,52 @@ class SeededYear:
     reports_by_unit: dict[int, CarbonReport] = field(default_factory=dict)
     modules_by_unit_and_type: dict[tuple[int, int], CarbonReportModule] = field(
         default_factory=dict
+    )
+
+
+async def seed_jobs_with_pipelines(
+    session: AsyncSession, *jobs: DataIngestionJob
+) -> None:
+    """Seed one or more ``DataIngestionJob`` rows + their ``pipelines`` parents.
+
+    Convenience wrapper for tests that ``session.add(DataIngestionJob(...))``
+    directly (i.e. bypass the repo).  Calls ``ensure_pipeline_for_job`` for
+    each job first so the FK constraint (#1236 Phase 2) is satisfied, then
+    adds each job to the session.  Does NOT commit — the caller still owns
+    the transaction boundary.
+    """
+    for job in jobs:
+        await ensure_pipeline_for_job(session, job)
+    for job in jobs:
+        session.add(job)
+
+
+async def ensure_pipeline_for_job(session: AsyncSession, job: DataIngestionJob) -> None:
+    """Idempotently seed the ``pipelines`` row matching ``job.pipeline_id``.
+
+    Mirrors what the production mint sites do via
+    ``DataIngestionRepository.ensure_pipeline_exists`` — required since
+    #1236 Phase 2 added the FK ``data_ingestion_jobs.pipeline_id →
+    pipelines.id``.  Tests that hand-build a ``DataIngestionJob`` with a
+    ``pipeline_id`` and ``session.add`` it directly (i.e. bypassing the
+    repo) must seed the parent row first, else the INSERT trips
+    ``ForeignKeyViolationError``.
+
+    No-op when ``job.pipeline_id is None`` (legacy / not-yet-stamped
+    jobs are still allowed by the column).
+    """
+    if job.pipeline_id is None:
+        return
+    repo = DataIngestionRepository(session)
+    await repo.ensure_pipeline_exists(
+        job.pipeline_id,
+        kind=job.job_type,
+        entity_type=job.entity_type.value if job.entity_type is not None else None,
+        ingestion_method=(
+            job.ingestion_method.value if job.ingestion_method is not None else None
+        ),
+        module_type_id=job.module_type_id,
+        year=job.year,
     )
 
 
@@ -307,9 +311,11 @@ async def seeded_year_with_units(
 
     # ── 1. Year configuration row (idempotent — a previous test on the
     #       same session may already have laid this year down).
-    existing_year = await session.get(YearConfiguration, year)
+    existing_year = await session.get(YearConfiguration, (year, UserProvider.DEFAULT))
     if existing_year is None:
-        session.add(YearConfiguration(year=year, is_started=True))
+        session.add(
+            YearConfiguration(year=year, provider=UserProvider.DEFAULT, is_started=True)
+        )
         await session.flush()
 
     units: list[Unit] = []
@@ -664,6 +670,11 @@ async def dispatch_csv_and_wait(
                 "year": year,
             },
         )
+        # #1236 Phase 2 — the FK forces the ``pipelines`` row to exist
+        # before the ``data_ingestion_jobs`` INSERT flushes.  Mirrors the
+        # production mint-site discipline (see
+        # ``ensure_pipeline_exists`` callers in ``app/api/v1/data_sync.py``).
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -694,8 +705,14 @@ async def dispatch_csv_and_wait(
         row.  Without the data-session commit, every chained handler
         would silently drop its domain writes — Units 2-11's
         ``assert_stats_match`` calls would then read pre-handler state.
-        On exception we roll back the data session and re-raise; the
-        helper's caller is the test, which should fail loudly.
+
+        On handler exception we mirror production ``app.tasks.runner``:
+        roll back the data session, then write FINISHED+ERROR with the
+        exception string as ``status_message``.  This is the
+        fail-fast path #1236 adds for ``_guard_factors_required`` etc.
+        — tests that exercise it (``test_csv_ingest_matrix_pg.py``
+        ``factors_state=absent``) need to see the FINISHED+ERROR row
+        rather than an exception bubbling out of the helper.
         """
         async with session_factory() as job_session:
             row = await job_session.get(DataIngestionJob, job_id)
@@ -703,22 +720,40 @@ async def dispatch_csv_and_wait(
                 return
             handler = get_handler(row.job_type)
             async with session_factory() as data_session:
+                handler_failed = False
                 try:
                     meta = await handler(row, job_session, data_session)
-                except Exception:
+                except Exception as exc:
                     await data_session.rollback()
-                    raise
-                await data_session.commit()
+                    await job_session.rollback()
+                    handler_failed = True
+                    meta = {
+                        "status_message": str(exc),
+                        "result": IngestionResult.ERROR,
+                    }
+                else:
+                    await data_session.commit()
             row.state = IngestionState.FINISHED
             row.result = meta.get("result", IngestionResult.SUCCESS)
             row.status_message = meta.get("status_message", "")
-            existing_meta = dict(row.meta or {})
-            existing_meta.update({k: v for k, v in meta.items() if k != "result"})
-            row.meta = existing_meta
+            if not handler_failed:
+                existing_meta = dict(row.meta or {})
+                existing_meta.update({k: v for k, v in meta.items() if k != "result"})
+                row.meta = existing_meta
             job_session.add(row)
             await job_session.commit()
 
     deadline = time.time() + timeout_seconds
+
+    # Redirect every ``from app.db import SessionLocal`` site that
+    # background handlers reach into to the test PG session_factory.
+    # Without these, ``emission_recalc`` opens its sibling-query +
+    # recalc_work_complete-stamp + aggregation-scope-build helpers
+    # against the default engine (SQLite in CI) and crashes with
+    # ``no such table: pipelines`` — the rows it expects only exist
+    # in the test PG.
+    from app.tasks import emission_recalculation_tasks as recalc_mod
+    from app.tasks import runner as runner_mod
 
     with contextlib.ExitStack() as stack:
         stack.enter_context(
@@ -735,6 +770,8 @@ async def dispatch_csv_and_wait(
                 return_value=provider_class,
             )
         )
+        stack.enter_context(patch.object(runner_mod, "SessionLocal", session_factory))
+        stack.enter_context(patch.object(recalc_mod, "SessionLocal", session_factory))
 
         # 1. Drive the parent csv_ingest.
         await _run_one_job(parent_id)

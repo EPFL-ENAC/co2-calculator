@@ -15,7 +15,6 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -31,29 +30,7 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 from app.tasks._chain import chain_job
 
-
-async def _install_dedup_index(engine) -> None:
-    """Create the ``uq_aggregation_active`` partial unique index that
-    Plan 310-D's Alembic migration adds.
-
-    ``pg_dsn`` builds the schema via ``SQLModel.metadata.create_all``,
-    which doesn't run Alembic, so the partial index is missing.  Re-add
-    it here so the dedup INSERT can bind via ``ON CONFLICT ON CONSTRAINT``.
-    Mirrors the pattern used by ``pg_dsn_with_310b`` in conftest.py for
-    the factor identity indexes.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
+from .conftest import ensure_pipeline_for_job
 
 
 def _parent_job(module_type_id: int = 5, year: int = 2025) -> DataIngestionJob:
@@ -79,11 +56,11 @@ async def test_dedup_active_creates_single_row_for_concurrent_chains(pg_dsn):
     calls for the same (module, year) → only the first creates a row;
     the second sees the existing pending row and returns ``None``."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -143,11 +120,11 @@ async def test_dedup_active_allows_new_row_after_first_finishes(pg_dsn):
     batch gets one aggregation; subsequent batches are not blocked by
     historical jobs."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -201,13 +178,14 @@ async def test_dedup_active_does_not_collide_across_modules_or_years(pg_dsn):
     Without per-scope keying, dedup would freeze parallel module
     pipelines as a side-effect."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent_a = _parent_job(module_type_id=5, year=2025)
         parent_b = _parent_job(module_type_id=6, year=2025)  # diff module
         parent_c = _parent_job(module_type_id=5, year=2026)  # diff year
+        for parent in (parent_a, parent_b, parent_c):
+            await ensure_pipeline_for_job(session, parent)
         session.add_all([parent_a, parent_b, parent_c])
         await session.commit()
         await session.refresh(parent_a)
@@ -245,11 +223,11 @@ async def test_dedup_active_skips_run_job_dispatch_on_collision(pg_dsn):
     dedup'd path — the existing pending row will run; a redundant
     dispatch would race-claim the same row."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)

@@ -1,19 +1,26 @@
 <template>
   <q-card flat class="module-title-card relative container">
     <q-card-section>
-      <div class="row justify-between">
-        <div class="flex items-center q-mb-xs">
-          <module-icon
-            v-if="type"
-            :name="type"
-            color="accent"
-            size="md"
-            class="q-mr-sm"
-            :aria-label="$t('module-info-label')"
-          ></module-icon>
-          <span class="text-h3 text-weight-medium q-mb-none">{{
-            $t(`${type}`)
-          }}</span>
+      <div class="row justify-between items-start">
+        <div class="title-group">
+          <div class="title-row">
+            <ModuleIconBox v-if="type" :name="type" size="sm" />
+            <h1 class="text-h3 text-weight-medium q-mb-none">
+              {{ $t(`${type}`) }}
+            </h1>
+          </div>
+          <p
+            v-if="hasDescription"
+            class="text-body1 text-grey-7 q-mb-none q-mt-sm"
+          >
+            {{ $t(`${type}-description`) }}
+          </p>
+          <p
+            v-if="hasDescriptionSubtext"
+            class="text-caption text-grey-5 q-mb-none q-mt-xs"
+          >
+            {{ $t(`${type}-title-subtext`) }}
+          </p>
         </div>
         <q-icon
           v-if="hasTooltip"
@@ -21,28 +28,14 @@
           size="sm"
           class="cursor-pointer"
           :aria-label="$t('module-info-label')"
-        />
+        >
+          <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+            <p v-if="hasTooltipSubText">
+              {{ $t(`${type}-title-tooltip-subtext`) }}
+            </p>
+          </q-tooltip>
+        </q-icon>
       </div>
-
-      <p v-if="hasDescription" class="text-body2 q-mb-none">
-        {{ $t(`${type}-description`) }}
-      </p>
-      <div
-        v-if="hasDescriptionSubtext"
-        class="text-caption text-grey-6 q-mt-sm q-mb-none"
-      >
-        {{ $t(`${type}-title-subtext`) }}
-      </div>
-      <q-tooltip
-        v-if="hasTooltip"
-        anchor="center right"
-        self="top right"
-        class="u-tooltip"
-      >
-        <p v-if="hasTooltipSubText">
-          {{ $t(`${type}-title-tooltip-subtext`) }}
-        </p>
-      </q-tooltip>
     </q-card-section>
   </q-card>
 </template>
@@ -50,7 +43,7 @@
 <script setup lang="ts">
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { Module } from 'src/constant/modules';
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 
 /*
 i18n keys used in this component:
@@ -78,8 +71,24 @@ withDefaults(
   },
 );
 </script>
+
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
 .module-title-card {
   height: 100%;
+}
+
+.title-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: tokens.$spacing-md;
 }
 </style>

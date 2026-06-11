@@ -54,7 +54,7 @@ RESTful API microservice architecture
 ### How It Connects to Other Layers
 
 - Database via SQLAlchemy ORM
-- Workers via Redis message queue
+- Background jobs run in-process (no broker)
 - Frontend via HTTP REST APIs
 - Storage via direct API calls
 
@@ -66,31 +66,31 @@ RESTful API microservice architecture
 
 For detailed backend information, see [Backend Documentation](../backend/01-overview.md).
 
-## Workers / Async Processing Layer
+## Background Job Processing
 
 ### Architecture Pattern
 
-Task queue with event-driven processing
+In-process async execution — no separate worker tier, no message broker.
 
 ### Main Technologies
 
-- Celery for distributed task queue
-- Redis as message broker
-- Custom task definitions in Python
+- Python `asyncio` (`asyncio.create_task` chains)
+- 10-second safety-net poller in the backend process
+- Job state persisted in the `data_ingestion_jobs` Postgres table
 
-### How Tasks Are Triggered and Handled
+### How Jobs Are Triggered and Handled
 
-- Tasks enqueued via Redis broker
-- Workers consume tasks asynchronously
-- Results stored in Redis or database
+- HTTP request or scheduled poller enqueues a coroutine inside the backend process
+- Job progress and result are written to `data_ingestion_jobs` in Postgres
+- Background jobs scale with backend replicas — no separate consumer process needed
 
 ### Behavior as Subsystem
 
-- Background job execution
-- Retry logic with exponential backoff
-- Task monitoring and management
+- Long-running ingestion (CSV import, emission-factor sync) runs without blocking the request loop
+- Job history and status are queryable via the backoffice API
+- Retry and error state are tracked in the database row
 
-For detailed worker information, see [Backend Overview](../backend/01-overview.md#background-processing).
+See [ADR-010 — Background job processing](../architecture-decision-records/010-background-job-processing.md) for the rationale.
 
 ## Database Layer
 

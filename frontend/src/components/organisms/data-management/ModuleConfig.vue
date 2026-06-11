@@ -6,7 +6,7 @@ import { useRecalculation } from 'src/composables/useRecalculation';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 import {
   TargetType,
   type ImportRow,
@@ -39,8 +39,14 @@ const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
 // unified ``pipelineStateStore`` keyed by ``(module_type_id, year)``
 // — the SSE composable is responsible for the live state of that
 // pipeline once we know its id.
-const { subscribe, unsubscribe, isFinishedFor, progressFor, hasErrorFor } =
-  usePipelineStream();
+const {
+  subscribe,
+  unsubscribe,
+  isFinishedFor,
+  progressFor,
+  hasErrorFor,
+  jobsFor,
+} = usePipelineStream();
 
 const currentPipelineId = computed<string | null>(() =>
   pipelineStateStore.getPipelineId(
@@ -131,13 +137,13 @@ const moduleNeedsRecalculation = computed<boolean>(
 const showRecalcButton = computed<boolean>(() => {
   // Hidden during active recalc — the badge says it all.
   if (isRecalculating.value) return false;
-  // Hidden in the "start" state where the module is missing
-  // required factors and/or data uploads.  Without those, the
-  // recalc has nothing to compute against — the operator first
-  // needs to upload the missing pieces; the recalc button there
-  // is a misleading affordance.  ``isModuleIncomplete`` already
-  // tracks "any required factor/data job is missing or errored"
-  // for the badge above; reuse it to keep the two consistent.
+  // Hidden in the "start" state where the module is missing required
+  // factor (and/or reference) uploads. Without those, the recalc has
+  // nothing to compute against — the operator first needs to upload
+  // the missing pieces; the recalc button there is a misleading
+  // affordance. Issue #1215 — ``isModuleIncomplete`` now reads the
+  // backend-computed flag (missing-mandatory only; errored jobs no
+  // longer raise it).
   if (isModuleIncomplete(props.module)) return false;
   return hasRecalcFailure.value || moduleNeedsRecalculation.value;
 });
@@ -238,11 +244,42 @@ async function handleJobCompleted() {
 }
 
 async function handleJobProgressing() {
-  await Promise.all([
-    yearConfigStore.fetchConfig(props.selectedYear),
-    refreshPipelineState(),
-  ]);
+  // No-op since the pipeline-SSE + ``mergeLivePipelineJob`` work
+  // (commit 4a5d0c43): the live state of every job in the chain is
+  // already delivered through ``livePipelineJobsById`` (provided by
+  // this component, consumed by cards) and overlaid onto the row
+  // snapshot reactively.  Previously this fired ``fetchConfig`` +
+  // ``loadFor`` on every per-job SSE tick (~2s), producing a stream
+  // of redundant ``GET /year-configuration/{year}`` and
+  // ``GET /sync/active-pipelines?...`` requests during a single
+  // upload's phase 1.  The snapshot-only fields (``meta.file_name``,
+  // ``meta.rows_processed``) land in the row via ``handleJobCompleted``,
+  // which still fires once when the parent reaches FINISHED; the
+  // ``isFinishedFor`` watcher below covers the whole-pipeline
+  // terminal case.  Kept as a function (not removed) so the
+  // provide/inject contract with children stays stable — useful if a
+  // future feature actually needs a per-tick hook here.
 }
+
+// Live SSE jobs of the in-flight pipeline keyed by ``job_id`` — empty
+// map when no pipeline is active.  Cards inject this and prefer the
+// live state over their snapshot's ``row.last*Job.state`` so the
+// per-row spinner rehydrates after a hard reload (the per-job SSE
+// opened by ``useDataEntryDialog`` is in-memory and dies on reload;
+// the pipeline SSE re-subscribes on mount via ``currentPipelineId``,
+// so its jobs[] payload — which includes the csv_ingest /
+// factor_ingest / reference_ingest parent — IS the durable source of
+// truth for in-flight upload state.  See ``mergeLivePipelineJob`` in
+// ``useModuleConfig.ts``.).
+const livePipelineJobsById = computed<ReadonlyMap<number, PipelineJob>>(() => {
+  const id = currentPipelineId.value;
+  if (!id) return new Map();
+  // ``jobsFor`` returns ``PipelineJob[]`` directly (not a ``ComputedRef``)
+  // — the reactivity flows through the underlying ``entries[id].jobs``
+  // proxy access inside the helper, so this ``computed`` re-runs on
+  // every ``applyUpdate``.
+  return new Map(jobsFor(id).map((j) => [j.id, j]));
+});
 
 provide('openDataEntryDialog', openDataEntryDialog);
 provide('getRecalcStatus', yearConfigStore.getRecalcStatus);
@@ -251,6 +288,12 @@ provide('handleJobProgressing', handleJobProgressing);
 provide('recalcTypeRunning', recalcTypeRunning);
 provide('triggerTypeRecalculation', triggerTypeRecalculation);
 provide('pipelineProgress', pipelineProgress);
+provide('livePipelineJobsById', livePipelineJobsById);
+// Exposed for the abort-pipeline flow: cards / sections that own a
+// "Cancel/Abort" button read this to know which pipeline to stop.
+// Replaces the legacy per-job cancel (single-job operation went away
+// with the pipeline-debug refactor, #1236).
+provide('currentPipelineId', currentPipelineId);
 </script>
 
 <template>

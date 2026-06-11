@@ -61,7 +61,7 @@ Options: JWT tokens vs session-based authentication.
 
 - Short-lived access tokens (15-60 min)
 - Optional refresh tokens for session continuity
-- Future|Optional: Redis blacklist for token revocation
+- Future|Optional: server-side token-revocation list (JTI denylist)
 - HTTPS-only transmission
 - JWT in cookie httpOnly
 - bcrypt password hashing

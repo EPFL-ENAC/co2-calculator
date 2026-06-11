@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -34,22 +33,7 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 
-
-async def _install_dedup_index(engine) -> None:
-    """Install ``uq_aggregation_active`` so the aggregation chain's
-    dedup INSERT can pre-check + race-trip safely."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
+from .conftest import ensure_pipeline_for_job
 
 
 def _csv_ingest_parent() -> DataIngestionJob:
@@ -89,12 +73,12 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
     from app.tasks import ingestion_tasks as ingest_mod
 
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # 1. Persist the parent csv_ingest job.
     async with Sf() as session:
         parent = _csv_ingest_parent()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -191,6 +175,11 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
             aggregation_mod, "CarbonReportModuleService", return_value=crm_svc
         ),
         patch.object(chain_mod, "fire_and_forget", side_effect=_sync_fire_and_forget),
+        # emission_recalc opens its sibling-query + recalc_work_complete
+        # stamp + aggregation-scope helpers via ``SessionLocal()``.  Point
+        # them at the test PG so they don't crash on SQLite's missing
+        # ``pipelines`` table.
+        patch.object(recalc_mod, "SessionLocal", Sf),
     ):
         # 3. Run the parent handler.  It awaits chain_job, which our
         #    patched fire_and_forget queues; we then drain the queue
@@ -285,7 +274,6 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
     from app.tasks import emission_recalculation_tasks as recalc_mod
 
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     # 1. Persist the emission_recalc parent (state=RUNNING — the
@@ -293,6 +281,7 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
     #    here).
     async with Sf() as session:
         parent = _emission_recalc_parent()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -326,6 +315,8 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
             recalc_mod, "EmissionRecalculationWorkflow", return_value=workflow
         ),
         patch.object(chain_mod, "fire_and_forget", side_effect=_drop_fire_and_forget),
+        # emission_recalc helpers open ``SessionLocal()`` — point at PG.
+        patch.object(recalc_mod, "SessionLocal", Sf),
     ):
         async with Sf() as session:
             row = await session.get(DataIngestionJob, parent_id)
@@ -337,7 +328,11 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
 
     # Sanity: the handler reported WARNING (the branch the bug skipped).
     assert meta["result"] == IngestionResult.WARNING
-    assert meta["aggregation_job_id"] is not None
+    # Phase 5B (#1236) — ``aggregation_job_id`` is no longer threaded
+    # through meta; the aggregation row is the source of truth.  The
+    # contract asserted here is "aggregation chained" — checked below
+    # by the row count under the parent's pipeline_id.
+    assert "aggregation_job_id" not in meta
 
     # The aggregation child exists in the DB, carries the parent's
     # pipeline_id, and is module-scoped to (module=5, year=2025).
@@ -351,7 +346,6 @@ async def test_aggregation_chains_on_warning_with_partial_failure(pg_dsn):
 
     assert len(aggregation_rows) == 1
     aggregation = aggregation_rows[0]
-    assert aggregation.id == meta["aggregation_job_id"]
     assert aggregation.module_type_id == 5
     assert aggregation.data_entry_type_id is None
     assert aggregation.year == 2025

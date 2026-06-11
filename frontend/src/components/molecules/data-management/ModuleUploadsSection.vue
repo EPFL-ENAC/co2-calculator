@@ -45,8 +45,16 @@ const pipelineProgress = computed<PipelineProgress | null>(
 
 const backofficeStore = useBackofficeDataManagement();
 
-async function handleCancelJob(jobId: number) {
-  await backofficeStore.cancelJob(jobId, props.selectedYear);
+// Module-scoped pipeline_id (provided by ModuleConfig — single SSE
+// subscriber).  Drives the abort-pipeline call below; null when no
+// chain is in flight (in which case the button isn't rendered).
+const currentPipelineId =
+  inject<ComputedRef<string | null>>('currentPipelineId');
+
+async function handleAbortPipeline() {
+  const pipelineId = currentPipelineId?.value;
+  if (!pipelineId) return;
+  await backofficeStore.abortPipeline(pipelineId);
 }
 </script>
 
@@ -94,7 +102,7 @@ async function handleCancelJob(jobId: number) {
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
             @recalculate="() => triggerTypeRecalculation(common)"
-            @cancel="handleCancelJob"
+            @abort="handleAbortPipeline"
           />
           <UploadCardData
             v-if="getImportRow(common).hasData"
@@ -109,7 +117,7 @@ async function handleCancelJob(jobId: number) {
             :on-download="downloadLastCsv"
             @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
             @recalculate="() => triggerTypeRecalculation(common)"
-            @cancel="handleCancelJob"
+            @abort="handleAbortPipeline"
           />
         </div>
       </div>

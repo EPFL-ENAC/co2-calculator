@@ -55,7 +55,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -82,28 +81,6 @@ from .conftest import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-async def _install_aggregation_dedup_index(engine) -> None:
-    """Mirror the partial unique index Plan 310-D's migration adds.
-
-    ``pg_dsn`` builds tables via ``SQLModel.metadata.create_all``, which
-    doesn't run Alembic — so the dedup INSERT in the aggregation chain
-    has no index to bind to.  Without this index, the aggregation child
-    raises ``InvalidColumnReference``.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_aggregation_active "
-                "ON data_ingestion_jobs (module_type_id, year) "
-                "WHERE job_type = 'aggregation' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum)"
-            )
-        )
 
 
 def _make_writing_csv_provider(
@@ -215,7 +192,7 @@ def _expected_kg_per_leaf(fte: float) -> dict[int, float]:
 
 @pytest.mark.asyncio
 async def test_headcount_member_csv_no_factors_persists_entries_without_emissions(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """**Member, no factors yet.**
 
@@ -233,8 +210,7 @@ async def test_headcount_member_csv_no_factors_persists_entries_without_emission
     Pins the "factor-deferred" half of the headcount Strategy B
     contract.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     year = 2025
@@ -331,7 +307,7 @@ async def test_headcount_member_csv_no_factors_persists_entries_without_emission
 
 @pytest.mark.asyncio
 async def test_headcount_member_csv_with_factors_produces_fte_weighted_stats(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """**Member, factors seeded — full chain emits + FTE-weighted stats.**
 
@@ -346,8 +322,7 @@ async def test_headcount_member_csv_with_factors_produces_fte_weighted_stats(
     - ``stats.by_emission_type[<leaf>]`` equals the **sum across all
       entries** of that leaf's per-entry kg — i.e. FTE-weighted.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     year = 2025
@@ -466,7 +441,7 @@ async def test_headcount_member_csv_with_factors_produces_fte_weighted_stats(
 
 @pytest.mark.asyncio
 async def test_headcount_student_csv_with_factors_produces_fte_weighted_stats(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """**Student, factors seeded — same shape as member.**
 
@@ -476,8 +451,7 @@ async def test_headcount_student_csv_with_factors_produces_fte_weighted_stats(
     identically: 3 emission leaves per entry, FTE-weighted stats summing
     across entries.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     year = 2025
@@ -559,7 +533,7 @@ async def test_headcount_student_csv_with_factors_produces_fte_weighted_stats(
 
 @pytest.mark.asyncio
 async def test_headcount_member_reupload_with_new_ftes_refreshes_stats(
-    pg_dsn_with_310b,
+    pg_dsn,
 ):
     """**Reupload — stats refresh to the new FTE totals.**
 
@@ -576,8 +550,7 @@ async def test_headcount_member_reupload_with_new_ftes_refreshes_stats(
     re-dispatch + new totals land in stats", not "old rows get garbage
     collected" — that belongs to a real-CSV-provider test.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
-    await _install_aggregation_dedup_index(engine)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     year = 2025

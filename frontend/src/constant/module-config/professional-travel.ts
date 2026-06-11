@@ -59,7 +59,7 @@ const commonTravelFields: ModuleField[] = [
     id: 'departure_date',
     labelKey: `${MODULES.ProfessionalTravel}-field-start-date`,
     type: 'date',
-    required: true,
+    required: false,
     sortable: true,
     ratio: '1/1',
     editableInline: false,
@@ -171,9 +171,10 @@ const trainFields: ModuleField[] = [
     hideIn: {
       table: true,
     },
+    optionLabelsAreKeys: true,
     options: [
-      { value: 'first', label: 'Class 1' },
-      { value: 'second', label: 'Class 2' },
+      { value: 'first', label: 'class_1' },
+      { value: 'second', label: 'class_2' },
     ],
   },
 ];
@@ -220,6 +221,7 @@ export const professionalTravel: ModuleConfig = {
       hasTableTopBar: true,
       hasTablePagination: true,
       hasTableAction: true,
+      topVisualization: 'trips-map',
       hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-plane-button`,
     },
@@ -245,6 +247,7 @@ export const professionalTravel: ModuleConfig = {
       hasTableTopBar: true,
       hasTablePagination: true,
       hasTableAction: true,
+      topVisualization: 'trips-map',
       hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-train-button`,
     },

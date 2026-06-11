@@ -3,13 +3,14 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from fnmatch import fnmatch
-from typing import Callable, Optional
+from typing import Callable, Final, Optional
 
 from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from joserfc import jwt
-from joserfc.errors import BadSignatureError
+from joserfc.errors import BadSignatureError, ExpiredTokenError, InvalidClaimError
 from joserfc.jwk import OctKey
+from joserfc.jwt import JWTClaimsRegistry
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -17,11 +18,26 @@ from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import query_policy
 from app.db import get_db
-from app.models.user import User
+from app.models.user import User, UserProvider
+from app.services.user_service import UserService
 
 settings = get_settings()
 security = HTTPBearer()
 logger = get_logger(__name__)
+
+# Hoisted out of decode_jwt to avoid re-allocating per request — every
+# authenticated call goes through decode_jwt. The registry is stateless
+# w.r.t. the token being validated (it carries only the global validation
+# config), so a single shared instance is safe across the process.
+_CLAIMS_REGISTRY = JWTClaimsRegistry()
+
+# Token-type discriminators used as the `type` JWT claim and as the
+# `expected_token_type` argument to resolve_user_by_jwt_payload. Defined
+# as named constants (not string literals at call sites) so bandit B106
+# doesn't false-positive: it scans kwargs whose name contains "token"
+# for hardcoded credentials, which these decidedly are not.
+TOKEN_TYPE_ACCESS: Final[str] = "access"
+TOKEN_TYPE_REFRESH: Final[str] = "refresh"
 
 
 async def get_jwt_from_cookie(auth_token: str = Cookie(None)):
@@ -51,7 +67,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     if expires_delta is None:
         raise ValueError("expires_delta must be provided for access tokens")
     to_encode = data.copy()
-    to_encode["type"] = "refresh"  # Mark as refresh token
+    to_encode["type"] = TOKEN_TYPE_REFRESH
     expire = datetime.now(timezone.utc) + expires_delta
     to_encode.update({"exp": expire})
 
@@ -61,73 +77,113 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
 
 
 def decode_jwt(token: str) -> dict:
-    """Decode and validate JWT token."""
+    """Decode and validate JWT token.
+
+    `jwt.decode` validates signature and algorithm but does NOT validate
+    payload claims. The explicit `_CLAIMS_REGISTRY.validate` call below
+    is what enforces `exp` (expiry) — without it expired tokens remain
+    valid until SECRET_KEY rotates.
+
+    The 401 detail is intentionally opaque: callers don't need to know
+    whether the failure was a bad signature, expired token, or invalid
+    claim, and disclosing it leaks oracle-style information back to
+    whoever sent the token (CWE-209). The underlying exception is logged
+    at INFO so it remains diagnosable server-side.
+    """
     try:
         key = OctKey.import_key(settings.SECRET_KEY.encode())
         payload = jwt.decode(token, key, algorithms=[settings.ALGORITHM])
+        _CLAIMS_REGISTRY.validate(payload.claims)
         return payload.claims
-    except BadSignatureError as e:
+    except (BadSignatureError, ExpiredTokenError, InvalidClaimError) as e:
+        logger.info(
+            "JWT validation failed",
+            extra={"error": str(e), "error_type": type(e).__name__},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {str(e)}",
+            detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+async def resolve_user_by_jwt_payload(
+    payload: dict,
+    db: AsyncSession,
+    *,
+    expected_token_type: Optional[str] = None,
+) -> User:
+    """Centralized JWT-payload → User resolution.
+
+    Single trust-boundary check shared by `GET /v1/session`,
+    `POST /v1/session`, and `get_current_user`. Validates the stable
+    (institutional_id, provider)
+    identity pair, rejects legacy user_id-only tokens, looks the user up,
+    and raises 401 on any failure. When ``expected_token_type`` is
+    supplied (used by /refresh) the payload's ``type`` field must match.
+    """
+    if expected_token_type is not None:
+        if payload.get("type") != expected_token_type:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+            )
+
+    institutional_id = payload.get("institutional_id")
+    provider_str = payload.get("provider")
+
+    if not (institutional_id and provider_str):
+        user_id = payload.get("user_id")
+        logger.warning(
+            "Legacy token without institutional_id/provider detected",
+            extra={"user_id": user_id},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=(
+                "Session expired. Please login again."
+                if user_id
+                else "Invalid token payload"
+            ),
+        )
+
+    try:
+        provider = UserProvider(int(provider_str))
+    except ValueError:
+        # Guard above already excludes None/empty so TypeError can't fire;
+        # int("notanumber") raises ValueError, UserProvider(99999) likewise.
+        logger.warning(
+            "Invalid provider in token",
+            extra={"provider": provider_str},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+
+    user = await UserService(db).get_by_institutional_id_and_provider(
+        institutional_id=institutional_id,
+        provider=provider,
+    )
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+        )
+    return user
 
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
     token: str = Depends(get_jwt_from_cookie),
 ) -> User:
-    """Get current user from JWT token.
-
-    Resolves user by stable identity (institutional_id, provider) from JWT.
-    Legacy tokens with user_id will fail with authentication error.
-    """
-    from app.models.user import UserProvider
-    from app.services.user_service import UserService
-
+    """Get current user from JWT token. Thin wrapper over
+    :func:`resolve_user_by_jwt_payload` that enforces the access-token
+    contract — refresh tokens must not be accepted for protected routes."""
     payload = decode_jwt(token)
-
-    # Primary: resolve by stable identity (institutional_id, provider)
-    institutional_id = payload.get("institutional_id")
-    provider_str = payload.get("provider")
-
-    if institutional_id and provider_str:
-        try:
-            provider = UserProvider(int(provider_str))
-        except ValueError:
-            logger.error(
-                "Invalid provider in token",
-                extra={"provider": provider_str},
-            )
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not validate credentials",
-            )
-
-        user = await UserService(db).get_by_institutional_id_and_provider(
-            institutional_id=institutional_id,
-            provider=provider,
-        )
-    else:
-        # Legacy token with user_id - reject and force re-login
-        user_id = payload.get("user_id")
-        logger.warning(
-            "Legacy token with user_id detected in get_current_user",
-            extra={"user_id": user_id},
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Session expired. Please login again.",
-        )
-
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
-    # Re-validate to trigger deserialize_roles validator
-    return user
+    return await resolve_user_by_jwt_payload(
+        payload, db, expected_token_type=TOKEN_TYPE_ACCESS
+    )
 
 
 async def get_current_active_user(

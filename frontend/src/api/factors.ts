@@ -5,10 +5,11 @@ import { enumSubmodule } from 'src/constant/modules';
 
 export async function getSubclassMap(
   submodule: keyof typeof enumSubmodule,
+  year: number | string,
 ): Promise<Record<string, string[]>> {
   const res = await api
     .get(
-      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map`,
+      `factors/${encodeURIComponent(enumSubmodule[submodule])}/class-subclass-map?year=${encodeURIComponent(String(year))}`,
     )
     .json<Record<string, string[]>>();
   return res ?? {};

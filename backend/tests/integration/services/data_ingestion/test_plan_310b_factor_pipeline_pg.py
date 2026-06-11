@@ -9,7 +9,7 @@ These tests exercise behavior that SQLite cannot:
 
 Requires Docker — see ``conftest.py``'s ``postgres_container`` fixture.
 
-The shared ``pg_dsn_with_310b`` fixture (in ``conftest.py``) layers the
+The shared ``pg_dsn`` fixture (in ``conftest.py``) layers the
 Plan 310B migration's partial unique indexes on top of the
 ``SQLModel.metadata.create_all`` schema produced by ``pg_dsn``, so the
 upsert path's ``ON CONFLICT`` inference has a target index to bind to.
@@ -66,9 +66,9 @@ def _make_factor(
 
 
 @pytest.mark.asyncio
-async def test_upsert_factors_inserts_new_row_with_last_seen_job_id(pg_dsn_with_310b):
+async def test_upsert_factors_inserts_new_row_with_last_seen_job_id(pg_dsn):
     """First upsert: row gets a fresh id and last_seen_job_id stamped."""
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -107,10 +107,10 @@ async def test_upsert_factors_inserts_new_row_with_last_seen_job_id(pg_dsn_with_
 
 
 @pytest.mark.asyncio
-async def test_upsert_factors_updates_existing_row_preserving_id(pg_dsn_with_310b):
+async def test_upsert_factors_updates_existing_row_preserving_id(pg_dsn):
     """Second upsert with same identity key: same id, values updated,
     last_seen_job_id refreshed."""
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -179,7 +179,7 @@ async def test_upsert_factors_updates_existing_row_preserving_id(pg_dsn_with_310
 
 
 @pytest.mark.asyncio
-async def test_upsert_factors_jsonb_key_order_resilience(pg_dsn_with_310b):
+async def test_upsert_factors_jsonb_key_order_resilience(pg_dsn):
     """Two upserts with the same classification keys in different
     insertion order resolve to one row (JSONB normalises key order).
 
@@ -188,7 +188,7 @@ async def test_upsert_factors_jsonb_key_order_resilience(pg_dsn_with_310b):
     ``{"a":1,"b":2}`` and ``{"b":2,"a":1}`` and the partial unique index
     wouldn't trip.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -231,11 +231,11 @@ async def test_upsert_factors_jsonb_key_order_resilience(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_list_stale_for_year_returns_outdated_factors(pg_dsn_with_310b):
+async def test_list_stale_for_year_returns_outdated_factors(pg_dsn):
     """Factors whose ``last_seen_job_id`` predates the latest is_current
     successful FACTORS job for their (det, year) combo are returned;
     factors stamped with the latest job id are not."""
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -273,7 +273,7 @@ async def test_list_stale_for_year_returns_outdated_factors(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn_with_310b):
+async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn):
     """Regression: multi-type FACTORS jobs (``data_entry_type_id`` NULL,
     ``module_type_id`` set — e.g. ``equipments_factors.csv`` covering
     ``it`` + ``scientific`` under ``equipment_electric_consumption``) must
@@ -288,7 +288,7 @@ async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn_with_31
     from app.models.data_entry import DataEntryTypeEnum
     from app.models.module_type import ModuleTypeEnum
 
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     module_id = ModuleTypeEnum.equipment_electric_consumption.value
@@ -359,13 +359,13 @@ async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn_with_31
 
 
 @pytest.mark.asyncio
-async def test_list_stale_for_year_returns_empty_when_no_factor_job(pg_dsn_with_310b):
+async def test_list_stale_for_year_returns_empty_when_no_factor_job(pg_dsn):
     """No is_current FACTORS job for the requested year → return [] rather
     than treat every factor as stale.  Without this short-circuit, the
     endpoint would noisily flag every existing factor on a year that never
     had a CSV uploaded.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -392,14 +392,14 @@ async def test_list_stale_for_year_returns_empty_when_no_factor_job(pg_dsn_with_
 
 
 @pytest.mark.asyncio
-async def test_latest_factor_job_per_det_skips_unknown_module(pg_dsn_with_310b):
+async def test_latest_factor_job_per_det_skips_unknown_module(pg_dsn):
     """A multi-type FACTORS job with a ``module_type_id`` that no longer
     maps to a ``ModuleTypeEnum`` value (legacy enum cleanup, hand-edited
     row, etc.) must be skipped silently rather than crash the stale
     detection.  Defensive: lets operators view stale factors even when
     one rogue job row would otherwise raise ValueError.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -433,12 +433,12 @@ async def test_latest_factor_job_per_det_skips_unknown_module(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_latest_factor_job_per_det_skips_both_nulls(pg_dsn_with_310b):
+async def test_latest_factor_job_per_det_skips_both_nulls(pg_dsn):
     """A FACTORS job with both ``module_type_id`` and ``data_entry_type_id``
     NULL has no meaningful scope — it covers no factors, so it shouldn't
     contribute to the stale-threshold map.
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -467,7 +467,7 @@ async def test_latest_factor_job_per_det_skips_both_nulls(pg_dsn_with_310b):
 
 
 @pytest.mark.asyncio
-async def test_list_stale_filters_to_csv_ingestion_method(pg_dsn_with_310b):
+async def test_list_stale_filters_to_csv_ingestion_method(pg_dsn):
     """Plan 310B fix (Copilot follow-up): ``list_stale_for_year`` must
     only consider FACTORS jobs whose ``ingestion_method == csv``.
 
@@ -482,7 +482,7 @@ async def test_list_stale_filters_to_csv_ingestion_method(pg_dsn_with_310b):
     by the CSV job is NOT reported as stale (because the computed job
     is filtered out of the threshold map).
     """
-    engine = create_async_engine(pg_dsn_with_310b, future=True)
+    engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:

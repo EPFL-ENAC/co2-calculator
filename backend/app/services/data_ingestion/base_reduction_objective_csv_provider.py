@@ -345,11 +345,31 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         if not self.year:
             raise ValueError("year is required")
 
-        stmt = select(YearConfiguration).where(col(YearConfiguration.year) == self.year)
+        # Provider resolution order: ``config["provider"]`` is the
+        # ``job.provider`` value spread by ``_run_ingest`` from
+        # ``job.__dict__``; ``self.user.provider`` covers the endpoint-
+        # driven path where the runner isn't in the loop. Neither
+        # present is a hard error — we can't write provider-scoped data
+        # without a provider.
+        provider = self.config.get("provider")
+        if provider is None and self.user is not None:
+            provider = self.user.provider
+        if provider is None:
+            raise ValueError(
+                "provider is required to resolve the provider-scoped "
+                "year_configuration (neither job.provider in config nor "
+                "user.provider available)"
+            )
+
+        stmt = select(YearConfiguration).where(
+            col(YearConfiguration.year) == self.year,
+            col(YearConfiguration.provider) == provider,
+        )
         result = (await self.data_session.exec(stmt)).first()
         if not result:
             raise ValueError(
-                f"No year_configuration found for year {self.year}. Create it first."
+                f"No year_configuration found for year {self.year} "
+                f"provider {provider}. Create it first."
             )
 
         # Ensure reduction_objectives structure exists

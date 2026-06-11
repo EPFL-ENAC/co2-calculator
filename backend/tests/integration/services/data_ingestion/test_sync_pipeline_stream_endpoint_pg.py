@@ -45,6 +45,8 @@ from app.models.data_ingestion import (
 )
 from app.models.user import UserProvider
 
+from .conftest import ensure_pipeline_for_job
+
 
 @pytest_asyncio.fixture
 async def pg_app(pg_dsn, monkeypatch):
@@ -67,6 +69,11 @@ async def pg_app(pg_dsn, monkeypatch):
             yield session
 
     fake_user = MagicMock()
+    fake_user.calculate_permissions = lambda: {
+        "backoffice.configuration": ["view", "edit"],
+        "backoffice.pipeline_operations": ["view", "edit"],
+        "backoffice.logs": ["view"],
+    }
     fake_user.id = 1
     fake_user.email = "test@example.com"
     fake_user.institutional_id = "TEST-USER"
@@ -155,7 +162,9 @@ async def test_pipeline_stream_returns_403_for_user_without_permission(
 
     pipeline_id = uuid4()
     async with Sf() as session:
-        session.add(_make_pending_factor_job(pipeline_id))
+        job = _make_pending_factor_job(pipeline_id)
+        await ensure_pipeline_for_job(session, job)
+        session.add(job)
         await session.commit()
 
     async def override_get_db():
@@ -219,7 +228,9 @@ async def test_list_jobs_by_pipeline_id_reflects_cross_session_updates(pg_dsn):
     # Seed: a NOT_STARTED parent job — the kind the SSE consumer sees
     # before the runner picks it up.
     async with Sf() as seed_session:
-        seed_session.add(_make_pending_factor_job(pipeline_id))
+        job = _make_pending_factor_job(pipeline_id)
+        await ensure_pipeline_for_job(seed_session, job)
+        seed_session.add(job)
         await seed_session.commit()
 
     try:
@@ -294,7 +305,9 @@ async def test_disconnect_releases_pool_slot(pg_dsn, monkeypatch):
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     pipeline_id = uuid4()
     async with Sf() as session:
-        session.add(_make_pending_factor_job(pipeline_id))
+        job = _make_pending_factor_job(pipeline_id)
+        await ensure_pipeline_for_job(session, job)
+        session.add(job)
         await session.commit()
 
     # Patch the SSE handler's SessionLocal at the imported-module attribute.
@@ -409,7 +422,9 @@ async def test_cross_tenant_pipeline_returns_403(pg_dsn, monkeypatch):
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     pipeline_id = uuid4()
     async with Sf() as session:
-        session.add(_make_pending_factor_job(pipeline_id))
+        job = _make_pending_factor_job(pipeline_id)
+        await ensure_pipeline_for_job(session, job)
+        session.add(job)
         await session.commit()
 
     async def override_get_db():

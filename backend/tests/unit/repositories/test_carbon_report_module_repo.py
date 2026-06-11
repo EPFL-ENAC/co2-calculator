@@ -93,6 +93,132 @@ class TestMapModuleIdToName:
 # ---------------------------------------------------------------------------
 
 
+class TestScopeUnitIds:
+    """cf -> institutional_code -> descendant subtree via path_institutional_code."""
+
+    async def _build_enac_subtree(self, db_session, make_unit):
+        # Anchor (lvl2) + descendants share the anchor code 12635 as a path token.
+        anchor = await make_unit(
+            db_session,
+            institutional_code="12635",
+            institutional_id="13030",
+            level=2,
+            path_institutional_code="10582 12635",
+        )
+        child = await make_unit(
+            db_session,
+            institutional_code="11435",
+            institutional_id="13031",
+            level=3,
+            path_institutional_code="10582 12635 11435",
+        )
+        leaf = await make_unit(
+            db_session,
+            institutional_code="14270",
+            institutional_id="13032",
+            level=4,
+            path_institutional_code="10582 12635 11435 14270",
+        )
+        other = await make_unit(
+            db_session,
+            institutional_code="99999",
+            institutional_id="88888",
+            level=2,
+            path_institutional_code="10582 99999",
+        )
+        return anchor, child, leaf, other
+
+    async def test_resolves_cf_to_self_and_descendants(self, db_session, make_unit):
+        anchor, child, leaf, other = await self._build_enac_subtree(
+            db_session, make_unit
+        )
+        repo = CarbonReportModuleRepository(db_session)
+        ids = await repo._get_scope_unit_ids({"13030"})
+        assert ids == {anchor.id, child.id, leaf.id}
+        assert other.id not in ids
+
+    async def test_unknown_cf_resolves_to_empty_not_all(self, db_session, make_unit):
+        await self._build_enac_subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        # A scope cf with no matching unit must yield {} — never "all units".
+        assert await repo._get_scope_unit_ids({"does-not-exist"}) == set()
+
+
+class TestResolveHierarchyUnitIdsScope:
+    """scope ∩ (affiliation ∪ lvl4) — the security clamp invariant.
+
+    A scoped caller must always resolve to a concrete set, never None
+    (None means "no constraint" → all units, a privilege escalation).
+    """
+
+    async def _subtree(self, db_session, make_unit):
+        anchor = await make_unit(
+            db_session,
+            institutional_code="12635",
+            institutional_id="13030",
+            name="ENAC",
+            level=2,
+            path_institutional_code="10582 12635",
+        )
+        leaf = await make_unit(
+            db_session,
+            institutional_code="14270",
+            institutional_id="13032",
+            name="ENAC-IT4R",
+            level=4,
+            path_institutional_code="10582 12635 11435 14270",
+        )
+        outside = await make_unit(
+            db_session,
+            institutional_code="99999",
+            institutional_id="88888",
+            name="OUTSIDE",
+            level=4,
+            path_institutional_code="10582 99999",
+        )
+        return anchor, leaf, outside
+
+    async def test_global_no_filters_returns_none(self, db_session, make_unit):
+        await self._subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo._resolve_hierarchy_unit_ids(is_global=True)
+        assert result is None
+
+    async def test_scoped_no_filters_returns_scope_set_not_none(
+        self, db_session, make_unit
+    ):
+        anchor, leaf, _ = await self._subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo._resolve_hierarchy_unit_ids(
+            is_global=False, scope_cfs={"13030"}
+        )
+        assert result == {anchor.id, leaf.id}
+
+    async def test_scoped_intersects_in_scope_filter(self, db_session, make_unit):
+        anchor, leaf, _ = await self._subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo._resolve_hierarchy_unit_ids(
+            path_lvl4=["ENAC-IT4R"], is_global=False, scope_cfs={"13030"}
+        )
+        assert result == {leaf.id}
+
+    async def test_scoped_out_of_scope_filter_yields_empty(self, db_session, make_unit):
+        await self._subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo._resolve_hierarchy_unit_ids(
+            path_lvl4=["OUTSIDE"], is_global=False, scope_cfs={"13030"}
+        )
+        assert result == set()
+
+    async def test_global_with_filters_ignores_scope(self, db_session, make_unit):
+        _, _, outside = await self._subtree(db_session, make_unit)
+        repo = CarbonReportModuleRepository(db_session)
+        result = await repo._resolve_hierarchy_unit_ids(
+            path_lvl4=["OUTSIDE"], is_global=True
+        )
+        assert result == {outside.id}
+
+
 class TestCRUD:
     async def test_create(self, db_session, make_unit, make_carbon_report):
         unit = await make_unit(db_session)
@@ -359,6 +485,53 @@ class TestGetReportingOverview:
         result = await repo.get_reporting_overview(years=[2024])
         assert result["total"] == 0
         assert result["data"] == []
+
+    async def test_scoped_overview_clamps_to_subtree(
+        self, db_session, make_unit, make_carbon_report
+    ):
+        anchor = await make_unit(
+            db_session,
+            institutional_code="12635",
+            institutional_id="13030",
+            name="ENAC",
+            level=2,
+            path_institutional_code="10582 12635",
+        )
+        leaf = await make_unit(
+            db_session,
+            institutional_code="14270",
+            institutional_id="13032",
+            name="ENAC-IT4R",
+            level=4,
+            path_institutional_code="10582 12635 11435 14270",
+        )
+        outside = await make_unit(
+            db_session,
+            institutional_code="99999",
+            institutional_id="88888",
+            name="OUTSIDE",
+            level=4,
+            path_institutional_code="10582 99999",
+        )
+        for u in (anchor, leaf, outside):
+            await make_carbon_report(db_session, unit_id=u.id, year=2024)
+        repo = CarbonReportModuleRepository(db_session)
+
+        result = await repo.get_reporting_overview(
+            years=[2024], is_global=False, scope_cfs={"13030"}
+        )
+        names = {row["unit_name"] for row in result["data"]}
+        assert names == {"ENAC", "ENAC-IT4R"}
+        assert "OUTSIDE" not in names
+
+        # An out-of-scope lvl4 filter intersects to empty.
+        empty = await repo.get_reporting_overview(
+            years=[2024],
+            path_lvl4=["OUTSIDE"],
+            is_global=False,
+            scope_cfs={"13030"},
+        )
+        assert empty["total"] == 0
 
     async def test_basic_overview(
         self, db_session, make_unit, make_user, make_carbon_report

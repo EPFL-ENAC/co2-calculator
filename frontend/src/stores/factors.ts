@@ -12,39 +12,50 @@ type Option = { label: string; value: string };
 export const useFactorsStore = defineStore('factors', () => {
   const ONE_MINUTE_MS = 60_000;
 
-  const subclassOptionMapBySubmodule = reactive<
-    Partial<Record<AllSubmoduleTypes, Record<string, Option[]>>>
+  // Cached per (submodule, year) — factors are year-scoped, so the same
+  // submodule yields different class/subclass maps across years.
+  const subclassOptionMapByKey = reactive<
+    Record<string, Record<string, Option[]>>
   >({});
-  const subclassMapFetchedAt = reactive<
-    Partial<Record<AllSubmoduleTypes, number>>
-  >({});
+  const subclassMapFetchedAt = reactive<Record<string, number>>({});
+
+  function cacheKey(
+    submodule: keyof typeof enumSubmodule,
+    year: number | string,
+  ): string {
+    return `${submodule}:${year}`;
+  }
+
   async function ensureSubclassOptionMap(
     submodule: keyof typeof enumSubmodule,
+    year: number | string,
   ): Promise<Record<string, Option[]>> {
     const now = Date.now();
-    const existing = subclassOptionMapBySubmodule[submodule];
-    const last = subclassMapFetchedAt[submodule];
+    const key = cacheKey(submodule, year);
+    const existing = subclassOptionMapByKey[key];
+    const last = subclassMapFetchedAt[key];
 
     if (existing && last && now - last < ONE_MINUTE_MS) {
       return existing;
     }
 
-    const rawMap = await getSubclassMap(submodule);
+    const rawMap = await getSubclassMap(submodule, year);
     const optionMap: Record<string, Option[]> = {};
     Object.entries(rawMap).forEach(([cls, list]) => {
       optionMap[cls] = (list ?? []).map((s) => ({ label: s, value: s }));
     });
 
-    subclassOptionMapBySubmodule[submodule] = optionMap;
-    subclassMapFetchedAt[submodule] = now;
+    subclassOptionMapByKey[key] = optionMap;
+    subclassMapFetchedAt[key] = now;
 
     return optionMap;
   }
 
   async function fetchClassOptions(
     submodule: AllSubmoduleTypes,
+    year: number | string,
   ): Promise<Option[]> {
-    const optionMap = await ensureSubclassOptionMap(submodule);
+    const optionMap = await ensureSubclassOptionMap(submodule, year);
     const classes = Object.keys(optionMap);
     return classes.map((c) => ({ label: c, value: c }));
   }
@@ -52,8 +63,9 @@ export const useFactorsStore = defineStore('factors', () => {
   async function fetchSubclassOptions(
     submodule: AllSubmoduleTypes,
     equipmentClass: string,
+    year: number | string,
   ): Promise<Option[]> {
-    const optionMap = await ensureSubclassOptionMap(submodule);
+    const optionMap = await ensureSubclassOptionMap(submodule, year);
     return optionMap[equipmentClass] ?? [];
   }
 
@@ -67,7 +79,7 @@ export const useFactorsStore = defineStore('factors', () => {
   }
 
   return {
-    subclassOptionMapBySubmodule,
+    subclassOptionMapByKey,
     subclassMapFetchedAt,
     fetchClassOptions,
     fetchSubclassOptions,

@@ -5,13 +5,13 @@ configurations and purposes.
 
 ## Dev / Stage / Prod Topology
 
-| Environment    | Purpose                | Key Characteristics               | Secrets Management      |
-| -------------- | ---------------------- | --------------------------------- | ----------------------- |
-| Local          | Individual development | Docker Compose, minimal services  | .env files              |
-| Development    | Team collaboration     | Shared services, frequent updates | Infisical + K8s secrets |
-| Staging        | Pre-release testing    | Production-like configuration     | Infisical + K8s secrets |
-| Pre-production | Final validation       | Production-like configuration     | Infisical + K8s secrets |
-| Production     | Live user traffic      | High availability, monitoring     | Infisical + Azure Vault |
+| Environment    | URL                                   | Purpose                | Key Characteristics               | Secrets Management      |
+| -------------- | ------------------------------------- | ---------------------- | --------------------------------- | ----------------------- |
+| Local          | http://localhost:9000                 | Individual development | Docker Compose, minimal services  | .env files              |
+| Development    | https://co2-calculator-dev.epfl.ch/   | Team collaboration     | Shared services, frequent updates | Infisical + K8s secrets |
+| Staging        | https://co2-calculator-stage.epfl.ch/ | Pre-release testing    | Production-like configuration     | Infisical + K8s secrets |
+| Pre-production | https://co2-calculator.epfl.ch/       | Final validation       | Production-like configuration     | Infisical + K8s secrets |
+| Production     | activates with v1.0.0                 | Live user traffic      | High availability, monitoring     | Infisical + Azure Vault |
 
 ## Local Setup Instructions
 
@@ -48,21 +48,17 @@ Secrets are managed differently per environment to ensure security:
 | Staging     | PostgreSQL 16 | PgBouncer          | 1 replica   |
 | Production  | PostgreSQL 16 | PgBouncer          | 2 replicas  |
 
-### Redis/Celery Configuration
+### Background Jobs
 
-| Environment | Workers | Redis Mode    | Task Retention |
-| ----------- | ------- | ------------- | -------------- |
-| Local       | 1       | Single node   | 1 day          |
-| Development | 2       | Single node   | 3 days         |
-| Staging     | 3       | Single node   | 7 days         |
-| Production  | 5+      | Redis Cluster | 30 days        |
+Background jobs run in-process within the web pods and scale with web
+replicas; there is no separate Redis/Celery tier (see
+[ADR-010](../architecture-decision-records/010-background-job-processing.md)).
 
 ### Key Environment Variables
 
 | Variable                | Purpose               | Required |
 | ----------------------- | --------------------- | -------- |
 | `DB_URL`                | PostgreSQL connection | Yes      |
-| `REDIS_URL`             | Redis connection      | Yes      |
 | `AZURE_STORAGE_ACCOUNT` | Blob storage account  | Yes      |
 | `AZURE_CLIENT_ID`       | Entra ID client       | Yes      |
 | `AZURE_CLIENT_SECRET`   | Entra ID secret       | Yes      |

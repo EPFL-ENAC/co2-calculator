@@ -11,7 +11,16 @@ import httpx
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.models.user import GlobalScope, Role, RoleName, RoleScope, User, UserProvider
+from app.models.user import (
+    AffiliationScope,
+    GlobalScope,
+    OwnScope,
+    Role,
+    RoleName,
+    UnitScope,
+    User,
+    UserProvider,
+)
 from app.providers.test_fixtures import (
     TEST_ROLES,
     TEST_USERS,
@@ -21,6 +30,18 @@ from app.providers.test_fixtures import (
 
 logger = get_logger(__name__)
 settings = get_settings()
+
+
+def _unit_or_own_scope(role_name, institutional_id: str):
+    """Pick the explicit scope for a unit-bound role (#role-scope redesign).
+
+    Standard users are own-scoped (they may only touch their own records);
+    every other unit-bound role (principal) is unit-scoped.
+    """
+    name = role_name.value if isinstance(role_name, RoleName) else role_name
+    if name == RoleName.CO2_USER_STD.value:
+        return OwnScope(institutional_id=institutional_id)
+    return UnitScope(institutional_id=institutional_id)
 
 
 class RoleProvider(ABC):
@@ -159,9 +180,18 @@ class DefaultRoleProvider(RoleProvider):
                 )
                 continue
 
-            # Parse "role@scope:value" format
+            # Parse "role@scope:value" format. RoleName(value) raises
+            # ValueError on unknown enum values — catch so a single malformed
+            # role from the IdP doesn't DoS the whole login (F11).
             parts = role_str.split("@", 1)
-            role_name = RoleName(parts[0].strip())
+            try:
+                role_name = RoleName(parts[0].strip())
+            except ValueError:
+                logger.warning(
+                    "Unknown role name, skipping",
+                    extra={"role": role_str, "user_id": user_id},
+                )
+                continue
             scope_part = parts[1].strip()
 
             if scope_part == "global":
@@ -175,16 +205,27 @@ class DefaultRoleProvider(RoleProvider):
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(institutional_id=scope_id),
+                            on=_unit_or_own_scope(role_name, scope_id),
                         )
                     )
                 elif scope_type == "affiliation":
                     parsed_roles.append(
                         Role(
                             role=role_name,
-                            on=RoleScope(affiliation=scope_id),
+                            on=AffiliationScope(affiliation=scope_id),
                         )
                     )
+                else:
+                    # F12: surface unknown scope types instead of silent drop.
+                    logger.warning(
+                        "Unknown scope type, skipping",
+                        extra={
+                            "role": role_str,
+                            "scope_type": scope_type,
+                            "user_id": user_id,
+                        },
+                    )
+                    continue
             else:
                 logger.warning(
                     "Invalid scope format, skipping",
@@ -470,10 +511,10 @@ class AccredRoleProvider(RoleProvider):
             # Call EPFL Accred authorizations endpoint
             url = f"{self.api_url}/authorizations"
             params: dict[str, str | int] = {
-                "type": "right",
                 "persid": user_id,
                 "state": "active",
                 "expand": "0",
+                "type": "right",  # decomment on new role calco2.backoffice.admin added
                 "searchauthorization": "calco2.",
             }
 
@@ -542,23 +583,24 @@ class AccredRoleProvider(RoleProvider):
                     # Global super admin role
                     roles.append(Role(role=auth_name, on=GlobalScope()))
                 elif auth_name == RoleName.CO2_BACKOFFICE_METIER:
-                    affiliations_names = (
-                        auth.get("reason").get("resource").get("sortpath")
-                    )
-                    # Map to affiliation scope (placeholder logic)
+                    # Affiliation scope is the authorized unit's cf, which
+                    # identifies a unit at any hierarchy level. Scoping later
+                    # resolves it to that unit's descendant subtree.
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(affiliation=affiliations_names),
+                            on=AffiliationScope(
+                                affiliation=accred_unit_institutional_id
+                            ),
                         )
                     )
                 else:
-                    # Map authorization to role with unit scope
+                    # Map authorization to role with explicit unit/own scope
                     roles.append(
                         Role(
                             role=auth_name,
-                            on=RoleScope(
-                                institutional_id=str(accred_unit_institutional_id)
+                            on=_unit_or_own_scope(
+                                auth_name, str(accred_unit_institutional_id)
                             ),
                         )
                     )
@@ -625,12 +667,7 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
     elif provider_type == UserProvider.TEST:
         logger.info("Using TestRoleProvider (for testing)")
         return TestRoleProvider()
-    else:
-        logger.error(
-            "Unknown role provider type, falling back to default",
-            extra={"provider_type": provider_type},
-        )
-        return DefaultRoleProvider()
+    raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):

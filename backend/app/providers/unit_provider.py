@@ -8,8 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
-from app.models.user import UserProvider
-from app.providers.test_fixtures import TEST_UNITS
+from app.models.user import RoleName, UserProvider
+from app.providers.test_fixtures import TEST_UNITS, TEST_USERS
 
 """
 Unit provider interface and implementations.
@@ -323,6 +323,20 @@ class TestUnitProvider(UnitProvider):
                 u.model_copy() for u in TEST_UNITS if u.institutional_id in unit_ids
             ]
         return [u.model_copy() for u in TEST_UNITS]
+
+    async def fetch_all_units(self) -> tuple[list[dict], list[dict]]:
+        """Return TEST fixtures shaped for ``unit_sync_handler``.
+
+        Round-trips through ``map_api_unit`` via ``Unit.model_dump()``.
+        Principal user is the one TEST_UNITS' ``principal_user_institutional_id``
+        points at — TEST_USERS[RoleName.CO2_USER_PRINCIPAL].
+        """
+        units_raw = [u.model_dump() for u in TEST_UNITS]
+        principal = TEST_USERS[RoleName.CO2_USER_PRINCIPAL]
+        return units_raw, [principal]
+
+    def map_api_unit(self, unit_raw: dict) -> Unit:
+        return Unit(**unit_raw)
 
 
 def get_unit_provider(

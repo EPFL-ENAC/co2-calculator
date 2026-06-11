@@ -6,7 +6,7 @@ import { CanvasRenderer } from 'echarts/renderers';
 import { BarChart } from 'echarts/charts';
 import TooltipEcharts from './TooltipEcharts.vue';
 import type { TooltipRow, TooltipState } from 'src/types/chartTooltip';
-import type { EChartsOption } from 'echarts';
+import type { EChartsOption, SeriesOption } from 'echarts';
 import {
   buildChartDecal,
   CHART_CATEGORY_COLOR_SCHEMES,
@@ -34,6 +34,7 @@ use([
 
 import { formatTonnesForChart } from 'src/utils/number';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 
 const props = defineProps<{
   perPersonBreakdown?: Record<string, number> | null;
@@ -437,34 +438,12 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: datasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray.value as echarts.SeriesOption[],
+    series: seriesArray.value as SeriesOption[],
   };
 });
 
-const downloadPNG = async () => {
-  const chart = chartRef.value?.chart;
-  if (!chart) return;
-
-  try {
-    // Wait a bit to ensure no animation in the image
-    await new Promise((resolve) => setTimeout(resolve, 200));
-
-    const url = chart.getDataURL({
-      type: 'png',
-      pixelRatio: 2,
-      backgroundColor: '#fff',
-    });
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `carbon-footprint-per-person-${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (error) {
-    console.error('Error downloading chart:', error);
-  }
-};
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'carbon-footprint-per-person');
 
 const downloadCSV = () => {
   const escape = (v: unknown) => {

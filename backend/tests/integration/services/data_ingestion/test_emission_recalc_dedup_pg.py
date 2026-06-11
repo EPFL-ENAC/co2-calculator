@@ -17,7 +17,6 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -32,35 +31,7 @@ from app.models.data_ingestion import (
 from app.models.user import UserProvider
 from app.tasks._chain import EMISSION_RECALC_DEDUP, chain_job
 
-
-async def _install_emission_recalc_dedup_index(engine) -> None:
-    """Create the ``uq_emission_recalc_active`` partial unique index that
-    the #1064 Alembic migration adds.
-
-    ``pg_dsn`` builds the schema via ``SQLModel.metadata.create_all``,
-    which doesn't run Alembic, so the partial index is missing.  Re-add
-    it here so the dedup INSERT can hit the index on a real race.
-    Uses plain (non-CONCURRENT) creation because we're inside a fresh
-    test schema with no concurrent writers — CONCURRENTLY is only
-    needed in production migrations.
-    """
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "CREATE UNIQUE INDEX IF NOT EXISTS uq_emission_recalc_active "
-                "ON data_ingestion_jobs "
-                "(module_type_id, data_entry_type_id, year) "
-                "WHERE job_type = 'emission_recalc' "
-                "AND state IN ("
-                "'NOT_STARTED'::ingestion_state_enum, "
-                "'QUEUED'::ingestion_state_enum, "
-                "'RUNNING'::ingestion_state_enum"
-                ") "
-                "AND module_type_id IS NOT NULL "
-                "AND data_entry_type_id IS NOT NULL "
-                "AND year IS NOT NULL"
-            )
-        )
+from .conftest import ensure_pipeline_for_job
 
 
 def _parent_factor_job(
@@ -95,11 +66,11 @@ async def test_back_to_back_factor_reuploads_collapse_to_one_recalc(pg_dsn):
     fan-out must not queue a redundant recalc on top of the pending one.
     """
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -163,11 +134,11 @@ async def test_dedup_releases_after_first_recalc_finishes(pg_dsn):
     chain creates a new row.  Each fan-out batch gets one recalc;
     subsequent batches are not blocked by historical jobs."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -223,7 +194,6 @@ async def test_dedup_does_not_collide_across_dets_or_years(pg_dsn):
     factor reupload would serialize into one recalc instead of one
     per det."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
@@ -236,6 +206,8 @@ async def test_dedup_does_not_collide_across_dets_or_years(pg_dsn):
         parent_c = _parent_factor_job(
             module_type_id=5, data_entry_type_id=11, year=2026
         )  # different year
+        for parent in (parent_a, parent_b, parent_c):
+            await ensure_pipeline_for_job(session, parent)
         session.add_all([parent_a, parent_b, parent_c])
         await session.commit()
         await session.refresh(parent_a)
@@ -273,11 +245,11 @@ async def test_dedup_skips_run_job_dispatch_on_collision(pg_dsn):
     dedup'd path — the existing pending row will run; a redundant
     dispatch would race-claim the same row."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)
@@ -326,11 +298,11 @@ async def test_dedup_config_rejects_null_scope_keys(pg_dsn):
     at the index level — we'd rather raise than create a half-broken
     row."""
     engine = create_async_engine(pg_dsn, future=True)
-    await _install_emission_recalc_dedup_index(engine)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with Sf() as session:
         parent = _parent_factor_job()
+        await ensure_pipeline_for_job(session, parent)
         session.add(parent)
         await session.commit()
         await session.refresh(parent)

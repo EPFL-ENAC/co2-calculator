@@ -1,23 +1,23 @@
 <template>
   <q-card-section class="text-left module-charts q-px-none">
     <template v-if="type === 'headcount'">
-      <h2 class="text-h5 text-weight-medium q-mb-none text-bold text-black">
-        {{ $t('headcount-charts-title') }}
-      </h2>
-      <headCountBarChart
-        v-if="hasStats"
-        :stats="moduleStore?.state?.data?.stats"
-      />
-      <span v-else class="text-body2 text-secondary">
-        {{ $t(`${type}-charts-no-data-message`) }}
-      </span>
+      <div class="q-px-lg q-mx-sm">
+        <h2 class="text-h5 text-weight-medium q-mb-md text-bold text-black">
+          {{ $t('headcount-charts-title') }}
+        </h2>
+        <headCountBarChart
+          v-if="hasStats"
+          :stats="moduleStore?.state?.data?.stats"
+        />
+        <span v-else class="text-body2 text-secondary">
+          {{ $t(`${type}-charts-no-data-message`) }}
+        </span>
+      </div>
     </template>
     <template v-else>
       <template v-if="!isPrintMode">
         <div class="flex w-full items-center justify-between q-mx-lg">
-          <div
-            class="text-body1 text-weight-medium q-ml-sm q-mb-none text-black"
-          >
+          <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
             {{ carbonFootprintTitle }}
           </div>
           <div
@@ -48,8 +48,8 @@
               <q-btn
                 unelevated
                 dense
-                :style="moduleChartView === 'type' ? activeButtonStyle : {}"
-                :class="moduleChartView !== 'type' ? 'toggle-inactive' : ''"
+                :style="typeButtonStyle"
+                :class="typeButtonClass"
                 icon="stacked_bar_chart"
                 size="sm"
                 @click="moduleChartView = 'type'"
@@ -57,12 +57,8 @@
               <q-btn
                 unelevated
                 dense
-                :style="
-                  moduleChartView === 'breakdown' ? activeButtonStyle : {}
-                "
-                :class="
-                  moduleChartView !== 'breakdown' ? 'toggle-inactive' : ''
-                "
+                :style="breakdownButtonStyle"
+                :class="breakdownButtonClass"
                 icon="grid_view"
                 size="sm"
                 @click="moduleChartView = 'breakdown'"
@@ -77,16 +73,13 @@
       >
         {{ carbonFootprintSubtitle }}
       </div>
-      <q-separator class="q-my-lg" />
       <div class="q-mx-lg">
         <template v-if="moduleChartView === 'breakdown'">
           <generic-emission-tree-map-chart
             v-if="moduleTreemapData.length"
+            ref="treemapChartRef"
             :key="type"
             :data="moduleTreemapData"
-            :show-evolution-dialog="
-              type === MODULES.ProfessionalTravel && showEvolutionChart
-            "
             :print-mode="printMode"
           />
           <span v-else class="text-body2 text-secondary">
@@ -96,6 +89,7 @@
         <template v-else>
           <emission-type-breakdown-chart
             v-if="moduleCategoryRows.length"
+            ref="emissionTypeChartRef"
             :key="type"
             :category-rows="moduleCategoryRows"
             :top-class-breakdown="topClassBreakdownData"
@@ -107,8 +101,40 @@
           </span>
         </template>
       </div>
+      <template v-if="type === MODULES.ProfessionalTravel && !isPrintMode">
+        <q-separator class="q-my-lg" />
+        <div class="q-mx-lg">
+          <div class="text-body1 text-weight-medium q-mb-sm text-black">
+            {{ $t(`${MODULES.ProfessionalTravel}-trips-map-title-overall`) }}
+          </div>
+          <trips-map
+            :legs="tripsMapLegs"
+            :loading="moduleStore.state.loadingTripsMap"
+            :aria-label="
+              $t(`${MODULES.ProfessionalTravel}-trips-map-aria-label`)
+            "
+            testid="trips-map-overall"
+          />
+        </div>
+      </template>
     </template>
   </q-card-section>
+  <template v-if="type !== 'headcount' && !isPrintMode">
+    <q-separator />
+    <q-card-section class="flex justify-start q-gutter-sm">
+      <q-btn
+        unelevated
+        no-caps
+        outline
+        icon="o_download"
+        :label="$t('common_download_as_png')"
+        size="xs"
+        dense
+        class="text-weight-bold q-px-sm"
+        @click="downloadPNG"
+      />
+    </q-card-section>
+  </template>
 </template>
 
 <script setup lang="ts">
@@ -116,6 +142,7 @@ import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Module, MODULES } from 'src/constant/modules';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
+import TripsMap from 'src/components/molecules/TripsMap.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
 import { useModuleStore } from 'src/stores/modules';
@@ -132,22 +159,41 @@ import {
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
 
-const props = defineProps<{
-  type: Module;
-  showEvolutionChart?: boolean;
-  forcedView?: 'breakdown' | 'type';
-  showControls?: boolean;
-  printMode?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    type: Module;
+    showEvolutionChart?: boolean;
+    forcedView?: 'breakdown' | 'type';
+    showControls?: boolean;
+    printMode?: boolean;
+  }>(),
+  {
+    showControls: true,
+    forcedView: 'breakdown',
+  },
+);
 
 const { t, te } = useI18n();
 
 const moduleChartView = ref<'breakdown' | 'type'>(props.forcedView ?? 'type');
 
+const treemapChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+const emissionTypeChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(
+  null,
+);
+
+const downloadPNG = async () => {
+  if (moduleChartView.value === 'breakdown') {
+    await treemapChartRef.value?.downloadPNG();
+  } else {
+    await emissionTypeChartRef.value?.downloadPNG();
+  }
+};
+
 const isPrintMode = usePrintMode();
 const showControls = computed(() => {
   if (isPrintMode.value) return false;
-  return props.showControls !== false && !props.forcedView;
+  return props.showControls !== false;
 });
 
 watch(
@@ -183,6 +229,19 @@ const activeColor = computed(() => {
   return scale?.darker ?? '#00a79f';
 });
 
+const typeButtonStyle = computed(() =>
+  moduleChartView.value === 'type' ? activeButtonStyle.value : {},
+);
+const typeButtonClass = computed(() =>
+  moduleChartView.value !== 'type' ? 'toggle-inactive' : '',
+);
+const breakdownButtonStyle = computed(() =>
+  moduleChartView.value === 'breakdown' ? activeButtonStyle.value : {},
+);
+const breakdownButtonClass = computed(() =>
+  moduleChartView.value !== 'breakdown' ? 'toggle-inactive' : '',
+);
+
 const activeButtonStyle = computed((): Record<string, string> => {
   if (props.type === MODULES.Buildings) {
     const roomColor =
@@ -202,6 +261,7 @@ const activeButtonStyle = computed((): Record<string, string> => {
 const TOP_CLASS_MODULES: Module[] = [
   MODULES.EquipmentElectricConsumption,
   MODULES.Purchase,
+  MODULES.ResearchFacilities,
 ];
 
 const moduleStore = useModuleStore();
@@ -219,16 +279,32 @@ function fetchTopClassBreakdownIfNeeded() {
   }
 }
 
+function fetchTripsMapIfNeeded() {
+  const unitId = workspaceStore.selectedUnit?.id;
+  const year = workspaceStore.selectedYear;
+  if (unitId && year && props.type === MODULES.ProfessionalTravel) {
+    void moduleStore.getProfessionalTravelTripsMap(unitId, String(year));
+  }
+}
+
 watch(
   () => workspaceStore.selectedCarbonReport?.id,
   (carbonReportId) => {
     if (carbonReportId) {
       void moduleStore.getEmissionBreakdown(carbonReportId);
       fetchTopClassBreakdownIfNeeded();
+      fetchTripsMapIfNeeded();
     }
   },
   { immediate: true },
 );
+
+watch(
+  () => props.type,
+  () => fetchTripsMapIfNeeded(),
+);
+
+const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
 
 // Re-fetch top-class breakdown when the module type changes (e.g. navigating
 // from purchases to equipment) so stale data from the previous module is replaced.

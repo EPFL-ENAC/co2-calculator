@@ -41,6 +41,23 @@ export interface EmbodiedEnergyCategoryEntry {
   tonnes_co2eq: number;
 }
 
+export interface TripLeg {
+  mode: 'plane' | 'train';
+  origin_lat: number;
+  origin_lng: number;
+  destination_lat: number;
+  destination_lng: number;
+  origin_name: string;
+  destination_name: string;
+  kg_co2eq: number;
+  number_of_trips: number;
+}
+
+export interface TripsMapResponse {
+  legs: TripLeg[];
+  dropped_count: number;
+}
+
 export interface EmissionBreakdownResponse {
   module_breakdown: EmissionBreakdownCategoryRow[];
   additional_breakdown: EmissionBreakdownCategoryRow[];
@@ -288,12 +305,12 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: Array<Record<string, unknown>>;
     loadingTravelStatsByClass: boolean;
     errorTravelStatsByClass: string | null;
-    travelEvolutionOverTime: Array<Record<string, unknown>>;
-    loadingTravelEvolutionOverTime: boolean;
-    errorTravelEvolutionOverTime: string | null;
     topClassBreakdown: Array<Record<string, unknown>>;
     loadingTopClassBreakdown: boolean;
     errorTopClassBreakdown: string | null;
+    tripsMap: TripsMapResponse | null;
+    loadingTripsMap: boolean;
+    errorTripsMap: string | null;
     validatedTotals: ValidatedTotalsResponse | null;
     loadingValidatedTotals: boolean;
     errorValidatedTotals: string | null;
@@ -321,12 +338,12 @@ export const useModuleStore = defineStore('modules', () => {
     travelStatsByClass: [],
     loadingTravelStatsByClass: false,
     errorTravelStatsByClass: null,
-    travelEvolutionOverTime: [],
-    loadingTravelEvolutionOverTime: false,
-    errorTravelEvolutionOverTime: null,
     topClassBreakdown: [],
     loadingTopClassBreakdown: false,
     errorTopClassBreakdown: null,
+    tripsMap: null,
+    loadingTripsMap: false,
+    errorTripsMap: null,
     validatedTotals: null,
     loadingValidatedTotals: false,
     errorValidatedTotals: null,
@@ -366,10 +383,10 @@ export const useModuleStore = defineStore('modules', () => {
     if (!(submoduleId in state.taxonomySubmodule)) {
       state.taxonomySubmodule[submoduleId] = null;
     }
-    // always initialize pagination with defaults
+    // always initialize pagination with defaults (newest first)
     state.paginationSubmodule[submoduleId] = {
-      sortBy: undefined,
-      descending: false,
+      sortBy: 'id',
+      descending: true,
       page: 1,
       rowsPerPage: 20,
       rowsNumber: 0,
@@ -655,9 +672,11 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType: submoduleType,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unitId, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -710,9 +729,11 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -746,9 +767,11 @@ export const useModuleStore = defineStore('modules', () => {
         year,
       });
 
+      await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
+      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -776,24 +799,53 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getTravelEvolutionOverTime(unit: number) {
-    state.loadingTravelEvolutionOverTime = true;
-    state.errorTravelEvolutionOverTime = null;
+  // Dedupe key (unit|year): navigating between modules won't refetch the same
+  // payload, while a different unit/year misses and refetches.
+  const tripsMapCacheKey = ref<string | null>(null);
+
+  async function getProfessionalTravelTripsMap(
+    unit: number,
+    year: string,
+    force = false,
+  ) {
+    const cacheKey = `${unit}|${year}|${carbonProjectType.value}`;
+    if (
+      !force &&
+      tripsMapCacheKey.value === cacheKey &&
+      state.tripsMap !== null
+    )
+      return;
+    state.loadingTripsMap = true;
+    state.errorTripsMap = null;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/evolution-over-time`;
-      const data = await api.get(path).json<Array<Record<string, unknown>>>();
-      state.travelEvolutionOverTime = data;
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/trips-map`;
+      const data = await api
+        .get(path, {
+          searchParams: { carbon_project_type: carbonProjectType.value },
+        })
+        .json<TripsMapResponse>();
+      state.tripsMap = data;
+      tripsMapCacheKey.value = cacheKey;
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        state.errorTravelEvolutionOverTime = err.message ?? 'Unknown error';
-        state.travelEvolutionOverTime = [];
-      } else {
-        state.errorTravelEvolutionOverTime = 'Unknown error';
-        state.travelEvolutionOverTime = [];
-      }
+      state.errorTripsMap =
+        err instanceof Error
+          ? (err.message ?? 'Unknown error')
+          : 'Unknown error';
+      state.tripsMap = null;
+      tripsMapCacheKey.value = null;
     } finally {
-      state.loadingTravelEvolutionOverTime = false;
+      state.loadingTripsMap = false;
     }
+  }
+
+  // Force-refetch so the maps reflect an added/edited/removed entry.
+  async function refreshProfessionalTravelTripsMap(
+    moduleType: Module,
+    unit: number,
+    year: string,
+  ) {
+    if (moduleType !== MODULES.ProfessionalTravel) return;
+    await getProfessionalTravelTripsMap(unit, year, true);
   }
 
   async function getTopClassBreakdown(
@@ -818,6 +870,26 @@ export const useModuleStore = defineStore('modules', () => {
       }
     } finally {
       state.loadingTopClassBreakdown = false;
+    }
+  }
+
+  async function refreshTopClassBreakdownIfNeeded(
+    moduleType: Module,
+    unit: number,
+    year: string,
+  ) {
+    const TOP_CLASS_MODULES = [
+      MODULES.EquipmentElectricConsumption,
+      MODULES.Purchase,
+      MODULES.ResearchFacilities,
+    ];
+    if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
+    try {
+      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleType)}/top-class-breakdown`;
+      const data = await api.get(path).json<Array<Record<string, unknown>>>();
+      state.topClassBreakdown = data;
+    } catch {
+      // keep existing data on error — don't blank the chart
     }
   }
 
@@ -1002,8 +1074,8 @@ export const useModuleStore = defineStore('modules', () => {
     patchItem,
     deleteItem,
     getTravelStatsByClass,
-    getTravelEvolutionOverTime,
     getTopClassBreakdown,
+    getProfessionalTravelTripsMap,
     getValidatedTotals,
     invalidateValidatedTotals,
     getEmissionBreakdown,

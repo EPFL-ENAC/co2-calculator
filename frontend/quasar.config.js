@@ -123,6 +123,10 @@ export default defineConfig(function () {
         // src/boot/sentry.ts skips Sentry.init.
         APP_SENTRY_DSN: process.env.APP_SENTRY_DSN || '',
         APP_ENVIRONMENT: process.env.APP_ENVIRONMENT || '',
+        // MapLibre raster-tile URL (see src/components/molecules/TripsMap.vue).
+        // Default to OSM tile.openstreetmap.org; override per-pod via
+        // /injectEnv.js if a paid/internal tile source is provisioned.
+        APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,

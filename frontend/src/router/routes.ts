@@ -5,7 +5,7 @@ import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
 import validateUnitGuard from './guards/validateUnitGuard';
 import {
-  requirePermission,
+  requireMetaPermission,
   requireModuleEditPermission,
 } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
@@ -17,21 +17,33 @@ const YEAR_PATTERN = '\\d{4}';
 const UNIT_PATTERN = '[^/]+';
 const SIMULATION_ID_PATTERN = '[^/]+';
 
-// Route name constants
-export const LOGIN_ROUTE_NAME = 'login';
-export const LOGIN_TEST_ROUTE_NAME = 'login-test';
-export const LOGIN_ROUTES = [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME];
-export const HOME_ROUTE_NAME = 'home';
-export const WORKSPACE_SETUP_ROUTE_NAME = 'workspace-setup';
-export const WORKSPACE_ROUTE_NAME = 'workspace-dashboard';
-export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
-export const NOT_FOUND_ROUTE_NAME = 'not-found';
-export const DEFAULT_ROUTE_NAME = WORKSPACE_SETUP_ROUTE_NAME;
-
-export const ROUTES_WITHOUT_LANGUAGE = [
-  NOT_FOUND_ROUTE_NAME,
+// Route name constants live in routeNames.ts so guards + tests can
+// depend on them without pulling in the i18n module (which uses
+// import.meta.glob and breaks bare-Node test runners).
+export {
+  LOGIN_ROUTE_NAME,
+  LOGIN_TEST_ROUTE_NAME,
+  LOGIN_ROUTES,
+  HOME_ROUTE_NAME,
+  WORKSPACE_SETUP_ROUTE_NAME,
+  WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
-];
+  NOT_FOUND_ROUTE_NAME,
+  AUTH_COMPLETE_ROUTE_NAME,
+  DEFAULT_ROUTE_NAME,
+  ROUTES_WITHOUT_LANGUAGE,
+} from './routeNames';
+import {
+  LOGIN_ROUTE_NAME,
+  LOGIN_TEST_ROUTE_NAME,
+  HOME_ROUTE_NAME,
+  WORKSPACE_SETUP_ROUTE_NAME,
+  WORKSPACE_ROUTE_NAME,
+  UNAUTHORIZED_ROUTE_NAME,
+  NOT_FOUND_ROUTE_NAME,
+  AUTH_COMPLETE_ROUTE_NAME,
+  DEFAULT_ROUTE_NAME,
+} from './routeNames';
 
 export function isBackOfficeRoute(route: RouteLocationNormalized): boolean {
   return route.meta?.isBackOffice === true;
@@ -51,6 +63,42 @@ const routes: RouteRecordRaw[] = [
           requiresAuth: true,
           note: 'Results – Print/PDF preview (no chrome)',
           breadcrumb: false,
+        },
+      },
+    ],
+  },
+  // Backoffice reporting print previews — own layout, no header/sidebar
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'backoffice-reporting-print',
+        component: () => import('pages/back-office/ReportingPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Backoffice Reporting – Combined PDF print preview (no chrome)',
+          breadcrumb: false,
+          isBackOffice: true,
+        },
+      },
+    ],
+  },
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/results-print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'backoffice-results-print',
+        component: () =>
+          import('pages/back-office/BackofficeResultsPrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Backoffice Reporting – Results PDF print preview (no chrome)',
+          breadcrumb: false,
+          isBackOffice: true,
         },
       },
     ],
@@ -134,7 +182,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Module - data entry (edit permission required)',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -144,7 +192,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Results - Consolidated overview across all modules',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
               {
@@ -154,7 +202,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulations - Selection and management page',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -164,7 +212,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Explore a simulation',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -174,7 +222,7 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Simulation - Plan a simulation',
-                  breadcrumb: false,
+                  breadcrumb: true,
                 },
               },
               {
@@ -184,32 +232,36 @@ const routes: RouteRecordRaw[] = [
                 meta: {
                   requiresAuth: true,
                   note: 'Documentation - Main application guide',
-                  breadcrumb: true,
+                  breadcrumb: false,
                 },
               },
             ],
           },
-          // Back Office routes
+          // Back Office routes.
+          // ``meta.requiredPermission`` (+ ``requiredAction``) is the single
+          // source of truth for each page's gate: ``requireMetaPermission``
+          // enforces it and ``Co2Sidebar`` reads the same meta to decide
+          // reachability, so router and nav can never drift.
           {
             path: 'back-office',
             name: 'back-office',
             redirect: {
               name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             },
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.VIEW,
-            ),
+            beforeEnter: requireMetaPermission,
+            meta: {
+              requiredPermission: 'backoffice.reporting',
+              requiredAction: PermissionAction.VIEW,
+            },
           },
           {
             path: 'back-office/user-management',
             name: BACKOFFICE_NAV.BACKOFFICE_USER_MANAGEMENT.routeName,
             component: () => import('pages/back-office/UserManagementPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.EDIT,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.users',
+              requiredAction: PermissionAction.EDIT,
               requiresAuth: true,
               note: 'Back Office - User roles and permissions (admin only)',
               breadcrumb: false,
@@ -220,11 +272,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/data-management',
             name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
             component: () => import('pages/back-office/DataManagementPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.EDIT,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.configuration',
+              requiredAction: PermissionAction.EDIT,
               requiresAuth: true,
               note: 'Back Office - Data management (admin only)',
               breadcrumb: false,
@@ -236,11 +287,10 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_PIPELINE_OPERATIONS.routeName,
             component: () =>
               import('pages/back-office/PipelineOperationsConsolePage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.EDIT,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.pipeline_operations',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
               note: 'Back Office - Pipeline operations console (admin only)',
               breadcrumb: false,
@@ -252,11 +302,10 @@ const routes: RouteRecordRaw[] = [
             name: BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName,
             component: () =>
               import('pages/back-office/DocumentationEditingPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.VIEW,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.documentation',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
               note: 'Back Office - Documentation and translation management via GitHub',
               breadcrumb: false,
@@ -267,13 +316,11 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/reporting',
             name: BACKOFFICE_NAV.BACKOFFICE_REPORTING.routeName,
             component: () => import('pages/back-office/ReportingPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.VIEW,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.reporting',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
-
               note: 'Back Office - Report generation workflow',
               breadcrumb: false,
               isBackOffice: true,
@@ -283,11 +330,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/ui-texts-editing',
             name: BACKOFFICE_NAV.BACKOFFICE_UI_TEXTS_EDITING.routeName,
             component: () => import('pages/back-office/UITextsEditingPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.VIEW,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.ui_texts',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
               note: 'Back Office - UI translation text management via GitHub',
               breadcrumb: false,
@@ -298,11 +344,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/logs',
             name: BACKOFFICE_NAV.BACKOFFICE_LOGS.routeName,
             component: () => import('pages/system/LogsPage.vue'),
-            beforeEnter: requirePermission(
-              'system.users',
-              PermissionAction.EDIT,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.logs',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
               note: 'Back Office - Audit logs (superadmin only)',
               breadcrumb: false,
@@ -313,11 +358,10 @@ const routes: RouteRecordRaw[] = [
             path: 'back-office/documentation',
             name: 'back-office-documentation',
             component: () => import('pages/back-office/DocumentationPage.vue'),
-            beforeEnter: requirePermission(
-              'backoffice.users',
-              PermissionAction.VIEW,
-            ),
+            beforeEnter: requireMetaPermission,
             meta: {
+              requiredPermission: 'backoffice.documentation',
+              requiredAction: PermissionAction.VIEW,
               requiresAuth: true,
               note: 'Documentation - Back Office documentation',
               isBackOffice: true,
@@ -331,6 +375,23 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
+  },
+  // BFF cookie-exchange landing (ADR-019). Backend redirects here with
+  // `#code=<single-use-token>`; component POSTs it to /session/exchange,
+  // strips the fragment, and routes to home. No auth required: the
+  // exchange call IS the act of authenticating.
+  {
+    path: '/auth/complete',
+    name: AUTH_COMPLETE_ROUTE_NAME,
+    component: () => import('pages/app/AuthCompletePage.vue'),
+    meta: {
+      note: 'BFF cookie-exchange landing page (no auth required)',
+      breadcrumb: false,
+      // The page itself POSTs the exchange code in onMounted, then calls
+      // getUser(). Skipping the guard's auto-probe avoids two redundant
+      // 401s (GET /session, then POST /session refresh) on every login.
+      skipAuthCheck: true,
+    },
   },
   // Catch-all: show 404
   {

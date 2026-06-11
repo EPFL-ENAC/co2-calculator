@@ -3,6 +3,10 @@ export default {
     en: 'View results',
     fr: 'Voir les résultats',
   },
+  results_summary_label: {
+    en: 'Summary',
+    fr: 'Récapitulatif',
+  },
   results_download_pdf: {
     en: 'Download as PDF',
     fr: 'Télécharger en PDF',
@@ -92,40 +96,40 @@ export default {
     fr: 'Empreinte carbone annuelle {year}',
   },
   results_total_unit_carbon_footprint: {
-    en: 'Total carbon footprint of the unit',
-    fr: 'Empreinte carbone totale de l’unité',
+    en: 'Unit carbon footprint',
+    fr: 'Empreinte carbone de l’unité',
   },
   results_total_module_carbon_footprint: {
-    en: 'Total {module} carbon footprint',
-    fr: 'Empreinte carbone totale de {module}',
+    en: '{module} carbon footprint',
+    fr: 'Empreinte carbone de {module}',
   },
   results_total_module_carbon_footprint_purchase: {
-    en: 'Total purchases carbon footprint',
-    fr: 'Empreinte carbone totale des achats',
+    en: 'Purchases carbon footprint',
+    fr: 'Empreinte carbone des achats',
   },
   'results_total_module_carbon_footprint_equipment-electric-consumption': {
-    en: 'Total equipment use carbon footprint',
-    fr: "Empreinte carbone totale liée à l'utilisation des équipements",
+    en: 'Equipment usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
   'results_total_module_carbon_footprint_process-emissions': {
-    en: 'Total process emission carbon footprint',
-    fr: 'Empreinte carbone totale des émissions de procédés',
+    en: 'Process emissions carbon footprint',
+    fr: 'Empreinte carbone des émissions de procédés',
   },
   'results_total_module_carbon_footprint_professional-travel': {
-    en: 'Total professional travel carbon footprint',
-    fr: 'Empreinte carbone totale des voyages professionnels',
+    en: 'Professional travel carbon footprint',
+    fr: 'Empreinte carbone des voyages professionnels',
   },
   results_total_module_carbon_footprint_buildings: {
-    en: 'Buildings total carbon footprint',
-    fr: 'Empreinte carbone totale des bâtiments',
+    en: 'Buildings carbon footprint',
+    fr: 'Empreinte carbone des bâtiments',
   },
   'results_total_module_carbon_footprint_external-cloud-and-ai': {
-    en: 'Total carbon footprint from the use of AI & external clouds',
-    fr: "Empreinte carbone totale liée à l'utilisation d'IA & des clouds externes",
+    en: 'External clouds & AI usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des clouds externes et de l'IA",
   },
   'results_total_module_carbon_footprint_research-facilities': {
-    en: 'Total research facilities carbon footprint',
-    fr: 'Empreinte carbone totale des infrastructures de recherche',
+    en: 'Research facilities usage carbon footprint',
+    fr: "Empreinte carbone liée à l'utilisation des infrastructures de recherche",
   },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE (total of {FTE})',
@@ -144,8 +148,8 @@ export default {
     fr: 'Empreinte carbone de {module}',
   },
   results_total_unit_carbon_footprint_tooltip: {
-    en: 'A km driven by car is equivalent to {value} {unit}',
-    fr: 'Un km parcouru en voiture est équivalent à {value} {unit}',
+    en: 'A km driven by car is equivalent to {value}kg CO₂-eq',
+    fr: 'Un km parcouru en voiture est équivalent à {value}kg CO₂-eq',
   },
   results_carbon_footprint_per_fte_tooltip: {
     en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
@@ -156,8 +160,8 @@ export default {
     fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
   },
   results_equivalent_to_car: {
-    en: 'The value of the equivalence by car is {km}km',
-    fr: 'La valeur de l’équivalence par voiture est de {km}km',
+    en: 'This corresponds to {km}km driven by car',
+    fr: 'Cela correspond à {km}km parcourus en voiture',
   },
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
@@ -220,8 +224,8 @@ export default {
     fr: 'Résultats par catégorie',
   },
   results_by_category_subtitle: {
-    en: 'Annual carbon footprint {year}',
-    fr: 'Bilan CO₂ annuel {year}',
+    en: 'Carbon footprint {year}',
+    fr: 'Empreinte carbone {year}',
   },
   results_equipment_distribution_title: {
     en: 'Equipment distribution',
@@ -422,8 +426,8 @@ export default {
     fr: 'Emissions de combustion d’énergie',
   },
   'charts-energy-combustion-subcategory': {
-    en: 'Energy combustion emissions',
-    fr: "Émissions de combustion d'énergie",
+    en: 'Decentralized heating',
+    fr: 'Chauffage décentralisé',
   },
   'charts-lighting-subcategory': {
     en: 'Lighting',
@@ -438,32 +442,32 @@ export default {
     fr: 'Ventilation',
   },
   'charts-heating-elec-subcategory': {
-    en: 'Heating (electric)',
+    en: 'Heating (electric.)',
     fr: 'Chauffage (électrique)',
   },
   'charts-heating-thermal-subcategory': {
-    en: 'Heating (thermal)',
-    fr: 'Chauffage (thermique)',
+    en: 'Centralized heating',
+    fr: 'Chauffage centralisé',
   },
   'charts-office-subcategory': {
     en: 'Office',
     fr: 'Bureau',
   },
   'charts-laboratories-subcategory': {
-    en: 'Laboratories',
-    fr: 'Laboratoires',
+    en: 'Laboratory',
+    fr: 'Laboratoire',
   },
   'charts-archives-subcategory': {
     en: 'Archives',
     fr: 'Archives',
   },
   'charts-libraries-subcategory': {
-    en: 'Libraries',
-    fr: 'Bibliothèques',
+    en: 'Library',
+    fr: 'Bibliothèque',
   },
   'charts-auditoriums-subcategory': {
-    en: 'Auditoriums',
-    fr: 'Auditoires',
+    en: 'Auditorium',
+    fr: 'Auditoire',
   },
   'charts-miscellaneous-subcategory': {
     en: 'Miscellaneous',
@@ -570,8 +574,8 @@ export default {
     fr: 'Achat',
   },
   'charts-bio-chemicals-subcategory': {
-    en: 'Bio-chemicals',
-    fr: 'Bio-chimiques',
+    en: 'Bio & chemical products',
+    fr: 'Produits biologiques et chimiques',
   },
   'charts-consumables-subcategory': {
     en: 'Consumables',
@@ -590,12 +594,12 @@ export default {
     fr: 'Véhicules',
   },
   'charts-additional-purchases-subcategory': {
-    en: 'Additional purchases',
-    fr: 'Achats supplémentaires',
+    en: 'Centralized purchases',
+    fr: 'Achats centralisés',
   },
   'charts-other-equipment-subcategory': {
     en: 'Other equipment',
-    fr: 'Autre équipement',
+    fr: 'Autres équipements',
   },
   'charts-other-purchases-subcategory': {
     en: 'Other purchases',
@@ -618,12 +622,12 @@ export default {
     fr: 'Avion',
   },
   'charts-class-1-subcategory': {
-    en: 'Class 1',
-    fr: 'Classe 1',
+    en: '1st class',
+    fr: '1ère classe',
   },
   'charts-class-2-subcategory': {
-    en: 'Class 2',
-    fr: 'Classe 2',
+    en: '2nd class',
+    fr: '2ème classe',
   },
   'charts-first-class-subcategory': {
     en: 'First',
@@ -638,8 +642,8 @@ export default {
     fr: 'Éco',
   },
   'charts-clouds-subcategory': {
-    en: 'Clouds',
-    fr: 'Clouds',
+    en: 'External clouds',
+    fr: 'Clouds externes',
   },
   'charts-ai-subcategory': {
     en: 'AI',
@@ -651,7 +655,7 @@ export default {
   },
   'charts-scientific-subcategory': {
     en: 'Scientific equipment',
-    fr: 'Équipement scientifique',
+    fr: 'Équipements scientifiques',
   },
   'charts-stockage-subcategory': {
     en: 'Cloud storage',
@@ -699,7 +703,19 @@ export default {
   },
   'charts-research-animal-subcategory': {
     en: 'Animal facilities',
-    fr: 'Infrastructures pour animaux',
+    fr: 'Animalerie',
+  },
+  'charts-research-it-facilities-subcategory': {
+    en: 'IT facilities',
+    fr: 'Infrastructures IT',
+  },
+  'charts-animal-mice-subcategory': {
+    en: 'Mice',
+    fr: 'Souris',
+  },
+  'charts-animal-fish-subcategory': {
+    en: 'Fish',
+    fr: 'Poisson',
   },
   'charts-rest-subcategory': {
     en: 'Rest',
@@ -707,7 +723,7 @@ export default {
   },
   'charts-equipment-it': {
     en: 'IT Equipment',
-    fr: 'IT Équipement',
+    fr: 'Équipements IT',
   },
   'charts-buildings-it': {
     en: 'IT',
@@ -1043,8 +1059,8 @@ export default {
     fr: 'Part IT',
   },
   'it-focus-equipment-it': {
-    en: 'IT equipment - energy use',
-    fr: 'Équipements IT - consommation énergétique',
+    en: 'IT equipment',
+    fr: 'Équipements IT',
   },
   'it-focus-purchases-it': {
     en: 'IT purchases',
@@ -1106,6 +1122,22 @@ export default {
   'it-focus-research-facilities': {
     en: 'IT research facilities',
     fr: 'Infrastructures de recherche IT',
+  },
+  'it-focus-other-emissions': {
+    en: 'All other non-IT emissions',
+    fr: 'Toutes les autres émissions (hors numérique)',
+  },
+  'it-focus-waffle-caption': {
+    en: 'Each square = 0.1% of the total carbon footprint of the unit',
+    fr: "Chaque carré = 0.1% de l'empreinte carbone totale de l'unité",
+  },
+  results_filter_pill_research_facilities_tooltip: {
+    en: 'These emissions are calculated based on research facilities data.',
+    fr: 'Ces émissions sont calculées à partir des données propres aux infrastructure de recherche.',
+  },
+  results_filter_pill_additional_data_tooltip: {
+    en: "These emissions are calculated based on EPFL's general assumptions.",
+    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
   },
   'it-title': {
     en: 'IT focus',

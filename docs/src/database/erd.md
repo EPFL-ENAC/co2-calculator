@@ -25,6 +25,13 @@ erDiagram
     DATETIME synced_at
     INTEGER version "indexed"
   }
+  auth_exchange_code {
+    VARCHAR code PK
+    DATETIME consumed_at
+    DATETIME created_at
+    DATETIME expires_at
+    INTEGER user_id FK
+  }
   building_rooms {
     VARCHAR building_location "indexed"
     VARCHAR building_name "indexed"
@@ -123,7 +130,7 @@ erDiagram
     VARCHAR country_code "indexed"
     VARCHAR iata_code "indexed"
     INTEGER id PK
-    VARCHAR keywords
+    VARCHAR keywords "indexed"
     FLOAT latitude
     FLOAT longitude
     VARCHAR municipality "indexed"
@@ -142,11 +149,18 @@ erDiagram
     INTEGER job_count
     VARCHAR kind
     VARCHAR last_error
-    INTEGER module_type_id
+    INTEGER module_type_id "indexed"
     DATETIME started_at
-    VARCHAR status
+    VARCHAR status "indexed"
     DATETIME updated_at
-    INTEGER year
+    INTEGER year "indexed"
+  }
+  pods {
+    VARCHAR app_version
+    VARCHAR git_sha
+    DATETIME last_heartbeat_at
+    VARCHAR pod_id PK
+    DATETIME started_at
   }
   unit_users {
     VARCHAR role "indexed"
@@ -187,6 +201,7 @@ erDiagram
     JSON config
     DATETIME configuration_completed
     BOOLEAN is_started
+    VARCHAR provider PK
     DATETIME updated_at
     INTEGER year PK
   }
@@ -200,6 +215,7 @@ erDiagram
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
+  users ||--}o auth_exchange_code : "user_id"
   users ||--}o unit_users : "user_id"
 ```
 

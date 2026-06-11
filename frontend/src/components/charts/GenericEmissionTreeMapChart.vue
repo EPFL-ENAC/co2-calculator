@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -12,12 +12,10 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import EvolutionOverTimeChart from './EvolutionOverTimeChart.vue';
 import TooltipEcharts from './results/TooltipEcharts.vue';
 import { useEchartsTooltip } from './results/useEchartsTooltip';
-import { useModuleStore } from 'src/stores/modules';
-import { useWorkspaceStore } from 'src/stores/workspace';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
+import { downloadEchartAsPng } from 'src/utils/chartDownload';
 import { useColorblindStore } from 'src/stores/colorblind';
 
 import { buildChartDecal } from 'src/constant/charts';
@@ -25,8 +23,6 @@ import type { EmissionTreemapCategory } from 'src/composables/useEmissionTreemap
 import { formatTonnesForChart } from 'src/utils/number';
 
 const { t } = useI18n();
-const moduleStore = useModuleStore();
-const workspaceStore = useWorkspaceStore();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
 
@@ -35,9 +31,11 @@ const LABEL_KEY_MAP: Record<string, string> = {
   co2: 'process-emissions.category.co2',
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
-  refrigerants: 'process-emissions.category.refrigerant',
+  refrigerants: 'process-emissions.category.refrigerants',
   // buildings
+  combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
+  heating_elec: 'charts-heating-elec-subcategory',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
@@ -64,7 +62,11 @@ const LABEL_KEY_MAP: Record<string, string> = {
   additional: 'charts-additional-purchases-subcategory',
   // research facilities
   facilities: 'charts-research-facilities-subcategory',
+  it_facilities: 'charts-research-it-facilities-subcategory',
   animal: 'charts-research-animal-subcategory',
+  mice_and_fish_animal_facilities: 'charts-research-animal-subcategory',
+  mice: 'charts-animal-mice-subcategory',
+  fish: 'charts-animal-fish-subcategory',
   // professional travel
   plane: 'charts-plane-subcategory',
   train: 'charts-train-subcategory',
@@ -93,7 +95,6 @@ use([
 const props = defineProps<{
   data: EmissionTreemapCategory[];
   height?: string;
-  showEvolutionDialog?: boolean;
 }>();
 
 const visibleData = computed(() =>
@@ -129,7 +130,7 @@ const chartOption = computed((): EChartsOption => {
       itemStyle: {
         color: cat.color,
         borderColor: '#fff',
-        borderWidth: 0,
+        borderWidth: 1,
       },
       label: {
         show: pct >= 0.09,
@@ -239,94 +240,31 @@ const onChartReady = async () => {
   attach(chart);
 };
 
-const showEvolutionDialogRef = ref(false);
+const downloadPNG = () =>
+  downloadEchartAsPng(chartRef.value?.chart, 'emission-breakdown');
 
-const hasMultipleYears = computed(() => {
-  const evolutionData = moduleStore.state.travelEvolutionOverTime as Array<{
-    year: number;
-  }>;
-  if (!evolutionData?.length) return false;
-  const years = new Set(evolutionData.map((i) => i.year).filter(Boolean));
-  return years.size > 1;
-});
-
-watch(
-  () => workspaceStore.selectedUnit?.id,
-  (unitId) => {
-    if (unitId && props.showEvolutionDialog) {
-      moduleStore.getTravelEvolutionOverTime(unitId);
-    }
-  },
-  { immediate: true },
-);
-
-const isEvolutionDialogOpen = computed({
-  get: () => showEvolutionDialogRef.value,
-  set: (v: boolean) => {
-    showEvolutionDialogRef.value = v;
-  },
-});
-
-const babyBlueScheme = computed(() => {
-  const first = props.data[0];
-  return first
-    ? {
-        darker: first.color,
-        dark: first.color,
-        default: first.color,
-        light: first.color,
-        lighter: first.color,
-      }
-    : {
-        darker: '#A2CBED',
-        dark: '#B6D8F4',
-        default: '#CDE5FA',
-        light: '#D9E8F8',
-        lighter: '#E5F2FC',
-      };
-});
+defineExpose({ downloadPNG });
 </script>
 
 <template>
-  <div class="flex justify-between items-center q-mb-xs">
-    <q-card-section
-      v-if="!isPrintMode && legendData.length > 0"
-      class="legend-container q-pa-none"
-    >
-      <div class="flex flex-wrap" style="gap: 15px">
-        <div
-          v-for="item in legendData"
-          :key="item.name"
-          class="legend-item flex items-center"
-        >
-          <span
-            class="legend-color"
-            :style="{ backgroundColor: item.color }"
-          ></span>
-          <span class="legend-label">{{ item.name }}</span>
-        </div>
+  <q-card-section
+    v-if="!isPrintMode && legendData.length > 0"
+    class="legend-container q-pa-none q-mb-xs"
+  >
+    <div class="flex flex-wrap" style="gap: 15px">
+      <div
+        v-for="item in legendData"
+        :key="item.name"
+        class="legend-item flex items-center"
+      >
+        <span
+          class="legend-color"
+          :style="{ backgroundColor: item.color }"
+        ></span>
+        <span class="legend-label">{{ item.name }}</span>
       </div>
-    </q-card-section>
-
-    <q-btn
-      v-if="!isPrintMode && showEvolutionDialog"
-      color="primary"
-      unelevated
-      no-caps
-      outline
-      icon="o_timeline"
-      size="sm"
-      :label="$t('evolution_over_time')"
-      class="text-weight-medium q-mb-sm"
-      :disable="!hasMultipleYears"
-      :title="
-        !hasMultipleYears
-          ? $t('evolution_over_time_requires_multiple_years')
-          : ''
-      "
-      @click="isEvolutionDialogOpen = true"
-    />
-  </div>
+    </div>
+  </q-card-section>
 
   <q-card-section class="chart-container q-pa-none">
     <v-chart
@@ -348,22 +286,6 @@ const babyBlueScheme = computed(() => {
       />
     </Teleport>
   </q-card-section>
-
-  <q-dialog v-model="isEvolutionDialogOpen">
-    <q-card style="width: 700px; max-width: 80vw">
-      <q-card-section class="row items-center q-py-md">
-        <div class="text-h4 text-weight-medium">
-          {{ $t('evolution_over_time') }}
-        </div>
-        <q-space />
-        <q-btn v-close-popup icon="close" flat round dense />
-      </q-card-section>
-      <q-separator />
-      <q-card-section>
-        <EvolutionOverTimeChart :color-scheme="babyBlueScheme" />
-      </q-card-section>
-    </q-card>
-  </q-dialog>
 </template>
 
 <style scoped>

@@ -7,6 +7,33 @@ Permissions are calculated dynamically from roles and returned as a structured d
 from typing import Optional
 
 
+def derive_backoffice_affiliations(
+    permissions: Optional[dict],
+    anchor_path: str = "backoffice.reporting",
+) -> tuple[bool, set[str]]:
+    """Inspect permission keys for backoffice sub-perimeter scoping (#459).
+
+    Returns ``(is_global, affiliations)``:
+    - ``is_global`` is True iff the bare ``anchor_path`` key is present, which
+      in practice means the user holds CO2_SUPERADMIN (the only role that
+      emits bare backoffice.* keys; CO2_BACKOFFICE_METIER is always scoped).
+    - ``affiliations`` is the set of sub-perimeter labels parsed from
+      ``{anchor_path}/<aff>`` keys (multi-affiliation users yield multiple
+      entries — natural union semantics).
+
+    ``backoffice.reporting`` is the canonical anchor (#862): it is the only
+    affiliation-scoped backoffice area, so it is the sole key that carries the
+    ``/<aff>`` suffix for CO2_BACKOFFICE_METIER (bare for CO2_SUPERADMIN). The
+    other backoffice pages (users, documentation, ui_texts) are scope-less.
+    """
+    if not permissions:
+        return False, set()
+    is_global = anchor_path in permissions
+    prefix = f"{anchor_path}/"
+    affiliations = {k.removeprefix(prefix) for k in permissions if k.startswith(prefix)}
+    return is_global, affiliations
+
+
 def has_permission(
     permissions: Optional[dict],
     path: str,
@@ -17,10 +44,10 @@ def has_permission(
 ) -> bool:
     """Check if a permission exists and grants ``action``.
 
-    Permission keys may be un-scoped (``"backoffice.users"``, ``"system.users"``)
-    or scoped to a unit (``"modules.headcount/0184"``). Only ``modules.*`` permissions
-    are unit-scoped — ``backoffice.*`` and ``system.*`` permissions are always stored
-    un-scoped. Callers pick the matching mode via kwargs:
+    Permission keys may be un-scoped (``"backoffice.users"``), unit-scoped
+    (``"modules.headcount/0184"``), or own-scoped (``"modules.headcount/0184/own"``
+    for standard users). When ``institutional_id`` is given the lookup matches
+    either the unit-scoped key or its ``/own`` variant. Callers pick the mode:
 
     - ``institutional_id`` set: strict match on ``f"{path}/{institutional_id}"``.
       Use this when the caller has a unit context (route handlers gating a unit-scoped
@@ -53,7 +80,14 @@ def has_permission(
 
     candidates: list[str]
     if institutional_id is not None:
-        candidates = [f"{path}/{institutional_id}"]
+        # A unit-context lookup matches either the unit-scoped key (principal)
+        # or the own-scoped key (standard user). Breadth (all-unit vs own) is
+        # applied by the data layer (``get_data_filters``); operations that
+        # must be unit-only use ``resolve_module_scope`` instead.
+        candidates = [
+            f"{path}/{institutional_id}",
+            f"{path}/{institutional_id}/own",
+        ]
     elif any_scope:
         scope_prefix = f"{path}/"
         candidates = [path, *[k for k in permissions if k.startswith(scope_prefix)]]
@@ -65,3 +99,34 @@ def has_permission(
         if isinstance(actions, list) and action in actions:
             return True
     return False
+
+
+def resolve_module_scope(
+    permissions: Optional[dict],
+    path: str,
+    action: str,
+    *,
+    institutional_id: str,
+) -> Optional[str]:
+    """Return the breadth at which ``action`` on ``path`` is granted for a unit.
+
+    ``"global"`` (bare key) > ``"unit"`` (``path/<unit>``) > ``"own"``
+    (``path/<unit>/own``) > ``None`` (denied). Unit-level operations (e.g.
+    validating a module's status) require ``"unit"``/``"global"`` and must
+    reject ``"own"``; record-level operations accept any non-None breadth and
+    let the data layer apply the own (``created_by``) filter.
+    """
+    if not permissions:
+        return None
+
+    def grants(key: str) -> bool:
+        actions = permissions.get(key)
+        return isinstance(actions, list) and action in actions
+
+    if grants(path):
+        return "global"
+    if grants(f"{path}/{institutional_id}"):
+        return "unit"
+    if grants(f"{path}/{institutional_id}/own"):
+        return "own"
+    return None

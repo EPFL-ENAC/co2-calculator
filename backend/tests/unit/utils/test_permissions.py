@@ -10,10 +10,12 @@ Tests cover:
 import pytest
 
 from app.models.user import (
+    AffiliationScope,
     GlobalScope,
+    OwnScope,
     Role,
     RoleName,
-    RoleScope,
+    UnitScope,
     calculate_user_permissions,
 )
 from app.utils.permissions import (
@@ -30,32 +32,36 @@ class TestCalculateUserPermissions:
         assert result == {}
 
     def test_superadmin_global_scope(self):
-        """Test superadmin with global scope grants all permissions."""
+        """Test superadmin with global scope grants every backoffice page."""
         roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
         result = calculate_user_permissions(roles)
 
         assert "view" in result["backoffice.users"]
         assert "edit" in result["backoffice.users"]
         assert "export" in result["backoffice.users"]
-        assert "edit" in result["system.users"]
+        assert "edit" in result["backoffice.configuration"]
+        assert "view" in result["backoffice.logs"]
+        assert "edit" in result["backoffice.pipeline_operations"]
+        assert "edit" in result["backoffice.ui_texts"]
+        assert "system.users" not in result
+        assert "backoffice.data_management" not in result
         assert "modules.headcount" not in result
         assert "modules.equipment" not in result
 
-    def test_backoffice_metier_global_scope(self):
-        """Test backoffice metier with global scope grants full backoffice access."""
+    def test_backoffice_metier_global_scope_grants_nothing(self):
+        """CO2_BACKOFFICE_METIER is sub-perimeter-bound: a GlobalScope shape is
+        not produced by ACCRED and grants no permissions. Only CO2_SUPERADMIN
+        gets cross-affiliation backoffice reach."""
         roles = [Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())]
         result = calculate_user_permissions(roles)
-
-        assert "view" in result["backoffice.users"]
-        assert "edit" in result["backoffice.users"]
-        assert "export" in result["backoffice.users"]
+        assert result == {}
 
     def test_superadmin_wrong_scope(self):
         """Test superadmin with unit scope does not grant permissions."""
         roles = [
             Role(
                 role=RoleName.CO2_SUPERADMIN,
-                on=RoleScope(unit="10208"),
+                on=UnitScope(institutional_id="10208"),
             )
         ]
         result = calculate_user_permissions(roles)
@@ -66,7 +72,7 @@ class TestCalculateUserPermissions:
         """Test user principal with unit scope grants module permissions."""
         roles = [
             Role(
-                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+                role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="10208")
             )
         ]
         result = calculate_user_permissions(roles)
@@ -85,27 +91,32 @@ class TestCalculateUserPermissions:
         assert "edit" in result["modules.research_facilities/10208"]
         assert "view" in result["modules.external_cloud_and_ai/10208"]
         assert "edit" in result["modules.external_cloud_and_ai/10208"]
-        # Principal also gets backoffice.users.edit for unit-scoped role assignment
-        assert "edit" in result["backoffice.users"]
+        # Principal is a unit role only — no backoffice.* grants. Backoffice
+        # access requires CO2_BACKOFFICE_METIER (or CO2_SUPERADMIN).
+        assert not any(key.startswith("backoffice.") for key in result), (
+            f"Principal leaked backoffice keys: "
+            f"{[k for k in result if k.startswith('backoffice.')]}"
+        )
 
     def test_user_std_unit_scope(self):
         """Test user std with unit scope grants view and edit for professional_travel."""  # noqa: E501
         roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208"))
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="10208"))
         ]
         result = calculate_user_permissions(roles)
 
-        assert "modules.headcount/10208" not in result
-        assert "modules.equipment/10208" not in result
-        assert "modules.professional_travel/10208" in result
-        assert "view" in result["modules.professional_travel/10208"]
-        assert "edit" in result["modules.professional_travel/10208"]
-        assert "modules.buildings/10208" not in result
-        assert "modules.purchase/10208" not in result
-        assert "modules.research_facilities/10208" not in result
-        assert "modules.external_cloud_and_ai/10208" in result
-        assert "view" in result["modules.external_cloud_and_ai/10208"]
-        assert "edit" in result["modules.external_cloud_and_ai/10208"]
+        # Standard user is own-scoped → ``modules.X/<unit>/own`` keys.
+        assert "modules.headcount/10208/own" not in result
+        assert "modules.equipment/10208/own" not in result
+        assert "modules.professional_travel/10208/own" in result
+        assert "view" in result["modules.professional_travel/10208/own"]
+        assert "edit" in result["modules.professional_travel/10208/own"]
+        assert "modules.buildings/10208/own" not in result
+        assert "modules.purchase/10208/own" not in result
+        assert "modules.research_facilities/10208/own" not in result
+        assert "modules.external_cloud_and_ai/10208/own" in result
+        assert "view" in result["modules.external_cloud_and_ai/10208/own"]
+        assert "edit" in result["modules.external_cloud_and_ai/10208/own"]
 
     def test_user_roles_wrong_scope(self):
         """Test user roles with global scope do not grant permissions."""
@@ -115,34 +126,43 @@ class TestCalculateUserPermissions:
         assert "modules.headcount/10208" not in result
 
     def test_combined_backoffice_and_user_roles(self):
-        """Test that permissions from different domains combine."""
+        """Test that permissions from different domains combine.
+
+        Uses the affiliation-scoped backoffice shape because that is the only
+        valid CO2_BACKOFFICE_METIER configuration (GlobalScope is not produced
+        by ACCRED for this role)."""
         roles = [
-            Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope()),
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208")),
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=AffiliationScope(affiliation="SV"),
+            ),
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="10208")),
         ]
         result = calculate_user_permissions(roles)
 
-        # Backoffice permissions
+        # Backoffice: reporting is affiliation-scoped; users is scope-less (#862)
+        assert "backoffice.reporting/SV" in result
+        assert "view" in result["backoffice.reporting/SV"]
         assert "backoffice.users" in result
         assert "view" in result["backoffice.users"]
-        assert "edit" in result["backoffice.users"]
 
-        # Module permissions - CO2_USER_STD grants professional_travel.view and edit
-        assert "view" in result["modules.professional_travel/10208"]
-        assert "edit" in result["modules.professional_travel/10208"]
-        assert "modules.headcount/10208" not in result
-        assert "modules.equipment/10208" not in result
+        # Std module grants are own-scoped (``/own``).
+        assert "view" in result["modules.professional_travel/10208/own"]
+        assert "edit" in result["modules.professional_travel/10208/own"]
+        assert "modules.headcount/10208/own" not in result
+        assert "modules.equipment/10208/own" not in result
 
     def test_multiple_user_roles_same_unit(self):
         """Test multiple user roles for same unit combine correctly."""
         roles = [
-            Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id="10208")),
+            Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id="10208")),
             Role(
-                role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id="10208")
+                role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id="10208")
             ),
         ]
         result = calculate_user_permissions(roles)
 
+        # Principal grants are unit-scoped (no ``/own`` suffix).
         assert "view" in result["modules.headcount/10208"]
         assert "edit" in result["modules.headcount/10208"]
         assert "view" in result["modules.professional_travel/10208"]
@@ -153,7 +173,7 @@ class TestCalculateUserPermissions:
         # Create role with string role name
         role_dict = {
             "role": f"{RoleName.CO2_SUPERADMIN.value}",
-            "on": {"scope": "global"},
+            "on": {"kind": "global"},
         }
         role = Role(**role_dict)
         roles = [role]
@@ -354,35 +374,66 @@ _PRINCIPAL_MODULES = (
 )
 _STD_MODULES = ("professional_travel", "external_cloud_and_ai")
 
+_BACKOFFICE_AFF = "SV"
+# Keys emitted by CO2_BACKOFFICE_METIER (#862): only reporting is
+# affiliation-scoped; users/documentation/ui_texts are scope-less.
 _BACKOFFICE_KEYS = frozenset(
+    {
+        f"backoffice.reporting/{_BACKOFFICE_AFF}",
+        "backoffice.users",
+        "backoffice.documentation",
+        "backoffice.ui_texts",
+    }
+)
+# Bare key shape emitted by CO2_SUPERADMIN (every backoffice page, global).
+_BACKOFFICE_KEYS_BARE = frozenset(
     {
         "backoffice.reporting",
         "backoffice.users",
-        "backoffice.data_management",
         "backoffice.documentation",
+        "backoffice.ui_texts",
+        "backoffice.configuration",
+        "backoffice.pipeline_operations",
+        "backoffice.logs",
     }
 )
-_SYSTEM_KEYS = frozenset({"system.users"})
+# Pages only CO2_SUPERADMIN gets (never metier / principal / std).
+_SUPERADMIN_ONLY_KEYS = frozenset(
+    {
+        "backoffice.configuration",
+        "backoffice.pipeline_operations",
+        "backoffice.logs",
+    }
+)
 
 _IID_A = "0184"
 _IID_B = "9999"
 
 
-def _modules(names, iid: str) -> set[str]:
-    """Build the scoped module-permission keys for a given unit."""
-    return {f"modules.{n}/{iid}" for n in names}
+def _modules(names, iid: str, *, own: bool = False) -> set[str]:
+    """Build the scoped module-permission keys for a given unit.
+
+    ``own=True`` appends the ``/own`` suffix emitted for standard users.
+    """
+    suffix = "/own" if own else ""
+    return {f"modules.{n}/{iid}{suffix}" for n in names}
 
 
 def _r_principal(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_PRINCIPAL, on=UnitScope(institutional_id=iid))
 
 
 def _r_std(iid: str) -> Role:
-    return Role(role=RoleName.CO2_USER_STD, on=RoleScope(institutional_id=iid))
+    return Role(role=RoleName.CO2_USER_STD, on=OwnScope(institutional_id=iid))
 
 
 def _r_backoffice() -> Role:
-    return Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())
+    """Backoffice metier — always sub-perimeter-bound (affiliation-scoped).
+    GlobalScope is not a valid configuration for this role."""
+    return Role(
+        role=RoleName.CO2_BACKOFFICE_METIER,
+        on=AffiliationScope(affiliation=_BACKOFFICE_AFF),
+    )
 
 
 def _r_superadmin() -> Role:
@@ -402,16 +453,13 @@ class TestRoleDomainIsolation:
             pytest.param(_r_std(_IID_A), ("modules.",), id="std"),
             pytest.param(
                 _r_principal(_IID_A),
-                # TODO(pm-confirm): principal currently grants
-                # ``backoffice.users.edit`` (for unit-scoped role assignment).
-                # Verify with PM whether this exception is still desired; if
-                # removed, drop "backoffice.users" below and the matching line
-                # in calculate_user_permissions.
-                ("modules.", "backoffice.users"),
+                # Principal is a unit-area role: only modules.* keys.
+                # (backoffice.users.edit was removed in #459 Phase 2.)
+                ("modules.",),
                 id="principal",
             ),
             pytest.param(_r_backoffice(), ("backoffice.",), id="backoffice"),
-            pytest.param(_r_superadmin(), ("backoffice.", "system."), id="superadmin"),
+            pytest.param(_r_superadmin(), ("backoffice.",), id="superadmin"),
         ],
     )
     def test_role_only_grants_keys_in_its_domain(self, role, allowed_prefixes):
@@ -434,62 +482,65 @@ class TestRoleDomainIsolation:
 # Pre-built sets reused across rows
 _PRINCIPAL_KEYS_A = _modules(_PRINCIPAL_MODULES, _IID_A)
 _PRINCIPAL_KEYS_B = _modules(_PRINCIPAL_MODULES, _IID_B)
-_STD_KEYS_A = _modules(_STD_MODULES, _IID_A)
-_STD_KEYS_B = _modules(_STD_MODULES, _IID_B)
+_STD_KEYS_A = _modules(_STD_MODULES, _IID_A, own=True)
+_STD_KEYS_B = _modules(_STD_MODULES, _IID_B, own=True)
 
 
 _COMPOSITION_CASES = [
     pytest.param(
         [_r_principal(_IID_A)],
-        # TODO(pm-confirm): principal grants backoffice.users.edit
-        _PRINCIPAL_KEYS_A | {"backoffice.users"},
-        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS | (_BACKOFFICE_KEYS - {"backoffice.users"}),
+        _PRINCIPAL_KEYS_A,
+        _PRINCIPAL_KEYS_B | _BACKOFFICE_KEYS | _BACKOFFICE_KEYS_BARE,
         id="principal-A",
     ),
     pytest.param(
         [_r_std(_IID_A)],
         _STD_KEYS_A,
-        (_PRINCIPAL_KEYS_A - _STD_KEYS_A) | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        (_PRINCIPAL_KEYS_A - _STD_KEYS_A) | _BACKOFFICE_KEYS | _BACKOFFICE_KEYS_BARE,
         id="std-A",
     ),
     pytest.param(
+        # Backoffice metier: scoped reporting + scope-less users/docs/ui_texts;
+        # never the super-admin-only pages or a bare reporting key.
         [_r_backoffice()],
         set(_BACKOFFICE_KEYS),
-        _PRINCIPAL_KEYS_A | _SYSTEM_KEYS,
+        _PRINCIPAL_KEYS_A | _SUPERADMIN_ONLY_KEYS | {"backoffice.reporting"},
         id="backoffice",
     ),
     pytest.param(
+        # Superadmin: every backoffice page bare (global); never scoped reporting.
         [_r_superadmin()],
-        set(_BACKOFFICE_KEYS) | set(_SYSTEM_KEYS),
-        _PRINCIPAL_KEYS_A,
+        set(_BACKOFFICE_KEYS_BARE),
+        _PRINCIPAL_KEYS_A | {f"backoffice.reporting/{_BACKOFFICE_AFF}"},
         id="superadmin",
     ),
     pytest.param(
         # std + principal on the same unit: principal subsumes std (idempotent).
         [_r_std(_IID_A), _r_principal(_IID_A)],
-        _PRINCIPAL_KEYS_A | {"backoffice.users"},
-        _PRINCIPAL_KEYS_B | _SYSTEM_KEYS,
+        _PRINCIPAL_KEYS_A,
+        _PRINCIPAL_KEYS_B | _BACKOFFICE_KEYS | _BACKOFFICE_KEYS_BARE,
         id="std+principal-same-unit",
     ),
     pytest.param(
         # Multi-unit: full perms on A, only travel+cloud on B. Critically,
         # principal-only modules MUST NOT appear under /B.
         [_r_principal(_IID_A), _r_std(_IID_B)],
-        _PRINCIPAL_KEYS_A | _STD_KEYS_B | {"backoffice.users"},
-        _PRINCIPAL_KEYS_B - _STD_KEYS_B,
+        _PRINCIPAL_KEYS_A | _STD_KEYS_B,
+        (_PRINCIPAL_KEYS_B - _STD_KEYS_B) | _BACKOFFICE_KEYS | _BACKOFFICE_KEYS_BARE,
         id="principal-A+std-B",
     ),
     pytest.param(
-        # Two domains active: backoffice + principal — system.* must stay absent.
+        # backoffice + principal — super-admin-only pages must stay absent.
         [_r_backoffice(), _r_principal(_IID_A)],
         _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS,
-        set(_SYSTEM_KEYS),
+        _SUPERADMIN_ONLY_KEYS | {"backoffice.reporting"},
         id="backoffice+principal",
     ),
     pytest.param(
-        # All three domains — full union, nothing forbidden.
+        # All roles — full union, nothing forbidden. Metier adds scoped
+        # reporting; superadmin adds the bare keys (incl. bare reporting).
         [_r_superadmin(), _r_backoffice(), _r_principal(_IID_A)],
-        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS | _SYSTEM_KEYS,
+        _PRINCIPAL_KEYS_A | _BACKOFFICE_KEYS | _BACKOFFICE_KEYS_BARE,
         set(),
         id="superadmin+backoffice+principal",
     ),
@@ -540,28 +591,52 @@ class TestPermissionInvariants:
                 )
 
     @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
-    def test_backoffice_and_system_keys_never_scoped(self, roles):
-        """``backoffice.*`` and ``system.*`` permissions are flat (un-scoped).
-        Adding a unit suffix to them would silently break un-scoped lookups."""
+    def test_system_keys_never_scoped(self, roles):
+        """``system.*`` permissions are flat — adding a unit suffix would
+        silently break un-scoped lookups. (``backoffice.*`` is scoped by
+        affiliation for sub-perimeter managers since #459; see the dedicated
+        backoffice tests below.)"""
         perms = calculate_user_permissions(roles)
         for key in perms:
-            if key.startswith(("backoffice.", "system.")):
+            if key.startswith("system."):
                 assert "/" not in key, (
-                    f"Scoped non-module key found: {key!r} (roles={roles})"
+                    f"Scoped system key found: {key!r} (roles={roles})"
                 )
 
+    @pytest.mark.parametrize("roles", _INVARIANT_ROLE_LISTS)
+    def test_backoffice_keys_only_scoped_by_affiliation(self, roles):
+        """Backoffice keys are either bare (GlobalScope / superadmin / principal
+        side-grant) or carry an affiliation suffix ``/<aff>`` (#459). A unit-id
+        suffix on a backoffice key would mean a wrongly-shaped scope leaked
+        through ``as_scope_key``."""
+        perms = calculate_user_permissions(roles)
+        for key in perms:
+            if not key.startswith("backoffice."):
+                continue
+            if "/" not in key:
+                continue
+            suffix = key.split("/", 1)[1]
+            # Affiliations are name-like tokens (e.g. "SV", "Engineering") —
+            # never the all-digit institutional_id shape ("0184", "10208").
+            assert not suffix.isdigit(), (
+                f"Backoffice key carries unit-id suffix: {key!r} (roles={roles})"
+            )
+
     def test_principal_subsumes_std_for_same_unit(self):
-        """``[std, principal]`` for the same unit yields the same key-set as
-        ``[principal]`` alone, and at least the same actions per key.
-        Encodes the rule: 'if a user has both, std is dominated.'"""
+        """``[std, principal]`` for the same unit keeps every principal
+        (unit-breadth) key with at least the same actions. The std role adds
+        its own-scoped (``/own``) keys, which are functionally redundant with
+        the unit-breadth grant but coexist as distinct keys (#role-scope)."""
         principal_only = calculate_user_permissions([_r_principal(_IID_A)])
         combined = calculate_user_permissions([_r_std(_IID_A), _r_principal(_IID_A)])
-        assert set(combined) == set(principal_only)
+        assert set(principal_only) <= set(combined)
         for key, actions in principal_only.items():
             assert set(combined[key]) >= set(actions), (
                 f"principal lost actions on {key} when merged with std: "
                 f"{set(actions) - set(combined[key])}"
             )
+        # The only extra keys are std's own-scoped grants.
+        assert (set(combined) - set(principal_only)) <= _STD_KEYS_A
 
     def test_cross_unit_no_principal_leak(self):
         """A user with ``principal/A`` and ``std/B`` must not get
@@ -574,53 +649,155 @@ class TestPermissionInvariants:
             )
 
 
-class TestBackofficeScopingCurrentBehavior:
-    """Pin current backoffice-permission scoping behaviour.
+class TestBackofficeAffiliationScoping:
+    """Backoffice sub-perimeter scoping by ACCRED affiliation (#459).
 
-    Backoffice metier permissions are ALWAYS stored un-scoped today, even when
-    the role itself carries a ``RoleScope`` (institutional_id or affiliation).
-    Issue #459 will introduce a sub-perimeter (per-affiliation) scoping for
-    backoffice managers (e.g. "Anna can only see SV"). When that lands, these
-    tests are expected to fail — that's the signal to update the contract.
-
-    NOTE: Affiliation-based roles are intentionally only meaningful for
-    backoffice; we do not test affiliation on ``user.*`` roles because the
-    role-assignment layer is responsible for never producing that shape.
+    Affiliation-scoped backoffice users hold ``backoffice.X/<affiliation>``
+    keys; GlobalScope users keep the bare ``backoffice.X`` keys. The two
+    shapes coexist via the ``any_scope=True`` lookup mode on endpoints.
     """
 
-    def test_backoffice_with_iid_role_scope_keys_stay_unscoped(self):
-        # TODO(#459): backoffice scoping by sub-perimeter — replace this with
-        # a scoped assertion once the new key shape is decided.
-        roles = [
-            Role(
-                role=RoleName.CO2_BACKOFFICE_METIER,
-                on=RoleScope(institutional_id="0184"),
-            )
-        ]
-        perms = calculate_user_permissions(roles)
-        for key in perms:
-            assert key.startswith("backoffice."), (
-                f"unexpected non-backoffice key: {key!r}"
-            )
-            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+    # Bare keys CO2_SUPERADMIN holds (every backoffice page, global).
+    _BACKOFFICE_BARE = (
+        "backoffice.reporting",
+        "backoffice.users",
+        "backoffice.documentation",
+        "backoffice.ui_texts",
+        "backoffice.configuration",
+        "backoffice.pipeline_operations",
+        "backoffice.logs",
+    )
 
-    def test_backoffice_with_affiliation_role_scope_keys_stay_unscoped(self):
-        # TODO(#459): this is exactly the case the new sub-perimeter scoping
-        # is meant to address — Anna with affiliation "SV" should only see
-        # data for SV. Update this test then.
+    def test_affiliation_scope_emits_expected_keys(self):
+        """An SV-scoped metier user holds scoped reporting + scope-less
+        users/documentation/ui_texts only (#862). Reporting is the sole
+        affiliation-scoped area; the super-admin pages are absent."""
         roles = [
             Role(
                 role=RoleName.CO2_BACKOFFICE_METIER,
-                on=RoleScope(affiliation="SV"),
+                on=AffiliationScope(affiliation="SV"),
             )
         ]
         perms = calculate_user_permissions(roles)
-        assert perms, "backoffice on affiliation should currently grant flat perms"
-        for key in perms:
-            assert key.startswith("backoffice."), (
-                f"unexpected non-backoffice key: {key!r}"
+        assert set(perms) == {
+            "backoffice.reporting/SV",
+            "backoffice.users",
+            "backoffice.documentation",
+            "backoffice.ui_texts",
+        }
+        assert set(perms["backoffice.reporting/SV"]) == {"view", "export"}
+        assert set(perms["backoffice.users"]) == {"view", "edit", "export"}
+        assert set(perms["backoffice.documentation"]) == {"view", "edit"}
+        assert set(perms["backoffice.ui_texts"]) == {"view", "edit"}
+
+    def test_scoped_backoffice_lacks_superadmin_pages(self):
+        """Regression pin: metier MUST NOT hold the super-admin-only pages
+        (configuration / pipeline_operations / logs) nor any data_management
+        key. Granting those would let a non-Super-Admin trigger syncs or mutate
+        factor data."""
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=AffiliationScope(affiliation="SV"),
             )
-            assert "/" not in key, f"backoffice key carries a scope suffix: {key!r}"
+        ]
+        perms = calculate_user_permissions(roles)
+        for key in (
+            "backoffice.configuration",
+            "backoffice.pipeline_operations",
+            "backoffice.logs",
+        ):
+            assert key not in perms
+        assert not any(k.startswith("backoffice.data_management") for k in perms)
+
+    def test_superadmin_has_configuration_pipeline_logs(self):
+        """Counterpart: Super Admin holds the page-driven super-admin keys and
+        no longer the removed system.users / data_management keys."""
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+        perms = calculate_user_permissions(roles)
+        assert set(perms["backoffice.configuration"]) == {"view", "edit"}
+        assert set(perms["backoffice.pipeline_operations"]) == {"view", "edit"}
+        assert set(perms["backoffice.logs"]) == {"view"}
+        assert "backoffice.data_management" not in perms
+        assert "system.users" not in perms
+
+    def test_superadmin_keeps_bare_keys(self):
+        """CO2_SUPERADMIN emits bare backoffice.* keys (no ``/<aff>`` suffix)
+        for every page. CO2_BACKOFFICE_METIER cannot reach this shape."""
+        roles = [Role(role=RoleName.CO2_SUPERADMIN, on=GlobalScope())]
+        perms = calculate_user_permissions(roles)
+        for path in self._BACKOFFICE_BARE:
+            assert path in perms, f"missing bare key {path}"
+            assert f"{path}/" not in " ".join(perms), (
+                f"Superadmin leaked a scoped variant of {path}"
+            )
+
+    def test_backoffice_metier_global_scope_grants_nothing(self):
+        """Regression guard: CO2_BACKOFFICE_METIER + GlobalScope is an
+        unconfigured shape (never produced by ACCRED) and yields no permissions."""
+        roles = [Role(role=RoleName.CO2_BACKOFFICE_METIER, on=GlobalScope())]
+        assert calculate_user_permissions(roles) == {}
+
+    def test_multi_affiliation_unions(self):
+        """Two metier roles on SV and STI → both scoped reporting keys present;
+        the bare reporting key never appears (users stays scope-less)."""
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=AffiliationScope(affiliation="SV"),
+            ),
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=AffiliationScope(affiliation="STI"),
+            ),
+        ]
+        perms = calculate_user_permissions(roles)
+        assert "backoffice.reporting/SV" in perms
+        assert "backoffice.reporting/STI" in perms
+        assert "backoffice.reporting" not in perms
+        # users is scope-less even for metier
+        assert "backoffice.users" in perms
+
+    def test_affiliation_scope_via_dict_role(self):
+        """Roles deserialized from JSON come in as dicts — the dict branch of
+        ``as_scope_key`` must produce the same ``/<affiliation>`` suffix on the
+        scoped reporting key."""
+        role_dict = {
+            "role": RoleName.CO2_BACKOFFICE_METIER.value,
+            "on": {"kind": "affiliation", "affiliation": "SV"},
+        }
+        perms = calculate_user_permissions([Role(**role_dict)])
+        assert "backoffice.reporting/SV" in perms
+
+    def test_iid_role_scope_grants_nothing(self):
+        """Defensive: ACCRED never produces an institutional_id-scoped backoffice
+        role. Such a shape is not affiliation-scoped, so it grants nothing rather
+        than emitting a meaningless ``backoffice.reporting/0184``."""
+        roles = [
+            Role(
+                role=RoleName.CO2_BACKOFFICE_METIER,
+                on=UnitScope(institutional_id="0184"),
+            )
+        ]
+        assert calculate_user_permissions(roles) == {}
+
+
+class TestHasPermissionAnyScopeAffiliation:
+    """``has_permission(..., any_scope=True)`` must match affiliation keys.
+
+    This pins the rationale for swapping ``require_permission`` for an inline
+    ``any_scope=True`` check on the backoffice endpoints (#459).
+    """
+
+    def test_any_scope_matches_affiliation_key(self):
+        perms = {"backoffice.users/SV": ["view", "edit", "export"]}
+        assert has_permission(perms, "backoffice.users", "view", any_scope=True) is True
+
+    def test_default_lookup_misses_affiliation_key(self):
+        """A bare-path lookup against an affiliation-only user must return
+        False — this is exactly why the endpoints need ``any_scope=True``."""
+        perms = {"backoffice.users/SV": ["view"]}
+        assert has_permission(perms, "backoffice.users", "view") is False
 
 
 class TestHasPermissionAgainstRealPermissions:
@@ -681,9 +858,9 @@ class TestMultiUnitSameRole:
         perms = calculate_user_permissions([_r_std(_IID_A), _r_std(_IID_B)])
         keys = set(perms)
         for module in _STD_MODULES:
-            assert f"modules.{module}/{_IID_A}" in keys
-            assert f"modules.{module}/{_IID_B}" in keys
+            assert f"modules.{module}/{_IID_A}/own" in keys
+            assert f"modules.{module}/{_IID_B}/own" in keys
         # Modules std doesn't grant must be absent on both units
         for module in set(_PRINCIPAL_MODULES) - set(_STD_MODULES):
-            assert f"modules.{module}/{_IID_A}" not in keys
-            assert f"modules.{module}/{_IID_B}" not in keys
+            assert f"modules.{module}/{_IID_A}/own" not in keys
+            assert f"modules.{module}/{_IID_B}/own" not in keys

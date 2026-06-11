@@ -33,6 +33,20 @@
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
+      <div
+        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
+        class="q-mx-lg q-mt-lg"
+      >
+        <trips-map
+          :legs="tripsMapLegs"
+          :mode-filter="tripsMapMode"
+          :loading="moduleStore.state.loadingTripsMap"
+          :aria-label="
+            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
+          "
+          :testid="`trips-map-${tripsMapMode}`"
+        />
+      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -46,6 +60,8 @@
           :submodule-config="submodule"
           :disable="isTableDisabled"
           :is-simulator="isSimulator"
+          :module-color="submoduleColor"
+          :module-color-lighter="submoduleLighterColor"
         />
       </div>
       <q-separator />
@@ -61,7 +77,7 @@
         </div>
       </div>
       <template v-else>
-        <div v-if="showModuleForm" class="q-mx-lg">
+        <div v-if="showModuleForm">
           <module-form
             ref="formRef"
             :fields="submodule.moduleFields"
@@ -75,6 +91,7 @@
             :unit-id="unitId"
             :year="year"
             :form-defaults="formDefaults"
+            :module-color="submoduleColor"
             @submit="submitForm"
           />
         </div>
@@ -119,6 +136,20 @@
     </q-card-section>
     <q-separator />
     <q-card-section class="q-pa-none">
+      <div
+        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
+        class="q-mx-lg q-mt-lg"
+      >
+        <trips-map
+          :legs="tripsMapLegs"
+          :mode-filter="tripsMapMode"
+          :loading="moduleStore.state.loadingTripsMap"
+          :aria-label="
+            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
+          "
+          :testid="`trips-map-${tripsMapMode}`"
+        />
+      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -171,6 +202,7 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
+import TripsMap from 'src/components/molecules/TripsMap.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
@@ -183,11 +215,19 @@ import type {
   EnumSubmoduleType,
   Module,
 } from 'src/constant/modules';
-import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
+import {
+  enumSubmodule,
+  MODULES,
+  MODULES_THRESHOLD_TYPES,
+} from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import { Notify } from 'quasar';
+import {
+  getSubmoduleIconColor,
+  getSubmoduleLighterColor,
+} from 'src/composables/useModuleIconColors';
 interface Option {
   label: string;
   value: string;
@@ -258,6 +298,14 @@ const authStore = useAuthStore();
 const submoduleKey = computed(() => {
   return props.submodule.id;
 });
+
+const submoduleColor = computed(() =>
+  getSubmoduleIconColor(props.submodule.id, props.moduleType),
+);
+
+const submoduleLighterColor = computed(
+  () => `${getSubmoduleLighterColor(props.submodule.id, props.moduleType)}50`,
+);
 
 const isInputDeactivated = computed(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
@@ -347,6 +395,18 @@ const showModuleForm = computed(
 const showViewOnlyBadge = computed(
   () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
 );
+
+// Map data is fetched once at the module-charts level (ModuleCharts.vue
+// triggers `getProfessionalTravelTripsMap`); the plane/train cards just
+// filter and render. tripsMapMode is non-null only when the submodule
+// opts in via `topVisualization: 'trips-map'` and identifies as plane/train.
+const tripsMapMode = computed<'plane' | 'train' | null>(() => {
+  if (props.submodule.topVisualization !== 'trips-map') return null;
+  if (props.submodule.id === 'plane') return 'plane';
+  if (props.submodule.id === 'train') return 'train';
+  return null;
+});
+const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
 
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;

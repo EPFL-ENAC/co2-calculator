@@ -4,6 +4,14 @@ import { useI18n } from 'vue-i18n';
 import ReductionObjectiveEpflView from 'src/components/charts/results/ReductionObjectiveEpflView.vue';
 import ReductionObjectiveUnitView from 'src/components/charts/results/ReductionObjectiveUnitView.vue';
 
+const epflViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+const unitViewRef = ref<{ downloadPNG: () => Promise<void> } | null>(null);
+
+const downloadPNG = () =>
+  moduleChartView.value === 'epfl'
+    ? epflViewRef.value?.downloadPNG()
+    : unitViewRef.value?.downloadPNG();
+
 type ModuleChartView = 'epfl' | 'unit';
 
 interface Props {
@@ -16,7 +24,7 @@ const props = withDefaults(defineProps<Props>(), {
   hideAdditionalData: false,
 });
 
-const moduleChartView = ref<ModuleChartView>('epfl');
+const moduleChartView = ref<ModuleChartView>('unit');
 
 const moduleChartViewModel = computed({
   get: () => moduleChartView.value,
@@ -59,21 +67,21 @@ const chartTitle = computed(() =>
         dense
         no-caps
         unelevated
-        toggle-color="accent"
+        toggle-color="info"
         toggle-text-color="white"
         color="grey-2"
         text-color="grey-7"
         :options="[
-          { value: 'epfl', slot: 'epfl' },
           { value: 'unit', slot: 'unit' },
+          { value: 'epfl', slot: 'epfl' },
         ]"
-        class="chart-view-toggle"
+        class="chart-view-toggle text-weight-medium"
       >
-        <template #epfl>
-          {{ $t('results_objectives_2040_epfl_button') }}
-        </template>
         <template #unit>
           {{ $t('results_objectives_2040_unit_button') }}
+        </template>
+        <template #epfl>
+          {{ $t('results_objectives_2040_epfl_button') }}
         </template>
       </q-btn-toggle>
     </div>
@@ -96,7 +104,7 @@ const chartTitle = computed(() =>
         {{ $t('results_objectives_2040_subtitle') }}
         (
         <a
-          class="objective-subtitle__link"
+          class="link"
           href="https://e4s.center/fr/resources/reports/carbon-removal-net-zero-and-implications-for-switzerland/"
           target="_blank"
           rel="noopener noreferrer"
@@ -116,13 +124,40 @@ const chartTitle = computed(() =>
     <div class="q-pl-xl">
       <ReductionObjectiveEpflView
         v-if="moduleChartView === 'epfl'"
+        ref="epflViewRef"
         :hide-research-facilities="props.hideResearchFacilities"
       />
       <ReductionObjectiveUnitView
         v-else
+        ref="unitViewRef"
         :hide-research-facilities="props.hideResearchFacilities"
         :hide-additional-data="props.hideAdditionalData"
       />
     </div>
   </q-card-section>
+  <q-separator />
+  <q-card-section class="flex justify-start q-gutter-sm">
+    <q-btn
+      unelevated
+      no-caps
+      outline
+      icon="o_download"
+      :label="$t('common_download_as_png')"
+      size="xs"
+      dense
+      class="text-weight-bold q-px-sm"
+      @click="downloadPNG"
+    />
+  </q-card-section>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.chart-view-toggle {
+  :deep(.q-btn) {
+    font-weight: tokens.$text-weight-medium;
+    font-size: tokens.$text-size-base;
+  }
+}
+</style>

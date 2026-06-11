@@ -74,6 +74,113 @@ export function hasPermission(
 }
 
 /**
+ * Check if the user has `action` on `path` under ANY scope.
+ *
+ * Matches the bare path (`backoffice.users`) AND any scoped variant
+ * (`backoffice.users/ENAC-SG`, `backoffice.users/0184`). Mirrors the
+ * backend's `has_permission(..., any_scope=True)` mode (see
+ * `backend/app/utils/permissions.py`). Use for back-office routes/menu
+ * items that should accept GlobalScope users, unit-scoped users, AND
+ * affiliation-scoped users alike (#459).
+ *
+ * Do NOT use for unit-data routes — those need workspace-scoped checks
+ * to enforce unit isolation. Use `hasPermission(...)` with a workspace
+ * context instead.
+ */
+export function hasAnyScopePermission(
+  permissions: FlatUserPermissions | null | undefined,
+  path: string,
+  action: PermissionAction = PermissionAction.VIEW,
+): boolean {
+  if (
+    !permissions ||
+    typeof permissions !== 'object' ||
+    Array.isArray(permissions)
+  ) {
+    return false;
+  }
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
+    return false;
+  }
+  const scopePrefix = `${path}/`;
+  for (const [key, actions] of Object.entries(permissions)) {
+    if (key !== path && !key.startsWith(scopePrefix)) continue;
+    if (Array.isArray(actions) && actions.includes(action)) return true;
+  }
+  return false;
+}
+
+/**
+ * Check if the user holds ANY back-office area permission granting `action`.
+ *
+ * The back-office area is the `backoffice.*` page family (reporting, users,
+ * documentation, ui_texts, configuration, pipeline_operations, logs). Matches
+ * bare keys (`backoffice.users`, emitted for GlobalScope / super admin) AND
+ * affiliation-scoped keys (`backoffice.reporting/ENAC-SG`, emitted for ACCRED
+ * sub-perimeter users). Used to gate UI entry points to the back-office area
+ * as a whole (#459). The former `system.*` family was removed in #862.
+ */
+export function hasBackOfficeAreaPermission(
+  permissions: FlatUserPermissions | null | undefined,
+  action: PermissionAction = PermissionAction.VIEW,
+): boolean {
+  if (
+    !permissions ||
+    typeof permissions !== 'object' ||
+    Array.isArray(permissions)
+  ) {
+    return false;
+  }
+  for (const [key, actions] of Object.entries(permissions)) {
+    if (!key.startsWith('backoffice.')) continue;
+    if (Array.isArray(actions) && actions.includes(action)) return true;
+  }
+  return false;
+}
+
+/**
+ * Check if the user has UNIT-level (or global) breadth on `path`.
+ *
+ * Matches a bare `path` key (global / super admin) or a unit-scoped
+ * `path/<unit>` key (principal), but NOT the own-scoped `path/<unit>/own`
+ * key (standard user). Mirrors the backend `resolve_module_scope` returning
+ * `"unit"`/`"global"` (see `backend/app/utils/permissions.py`). Use this to
+ * gate unit-level controls — e.g. validating a module's status — which a
+ * standard user must not see even though they can edit their own records.
+ *
+ * Pass `institutionalId` to restrict the unit match to that specific unit
+ * (`path/<institutionalId>`); without it, any unit-scoped key matches.
+ */
+export function hasUnitScopePermission(
+  permissions: FlatUserPermissions | null | undefined,
+  path: string,
+  action: PermissionAction = PermissionAction.VIEW,
+  institutionalId?: string,
+): boolean {
+  if (
+    !permissions ||
+    typeof permissions !== 'object' ||
+    Array.isArray(permissions)
+  ) {
+    return false;
+  }
+  if (!path || typeof path !== 'string' || path.trim().length === 0) {
+    return false;
+  }
+  const scopePrefix = `${path}/`;
+  const unitKey = institutionalId ? `${path}/${institutionalId}` : null;
+  for (const [key, actions] of Object.entries(permissions)) {
+    const isGlobal = key === path;
+    const isUnit = unitKey
+      ? key === unitKey
+      : key.startsWith(scopePrefix) && !key.endsWith('/own');
+    if (!isGlobal && !isUnit) continue;
+    if (Array.isArray(actions) && actions.includes(action)) return true;
+  }
+  return false;
+}
+
+/**
  * Maps frontend module names to backend permission paths.
  * Only modules with defined permissions are included.
  *

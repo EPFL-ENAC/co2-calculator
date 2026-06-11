@@ -371,6 +371,23 @@ async def get_it_breakdown(
             report_year=report_year,
         )
 
+    rf_crm_id = crm_by_type.get(ModuleTypeEnum.research_facilities.value)
+    if (
+        rf_crm_id is not None
+        and ModuleTypeEnum.research_facilities.value not in exclude_set
+    ):
+        top_class_detail[
+            "research_facilities_it"
+        ] = await emission_svc.get_top_class_breakdown(
+            carbon_report_module_id=rf_crm_id,
+            data_entry_types=[
+                DataEntryTypeEnum.research_facilities,
+                DataEntryTypeEnum.mice_and_fish_animal_facilities,
+            ],
+            group_by_field="researchfacility_name",
+            report_year=report_year,
+        )
+
     emission_rows_no_qty: list[tuple[int, int, float]] = [
         (module_type_id, emission_type_id, kg_co2eq)
         for module_type_id, emission_type_id, kg_co2eq, _add in emission_rows

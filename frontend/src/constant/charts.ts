@@ -1,6 +1,5 @@
 import { computed } from 'vue';
 import { useColorblindStore } from 'src/stores/colorblind';
-import { storeToRefs } from 'pinia';
 import { MODULES, type Module } from './modules';
 
 /** Interpolate between two `#RRGGBB` colours. */
@@ -15,27 +14,23 @@ function lerpHex(a: string, b: string, t: number): string {
   return '#' + mix(1) + mix(3) + mix(5);
 }
 
-// Get the store instance and export colorblindMode for backward compatibility
-const colorblindStore = useColorblindStore();
-const { enabled: colorblindMode } = storeToRefs(colorblindStore);
-export { colorblindMode };
-
 // Color definitions with default and colorblind variants
 const colorDefinitions = {
   yellow: {
     default: {
-      darker: '#FFF381',
-      dark: '#FFFA9C',
-      default: '#FFFEBA',
-      light: '#FFFFD4',
-      lighter: '#FFFFE8',
+      // Pastel lemon yellow (readable, not washed-out)
+      darker: '#D8C300',
+      dark: '#F0E06A',
+      default: '#FAED90',
+      light: '#FFF6C0',
+      lighter: '#FFFCE6',
     },
     colorblind: {
       darker: '#D4A017',
-      dark: '#E5B84F',
-      default: '#F5D882',
-      light: '#FAE8B0',
-      lighter: '#FDF5D9',
+      dark: '#DCCB4A',
+      default: '#F2E27A',
+      light: '#F6F0A8',
+      lighter: '#FBF9D1',
     },
   },
   // 2
@@ -293,6 +288,22 @@ const colorDefinitions = {
       lighter: '#E6EEF9',
     },
   },
+  teal: {
+    default: {
+      darker: '#72C5C2',
+      dark: '#8DD3D0',
+      default: '#A8E1DE',
+      light: '#C4EDEB',
+      lighter: '#DCF4F3',
+    },
+    colorblind: {
+      darker: '#3A8FA0',
+      dark: '#5AAABB',
+      default: '#7DC5D5',
+      light: '#AADCE8',
+      lighter: '#D0EDF4',
+    },
+  },
   notDefined: {
     default: {
       darker: '#000000',
@@ -313,7 +324,7 @@ const colorDefinitions = {
 
 // Single computed that returns colors based on colorblind mode
 export const colors = computed(() => {
-  const mode = colorblindMode.value ? 'colorblind' : 'default';
+  const mode = useColorblindStore().enabled ? 'colorblind' : 'default';
   return {
     yellow: colorDefinitions.yellow[mode],
     peach: colorDefinitions.peach[mode],
@@ -331,6 +342,7 @@ export const colors = computed(() => {
     lightGreen: colorDefinitions.lightGreen[mode],
     paleYellowGreen: colorDefinitions.paleYellowGreen[mode],
     lightLavender: colorDefinitions.lightLavender[mode],
+    teal: colorDefinitions.teal[mode],
     notDefined: colorDefinitions.notDefined[mode],
   };
 });
@@ -388,6 +400,7 @@ export const RESULTS_CATEGORY_LABEL_KEYS: Record<
 
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
+  headcount: colors.value.yellow,
   process_emissions: colors.value.peach,
   buildings_energy_combustion: colors.value.apricot,
   buildings_room: colors.value.lilac,
@@ -407,9 +420,9 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
       heating_elec: colors.value.lilac.dark,
-      lighting: colors.value.lilac.default,
-      cooling: colors.value.lilac.light,
-      ventilation: colors.value.lilac.lighter,
+      cooling: colors.value.lilac.default,
+      ventilation: colors.value.lilac.light,
+      lighting: colors.value.lilac.lighter,
       heating_thermal: colors.value.lilac.lighter,
       office: colors.value.lilac.darker,
       laboratories: colors.value.lilac.dark,
@@ -456,6 +469,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     research_facilities: {
       facilities: colors.value.paleYellowGreen.darker,
+      it_facilities: colors.value.paleYellowGreen.default,
       animal: colors.value.paleYellowGreen.dark,
     },
     purchases: (() => {

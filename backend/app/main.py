@@ -79,6 +79,21 @@ async def lifespan(app: FastAPI):
             reconcile_pipeline_statuses_loop()
         )
 
+    # Start the pod heartbeat writer (#1080 sprint-9) — registers
+    # this pod in the ``pods`` table and refreshes its
+    # ``last_heartbeat_at`` so the workers view can show "who's
+    # claiming work right now".  Motivating incident: a dev branch
+    # running locally against the stage DB silently collided with
+    # the deployed stage app — no UI surfaced two pods.
+    if settings.RUN_POD_HEARTBEAT:
+        from app.tasks._pod_heartbeat import pod_heartbeat_loop
+
+        logger.info(
+            "Starting pod heartbeat (every %ss)",
+            settings.POD_HEARTBEAT_INTERVAL_SECONDS,
+        )
+        app.state.pod_heartbeat_task = asyncio.create_task(pod_heartbeat_loop())
+
     yield
 
     # Cancel background tasks on shutdown
@@ -98,6 +113,14 @@ async def lifespan(app: FastAPI):
             await reconciler_task
         except asyncio.CancelledError:
             logger.info("Pipeline reconciler cancelled successfully")
+    heartbeat_task = getattr(app.state, "pod_heartbeat_task", None)
+    if heartbeat_task:
+        logger.info("Cancelling pod heartbeat")
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            logger.info("Pod heartbeat cancelled successfully")
 
     logger.info("Shutdown complete", extra={settings.APP_NAME: settings.APP_VERSION})
 
@@ -135,19 +158,18 @@ app = FastAPI(
 
     Permissions follow a hierarchical dot-notation structure:
 
-    * **backoffice.*** - Administrative features
-        * `backoffice.users` (view, edit) - User management
-        * `backoffice.files` (view) - File storage access
-        * `backoffice.access` (view) - Full backoffice access
+    * **backoffice.*** - One permission per backoffice page
+        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)
+        * `backoffice.users` (view, edit, export) - User management
+        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)
+        * `backoffice.configuration` / `backoffice.pipeline_operations`
+          (view, edit) - super admin only
+        * `backoffice.logs` (view) - super admin only
 
-    * **modules.*** - CO2 calculation modules
-        * `modules.headcount` (view, edit) - Headcount data
-        * `modules.professional_travel` (view, edit, export) - Travel records
-        * `modules.equipment` (view, edit) - Equipment tracking
-        * `modules.surface` (view, edit) - Surface data
-
-    * **system.*** - System-level routes
-        * `system.routes` (view) - System route access
+    * **modules.*** - CO2 calculation modules (unit-scoped `…/<unit>`, or
+      own-scoped `…/<unit>/own` for standard users)
+        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,
+          … (view, edit, sync)
 
     ### Permission Actions
 
