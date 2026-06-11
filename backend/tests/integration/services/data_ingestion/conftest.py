@@ -457,6 +457,7 @@ _TRIMMED_CSV_FIXTURES: dict[tuple[str, str], str] = {
     # binds to the seeded ``Unit.institutional_id``.
     ("equipments", "data"): "equipments_smoke.csv",
     ("purchases_common", "data"): "purchases_common_smoke.csv",
+    ("purchases_common", "factors"): "purchases_common_factors_smoke.csv",
     ("external_clouds", "data"): "external_clouds_smoke.csv",
     ("processemissions", "data"): "process_emissions_smoke.csv",
     ("researchfacilities_common", "data"): "researchfacilities_common_smoke.csv",
