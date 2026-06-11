@@ -128,6 +128,8 @@ export interface Submodule {
   hasFormTooltip?: boolean | string;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;
+  /** Show note button in the table even when data rows are read-only. */
+  hasTableNote?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
   notifyInfoOnAddKey?: string;

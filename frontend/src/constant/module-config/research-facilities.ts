@@ -107,6 +107,7 @@ export const researchFacilities: ModuleConfig = {
       moduleFields: researchFacilitiesFields,
       hasFormTooltip: false,
       hasTableAction: false,
+      hasTableNote: true,
     },
     {
       id: SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities,
@@ -115,6 +116,7 @@ export const researchFacilities: ModuleConfig = {
       moduleFields: animalFields,
       hasFormTooltip: false,
       hasTableAction: false,
+      hasTableNote: true,
     },
   ],
 };
