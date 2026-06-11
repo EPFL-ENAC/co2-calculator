@@ -19,6 +19,7 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
 import { useColorblindStore } from 'src/stores/colorblind';
@@ -503,22 +504,18 @@ defineExpose({ downloadPNG });
 
 <template>
   <div class="q-mb-md">
-    <div class="flex justify-center items-center">
-      <v-chart
-        v-if="chartData.bars.length"
-        ref="chartRef"
-        :key="colorblindStore.enabled ? 'cb' : 'default'"
-        class="chart"
-        autoresize
-        :option="chartOption"
-        :update-options="{ replaceMerge: ['series'] }"
-        :style="{ height: chartHeight + 'px' }"
-        @vue:mounted="onChartReady"
-      />
-      <span v-else class="text-body2 text-secondary">
-        {{ $t('no-chart-data') }}
-      </span>
-    </div>
+    <v-chart
+      v-if="chartData.bars.length"
+      ref="chartRef"
+      :key="colorblindStore.enabled ? 'cb' : 'default'"
+      class="chart"
+      autoresize
+      :option="chartOption"
+      :update-options="{ replaceMerge: ['series'] }"
+      :style="{ height: chartHeight + 'px' }"
+      @vue:mounted="onChartReady"
+    />
+    <chart-empty-state v-else />
     <Teleport to="body">
       <tooltip-echarts
         v-if="tooltip.visible"

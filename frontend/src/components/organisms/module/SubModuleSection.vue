@@ -393,7 +393,10 @@ const showModuleForm = computed(
 );
 
 const showViewOnlyBadge = computed(
-  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
+  () =>
+    Boolean(props.submodule.moduleFields) &&
+    !isFormDisabled.value &&
+    !canEdit.value,
 );
 
 // Map data is fetched once at the module-charts level (ModuleCharts.vue

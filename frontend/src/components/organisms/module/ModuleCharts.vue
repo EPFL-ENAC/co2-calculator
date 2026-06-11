@@ -1,17 +1,15 @@
 <template>
   <q-card-section class="text-left module-charts q-px-none">
     <template v-if="type === 'headcount'">
-      <div class="q-px-lg q-mx-sm">
-        <h2 class="text-h5 text-weight-medium q-mb-md text-bold text-black">
+      <div class="q-mx-lg">
+        <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
           {{ $t('headcount-charts-title') }}
-        </h2>
+        </div>
         <headCountBarChart
-          v-if="hasStats"
+          v-if="headcountChartKeys.length"
           :stats="moduleStore?.state?.data?.stats"
         />
-        <span v-else class="text-body2 text-secondary">
-          {{ $t(`${type}-charts-no-data-message`) }}
-        </span>
+        <chart-empty-state v-else />
       </div>
     </template>
     <template v-else>
@@ -82,9 +80,7 @@
             :data="moduleTreemapData"
             :print-mode="printMode"
           />
-          <span v-else class="text-body2 text-secondary">
-            {{ $t('no-chart-data') }}
-          </span>
+          <chart-empty-state v-else />
         </template>
         <template v-else>
           <emission-type-breakdown-chart
@@ -96,9 +92,7 @@
             :print-mode="printMode"
           />
 
-          <span v-else class="text-body2 text-secondary">
-            {{ $t('no-chart-data') }}
-          </span>
+          <chart-empty-state v-else />
         </template>
       </div>
       <template v-if="type === MODULES.ProfessionalTravel && !isPrintMode">
@@ -141,6 +135,7 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Module, MODULES } from 'src/constant/modules';
+import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
 import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import TripsMap from 'src/components/molecules/TripsMap.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
@@ -158,6 +153,7 @@ import {
   MODULE_TO_CATEGORIES,
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
+import { getHeadcountChartKeys } from 'src/utils/headcountChart';
 
 const props = withDefaults(
   defineProps<{
@@ -313,10 +309,9 @@ watch(
   () => fetchTopClassBreakdownIfNeeded(),
 );
 
-const hasStats = computed(() => {
-  const stats = moduleStore.state.data?.stats;
-  return !!stats && Object.keys(stats).length > 0;
-});
+const headcountChartKeys = computed(() =>
+  getHeadcountChartKeys(moduleStore.state.data?.stats),
+);
 
 const moduleTreemapData = computed(() => {
   const breakdown = moduleStore.state.emissionBreakdown?.module_breakdown;
