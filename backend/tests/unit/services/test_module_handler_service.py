@@ -245,7 +245,7 @@ async def test_purchase_additional_code_overrides_institutional_code(service):
         "purchase_institutional_code": "A",
         "purchase_additional_code": "ADD-1",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -268,7 +268,7 @@ async def test_purchase_unknown_additional_code_falls_back_to_institutional(serv
         "purchase_institutional_code": "B",
         "purchase_additional_code": "TYPO",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -290,7 +290,7 @@ async def test_purchase_no_additional_code_uses_average_row_only(service):
     service.factor_service.get_factors = AsyncMock(return_value=[specific, average])
 
     payload = {"purchase_institutional_code": "C"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -323,7 +323,7 @@ async def test_purchase_no_match_at_all_sets_none(service):
     service.factor_service.get_factors = AsyncMock(return_value=[])
 
     payload = {"purchase_institutional_code": "ZZZ"}
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -343,7 +343,7 @@ async def test_purchase_additional_code_from_existing_data(service):
         "purchase_institutional_code": "E",
         "purchase_additional_code": "ADD-5",
     }
-    result = await service.resolve_primary_factor_id(
+    result, _ = await service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.services,
@@ -370,7 +370,7 @@ async def test_purchase_if_changed_additional_code_change_re_resolves(service):
         return_value=[_purchase_factor(61, "F", additional_code="ADD-NEW")]
     )
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_additional_code": "ADD-NEW"},
         DataEntryTypeEnum.services,
@@ -393,7 +393,7 @@ async def test_purchase_if_changed_additional_code_cleared_falls_back(service):
         return_value=[_purchase_factor(72, "G")]
     )
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_additional_code": None},
         DataEntryTypeEnum.services,
@@ -425,7 +425,7 @@ async def test_purchase_if_changed_kind_change_clears_stale_override(service):
     new_factor = _purchase_factor(81, "41112201")
     service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"purchase_institutional_code": "41112201"},
         DataEntryTypeEnum.services,
@@ -455,7 +455,7 @@ async def test_purchase_if_changed_kind_and_override_both_change(service):
     new_factor = _purchase_factor(91, "41112201", additional_code="VC99")
     service.factor_service.get_factors = AsyncMock(return_value=[new_factor])
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {
             "purchase_institutional_code": "41112201",
@@ -487,7 +487,7 @@ async def test_purchase_if_changed_nothing_changed_no_lookup(service):
     handler = _purchase_handler()
     service.factor_service.get_factors = AsyncMock()
 
-    result = await service.resolve_primary_factor_if_changed(
+    result, _ = await service.resolve_primary_factor_if_changed(
         handler,
         {"note": "updated"},
         DataEntryTypeEnum.services,
@@ -591,7 +591,7 @@ async def test_purchase_resolution_truth_table(
         "purchase_institutional_code": institutional,
         "purchase_additional_code": additional,
     }
-    result = await truth_table_service.resolve_primary_factor_id(
+    result, _ = await truth_table_service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
@@ -701,7 +701,7 @@ async def test_smoke_csv_additional_code_wins(smoke_service):
         "purchase_institutional_code": "51100000",
         "purchase_additional_code": "LA05",
     }
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -719,7 +719,7 @@ async def test_smoke_csv_no_additional_code_picks_average_row(smoke_service):
     """Without additional_code, 51100000 resolves to the code-less average row."""
     handler = _purchase_handler()
     payload = {"purchase_institutional_code": "51100000"}
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -740,7 +740,7 @@ async def test_smoke_csv_unknown_additional_code_falls_back(smoke_service):
         "purchase_institutional_code": "51100000",
         "purchase_additional_code": "NOPE",
     }
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler,
         payload,
         DataEntryTypeEnum.biological_chemical_gaseous_product,
@@ -764,7 +764,7 @@ async def test_smoke_csv_single_row_with_code_is_authoritative(smoke_service):
     handler = _purchase_handler()
     # 91111500 only exists with additional_code AA66.
     payload = {"purchase_institutional_code": "91111500"}
-    result = await smoke_service.resolve_primary_factor_id(
+    result, _ = await smoke_service.resolve_primary_factor_id(
         handler, payload, DataEntryTypeEnum.services, year=2025
     )
 
