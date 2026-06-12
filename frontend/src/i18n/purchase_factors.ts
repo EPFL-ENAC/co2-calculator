@@ -56,7 +56,7 @@ export default {
     en: 'Rabbits',
   },
   '10101513': {
-    fr: 'Cochons d\'Inde',
+    fr: "Cochons d'Inde",
     en: 'Guinea pigs',
   },
   '10101514': {
@@ -528,7 +528,7 @@ export default {
     en: 'Cucumber seeds or seedlings',
   },
   '10151508': {
-    fr: 'Semences ou semis d\'aubergine',
+    fr: "Semences ou semis d'aubergine",
     en: 'Eggplant seeds or seedlings',
   },
   '10151509': {
@@ -536,7 +536,7 @@ export default {
     en: 'Endive seeds or seedlings',
   },
   '10151510': {
-    fr: 'Semences ou semis d\'ail',
+    fr: "Semences ou semis d'ail",
     en: 'Garlic seeds or seedlings',
   },
   '10151511': {
@@ -556,7 +556,7 @@ export default {
     en: 'Melon seeds or seedlings',
   },
   '10151515': {
-    fr: 'Semences ou semis d\'oignon',
+    fr: "Semences ou semis d'oignon",
     en: 'Onion seeds or seedlings',
   },
   '10151516': {
@@ -564,7 +564,7 @@ export default {
     en: 'Soya seeds or seedlings',
   },
   '10151517': {
-    fr: 'Semences ou semis d\'épinard',
+    fr: "Semences ou semis d'épinard",
     en: 'Spinach seeds or seedlings',
   },
   '10151518': {
@@ -652,7 +652,7 @@ export default {
     en: 'Colza seeds',
   },
   '10151603': {
-    fr: 'Semences d\'orge',
+    fr: "Semences d'orge",
     en: 'Barley seeds',
   },
   '10151604': {
@@ -660,7 +660,7 @@ export default {
     en: 'Millet seeds',
   },
   '10151605': {
-    fr: 'Semences d\'avoine',
+    fr: "Semences d'avoine",
     en: 'Oat seeds',
   },
   '10151606': {
@@ -672,7 +672,7 @@ export default {
     en: 'Linseed seeds',
   },
   '10151608': {
-    fr: 'Semences d\'huile de ricin',
+    fr: "Semences d'huile de ricin",
     en: 'Castor oil seeds',
   },
   '10151609': {
@@ -828,7 +828,7 @@ export default {
     en: 'Residue of linseed',
   },
   '10152104': {
-    fr: 'Gâteau dhuile d\'argousier',
+    fr: "Gâteau dhuile d'argousier",
     en: 'Oil cake of neem',
   },
   '10152200': {
@@ -916,11 +916,11 @@ export default {
     en: 'Poinsettias plants',
   },
   '10161603': {
-    fr: 'Plants d\'orchidée',
+    fr: "Plants d'orchidée",
     en: 'Orchids plants',
   },
   '10161604': {
-    fr: 'Plants d\'azalée',
+    fr: "Plants d'azalée",
     en: 'Azaleas plants',
   },
   '10161605': {
@@ -1072,7 +1072,7 @@ export default {
     en: 'Fungicides',
   },
   '10190000': {
-    fr: 'Produits d\'extermination des insectes nuisibles',
+    fr: "Produits d'extermination des insectes nuisibles",
     en: 'Pest control products',
   },
   '10191500': {
@@ -1252,7 +1252,7 @@ export default {
     en: 'Titanium ore',
   },
   '11101603': {
-    fr: 'Minerai d\'uranium',
+    fr: "Minerai d'uranium",
     en: 'Uranium ore',
   },
   '11101604': {
@@ -1260,7 +1260,7 @@ export default {
     en: 'Copper ore',
   },
   '11101605': {
-    fr: 'Minerai d\'aluminium',
+    fr: "Minerai d'aluminium",
     en: 'Aluminum ore',
   },
   '11101606': {
@@ -1268,7 +1268,7 @@ export default {
     en: 'Nickel ore',
   },
   '11101607': {
-    fr: 'Minerai d\'argent',
+    fr: "Minerai d'argent",
     en: 'Silver ore',
   },
   '11101608': {
@@ -1280,7 +1280,7 @@ export default {
     en: 'Zinc ore',
   },
   '11101610': {
-    fr: 'Minerai d\'étain',
+    fr: "Minerai d'étain",
     en: 'Tin ore',
   },
   '11101611': {
@@ -1304,7 +1304,7 @@ export default {
     en: 'Cobalt ore',
   },
   '11101616': {
-    fr: 'Minerai d\'or',
+    fr: "Minerai d'or",
     en: 'Gold ore',
   },
   '11101617': {
@@ -1328,7 +1328,7 @@ export default {
     en: 'Kyanite ore',
   },
   '11101622': {
-    fr: 'Minerai d\'antimoine',
+    fr: "Minerai d'antimoine",
     en: 'Antimony ore',
   },
   '11101623': {
@@ -1676,7 +1676,7 @@ export default {
     en: 'Coconut fibres or coir',
   },
   '11121807': {
-    fr: 'Fibres d\'abaca',
+    fr: "Fibres d'abaca",
     en: 'Abaca fibers',
   },
   '11121808': {
@@ -1700,7 +1700,7 @@ export default {
     en: 'Licorice roots',
   },
   '11130000': {
-    fr: 'Produits d\'animaux non comestibles',
+    fr: "Produits d'animaux non comestibles",
     en: 'Non edible animal products',
   },
   '11131500': {
@@ -1716,7 +1716,7 @@ export default {
     en: 'Furs',
   },
   '11131503': {
-    fr: 'Poils d\'animaux',
+    fr: "Poils d'animaux",
     en: 'Animal hair',
   },
   '11131504': {
@@ -1824,11 +1824,11 @@ export default {
     en: 'Leather waste or scrap',
   },
   '11141700': {
-    fr: 'Déchets et rebuts d\'aliments et de tabac',
+    fr: "Déchets et rebuts d'aliments et de tabac",
     en: 'Food and tobacco waste and scrap',
   },
   '11141701': {
-    fr: 'Déchets ou rebuts d\'aliments',
+    fr: "Déchets ou rebuts d'aliments",
     en: 'Food waste or scrap',
   },
   '11141702': {
@@ -1844,7 +1844,7 @@ export default {
     en: 'Fibers',
   },
   '11151501': {
-    fr: 'Fibres d\'acétate',
+    fr: "Fibres d'acétate",
     en: 'Acetate fibers',
   },
   '11151502': {
@@ -1896,7 +1896,7 @@ export default {
     en: 'Ceramic fibers',
   },
   '11151514': {
-    fr: 'Fibres en polymère d\'aramide',
+    fr: "Fibres en polymère d'aramide",
     en: 'Polymer aramid fibers',
   },
   '11151515': {
@@ -1952,7 +1952,7 @@ export default {
     en: 'Spandex thread',
   },
   '11151612': {
-    fr: 'Fil d\'amiante',
+    fr: "Fil d'amiante",
     en: 'Asbestos thread',
   },
   '11151700': {
@@ -2168,7 +2168,7 @@ export default {
     en: 'Coated fabrics',
   },
   '11162113': {
-    fr: 'Tissus d\'ameublement',
+    fr: "Tissus d'ameublement",
     en: 'Upholstery fabrics',
   },
   '11162114': {
@@ -2268,7 +2268,7 @@ export default {
     en: 'Goat leather',
   },
   '11162303': {
-    fr: 'Peaux d\'ovin',
+    fr: "Peaux d'ovin",
     en: 'Sheep leather',
   },
   '11162304': {
@@ -2316,19 +2316,19 @@ export default {
     en: 'E24-2 or A37-2 steel',
   },
   '11171600': {
-    fr: 'Alliages d\'acier inoxydable',
+    fr: "Alliages d'acier inoxydable",
     en: 'Stainless steel alloys',
   },
   '11171601': {
-    fr: 'Alliage d\'acier inoxydable X5CrNi18-10 ou 304',
+    fr: "Alliage d'acier inoxydable X5CrNi18-10 ou 304",
     en: 'X5CrNi18-10 or 304 stainless steel alloy',
   },
   '11171602': {
-    fr: 'Alliage d\'acier inoxydable X2CrNi19-11 ou 304L',
+    fr: "Alliage d'acier inoxydable X2CrNi19-11 ou 304L",
     en: 'X2CrNi19-11or 304L stainless steel alloy',
   },
   '11171603': {
-    fr: 'Alliage d\'acier inoxydable X5CrNiMo17-12-2  ou 316',
+    fr: "Alliage d'acier inoxydable X5CrNiMo17-12-2  ou 316",
     en: 'X5CrNiMo17-12-2 or 316 stainless steel alloy',
   },
   '11171700': {
@@ -2360,7 +2360,7 @@ export default {
     en: 'TA6V super alloy',
   },
   '11172000': {
-    fr: 'Alliages à base d\'aluminium',
+    fr: "Alliages à base d'aluminium",
     en: 'Aluminum based alloys',
   },
   '11172001': {
@@ -2392,11 +2392,11 @@ export default {
     en: 'Titanium oxide',
   },
   '11181503': {
-    fr: 'Oxyde d\'indium',
+    fr: "Oxyde d'indium",
     en: 'Indium oxide',
   },
   '11181504': {
-    fr: 'Oxyde d\'étain',
+    fr: "Oxyde d'étain",
     en: 'Tin oxide',
   },
   '11190000': {
@@ -2436,15 +2436,15 @@ export default {
     en: 'Nickel scrap',
   },
   '11191602': {
-    fr: 'Fragments d\'acier basique',
+    fr: "Fragments d'acier basique",
     en: 'Basic steel scrap',
   },
   '11191603': {
-    fr: 'Fragments d\'alliage ferreux',
+    fr: "Fragments d'alliage ferreux",
     en: 'Ferrous alloy scrap',
   },
   '11191604': {
-    fr: 'Fragments d\'alliage non ferreux',
+    fr: "Fragments d'alliage non ferreux",
     en: 'Non ferrous alloy scrap',
   },
   '11191605': {
@@ -2484,7 +2484,7 @@ export default {
     en: 'Dynamite',
   },
   '12131502': {
-    fr: 'Cartouches d\'explosif',
+    fr: "Cartouches d'explosif",
     en: 'Explosive cartridges',
   },
   '12131503': {
@@ -2504,7 +2504,7 @@ export default {
     en: 'Aluminized explosives',
   },
   '12131507': {
-    fr: 'Explosifs au nitrate d\'ammonium',
+    fr: "Explosifs au nitrate d'ammonium",
     en: 'Ammonium nitrate explosives',
   },
   '12131508': {
@@ -2516,7 +2516,7 @@ export default {
     en: 'Pyrotechnics',
   },
   '12131601': {
-    fr: 'Feux d\'artifice',
+    fr: "Feux d'artifice",
     en: 'Fireworks',
   },
   '12131602': {
@@ -3076,7 +3076,7 @@ export default {
     en: 'Industrial use gases',
   },
   '12142101': {
-    fr: 'Gaz composés d\'hydrogène',
+    fr: "Gaz composés d'hydrogène",
     en: 'Hydrogen compound gases',
   },
   '12142102': {
@@ -3100,7 +3100,7 @@ export default {
     en: 'Inert gas mixtures',
   },
   '12142107': {
-    fr: 'Sulfure d\'hydrogène',
+    fr: "Sulfure d'hydrogène",
     en: 'Hydrogen sulfide',
   },
   '12142200': {
@@ -3148,7 +3148,7 @@ export default {
     en: 'Indicators and Reagents',
   },
   '12161501': {
-    fr: 'Marqueurs d\'affinité',
+    fr: "Marqueurs d'affinité",
     en: 'Affinity labels',
   },
   '12161502': {
@@ -3288,11 +3288,11 @@ export default {
     en: 'Wetting agents',
   },
   '12161907': {
-    fr: 'Additifs pour les injections d\'eau',
+    fr: "Additifs pour les injections d'eau",
     en: 'Water flood additives',
   },
   '12161908': {
-    fr: 'Sulfates d\'alkyle',
+    fr: "Sulfates d'alkyle",
     en: 'Alkyl sulfates',
   },
   '12161909': {
@@ -3440,15 +3440,15 @@ export default {
     en: 'Flotation aids',
   },
   '12162600': {
-    fr: 'Stabilisateurs d\'argile',
+    fr: "Stabilisateurs d'argile",
     en: 'Clay stabilizers',
   },
   '12162601': {
-    fr: 'Stabilisateurs d\'argile inorganiques',
+    fr: "Stabilisateurs d'argile inorganiques",
     en: 'Inorganic clay stabilizers',
   },
   '12162602': {
-    fr: 'Stabilisateurs d\'argile organiques',
+    fr: "Stabilisateurs d'argile organiques",
     en: 'Organic clay stabilizers',
   },
   '12162700': {
@@ -3476,7 +3476,7 @@ export default {
     en: 'Cationic friction reducers',
   },
   '12162900': {
-    fr: 'Agents de contrôle de l\'asphaltène et de la paraffine',
+    fr: "Agents de contrôle de l'asphaltène et de la paraffine",
     en: 'Paraffin asphaltene control agents',
   },
   '12162901': {
@@ -3484,11 +3484,11 @@ export default {
     en: 'Solvent type paraffin asphaltene control agents',
   },
   '12162902': {
-    fr: 'Agents de contrôle de l\'asphaltène et de la paraffine, de type cristaux modifiés',
+    fr: "Agents de contrôle de l'asphaltène et de la paraffine, de type cristaux modifiés",
     en: 'Crystal modified paraffin asphaltene control agents',
   },
   '12162903': {
-    fr: 'Agents de contrôle de l\'asphaltène et de la paraffine, de type dispersant',
+    fr: "Agents de contrôle de l'asphaltène et de la paraffine, de type dispersant",
     en: 'Dispersant type paraffin asphaltene control agents',
   },
   '12163000': {
@@ -3516,7 +3516,7 @@ export default {
     en: 'Anti gas migration additives',
   },
   '12163300': {
-    fr: 'Agents d\'expansion',
+    fr: "Agents d'expansion",
     en: 'Expanding agents',
   },
   '12163301': {
@@ -3532,7 +3532,7 @@ export default {
     en: 'Cement extenders',
   },
   '12163500': {
-    fr: 'Matériaux d\'étanchéité pour puits de pétrole',
+    fr: "Matériaux d'étanchéité pour puits de pétrole",
     en: 'Oil well sealants',
   },
   '12163501': {
@@ -3544,7 +3544,7 @@ export default {
     en: 'Corrosion inhibitors',
   },
   '12163601': {
-    fr: 'Inhibiteurs de corrosion de production d\'huile',
+    fr: "Inhibiteurs de corrosion de production d'huile",
     en: 'Oil production corrosion inhibitors',
   },
   '12163602': {
@@ -3560,11 +3560,11 @@ export default {
     en: 'Kinetic hydrate controllers',
   },
   '12163800': {
-    fr: 'Agents d\'épuration',
+    fr: "Agents d'épuration",
     en: 'Chemical scavengers',
   },
   '12163801': {
-    fr: 'Extracteurs d\'hydrogène sulphide',
+    fr: "Extracteurs d'hydrogène sulphide",
     en: 'Hydrogen sulfide scavengers',
   },
   '12163802': {
@@ -3652,7 +3652,7 @@ export default {
     en: 'Paper plastic and fabric modifiers',
   },
   '12164601': {
-    fr: 'Produit d\'encollage',
+    fr: "Produit d'encollage",
     en: 'Sizing agent',
   },
   '12164602': {
@@ -4060,7 +4060,7 @@ export default {
     en: 'Silicones',
   },
   '12352311': {
-    fr: 'Alumine et autres composés d\'aluminium',
+    fr: "Alumine et autres composés d'aluminium",
     en: 'Alumina and other aluminum compounds',
   },
   '12352312': {
@@ -4176,7 +4176,7 @@ export default {
     en: 'Fluorocarbon FKM',
   },
   '13101704': {
-    fr: 'Caoutchouc d\'éthylène propylène (EP)',
+    fr: "Caoutchouc d'éthylène propylène (EP)",
     en: 'Ethylene propylene EP',
   },
   '13101705': {
@@ -4240,7 +4240,7 @@ export default {
     en: 'Polybutadiene BR',
   },
   '13101720': {
-    fr: 'Polyéther en masse d\'Amide (PEBA)',
+    fr: "Polyéther en masse d'Amide (PEBA)",
     en: 'Polyether block amide PEBA',
   },
   '13101721': {
@@ -4292,11 +4292,11 @@ export default {
     en: 'Thermoplastic plastics',
   },
   '13102001': {
-    fr: 'Copolymère d\'acrylnitrile-styrène-butadiène (ABS)',
+    fr: "Copolymère d'acrylnitrile-styrène-butadiène (ABS)",
     en: 'Acrylonitrile butadiene styrene ABS',
   },
   '13102002': {
-    fr: 'Alliages de copolymère d\'acrylnitrile-styrène-butadiène (ABS)',
+    fr: "Alliages de copolymère d'acrylnitrile-styrène-butadiène (ABS)",
     en: 'Acrylonitrile butadiene styrene ABS alloys',
   },
   '13102003': {
@@ -4308,7 +4308,7 @@ export default {
     en: 'Acrylonitrile Styrene Acrylic ASA',
   },
   '13102006': {
-    fr: 'Alliages d\'acrylnitrile styrène acrylique (ASA)',
+    fr: "Alliages d'acrylnitrile styrène acrylique (ASA)",
     en: 'Acrylonitrile Styrene Acrylic ASA alloys',
   },
   '13102008': {
@@ -4708,7 +4708,7 @@ export default {
     en: 'Gum rosin',
   },
   '13111103': {
-    fr: 'Colophane d\'huile de pin',
+    fr: "Colophane d'huile de pin",
     en: 'Tall oil rosin',
   },
   '13111200': {
@@ -4788,7 +4788,7 @@ export default {
     en: 'Polyvinylidene chloride',
   },
   '13111219': {
-    fr: 'Films d\'alcool polyvinylique',
+    fr: "Films d'alcool polyvinylique",
     en: 'Polyvinyl alcohol films',
   },
   '13111220': {
@@ -4852,7 +4852,7 @@ export default {
     en: 'Paper products',
   },
   '14111500': {
-    fr: 'Papier d\'imprimerie et d\'écriture',
+    fr: "Papier d'imprimerie et d'écriture",
     en: 'Printing and writing paper',
   },
   '14111501': {
@@ -5012,7 +5012,7 @@ export default {
     en: 'Art or craft paper',
   },
   '14111607': {
-    fr: 'Panneaux d\'affichage',
+    fr: "Panneaux d'affichage",
     en: 'Poster boards',
   },
   '14111608': {
@@ -5156,7 +5156,7 @@ export default {
     en: 'Industrial use papers',
   },
   '14121500': {
-    fr: 'Carton et papiers d\'emballage',
+    fr: "Carton et papiers d'emballage",
     en: 'Paperboard and packaging papers',
   },
   '14121501': {
@@ -5172,7 +5172,7 @@ export default {
     en: 'Cardboard',
   },
   '14121504': {
-    fr: 'Papier d\'emballage',
+    fr: "Papier d'emballage",
     en: 'Packaging paper',
   },
   '14121505': {
@@ -5220,7 +5220,7 @@ export default {
     en: 'Coated papers',
   },
   '14121801': {
-    fr: 'Papiers enduits d\'argile',
+    fr: "Papiers enduits d'argile",
     en: 'Clay coated papers',
   },
   '14121802': {
@@ -5348,7 +5348,7 @@ export default {
     en: 'Naphtha',
   },
   '15101504': {
-    fr: 'Carburants d\'aviation',
+    fr: "Carburants d'aviation",
     en: 'Aviation fuel',
   },
   '15101505': {
@@ -5400,7 +5400,7 @@ export default {
     en: 'Charcoal',
   },
   '15101606': {
-    fr: 'Carburants d\'alcool gelés',
+    fr: "Carburants d'alcool gelés",
     en: 'Jellied alcohol fuels',
   },
   '15101607': {
@@ -5524,7 +5524,7 @@ export default {
     en: 'Antigalling',
   },
   '15121511': {
-    fr: 'Colles d\'assemblage',
+    fr: "Colles d'assemblage",
     en: 'Assembly pastes',
   },
   '15121512': {
@@ -5688,7 +5688,7 @@ export default {
     en: 'Cutting equipment',
   },
   '20101501': {
-    fr: 'Équipements d\'exploitation minière en continu',
+    fr: "Équipements d'exploitation minière en continu",
     en: 'Continuous mining equipment',
   },
   '20101502': {
@@ -5704,7 +5704,7 @@ export default {
     en: 'Rock cutters',
   },
   '20101600': {
-    fr: 'Tamis et équipements d\'alimentation',
+    fr: "Tamis et équipements d'alimentation",
     en: 'Screens and feeding equipment',
   },
   '20101601': {
@@ -5712,7 +5712,7 @@ export default {
     en: 'Screens',
   },
   '20101602': {
-    fr: 'Dispositifs d\'alimentation',
+    fr: "Dispositifs d'alimentation",
     en: 'Feeders',
   },
   '20101603': {
@@ -5888,7 +5888,7 @@ export default {
     en: 'Explosive loading machinery',
   },
   '20102201': {
-    fr: 'Appareil de chargement de nitrate d\'ammonium et fuel-oil (ANFO)',
+    fr: "Appareil de chargement de nitrate d'ammonium et fuel-oil (ANFO)",
     en: 'Ammonium nitrate and fuel oil ANFO loading machinery',
   },
   '20102202': {
@@ -5900,7 +5900,7 @@ export default {
     en: 'Explosive loading machinery spare parts or accessories',
   },
   '20102300': {
-    fr: 'Véhicules de service pour l\'exploitation minière souterraine',
+    fr: "Véhicules de service pour l'exploitation minière souterraine",
     en: 'Underground mining service vehicles',
   },
   '20102301': {
@@ -5928,27 +5928,27 @@ export default {
     en: 'Elevating platform vehicles or scissor lifts',
   },
   '20102307': {
-    fr: 'Accessoires et pièces détachées pour véhicules de service pour l\'exploitation minière souterraine',
+    fr: "Accessoires et pièces détachées pour véhicules de service pour l'exploitation minière souterraine",
     en: 'Underground mining service vehicle spare parts or accessories',
   },
   '20110000': {
-    fr: 'Équipements de forage et d\'exploitation de puits',
+    fr: "Équipements de forage et d'exploitation de puits",
     en: 'Well drilling and operation equipment',
   },
   '20111500': {
-    fr: 'Équipements d\'exploration et de forage',
+    fr: "Équipements d'exploration et de forage",
     en: 'Drilling and exploration equipment',
   },
   '20111504': {
-    fr: 'Équipements de forage de puits d\'eau',
+    fr: "Équipements de forage de puits d'eau",
     en: 'Water well drilling equipment',
   },
   '20111505': {
-    fr: 'Équipements d\'exploration d\'uranium',
+    fr: "Équipements d'exploration d'uranium",
     en: 'Uranium exploration equipment',
   },
   '20111600': {
-    fr: 'Machines de forage et d\'exploitation',
+    fr: "Machines de forage et d'exploitation",
     en: 'Drilling and operation machinery',
   },
   '20111601': {
@@ -5984,7 +5984,7 @@ export default {
     en: 'Sinker drills',
   },
   '20111610': {
-    fr: 'Machines d\'inspection d\'égouts',
+    fr: "Machines d'inspection d'égouts",
     en: 'Sewer inspection machinery',
   },
   '20111611': {
@@ -6024,11 +6024,11 @@ export default {
     en: 'Well drilling bit cones',
   },
   '20111700': {
-    fr: 'Accessoires de forage et d\'exploitation',
+    fr: "Accessoires de forage et d'exploitation",
     en: 'Drilling and operation accessories',
   },
   '20111701': {
-    fr: 'Instruments audiovisuels d\'inspection des puits',
+    fr: "Instruments audiovisuels d'inspection des puits",
     en: 'Audio visual instruments for well inspection',
   },
   '20111702': {
@@ -6068,71 +6068,71 @@ export default {
     en: 'Oil and gas drilling and exploration equipment',
   },
   '20121000': {
-    fr: 'Équipements d\'acidification',
+    fr: "Équipements d'acidification",
     en: 'Acidizing equipment',
   },
   '20121001': {
-    fr: 'Unités de mélange et d\'acidification',
+    fr: "Unités de mélange et d'acidification",
     en: 'Acidizing blending units',
   },
   '20121002': {
-    fr: 'Capteurs de densité d\'acidification',
+    fr: "Capteurs de densité d'acidification",
     en: 'Acidizing density sensors',
   },
   '20121003': {
-    fr: 'Unités de pompage pour l\'acidification',
+    fr: "Unités de pompage pour l'acidification",
     en: 'Acidizing pumping units',
   },
   '20121004': {
-    fr: 'Unités d\'acidification',
+    fr: "Unités d'acidification",
     en: 'Acidizing units',
   },
   '20121005': {
-    fr: 'Canalisations à air destinées à l\'acidification',
+    fr: "Canalisations à air destinées à l'acidification",
     en: 'Acidizing air piping',
   },
   '20121006': {
-    fr: 'Injecteurs à bille destinés à l\'acidification',
+    fr: "Injecteurs à bille destinés à l'acidification",
     en: 'Acidizing ball injectors',
   },
   '20121007': {
-    fr: 'Équipements pour le traitement de l\'acide liquide en vrac',
+    fr: "Équipements pour le traitement de l'acide liquide en vrac",
     en: 'Bulk liquid acid equipment',
   },
   '20121008': {
-    fr: 'Drop boxes pour l\'acidification',
+    fr: "Drop boxes pour l'acidification",
     en: 'Acidizing drop boxes',
   },
   '20121009': {
-    fr: 'Débitmètres  pour l\'acidification',
+    fr: "Débitmètres  pour l'acidification",
     en: 'Acidizing flow meters',
   },
   '20121010': {
-    fr: 'Boîtes de raccordement pour l\'acidification',
+    fr: "Boîtes de raccordement pour l'acidification",
     en: 'Acidizing junction boxes',
   },
   '20121011': {
-    fr: 'Capteurs de pression pour l\'acidification',
+    fr: "Capteurs de pression pour l'acidification",
     en: 'Acidizing pressure sensors',
   },
   '20121012': {
-    fr: 'Tuyauterie pour l\'acidification',
+    fr: "Tuyauterie pour l'acidification",
     en: 'Acidizing process piping',
   },
   '20121013': {
-    fr: 'Jointures droites pour l\'acidification',
+    fr: "Jointures droites pour l'acidification",
     en: 'Acidizing straight joints',
   },
   '20121014': {
-    fr: 'Têtes d\'injection pour l\'acidification',
+    fr: "Têtes d'injection pour l'acidification",
     en: 'Acidizing swivels',
   },
   '20121015': {
-    fr: 'Fers de traitement pour l\'acidification',
+    fr: "Fers de traitement pour l'acidification",
     en: 'Acidizing treating irons',
   },
   '20121016': {
-    fr: 'Protecteurs d\'arbres pour l\'acidification',
+    fr: "Protecteurs d'arbres pour l'acidification",
     en: 'Acidizing tree savers',
   },
   '20121100': {
@@ -6160,15 +6160,15 @@ export default {
     en: 'Cement density sensors',
   },
   '20121106': {
-    fr: 'Unités d\'aplanissement du ciment en vrac',
+    fr: "Unités d'aplanissement du ciment en vrac",
     en: 'Cement floating bulk units',
   },
   '20121107': {
-    fr: 'Équipements de flottation, outils de cimentation étagée ou d\'aplanissement',
+    fr: "Équipements de flottation, outils de cimentation étagée ou d'aplanissement",
     en: 'Cement floating equipment stage tools',
   },
   '20121108': {
-    fr: 'Accessoires essuie tiges d\'équipements d\'aplanissement',
+    fr: "Accessoires essuie tiges d'équipements d'aplanissement",
     en: 'Cement floating equipment wiper plugs',
   },
   '20121109': {
@@ -6256,11 +6256,11 @@ export default {
     en: 'Fracturing missiles',
   },
   '20121211': {
-    fr: 'Appareil de contrôle d\'intégrité des pompes',
+    fr: "Appareil de contrôle d'intégrité des pompes",
     en: 'Pump integrity monitors',
   },
   '20121212': {
-    fr: 'Garnitures détanchéité d\'entretien destinées à la fracturation',
+    fr: "Garnitures détanchéité d'entretien destinées à la fracturation",
     en: 'Fracturing service packers',
   },
   '20121213': {
@@ -6272,7 +6272,7 @@ export default {
     en: 'Sand control equipment',
   },
   '20121301': {
-    fr: 'Bouchons d\'obturation',
+    fr: "Bouchons d'obturation",
     en: 'Blanking plugs',
   },
   '20121302': {
@@ -6344,7 +6344,7 @@ export default {
     en: 'Sand detectors',
   },
   '20121319': {
-    fr: 'Positionneurs de joints d\'étanchéité',
+    fr: "Positionneurs de joints d'étanchéité",
     en: 'Seal assembly locators',
   },
   '20121320': {
@@ -6364,7 +6364,7 @@ export default {
     en: 'Velocity strings',
   },
   '20121400': {
-    fr: 'Équipements et outils d\'achèvement des puits',
+    fr: "Équipements et outils d'achèvement des puits",
     en: 'Completion tools and equipment',
   },
   '20121401': {
@@ -6372,11 +6372,11 @@ export default {
     en: 'Ball catcher subs',
   },
   '20121402': {
-    fr: 'Joints d\'expansion',
+    fr: "Joints d'expansion",
     en: 'Blast joints',
   },
   '20121403': {
-    fr: 'Manchons d\'expansion',
+    fr: "Manchons d'expansion",
     en: 'Blast nipples',
   },
   '20121404': {
@@ -6388,7 +6388,7 @@ export default {
     en: 'Circulation production devices',
   },
   '20121406': {
-    fr: 'Équipements d\'essai destinés au conditionnement des puits',
+    fr: "Équipements d'essai destinés au conditionnement des puits",
     en: 'Completion test equipment',
   },
   '20121407': {
@@ -6424,7 +6424,7 @@ export default {
     en: 'Hydraulic setting tools',
   },
   '20121415': {
-    fr: 'Systèmes d\'injection',
+    fr: "Systèmes d'injection",
     en: 'Injection systems',
   },
   '20121416': {
@@ -6456,7 +6456,7 @@ export default {
     en: 'Completion safety joints',
   },
   '20121423': {
-    fr: 'Joints d\'étanchéité destinés au conditionnement des puits',
+    fr: "Joints d'étanchéité destinés au conditionnement des puits",
     en: 'Completion seal assemblies',
   },
   '20121424': {
@@ -6492,11 +6492,11 @@ export default {
     en: 'Blowout preventers',
   },
   '20121502': {
-    fr: 'Commandes d\'obturateur anti-éruption',
+    fr: "Commandes d'obturateur anti-éruption",
     en: 'Blowout preventer controls',
   },
   '20121503': {
-    fr: 'Racloirs d\'encaissage',
+    fr: "Racloirs d'encaissage",
     en: 'Casing scrapers',
   },
   '20121504': {
@@ -6576,7 +6576,7 @@ export default {
     en: 'Roller cone button insert drill bits',
   },
   '20121606': {
-    fr: 'Trépans à molettes à dents d\'acier',
+    fr: "Trépans à molettes à dents d'acier",
     en: 'Roller steel tooth drill bits',
   },
   '20121607': {
@@ -6584,19 +6584,19 @@ export default {
     en: 'Core bits',
   },
   '20121608': {
-    fr: 'Dispositif de fixation d\'outil de forage',
+    fr: "Dispositif de fixation d'outil de forage",
     en: 'Bit block',
   },
   '20121609': {
-    fr: 'Outil de forage pour l\'exploitation continue',
+    fr: "Outil de forage pour l'exploitation continue",
     en: 'Continuous mining bit',
   },
   '20121610': {
-    fr: 'Outil d\'extraction',
+    fr: "Outil d'extraction",
     en: 'Feeder bit',
   },
   '20121611': {
-    fr: 'Outil pour l\'exploitation en longue taille',
+    fr: "Outil pour l'exploitation en longue taille",
     en: 'Longwall bit',
   },
   '20121612': {
@@ -6700,7 +6700,7 @@ export default {
     en: 'Resistivity tools',
   },
   '20121909': {
-    fr: 'Systèmes d\'arpentage',
+    fr: "Systèmes d'arpentage",
     en: 'Surveying systems',
   },
   '20121910': {
@@ -6724,7 +6724,7 @@ export default {
     en: 'Well logging units',
   },
   '20122000': {
-    fr: 'Équipements de fixation et d\'essai',
+    fr: "Équipements de fixation et d'essai",
     en: 'Fixturing and test equipment',
   },
   '20122001': {
@@ -6816,7 +6816,7 @@ export default {
     en: 'Under balance vent subs',
   },
   '20122200': {
-    fr: 'Équipements d\'essai des puits',
+    fr: "Équipements d'essai des puits",
     en: 'Well testing equipment',
   },
   '20122201': {
@@ -6868,11 +6868,11 @@ export default {
     en: 'Oil samplers',
   },
   '20122213': {
-    fr: 'Séparateurs pour l\'essai des puits',
+    fr: "Séparateurs pour l'essai des puits",
     en: 'Well testing separators',
   },
   '20122214': {
-    fr: 'Premières colonnes de tubage pour l\'essai des puits',
+    fr: "Premières colonnes de tubage pour l'essai des puits",
     en: 'Well testing surface piping',
   },
   '20122215': {
@@ -6888,7 +6888,7 @@ export default {
     en: 'Slickline equipment',
   },
   '20122301': {
-    fr: 'Têtes d\'adaptateurs de câbles lisses',
+    fr: "Têtes d'adaptateurs de câbles lisses",
     en: 'Slickline adapter heads',
   },
   '20122302': {
@@ -7056,7 +7056,7 @@ export default {
     en: 'Slickline sonic tools',
   },
   '20122344': {
-    fr: 'Outils de câbles lisses : barres d\'espacement',
+    fr: "Outils de câbles lisses : barres d'espacement",
     en: 'Slickline spacer bars',
   },
   '20122345': {
@@ -7132,7 +7132,7 @@ export default {
     en: 'Motor end lifts',
   },
   '20122406': {
-    fr: 'Appareils d\'essai diélectriques du pétrole',
+    fr: "Appareils d'essai diélectriques du pétrole",
     en: 'Oil dielectric testers',
   },
   '20122407': {
@@ -7176,7 +7176,7 @@ export default {
     en: 'Coiled tubing inflatable systems',
   },
   '20122506': {
-    fr: 'Têtes d\'injecteur de tubage enroulé',
+    fr: "Têtes d'injecteur de tubage enroulé",
     en: 'Coiled tubing injector heads',
   },
   '20122507': {
@@ -7184,7 +7184,7 @@ export default {
     en: 'Coiled tubing lifting equipment',
   },
   '20122508': {
-    fr: 'Maisons d\'opérateurs',
+    fr: "Maisons d'opérateurs",
     en: 'Operator houses',
   },
   '20122509': {
@@ -7252,7 +7252,7 @@ export default {
     en: 'Seismic hydrophones',
   },
   '20122609': {
-    fr: 'Sources d\'impulsions sismiques',
+    fr: "Sources d'impulsions sismiques",
     en: 'Seismic impulse sources',
   },
   '20122610': {
@@ -7304,7 +7304,7 @@ export default {
     en: 'Seismic vibrators',
   },
   '20122622': {
-    fr: 'Systèmes d\'enregistrement sismiques',
+    fr: "Systèmes d'enregistrement sismiques",
     en: 'Seismic recording systems',
   },
   '20122623': {
@@ -7384,7 +7384,7 @@ export default {
     en: 'Drill floor equipment',
   },
   '20122809': {
-    fr: 'Têtes d\'injection',
+    fr: "Têtes d'injection",
     en: 'Drill swivels',
   },
   '20122810': {
@@ -7412,11 +7412,11 @@ export default {
     en: 'Jackup marine drilling rigs',
   },
   '20122816': {
-    fr: 'Carrés d\'entraînement',
+    fr: "Carrés d'entraînement",
     en: 'Kelly bushings',
   },
   '20122817': {
-    fr: 'Vannes de carré d\'entraînement',
+    fr: "Vannes de carré d'entraînement",
     en: 'Kelly valves',
   },
   '20122818': {
@@ -7424,7 +7424,7 @@ export default {
     en: 'Kelly wipers',
   },
   '20122819': {
-    fr: 'Tiges carrées d\'entraînement',
+    fr: "Tiges carrées d'entraînement",
     en: 'Kellys',
   },
   '20122820': {
@@ -7524,19 +7524,19 @@ export default {
     en: 'Mud dessilters',
   },
   '20122900': {
-    fr: 'Équipements d\'enregistrement des données de surface',
+    fr: "Équipements d'enregistrement des données de surface",
     en: 'Surface data logging equipment',
   },
   '20122901': {
-    fr: 'Conduits pour l\'enregistrement des données de surface',
+    fr: "Conduits pour l'enregistrement des données de surface",
     en: 'Surface data logging conduits',
   },
   '20122902': {
-    fr: 'Détecteurs pour l\'enregistrement des données de surface',
+    fr: "Détecteurs pour l'enregistrement des données de surface",
     en: 'Surface data logging sensors',
   },
   '20122903': {
-    fr: 'Unités d\'enregistrement des données de surface',
+    fr: "Unités d'enregistrement des données de surface",
     en: 'Surface data logging units',
   },
   '20123000': {
@@ -7556,7 +7556,7 @@ export default {
     en: 'Multilateral packers',
   },
   '20130000': {
-    fr: 'Matériaux d\'exploitation et de forage du gaz et du pétrole',
+    fr: "Matériaux d'exploitation et de forage du gaz et du pétrole",
     en: 'Oil and gas drilling and operation materials',
   },
   '20131000': {
@@ -7576,7 +7576,7 @@ export default {
     en: 'Lost circulation agents',
   },
   '20131004': {
-    fr: 'Boues à base d\'huile',
+    fr: "Boues à base d'huile",
     en: 'Oil based muds',
   },
   '20131005': {
@@ -7596,7 +7596,7 @@ export default {
     en: 'Mud thinning agents',
   },
   '20131009': {
-    fr: 'Boues à base d\'eau',
+    fr: "Boues à base d'eau",
     en: 'Water based muds',
   },
   '20131010': {
@@ -7708,11 +7708,11 @@ export default {
     en: 'Wellhead production chokes',
   },
   '20141006': {
-    fr: 'Têtes d\'éruption pour têtes de puits sous-marines ou arbres de Noël',
+    fr: "Têtes d'éruption pour têtes de puits sous-marines ou arbres de Noël",
     en: 'Wellhead sub surface flow or christmas trees',
   },
   '20141007': {
-    fr: 'Têtes d\'éruption pour têtes de puits en surface ou arbres de Noël',
+    fr: "Têtes d'éruption pour têtes de puits en surface ou arbres de Noël",
     en: 'Wellhead surface flow or christmas trees',
   },
   '20141008': {
@@ -7740,11 +7740,11 @@ export default {
     en: 'Wellhead tees or crosses',
   },
   '20141100': {
-    fr: 'Systèmes d\'injection de produits chimiques',
+    fr: "Systèmes d'injection de produits chimiques",
     en: 'Chemical injection systems',
   },
   '20141101': {
-    fr: 'Systèmes d\'injection de paraffine',
+    fr: "Systèmes d'injection de paraffine",
     en: 'Paraffin injection systems',
   },
   '20141200': {
@@ -7780,7 +7780,7 @@ export default {
     en: 'Electric downhole pumps',
   },
   '20141600': {
-    fr: 'Pompes destinées à l\'exportation',
+    fr: "Pompes destinées à l'exportation",
     en: 'Export pumps',
   },
   '20141601': {
@@ -7808,7 +7808,7 @@ export default {
     en: 'Floating offshore tension leg  production platforms',
   },
   '20141705': {
-    fr: 'Plates-formes d\'entreposage en mer flottants à câbles tendus',
+    fr: "Plates-formes d'entreposage en mer flottants à câbles tendus",
     en: 'Floating offshore tension leg storage platforms',
   },
   '20141800': {
@@ -7852,11 +7852,11 @@ export default {
     en: 'Electrical line heaters',
   },
   '20142300': {
-    fr: 'Patins d\'injection pour la production',
+    fr: "Patins d'injection pour la production",
     en: 'Production injection skids',
   },
   '20142301': {
-    fr: 'Patins d\'injection pneumatique de méthanol pneumatique',
+    fr: "Patins d'injection pneumatique de méthanol pneumatique",
     en: 'Pneumatic methanol injections skids',
   },
   '20142400': {
@@ -7880,11 +7880,11 @@ export default {
     en: 'Vertical annular separation and pumping system',
   },
   '20142405': {
-    fr: 'Composant et tête d\'éruption sous-marins',
+    fr: "Composant et tête d'éruption sous-marins",
     en: 'Subsea christmas tree and component',
   },
   '20142500': {
-    fr: 'Équipements de traitement de l\'eau produite',
+    fr: "Équipements de traitement de l'eau produite",
     en: 'Produced water treating equipment',
   },
   '20142501': {
@@ -7928,7 +7928,7 @@ export default {
     en: 'Storage vessels and tanks',
   },
   '20142901': {
-    fr: 'Réservoirs de stockage d\'hydrocarbure',
+    fr: "Réservoirs de stockage d'hydrocarbure",
     en: 'Oil storage tanks',
   },
   '20143000': {
@@ -7936,7 +7936,7 @@ export default {
     en: 'Sucker rods',
   },
   '20143001': {
-    fr: 'Aspirateurs à tige d\'alliage acier',
+    fr: "Aspirateurs à tige d'alliage acier",
     en: 'Alloy steel sucker rods',
   },
   '20143002': {
@@ -7944,11 +7944,11 @@ export default {
     en: 'Pony rods',
   },
   '21000000': {
-    fr: 'Machines et accessoires pour l\'agriculture, la pêche, l\'exploitation forestière, la faune et la flore.',
+    fr: "Machines et accessoires pour l'agriculture, la pêche, l'exploitation forestière, la faune et la flore.",
     en: 'Farming and Fishing and Forestry and Wildlife Machinery and Accessories',
   },
   '21100000': {
-    fr: 'Machines et équipement pour l\'agriculture, l\'exploitation forestière et le paysage',
+    fr: "Machines et équipement pour l'agriculture, l'exploitation forestière et le paysage",
     en: 'Agricultural and forestry and landscape machinery and equipment',
   },
   '21101500': {
@@ -7992,15 +7992,15 @@ export default {
     en: 'Trencher drainage machine',
   },
   '21101510': {
-    fr: 'Conduits ou tubes d\'irrigation',
+    fr: "Conduits ou tubes d'irrigation",
     en: 'Irrigation pipes or tubes',
   },
   '21101511': {
-    fr: 'Goutte à goutte pour l\'irrigation',
+    fr: "Goutte à goutte pour l'irrigation",
     en: 'Irrigation trickles',
   },
   '21101512': {
-    fr: 'Châteaux d\'eau pour l\'irrigation',
+    fr: "Châteaux d'eau pour l'irrigation",
     en: 'Irrigation overheads',
   },
   '21101513': {
@@ -8084,7 +8084,7 @@ export default {
     en: 'Mower parts or accessories',
   },
   '21101800': {
-    fr: 'Appareils de dispersion ou de pulvérisation pour l\'agriculture',
+    fr: "Appareils de dispersion ou de pulvérisation pour l'agriculture",
     en: 'Dispersing and spraying appliances for agriculture',
   },
   '21101801': {
@@ -8100,7 +8100,7 @@ export default {
     en: 'Water sprinklers',
   },
   '21101804': {
-    fr: 'Distributeurs d\'engrais',
+    fr: "Distributeurs d'engrais",
     en: 'Fertilizer spreaders or distributors',
   },
   '21101805': {
@@ -8128,7 +8128,7 @@ export default {
     en: 'Milking machines',
   },
   '21101902': {
-    fr: 'Équipements pour l\'élevage d\'animaux',
+    fr: "Équipements pour l'élevage d'animaux",
     en: 'Animal husbandry equipment',
   },
   '21101903': {
@@ -8136,7 +8136,7 @@ export default {
     en: 'Incubators or brooders for poultry',
   },
   '21101904': {
-    fr: 'Mélangeurs d\'aliments',
+    fr: "Mélangeurs d'aliments",
     en: 'Feed mixers',
   },
   '21101905': {
@@ -8144,7 +8144,7 @@ export default {
     en: 'Livestock identification equipment',
   },
   '21101906': {
-    fr: 'Équipements d\'inspection ou de collecte des ufs',
+    fr: "Équipements d'inspection ou de collecte des ufs",
     en: 'Egg inspection or collecting equipment',
   },
   '21101907': {
@@ -8176,7 +8176,7 @@ export default {
     en: 'Grading machines for seed or grain or dried leguminous vegetables',
   },
   '21102004': {
-    fr: 'Équipements de nettoyage et d\'écossage du riz',
+    fr: "Équipements de nettoyage et d'écossage du riz",
     en: 'Rice cleaning or hulling equipment',
   },
   '21102005': {
@@ -8188,7 +8188,7 @@ export default {
     en: 'Hammer mills',
   },
   '21102100': {
-    fr: 'Machines et équipements pour l\'exploitation agricole',
+    fr: "Machines et équipements pour l'exploitation agricole",
     en: 'Agricultural processing machinery and equipment',
   },
   '21102101': {
@@ -8196,7 +8196,7 @@ export default {
     en: 'Agricultural briquetting or pelting machines',
   },
   '21102200': {
-    fr: 'Machines et équipements pour l\'exploitation forestière',
+    fr: "Machines et équipements pour l'exploitation forestière",
     en: 'Forestry machinery and equipment',
   },
   '21102201': {
@@ -8204,7 +8204,7 @@ export default {
     en: 'Decorticators',
   },
   '21102202': {
-    fr: 'Équipements d\'abattage d\'arbres',
+    fr: "Équipements d'abattage d'arbres",
     en: 'Lumbering equipment',
   },
   '21102203': {
@@ -8232,7 +8232,7 @@ export default {
     en: 'Greenhouse equipment',
   },
   '21102301': {
-    fr: 'Équipements d\'irrigation pour serres',
+    fr: "Équipements d'irrigation pour serres",
     en: 'Greenhouse irrigation equipment',
   },
   '21102302': {
@@ -8244,31 +8244,31 @@ export default {
     en: 'Greenhouse ventilation equipment',
   },
   '21102304': {
-    fr: 'Équipements d\'isolation de serres',
+    fr: "Équipements d'isolation de serres",
     en: 'Greenhouse isolation equipment',
   },
   '21102400': {
-    fr: 'Équipements pour l\'élevage d\'insectes',
+    fr: "Équipements pour l'élevage d'insectes",
     en: 'Insect equipment',
   },
   '21102401': {
-    fr: 'Équipements pour l\'apiculture',
+    fr: "Équipements pour l'apiculture",
     en: 'Beekeeping equipment',
   },
   '21102402': {
-    fr: 'Équipements d\'élevage de vers à soie',
+    fr: "Équipements d'élevage de vers à soie",
     en: 'Silkworm equipment',
   },
   '21102403': {
-    fr: 'Équipements pour l\'élevage de papillons',
+    fr: "Équipements pour l'élevage de papillons",
     en: 'Butterfly breeding equipment',
   },
   '21102404': {
-    fr: 'Équipements d\'élevage de coléoptères',
+    fr: "Équipements d'élevage de coléoptères",
     en: 'Beetle breeding equipment',
   },
   '21110000': {
-    fr: 'Équipements pour la pêche et l\'aquaculture',
+    fr: "Équipements pour la pêche et l'aquaculture",
     en: 'Fishing and aquaculture equipment',
   },
   '21111500': {
@@ -8304,11 +8304,11 @@ export default {
     en: 'Fishing net haulers',
   },
   '21111600': {
-    fr: 'Équipements d\'aquaculture',
+    fr: "Équipements d'aquaculture",
     en: 'Aquaculture equipment',
   },
   '21111601': {
-    fr: 'Équipements d\'éclosion marine',
+    fr: "Équipements d'éclosion marine",
     en: 'Marine hatchery equipment',
   },
   '21111602': {
@@ -8456,7 +8456,7 @@ export default {
     en: 'Vibratory plates',
   },
   '22101605': {
-    fr: 'Finisseurs d\'asphalte',
+    fr: "Finisseurs d'asphalte",
     en: 'Asphalt finishers',
   },
   '22101606': {
@@ -8476,7 +8476,7 @@ export default {
     en: 'Paving material mixers',
   },
   '22101610': {
-    fr: 'Epandeuses d\'agrégats automotrices',
+    fr: "Epandeuses d'agrégats automotrices",
     en: 'Aggregate spreaders',
   },
   '22101611': {
@@ -8492,7 +8492,7 @@ export default {
     en: 'Road surface heater planers',
   },
   '22101614': {
-    fr: 'Racloir d\'arasement du béton',
+    fr: "Racloir d'arasement du béton",
     en: 'Concrete paving strike offs',
   },
   '22101615': {
@@ -8520,7 +8520,7 @@ export default {
     en: 'Joint cleaning or refacing machines',
   },
   '22101700': {
-    fr: 'Composants d\'engins lourds',
+    fr: "Composants d'engins lourds",
     en: 'Heavy equipment components',
   },
   '22101701': {
@@ -8756,11 +8756,11 @@ export default {
     en: 'Robot machines',
   },
   '23101520': {
-    fr: 'Machines d\'usinage par électroérosion à coulisseau',
+    fr: "Machines d'usinage par électroérosion à coulisseau",
     en: 'Ram electro discharge machines',
   },
   '23101521': {
-    fr: 'Machines d\'usinage par électroérosion comportant un fil cathode',
+    fr: "Machines d'usinage par électroérosion comportant un fil cathode",
     en: 'Wire cathode electrode discharge machine',
   },
   '23101522': {
@@ -8776,7 +8776,7 @@ export default {
     en: 'Petroleum distilling and processing machinery and equipment',
   },
   '23111501': {
-    fr: 'Équipements d\'hydrotraitement de distillats',
+    fr: "Équipements d'hydrotraitement de distillats",
     en: 'Distillate hydroprocessing equipment',
   },
   '23111502': {
@@ -8788,11 +8788,11 @@ export default {
     en: 'Catalytic cracking equipment',
   },
   '23111504': {
-    fr: 'Équipements d\'hydrocraquage',
+    fr: "Équipements d'hydrocraquage",
     en: 'Hydrocracking equipment',
   },
   '23111505': {
-    fr: 'Machines d\'isomérisation',
+    fr: "Machines d'isomérisation",
     en: 'Isomerization machinery',
   },
   '23111506': {
@@ -8804,7 +8804,7 @@ export default {
     en: 'Gas recovery machinery',
   },
   '23111600': {
-    fr: 'Machines d\'hydrotraitement',
+    fr: "Machines d'hydrotraitement",
     en: 'Hydrotreating machinery',
   },
   '23111601': {
@@ -8816,7 +8816,7 @@ export default {
     en: 'Distillate hydrotreater',
   },
   '23111603': {
-    fr: 'Hydrotraiteur d\'alimentation de catalyse',
+    fr: "Hydrotraiteur d'alimentation de catalyse",
     en: 'Catalytic feed hydrotreater',
   },
   '23111604': {
@@ -8824,7 +8824,7 @@ export default {
     en: 'Lube hydrotreater',
   },
   '23111605': {
-    fr: 'Hydrotraiteur d\'essence',
+    fr: "Hydrotraiteur d'essence",
     en: 'Gasoline hydrotreater',
   },
   '23111606': {
@@ -9108,7 +9108,7 @@ export default {
     en: 'Rubber and plastic processing machinery and equipment and supplies',
   },
   '23151501': {
-    fr: 'Machines d\'extrusion soufflage',
+    fr: "Machines d'extrusion soufflage",
     en: 'Blow molding machines',
   },
   '23151502': {
@@ -9152,11 +9152,11 @@ export default {
     en: 'Rubber or plastic mills',
   },
   '23151513': {
-    fr: 'Filières d\'extrusion de plastique ou de caoutchouc',
+    fr: "Filières d'extrusion de plastique ou de caoutchouc",
     en: 'Rubber or plastic extrusion dies',
   },
   '23151514': {
-    fr: 'Moules d\'injection pour plastique',
+    fr: "Moules d'injection pour plastique",
     en: 'Plastic injection molds',
   },
   '23151515': {
@@ -9204,7 +9204,7 @@ export default {
     en: 'Sifters',
   },
   '23151700': {
-    fr: 'Machines, équipements et fournitures pour l\'industrie de l\'optique',
+    fr: "Machines, équipements et fournitures pour l'industrie de l'optique",
     en: 'Optical industry machinery and equipment and supplies',
   },
   '23151701': {
@@ -9220,7 +9220,7 @@ export default {
     en: 'Lens polishing equipment',
   },
   '23151704': {
-    fr: 'Équipements d\'essai de lentilles',
+    fr: "Équipements d'essai de lentilles",
     en: 'Lens testing equipment',
   },
   '23151705': {
@@ -9228,11 +9228,11 @@ export default {
     en: 'Optical vacuum coating equipment',
   },
   '23151800': {
-    fr: 'Machines, équipements et fournitures pour l\'industrie pharmaceutique',
+    fr: "Machines, équipements et fournitures pour l'industrie pharmaceutique",
     en: 'Pharmaceutical industry machinery and equipment and supplies',
   },
   '23151801': {
-    fr: 'Équipements de remplissage d\'ampoules',
+    fr: "Équipements de remplissage d'ampoules",
     en: 'Ampoule filling equipment',
   },
   '23151802': {
@@ -9272,7 +9272,7 @@ export default {
     en: 'Sterile or aseptic processing or filling machines',
   },
   '23151811': {
-    fr: 'Machines d\'essai de comprimés ou de capsules',
+    fr: "Machines d'essai de comprimés ou de capsules",
     en: 'Tablet or capsule testing machines',
   },
   '23151812': {
@@ -9336,7 +9336,7 @@ export default {
     en: 'Slitters',
   },
   '23151903': {
-    fr: 'Machine de lavage ou d\'essorage',
+    fr: "Machine de lavage ou d'essorage",
     en: 'Washing or dewatering machines',
   },
   '23151904': {
@@ -9428,7 +9428,7 @@ export default {
     en: 'Packaging vacuum',
   },
   '23152904': {
-    fr: 'Trémies d\'emballage',
+    fr: "Trémies d'emballage",
     en: 'Packaging hoppers',
   },
   '23152905': {
@@ -9440,7 +9440,7 @@ export default {
     en: 'Taping machines',
   },
   '23152907': {
-    fr: 'Fournitures pour machine d\'emballage',
+    fr: "Fournitures pour machine d'emballage",
     en: 'Packaging machinery supplies',
   },
   '23153000': {
@@ -9464,7 +9464,7 @@ export default {
     en: 'Needle jig',
   },
   '23153005': {
-    fr: 'Gabarit d\'arbre',
+    fr: "Gabarit d'arbre",
     en: 'Shaft jig',
   },
   '23153006': {
@@ -9488,7 +9488,7 @@ export default {
     en: 'Removal jig',
   },
   '23153011': {
-    fr: 'Support d\'injecteur',
+    fr: "Support d'injecteur",
     en: 'Nozzle jig',
   },
   '23153012': {
@@ -9500,15 +9500,15 @@ export default {
     en: 'Centering jig',
   },
   '23153014': {
-    fr: 'Table d\'inspection',
+    fr: "Table d'inspection",
     en: 'Inspecting jig',
   },
   '23153015': {
-    fr: 'Guide d\'alimentation',
+    fr: "Guide d'alimentation",
     en: 'Feeder jig',
   },
   '23153016': {
-    fr: 'Garde d\'embrayage',
+    fr: "Garde d'embrayage",
     en: 'Clutch jig',
   },
   '23153017': {
@@ -9664,7 +9664,7 @@ export default {
     en: 'Link arms',
   },
   '23153141': {
-    fr: 'Fil pour machines d\'électro-érosion EDM',
+    fr: "Fil pour machines d'électro-érosion EDM",
     en: 'Electro discharge machine EDM wire',
   },
   '23153200': {
@@ -9808,7 +9808,7 @@ export default {
     en: 'Part marking machines',
   },
   '23153601': {
-    fr: 'Machines de marquage par gravure à l\'acide',
+    fr: "Machines de marquage par gravure à l'acide",
     en: 'Acid etch marking machines',
   },
   '23153602': {
@@ -9828,7 +9828,7 @@ export default {
     en: 'Precision fastening or torque equipment',
   },
   '23153701': {
-    fr: 'Outils d\'impulsion',
+    fr: "Outils d'impulsion",
     en: 'Pulse tool',
   },
   '23153702': {
@@ -9868,7 +9868,7 @@ export default {
     en: 'Casting machines',
   },
   '23161514': {
-    fr: 'Presses de calibrage ou d\'emboutissage',
+    fr: "Presses de calibrage ou d'emboutissage",
     en: 'Sizing or embossing presses',
   },
   '23161516': {
@@ -9924,11 +9924,11 @@ export default {
     en: 'Workshop machinery and equipment and supplies',
   },
   '23180000': {
-    fr: 'Équipements pour l\'industrie des aliments et boissons',
+    fr: "Équipements pour l'industrie des aliments et boissons",
     en: 'Industrial food and beverage equipment',
   },
   '23181500': {
-    fr: 'Machines pour la préparation d\'aliments',
+    fr: "Machines pour la préparation d'aliments",
     en: 'Food preparation machinery',
   },
   '23181501': {
@@ -10128,7 +10128,7 @@ export default {
     en: 'Bubble columns',
   },
   '23201100': {
-    fr: 'Adsorption et échange d\'ions',
+    fr: "Adsorption et échange d'ions",
     en: 'Adsorption and ion exchange',
   },
   '23201101': {
@@ -10296,7 +10296,7 @@ export default {
     en: 'Fillet holder',
   },
   '23231602': {
-    fr: 'Cylindre d\'extrémité',
+    fr: "Cylindre d'extrémité",
     en: 'Ending roll',
   },
   '23231700': {
@@ -10320,7 +10320,7 @@ export default {
     en: 'Planers and accessories',
   },
   '23231901': {
-    fr: 'Table d\'entrée',
+    fr: "Table d'entrée",
     en: 'Base bed',
   },
   '23231902': {
@@ -10328,7 +10328,7 @@ export default {
     en: 'Rear shoe',
   },
   '23231903': {
-    fr: 'Gabarit d\'alignement refroidi à leau',
+    fr: "Gabarit d'alignement refroidi à leau",
     en: 'Water cooled guide',
   },
   '23232000': {
@@ -10364,7 +10364,7 @@ export default {
     en: 'Metal grinding machines',
   },
   '23241401': {
-    fr: 'Meuleuse d\'établi',
+    fr: "Meuleuse d'établi",
     en: 'Bench grinder',
   },
   '23241402': {
@@ -10372,11 +10372,11 @@ export default {
     en: 'Surface grinding machine',
   },
   '23241403': {
-    fr: 'Rectifieuse d\'intérieur',
+    fr: "Rectifieuse d'intérieur",
     en: 'Internal grinding machine',
   },
   '23241404': {
-    fr: 'Rectifieuse d\'extérieur',
+    fr: "Rectifieuse d'extérieur",
     en: 'External grinding machine',
   },
   '23241500': {
@@ -10388,7 +10388,7 @@ export default {
     en: 'Abrasive jet machining equipment',
   },
   '23241502': {
-    fr: 'Machines pour l\'usinage électrochimique',
+    fr: "Machines pour l'usinage électrochimique",
     en: 'Electrochemical machine ECM',
   },
   '23241503': {
@@ -10476,7 +10476,7 @@ export default {
     en: 'Wire or cable cutter',
   },
   '23241700': {
-    fr: 'Machines d\'ébavurage des métaux',
+    fr: "Machines d'ébavurage des métaux",
     en: 'Metal deburring machines',
   },
   '23241701': {
@@ -10484,7 +10484,7 @@ export default {
     en: 'Shot blasting machine',
   },
   '23241702': {
-    fr: 'Machines d\'ébavurage à énergie thermique',
+    fr: "Machines d'ébavurage à énergie thermique",
     en: 'Thermal energy deburring machine',
   },
   '23241703': {
@@ -10512,11 +10512,11 @@ export default {
     en: 'Numerically controlled drilling machine',
   },
   '23241900': {
-    fr: 'Machines d\'alésage des métaux',
+    fr: "Machines d'alésage des métaux",
     en: 'Metal boring machines',
   },
   '23241901': {
-    fr: 'Machines d\'alésage horizontal',
+    fr: "Machines d'alésage horizontal",
     en: 'Horizontal boring machine',
   },
   '23241902': {
@@ -10636,7 +10636,7 @@ export default {
     en: 'Gear shaving machine',
   },
   '23242207': {
-    fr: 'Rectifieuse de dentures d\'engrenages',
+    fr: "Rectifieuse de dentures d'engrenages",
     en: 'Gear grinding machine',
   },
   '23242300': {
@@ -10668,19 +10668,19 @@ export default {
     en: 'Vertical turning center',
   },
   '23242400': {
-    fr: 'Centres d\'usinage',
+    fr: "Centres d'usinage",
     en: 'Machining centers',
   },
   '23242401': {
-    fr: 'Centres d\'usinage horizontal',
+    fr: "Centres d'usinage horizontal",
     en: 'Horizontal machining center',
   },
   '23242402': {
-    fr: 'Centres d\'usinage universels ou multi-tâches',
+    fr: "Centres d'usinage universels ou multi-tâches",
     en: 'Multi-tasking or universal machining center',
   },
   '23242403': {
-    fr: 'Centres d\'usinage vertical',
+    fr: "Centres d'usinage vertical",
     en: 'Vertical machining center',
   },
   '23242500': {
@@ -10744,7 +10744,7 @@ export default {
     en: 'Super finishing machine',
   },
   '23242608': {
-    fr: 'Bras de mesure d\'outil',
+    fr: "Bras de mesure d'outil",
     en: 'Tool presetter',
   },
   '23250000': {
@@ -10776,7 +10776,7 @@ export default {
     en: 'Tube bending machine',
   },
   '23251506': {
-    fr: 'Finisseuses d\'extrémités de tubes',
+    fr: "Finisseuses d'extrémités de tubes",
     en: 'Tube end finisher',
   },
   '23251507': {
@@ -10820,7 +10820,7 @@ export default {
     en: 'Rotary burrs',
   },
   '23251707': {
-    fr: 'presse d\'ébavurage',
+    fr: "presse d'ébavurage",
     en: 'Trim press',
   },
   '23251800': {
@@ -10848,7 +10848,7 @@ export default {
     en: 'Forge die',
   },
   '23251806': {
-    fr: 'Matrices d\'extrusion',
+    fr: "Matrices d'extrusion",
     en: 'Metal extrusion die',
   },
   '23251807': {
@@ -10864,7 +10864,7 @@ export default {
     en: 'Rotary die',
   },
   '23251810': {
-    fr: 'Matrices d\'estampage',
+    fr: "Matrices d'estampage",
     en: 'Stamping die',
   },
   '23251811': {
@@ -10916,7 +10916,7 @@ export default {
     en: 'Stereolithography machine',
   },
   '23261507': {
-    fr: 'Machines d\'impression 3D',
+    fr: "Machines d'impression 3D",
     en: 'Three dimensional printing machine',
   },
   '23270000': {
@@ -10928,7 +10928,7 @@ export default {
     en: 'Welding machinery',
   },
   '23271401': {
-    fr: 'Machine de soudage à l\'arc sous flux',
+    fr: "Machine de soudage à l'arc sous flux",
     en: 'Submerged arc welding machine',
   },
   '23271402': {
@@ -10960,7 +10960,7 @@ export default {
     en: 'Metal inert gas welding machine',
   },
   '23271409': {
-    fr: 'Soudage à l\'arc avec électrode fusible sous protection gazeuse',
+    fr: "Soudage à l'arc avec électrode fusible sous protection gazeuse",
     en: 'Shielded metal arc welding or stick welding machine',
   },
   '23271410': {
@@ -11084,7 +11084,7 @@ export default {
     en: 'Desoldering braid',
   },
   '23271804': {
-    fr: 'Baguette d\'apport pour soudage ou brasage au gaz',
+    fr: "Baguette d'apport pour soudage ou brasage au gaz",
     en: 'Gas welding or brazing rod',
   },
   '23271805': {
@@ -11128,11 +11128,11 @@ export default {
     en: 'Metal treatment machinery',
   },
   '23281500': {
-    fr: 'Machines pour le placage ou l\'enrobage',
+    fr: "Machines pour le placage ou l'enrobage",
     en: 'Coating or plating machines',
   },
   '23281501': {
-    fr: 'Machines pour l\' anodisation',
+    fr: "Machines pour l' anodisation",
     en: 'Anodizing machine',
   },
   '23281502': {
@@ -11228,11 +11228,11 @@ export default {
     en: 'Milling insert',
   },
   '23291700': {
-    fr: 'Outils d\'alésage industriel',
+    fr: "Outils d'alésage industriel",
     en: 'Industrial reaming tools',
   },
   '23291701': {
-    fr: 'Lame d\'alésage',
+    fr: "Lame d'alésage",
     en: 'Reamer blade',
   },
   '23291702': {
@@ -11272,15 +11272,15 @@ export default {
     en: 'Industrial boring tools',
   },
   '23291901': {
-    fr: 'Tête d\'alésage',
+    fr: "Tête d'alésage",
     en: 'Boring head',
   },
   '23291902': {
-    fr: 'Alésoir d\'ébauche',
+    fr: "Alésoir d'ébauche",
     en: 'Rough boring tool',
   },
   '24000000': {
-    fr: 'Machines pour la manutention, l\'emballage et le stockage, accessoires et fournitures',
+    fr: "Machines pour la manutention, l'emballage et le stockage, accessoires et fournitures",
     en: 'Material Handling and Conditioning and Storage Machinery and their Accessories and Supplies',
   },
   '24100000': {
@@ -11392,7 +11392,7 @@ export default {
     en: 'Blocks or pulleys',
   },
   '24101614': {
-    fr: 'Coussins d\'air pour le chargement',
+    fr: "Coussins d'air pour le chargement",
     en: 'Air bags for loading',
   },
   '24101615': {
@@ -11596,7 +11596,7 @@ export default {
     en: 'Conveyor mounts',
   },
   '24101729': {
-    fr: 'Godet d\'élévateur',
+    fr: "Godet d'élévateur",
     en: 'Elevator bucket',
   },
   '24101730': {
@@ -11616,11 +11616,11 @@ export default {
     en: 'Dock levelers',
   },
   '24101802': {
-    fr: 'Sas d\'étanchéité',
+    fr: "Sas d'étanchéité",
     en: 'Dock seals',
   },
   '24101803': {
-    fr: 'Rampes d\'accès',
+    fr: "Rampes d'accès",
     en: 'Dock ramps',
   },
   '24101804': {
@@ -11704,7 +11704,7 @@ export default {
     en: 'Work benches',
   },
   '24102007': {
-    fr: 'Étagères d\'entreposage de bobines',
+    fr: "Étagères d'entreposage de bobines",
     en: 'Reel storage shelves',
   },
   '24102008': {
@@ -11720,7 +11720,7 @@ export default {
     en: 'Glass shelving',
   },
   '24102100': {
-    fr: 'Équipements et fournitures pour l\'entreposage',
+    fr: "Équipements et fournitures pour l'entreposage",
     en: 'Warehousing equipment and supplies',
   },
   '24102101': {
@@ -11728,11 +11728,11 @@ export default {
     en: 'Cargo handling equipment',
   },
   '24102102': {
-    fr: 'Carrousels d\'entrepôt',
+    fr: "Carrousels d'entrepôt",
     en: 'Warehouse carousels',
   },
   '24102103': {
-    fr: 'Encaisseuse d\'entrepôt',
+    fr: "Encaisseuse d'entrepôt",
     en: 'Warehouse casers',
   },
   '24102104': {
@@ -11744,7 +11744,7 @@ export default {
     en: 'Palletizers',
   },
   '24102106': {
-    fr: 'Équipements pour l\'emballage sous film rétractable industriel',
+    fr: "Équipements pour l'emballage sous film rétractable industriel",
     en: 'Industrial shrink wrap equipment',
   },
   '24102107': {
@@ -11752,7 +11752,7 @@ export default {
     en: 'Cartoning machinery',
   },
   '24102108': {
-    fr: 'Compacteurs d\'emballage',
+    fr: "Compacteurs d'emballage",
     en: 'Packaging compactors',
   },
   '24102109': {
@@ -11760,7 +11760,7 @@ export default {
     en: 'Sack holders',
   },
   '24102200': {
-    fr: 'Outils pour l\'emballage',
+    fr: "Outils pour l'emballage",
     en: 'Packing tools',
   },
   '24102201': {
@@ -11768,7 +11768,7 @@ export default {
     en: 'Stretch film dispensers',
   },
   '24102202': {
-    fr: 'Dévidoirs d\'adhésif pour le scellage  des boîtes',
+    fr: "Dévidoirs d'adhésif pour le scellage  des boîtes",
     en: 'Box sealing tape dispensers',
   },
   '24102203': {
@@ -11848,7 +11848,7 @@ export default {
     en: 'Reservoirs',
   },
   '24111802': {
-    fr: 'Bouteilles ou réservoirs d\'air ou de gaz',
+    fr: "Bouteilles ou réservoirs d'air ou de gaz",
     en: 'Air or gas tanks or cylinders',
   },
   '24111803': {
@@ -11868,7 +11868,7 @@ export default {
     en: 'Dip tanks',
   },
   '24111807': {
-    fr: 'Réservoirs d\'expansion',
+    fr: "Réservoirs d'expansion",
     en: 'Expansion tanks',
   },
   '24111808': {
@@ -11880,7 +11880,7 @@ export default {
     en: 'Processing tanks',
   },
   '24111810': {
-    fr: 'Réservoirs accumulateur d\'eau',
+    fr: "Réservoirs accumulateur d'eau",
     en: 'Water storage tanks',
   },
   '24111811': {
@@ -12004,7 +12004,7 @@ export default {
     en: 'Drawers',
   },
   '24112406': {
-    fr: 'Partitions de boîtes ou d\'étagère',
+    fr: "Partitions de boîtes ou d'étagère",
     en: 'Box or shelf partitions',
   },
   '24112407': {
@@ -12040,11 +12040,11 @@ export default {
     en: 'Slotted corrugated cartons',
   },
   '24112502': {
-    fr: 'Colis postaux d\'une seule pièce en carton ondulé découpées à l\'emporte-pièce',
+    fr: "Colis postaux d'une seule pièce en carton ondulé découpées à l'emporte-pièce",
     en: 'One piece die cut shipping cartons',
   },
   '24112503': {
-    fr: 'Colis postaux en carton ondulé découpées à l\'emporte-pièce avec couvercle séparé',
+    fr: "Colis postaux en carton ondulé découpées à l'emporte-pièce avec couvercle séparé",
     en: 'Die cut corrugated shipping cartons with separate lids',
   },
   '24112504': {
@@ -12096,19 +12096,19 @@ export default {
     en: 'Flatrack freight container',
   },
   '24120000': {
-    fr: 'Matériel pour l\'emballage',
+    fr: "Matériel pour l'emballage",
     en: 'Packaging materials',
   },
   '24121500': {
-    fr: 'Boîtes, sacs et sachets d\'emballage',
+    fr: "Boîtes, sacs et sachets d'emballage",
     en: 'Packaging boxes and bags and pouches',
   },
   '24121502': {
-    fr: 'Sacs ou sachets d\'emballage',
+    fr: "Sacs ou sachets d'emballage",
     en: 'Packaging pouches or bags',
   },
   '24121503': {
-    fr: 'Boîtes d\'emballage',
+    fr: "Boîtes d'emballage",
     en: 'Packaging boxes',
   },
   '24121504': {
@@ -12120,7 +12120,7 @@ export default {
     en: 'Conductive boxes',
   },
   '24121507': {
-    fr: 'Boîtes rigides d\'exposition',
+    fr: "Boîtes rigides d'exposition",
     en: 'Rigid set up boxes',
   },
   '24121508': {
@@ -12132,7 +12132,7 @@ export default {
     en: 'Packaging trays',
   },
   '24121800': {
-    fr: 'Cannettes et boîtes d\'emballage',
+    fr: "Cannettes et boîtes d'emballage",
     en: 'Packaging cans',
   },
   '24121801': {
@@ -12308,7 +12308,7 @@ export default {
     en: 'Ice flake maker',
   },
   '24140000': {
-    fr: 'Fournitures pour l\'emballage',
+    fr: "Fournitures pour l'emballage",
     en: 'Packing supplies',
   },
   '24141500': {
@@ -12316,11 +12316,11 @@ export default {
     en: 'Securing and protecting supplies',
   },
   '24141501': {
-    fr: 'Films d\'emballage étirables',
+    fr: "Films d'emballage étirables",
     en: 'Stretch wrap films',
   },
   '24141502': {
-    fr: 'Films d\'emballage rétractables',
+    fr: "Films d'emballage rétractables",
     en: 'Shrink wrap films',
   },
   '24141504': {
@@ -12368,7 +12368,7 @@ export default {
     en: 'Cushioning supplies',
   },
   '24141601': {
-    fr: 'Feuilles de polyéthylène à bulles d\'air',
+    fr: "Feuilles de polyéthylène à bulles d'air",
     en: 'Bubble wrap',
   },
   '24141602': {
@@ -12384,7 +12384,7 @@ export default {
     en: 'Wadding materials',
   },
   '24141605': {
-    fr: 'Matériaux remplis d\'air pour l\'emballage',
+    fr: "Matériaux remplis d'air pour l'emballage",
     en: 'Air filled packing materials',
   },
   '24141606': {
@@ -12400,7 +12400,7 @@ export default {
     en: 'Protective ends',
   },
   '24141700': {
-    fr: 'Tubes, mandrins, étiquettes et accessoires pour l\'emballage',
+    fr: "Tubes, mandrins, étiquettes et accessoires pour l'emballage",
     en: 'Packaging tubes and cores and labels and accessories',
   },
   '24141701': {
@@ -12408,7 +12408,7 @@ export default {
     en: 'Paper tubes or cores',
   },
   '24141702': {
-    fr: 'Bouchons à tube ou d\'extrémité de mandrins',
+    fr: "Bouchons à tube ou d'extrémité de mandrins",
     en: 'Tube or core end plugs',
   },
   '24141703': {
@@ -12500,7 +12500,7 @@ export default {
     en: 'Delivery trucks',
   },
   '25101609': {
-    fr: 'Camions de manutention de boues d\'épuration',
+    fr: "Camions de manutention de boues d'épuration",
     en: 'Sludge or sewage handling trucks',
   },
   '25101610': {
@@ -12672,11 +12672,11 @@ export default {
     en: 'Salvage ships',
   },
   '25111511': {
-    fr: 'Bateau destiné au personnel actif dans l\'exploitation du pétrole ou du gaz',
+    fr: "Bateau destiné au personnel actif dans l'exploitation du pétrole ou du gaz",
     en: 'Oil or gas crew boat',
   },
   '25111512': {
-    fr: 'Bateau destiné à l\'exploitation du pétrole ou du gaz',
+    fr: "Bateau destiné à l'exploitation du pétrole ou du gaz",
     en: 'Oil or gas workboat',
   },
   '25111513': {
@@ -12716,7 +12716,7 @@ export default {
     en: 'Ammunition ships',
   },
   '25111704': {
-    fr: 'Navires d\'assaut amphibies',
+    fr: "Navires d'assaut amphibies",
     en: 'Amphibious assault ships',
   },
   '25111705': {
@@ -12744,7 +12744,7 @@ export default {
     en: 'Dock landing ships',
   },
   '25111711': {
-    fr: 'Navires rapides d\'appui au combat',
+    fr: "Navires rapides d'appui au combat",
     en: 'Fast combat support ships',
   },
   '25111712': {
@@ -12784,7 +12784,7 @@ export default {
     en: 'Tank landing ships',
   },
   '25111721': {
-    fr: 'Navires de débarquement sur coussin d\'air',
+    fr: "Navires de débarquement sur coussin d'air",
     en: 'Air cushioned landing watercraft',
   },
   '25111800': {
@@ -13020,7 +13020,7 @@ export default {
     en: 'Railroad support equipment and systems',
   },
   '25121701': {
-    fr: 'Systèmes d\'aiguillage',
+    fr: "Systèmes d'aiguillage",
     en: 'Rail switching systems',
   },
   '25121702': {
@@ -13080,11 +13080,11 @@ export default {
     en: 'Commercial passenger jet aircraft',
   },
   '25131507': {
-    fr: 'Avion à hélices privé ou d\'affaires',
+    fr: "Avion à hélices privé ou d'affaires",
     en: 'Private or business propeller aircraft',
   },
   '25131508': {
-    fr: 'Avion à réaction privé ou d\'affaires',
+    fr: "Avion à réaction privé ou d'affaires",
     en: 'Private or business jet aircraft',
   },
   '25131600': {
@@ -13124,7 +13124,7 @@ export default {
     en: 'Fighter aircraft',
   },
   '25131704': {
-    fr: 'Avion d\'attaque',
+    fr: "Avion d'attaque",
     en: 'Attack aircraft',
   },
   '25131705': {
@@ -13164,7 +13164,7 @@ export default {
     en: 'Military transport helicopters',
   },
   '25131903': {
-    fr: 'Hélicoptères d\'attaque',
+    fr: "Hélicoptères d'attaque",
     en: 'Attack helicopters',
   },
   '25131904': {
@@ -13300,7 +13300,7 @@ export default {
     en: 'Recumbent bicycles',
   },
   '25161509': {
-    fr: 'Bicyclettes d\'enfants',
+    fr: "Bicyclettes d'enfants",
     en: 'Childrens bicycles',
   },
   '25170000': {
@@ -13312,27 +13312,27 @@ export default {
     en: 'Windshield wipers',
   },
   '25171502': {
-    fr: 'Balais d\'essuie-glace pour voitures',
+    fr: "Balais d'essuie-glace pour voitures",
     en: 'Automotive windshield wipers',
   },
   '25171503': {
-    fr: 'Balais d\'essuie-glace pour locomotives',
+    fr: "Balais d'essuie-glace pour locomotives",
     en: 'Locomotive windshield wipers',
   },
   '25171504': {
-    fr: 'Balais d\'essuie-glace pour navires',
+    fr: "Balais d'essuie-glace pour navires",
     en: 'Marine windshield wipers',
   },
   '25171505': {
-    fr: 'Balais d\'essuie-glace pour camions',
+    fr: "Balais d'essuie-glace pour camions",
     en: 'Truck windshield wipers',
   },
   '25171506': {
-    fr: 'Pompe d\'essuie-glace',
+    fr: "Pompe d'essuie-glace",
     en: 'Windshield wiper pump',
   },
   '25171507': {
-    fr: 'Lames d\'essuie-glace',
+    fr: "Lames d'essuie-glace",
     en: 'Wiper blades',
   },
   '25171600': {
@@ -13444,7 +13444,7 @@ export default {
     en: 'Wheels and wheel trims',
   },
   '25171901': {
-    fr: 'Roues ou jantes d\'automobile',
+    fr: "Roues ou jantes d'automobile",
     en: 'Automobile rims or wheels',
   },
   '25171902': {
@@ -13460,7 +13460,7 @@ export default {
     en: 'Tire valves',
   },
   '25171906': {
-    fr: 'Enjoliveur de roue d\'automobile',
+    fr: "Enjoliveur de roue d'automobile",
     en: 'Automotive wheel cover',
   },
   '25172000': {
@@ -13508,7 +13508,7 @@ export default {
     en: 'Slip plates',
   },
   '25172013': {
-    fr: 'bras de suspension d\'automobile',
+    fr: "bras de suspension d'automobile",
     en: 'Automotive control arm',
   },
   '25172014': {
@@ -13528,11 +13528,11 @@ export default {
     en: 'Seatbelts',
   },
   '25172105': {
-    fr: 'Systèmes d\'évitement de collisions',
+    fr: "Systèmes d'évitement de collisions",
     en: 'Collision avoidance systems',
   },
   '25172106': {
-    fr: 'Systèmes de détection d\'impacts',
+    fr: "Systèmes de détection d'impacts",
     en: 'Impact sensing systems',
   },
   '25172108': {
@@ -13604,7 +13604,7 @@ export default {
     en: 'Automotive windows',
   },
   '25172400': {
-    fr: 'Réservoirs et systèmes d\'alimentation en carburant',
+    fr: "Réservoirs et systèmes d'alimentation en carburant",
     en: 'Fuel tanks and systems',
   },
   '25172404': {
@@ -13612,7 +13612,7 @@ export default {
     en: 'Hybrid fuel storage systems',
   },
   '25172405': {
-    fr: 'Systèmes d\'injection de carburant',
+    fr: "Systèmes d'injection de carburant",
     en: 'Fuel injection systems',
   },
   '25172406': {
@@ -13620,11 +13620,11 @@ export default {
     en: 'Fuel tanks',
   },
   '25172407': {
-    fr: 'Prises d\'air',
+    fr: "Prises d'air",
     en: 'Breather elements',
   },
   '25172408': {
-    fr: 'Bouchons de réservoir de combustible ou d\'huile',
+    fr: "Bouchons de réservoir de combustible ou d'huile",
     en: 'Fuel or oil caps',
   },
   '25172500': {
@@ -13632,7 +13632,7 @@ export default {
     en: 'Tires and tire tubes',
   },
   '25172502': {
-    fr: 'Chambres à air de pneus d\'automobiles',
+    fr: "Chambres à air de pneus d'automobiles",
     en: 'Automobile tire tubes',
   },
   '25172503': {
@@ -13664,11 +13664,11 @@ export default {
     en: 'Vehicle trim and exterior covering',
   },
   '25172601': {
-    fr: 'Aménagement intérieur d\'automobiles',
+    fr: "Aménagement intérieur d'automobiles",
     en: 'Automotive trim',
   },
   '25172602': {
-    fr: 'Pare-chocs d\'automobiles',
+    fr: "Pare-chocs d'automobiles",
     en: 'Automotive fenders',
   },
   '25172603': {
@@ -13700,15 +13700,15 @@ export default {
     en: 'Mud flap',
   },
   '25172700': {
-    fr: 'Systèmes de contrôle de l\'environnement',
+    fr: "Systèmes de contrôle de l'environnement",
     en: 'Environmental control systems',
   },
   '25172702': {
-    fr: 'Systèmes de contrôle de l\'environnement pour vaisseaux spatiaux',
+    fr: "Systèmes de contrôle de l'environnement pour vaisseaux spatiaux",
     en: 'Space environmental control systems',
   },
   '25172703': {
-    fr: 'Systèmes de contrôle de l\'environnement pour navires',
+    fr: "Systèmes de contrôle de l'environnement pour navires",
     en: 'Marine environmental control systems',
   },
   '25172704': {
@@ -13744,7 +13744,7 @@ export default {
     en: 'Exterior ship or boat lighting',
   },
   '25172905': {
-    fr: 'Systèmes de lavage ou d\'essuyage des phares',
+    fr: "Systèmes de lavage ou d'essuyage des phares",
     en: 'Headlamp wiper or washer systems',
   },
   '25172906': {
@@ -13792,15 +13792,15 @@ export default {
     en: 'Master control systems',
   },
   '25173303': {
-    fr: 'Systèmes d\'ordinateur pour automobiles',
+    fr: "Systèmes d'ordinateur pour automobiles",
     en: 'Automotive computer systems',
   },
   '25173304': {
-    fr: 'Systèmes d\'allumage électronique',
+    fr: "Systèmes d'allumage électronique",
     en: 'Electronic ignition systems',
   },
   '25173700': {
-    fr: 'Contrôle de l\'échappement et des émissions',
+    fr: "Contrôle de l'échappement et des émissions",
     en: 'Exhaust and emission controls',
   },
   '25173701': {
@@ -13808,11 +13808,11 @@ export default {
     en: 'Catalytic converters',
   },
   '25173702': {
-    fr: 'Pots d\'échappement et silencieux auxiliaires',
+    fr: "Pots d'échappement et silencieux auxiliaires",
     en: 'Mufflers or resonators',
   },
   '25173703': {
-    fr: 'Collecteurs d\'échappement',
+    fr: "Collecteurs d'échappement",
     en: 'Exhaust manifolds',
   },
   '25173704': {
@@ -13824,7 +13824,7 @@ export default {
     en: 'Spark arresters',
   },
   '25173800': {
-    fr: 'Systèmes d\'engrenage de transmission',
+    fr: "Systèmes d'engrenage de transmission",
     en: 'Drivetrain systems',
   },
   '25173801': {
@@ -13840,7 +13840,7 @@ export default {
     en: 'Axle housings',
   },
   '25173804': {
-    fr: 'Tourillon d\'essieu',
+    fr: "Tourillon d'essieu",
     en: 'Axle spindles',
   },
   '25173805': {
@@ -13856,11 +13856,11 @@ export default {
     en: 'Axle shafts',
   },
   '25173808': {
-    fr: 'Kits de réparation d\'essieu',
+    fr: "Kits de réparation d'essieu",
     en: 'Axle repair kits',
   },
   '25173809': {
-    fr: 'Moyeux d\'essieu',
+    fr: "Moyeux d'essieu",
     en: 'Axle hubs',
   },
   '25173810': {
@@ -13880,11 +13880,11 @@ export default {
     en: 'Automatic transmissions',
   },
   '25173815': {
-    fr: 'Câbles d\'embrayage',
+    fr: "Câbles d'embrayage",
     en: 'Clutch cables',
   },
   '25173816': {
-    fr: 'Pièces d\'embrayage hydraulique',
+    fr: "Pièces d'embrayage hydraulique",
     en: 'Hydraulic clutch parts',
   },
   '25173817': {
@@ -13976,7 +13976,7 @@ export default {
     en: 'Power steering system',
   },
   '25174205': {
-    fr: 'Barres d\'accouplement',
+    fr: "Barres d'accouplement",
     en: 'Tie Rods',
   },
   '25174206': {
@@ -14044,7 +14044,7 @@ export default {
     en: 'Pedals',
   },
   '25174408': {
-    fr: 'Allumes cigare et prises d\'alimentation',
+    fr: "Allumes cigare et prises d'alimentation",
     en: 'Power ports or lighters',
   },
   '25174409': {
@@ -14088,7 +14088,7 @@ export default {
     en: 'Automotive chassis',
   },
   '25181601': {
-    fr: 'Châssis d\'automobiles',
+    fr: "Châssis d'automobiles",
     en: 'Automobile chassis',
   },
   '25181602': {
@@ -14112,7 +14112,7 @@ export default {
     en: 'Flatbed trailers',
   },
   '25181703': {
-    fr: 'Remorques de transport d\'animaux',
+    fr: "Remorques de transport d'animaux",
     en: 'Livestock trailers',
   },
   '25181704': {
@@ -14128,11 +14128,11 @@ export default {
     en: 'Temperature controlled container trailers',
   },
   '25181707': {
-    fr: 'Remorques de transport d\'automobiles',
+    fr: "Remorques de transport d'automobiles",
     en: 'Automobile carrier trailers',
   },
   '25181708': {
-    fr: 'Crochets d\'attelage',
+    fr: "Crochets d'attelage",
     en: 'Trailer hitches',
   },
   '25181709': {
@@ -14164,23 +14164,23 @@ export default {
     en: 'Transportation services equipment',
   },
   '25191500': {
-    fr: 'Systèmes et équipements d\'appui au transport aérien',
+    fr: "Systèmes et équipements d'appui au transport aérien",
     en: 'Air transportation support systems and equipment',
   },
   '25191501': {
-    fr: 'Systèmes d\'entraînement à l\'appui au sol',
+    fr: "Systèmes d'entraînement à l'appui au sol",
     en: 'Ground support training systems',
   },
   '25191502': {
-    fr: 'Systèmes de test ou de maintenance de l\'appui au sol',
+    fr: "Systèmes de test ou de maintenance de l'appui au sol",
     en: 'Ground support test or maintenance systems',
   },
   '25191503': {
-    fr: 'Systèmes intégrés d\'informations de maintenance',
+    fr: "Systèmes intégrés d'informations de maintenance",
     en: 'Integrated maintenance information systems',
   },
   '25191504': {
-    fr: 'Systèmes d\'entraînement ou de simulation de vol',
+    fr: "Systèmes d'entraînement ou de simulation de vol",
     en: 'Aircraft flight simulators or trainers',
   },
   '25191505': {
@@ -14188,23 +14188,23 @@ export default {
     en: 'Aircraft cargo handling equipment',
   },
   '25191506': {
-    fr: 'Équipements de remplissage des réservoirs d\'avions',
+    fr: "Équipements de remplissage des réservoirs d'avions",
     en: 'Aircraft refueling equipment',
   },
   '25191507': {
-    fr: 'Équipements de dégivrage d\'avions',
+    fr: "Équipements de dégivrage d'avions",
     en: 'Aircraft deicing equipment',
   },
   '25191508': {
-    fr: 'Passerelles d\'embarquement pour avions',
+    fr: "Passerelles d'embarquement pour avions",
     en: 'Jetways',
   },
   '25191509': {
-    fr: 'Tracteurs de refoulement ou de tracteurs d\'avions',
+    fr: "Tracteurs de refoulement ou de tracteurs d'avions",
     en: 'Aircraft pushback or tow tractors',
   },
   '25191510': {
-    fr: 'Unités d\'alimentation en énergie au sol pour avions',
+    fr: "Unités d'alimentation en énergie au sol pour avions",
     en: 'Ground power units for aircraft',
   },
   '25191511': {
@@ -14216,15 +14216,15 @@ export default {
     en: 'Airstairs or stair trucks',
   },
   '25191513': {
-    fr: 'Kit de maintenance pour véhicules d\'intervention',
+    fr: "Kit de maintenance pour véhicules d'intervention",
     en: 'Ground support vehicle maintenance kit',
   },
   '25191514': {
-    fr: 'Barre de remorquage d\'avion',
+    fr: "Barre de remorquage d'avion",
     en: 'Aircraft towbar',
   },
   '25191600': {
-    fr: 'Systèmes et équipement d\'appui au transport spatial',
+    fr: "Systèmes et équipement d'appui au transport spatial",
     en: 'Space transportation support systems and equipment',
   },
   '25191601': {
@@ -14252,11 +14252,11 @@ export default {
     en: 'Vehicle servicing equipment',
   },
   '25191701': {
-    fr: 'Équipements d\'équilibrage de roues',
+    fr: "Équipements d'équilibrage de roues",
     en: 'Wheel balancing equipment',
   },
   '25191702': {
-    fr: 'Équipements d\'alignement de roues',
+    fr: "Équipements d'alignement de roues",
     en: 'Wheel alignment equipment',
   },
   '25191703': {
@@ -14280,7 +14280,7 @@ export default {
     en: 'Aircraft spoilers',
   },
   '25201502': {
-    fr: 'Empennages d\'avions',
+    fr: "Empennages d'avions",
     en: 'Aircraft fins',
   },
   '25201503': {
@@ -14292,43 +14292,43 @@ export default {
     en: 'Aircraft canards',
   },
   '25201505': {
-    fr: 'Becs d\'aile d\'avions',
+    fr: "Becs d'aile d'avions",
     en: 'Aircraft slats',
   },
   '25201506': {
-    fr: 'Volets ou entraînements de volets d\'avions',
+    fr: "Volets ou entraînements de volets d'avions",
     en: 'Aircraft flaps or flap drives',
   },
   '25201507': {
-    fr: 'Gouvernails de direction d\'avions',
+    fr: "Gouvernails de direction d'avions",
     en: 'Aircraft rudders',
   },
   '25201508': {
-    fr: 'Gouvernails de profondeur d\'avions',
+    fr: "Gouvernails de profondeur d'avions",
     en: 'Aircraft elevators',
   },
   '25201509': {
-    fr: 'Ailerons d\'avions',
+    fr: "Ailerons d'avions",
     en: 'Aircraft ailerons',
   },
   '25201510': {
-    fr: 'Hélices d\'avions',
+    fr: "Hélices d'avions",
     en: 'Aircraft propellers',
   },
   '25201511': {
-    fr: 'Ailes d\'avions',
+    fr: "Ailes d'avions",
     en: 'Aircraft wings',
   },
   '25201512': {
-    fr: 'Fuselages d\'avions',
+    fr: "Fuselages d'avions",
     en: 'Aircraft fuselages',
   },
   '25201513': {
-    fr: 'Radômes d\'avions',
+    fr: "Radômes d'avions",
     en: 'Aircraft radomes',
   },
   '25201514': {
-    fr: 'Rotors d\'avions',
+    fr: "Rotors d'avions",
     en: 'Aircraft rotors',
   },
   '25201515': {
@@ -14336,11 +14336,11 @@ export default {
     en: 'Aircraft lift fans',
   },
   '25201516': {
-    fr: 'Verrières d\'avions',
+    fr: "Verrières d'avions",
     en: 'Aircraft canopies',
   },
   '25201517': {
-    fr: 'Mobilier d\'avions',
+    fr: "Mobilier d'avions",
     en: 'Aircraft furnishings',
   },
   '25201518': {
@@ -14360,7 +14360,7 @@ export default {
     en: 'Aerospace location and navigation systems and components',
   },
   '25201601': {
-    fr: 'Systèmes numériques de contrôle d\'altitude pour avions',
+    fr: "Systèmes numériques de contrôle d'altitude pour avions",
     en: 'Aircraft digital altitude control systems',
   },
   '25201602': {
@@ -14372,15 +14372,15 @@ export default {
     en: 'Air to ground terrain following systems',
   },
   '25201604': {
-    fr: 'Systèmes de guidage d\'avions',
+    fr: "Systèmes de guidage d'avions",
     en: 'Aircraft guidance systems',
   },
   '25201605': {
-    fr: 'Commandes de pilotage d\'avions',
+    fr: "Commandes de pilotage d'avions",
     en: 'Aircraft steering controls',
   },
   '25201606': {
-    fr: 'Systèmes de contrôle de l\'altitude de vaisseaux spatiaux',
+    fr: "Systèmes de contrôle de l'altitude de vaisseaux spatiaux",
     en: 'Spacecraft altitude control systems',
   },
   '25201700': {
@@ -14408,7 +14408,7 @@ export default {
     en: 'Aircraft telemetry systems',
   },
   '25201706': {
-    fr: 'Electronique d\'interface pour avions',
+    fr: "Electronique d'interface pour avions",
     en: 'Aircraft interface electronics',
   },
   '25201707': {
@@ -14424,7 +14424,7 @@ export default {
     en: 'Aircraft probes or sensors',
   },
   '25201710': {
-    fr: 'Guides d\'ondes pour avions',
+    fr: "Guides d'ondes pour avions",
     en: 'Aircraft waveguides',
   },
   '25201800': {
@@ -14432,7 +14432,7 @@ export default {
     en: 'Aircraft master control systems',
   },
   '25201801': {
-    fr: 'Systèmes d\'ordinateur de vol',
+    fr: "Systèmes d'ordinateur de vol",
     en: 'Flight computer systems',
   },
   '25201802': {
@@ -14444,15 +14444,15 @@ export default {
     en: 'Aircraft emergency systems',
   },
   '25201901': {
-    fr: 'Système de contrôle ou d\'extinction d\'incendie pour avions',
+    fr: "Système de contrôle ou d'extinction d'incendie pour avions",
     en: 'Aircraft fire control or extinguishing systems',
   },
   '25201902': {
-    fr: 'Systèmes d\'éjection ou d\'échappement pour avions',
+    fr: "Systèmes d'éjection ou d'échappement pour avions",
     en: 'Aircraft escape or ejection systems',
   },
   '25201903': {
-    fr: 'Systèmes d\'avertissement pour avions',
+    fr: "Systèmes d'avertissement pour avions",
     en: 'Aircraft warning systems',
   },
   '25201904': {
@@ -14460,7 +14460,7 @@ export default {
     en: 'Parachutes',
   },
   '25202000': {
-    fr: 'Systèmes d\'alimentation en énergie pour aéronefs',
+    fr: "Systèmes d'alimentation en énergie pour aéronefs",
     en: 'Aircraft power systems',
   },
   '25202001': {
@@ -14472,7 +14472,7 @@ export default {
     en: 'Spacecraft solar arrays',
   },
   '25202003': {
-    fr: 'Unités d\'alimentation en énergie pour avions',
+    fr: "Unités d'alimentation en énergie pour avions",
     en: 'Aircraft power supply units',
   },
   '25202004': {
@@ -14484,19 +14484,19 @@ export default {
     en: 'Flight instrumentation',
   },
   '25202101': {
-    fr: 'Indicateurs pour cockpits d\'avions ou de vaisseaux spatiaux',
+    fr: "Indicateurs pour cockpits d'avions ou de vaisseaux spatiaux",
     en: 'Aerospace cockpit indicators',
   },
   '25202102': {
-    fr: 'Jauges pour cockpits d\'avions ou de vaisseaux spatiaux',
+    fr: "Jauges pour cockpits d'avions ou de vaisseaux spatiaux",
     en: 'Aerospace cockpit gauges',
   },
   '25202103': {
-    fr: 'Panneaux d\'affichage pour cockpits d\'avions ou de vaisseaux spatiaux',
+    fr: "Panneaux d'affichage pour cockpits d'avions ou de vaisseaux spatiaux",
     en: 'Aerospace cockpit display panels',
   },
   '25202104': {
-    fr: 'Panneaux de commande pour cockpits d\'avions ou de vaisseaux spatiaux',
+    fr: "Panneaux de commande pour cockpits d'avions ou de vaisseaux spatiaux",
     en: 'Aerospace cockpit switch panels',
   },
   '25202105': {
@@ -14504,27 +14504,27 @@ export default {
     en: 'Aerospace head up display HUDs',
   },
   '25202200': {
-    fr: 'Systèmes d\'atterrissage et de freinage pour aéronefs',
+    fr: "Systèmes d'atterrissage et de freinage pour aéronefs",
     en: 'Aircraft landing and braking systems',
   },
   '25202201': {
-    fr: 'Systèmes de freinage d\'avions',
+    fr: "Systèmes de freinage d'avions",
     en: 'Aircraft braking systems',
   },
   '25202202': {
-    fr: 'Parachutes de freinage d\'avions',
+    fr: "Parachutes de freinage d'avions",
     en: 'Aircraft drag chutes',
   },
   '25202203': {
-    fr: 'Roues d\'avions',
+    fr: "Roues d'avions",
     en: 'Aircraft wheels',
   },
   '25202204': {
-    fr: 'Trains d\'atterrissage',
+    fr: "Trains d'atterrissage",
     en: 'Landing gear assemblies',
   },
   '25202205': {
-    fr: 'Pneus d\'avions',
+    fr: "Pneus d'avions",
     en: 'Aircraft tires',
   },
   '25202206': {
@@ -14532,7 +14532,7 @@ export default {
     en: 'Aircraft anti skid controls',
   },
   '25202300': {
-    fr: 'Harnais de retenue pour passagers d\'aéronefs',
+    fr: "Harnais de retenue pour passagers d'aéronefs",
     en: 'Aircraft passenger restraints',
   },
   '25202301': {
@@ -14544,7 +14544,7 @@ export default {
     en: 'Aircraft harness restraints',
   },
   '25202400': {
-    fr: 'Réservoirs et systèmes d\'alimentation en carburant pour aéronefs',
+    fr: "Réservoirs et systèmes d'alimentation en carburant pour aéronefs",
     en: 'Aircraft fuel tanks and systems',
   },
   '25202401': {
@@ -14588,7 +14588,7 @@ export default {
     en: 'Interior aircraft lighting',
   },
   '25202504': {
-    fr: 'Balais d\'essuie-glace pour avions',
+    fr: "Balais d'essuie-glace pour avions",
     en: 'Aircraft windshield wipers',
   },
   '25202505': {
@@ -14596,19 +14596,19 @@ export default {
     en: 'Aircraft onboard defrosting or defogging systems',
   },
   '25202506': {
-    fr: 'Portes d\'avions',
+    fr: "Portes d'avions",
     en: 'Aircraft doors',
   },
   '25202507': {
-    fr: 'Hublots d\'avions',
+    fr: "Hublots d'avions",
     en: 'Aircraft windows',
   },
   '25202508': {
-    fr: 'Pare-brise d\'avions',
+    fr: "Pare-brise d'avions",
     en: 'Aircraft windshields',
   },
   '25202509': {
-    fr: 'Amortisseurs d\'avions',
+    fr: "Amortisseurs d'avions",
     en: 'Aircraft shock mounts',
   },
   '25202510': {
@@ -14616,19 +14616,19 @@ export default {
     en: 'Aircraft slip ring assemblies',
   },
   '25202600': {
-    fr: 'Composants et systèmes de contrôle de l\'environnement d\'aéronefs',
+    fr: "Composants et systèmes de contrôle de l'environnement d'aéronefs",
     en: 'Aircraft environmental control systems and components',
   },
   '25202601': {
-    fr: 'Contrôleurs d\'environnement pour avions',
+    fr: "Contrôleurs d'environnement pour avions",
     en: 'Aircraft environment controllers',
   },
   '25202602': {
-    fr: 'Régulateurs d\'environnement pour avions',
+    fr: "Régulateurs d'environnement pour avions",
     en: 'Aircraft environment regulators',
   },
   '25202603': {
-    fr: 'Turbines de refroidissement d\'avions',
+    fr: "Turbines de refroidissement d'avions",
     en: 'Aircraft cooling turbines',
   },
   '25202604': {
@@ -14640,11 +14640,11 @@ export default {
     en: 'Aircraft heat exchangers',
   },
   '25202606': {
-    fr: 'Séparateurs d\'eau pour avions',
+    fr: "Séparateurs d'eau pour avions",
     en: 'Aircraft water separators',
   },
   '25202607': {
-    fr: 'Équipements de fourniture d\'oxygène pour avions',
+    fr: "Équipements de fourniture d'oxygène pour avions",
     en: 'Aircraft oxygen equipment',
   },
   '25202700': {
@@ -14660,11 +14660,11 @@ export default {
     en: 'Pneumatic aircraft accumulators',
   },
   '26000000': {
-    fr: 'Machines et accessoires pour la production et la distribution d\'électricité',
+    fr: "Machines et accessoires pour la production et la distribution d'électricité",
     en: 'Power Generation and Distribution Machinery and Accessories',
   },
   '26100000': {
-    fr: 'Sources d\'énergie',
+    fr: "Sources d'énergie",
     en: 'Power sources',
   },
   '26101100': {
@@ -14712,7 +14712,7 @@ export default {
     en: 'Pressure washer motor AC',
   },
   '26101112': {
-    fr: 'Moteur à courant alternatif d\'usage général',
+    fr: "Moteur à courant alternatif d'usage général",
     en: 'General purpose motor AC',
   },
   '26101113': {
@@ -14920,15 +14920,15 @@ export default {
     en: 'Engine components and accessories',
   },
   '26101701': {
-    fr: 'Chambres de combustion d\'avion',
+    fr: "Chambres de combustion d'avion",
     en: 'Aircraft burners',
   },
   '26101702': {
-    fr: 'Compresseurs de moteur d\'avion',
+    fr: "Compresseurs de moteur d'avion",
     en: 'Aircraft engine compressors',
   },
   '26101703': {
-    fr: 'Rampe de soufflage  de moteur d\'avion',
+    fr: "Rampe de soufflage  de moteur d'avion",
     en: 'Aircraft engine diffusers',
   },
   '26101704': {
@@ -14936,15 +14936,15 @@ export default {
     en: 'Engine mounts',
   },
   '26101705': {
-    fr: 'Arbre d\'entraînement de prises de force  ou vérins à vis d\'avion',
+    fr: "Arbre d'entraînement de prises de force  ou vérins à vis d'avion",
     en: 'Aircraft drive shafts power take offs or screw jacks',
   },
   '26101706': {
-    fr: 'Boîtes de transmission d\'avion',
+    fr: "Boîtes de transmission d'avion",
     en: 'Aircraft transmission units',
   },
   '26101707': {
-    fr: 'Arbre d\'équilibrage',
+    fr: "Arbre d'équilibrage",
     en: 'Balance shafts',
   },
   '26101708': {
@@ -14984,7 +14984,7 @@ export default {
     en: 'Engine heaters',
   },
   '26101718': {
-    fr: 'Systèmes d\'allumage pour moteurs',
+    fr: "Systèmes d'allumage pour moteurs",
     en: 'Engine ignition systems',
   },
   '26101719': {
@@ -15008,7 +15008,7 @@ export default {
     en: 'Glow plugs',
   },
   '26101725': {
-    fr: 'Jauges d\'huile ou tubes d\'aspiration',
+    fr: "Jauges d'huile ou tubes d'aspiration",
     en: 'Oil dip sticks or tubes',
   },
   '26101726': {
@@ -15036,7 +15036,7 @@ export default {
     en: 'Rocker arms',
   },
   '26101732': {
-    fr: 'Bougies d\'allumage',
+    fr: "Bougies d'allumage",
     en: 'Spark plugs',
   },
   '26101733': {
@@ -15060,7 +15060,7 @@ export default {
     en: 'Timing chain',
   },
   '26101738': {
-    fr: 'Collecteurs d\'admission',
+    fr: "Collecteurs d'admission",
     en: 'Intake manifolds',
   },
   '26101740': {
@@ -15072,7 +15072,7 @@ export default {
     en: 'Engine sleeves',
   },
   '26101742': {
-    fr: 'Tubulures d\'injection de carburant',
+    fr: "Tubulures d'injection de carburant",
     en: 'Fuel injection manifolds',
   },
   '26101743': {
@@ -15160,7 +15160,7 @@ export default {
     en: 'Camshaft',
   },
   '26101904': {
-    fr: 'Buse d\'Injection de carburant',
+    fr: "Buse d'Injection de carburant",
     en: 'Fuel injection nozzle',
   },
   '26101905': {
@@ -15220,7 +15220,7 @@ export default {
     en: 'Servo controller',
   },
   '26111516': {
-    fr: 'Entraînement ou mécanisme d\'étagement',
+    fr: "Entraînement ou mécanisme d'étagement",
     en: 'Step drive or stepper drive or step indexer',
   },
   '26111517': {
@@ -15296,7 +15296,7 @@ export default {
     en: 'Ballscrews or ballscrew assemblies',
   },
   '26111536': {
-    fr: 'Réducteur de vitesse d\'arbre d\'entrainement',
+    fr: "Réducteur de vitesse d'arbre d'entrainement",
     en: 'Shaft mount speed reducer',
   },
   '26111537': {
@@ -15328,7 +15328,7 @@ export default {
     en: 'Traction drive speed reducer',
   },
   '26111600': {
-    fr: 'Générateur d\'énergie électrique',
+    fr: "Générateur d'énergie électrique",
     en: 'Power generators',
   },
   '26111601': {
@@ -15436,7 +15436,7 @@ export default {
     en: 'Manganese batteries',
   },
   '26111718': {
-    fr: 'Accumulateur d\'oxyde d\'argent',
+    fr: "Accumulateur d'oxyde d'argent",
     en: 'Silver oxide batteries',
   },
   '26111719': {
@@ -15472,7 +15472,7 @@ export default {
     en: 'Fluorescent ballast battery unit',
   },
   '26111800': {
-    fr: 'Composants d\'entraînement',
+    fr: "Composants d'entraînement",
     en: 'Drive components',
   },
   '26111801': {
@@ -15576,7 +15576,7 @@ export default {
     en: 'Mechanical clutch',
   },
   '26112000': {
-    fr: 'Parties et accessoires d\'embrayages',
+    fr: "Parties et accessoires d'embrayages",
     en: 'Clutch parts and accessories',
   },
   '26112001': {
@@ -15588,7 +15588,7 @@ export default {
     en: 'Driven plate',
   },
   '26112003': {
-    fr: 'Plateaux d\'embrayage',
+    fr: "Plateaux d'embrayage",
     en: 'Clutch plates',
   },
   '26112004': {
@@ -15632,7 +15632,7 @@ export default {
     en: 'Heating wire',
   },
   '26121505': {
-    fr: 'Fils d\'appareil d\'éclairage',
+    fr: "Fils d'appareil d'éclairage",
     en: 'Fixture wire',
   },
   '26121507': {
@@ -15656,7 +15656,7 @@ export default {
     en: 'Underground wire',
   },
   '26121515': {
-    fr: 'Fils de silicium isolé à l\'amiante',
+    fr: "Fils de silicium isolé à l'amiante",
     en: 'Silicon asbestos SA wire',
   },
   '26121517': {
@@ -15664,11 +15664,11 @@ export default {
     en: 'Copper wire',
   },
   '26121519': {
-    fr: 'Fils d\'aluminium recouverts de cuivre',
+    fr: "Fils d'aluminium recouverts de cuivre",
     en: 'Copper clad aluminum wire',
   },
   '26121520': {
-    fr: 'Fils d\'acier au cuivre',
+    fr: "Fils d'acier au cuivre",
     en: 'Copper steel wire',
   },
   '26121521': {
@@ -15688,7 +15688,7 @@ export default {
     en: 'Insulated or covered wire',
   },
   '26121532': {
-    fr: 'Fils d\'interconnexion',
+    fr: "Fils d'interconnexion",
     en: 'Inter connect wire',
   },
   '26121533': {
@@ -15720,7 +15720,7 @@ export default {
     en: 'Bus conductors',
   },
   '26121542': {
-    fr: 'Réseau électrique d\'installation',
+    fr: "Réseau électrique d'installation",
     en: 'Installation wire',
   },
   '26121543': {
@@ -15744,11 +15744,11 @@ export default {
     en: 'Control cable',
   },
   '26121604': {
-    fr: 'Câbles d\'interface',
+    fr: "Câbles d'interface",
     en: 'Signal cable',
   },
   '26121605': {
-    fr: 'Câbles d\'automobile ou d\'avion',
+    fr: "Câbles d'automobile ou d'avion",
     en: 'Automotive or aircraft cable',
   },
   '26121606': {
@@ -15788,7 +15788,7 @@ export default {
     en: 'Building cable',
   },
   '26121615': {
-    fr: 'Câbles d\'alimentation pour pose en pleine terre',
+    fr: "Câbles d'alimentation pour pose en pleine terre",
     en: 'Power cable for direct burial',
   },
   '26121616': {
@@ -15832,7 +15832,7 @@ export default {
     en: 'Screened cables',
   },
   '26121629': {
-    fr: 'Câble d\'alimentation',
+    fr: "Câble d'alimentation",
     en: 'Power cable',
   },
   '26121630': {
@@ -15840,15 +15840,15 @@ export default {
     en: 'Cable accessories',
   },
   '26121631': {
-    fr: 'Câble d\'extérieur coaxial',
+    fr: "Câble d'extérieur coaxial",
     en: 'Outside plant coaxial cable',
   },
   '26121632': {
-    fr: 'Câble d\'extérieur de communications',
+    fr: "Câble d'extérieur de communications",
     en: 'Outside plant communications cable',
   },
   '26121633': {
-    fr: 'Câble d\'extérieur de télécommunications',
+    fr: "Câble d'extérieur de télécommunications",
     en: 'Outside plant telecommunications cable',
   },
   '26121634': {
@@ -15860,11 +15860,11 @@ export default {
     en: 'Cable reels',
   },
   '26121636': {
-    fr: 'Cordon d\'alimentation',
+    fr: "Cordon d'alimentation",
     en: 'Power cord',
   },
   '26121637': {
-    fr: 'Câble d\'extérieur en fibres optiques',
+    fr: "Câble d'extérieur en fibres optiques",
     en: 'Outdoor fiber optics cable',
   },
   '26121638': {
@@ -15880,11 +15880,11 @@ export default {
     en: 'Heat resistant cables',
   },
   '26121641': {
-    fr: 'Câbles d\'installation',
+    fr: "Câbles d'installation",
     en: 'Installation cables',
   },
   '26121642': {
-    fr: 'Câble d\'instrumentation',
+    fr: "Câble d'instrumentation",
     en: 'Instrumentation Cable',
   },
   '26121700': {
@@ -15912,7 +15912,7 @@ export default {
     en: 'Fiber optic cable assembly',
   },
   '26130000': {
-    fr: 'Production d\'énergie',
+    fr: "Production d'énergie",
     en: 'Power generation',
   },
   '26131500': {
@@ -15964,7 +15964,7 @@ export default {
     en: 'Exhaust structures or screening equipment',
   },
   '26131601': {
-    fr: 'Structures de protection des pompes par écran d\'eau',
+    fr: "Structures de protection des pompes par écran d'eau",
     en: 'Traveling water screens',
   },
   '26131602': {
@@ -15996,7 +15996,7 @@ export default {
     en: 'Flare or vent stacks',
   },
   '26131609': {
-    fr: 'Cheminée à ouïe d\'évacuation',
+    fr: "Cheminée à ouïe d'évacuation",
     en: 'Exhaust inlet stacks',
   },
   '26131610': {
@@ -16016,15 +16016,15 @@ export default {
     en: 'Exhaust duct expansion joints',
   },
   '26131614': {
-    fr: 'Vannes d\'exhaure à volet',
+    fr: "Vannes d'exhaure à volet",
     en: 'Stack closure dampers',
   },
   '26131615': {
-    fr: 'Vannes d\'exhaure à dérivation',
+    fr: "Vannes d'exhaure à dérivation",
     en: 'Exhaust diversion dampers',
   },
   '26131616': {
-    fr: 'Vannes d\'exhaure d\'isolement',
+    fr: "Vannes d'exhaure d'isolement",
     en: 'Exhaust isolation dampers',
   },
   '26131700': {
@@ -16084,7 +16084,7 @@ export default {
     en: 'Switchyard surge arrestors',
   },
   '26140000': {
-    fr: 'Machinerie et équipement d\'énergie atomique et nucléaire',
+    fr: "Machinerie et équipement d'énergie atomique et nucléaire",
     en: 'Atomic and nuclear energy machinery and equipment',
   },
   '26141600': {
@@ -16108,7 +16108,7 @@ export default {
     en: 'Dosimetry equipment',
   },
   '26141701': {
-    fr: 'Dosimètres pour chambre d\'ionisation',
+    fr: "Dosimètres pour chambre d'ionisation",
     en: 'Ionization chamber dosimeters',
   },
   '26141702': {
@@ -16144,7 +16144,7 @@ export default {
     en: 'Hot cell samplers',
   },
   '26141805': {
-    fr: 'Équipements de traitement d\'échantillonnage de cellule chaude',
+    fr: "Équipements de traitement d'échantillonnage de cellule chaude",
     en: 'Hot cell sample processing equipment',
   },
   '26141806': {
@@ -16184,11 +16184,11 @@ export default {
     en: 'Industrial nucleonic mass per unit ore measuring systems',
   },
   '26141906': {
-    fr: 'Systèmes de mesure d\'humidité nucléonique industrielle',
+    fr: "Systèmes de mesure d'humidité nucléonique industrielle",
     en: 'Industrial nucleonic moisture measuring systems',
   },
   '26141907': {
-    fr: 'Systèmes de mesure d\'épaisseur nucléonique industrielle',
+    fr: "Systèmes de mesure d'épaisseur nucléonique industrielle",
     en: 'Industrial nucleonic thickness measuring systems',
   },
   '26141908': {
@@ -16196,27 +16196,27 @@ export default {
     en: 'Industrial nucleonic flow measuring systems',
   },
   '26141909': {
-    fr: 'Séparateurs d\'isotope',
+    fr: "Séparateurs d'isotope",
     en: 'Isotope separators',
   },
   '26141910': {
-    fr: 'Installations de production d\'isotope',
+    fr: "Installations de production d'isotope",
     en: 'Isotope production facilities',
   },
   '26141911': {
-    fr: 'Compteurs d\'activité étalons à isotopes',
+    fr: "Compteurs d'activité étalons à isotopes",
     en: 'Isotope calibrator activity meters',
   },
   '26142000': {
-    fr: 'Équipements d\'irradiation',
+    fr: "Équipements d'irradiation",
     en: 'Irradiation equipment',
   },
   '26142001': {
-    fr: 'Sources d\'irradiation aux rayons gamma',
+    fr: "Sources d'irradiation aux rayons gamma",
     en: 'Irradiation gamma sources',
   },
   '26142002': {
-    fr: 'Systèmes d\'aimant',
+    fr: "Systèmes d'aimant",
     en: 'Magnet systems',
   },
   '26142003': {
@@ -16228,11 +16228,11 @@ export default {
     en: 'Neutron irradiators',
   },
   '26142005': {
-    fr: 'Capsules d\'essai d\'irradiation',
+    fr: "Capsules d'essai d'irradiation",
     en: 'Irradiation testing capsules',
   },
   '26142006': {
-    fr: 'Système de transfert d\'échantillon d\'irradiation',
+    fr: "Système de transfert d'échantillon d'irradiation",
     en: 'Irradiation sample transfer system',
   },
   '26142007': {
@@ -16244,7 +16244,7 @@ export default {
     en: 'Nuclear reactor equipment',
   },
   '26142101': {
-    fr: 'Capsule d\'irradiation à échantillons pour réacteur nucléaire',
+    fr: "Capsule d'irradiation à échantillons pour réacteur nucléaire",
     en: 'Nuclear reactor specimen irradiation containers',
   },
   '26142106': {
@@ -16268,7 +16268,7 @@ export default {
     en: 'Nuclear fuel cladding tubes',
   },
   '26142202': {
-    fr: 'Systèmes de détection de défaillance d\'un élément de combustible nucléaire',
+    fr: "Systèmes de détection de défaillance d'un élément de combustible nucléaire",
     en: 'Nuclear fuel element failure detection systems',
   },
   '26142300': {
@@ -16324,7 +16324,7 @@ export default {
     en: 'Nuclear radiation absorbers',
   },
   '26142403': {
-    fr: 'Évaporateur d\'énergie atomique ou concentrateur ou séchoir',
+    fr: "Évaporateur d'énergie atomique ou concentrateur ou séchoir",
     en: 'Atomic energy evaporators or concentrators or dryers',
   },
   '26142404': {
@@ -16340,7 +16340,7 @@ export default {
     en: 'Radioactive waste solidification systems',
   },
   '26142407': {
-    fr: 'Systèmes d\'élimination des déchets radioactifs',
+    fr: "Systèmes d'élimination des déchets radioactifs",
     en: 'Radioactive waste disposal systems',
   },
   '26142408': {
@@ -16396,7 +16396,7 @@ export default {
     en: 'Augers',
   },
   '27111510': {
-    fr: 'Outils d\'ébavurage',
+    fr: "Outils d'ébavurage",
     en: 'Stripping tools',
   },
   '27111511': {
@@ -16468,7 +16468,7 @@ export default {
     en: 'Wad punch',
   },
   '27111529': {
-    fr: 'Cisailles d\'électricien',
+    fr: "Cisailles d'électricien",
     en: 'Insulated scissors',
   },
   '27111530': {
@@ -16696,7 +16696,7 @@ export default {
     en: 'Ratchet screwdriver',
   },
   '27111736': {
-    fr: 'Tournevis d\'électricien',
+    fr: "Tournevis d'électricien",
     en: 'Insulated screwdriver',
   },
   '27111737': {
@@ -16768,7 +16768,7 @@ export default {
     en: 'Plumb bob line',
   },
   '27111900': {
-    fr: 'Outils d\'ébauche et de finition',
+    fr: "Outils d'ébauche et de finition",
     en: 'Rough and finishing tools',
   },
   '27111901': {
@@ -16800,7 +16800,7 @@ export default {
     en: 'Wire brushes',
   },
   '27111908': {
-    fr: 'Ensembles, outils ou pierres d\'affûtage',
+    fr: "Ensembles, outils ou pierres d'affûtage",
     en: 'Sharpening stones or tools or kits',
   },
   '27111909': {
@@ -16844,7 +16844,7 @@ export default {
     en: 'Hand sander',
   },
   '27112000': {
-    fr: 'Outils à main pour l\'agriculture, la sylviculture et le jardin',
+    fr: "Outils à main pour l'agriculture, la sylviculture et le jardin",
     en: 'Agriculture, forestry and garden handtools',
   },
   '27112001': {
@@ -16920,7 +16920,7 @@ export default {
     en: 'Bulb planter',
   },
   '27112019': {
-    fr: 'Scie d\'élagage',
+    fr: "Scie d'élagage",
     en: 'Pruning saw',
   },
   '27112020': {
@@ -16940,7 +16940,7 @@ export default {
     en: 'Hand cultivator',
   },
   '27112024': {
-    fr: 'Ensemble d\'outils de jardin miniatures',
+    fr: "Ensemble d'outils de jardin miniatures",
     en: 'Miniature garden tool set',
   },
   '27112025': {
@@ -16976,7 +16976,7 @@ export default {
     en: 'Adze',
   },
   '27112033': {
-    fr: 'Ensemble d\'outils de jardin',
+    fr: "Ensemble d'outils de jardin",
     en: 'Garden tool set',
   },
   '27112034': {
@@ -16992,7 +16992,7 @@ export default {
     en: 'Pipe vises',
   },
   '27112102': {
-    fr: 'Etaux d\'établi',
+    fr: "Etaux d'établi",
     en: 'Bench vises',
   },
   '27112103': {
@@ -17064,7 +17064,7 @@ export default {
     en: 'C clamps',
   },
   '27112121': {
-    fr: 'Presse d\'angle',
+    fr: "Presse d'angle",
     en: 'Corner clamps',
   },
   '27112122': {
@@ -17072,7 +17072,7 @@ export default {
     en: 'Sheet metal pliers',
   },
   '27112123': {
-    fr: 'Valet d\'établi',
+    fr: "Valet d'établi",
     en: 'Bench dog',
   },
   '27112124': {
@@ -17120,7 +17120,7 @@ export default {
     en: 'Longnose pliers',
   },
   '27112135': {
-    fr: 'Pinces d\'électricien',
+    fr: "Pinces d'électricien",
     en: 'Insulated pliers',
   },
   '27112136': {
@@ -17220,7 +17220,7 @@ export default {
     en: 'Marking chalk',
   },
   '27112400': {
-    fr: 'Outils de fixation d\'attaches',
+    fr: "Outils de fixation d'attaches",
     en: 'Fastener setting tools',
   },
   '27112401': {
@@ -17236,7 +17236,7 @@ export default {
     en: 'Banders',
   },
   '27112404': {
-    fr: 'Pince d\'ancrage',
+    fr: "Pince d'ancrage",
     en: 'Anchor setting tools',
   },
   '27112405': {
@@ -17288,7 +17288,7 @@ export default {
     en: 'Wrecking or crow bar',
   },
   '27112600': {
-    fr: 'Outils d\'étanchéité',
+    fr: "Outils d'étanchéité",
     en: 'Sealing tools',
   },
   '27112601': {
@@ -17444,7 +17444,7 @@ export default {
     en: 'Angle cutter',
   },
   '27112800': {
-    fr: 'Fournitures et accessoires d\'outil',
+    fr: "Fournitures et accessoires d'outil",
     en: 'Tool attachments and accessories',
   },
   '27112801': {
@@ -17456,7 +17456,7 @@ export default {
     en: 'Saw blades',
   },
   '27112803': {
-    fr: 'Fraises d\'extrémité',
+    fr: "Fraises d'extrémité",
     en: 'End mills',
   },
   '27112804': {
@@ -17496,7 +17496,7 @@ export default {
     en: 'Countersinks',
   },
   '27112813': {
-    fr: 'Tiges d\'extension',
+    fr: "Tiges d'extension",
     en: 'Extension pole',
   },
   '27112814': {
@@ -17580,7 +17580,7 @@ export default {
     en: 'Machine reamer',
   },
   '27112836': {
-    fr: 'Jeu d\'embouts de tournevis',
+    fr: "Jeu d'embouts de tournevis",
     en: 'Screwdriver bit set',
   },
   '27112837': {
@@ -17676,23 +17676,23 @@ export default {
     en: 'Stake pullers',
   },
   '27113200': {
-    fr: 'Kits d\'outils',
+    fr: "Kits d'outils",
     en: 'Tool kits',
   },
   '27113201': {
-    fr: 'Kits d\'outils généraux',
+    fr: "Kits d'outils généraux",
     en: 'General tool kits',
   },
   '27113202': {
-    fr: 'Kits d\'outils pour montage de roulement',
+    fr: "Kits d'outils pour montage de roulement",
     en: 'Bearing fitting tool kits',
   },
   '27113203': {
-    fr: 'Kits d\'outils d\'ordinateur',
+    fr: "Kits d'outils d'ordinateur",
     en: 'Computer tool kits',
   },
   '27113204': {
-    fr: 'Kits d\'électricien',
+    fr: "Kits d'électricien",
     en: 'Electrician kits',
   },
   '27113300': {
@@ -17932,7 +17932,7 @@ export default {
     en: 'Pneumatic press',
   },
   '27131527': {
-    fr: 'Ensemble d\'outils pneumatiques',
+    fr: "Ensemble d'outils pneumatiques",
     en: 'Pneumatic tool set',
   },
   '27131600': {
@@ -17952,7 +17952,7 @@ export default {
     en: 'Pneumatic lubricators',
   },
   '27131605': {
-    fr: 'Rideau d\'air',
+    fr: "Rideau d'air",
     en: 'Air curtain',
   },
   '27131608': {
@@ -18196,7 +18196,7 @@ export default {
     en: 'Rubber bars',
   },
   '30101619': {
-    fr: 'Barre d\'armature',
+    fr: "Barre d'armature",
     en: 'Reinforcing bar or rebar',
   },
   '30101700': {
@@ -18604,7 +18604,7 @@ export default {
     en: 'Wood veneer plate',
   },
   '30102224': {
-    fr: 'Plaque pour panneau d\'âme',
+    fr: "Plaque pour panneau d'âme",
     en: 'Coreboard plate',
   },
   '30102225': {
@@ -19140,11 +19140,11 @@ export default {
     en: 'Precious metal ingots',
   },
   '30103411': {
-    fr: 'Lingots d\'extrusion alliage ferreux',
+    fr: "Lingots d'extrusion alliage ferreux",
     en: 'Ferrous alloy extrusion ingots',
   },
   '30103412': {
-    fr: 'Lingots d\'extrusion  alliage non ferreux',
+    fr: "Lingots d'extrusion  alliage non ferreux",
     en: 'Non ferrous alloy extrusion ingots',
   },
   '30103413': {
@@ -19176,7 +19176,7 @@ export default {
     en: 'Wooden honeycomb core',
   },
   '30103506': {
-    fr: 'Âme nid d\'abeille métal ferreux',
+    fr: "Âme nid d'abeille métal ferreux",
     en: 'Ferrous metal honeycomb core',
   },
   '30103507': {
@@ -19208,7 +19208,7 @@ export default {
     en: 'Brass honeycomb core',
   },
   '30103514': {
-    fr: 'Âme nid d\'abeille métal non ferreux',
+    fr: "Âme nid d'abeille métal non ferreux",
     en: 'Non ferrous metal honeycomb core',
   },
   '30103515': {
@@ -19264,15 +19264,15 @@ export default {
     en: 'Metallic fibers and filaments',
   },
   '30103801': {
-    fr: 'Fibre d\'acier',
+    fr: "Fibre d'acier",
     en: 'Steel fiber',
   },
   '30103802': {
-    fr: 'Fibre d\'étain',
+    fr: "Fibre d'étain",
     en: 'Tin fiber',
   },
   '30103803': {
-    fr: 'Fibre d\'aluminium',
+    fr: "Fibre d'aluminium",
     en: 'Aluminum fiber',
   },
   '30103804': {
@@ -19424,7 +19424,7 @@ export default {
     en: 'Noise protection board',
   },
   '30121708': {
-    fr: 'Carreau d\'argile',
+    fr: "Carreau d'argile",
     en: 'Brick tile',
   },
   '30121709': {
@@ -19528,11 +19528,11 @@ export default {
     en: 'Weather stripping',
   },
   '30141503': {
-    fr: 'Mousse d\'isolation',
+    fr: "Mousse d'isolation",
     en: 'Foam insulation',
   },
   '30141505': {
-    fr: 'Manchon d\'isolation thermique',
+    fr: "Manchon d'isolation thermique",
     en: 'Thermal insulation sleeving',
   },
   '30141508': {
@@ -19580,23 +19580,23 @@ export default {
     en: 'Heat Shields',
   },
   '30141700': {
-    fr: 'Couches d\'étanchéité et d\'isolation',
+    fr: "Couches d'étanchéité et d'isolation",
     en: 'Insulation sealing layers',
   },
   '30141701': {
-    fr: 'Couche d\'étanchéité en carton bitumé',
+    fr: "Couche d'étanchéité en carton bitumé",
     en: 'Asphalt board sealing layer',
   },
   '30141702': {
-    fr: 'Couche d\'étanchéité en plastique',
+    fr: "Couche d'étanchéité en plastique",
     en: 'Plastic sealing layer',
   },
   '30141703': {
-    fr: 'Couche d\'étanchéité en caoutchouc',
+    fr: "Couche d'étanchéité en caoutchouc",
     en: 'Rubber sealing layer',
   },
   '30150000': {
-    fr: 'Matériaux pour les finitions d\'extérieur',
+    fr: "Matériaux pour les finitions d'extérieur",
     en: 'Exterior finishing materials',
   },
   '30151500': {
@@ -19604,7 +19604,7 @@ export default {
     en: 'Roofing materials',
   },
   '30151501': {
-    fr: 'Couverture par produit d\'étanchéité',
+    fr: "Couverture par produit d'étanchéité",
     en: 'Roll roofing',
   },
   '30151502': {
@@ -19644,7 +19644,7 @@ export default {
     en: 'Roofing accessories',
   },
   '30151601': {
-    fr: 'Bordures d\'avant-toit',
+    fr: "Bordures d'avant-toit",
     en: 'Roof fascias',
   },
   '30151602': {
@@ -19656,7 +19656,7 @@ export default {
     en: 'Gravel stops',
   },
   '30151605': {
-    fr: 'Tuyaux d\'évacuation de toiture',
+    fr: "Tuyaux d'évacuation de toiture",
     en: 'Roofing drains',
   },
   '30151607': {
@@ -19676,7 +19676,7 @@ export default {
     en: 'Rain gutters and accessories',
   },
   '30151701': {
-    fr: 'Conduites d\'eaux pluviales',
+    fr: "Conduites d'eaux pluviales",
     en: 'Downspouts',
   },
   '30151702': {
@@ -19716,7 +19716,7 @@ export default {
     en: 'Glass curtainwalling',
   },
   '30151807': {
-    fr: 'Matériaux d\'habillage extérieur',
+    fr: "Matériaux d'habillage extérieur",
     en: 'Exterior trim material',
   },
   '30151900': {
@@ -19752,7 +19752,7 @@ export default {
     en: 'Shot steel',
   },
   '30160000': {
-    fr: 'Matériaux pour les finitions d\'intérieur',
+    fr: "Matériaux pour les finitions d'intérieur",
     en: 'Interior finishing materials',
   },
   '30161500': {
@@ -19772,7 +19772,7 @@ export default {
     en: 'Drywall',
   },
   '30161504': {
-    fr: 'Baguettes d\'angle',
+    fr: "Baguettes d'angle",
     en: 'Corner guards',
   },
   '30161505': {
@@ -19856,7 +19856,7 @@ export default {
     en: 'Laminate flooring',
   },
   '30161711': {
-    fr: 'Revêtement d\'extérieur',
+    fr: "Revêtement d'extérieur",
     en: 'Outdoor carpeting',
   },
   '30161712': {
@@ -19908,7 +19908,7 @@ export default {
     en: 'Domestic cupboard',
   },
   '30161804': {
-    fr: 'Armoire d\'école',
+    fr: "Armoire d'école",
     en: 'School cupboard',
   },
   '30161805': {
@@ -19920,7 +19920,7 @@ export default {
     en: 'Wardrobe',
   },
   '30161900': {
-    fr: 'Moulures et menuiserie d\'intérieur',
+    fr: "Moulures et menuiserie d'intérieur",
     en: 'Molding and millwork',
   },
   '30161901': {
@@ -19948,11 +19948,11 @@ export default {
     en: 'Molding',
   },
   '30161908': {
-    fr: 'Pièces d\'escalier',
+    fr: "Pièces d'escalier",
     en: 'Stair parts',
   },
   '30162000': {
-    fr: 'Stratifiés d\'intérieur',
+    fr: "Stratifiés d'intérieur",
     en: 'Interior laminates',
   },
   '30162001': {
@@ -20376,7 +20376,7 @@ export default {
     en: 'Faucet handle',
   },
   '30190000': {
-    fr: 'Équipements d\'accès et de travail en hauteur pour la construction et l\'entretien',
+    fr: "Équipements d'accès et de travail en hauteur pour la construction et l'entretien",
     en: 'Construction and maintenance support equipment',
   },
   '30191500': {
@@ -20400,11 +20400,11 @@ export default {
     en: 'Ladders and scaffolding accessories',
   },
   '30191601': {
-    fr: 'Main courante d\'échafaudage',
+    fr: "Main courante d'échafaudage",
     en: 'Scaffolding handrail',
   },
   '30191602': {
-    fr: 'Stabilisateurs d\'échafaudage',
+    fr: "Stabilisateurs d'échafaudage",
     en: 'Scaffolding stabilizers',
   },
   '30191603': {
@@ -20412,35 +20412,35 @@ export default {
     en: 'Scaffolding flooring',
   },
   '30191604': {
-    fr: 'Traverse d\'échafaudage',
+    fr: "Traverse d'échafaudage",
     en: 'Scaffolding cross brace',
   },
   '30191605': {
-    fr: 'Plateau d\'échafaudage',
+    fr: "Plateau d'échafaudage",
     en: 'Scaffolding frame',
   },
   '30191606': {
-    fr: 'Échelle d\'échafaudage',
+    fr: "Échelle d'échafaudage",
     en: 'Scaffolding staircase',
   },
   '30191607': {
-    fr: 'Contrepoids d\'échafaudage',
+    fr: "Contrepoids d'échafaudage",
     en: 'Scaffolding counterweight',
   },
   '30191608': {
-    fr: 'Encorbellement d\'échafaudage',
+    fr: "Encorbellement d'échafaudage",
     en: 'Scaffolding corbel',
   },
   '30191609': {
-    fr: 'Portique d\'échafaudage',
+    fr: "Portique d'échafaudage",
     en: 'Scaffolding trestle',
   },
   '30191610': {
-    fr: 'Potence d\'échafaudage',
+    fr: "Potence d'échafaudage",
     en: 'Scaffolding davit',
   },
   '30191611': {
-    fr: 'Raccords d\'échafaudage',
+    fr: "Raccords d'échafaudage",
     en: 'Scaffolding fixation device',
   },
   '30191612': {
@@ -20464,7 +20464,7 @@ export default {
     en: 'Prefabricated structures',
   },
   '30201500': {
-    fr: 'Structures préfabriquées pour l\'agriculture',
+    fr: "Structures préfabriquées pour l'agriculture",
     en: 'Prefabricated farm structures',
   },
   '30201501': {
@@ -20548,7 +20548,7 @@ export default {
     en: 'Phone box or phone booth',
   },
   '30201800': {
-    fr: 'Structures de secours d\'urgence préfabriquées',
+    fr: "Structures de secours d'urgence préfabriquées",
     en: 'Prefabricated emergency relief structures',
   },
   '30201801': {
@@ -20556,7 +20556,7 @@ export default {
     en: 'Shelters',
   },
   '30201802': {
-    fr: 'Centre de d\'urgence sous tente',
+    fr: "Centre de d'urgence sous tente",
     en: 'Emergency tent halls',
   },
   '30201803': {
@@ -20884,7 +20884,7 @@ export default {
     en: 'Sewage pumping stations',
   },
   '30222060': {
-    fr: 'Déversoir ou amenée d\'eau d\'égout',
+    fr: "Déversoir ou amenée d'eau d'égout",
     en: 'Sewage outfall',
   },
   '30222061': {
@@ -21064,7 +21064,7 @@ export default {
     en: 'Diagnostic screening room',
   },
   '30222406': {
-    fr: 'Salle d\'examen',
+    fr: "Salle d'examen",
     en: 'Screening rooms',
   },
   '30222407': {
@@ -21156,7 +21156,7 @@ export default {
     en: 'Workshops',
   },
   '30222702': {
-    fr: 'Installations d\'entreposage frigorifique',
+    fr: "Installations d'entreposage frigorifique",
     en: 'Cold storage installations',
   },
   '30222703': {
@@ -21164,7 +21164,7 @@ export default {
     en: 'Warehouse stores',
   },
   '30222800': {
-    fr: 'Structures pour l\'agriculture et la pêche',
+    fr: "Structures pour l'agriculture et la pêche",
     en: 'Agricultural and farming and fishing structures',
   },
   '30222801': {
@@ -21280,7 +21280,7 @@ export default {
     en: 'Tube frame connector',
   },
   '30241502': {
-    fr: 'Plaques d\'ancrage',
+    fr: "Plaques d'ancrage",
     en: 'Anchor plate',
   },
   '30241503': {
@@ -21332,7 +21332,7 @@ export default {
     en: 'Structural brace',
   },
   '30241515': {
-    fr: 'Outil d\'alignement structurel',
+    fr: "Outil d'alignement structurel",
     en: 'Structural alignment tool',
   },
   '30241600': {
@@ -21344,7 +21344,7 @@ export default {
     en: 'Grandstand footboard and accessories',
   },
   '30241602': {
-    fr: 'Marches d\'escalier',
+    fr: "Marches d'escalier",
     en: 'Stair step',
   },
   '30241603': {
@@ -21380,7 +21380,7 @@ export default {
     en: 'Die castings',
   },
   '31101501': {
-    fr: 'Pièces coulées sous pression en alliage d\'aluminium',
+    fr: "Pièces coulées sous pression en alliage d'aluminium",
     en: 'Aluminum die castings',
   },
   '31101502': {
@@ -23192,11 +23192,11 @@ export default {
     en: 'Impression die forgings',
   },
   '31131701': {
-    fr: 'Forgeages en matrice d\'impression alliage non ferreux',
+    fr: "Forgeages en matrice d'impression alliage non ferreux",
     en: 'Non ferrous alloy impression die forgings',
   },
   '31131702': {
-    fr: 'Forgeages en matrice d\'impression alliage ferreux',
+    fr: "Forgeages en matrice d'impression alliage ferreux",
     en: 'Ferrous alloy impression die forgings',
   },
   '31131703': {
@@ -23544,7 +23544,7 @@ export default {
     en: 'Raffia rope',
   },
   '31151517': {
-    fr: 'Cordage d\'aloès',
+    fr: "Cordage d'aloès",
     en: 'Aloe rope',
   },
   '31151518': {
@@ -23636,7 +23636,7 @@ export default {
     en: 'Track cables',
   },
   '31151705': {
-    fr: 'Câble d\'acier non électrique',
+    fr: "Câble d'acier non électrique",
     en: 'Non electrical steel cables',
   },
   '31151706': {
@@ -23644,7 +23644,7 @@ export default {
     en: 'Non electrical copper cables',
   },
   '31151707': {
-    fr: 'Câble d\'aluminium non électrique',
+    fr: "Câble d'aluminium non électrique",
     en: 'Non electrical aluminum cables',
   },
   '31151708': {
@@ -23768,11 +23768,11 @@ export default {
     en: 'Screws',
   },
   '31161501': {
-    fr: 'Vis d\'assemblage',
+    fr: "Vis d'assemblage",
     en: 'Cap screws',
   },
   '31161502': {
-    fr: 'Vis d\'ancrage',
+    fr: "Vis d'ancrage",
     en: 'Anchor screws',
   },
   '31161503': {
@@ -23836,7 +23836,7 @@ export default {
     en: 'Socket screw',
   },
   '31161519': {
-    fr: 'Boulons pour godets d\'élévateur',
+    fr: "Boulons pour godets d'élévateur",
     en: 'Elevator bucket screw',
   },
   '31161520': {
@@ -23876,7 +23876,7 @@ export default {
     en: 'Bolts',
   },
   '31161601': {
-    fr: 'Boulons d\'ancrage',
+    fr: "Boulons d'ancrage",
     en: 'Anchor bolts',
   },
   '31161602': {
@@ -23916,7 +23916,7 @@ export default {
     en: 'Eye bolts',
   },
   '31161611': {
-    fr: 'Boulons d\'arrêt',
+    fr: "Boulons d'arrêt",
     en: 'Locking bolts',
   },
   '31161612': {
@@ -23964,7 +23964,7 @@ export default {
     en: 'Nuts',
   },
   '31161701': {
-    fr: 'Écrous d\'ancrage',
+    fr: "Écrous d'ancrage",
     en: 'Anchor nuts',
   },
   '31161702': {
@@ -24068,7 +24068,7 @@ export default {
     en: 'Hexagonal nuts',
   },
   '31161728': {
-    fr: 'Écrous d\'accouplement',
+    fr: "Écrous d'accouplement",
     en: 'Coupling nuts',
   },
   '31161729': {
@@ -24124,7 +24124,7 @@ export default {
     en: 'Binding washers',
   },
   '31161804': {
-    fr: 'Rondelles d\'appui courbées',
+    fr: "Rondelles d'appui courbées",
     en: 'Curved washers',
   },
   '31161805': {
@@ -24300,11 +24300,11 @@ export default {
     en: 'Railroad spike or nail',
   },
   '31162100': {
-    fr: 'Dispositifs d\'ancrage',
+    fr: "Dispositifs d'ancrage",
     en: 'Anchors',
   },
   '31162101': {
-    fr: 'Dispositifs d\'ancrage en béton',
+    fr: "Dispositifs d'ancrage en béton",
     en: 'Concrete anchors',
   },
   '31162102': {
@@ -24316,23 +24316,23 @@ export default {
     en: 'Wall anchors',
   },
   '31162104': {
-    fr: 'Dispositifs d\'ancrage à vis',
+    fr: "Dispositifs d'ancrage à vis",
     en: 'Screw anchors',
   },
   '31162105': {
-    fr: 'Dispositifs d\'ancrage en résine',
+    fr: "Dispositifs d'ancrage en résine",
     en: 'Resin anchors',
   },
   '31162106': {
-    fr: 'Dispositifs d\'ancrage à tuyaux',
+    fr: "Dispositifs d'ancrage à tuyaux",
     en: 'Pipe anchors',
   },
   '31162107': {
-    fr: 'Dispositifs d\'ancrage à clous d\'extension',
+    fr: "Dispositifs d'ancrage à clous d'extension",
     en: 'Nail expansion anchors',
   },
   '31162108': {
-    fr: 'Dispositifs d\'arrimage',
+    fr: "Dispositifs d'arrimage",
     en: 'Tie down anchors',
   },
   '31162200': {
@@ -24672,7 +24672,7 @@ export default {
     en: 'Shaft collar',
   },
   '31162812': {
-    fr: 'Manchons d\'emboîtage',
+    fr: "Manchons d'emboîtage",
     en: 'Swaging sleeves',
   },
   '31162813': {
@@ -24680,7 +24680,7 @@ export default {
     en: 'Wire rope clip',
   },
   '31162814': {
-    fr: 'Assortiment d\'attaches',
+    fr: "Assortiment d'attaches",
     en: 'Fastener assortment kit',
   },
   '31162815': {
@@ -24728,7 +24728,7 @@ export default {
     en: 'Isophonic clamp',
   },
   '31162910': {
-    fr: 'Fixation d\'outil de forage',
+    fr: "Fixation d'outil de forage",
     en: 'Drill clamp',
   },
   '31163000': {
@@ -25204,7 +25204,7 @@ export default {
     en: 'Cork gaskets',
   },
   '31181506': {
-    fr: 'Bagues rondes d\'étanchéité',
+    fr: "Bagues rondes d'étanchéité",
     en: 'O ring gaskets',
   },
   '31181507': {
@@ -25328,7 +25328,7 @@ export default {
     en: 'Abrasive stones',
   },
   '31191511': {
-    fr: 'Laine d\'acier',
+    fr: "Laine d'acier",
     en: 'Steel wool',
   },
   '31191512': {
@@ -25340,7 +25340,7 @@ export default {
     en: 'Glass bead',
   },
   '31191514': {
-    fr: 'Produits de tambour d\'abrasion',
+    fr: "Produits de tambour d'abrasion",
     en: 'Tumble media',
   },
   '31191515': {
@@ -25388,7 +25388,7 @@ export default {
     en: 'Tungsten carbide abrasive wheels',
   },
   '31200000': {
-    fr: 'Adhésifs, colles et enduits d\'étanchéité',
+    fr: "Adhésifs, colles et enduits d'étanchéité",
     en: 'Adhesives and sealants',
   },
   '31201500': {
@@ -25464,7 +25464,7 @@ export default {
     en: 'Packaging tape',
   },
   '31201518': {
-    fr: 'Rubans adhésifs conducteurs d\'électricité',
+    fr: "Rubans adhésifs conducteurs d'électricité",
     en: 'Electrically conductive tape',
   },
   '31201519': {
@@ -25512,7 +25512,7 @@ export default {
     en: 'Line Tape',
   },
   '31201530': {
-    fr: 'Feuille d\'aluminium',
+    fr: "Feuille d'aluminium",
     en: 'Aluminum foil tape',
   },
   '31201531': {
@@ -25532,7 +25532,7 @@ export default {
     en: 'Rubber tape',
   },
   '31201600': {
-    fr: 'Autres adhésifs et enduits d\'étanchéité',
+    fr: "Autres adhésifs et enduits d'étanchéité",
     en: 'Other adhesives and sealants',
   },
   '31201601': {
@@ -25580,7 +25580,7 @@ export default {
     en: 'Film adhesives',
   },
   '31201612': {
-    fr: 'Pâtes d\'étanchéité',
+    fr: "Pâtes d'étanchéité",
     en: 'Thread sealants',
   },
   '31201613': {
@@ -25652,11 +25652,11 @@ export default {
     en: 'Paints and primers',
   },
   '31211501': {
-    fr: 'Peintures à l\'émail',
+    fr: "Peintures à l'émail",
     en: 'Enamel paints',
   },
   '31211502': {
-    fr: 'Peintures à l\'eau',
+    fr: "Peintures à l'eau",
     en: 'Water based paints',
   },
   '31211503': {
@@ -25668,7 +25668,7 @@ export default {
     en: 'Coating paints',
   },
   '31211505': {
-    fr: 'Peintures à l\'huile',
+    fr: "Peintures à l'huile",
     en: 'Oil based paints',
   },
   '31211506': {
@@ -25684,7 +25684,7 @@ export default {
     en: 'Acrylic paints',
   },
   '31211509': {
-    fr: 'Apprêts à l\'émail',
+    fr: "Apprêts à l'émail",
     en: 'Enamel primers',
   },
   '31211510': {
@@ -25728,7 +25728,7 @@ export default {
     en: 'Anti slip agents',
   },
   '31211606': {
-    fr: 'Additifs d\'écoulement',
+    fr: "Additifs d'écoulement",
     en: 'Leveling agents',
   },
   '31211700': {
@@ -25864,11 +25864,11 @@ export default {
     en: 'Inorganic tanning extracts',
   },
   '31221602': {
-    fr: 'Extraits de tannage organiques d\'origine animale',
+    fr: "Extraits de tannage organiques d'origine animale",
     en: 'Organic tanning extracts of animal origin',
   },
   '31221603': {
-    fr: 'Extraits de tannage organiques d\'origine végétale',
+    fr: "Extraits de tannage organiques d'origine végétale",
     en: 'Organic tanning extracts of vegetable origin',
   },
   '31230000': {
@@ -26200,7 +26200,7 @@ export default {
     en: 'Square bar stock',
   },
   '31241609': {
-    fr: 'Ebauches d\'échantillon témoin',
+    fr: "Ebauches d'échantillon témoin",
     en: 'Witness sample blanks',
   },
   '31241610': {
@@ -26308,19 +26308,19 @@ export default {
     en: 'Frangible domes',
   },
   '31242000': {
-    fr: 'Châssis de l\'objectif et de laser',
+    fr: "Châssis de l'objectif et de laser",
     en: 'Lens and laser windows',
   },
   '31242001': {
-    fr: 'Châssis de l\'objectif et de laser externes',
+    fr: "Châssis de l'objectif et de laser externes",
     en: 'External lens or laser windows',
   },
   '31242002': {
-    fr: 'Châssis de l\'objectif et de laser infrarouge',
+    fr: "Châssis de l'objectif et de laser infrarouge",
     en: 'Infrared lens or laser windows',
   },
   '31242003': {
-    fr: 'Châssis de l\'objectif et de laser visuels',
+    fr: "Châssis de l'objectif et de laser visuels",
     en: 'Visual lens or laser windows',
   },
   '31242100': {
@@ -26624,7 +26624,7 @@ export default {
     en: 'Punched components',
   },
   '31281801': {
-    fr: 'Pièces poinçonnées ou ajourées à l\'emporte-pièce en aluminium',
+    fr: "Pièces poinçonnées ou ajourées à l'emporte-pièce en aluminium",
     en: 'Aluminum punched components',
   },
   '31281802': {
@@ -27688,11 +27688,11 @@ export default {
     en: 'Machined impression die forgings',
   },
   '31301301': {
-    fr: 'Forgeages en matrice d\'impression usinés alliage non ferreux',
+    fr: "Forgeages en matrice d'impression usinés alliage non ferreux",
     en: 'Non ferrous alloy impression die machined forgings',
   },
   '31301302': {
-    fr: 'Forgeages en matrice d\'impression usinés alliage ferreux',
+    fr: "Forgeages en matrice d'impression usinés alliage ferreux",
     en: 'Ferrous alloy impression die machined forgings',
   },
   '31301303': {
@@ -30036,7 +30036,7 @@ export default {
     en: 'Acid or alkali resistant castable',
   },
   '31371205': {
-    fr: 'Matériaux coulables résistant à l\'abrasion',
+    fr: "Matériaux coulables résistant à l'abrasion",
     en: 'Abrasion resistant castable',
   },
   '31371206': {
@@ -30052,7 +30052,7 @@ export default {
     en: 'Tabular alumina castable',
   },
   '31371209': {
-    fr: 'Matériaux coulables résistant à l\'érosion',
+    fr: "Matériaux coulables résistant à l'érosion",
     en: 'Erosion resistant castable',
   },
   '31371300': {
@@ -30088,7 +30088,7 @@ export default {
     en: 'Lode stone',
   },
   '31381002': {
-    fr: 'Aimant d\'alnico',
+    fr: "Aimant d'alnico",
     en: 'Alnico magnets',
   },
   '31381003': {
@@ -30332,7 +30332,7 @@ export default {
     en: 'Microprocessors',
   },
   '32101627': {
-    fr: 'Oscillateurs d\'horloge',
+    fr: "Oscillateurs d'horloge",
     en: 'Clock oscillators',
   },
   '32101628': {
@@ -30732,7 +30732,7 @@ export default {
     en: 'Tube sockets',
   },
   '32141108': {
-    fr: 'Broches d\'électrode',
+    fr: "Broches d'électrode",
     en: 'Electrode pins',
   },
   '32141109': {
@@ -30752,7 +30752,7 @@ export default {
     en: 'Control sound module',
   },
   '32151502': {
-    fr: 'Modules d\'éclairage',
+    fr: "Modules d'éclairage",
     en: 'Light module',
   },
   '32151503': {
@@ -30760,19 +30760,19 @@ export default {
     en: 'Stack Light',
   },
   '32151600': {
-    fr: 'Sous-systèmes d\'automates programmables',
+    fr: "Sous-systèmes d'automates programmables",
     en: 'Programmable logic controller subsystems',
   },
   '32151601': {
-    fr: 'Sous-systèmes d\'E/S de châssis d\'automates programmables',
+    fr: "Sous-systèmes d'E/S de châssis d'automates programmables",
     en: 'Programmable logic controller chassis I/O subsystem',
   },
   '32151602': {
-    fr: 'Sous-systèmes d\'E/S distribué en boîtier d\'automates programmables',
+    fr: "Sous-systèmes d'E/S distribué en boîtier d'automates programmables",
     en: 'Programmable logic controller distributed in cabinet I/O subsystem',
   },
   '32151603': {
-    fr: 'Sous-systèmes d\'E/S distribué sur machine d\'automates programmables',
+    fr: "Sous-systèmes d'E/S distribué sur machine d'automates programmables",
     en: 'Programmable logic controller distributed on machine I/O subsystem',
   },
   '32151700': {
@@ -30788,23 +30788,23 @@ export default {
     en: 'Control network PC interface',
   },
   '32151703': {
-    fr: 'Accessoires d\'automate programmable',
+    fr: "Accessoires d'automate programmable",
     en: 'Programmable Logic Controller Accessories',
   },
   '32151704': {
-    fr: 'Châssis d\'automates programmables',
+    fr: "Châssis d'automates programmables",
     en: 'Programmable Logic Controller Chassis',
   },
   '32151705': {
-    fr: 'Modules d\'automates programmables',
+    fr: "Modules d'automates programmables",
     en: 'Programmable Logic Controller Module',
   },
   '32151706': {
-    fr: 'Alimentations d\'automates programmables',
+    fr: "Alimentations d'automates programmables",
     en: 'Programmable Logic Controller Power Supply',
   },
   '32151707': {
-    fr: 'Appareils de programmation d\'automates programmables',
+    fr: "Appareils de programmation d'automates programmables",
     en: 'Programmable Logic Controller Programming Device',
   },
   '32151800': {
@@ -31056,7 +31056,7 @@ export default {
     en: 'Interior solar lighting',
   },
   '39111515': {
-    fr: 'Appliques d\'éclairage dirigé vers le bas',
+    fr: "Appliques d'éclairage dirigé vers le bas",
     en: 'Downlighting fixtures',
   },
   '39111518': {
@@ -31088,15 +31088,15 @@ export default {
     en: 'Incandescent fixture',
   },
   '39111526': {
-    fr: 'Poteaux d\'éclairage, lampadaires et équipement',
+    fr: "Poteaux d'éclairage, lampadaires et équipement",
     en: 'Lighting pole or post and hardware',
   },
   '39111527': {
-    fr: 'Fixations d\'éclairage solaire',
+    fr: "Fixations d'éclairage solaire",
     en: 'Solar lighting fixture',
   },
   '39111528': {
-    fr: 'Fixations d\'éclairage de vitrine',
+    fr: "Fixations d'éclairage de vitrine",
     en: 'Undercabinet lighting fixture',
   },
   '39111600': {
@@ -31176,7 +31176,7 @@ export default {
     en: 'Signal Flare',
   },
   '39111800': {
-    fr: 'Accessoires pour l\'éclairage',
+    fr: "Accessoires pour l'éclairage",
     en: 'Lighting accessories',
   },
   '39111801': {
@@ -31248,19 +31248,19 @@ export default {
     en: 'Lamp wiring assembly kit',
   },
   '39111900': {
-    fr: 'Fixations et dispositifs d\'éclairage de sécurité',
+    fr: "Fixations et dispositifs d'éclairage de sécurité",
     en: 'Hazardous location lighting and fixtures',
   },
   '39111901': {
-    fr: 'Fixations et dispositifs d\'éclairage fluorescents de sécurité',
+    fr: "Fixations et dispositifs d'éclairage fluorescents de sécurité",
     en: 'Hazardous location fluorescent fixtures',
   },
   '39111902': {
-    fr: 'Fixations et dispositifs d\'éclairage incandescents de sécurité',
+    fr: "Fixations et dispositifs d'éclairage incandescents de sécurité",
     en: 'Hazardous location incandescent fixtures',
   },
   '39111903': {
-    fr: 'Éclairage d\'exploitation par longue taille',
+    fr: "Éclairage d'exploitation par longue taille",
     en: 'Longwall lighting',
   },
   '39112000': {
@@ -31268,11 +31268,11 @@ export default {
     en: 'Portable and Temporary Lighting and accessories',
   },
   '39112001': {
-    fr: 'Tours d\'éclairage',
+    fr: "Tours d'éclairage",
     en: 'Light tower',
   },
   '39112002': {
-    fr: 'Unités mobiles d\'éclairage',
+    fr: "Unités mobiles d'éclairage",
     en: 'Light cart',
   },
   '39112003': {
@@ -31332,7 +31332,7 @@ export default {
     en: 'Atmospheric effect apparatus',
   },
   '39112300': {
-    fr: 'Accessoires d\'éclairage de studio ou de scènes',
+    fr: "Accessoires d'éclairage de studio ou de scènes",
     en: 'Stage and studio lighting accessories',
   },
   '39112301': {
@@ -31352,7 +31352,7 @@ export default {
     en: 'Gobo holders',
   },
   '39112305': {
-    fr: 'Accessoires d\'éclairage à effets de mouvement, systèmes de gobo rotatif',
+    fr: "Accessoires d'éclairage à effets de mouvement, systèmes de gobo rotatif",
     en: 'Gobo rotators and light moving effect accessories',
   },
   '39112306': {
@@ -31360,15 +31360,15 @@ export default {
     en: 'Iris diaphragm',
   },
   '39112307': {
-    fr: 'Rampes d\'éclairage',
+    fr: "Rampes d'éclairage",
     en: 'Lighting bars',
   },
   '39112308': {
-    fr: 'Sièges d\'éclairagiste',
+    fr: "Sièges d'éclairagiste",
     en: 'Spot chairs',
   },
   '39112400': {
-    fr: 'Appareils de contrôle et de gradation de l\'éclairage de studio et de scène',
+    fr: "Appareils de contrôle et de gradation de l'éclairage de studio et de scène",
     en: 'Stage and studio lighting dimming and control devices',
   },
   '39112401': {
@@ -31376,11 +31376,11 @@ export default {
     en: 'Dimmers and accessories',
   },
   '39112402': {
-    fr: 'Consoles de commande de l\'éclairage et accessoires',
+    fr: "Consoles de commande de l'éclairage et accessoires",
     en: 'Lighting control consoles and accessories',
   },
   '39112403': {
-    fr: 'Unités de commande et d\'alimentation électrique de l\'éclairage',
+    fr: "Unités de commande et d'alimentation électrique de l'éclairage",
     en: 'Lighting power supply and control units',
   },
   '39112500': {
@@ -31408,11 +31408,11 @@ export default {
     en: 'Profile type luminaires',
   },
   '39112506': {
-    fr: 'Rampes d\'éclairage',
+    fr: "Rampes d'éclairage",
     en: 'Spot banks',
   },
   '39112507': {
-    fr: 'Réglettes d\'éclairage',
+    fr: "Réglettes d'éclairage",
     en: 'Strip lights',
   },
   '39112508': {
@@ -31420,7 +31420,7 @@ export default {
     en: 'Ultraviolet and black light luminaires',
   },
   '39112600': {
-    fr: 'Appareils d\'éclairage non électrique',
+    fr: "Appareils d'éclairage non électrique",
     en: 'Non electrical lighting devices',
   },
   '39112601': {
@@ -31460,7 +31460,7 @@ export default {
     en: 'Instrument transformers',
   },
   '39121004': {
-    fr: 'Blocs d\'alimentation',
+    fr: "Blocs d'alimentation",
     en: 'Power supply units',
   },
   '39121006': {
@@ -31552,7 +31552,7 @@ export default {
     en: 'Encapsulated transformer',
   },
   '39121028': {
-    fr: 'Transformateurs réducteur d\'harmoniques',
+    fr: "Transformateurs réducteur d'harmoniques",
     en: 'Harmonic mitigation transformer',
   },
   '39121029': {
@@ -31692,7 +31692,7 @@ export default {
     en: 'Ceiling flanges',
   },
   '39121314': {
-    fr: 'Logements à l\'épreuve des explosions',
+    fr: "Logements à l'épreuve des explosions",
     en: 'Explosion proof enclosures',
   },
   '39121315': {
@@ -31824,7 +31824,7 @@ export default {
     en: 'Terminal blocks',
   },
   '39121412': {
-    fr: 'Connecteurs à enveloppe d\'isolateur',
+    fr: "Connecteurs à enveloppe d'isolateur",
     en: 'Backshell connectors',
   },
   '39121413': {
@@ -31920,7 +31920,7 @@ export default {
     en: 'Automatic wire or cable connector',
   },
   '39121439': {
-    fr: 'Connecteurs d\'alimentation électrique',
+    fr: "Connecteurs d'alimentation électrique",
     en: 'Electrical inlet',
   },
   '39121440': {
@@ -31932,7 +31932,7 @@ export default {
     en: 'Electrical jumper cable',
   },
   '39121442': {
-    fr: 'Montage d\'accès électriques',
+    fr: "Montage d'accès électriques",
     en: 'Electrical port assembly',
   },
   '39121443': {
@@ -31972,7 +31972,7 @@ export default {
     en: 'Safety switches',
   },
   '39121502': {
-    fr: 'Commandes d\'intensité d\'éclairage',
+    fr: "Commandes d'intensité d'éclairage",
     en: 'Dimmer switches',
   },
   '39121503': {
@@ -32088,7 +32088,7 @@ export default {
     en: 'Radio frequency RF switches',
   },
   '39121533': {
-    fr: 'Pièces d\'interrupteur ou accessoires',
+    fr: "Pièces d'interrupteur ou accessoires",
     en: 'Switch parts or accessories',
   },
   '39121534': {
@@ -32304,7 +32304,7 @@ export default {
     en: 'Transient protection materials',
   },
   '39121621': {
-    fr: 'Dispositifs de protection de l\'éclairage et accessoires',
+    fr: "Dispositifs de protection de l'éclairage et accessoires",
     en: 'Lightning protection apparatus and accessories',
   },
   '39121622': {
@@ -32396,7 +32396,7 @@ export default {
     en: 'Cable tie mounts',
   },
   '39121718': {
-    fr: 'Trousse pour l\'épissage des câbles',
+    fr: "Trousse pour l'épissage des câbles",
     en: 'Cable splicing kits',
   },
   '39121719': {
@@ -32428,7 +32428,7 @@ export default {
     en: 'Inactive units or devices',
   },
   '39121803': {
-    fr: 'Systèmes de contrôle de l\'environnement pour bâtiment',
+    fr: "Systèmes de contrôle de l'environnement pour bâtiment",
     en: 'Building environmental control system',
   },
   '39121900': {
@@ -32492,7 +32492,7 @@ export default {
     en: 'Servo control drive',
   },
   '39130000': {
-    fr: 'Dispositifs pour l\'administration du câblage électrique, fournitures et accessoires',
+    fr: "Dispositifs pour l'administration du câblage électrique, fournitures et accessoires",
     en: 'Electrical wire management devices and accessories and supplies',
   },
   '39131500': {
@@ -32512,11 +32512,11 @@ export default {
     en: 'Slip on wire marker',
   },
   '39131504': {
-    fr: 'Marqueurs pour l\'identification des fils électriques',
+    fr: "Marqueurs pour l'identification des fils électriques",
     en: 'Wire identification marker',
   },
   '39131505': {
-    fr: 'Outils et imprimantes pour l\'étiquetage des fils électriques',
+    fr: "Outils et imprimantes pour l'étiquetage des fils électriques",
     en: 'Wire labeling tool and printer',
   },
   '39131506': {
@@ -32632,7 +32632,7 @@ export default {
     en: 'Distribution and Conditioning Systems and Equipment and Components',
   },
   '40100000': {
-    fr: 'Chauffage, ventilation et circulation d\'air',
+    fr: "Chauffage, ventilation et circulation d'air",
     en: 'Heating and ventilation and air circulation',
   },
   '40101500': {
@@ -32640,11 +32640,11 @@ export default {
     en: 'Ventilation',
   },
   '40101501': {
-    fr: 'Collecteurs d\'air',
+    fr: "Collecteurs d'air",
     en: 'Air collectors',
   },
   '40101502': {
-    fr: 'Aspirateurs d\'air',
+    fr: "Aspirateurs d'air",
     en: 'Air exhausters',
   },
   '40101503': {
@@ -32656,7 +32656,7 @@ export default {
     en: 'Ventilation dampers',
   },
   '40101505': {
-    fr: 'Diffuseurs d\'air',
+    fr: "Diffuseurs d'air",
     en: 'Air diffusers',
   },
   '40101506': {
@@ -32668,7 +32668,7 @@ export default {
     en: 'Spiral ventilation tubing',
   },
   '40101600': {
-    fr: 'Circulation d\'air, pièces et accessoires',
+    fr: "Circulation d'air, pièces et accessoires",
     en: 'Air circulation and parts and accessories',
   },
   '40101601': {
@@ -32788,7 +32788,7 @@ export default {
     en: 'One pass exchangers',
   },
   '40101818': {
-    fr: 'Générateurs industriels d\'air chaud',
+    fr: "Générateurs industriels d'air chaud",
     en: 'Process air heaters',
   },
   '40101819': {
@@ -32872,7 +32872,7 @@ export default {
     en: 'Economizer',
   },
   '40101900': {
-    fr: 'Contrôle de l\'humidité',
+    fr: "Contrôle de l'humidité",
     en: 'Humidity control',
   },
   '40101901': {
@@ -32896,7 +32896,7 @@ export default {
     en: 'Fire tube boilers',
   },
   '40102002': {
-    fr: 'Chaudières à tubes d\'eau',
+    fr: "Chaudières à tubes d'eau",
     en: 'Water tube boiler',
   },
   '40102003': {
@@ -32956,7 +32956,7 @@ export default {
     en: 'Pneumatic valves',
   },
   '40141604': {
-    fr: 'Soupapes de sûreté ou robinets d\'arrêt de sécurité',
+    fr: "Soupapes de sûreté ou robinets d'arrêt de sécurité",
     en: 'Safety valves',
   },
   '40141605': {
@@ -33004,7 +33004,7 @@ export default {
     en: 'Valve parts or accessories',
   },
   '40141617': {
-    fr: 'Robinets ou  soupapes d\'équerre ou à bride d\'équerre',
+    fr: "Robinets ou  soupapes d'équerre ou à bride d'équerre",
     en: 'Angle globe valves',
   },
   '40141618': {
@@ -33128,7 +33128,7 @@ export default {
     en: 'Plumbing hangers',
   },
   '40141726': {
-    fr: 'Prises d\'eau',
+    fr: "Prises d'eau",
     en: 'Hydrants',
   },
   '40141727': {
@@ -33344,7 +33344,7 @@ export default {
     en: 'Special hoses',
   },
   '40142008': {
-    fr: 'Tuyaux à eau ou d\'arrosage',
+    fr: "Tuyaux à eau ou d'arrosage",
     en: 'Water hoses',
   },
   '40142009': {
@@ -33556,7 +33556,7 @@ export default {
     en: 'Pipe half couplings',
   },
   '40142312': {
-    fr: 'Joints d\'expansion de plomberie',
+    fr: "Joints d'expansion de plomberie",
     en: 'Pipe expansion joints',
   },
   '40142313': {
@@ -33612,7 +33612,7 @@ export default {
     en: 'Pipe baffles',
   },
   '40142326': {
-    fr: 'Régleur d\'écartement du tuyau',
+    fr: "Régleur d'écartement du tuyau",
     en: 'Pipe spacers',
   },
   '40142327': {
@@ -33804,7 +33804,7 @@ export default {
     en: 'Hand pumps',
   },
   '40151507': {
-    fr: 'Pompes d\'irrigation',
+    fr: "Pompes d'irrigation",
     en: 'Irrigation pumps',
   },
   '40151508': {
@@ -33844,7 +33844,7 @@ export default {
     en: 'Shear pumps',
   },
   '40151517': {
-    fr: 'Pompes d\'eaux usées',
+    fr: "Pompes d'eaux usées",
     en: 'Sewage pumps',
   },
   '40151518': {
@@ -33856,7 +33856,7 @@ export default {
     en: 'Sanitary pumps',
   },
   '40151520': {
-    fr: 'Pompes d\'échantillonnage',
+    fr: "Pompes d'échantillonnage",
     en: 'Sampling pumps',
   },
   '40151521': {
@@ -33900,7 +33900,7 @@ export default {
     en: 'Dredge pumps',
   },
   '40151531': {
-    fr: 'Pompes d\'assèchement',
+    fr: "Pompes d'assèchement",
     en: 'Dewatering pumps',
   },
   '40151532': {
@@ -33940,7 +33940,7 @@ export default {
     en: 'Gear pumps',
   },
   '40151552': {
-    fr: 'Pompes à débit mesuré, pompes d\'injection, pompes doseuses',
+    fr: "Pompes à débit mesuré, pompes d'injection, pompes doseuses",
     en: 'Metering or injection or proportioning pumps',
   },
   '40151553': {
@@ -33996,7 +33996,7 @@ export default {
     en: 'Compressors',
   },
   '40151601': {
-    fr: 'Compresseurs d\'air',
+    fr: "Compresseurs d'air",
     en: 'Air compressors',
   },
   '40151602': {
@@ -34036,7 +34036,7 @@ export default {
     en: 'Compressor parts or accessories',
   },
   '40151611': {
-    fr: 'Compresseurs à cuve d\'aspiration',
+    fr: "Compresseurs à cuve d'aspiration",
     en: 'Barrel compressors',
   },
   '40151612': {
@@ -34096,7 +34096,7 @@ export default {
     en: 'Sludge pump spare parts',
   },
   '40151719': {
-    fr: 'Pièces détachées pour pompe d\'eaux usées',
+    fr: "Pièces détachées pour pompe d'eaux usées",
     en: 'Sewage pump spare parts',
   },
   '40151720': {
@@ -34176,7 +34176,7 @@ export default {
     en: 'Bag filters',
   },
   '40161509': {
-    fr: 'Filtres à absorption ou d\'absorption',
+    fr: "Filtres à absorption ou d'absorption",
     en: 'Absorption filters',
   },
   '40161511': {
@@ -34248,11 +34248,11 @@ export default {
     en: 'Purification',
   },
   '40161601': {
-    fr: 'Dépoussiéreurs d\'air',
+    fr: "Dépoussiéreurs d'air",
     en: 'Air scrubbers',
   },
   '40161602': {
-    fr: 'Epurateurs d\'air',
+    fr: "Epurateurs d'air",
     en: 'Air cleaners',
   },
   '40161700': {
@@ -34308,7 +34308,7 @@ export default {
     en: 'Filter mesh',
   },
   '41000000': {
-    fr: 'Équipements de laboratoire, de mesure, d\'observation et d\'essai',
+    fr: "Équipements de laboratoire, de mesure, d'observation et d'essai",
     en: 'Laboratory and Measuring and Observing and Testing Equipment',
   },
   '41100000': {
@@ -34316,7 +34316,7 @@ export default {
     en: 'Laboratory and scientific equipment',
   },
   '41101500': {
-    fr: 'Équipements et fournitures de laboratoire pour le mélange, la dispersion et l\'homogénéisation',
+    fr: "Équipements et fournitures de laboratoire pour le mélange, la dispersion et l'homogénéisation",
     en: 'Laboratory blending and dispersing and homogenizing equipment and supplies',
   },
   '41101502': {
@@ -34376,7 +34376,7 @@ export default {
     en: 'Laboratory presses',
   },
   '41101800': {
-    fr: 'Équipements de laboratoire de physique des électrons et de l\'état solide',
+    fr: "Équipements de laboratoire de physique des électrons et de l'état solide",
     en: 'Laboratory electron and solid state physics equipment',
   },
   '41101801': {
@@ -34404,7 +34404,7 @@ export default {
     en: 'Magnetometers',
   },
   '41101807': {
-    fr: 'Appareils de diffraction d\'électrons',
+    fr: "Appareils de diffraction d'électrons",
     en: 'Electron diffraction apparatus',
   },
   '41101808': {
@@ -34420,19 +34420,19 @@ export default {
     en: 'Diffractometers',
   },
   '41101900': {
-    fr: 'Équipements de laboratoire destinés à l\'étude des ions',
+    fr: "Équipements de laboratoire destinés à l'étude des ions",
     en: 'Laboratory ionic equipment',
   },
   '41101901': {
-    fr: 'Sources d\'ions',
+    fr: "Sources d'ions",
     en: 'Ion sources',
   },
   '41101902': {
-    fr: 'Appareil d\'échange d\'ions',
+    fr: "Appareil d'échange d'ions",
     en: 'Ion exchange apparatus',
   },
   '41101903': {
-    fr: 'Équipements d\'implantation d\'ions',
+    fr: "Équipements d'implantation d'ions",
     en: 'Ion implantation equipment',
   },
   '41102400': {
@@ -34500,7 +34500,7 @@ export default {
     en: 'Heating or drying equipment or accessories',
   },
   '41102500': {
-    fr: 'Équipements et accessoires de laboratoire pour l\'entomologie',
+    fr: "Équipements et accessoires de laboratoire pour l'entomologie",
     en: 'Laboratory entomological equipment and accessories',
   },
   '41102501': {
@@ -34508,7 +34508,7 @@ export default {
     en: 'Laboratory insect containers',
   },
   '41102502': {
-    fr: 'Matériel d\'élevage pour entomologie',
+    fr: "Matériel d'élevage pour entomologie",
     en: 'Rearing facilities for entomology',
   },
   '41102503': {
@@ -34516,7 +34516,7 @@ export default {
     en: 'Fabric or netting for entomology',
   },
   '41102504': {
-    fr: 'Équipements d\'épinglage pour entomologie',
+    fr: "Équipements d'épinglage pour entomologie",
     en: 'Entomological pinning equipment',
   },
   '41102505': {
@@ -34548,7 +34548,7 @@ export default {
     en: 'Entomological sticky traps',
   },
   '41102512': {
-    fr: 'Kits d\'essais pour insectes',
+    fr: "Kits d'essais pour insectes",
     en: 'Insect test kits',
   },
   '41102513': {
@@ -34556,7 +34556,7 @@ export default {
     en: 'Entomological display units',
   },
   '41102600': {
-    fr: 'Équipements et accessoires de laboratoire pour l\'étude des animaux',
+    fr: "Équipements et accessoires de laboratoire pour l'étude des animaux",
     en: 'Animal laboratory equipment and accessories',
   },
   '41102601': {
@@ -34564,19 +34564,19 @@ export default {
     en: 'Laboratory cages for small animals',
   },
   '41102602': {
-    fr: 'Équipements d\'aquariums',
+    fr: "Équipements d'aquariums",
     en: 'Aquaria equipment',
   },
   '41102603': {
-    fr: 'Fournitures d\'identification pour animaux',
+    fr: "Fournitures d'identification pour animaux",
     en: 'Animal identification supplies',
   },
   '41102604': {
-    fr: 'Dispositifs pour la capture d\'animaux',
+    fr: "Dispositifs pour la capture d'animaux",
     en: 'Animal catching devices',
   },
   '41102605': {
-    fr: 'Systèmes d\'aération pour poissons',
+    fr: "Systèmes d'aération pour poissons",
     en: 'Fish aeration systems',
   },
   '41102606': {
@@ -34588,7 +34588,7 @@ export default {
     en: 'Animal feeding needles',
   },
   '41102608': {
-    fr: 'Equipement d\'Expérimentation Animale',
+    fr: "Equipement d'Expérimentation Animale",
     en: 'Animal testing equipment',
   },
   '41102700': {
@@ -34620,23 +34620,23 @@ export default {
     en: 'Crystal growing equipment',
   },
   '41102900': {
-    fr: 'Équipements d\'histologie',
+    fr: "Équipements d'histologie",
     en: 'Histology equipment',
   },
   '41102901': {
-    fr: 'Stations d\'inclusion de tissus',
+    fr: "Stations d'inclusion de tissus",
     en: 'Tissue embedding stations',
   },
   '41102902': {
-    fr: 'Moules d\'inclusion',
+    fr: "Moules d'inclusion",
     en: 'Embedding molds',
   },
   '41102903': {
-    fr: 'Capsules d\'inclusion',
+    fr: "Capsules d'inclusion",
     en: 'Embedding capsules',
   },
   '41102904': {
-    fr: 'Composés d\'inclusion',
+    fr: "Composés d'inclusion",
     en: 'Embedding compounds',
   },
   '41102905': {
@@ -34712,7 +34712,7 @@ export default {
     en: 'Cryostats',
   },
   '41103004': {
-    fr: 'Étuves à circulation d\'air forcée',
+    fr: "Étuves à circulation d'air forcée",
     en: 'Fan circulated ovens',
   },
   '41103005': {
@@ -34724,7 +34724,7 @@ export default {
     en: 'Cryogenic or liquid nitrogen freezers',
   },
   '41103007': {
-    fr: 'Appareils de réfrigération ou circulateurs d\'eau froide',
+    fr: "Appareils de réfrigération ou circulateurs d'eau froide",
     en: 'Chilling units or cold water circulators',
   },
   '41103008': {
@@ -34836,7 +34836,7 @@ export default {
     en: 'Liquid scintillation counters',
   },
   '41103302': {
-    fr: 'Hydromètres d\'acide de batterie',
+    fr: "Hydromètres d'acide de batterie",
     en: 'Battery acid hydrometers',
   },
   '41103303': {
@@ -34860,7 +34860,7 @@ export default {
     en: 'High vacuum combustion apparatus',
   },
   '41103309': {
-    fr: 'Équipements d\'analyse par injection de flux',
+    fr: "Équipements d'analyse par injection de flux",
     en: 'Flow injection analysis equipment',
   },
   '41103310': {
@@ -34880,11 +34880,11 @@ export default {
     en: 'Depth indicators',
   },
   '41103314': {
-    fr: 'Appareils d\'évaluation de la structure microscopique',
+    fr: "Appareils d'évaluation de la structure microscopique",
     en: 'Microscopic structure estimation apparatus',
   },
   '41103315': {
-    fr: 'Appareils d\'évaluation de la densité d\'une solution',
+    fr: "Appareils d'évaluation de la densité d'une solution",
     en: 'Solution strength estimation apparatus',
   },
   '41103316': {
@@ -34900,7 +34900,7 @@ export default {
     en: 'Nuclear densitometer',
   },
   '41103400': {
-    fr: 'Équipements de conditionnement de l\'environnement pour laboratoire',
+    fr: "Équipements de conditionnement de l'environnement pour laboratoire",
     en: 'Laboratory environmental conditioning equipment',
   },
   '41103401': {
@@ -34908,7 +34908,7 @@ export default {
     en: 'Contamination control screens',
   },
   '41103403': {
-    fr: 'Équipements de contrôle microbiologique de l\'air',
+    fr: "Équipements de contrôle microbiologique de l'air",
     en: 'Microbiological aircontrol equipment',
   },
   '41103406': {
@@ -34920,15 +34920,15 @@ export default {
     en: 'Anaerobic chamber',
   },
   '41103408': {
-    fr: 'Enceintes climatiques et armoires d\'incubation réfrigérées',
+    fr: "Enceintes climatiques et armoires d'incubation réfrigérées",
     en: 'Refrigerated reach in environmental or growth chambers',
   },
   '41103409': {
-    fr: 'Enceintes climatiques et armoires d\'incubation chauffées',
+    fr: "Enceintes climatiques et armoires d'incubation chauffées",
     en: 'Heated reach in environmental or growth chambers',
   },
   '41103410': {
-    fr: 'Enceintes climatiques et armoires d\'incubation réfrigérées et chauffées',
+    fr: "Enceintes climatiques et armoires d'incubation réfrigérées et chauffées",
     en: 'Refrigerated and heated reach in environmental or growth chambers',
   },
   '41103411': {
@@ -35020,7 +35020,7 @@ export default {
     en: 'Biological baths',
   },
   '41103705': {
-    fr: 'Bains d\'organes',
+    fr: "Bains d'organes",
     en: 'Organ baths',
   },
   '41103706': {
@@ -35028,7 +35028,7 @@ export default {
     en: 'Water baths',
   },
   '41103707': {
-    fr: 'Bains d\'huile',
+    fr: "Bains d'huile",
     en: 'Oil baths',
   },
   '41103708': {
@@ -35076,7 +35076,7 @@ export default {
     en: 'Roller mixers',
   },
   '41103803': {
-    fr: 'Tables d\'agitation',
+    fr: "Tables d'agitation",
     en: 'Stirring tables',
   },
   '41103804': {
@@ -35192,7 +35192,7 @@ export default {
     en: 'Sampling equipment',
   },
   '41104001': {
-    fr: 'Changeurs d\'échantillons',
+    fr: "Changeurs d'échantillons",
     en: 'Sample changers',
   },
   '41104002': {
@@ -35204,7 +35204,7 @@ export default {
     en: 'Sample preparation line',
   },
   '41104004': {
-    fr: 'Bombes de préparation d\'échantillons',
+    fr: "Bombes de préparation d'échantillons",
     en: 'Sample preparation bombs',
   },
   '41104005': {
@@ -35216,19 +35216,19 @@ export default {
     en: 'Coliwasas',
   },
   '41104007': {
-    fr: 'Échantillonneurs d\'eau',
+    fr: "Échantillonneurs d'eau",
     en: 'Water samplers',
   },
   '41104008': {
-    fr: 'Collecteurs ou échantillonneurs d\'air',
+    fr: "Collecteurs ou échantillonneurs d'air",
     en: 'Air samplers or collectors',
   },
   '41104009': {
-    fr: 'Pompes à prélèvement d\'échantillons d\'air',
+    fr: "Pompes à prélèvement d'échantillons d'air",
     en: 'Air sampling pumps',
   },
   '41104010': {
-    fr: 'Kits de réactifs pour échantillonneurs d\'air',
+    fr: "Kits de réactifs pour échantillonneurs d'air",
     en: 'Reagent kits for use with air samplers',
   },
   '41104011': {
@@ -35248,7 +35248,7 @@ export default {
     en: 'Sample applicators',
   },
   '41104015': {
-    fr: 'Matériel d\'analyse d\'échantillons de plantes',
+    fr: "Matériel d'analyse d'échantillons de plantes",
     en: 'Plant samples analysis equipment',
   },
   '41104016': {
@@ -35264,7 +35264,7 @@ export default {
     en: 'Solid phase extraction preparations',
   },
   '41104019': {
-    fr: 'Collecteur d\'échantillons d\'air',
+    fr: "Collecteur d'échantillons d'air",
     en: 'Sampling manifolds',
   },
   '41104020': {
@@ -35276,7 +35276,7 @@ export default {
     en: 'Specimen collection and transport containers and supplies',
   },
   '41104101': {
-    fr: 'Boîtes pour envoi postal et emballages d\'expédition pour lames ou spécimens',
+    fr: "Boîtes pour envoi postal et emballages d'expédition pour lames ou spécimens",
     en: 'Slide or specimen mailers or shippers',
   },
   '41104102': {
@@ -35320,7 +35320,7 @@ export default {
     en: 'Cytology collection kits or containers',
   },
   '41104112': {
-    fr: 'Récipients pour prélèvements d\'urine',
+    fr: "Récipients pour prélèvements d'urine",
     en: 'Urine collection containers',
   },
   '41104114': {
@@ -35332,7 +35332,7 @@ export default {
     en: 'Serum Filter collection containers',
   },
   '41104116': {
-    fr: 'Récipients pour prélèvements à l\'aide d\'écouvillon et transport',
+    fr: "Récipients pour prélèvements à l'aide d'écouvillon et transport",
     en: 'Swab collection or transport containers',
   },
   '41104117': {
@@ -35368,11 +35368,11 @@ export default {
     en: 'Laboratory bone marrow biopsy trays',
   },
   '41104200': {
-    fr: 'Équipements et fournitures de purification de l\'eau pour laboratoire',
+    fr: "Équipements et fournitures de purification de l'eau pour laboratoire",
     en: 'Laboratory water purification equipment and supplies',
   },
   '41104201': {
-    fr: 'Réactifs pour l\'épuration de l\'eau',
+    fr: "Réactifs pour l'épuration de l'eau",
     en: 'Water purification reagents',
   },
   '41104202': {
@@ -35380,23 +35380,23 @@ export default {
     en: 'Deionization or demineralization equipment',
   },
   '41104203': {
-    fr: 'Matériel d\'échange de base',
+    fr: "Matériel d'échange de base",
     en: 'Base exchange equipment',
   },
   '41104204': {
-    fr: 'Matériel d\'osmose inverse',
+    fr: "Matériel d'osmose inverse",
     en: 'Reverse osmosis equipment',
   },
   '41104205': {
-    fr: 'Unités d\'épuration d\'eau par ultraviolets',
+    fr: "Unités d'épuration d'eau par ultraviolets",
     en: 'Ultra violet water purification units',
   },
   '41104206': {
-    fr: 'Systèmes d\'eau ultra-pure',
+    fr: "Systèmes d'eau ultra-pure",
     en: 'Ultra pure water systems',
   },
   '41104207': {
-    fr: 'Systèmes d\'analyse de l\'eau',
+    fr: "Systèmes d'analyse de l'eau",
     en: 'Water analysis systems',
   },
   '41104208': {
@@ -35416,7 +35416,7 @@ export default {
     en: 'Softeners',
   },
   '41104212': {
-    fr: 'Cartouche de filtration de l\'eau',
+    fr: "Cartouche de filtration de l'eau",
     en: 'Water filtration cartridges',
   },
   '41104300': {
@@ -35456,7 +35456,7 @@ export default {
     en: 'Anaerobic environmental culture systems or supplies',
   },
   '41104400': {
-    fr: 'Équipements d\'incubation pour laboratoire',
+    fr: "Équipements d'incubation pour laboratoire",
     en: 'Laboratory incubating equipment',
   },
   '41104401': {
@@ -35484,19 +35484,19 @@ export default {
     en: 'Plate incubators',
   },
   '41104407': {
-    fr: 'Incubateurs CO2 à culture à chemise d\'eau à chambre simple',
+    fr: "Incubateurs CO2 à culture à chemise d'eau à chambre simple",
     en: 'Water jacketed single chamber carbon dioxide incubators',
   },
   '41104408': {
-    fr: 'Incubateurs CO2 à culture à chemise d\'eau à chambre double',
+    fr: "Incubateurs CO2 à culture à chemise d'eau à chambre double",
     en: 'Water jacketed dual chamber carbon dioxide incubators',
   },
   '41104409': {
-    fr: 'Incubateurs CO2 à culture à chemise d\'eau à chambre simple avec contrôle du taux dhumidité',
+    fr: "Incubateurs CO2 à culture à chemise d'eau à chambre simple avec contrôle du taux dhumidité",
     en: 'Water jacketed single chamber carbon dioxide incubators with humidity control',
   },
   '41104410': {
-    fr: 'Incubateurs CO2 à culture à chemise d\'eau à chambre double avec contrôle du taux dhumidité',
+    fr: "Incubateurs CO2 à culture à chemise d'eau à chambre double avec contrôle du taux dhumidité",
     en: 'Water jacketed dual chamber carbon dioxide incubators with humidity control',
   },
   '41104411': {
@@ -35520,15 +35520,15 @@ export default {
     en: 'Water jacketed single chamber three gas incubators',
   },
   '41104416': {
-    fr: 'Incubateurs 3 gaz à culture à chemise d\'eau à chambre double',
+    fr: "Incubateurs 3 gaz à culture à chemise d'eau à chambre double",
     en: 'Water jacketed dual chamber three gas incubators',
   },
   '41104417': {
-    fr: 'Incubateurs 3 gaz à culture à chemise d\'eau à chambre simple avec contrôle du taux dhumidité',
+    fr: "Incubateurs 3 gaz à culture à chemise d'eau à chambre simple avec contrôle du taux dhumidité",
     en: 'Water jacketed single chamber three gas incubators with humidity control',
   },
   '41104418': {
-    fr: 'Incubateurs 3 gaz à culture à chemise d\'eau à chambre double avec contrôle du taux dhumidité',
+    fr: "Incubateurs 3 gaz à culture à chemise d'eau à chambre double avec contrôle du taux dhumidité",
     en: 'Water jacketed dual chamber three gas incubators with humidity control',
   },
   '41104419': {
@@ -35748,7 +35748,7 @@ export default {
     en: 'Vacuum or centrifugal concentrators',
   },
   '41104817': {
-    fr: 'Cartouches d\'extraction',
+    fr: "Cartouches d'extraction",
     en: 'Extraction thimbles',
   },
   '41104900': {
@@ -35764,7 +35764,7 @@ export default {
     en: 'Gel filtration equipment',
   },
   '41104903': {
-    fr: 'Équipements d\'ultrafiltration',
+    fr: "Équipements d'ultrafiltration",
     en: 'Ultra filtration equipment',
   },
   '41104904': {
@@ -35884,7 +35884,7 @@ export default {
     en: 'Laboratory sifting equipment',
   },
   '41105003': {
-    fr: 'Tamis d\'essai',
+    fr: "Tamis d'essai",
     en: 'Test sieves',
   },
   '41105100': {
@@ -35952,7 +35952,7 @@ export default {
     en: 'Microslide making equipment',
   },
   '41105300': {
-    fr: 'Systèmes et fournitures d\'électrophorèse et de transfert pour laboratoire',
+    fr: "Systèmes et fournitures d'électrophorèse et de transfert pour laboratoire",
     en: 'Laboratory electrophoresis and blotting system and supplies',
   },
   '41105301': {
@@ -35972,7 +35972,7 @@ export default {
     en: 'Transilluminators',
   },
   '41105305': {
-    fr: 'Accessoires pour système d\'électrophorèse',
+    fr: "Accessoires pour système d'électrophorèse",
     en: 'Electrophoresis system accessories',
   },
   '41105307': {
@@ -36040,7 +36040,7 @@ export default {
     en: 'Polyacrylamide gels stain',
   },
   '41105323': {
-    fr: 'Solutions ou tampons d\'électrophorèse prêts-à-lemploi',
+    fr: "Solutions ou tampons d'électrophorèse prêts-à-lemploi",
     en: 'Electrophoresis premade buffers or solutions',
   },
   '41105324': {
@@ -36060,7 +36060,7 @@ export default {
     en: 'Conjugated nucleotides or oligomers',
   },
   '41105328': {
-    fr: 'Transferts d\'ARN, transferts d\'ADN ou transfert de type western prêts-à-lemploi',
+    fr: "Transferts d'ARN, transferts d'ADN ou transfert de type western prêts-à-lemploi",
     en: 'Premade northern or southern or western blots',
   },
   '41105329': {
@@ -36112,7 +36112,7 @@ export default {
     en: 'Nucleic acid extraction and purification and quantitation kits and components',
   },
   '41105501': {
-    fr: 'Kits d\'extraction ou de lavage d\'ARN sur gel',
+    fr: "Kits d'extraction ou de lavage d'ARN sur gel",
     en: 'Deoxyribonucleic acid DNA cleanup or gel extraction kits',
   },
   '41105502': {
@@ -36172,7 +36172,7 @@ export default {
     en: 'Ribonucleic acid RNA cleanup or stabilization materials',
   },
   '41105516': {
-    fr: 'Kits d\'extraction d\'ARN (acide ribonucléique) sur gel',
+    fr: "Kits d'extraction d'ARN (acide ribonucléique) sur gel",
     en: 'Ribonucleic acid RNA gel extraction kits',
   },
   '41105517': {
@@ -36236,7 +36236,7 @@ export default {
     en: 'Animal tissues or  bodily fluids',
   },
   '41105902': {
-    fr: 'Banques d\'ADN complémentaire (ADNc)',
+    fr: "Banques d'ADN complémentaire (ADNc)",
     en: 'Complementary deoxyribonucleic acid cDNA libraries',
   },
   '41105903': {
@@ -36344,7 +36344,7 @@ export default {
     en: 'Dictyostelium discoideum media',
   },
   '41106208': {
-    fr: 'Cuves d\'électroporation',
+    fr: "Cuves d'électroporation",
     en: 'Electroporation cuvettes',
   },
   '41106209': {
@@ -36456,7 +36456,7 @@ export default {
     en: 'Purified ribonucleic acids RNA',
   },
   '41106312': {
-    fr: 'Produits pour la technologie de remontée sur l\'ADN Complémentaire vers ses Extrémités (RACE)',
+    fr: "Produits pour la technologie de remontée sur l'ADN Complémentaire vers ses Extrémités (RACE)",
     en: 'Rapid amplification or complementary deoxyribonucleic acid ends RACE technology products',
   },
   '41106313': {
@@ -36644,7 +36644,7 @@ export default {
     en: 'Yeast expression vectors',
   },
   '41110000': {
-    fr: 'Instruments d\'essai, d\'examen et de mesure',
+    fr: "Instruments d'essai, d'examen et de mesure",
     en: 'Measuring and observing and testing instruments',
   },
   '41111500': {
@@ -36672,7 +36672,7 @@ export default {
     en: 'Calibration weights or weight sets',
   },
   '41111506': {
-    fr: 'Balances pour le pesage d\'animaux',
+    fr: "Balances pour le pesage d'animaux",
     en: 'Animal weighing scales',
   },
   '41111507': {
@@ -36716,11 +36716,11 @@ export default {
     en: 'Analytical balances',
   },
   '41111518': {
-    fr: 'Balances de charge d\'essieu',
+    fr: "Balances de charge d'essieu",
     en: 'Axle load scales',
   },
   '41111600': {
-    fr: 'Instruments de mesure de la longueur, de l\'épaisseur ou de la distance',
+    fr: "Instruments de mesure de la longueur, de l'épaisseur ou de la distance",
     en: 'Length and thickness and distance measuring instruments',
   },
   '41111601': {
@@ -36768,7 +36768,7 @@ export default {
     en: 'Measuring wheels for distance',
   },
   '41111617': {
-    fr: 'Jauges d\'épaisseur',
+    fr: "Jauges d'épaisseur",
     en: 'Feeler gauges',
   },
   '41111618': {
@@ -36792,7 +36792,7 @@ export default {
     en: 'Micrometer calipers',
   },
   '41111623': {
-    fr: 'Appareils de mesure d\'épaisseur',
+    fr: "Appareils de mesure d'épaisseur",
     en: 'Thickness measuring devices',
   },
   '41111624': {
@@ -36820,7 +36820,7 @@ export default {
     en: 'Cable or wire extension linear position sensor',
   },
   '41111700': {
-    fr: 'Instruments d\'examen et d\'observation et accessoires',
+    fr: "Instruments d'examen et d'observation et accessoires",
     en: 'Viewing and observing instruments and accessories',
   },
   '41111701': {
@@ -36852,7 +36852,7 @@ export default {
     en: 'Profile projectors',
   },
   '41111708': {
-    fr: 'Adaptateurs pour microscope pour prise d\'images vidéo',
+    fr: "Adaptateurs pour microscope pour prise d'images vidéo",
     en: 'Video attachments for microscopes',
   },
   '41111709': {
@@ -36884,7 +36884,7 @@ export default {
     en: 'Telescopes',
   },
   '41111716': {
-    fr: 'Équipements d\'endoscopie',
+    fr: "Équipements d'endoscopie",
     en: 'Borescope inspection equipment',
   },
   '41111717': {
@@ -36976,23 +36976,23 @@ export default {
     en: 'Laboratory microscope replacement bulbs',
   },
   '41111800': {
-    fr: 'Équipements d\'examens non destructifs',
+    fr: "Équipements d'examens non destructifs",
     en: 'Non destructive examination equipment',
   },
   '41111801': {
-    fr: 'Équipements d\'examen par courants de Foucault',
+    fr: "Équipements d'examen par courants de Foucault",
     en: 'Eddy current examination equipment',
   },
   '41111802': {
-    fr: 'Équipements d\'examen par ressuage',
+    fr: "Équipements d'examen par ressuage",
     en: 'Liquid penetrant examination equipment',
   },
   '41111803': {
-    fr: 'Équipements d\'examen par magnétoscopie',
+    fr: "Équipements d'examen par magnétoscopie",
     en: 'Magnetic particle examination equipment',
   },
   '41111804': {
-    fr: 'Équipements d\'examen par ultra-sons',
+    fr: "Équipements d'examen par ultra-sons",
     en: 'Ultrasonic examination equipment',
   },
   '41111805': {
@@ -37004,23 +37004,23 @@ export default {
     en: 'CS 137 radiography examination equipment',
   },
   '41111807': {
-    fr: 'Équipements d\'examen de radiographie par rayons IR 192',
+    fr: "Équipements d'examen de radiographie par rayons IR 192",
     en: 'IR 192 radiography examination equipment',
   },
   '41111808': {
-    fr: 'Équipements d\'examen de radiographie à rayons X',
+    fr: "Équipements d'examen de radiographie à rayons X",
     en: 'X ray radiography examination equipment',
   },
   '41111809': {
-    fr: 'Matériel d\'essais d\'étanchéité',
+    fr: "Matériel d'essais d'étanchéité",
     en: 'Leak testing equipment',
   },
   '41111810': {
-    fr: 'Station d\'essai en actif',
+    fr: "Station d'essai en actif",
     en: 'Hot testing equipment station',
   },
   '41111811': {
-    fr: 'Station d\'essai en inactif',
+    fr: "Station d'essai en inactif",
     en: 'Cold testing equipment station',
   },
   '41111900': {
@@ -37120,7 +37120,7 @@ export default {
     en: 'Pre ignition knock sensor',
   },
   '41111924': {
-    fr: 'Détecteurs d\'oxygène',
+    fr: "Détecteurs d'oxygène",
     en: 'Oxygen sensors',
   },
   '41111926': {
@@ -37160,11 +37160,11 @@ export default {
     en: 'Force or torque sensors',
   },
   '41111935': {
-    fr: 'Capteurs d\'inclinaison',
+    fr: "Capteurs d'inclinaison",
     en: 'Tilt sensors',
   },
   '41111936': {
-    fr: 'Capteur dimages CMOS (semi-conducteur complémentaire à l\'oxyde de métal)',
+    fr: "Capteur dimages CMOS (semi-conducteur complémentaire à l'oxyde de métal)",
     en: 'Complementary metal oxide semiconductor CMOS image sensors',
   },
   '41111937': {
@@ -37196,7 +37196,7 @@ export default {
     en: 'Electrical resistance or conductance sensors',
   },
   '41111944': {
-    fr: 'Capteurs d\'admittance électrique',
+    fr: "Capteurs d'admittance électrique",
     en: 'Electrical admittance sensors',
   },
   '41111945': {
@@ -37240,7 +37240,7 @@ export default {
     en: 'Temperature transmitters',
   },
   '41112106': {
-    fr: 'Transmetteurs d\'hygrométrie',
+    fr: "Transmetteurs d'hygrométrie",
     en: 'Humidity transmitters',
   },
   '41112107': {
@@ -37332,7 +37332,7 @@ export default {
     en: 'Laboratory incubator thermometers',
   },
   '41112300': {
-    fr: 'Instruments de mesure de l\'humidité',
+    fr: "Instruments de mesure de l'humidité",
     en: 'Humidity and moisture measuring instruments',
   },
   '41112301': {
@@ -37344,11 +37344,11 @@ export default {
     en: 'Psychrometers',
   },
   '41112303': {
-    fr: 'Appareils de contrôle de l\'humidité et de la température',
+    fr: "Appareils de contrôle de l'humidité et de la température",
     en: 'Temperature humidity testers',
   },
   '41112304': {
-    fr: 'Appareils de mesure de l\'humidité',
+    fr: "Appareils de mesure de l'humidité",
     en: 'Moisture meters',
   },
   '41112400': {
@@ -37400,7 +37400,7 @@ export default {
     en: 'Pressure controllers',
   },
   '41112500': {
-    fr: 'Instruments de mesure et d\'observation des flux liquides et gazeux',
+    fr: "Instruments de mesure et d'observation des flux liquides et gazeux",
     en: 'Liquid and gas flow measuring and observing instruments',
   },
   '41112501': {
@@ -37416,11 +37416,11 @@ export default {
     en: 'Rotameters',
   },
   '41112504': {
-    fr: 'Compteurs d\'eau',
+    fr: "Compteurs d'eau",
     en: 'Water meters',
   },
   '41112505': {
-    fr: 'Pièces détachées pour compteur d\'eau',
+    fr: "Pièces détachées pour compteur d'eau",
     en: 'Water meter spares',
   },
   '41112506': {
@@ -37448,7 +37448,7 @@ export default {
     en: 'Flow computers or totalizers',
   },
   '41112513': {
-    fr: 'Plaque d\'orifice',
+    fr: "Plaque d'orifice",
     en: 'Orifice plate',
   },
   '41112514': {
@@ -37524,11 +37524,11 @@ export default {
     en: 'Complex controlling devices',
   },
   '41113000': {
-    fr: 'Instruments et fournitures pour l\'évaluation chimique',
+    fr: "Instruments et fournitures pour l'évaluation chimique",
     en: 'Chemical evaluation instruments and supplies',
   },
   '41113001': {
-    fr: 'Contrôleurs d\'analyseur numérique',
+    fr: "Contrôleurs d'analyseur numérique",
     en: 'Digital Analyzer controllers',
   },
   '41113002': {
@@ -37544,7 +37544,7 @@ export default {
     en: 'Flame ionization analyzers',
   },
   '41113005': {
-    fr: 'Analyseurs d\'ions',
+    fr: "Analyseurs d'ions",
     en: 'Ion analyzers',
   },
   '41113006': {
@@ -37628,7 +37628,7 @@ export default {
     en: 'Gas analyzers and monitors',
   },
   '41113101': {
-    fr: 'Analyseurs d\'émission de gaz d\'échappement automobiles',
+    fr: "Analyseurs d'émission de gaz d'échappement automobiles",
     en: 'Automotive exhaust emission analyzers',
   },
   '41113102': {
@@ -37636,7 +37636,7 @@ export default {
     en: 'Catalytic combustion analyzers',
   },
   '41113103': {
-    fr: 'Analyseurs chimiques d\'absorption des gaz',
+    fr: "Analyseurs chimiques d'absorption des gaz",
     en: 'Chemical absorption gas analyzers',
   },
   '41113104': {
@@ -37644,19 +37644,19 @@ export default {
     en: 'Explosimeters',
   },
   '41113105': {
-    fr: 'Analyseurs et détecteurs d\'hydrocarbures',
+    fr: "Analyseurs et détecteurs d'hydrocarbures",
     en: 'Hydrocarbons analyzers or detectors',
   },
   '41113106': {
-    fr: 'Analyseurs d\'absorption des ultra-violets et des infra-rouges',
+    fr: "Analyseurs d'absorption des ultra-violets et des infra-rouges",
     en: 'Infra red or ultra violet absorption analyzers',
   },
   '41113107': {
-    fr: 'Analyseurs d\'azote',
+    fr: "Analyseurs d'azote",
     en: 'Nitrogen gas analyzers',
   },
   '41113108': {
-    fr: 'Analyseurs d\'oxyde d\'azote',
+    fr: "Analyseurs d'oxyde d'azote",
     en: 'Nitrogen oxide analyzers',
   },
   '41113109': {
@@ -37664,11 +37664,11 @@ export default {
     en: 'ORSAT equipment',
   },
   '41113110': {
-    fr: 'Analyseurs d\'oxygène gazeux',
+    fr: "Analyseurs d'oxygène gazeux",
     en: 'Oxygen gas analyzers',
   },
   '41113111': {
-    fr: 'Analyseurs d\'ozone',
+    fr: "Analyseurs d'ozone",
     en: 'Ozone analyzers',
   },
   '41113112': {
@@ -37704,11 +37704,11 @@ export default {
     en: 'Dissolved carbon dioxide analyzers',
   },
   '41113300': {
-    fr: 'Analyseurs de liquides, de solides et d\'éléments',
+    fr: "Analyseurs de liquides, de solides et d'éléments",
     en: 'Liquid and solid and elemental analyzers',
   },
   '41113301': {
-    fr: 'Analyseurs de base ou d\'acide',
+    fr: "Analyseurs de base ou d'acide",
     en: 'Acid or base analyzers',
   },
   '41113302': {
@@ -37728,15 +37728,15 @@ export default {
     en: 'Chloride analyzers',
   },
   '41113308': {
-    fr: 'Analyseurs d\'électrolyte',
+    fr: "Analyseurs d'électrolyte",
     en: 'Electrolyte analyzers',
   },
   '41113309': {
-    fr: 'Analyseurs d\'enzymes',
+    fr: "Analyseurs d'enzymes",
     en: 'Enzyme analyzers',
   },
   '41113310': {
-    fr: 'Analyseurs d\'acides gras',
+    fr: "Analyseurs d'acides gras",
     en: 'Fatty acid analyzers',
   },
   '41113311': {
@@ -37748,7 +37748,7 @@ export default {
     en: 'Lactate analyzers',
   },
   '41113313': {
-    fr: 'Instruments d\'essai d\'huiles minérales',
+    fr: "Instruments d'essai d'huiles minérales",
     en: 'Mineral oil testing instruments',
   },
   '41113314': {
@@ -37760,15 +37760,15 @@ export default {
     en: 'Organic carbon analyzers',
   },
   '41113316': {
-    fr: 'Équipements d\'essais sur le pétrole',
+    fr: "Équipements d'essais sur le pétrole",
     en: 'Petroleum testing equipment',
   },
   '41113318': {
-    fr: 'Analyseurs d\'uranium',
+    fr: "Analyseurs d'uranium",
     en: 'Uranium analyzers',
   },
   '41113319': {
-    fr: 'Analyseurs d\'eau',
+    fr: "Analyseurs d'eau",
     en: 'Water analyzers',
   },
   '41113320': {
@@ -37788,7 +37788,7 @@ export default {
     en: 'Sugar analyzers',
   },
   '41113400': {
-    fr: 'Instruments d\'évaluation nucléaire',
+    fr: "Instruments d'évaluation nucléaire",
     en: 'Nuclear evaluation instruments',
   },
   '41113401': {
@@ -37820,7 +37820,7 @@ export default {
     en: 'X ray microanalysers',
   },
   '41113600': {
-    fr: 'Équipements de mesures et d\'essais électriques',
+    fr: "Équipements de mesures et d'essais électriques",
     en: 'Electrical measuring and testing equipment',
   },
   '41113601': {
@@ -37852,7 +37852,7 @@ export default {
     en: 'Heat stress monitors',
   },
   '41113608': {
-    fr: 'Compteurs de coïncidences ou d\'anticoïncidences',
+    fr: "Compteurs de coïncidences ou d'anticoïncidences",
     en: 'Coincidence or anticoincidence counters',
   },
   '41113611': {
@@ -37880,7 +37880,7 @@ export default {
     en: 'Electronic loads',
   },
   '41113617': {
-    fr: 'Équipements de mesure de l\'intensité du champ',
+    fr: "Équipements de mesure de l'intensité du champ",
     en: 'Field strength measuring equipment',
   },
   '41113618': {
@@ -37900,7 +37900,7 @@ export default {
     en: 'Impedance meters',
   },
   '41113622': {
-    fr: 'Boîtes ou bobines d\'inductance calibrées',
+    fr: "Boîtes ou bobines d'inductance calibrées",
     en: 'Calibrated inductance coils or boxes',
   },
   '41113623': {
@@ -37908,11 +37908,11 @@ export default {
     en: 'Insulation resistance meters',
   },
   '41113624': {
-    fr: 'Appareils d\'essais pour isolants',
+    fr: "Appareils d'essais pour isolants",
     en: 'Insulation testers',
   },
   '41113625': {
-    fr: 'Chambres d\'ionisation',
+    fr: "Chambres d'ionisation",
     en: 'Ionization chambers',
   },
   '41113626': {
@@ -38008,7 +38008,7 @@ export default {
     en: 'Clamp On Multimeter',
   },
   '41113700': {
-    fr: 'Instruments de mesure et de contrôle pour l\'électronique et les communications',
+    fr: "Instruments de mesure et de contrôle pour l'électronique et les communications",
     en: 'Electronic and communication measuring and testing instruments',
   },
   '41113701': {
@@ -38028,7 +38028,7 @@ export default {
     en: 'Integrated circuit testers',
   },
   '41113705': {
-    fr: 'Appareils de contrôle d\'états logiques',
+    fr: "Appareils de contrôle d'états logiques",
     en: 'Logic state testers',
   },
   '41113706': {
@@ -38140,11 +38140,11 @@ export default {
     en: 'Penetrometers',
   },
   '41113905': {
-    fr: 'Appareils d\'essai de la perméabilité',
+    fr: "Appareils d'essai de la perméabilité",
     en: 'Permeability testing apparatus',
   },
   '41113906': {
-    fr: 'Appareils d\'évaluation de la porosité ou de la perméabilité',
+    fr: "Appareils d'évaluation de la porosité ou de la perméabilité",
     en: 'Permeability or porosity estimation apparatus',
   },
   '41113907': {
@@ -38152,15 +38152,15 @@ export default {
     en: 'Porosimeters',
   },
   '41113908': {
-    fr: 'Appareils d\'essai de sables',
+    fr: "Appareils d'essai de sables",
     en: 'Sand testing apparatus',
   },
   '41113909': {
-    fr: 'Appareils d\'échantillonnage de carottes de sol',
+    fr: "Appareils d'échantillonnage de carottes de sol",
     en: 'Soil core sampling apparatus',
   },
   '41113910': {
-    fr: 'Kits d\'essai du sol',
+    fr: "Kits d'essai du sol",
     en: 'Soil testing kits',
   },
   '41114000': {
@@ -38180,7 +38180,7 @@ export default {
     en: 'Earthquake simulators',
   },
   '41114103': {
-    fr: 'Modules d\'alarme sismique',
+    fr: "Modules d'alarme sismique",
     en: 'Seismic alarm modules',
   },
   '41114104': {
@@ -38204,7 +38204,7 @@ export default {
     en: 'Vibrometers',
   },
   '41114200': {
-    fr: 'Instruments d\'arpentage',
+    fr: "Instruments d'arpentage",
     en: 'Land surveying instruments',
   },
   '41114201': {
@@ -38248,7 +38248,7 @@ export default {
     en: 'Optical level',
   },
   '41114300': {
-    fr: 'Instruments d\'hydrologie',
+    fr: "Instruments d'hydrologie",
     en: 'Hydrological instruments',
   },
   '41114301': {
@@ -38256,11 +38256,11 @@ export default {
     en: 'Open stream current meters',
   },
   '41114302': {
-    fr: 'Instruments d\'enregistrement pour puits artésiens',
+    fr: "Instruments d'enregistrement pour puits artésiens",
     en: 'Logging instruments for water wells',
   },
   '41114303': {
-    fr: 'Enregistreurs de niveau d\'eau à écoulement ouvert',
+    fr: "Enregistreurs de niveau d'eau à écoulement ouvert",
     en: 'Open stream water level recorders',
   },
   '41114400': {
@@ -38276,7 +38276,7 @@ export default {
     en: 'Barometers',
   },
   '41114403': {
-    fr: 'Enregistreurs d\'évaporation ou de précipitations',
+    fr: "Enregistreurs d'évaporation ou de précipitations",
     en: 'Precipitation or evaporation recorders',
   },
   '41114404': {
@@ -38288,19 +38288,19 @@ export default {
     en: 'Rainfall recorders',
   },
   '41114406': {
-    fr: 'Appareils d\'observation de surface d\'évaporation ou de précipitation',
+    fr: "Appareils d'observation de surface d'évaporation ou de précipitation",
     en: 'Precipitation or evaporation surface observing apparatus',
   },
   '41114407': {
-    fr: 'Appareils d\'observation de surface du rayonnement solaire',
+    fr: "Appareils d'observation de surface du rayonnement solaire",
     en: 'Solar radiation surface observing apparatus',
   },
   '41114408': {
-    fr: 'Appareils d\'observation de surface de l\'humidité ou de la température',
+    fr: "Appareils d'observation de surface de l'humidité ou de la température",
     en: 'Temperature or humidity surface observing apparatus',
   },
   '41114409': {
-    fr: 'Appareils d\'observation de surface du vent',
+    fr: "Appareils d'observation de surface du vent",
     en: 'Wind surface observing apparatus',
   },
   '41114410': {
@@ -38340,7 +38340,7 @@ export default {
     en: 'Spherometers',
   },
   '41114507': {
-    fr: 'Machines d\'essai de ressorts',
+    fr: "Machines d'essai de ressorts",
     en: 'Spring testing machines',
   },
   '41114508': {
@@ -38356,11 +38356,11 @@ export default {
     en: 'Torque limiter',
   },
   '41114600': {
-    fr: 'Instruments d\'essai de métaux, de métallurgie et de matériaux structurels',
+    fr: "Instruments d'essai de métaux, de métallurgie et de matériaux structurels",
     en: 'Metals and metallurgy and structural materials testing instruments',
   },
   '41114601': {
-    fr: 'Appareils de contrôle d\'abrasion',
+    fr: "Appareils de contrôle d'abrasion",
     en: 'Abrasion testers',
   },
   '41114602': {
@@ -38368,7 +38368,7 @@ export default {
     en: 'Compression testers',
   },
   '41114603': {
-    fr: 'Instruments d\'essai de ciments ou de bétons',
+    fr: "Instruments d'essai de ciments ou de bétons",
     en: 'Concrete or cement testing instruments',
   },
   '41114604': {
@@ -38384,7 +38384,7 @@ export default {
     en: 'Creep testers',
   },
   '41114607': {
-    fr: 'Machines d\'essai de la ductilité',
+    fr: "Machines d'essai de la ductilité",
     en: 'Ductility testing machines',
   },
   '41114608': {
@@ -38392,11 +38392,11 @@ export default {
     en: 'Fatigue testers',
   },
   '41114609': {
-    fr: 'Appareils d\'essai de pièces forgées',
+    fr: "Appareils d'essai de pièces forgées",
     en: 'Forging testing apparatus',
   },
   '41114610': {
-    fr: 'Appareils d\'essai de pièces de fonderie',
+    fr: "Appareils d'essai de pièces de fonderie",
     en: 'Foundry testing apparatus',
   },
   '41114611': {
@@ -38404,7 +38404,7 @@ export default {
     en: 'Hardness testers',
   },
   '41114612': {
-    fr: 'Appareils de contrôle d\'impact',
+    fr: "Appareils de contrôle d'impact",
     en: 'Impact testers',
   },
   '41114613': {
@@ -38412,15 +38412,15 @@ export default {
     en: 'Load frame',
   },
   '41114614': {
-    fr: 'Instruments d\'essai de métaux',
+    fr: "Instruments d'essai de métaux",
     en: 'Metal testing instruments',
   },
   '41114615': {
-    fr: 'Instruments d\'essais de photoélasticité',
+    fr: "Instruments d'essais de photoélasticité",
     en: 'Photoelastic testing instruments',
   },
   '41114616': {
-    fr: 'Indicateurs de limite d\'allongement',
+    fr: "Indicateurs de limite d'allongement",
     en: 'Proofstress indicators',
   },
   '41114617': {
@@ -38456,7 +38456,7 @@ export default {
     en: 'Vibration testers',
   },
   '41114625': {
-    fr: 'Appareils de contrôle de l\'usure',
+    fr: "Appareils de contrôle de l'usure",
     en: 'Wear testers',
   },
   '41114626': {
@@ -38464,11 +38464,11 @@ export default {
     en: 'Welding testing apparatus',
   },
   '41114700': {
-    fr: 'Instruments d\'essai pour papiers, bois et textiles',
+    fr: "Instruments d'essai pour papiers, bois et textiles",
     en: 'Paper and wood and textile testing instruments',
   },
   '41114701': {
-    fr: 'Instruments d\'essai de cartons',
+    fr: "Instruments d'essai de cartons",
     en: 'Cardboard testing instruments',
   },
   '41114702': {
@@ -38476,43 +38476,43 @@ export default {
     en: 'Textiles fastness testers',
   },
   '41114703': {
-    fr: 'Instruments d\'essai de cuirs',
+    fr: "Instruments d'essai de cuirs",
     en: 'Leather testing instruments',
   },
   '41114704': {
-    fr: 'Instruments d\'essai de papiers',
+    fr: "Instruments d'essai de papiers",
     en: 'Paper testing instruments',
   },
   '41114705': {
-    fr: 'Instruments d\'essai de textiles',
+    fr: "Instruments d'essai de textiles",
     en: 'Textile testing instruments',
   },
   '41114706': {
-    fr: 'Instruments d\'essai de laines',
+    fr: "Instruments d'essai de laines",
     en: 'Wood testing instruments',
   },
   '41114800': {
-    fr: 'Instruments d\'essai pour céramiques et verres',
+    fr: "Instruments d'essai pour céramiques et verres",
     en: 'Ceramics and glass testing instruments',
   },
   '41114801': {
-    fr: 'Instruments d\'essai de céramiques',
+    fr: "Instruments d'essai de céramiques",
     en: 'Ceramics testing instruments',
   },
   '41114802': {
-    fr: 'Instruments d\'essai de verres',
+    fr: "Instruments d'essai de verres",
     en: 'Glass testing instruments',
   },
   '41114803': {
-    fr: 'Instruments d\'essai de poteries',
+    fr: "Instruments d'essai de poteries",
     en: 'Pottery testing instruments',
   },
   '41115100': {
-    fr: 'Instruments d\'essai de charbon et de minerai',
+    fr: "Instruments d'essai de charbon et de minerai",
     en: 'Coal and ore testing instruments',
   },
   '41115101': {
-    fr: 'Instruments d\'essai de charbon',
+    fr: "Instruments d'essai de charbon",
     en: 'Coal testing instruments',
   },
   '41115200': {
@@ -38524,11 +38524,11 @@ export default {
     en: 'Radarbased surveillance systems',
   },
   '41115202': {
-    fr: 'Cornets d\'alimentation',
+    fr: "Cornets d'alimentation",
     en: 'Feed horns',
   },
   '41115300': {
-    fr: 'Équipements de génération et de mesure de lumière et d\'ondes',
+    fr: "Équipements de génération et de mesure de lumière et d'ondes",
     en: 'Light and wave generating and measuring equipment',
   },
   '41115301': {
@@ -38648,7 +38648,7 @@ export default {
     en: 'Spectrophotometers',
   },
   '41115407': {
-    fr: 'Spectromètre d\'absorption atomique (AAS)',
+    fr: "Spectromètre d'absorption atomique (AAS)",
     en: 'Atomic absorption AA spectrometers',
   },
   '41115408': {
@@ -38684,11 +38684,11 @@ export default {
     en: 'Sound velocity analyzers',
   },
   '41115505': {
-    fr: 'Chambres d\'essais acoustiques',
+    fr: "Chambres d'essais acoustiques",
     en: 'Acoustic testing rooms',
   },
   '41115600': {
-    fr: 'Équipements et accessoires de mesures d\'électrochimie',
+    fr: "Équipements et accessoires de mesures d'électrochimie",
     en: 'Electrochemical measuring instruments and accessories',
   },
   '41115601': {
@@ -38728,7 +38728,7 @@ export default {
     en: 'Conductivity cells',
   },
   '41115611': {
-    fr: 'Appareils de mesure de l\'oxygène dissout',
+    fr: "Appareils de mesure de l'oxygène dissout",
     en: 'Dissolved oxygen meters',
   },
   '41115612': {
@@ -39132,7 +39132,7 @@ export default {
     en: 'Microbiology or bacteriology reagents or solutions or stains',
   },
   '41116131': {
-    fr: 'Panels didentification ou disques d\'antibiogramme microbiologique ou bactériologique',
+    fr: "Panels didentification ou disques d'antibiogramme microbiologique ou bactériologique",
     en: 'Microbiology or bacteriology identification or sensitivity disks or panels',
   },
   '41116132': {
@@ -39268,11 +39268,11 @@ export default {
     en: 'Laboratory diluters',
   },
   '41121503': {
-    fr: 'Pipettes manuelles multi-canaux à déplacement d\'air',
+    fr: "Pipettes manuelles multi-canaux à déplacement d'air",
     en: 'Manual multichannel air displacement pipetters',
   },
   '41121504': {
-    fr: 'Pipettes manuelles mono-canal à déplacement d\'air',
+    fr: "Pipettes manuelles mono-canal à déplacement d'air",
     en: 'Manual single channel air displacement pipetters',
   },
   '41121505': {
@@ -39420,7 +39420,7 @@ export default {
     en: 'Laboratory watch glasses',
   },
   '41121802': {
-    fr: 'Tige d\'agitation de laboratoire',
+    fr: "Tige d'agitation de laboratoire",
     en: 'Laboratory stirring rods',
   },
   '41121803': {
@@ -39528,7 +39528,7 @@ export default {
     en: 'Tissue culture coated plates or dishes or inserts',
   },
   '41122108': {
-    fr: 'Anses ou aiguilles d\'inoculation',
+    fr: "Anses ou aiguilles d'inoculation",
     en: 'Microbiology inoculation loops or needles',
   },
   '41122109': {
@@ -39904,7 +39904,7 @@ export default {
     en: 'Dermatologicals or antiprotozoa veterinary products',
   },
   '42121607': {
-    fr: 'Médicaments pour  l\'appareil génito-urinaire et hormones sexuelles ou hormones à usage vétérinaire',
+    fr: "Médicaments pour  l'appareil génito-urinaire et hormones sexuelles ou hormones à usage vétérinaire",
     en: 'Genito urinary system sex or hormone veterinary products',
   },
   '42121608': {
@@ -39940,11 +39940,11 @@ export default {
     en: 'Patient caps',
   },
   '42131503': {
-    fr: 'Capes d\'examen pour patients',
+    fr: "Capes d'examen pour patients",
     en: 'Patient exam capes',
   },
   '42131504': {
-    fr: 'Robes d\'examen pour patients',
+    fr: "Robes d'examen pour patients",
     en: 'Patient gowns',
   },
   '42131505': {
@@ -40000,7 +40000,7 @@ export default {
     en: 'Medical staff coveralls',
   },
   '42131606': {
-    fr: 'Masques chirurgicaux ou d\'isolation  pour le personnel médical',
+    fr: "Masques chirurgicaux ou d'isolation  pour le personnel médical",
     en: 'Medical staff isolation or surgical masks',
   },
   '42131607': {
@@ -40080,7 +40080,7 @@ export default {
     en: 'Hospital antimicrobial pillows',
   },
   '42132105': {
-    fr: 'Draps de lit d\'hôpital',
+    fr: "Draps de lit d'hôpital",
     en: 'Hospital bed sheets',
   },
   '42132106': {
@@ -40200,7 +40200,7 @@ export default {
     en: 'Patient positioning cushions or pads or pillows',
   },
   '42141800': {
-    fr: 'Matériel d\'électrothérapie',
+    fr: "Matériel d'électrothérapie",
     en: 'Electrotherapy equipment',
   },
   '42141801': {
@@ -40336,7 +40336,7 @@ export default {
     en: 'Therapeutic hot or cold therapy mitts',
   },
   '42142110': {
-    fr: 'Bouteilles d\'eau chaude ou froide à usage thérapeutique',
+    fr: "Bouteilles d'eau chaude ou froide à usage thérapeutique",
     en: 'Therapeutic hot or cold water bottles',
   },
   '42142111': {
@@ -40360,19 +40360,19 @@ export default {
     en: 'Hypothermia apparatus',
   },
   '42142200': {
-    fr: 'Produits d\'hydrothérapie',
+    fr: "Produits d'hydrothérapie",
     en: 'Hydrotherapy products',
   },
   '42142201': {
-    fr: 'Bains ou réservoirs d\'hydrothérapie pour les membres',
+    fr: "Bains ou réservoirs d'hydrothérapie pour les membres",
     en: 'Extremity hydrotherapy baths or tanks',
   },
   '42142202': {
-    fr: 'Bains d\'hydrothérapie  pour le immersion de tout le corps',
+    fr: "Bains d'hydrothérapie  pour le immersion de tout le corps",
     en: 'Full body immersion hydrotherapy baths or tanks',
   },
   '42142203': {
-    fr: 'Réservoirs ou accessoires de bain d\'hydrothérapie',
+    fr: "Réservoirs ou accessoires de bain d'hydrothérapie",
     en: 'Hydrotherapy bath or tank accessories',
   },
   '42142204': {
@@ -40392,7 +40392,7 @@ export default {
     en: 'Medical charting systems components or accessories',
   },
   '42142303': {
-    fr: 'Produits d\'identification des patients',
+    fr: "Produits d'identification des patients",
     en: 'Patient identification products',
   },
   '42142400': {
@@ -40424,11 +40424,11 @@ export default {
     en: 'Cases for medical suction cannula',
   },
   '42142500': {
-    fr: 'Aiguilles et accessoires dinjection et d\'aspiration',
+    fr: "Aiguilles et accessoires dinjection et d'aspiration",
     en: 'Injection and aspiration needles and accessories',
   },
   '42142501': {
-    fr: 'Aiguilles d\'amniocentèse',
+    fr: "Aiguilles d'amniocentèse",
     en: 'Amniocentesis needles',
   },
   '42142502': {
@@ -40524,7 +40524,7 @@ export default {
     en: 'Irrigation needles',
   },
   '42142526': {
-    fr: 'Capuchons de protection d\'aiguilles',
+    fr: "Capuchons de protection d'aiguilles",
     en: 'Needle protectors',
   },
   '42142527': {
@@ -40544,7 +40544,7 @@ export default {
     en: 'Diagnostic procedure needles',
   },
   '42142531': {
-    fr: 'Containeurs ou chariots ou accessoires pour enlèvement d\'aiguilles ou de lames ou autres objets tranchants',
+    fr: "Containeurs ou chariots ou accessoires pour enlèvement d'aiguilles ou de lames ou autres objets tranchants",
     en: 'Needle or blade or other sharp disposal containers or carts or accessories',
   },
   '42142532': {
@@ -40564,7 +40564,7 @@ export default {
     en: 'Syringes and accessories',
   },
   '42142601': {
-    fr: 'Seringues médicales d\'aspiration ou d\'irrigation',
+    fr: "Seringues médicales d'aspiration ou d'irrigation",
     en: 'Medical aspiration or irrigation syringes',
   },
   '42142602': {
@@ -40580,7 +40580,7 @@ export default {
     en: 'Medical catheter tip syringes',
   },
   '42142605': {
-    fr: 'Seringues pour l\'oreille à usage médical',
+    fr: "Seringues pour l'oreille à usage médical",
     en: 'Medical ear syringes',
   },
   '42142606': {
@@ -40668,7 +40668,7 @@ export default {
     en: 'Urinary irrigation tubings',
   },
   '42142708': {
-    fr: 'Adaptateurs pour instruments d\'urologie',
+    fr: "Adaptateurs pour instruments d'urologie",
     en: 'Urological instrument adapters',
   },
   '42142709': {
@@ -40948,7 +40948,7 @@ export default {
     en: 'Phototherapy patient protection devices',
   },
   '42143706': {
-    fr: 'Unités d\'alimentation électrique de photothérapie',
+    fr: "Unités d'alimentation électrique de photothérapie",
     en: 'Phototherapy power units',
   },
   '42143707': {
@@ -40968,19 +40968,19 @@ export default {
     en: 'Cystometry transducers',
   },
   '42143803': {
-    fr: 'Cathéters d\'examen urodynamique',
+    fr: "Cathéters d'examen urodynamique",
     en: 'Urodynamic catheters',
   },
   '42143900': {
-    fr: 'Produits pour l\'incontinence anale',
+    fr: "Produits pour l'incontinence anale",
     en: 'Fecal incontinence products',
   },
   '42143901': {
-    fr: 'Poche ou accessoire pour l\'incontinence anale',
+    fr: "Poche ou accessoire pour l'incontinence anale",
     en: 'Fecal incontinence collection bag or accessory',
   },
   '42143902': {
-    fr: 'Ensemble ou système pour l\'incontinence anale',
+    fr: "Ensemble ou système pour l'incontinence anale",
     en: 'Fecal management system or kit',
   },
   '42150000': {
@@ -41032,7 +41032,7 @@ export default {
     en: 'Bands for dental matrix',
   },
   '42151603': {
-    fr: 'Instruments de placement pour d\'hydroxyde de calcium',
+    fr: "Instruments de placement pour d'hydroxyde de calcium",
     en: 'Calcium hydroxide placement tools',
   },
   '42151604': {
@@ -41048,7 +41048,7 @@ export default {
     en: 'Dental amalgam carvers',
   },
   '42151607': {
-    fr: 'Cassettes d\'instruments dentaires',
+    fr: "Cassettes d'instruments dentaires",
     en: 'Dental instrument cassettes',
   },
   '42151608': {
@@ -41056,7 +41056,7 @@ export default {
     en: 'Dental instrument trays or tubs',
   },
   '42151609': {
-    fr: 'Trousses d\'instruments dentaires',
+    fr: "Trousses d'instruments dentaires",
     en: 'Dental instruments mats',
   },
   '42151610': {
@@ -41120,7 +41120,7 @@ export default {
     en: 'Dental hand pieces or accessories',
   },
   '42151625': {
-    fr: 'Instruments d\'hygiène dentaire',
+    fr: "Instruments d'hygiène dentaire",
     en: 'Dental hygiene instruments',
   },
   '42151626': {
@@ -41380,7 +41380,7 @@ export default {
     en: 'Dental material pluggers or tips or accessories',
   },
   '42151803': {
-    fr: 'Capsules d\'amalgame dentaire',
+    fr: "Capsules d'amalgame dentaire",
     en: 'Dental amalgam capsules',
   },
   '42151804': {
@@ -41488,7 +41488,7 @@ export default {
     en: 'Endodontic sprays',
   },
   '42152000': {
-    fr: 'Matériel d\'imagerie dentaire et fournitures',
+    fr: "Matériel d'imagerie dentaire et fournitures",
     en: 'Dental imaging equipment and supplies',
   },
   '42152001': {
@@ -41496,7 +41496,7 @@ export default {
     en: 'Bite wing holders',
   },
   '42152002': {
-    fr: 'Cires d\'occlusion, languettes ou comprimés dentaires',
+    fr: "Cires d'occlusion, languettes ou comprimés dentaires",
     en: 'Dental bite blocks or wings or tabs',
   },
   '42152003': {
@@ -41600,7 +41600,7 @@ export default {
     en: 'Dental drying instruments or accessories',
   },
   '42152113': {
-    fr: 'Kits de formation de plaque-base d\'une prothèse',
+    fr: "Kits de formation de plaque-base d'une prothèse",
     en: 'Denture base forming kits',
   },
   '42152114': {
@@ -41620,7 +41620,7 @@ export default {
     en: 'Dental foils',
   },
   '42152202': {
-    fr: 'Appareils dair d\'abrasion pour laboratoire dentaire',
+    fr: "Appareils dair d'abrasion pour laboratoire dentaire",
     en: 'Dental laboratory air abrasion units',
   },
   '42152203': {
@@ -41760,7 +41760,7 @@ export default {
     en: 'Cast cobalt chromium molybdenum alloys for dental implants',
   },
   '42152404': {
-    fr: 'Produits pour empreintes à base d\'hydrocolloïdes réversibles-irréversibles',
+    fr: "Produits pour empreintes à base d'hydrocolloïdes réversibles-irréversibles",
     en: 'Combined reversible irreversible hydrocolloid impression materials',
   },
   '42152405': {
@@ -41792,7 +41792,7 @@ export default {
     en: 'Dental base metal casting alloys',
   },
   '42152412': {
-    fr: 'Cires d\'embase dentaire',
+    fr: "Cires d'embase dentaire",
     en: 'Dental baseplate waxes',
   },
   '42152413': {
@@ -41812,7 +41812,7 @@ export default {
     en: 'Dental duplicating materials',
   },
   '42152417': {
-    fr: 'Revêtements dentaires à liant silicate d\'éthyle',
+    fr: "Revêtements dentaires à liant silicate d'éthyle",
     en: 'Dental ethyl silicate investments',
   },
   '42152418': {
@@ -41820,7 +41820,7 @@ export default {
     en: 'Dental gypsum products',
   },
   '42152419': {
-    fr: 'Produits à base d\'oxyde de zinc-eugénol pour empreintes dentaires',
+    fr: "Produits à base d'oxyde de zinc-eugénol pour empreintes dentaires",
     en: 'Dental impression paste zinc oxide eugenol materials',
   },
   '42152420': {
@@ -41832,7 +41832,7 @@ export default {
     en: 'Dental mercury',
   },
   '42152422': {
-    fr: 'Cônes d\'obturation dentaires',
+    fr: "Cônes d'obturation dentaires",
     en: 'Dental obturating points',
   },
   '42152423': {
@@ -41856,15 +41856,15 @@ export default {
     en: 'Denture cold curing repair resins',
   },
   '42152428': {
-    fr: 'Résines d\'obturation directe',
+    fr: "Résines d'obturation directe",
     en: 'Direct filling resins',
   },
   '42152429': {
-    fr: 'Produits pour empreintes, à base d\'élastomères',
+    fr: "Produits pour empreintes, à base d'élastomères",
     en: 'Elastomeric dental impression materials',
   },
   '42152430': {
-    fr: 'Produits d\'obturation endodontique',
+    fr: "Produits d'obturation endodontique",
     en: 'Endodontic filling materials',
   },
   '42152431': {
@@ -41872,7 +41872,7 @@ export default {
     en: 'Extraoral maxillofacial prosthesis elastomers',
   },
   '42152432': {
-    fr: 'Revêtements pour coulée à liant à base de gypse pour alliages d\'or dentaire',
+    fr: "Revêtements pour coulée à liant à base de gypse pour alliages d'or dentaire",
     en: 'Gypsum bonded casting Investments for dental gold alloys',
   },
   '42152433': {
@@ -41884,7 +41884,7 @@ export default {
     en: 'Dental amalgamators',
   },
   '42152435': {
-    fr: 'Produits d\'orthodontie, à base d\'élastomères',
+    fr: "Produits d'orthodontie, à base d'élastomères",
     en: 'Orthodontic elastomeric materials',
   },
   '42152436': {
@@ -41916,7 +41916,7 @@ export default {
     en: 'Unalloyed titanium for dental implants',
   },
   '42152443': {
-    fr: 'Ciments à base d\'oxyde de zinc avec et sans eugénol',
+    fr: "Ciments à base d'oxyde de zinc avec et sans eugénol",
     en: 'Zinc oxide eugenol and non eugenol cements',
   },
   '42152444': {
@@ -41972,7 +41972,7 @@ export default {
     en: 'Dental cementing kits',
   },
   '42152458': {
-    fr: 'Vernis d\'espacement à usage dentaire',
+    fr: "Vernis d'espacement à usage dentaire",
     en: 'Dental die spacers',
   },
   '42152459': {
@@ -42024,7 +42024,7 @@ export default {
     en: 'Dental dressings',
   },
   '42152505': {
-    fr: 'Couvertures d\'appui-tête pour chaises d\'examen dentaires',
+    fr: "Couvertures d'appui-tête pour chaises d'examen dentaires",
     en: 'Dental examination chair headrest covers',
   },
   '42152506': {
@@ -42092,7 +42092,7 @@ export default {
     en: 'Dental operatory articulating papers or related products',
   },
   '42152602': {
-    fr: 'Barrières de prévention de l\'infection pour opérations dentaires',
+    fr: "Barrières de prévention de l'infection pour opérations dentaires",
     en: 'Dental operatory infection control barriers',
   },
   '42152603': {
@@ -42164,7 +42164,7 @@ export default {
     en: 'Orthodontic elastomerics',
   },
   '42152711': {
-    fr: 'Vis d\'expansion orthodontiques',
+    fr: "Vis d'expansion orthodontiques",
     en: 'Orthodontic expansion screws',
   },
   '42152712': {
@@ -42176,7 +42176,7 @@ export default {
     en: 'Orthodontic pliers',
   },
   '42152714': {
-    fr: 'Trousses d\'ancrage orthodontiques',
+    fr: "Trousses d'ancrage orthodontiques",
     en: 'Orthodontic retainer cases',
   },
   '42152715': {
@@ -42236,7 +42236,7 @@ export default {
     en: 'Dialysis equipment and supplies',
   },
   '42161500': {
-    fr: 'Fournitures et matériel pour dialyse péritonéale ou d\'équilibre',
+    fr: "Fournitures et matériel pour dialyse péritonéale ou d'équilibre",
     en: 'Peritoneal and equilibrium dialysis equipment and supplies',
   },
   '42161501': {
@@ -42248,7 +42248,7 @@ export default {
     en: 'Peritoneal dialysate warmers',
   },
   '42161503': {
-    fr: 'Kits de cathétérisme ou d\'administration pour dialyse péritonéale',
+    fr: "Kits de cathétérisme ou d'administration pour dialyse péritonéale",
     en: 'Peritoneal dialysis administration or catheterization sets',
   },
   '42161504': {
@@ -42284,7 +42284,7 @@ export default {
     en: 'Extracorporeal hemodialysis equipment and supplies',
   },
   '42161601': {
-    fr: 'Accessoires, trousses ou Kits d\'administration pour hémodialyse',
+    fr: "Accessoires, trousses ou Kits d'administration pour hémodialyse",
     en: 'Hemodialysis administration kits or sets or accessories',
   },
   '42161602': {
@@ -42292,7 +42292,7 @@ export default {
     en: 'Hemodialysis blood bag samplers',
   },
   '42161603': {
-    fr: 'Appareils de mesure de l\'oxygène dans le sang pour hémodialyse',
+    fr: "Appareils de mesure de l'oxygène dans le sang pour hémodialyse",
     en: 'Hemodialysis blood oxygen demand apparatus',
   },
   '42161604': {
@@ -42344,71 +42344,71 @@ export default {
     en: 'Hemodialysis dialyzer reprocessing systems',
   },
   '42161616': {
-    fr: 'Unité d\'hémodialyse, détecteurs de bulle d\'air, d\'écume ou de caillot, siphons ou alarmes',
+    fr: "Unité d'hémodialyse, détecteurs de bulle d'air, d'écume ou de caillot, siphons ou alarmes",
     en: 'Hemodialysis unit air bubble or foam or clot detectors or traps or alarms',
   },
   '42161617': {
-    fr: 'Unité d\'hémodialyse, appareils de contrôle de la pression artérielle',
+    fr: "Unité d'hémodialyse, appareils de contrôle de la pression artérielle",
     en: 'Hemodialysis unit arterial pressure monitors',
   },
   '42161618': {
-    fr: 'Unité d\'hémodialyse, pinces de ligne de sang',
+    fr: "Unité d'hémodialyse, pinces de ligne de sang",
     en: 'Hemodialysis unit blood line clamps',
   },
   '42161619': {
-    fr: 'Unité d\'hémodialyse, diaphragmes',
+    fr: "Unité d'hémodialyse, diaphragmes",
     en: 'Hemodialysis unit blood port caps',
   },
   '42161620': {
-    fr: 'Appareils d\'hémodialyse, pompes sanguines',
+    fr: "Appareils d'hémodialyse, pompes sanguines",
     en: 'Hemodialysis unit blood pumps',
   },
   '42161621': {
-    fr: 'Unité d\'hémodialyse, diaphragmes pour dialysat',
+    fr: "Unité d'hémodialyse, diaphragmes pour dialysat",
     en: 'Hemodialysis unit dialysate port caps',
   },
   '42161622': {
-    fr: 'Unité d\'hémodialyse, désinfectants ou nettoyants',
+    fr: "Unité d'hémodialyse, désinfectants ou nettoyants",
     en: 'Hemodialysis unit disinfectants or cleansers',
   },
   '42161623': {
-    fr: 'Unité d\'hémodialyse, pompes d\'infusion d\'héparine',
+    fr: "Unité d'hémodialyse, pompes d'infusion d'héparine",
     en: 'Hemodialysis unit heparin infusion pumps',
   },
   '42161624': {
-    fr: 'Unité d\'hémodialyse, contrôleurs d\'aiguilles',
+    fr: "Unité d'hémodialyse, contrôleurs d'aiguilles",
     en: 'Hemodialysis unit single needle controllers',
   },
   '42161625': {
-    fr: 'Unité d\'hémodialyse, convertisseurs de passage simple d\'unité dhémodialyse',
+    fr: "Unité d'hémodialyse, convertisseurs de passage simple d'unité dhémodialyse",
     en: 'Hemodialysis unit single pass converters',
   },
   '42161626': {
-    fr: 'Unité d\'hémodialyse, pieds, appuis ou chariots',
+    fr: "Unité d'hémodialyse, pieds, appuis ou chariots",
     en: 'Hemodialysis unit stands or supports or carts',
   },
   '42161627': {
-    fr: 'Unité d\'hémodialyse, moniteurs de température',
+    fr: "Unité d'hémodialyse, moniteurs de température",
     en: 'Hemodialysis unit temperature monitors',
   },
   '42161628': {
-    fr: 'Unité d\'hémodialyse, matériel d\'examen',
+    fr: "Unité d'hémodialyse, matériel d'examen",
     en: 'Hemodialysis unit test equipment',
   },
   '42161629': {
-    fr: 'Unité d\'hémodialyse, filtres transducteurs',
+    fr: "Unité d'hémodialyse, filtres transducteurs",
     en: 'Hemodialysis unit transducer filters',
   },
   '42161630': {
-    fr: 'Unité d\'hémodialyse, protecteurs de transducteurs',
+    fr: "Unité d'hémodialyse, protecteurs de transducteurs",
     en: 'Hemodialysis unit transducer protectors',
   },
   '42161631': {
-    fr: 'Unité d\'hémodialyse, systèmes de purification de l\'eau',
+    fr: "Unité d'hémodialyse, systèmes de purification de l'eau",
     en: 'Hemodialysis unit water purification systems',
   },
   '42161632': {
-    fr: 'Appareils d\'hémodialyse',
+    fr: "Appareils d'hémodialyse",
     en: 'Hemodialysis units',
   },
   '42161633': {
@@ -42432,11 +42432,11 @@ export default {
     en: 'Hemofilter',
   },
   '42161702': {
-    fr: 'Sacs de recueillement d\'hémofiltrats',
+    fr: "Sacs de recueillement d'hémofiltrats",
     en: 'Hemofiltrate collection bags',
   },
   '42161703': {
-    fr: 'Orifices d\'infusion pour hémofiltration',
+    fr: "Orifices d'infusion pour hémofiltration",
     en: 'Hemofiltration infusion ports',
   },
   '42161704': {
@@ -42448,19 +42448,19 @@ export default {
     en: 'Continuous renal replacement therapy CRRT equipment and supplies',
   },
   '42161801': {
-    fr: 'Appareils d\'hémodialyse artérioveineuse continue ou produits apparentés (CAVHD)',
+    fr: "Appareils d'hémodialyse artérioveineuse continue ou produits apparentés (CAVHD)",
     en: 'Continuous arteriovenous dialysis CAVHD units or related products',
   },
   '42161802': {
-    fr: 'Appareils d\'hémofiltration artérioveineuse continue ou produits apparentés (CAVH)',
+    fr: "Appareils d'hémofiltration artérioveineuse continue ou produits apparentés (CAVH)",
     en: 'Continuous arteriovenous hemofiltration CAVH units or related products',
   },
   '42161803': {
-    fr: 'Appareils d\'hémofiltration ou d\'hémodialyse véno veineuse continue ou produits apparentés',
+    fr: "Appareils d'hémofiltration ou d'hémodialyse véno veineuse continue ou produits apparentés",
     en: 'Continuous venovenous hemofiltration or hemodialysis units or related products',
   },
   '42161804': {
-    fr: 'Appareils d\'ultrafiltration continue lente  ou produits apparentés (SCUF)',
+    fr: "Appareils d'ultrafiltration continue lente  ou produits apparentés (SCUF)",
     en: 'Slow continuous ultrafiltration SCUF units or related products',
   },
   '42170000': {
@@ -42468,19 +42468,19 @@ export default {
     en: 'Emergency and field medical services products',
   },
   '42171500': {
-    fr: 'Produits de gestion des catastrophes pour assistance médicale d\'urgence',
+    fr: "Produits de gestion des catastrophes pour assistance médicale d'urgence",
     en: 'Emergency medical services disaster management products',
   },
   '42171501': {
-    fr: 'Sacs à cadavres pour assistance médicale d\'urgence, en cas de catastrophe',
+    fr: "Sacs à cadavres pour assistance médicale d'urgence, en cas de catastrophe",
     en: 'Emergency medical services disaster body pouches',
   },
   '42171502': {
-    fr: 'Cartes didentification pour assistance médicale d\'urgence',
+    fr: "Cartes didentification pour assistance médicale d'urgence",
     en: 'Emergency medical services triage tags',
   },
   '42171600': {
-    fr: 'Produits de désincarcération, d\'immobilisation et de transport pour assistance médicale d\'urgence',
+    fr: "Produits de désincarcération, d'immobilisation et de transport pour assistance médicale d'urgence",
     en: 'Emergency medical services extricating and immobilizing and transporting products',
   },
   '42171601': {
@@ -42504,27 +42504,27 @@ export default {
     en: 'Cinch rescue loops',
   },
   '42171606': {
-    fr: 'Attelles gonflables pour assistance médicale d\'urgence',
+    fr: "Attelles gonflables pour assistance médicale d'urgence",
     en: 'Emergency medical services air splints',
   },
   '42171607': {
-    fr: 'Colliers cervicaux ou colliers cervicaux de désincarcération pour assistance médicale d\'urgence',
+    fr: "Colliers cervicaux ou colliers cervicaux de désincarcération pour assistance médicale d'urgence",
     en: 'Emergency medical services cervical or extrication collars',
   },
   '42171608': {
-    fr: 'Dispositifs dimmobilisation de la tête pour assistance médicale d\'urgence',
+    fr: "Dispositifs dimmobilisation de la tête pour assistance médicale d'urgence",
     en: 'Emergency medical services head immobilizers',
   },
   '42171609': {
-    fr: 'Sangles de maintien ou de blocage de la colonne vertébrale pour assistance médicale d\'urgence',
+    fr: "Sangles de maintien ou de blocage de la colonne vertébrale pour assistance médicale d'urgence",
     en: 'Emergency medical services restraint or spine board straps',
   },
   '42171610': {
-    fr: 'Dispositifs dimmobilisation du buste pour assistance médicale d\'urgence',
+    fr: "Dispositifs dimmobilisation du buste pour assistance médicale d'urgence",
     en: 'Emergency medical services torso immobilizers',
   },
   '42171611': {
-    fr: 'Civières, brancards ou accessoires pour intervention d\'urgence',
+    fr: "Civières, brancards ou accessoires pour intervention d'urgence",
     en: 'Emergency response litters or stretchers or accessories',
   },
   '42171612': {
@@ -42540,11 +42540,11 @@ export default {
     en: 'Water rescue tubes or cans',
   },
   '42171700': {
-    fr: 'Couvertures pour assistance médicale d\'urgence',
+    fr: "Couvertures pour assistance médicale d'urgence",
     en: 'Emergency medical services blankets',
   },
   '42171701': {
-    fr: 'Couvertures de secours ou de survie pour assistance médicale d\'urgence',
+    fr: "Couvertures de secours ou de survie pour assistance médicale d'urgence",
     en: 'Emergency or rescue blankets',
   },
   '42171702': {
@@ -42556,27 +42556,27 @@ export default {
     en: 'Emergency medical services heat shielding wraps or blankets',
   },
   '42171704': {
-    fr: 'Maillots ou nids dange pour enfants en bas âge pour assistance médicale d\'urgence',
+    fr: "Maillots ou nids dange pour enfants en bas âge pour assistance médicale d'urgence",
     en: 'Emergency medical services infant swaddlers or buntings',
   },
   '42171800': {
-    fr: 'Matériel de gestion des voies aériennes supérieures pour assistance médicale d\'urgence',
+    fr: "Matériel de gestion des voies aériennes supérieures pour assistance médicale d'urgence",
     en: 'Emergency medical services airway management equipment',
   },
   '42171801': {
-    fr: 'Kits de canules oropharyngées ou kits dintubation pour assistance médicale d\'urgence',
+    fr: "Kits de canules oropharyngées ou kits dintubation pour assistance médicale d'urgence",
     en: 'Emergency medical services oropharyngeal airway or intubation kits',
   },
   '42171802': {
-    fr: 'Kits de laryngoscopes pour assistance médicale d\'urgence',
+    fr: "Kits de laryngoscopes pour assistance médicale d'urgence",
     en: 'Emergency medical services laryngoscope kits',
   },
   '42171803': {
-    fr: 'Dispositifs ou accessoires daspiration pour assistance médicale d\'urgence',
+    fr: "Dispositifs ou accessoires daspiration pour assistance médicale d'urgence",
     en: 'Emergency medical services suction units or accessories',
   },
   '42171804': {
-    fr: 'Kits de tubes trachéaux kits de cricothyrotomie pour assistance médicale d\'urgence',
+    fr: "Kits de tubes trachéaux kits de cricothyrotomie pour assistance médicale d'urgence",
     en: 'Emergency medical services tracheal tube or cricothyrotomy kits',
   },
   '42171805': {
@@ -42588,39 +42588,39 @@ export default {
     en: 'Seizure sticks',
   },
   '42171900': {
-    fr: 'Trousses ou boîtes de rangement pour assistance médicale d\'urgence',
+    fr: "Trousses ou boîtes de rangement pour assistance médicale d'urgence",
     en: 'Emergency medical services storage cases and bags',
   },
   '42171901': {
-    fr: 'Trousses de gestion des voies aériennes pour assistance médicale d\'urgence',
+    fr: "Trousses de gestion des voies aériennes pour assistance médicale d'urgence",
     en: 'Emergency medical services airway management bags',
   },
   '42171902': {
-    fr: 'Trousses de défibrillation pour assistance médicale d\'urgence',
+    fr: "Trousses de défibrillation pour assistance médicale d'urgence",
     en: 'Emergency medical services defibrillator cases',
   },
   '42171903': {
-    fr: 'Trousses de médicaments pour assistance médicale d\'urgence',
+    fr: "Trousses de médicaments pour assistance médicale d'urgence",
     en: 'Emergency medical services drug cases',
   },
   '42171904': {
-    fr: 'Trousses ou sacs de matériel de désincarcération pour assistance médicale d\'urgence',
+    fr: "Trousses ou sacs de matériel de désincarcération pour assistance médicale d'urgence",
     en: 'Emergency medical services extrication products cases or bags',
   },
   '42171905': {
-    fr: 'Trousses de matériel pour intraveineuses (IV) pour assistance médicale d\'urgence',
+    fr: "Trousses de matériel pour intraveineuses (IV) pour assistance médicale d'urgence",
     en: 'Emergency medical services intravenous IV cases',
   },
   '42171906': {
-    fr: 'Trousses d\'intubation pour assistance médicale d\'urgence',
+    fr: "Trousses d'intubation pour assistance médicale d'urgence",
     en: 'Emergency medical services intubation cases',
   },
   '42171907': {
-    fr: 'Trousses de laryngoscopie pour assistance médicale d\'urgence',
+    fr: "Trousses de laryngoscopie pour assistance médicale d'urgence",
     en: 'Emergency medical services laryngoscope bags',
   },
   '42171908': {
-    fr: 'Trousses de réanimation pour assistance médicale d\'urgence',
+    fr: "Trousses de réanimation pour assistance médicale d'urgence",
     en: 'Emergency medical services life support cases',
   },
   '42171909': {
@@ -42628,47 +42628,47 @@ export default {
     en: 'Emergency medical services long distance response LDR trauma packs',
   },
   '42171910': {
-    fr: 'Trousses paramédicales pour assistance médicale d\'urgence',
+    fr: "Trousses paramédicales pour assistance médicale d'urgence",
     en: 'Emergency medical services paramedic cases',
   },
   '42171911': {
-    fr: 'Trousses doxygène ou de réanimation portables pour assistance médicale d\'urgence',
+    fr: "Trousses doxygène ou de réanimation portables pour assistance médicale d'urgence",
     en: 'Emergency medical services portable oxygen or resuscitation cases',
   },
   '42171912': {
-    fr: 'Trousse ou sacs de secours pour  assistance médicale d\'urgence',
+    fr: "Trousse ou sacs de secours pour  assistance médicale d'urgence",
     en: 'Emergency medical services rescue bags or cases',
   },
   '42171913': {
-    fr: 'Trousses ou sacs d\'intervention pour assistance médicale d\'urgence',
+    fr: "Trousses ou sacs d'intervention pour assistance médicale d'urgence",
     en: 'Emergency medical services response cases or bags',
   },
   '42171914': {
-    fr: 'Trousses ou sacs de trauma pour assistance médicale d\'urgence',
+    fr: "Trousses ou sacs de trauma pour assistance médicale d'urgence",
     en: 'Emergency medical services trauma cases or bags',
   },
   '42171915': {
-    fr: 'Trousses ou sacs d\'urgence médicale pour technicien ambulancier',
+    fr: "Trousses ou sacs d'urgence médicale pour technicien ambulancier",
     en: 'Emergency medical technician EMT cases or bags',
   },
   '42171916': {
-    fr: 'Sacs de transport ou trousses de stockage du matériel dimmobilisation pour assistance médicale d\'urgence',
+    fr: "Sacs de transport ou trousses de stockage du matériel dimmobilisation pour assistance médicale d'urgence",
     en: 'Emergency medical services immobilization set carrying or storage cases',
   },
   '42171917': {
-    fr: 'Boîtes ou trousses ou accessoires pour kits de premiers secours pour assistance médicale d\'urgence',
+    fr: "Boîtes ou trousses ou accessoires pour kits de premiers secours pour assistance médicale d'urgence",
     en: 'Emergency medical services first aid kit cases or bags or accessories',
   },
   '42171918': {
-    fr: 'Trousses pour kits de soins pour assistance médicale d\'urgence des victimes de gaz',
+    fr: "Trousses pour kits de soins pour assistance médicale d'urgence des victimes de gaz",
     en: 'Emergency medical services gas casualty treatment set cases',
   },
   '42171919': {
-    fr: 'Sacs d\'évacuation ou housses à cadavres pour assistance médicale d\'urgence',
+    fr: "Sacs d'évacuation ou housses à cadavres pour assistance médicale d'urgence",
     en: 'Emergency medical services evacuation bags or liners',
   },
   '42171920': {
-    fr: 'Trousses ou accessoires pour vêtements dassistance médicale d\'urgence',
+    fr: "Trousses ou accessoires pour vêtements dassistance médicale d'urgence",
     en: 'Emergency medical services clothing cases or accessories',
   },
   '42172000': {
@@ -42676,67 +42676,67 @@ export default {
     en: 'Emergency and field medical services kits',
   },
   '42172001': {
-    fr: 'Kits de premiers secours pour assistance médicale d\'urgence',
+    fr: "Kits de premiers secours pour assistance médicale d'urgence",
     en: 'Emergency medical services first aid kits',
   },
   '42172002': {
-    fr: 'Kits de première intervention  pour assistance médicale d\'urgence',
+    fr: "Kits de première intervention  pour assistance médicale d'urgence",
     en: 'Emergency medical services first response kits',
   },
   '42172003': {
-    fr: 'Kits pour intraveineuses (IV) pour assistance médicale d\'urgence',
+    fr: "Kits pour intraveineuses (IV) pour assistance médicale d'urgence",
     en: 'Emergency medical services intravenous IV kits',
   },
   '42172004': {
-    fr: 'Kits de réanimation pour assistance médicale d\'urgence',
+    fr: "Kits de réanimation pour assistance médicale d'urgence",
     en: 'Emergency medical services life support kits',
   },
   '42172005': {
-    fr: 'Kits de traumatologie pour intervention longue distance pour assistance médicale d\'urgence',
+    fr: "Kits de traumatologie pour intervention longue distance pour assistance médicale d'urgence",
     en: 'Emergency medical services long distance response LDR trauma kits',
   },
   '42172006': {
-    fr: 'Kits d\'obstétrique pour assistance médicale d\'urgence',
+    fr: "Kits d'obstétrique pour assistance médicale d'urgence",
     en: 'Emergency medical services obstetrics kits',
   },
   '42172007': {
-    fr: 'Kits portables doxygène ou de réanimation pour assistance médicale d\'urgence',
+    fr: "Kits portables doxygène ou de réanimation pour assistance médicale d'urgence",
     en: 'Emergency medical services oxygen or resuscitation kits',
   },
   '42172008': {
-    fr: 'Kits de descente en rappel pour assistance médicale d\'urgence',
+    fr: "Kits de descente en rappel pour assistance médicale d'urgence",
     en: 'Emergency medical services rappel kits',
   },
   '42172009': {
-    fr: 'Kits de recherche et de secours pour assistance médicale d\'urgence',
+    fr: "Kits de recherche et de secours pour assistance médicale d'urgence",
     en: 'Emergency medical services search and rescue kits',
   },
   '42172010': {
-    fr: 'Kits de trauma pour assistance médicale d\'urgence',
+    fr: "Kits de trauma pour assistance médicale d'urgence",
     en: 'Emergency medical services trauma kits',
   },
   '42172011': {
-    fr: 'Kits d\'urgence médicale pour technicien ambulancier',
+    fr: "Kits d'urgence médicale pour technicien ambulancier",
     en: 'Emergency medical technician EMT kits',
   },
   '42172012': {
-    fr: 'Kits de ventriculostomie pour assistance médicale d\'urgence',
+    fr: "Kits de ventriculostomie pour assistance médicale d'urgence",
     en: 'Emergency medical services ventriculostomy kits',
   },
   '42172013': {
-    fr: 'Kits dévacuation pour assistance médicale d\'urgence',
+    fr: "Kits dévacuation pour assistance médicale d'urgence",
     en: 'Emergency medical services evacuation kits',
   },
   '42172014': {
-    fr: 'Kits ou fournitures pour transport des patients pour assistance médicale d\'urgence ou fourniture',
+    fr: "Kits ou fournitures pour transport des patients pour assistance médicale d'urgence ou fourniture",
     en: 'Emergency medical services patient transport kits or supplies',
   },
   '42172015': {
-    fr: 'Kits de soins dentaires pour assistance médicale d\'urgence',
+    fr: "Kits de soins dentaires pour assistance médicale d'urgence",
     en: 'Emergency medical services dental treatment kits',
   },
   '42172016': {
-    fr: 'Kits de soin des fractures pour assistance médicale d\'urgence',
+    fr: "Kits de soin des fractures pour assistance médicale d'urgence",
     en: 'Emergency medical services fracture kits',
   },
   '42172017': {
@@ -42748,7 +42748,7 @@ export default {
     en: 'Gastric lavage kit',
   },
   '42172100': {
-    fr: 'Produits de réanimation pour assistance médicale d\'urgence',
+    fr: "Produits de réanimation pour assistance médicale d'urgence",
     en: 'Emergency medical services resuscitation products',
   },
   '42172101': {
@@ -42764,19 +42764,19 @@ export default {
     en: 'Emergency resuscitator or aspirator kits',
   },
   '42172200': {
-    fr: 'Fournitures pour assistance médicale d\'urgence',
+    fr: "Fournitures pour assistance médicale d'urgence",
     en: 'Emergency medical services supplies',
   },
   '42172201': {
-    fr: 'Garrots ou clamps pour assistance médicale d\'urgence',
+    fr: "Garrots ou clamps pour assistance médicale d'urgence",
     en: 'Emergency medical services tourniquets or clamps',
   },
   '42180000': {
-    fr: 'Produits d\'examen et de contrôle du patient',
+    fr: "Produits d'examen et de contrôle du patient",
     en: 'Patient exam and monitoring products',
   },
   '42181500': {
-    fr: 'Produits d\'examen et de diagnostic à usage général',
+    fr: "Produits d'examen et de diagnostic à usage général",
     en: 'Diagnostic assessment and exam products for general use',
   },
   '42181501': {
@@ -42812,7 +42812,7 @@ export default {
     en: 'Cleaning wipes for diagnostic equipment',
   },
   '42181509': {
-    fr: 'Kits dexamens cliniques pour médecin de l\'air',
+    fr: "Kits dexamens cliniques pour médecin de l'air",
     en: 'Flight surgeon physical examination sets',
   },
   '42181510': {
@@ -42876,7 +42876,7 @@ export default {
     en: 'Blood pressure inflation hoses or pneumatic hoses or adapters',
   },
   '42181607': {
-    fr: 'Dispositifs d\'enregistrement de la pression sanguine',
+    fr: "Dispositifs d'enregistrement de la pression sanguine",
     en: 'Blood pressure recording units',
   },
   '42181608': {
@@ -42920,7 +42920,7 @@ export default {
     en: 'Electrocardiography EKG graphic recorders',
   },
   '42181706': {
-    fr: 'Écrans de moniteur d\'électrocardiographe (ECG)',
+    fr: "Écrans de moniteur d'électrocardiographe (ECG)",
     en: 'Electrocardiography EKG monitor screens',
   },
   '42181707': {
@@ -42932,11 +42932,11 @@ export default {
     en: 'Electrocardiography EKG patch electrodes',
   },
   '42181709': {
-    fr: 'Papier d\'enregistrement pour électrocardiographie (ECG)',
+    fr: "Papier d'enregistrement pour électrocardiographie (ECG)",
     en: 'Electrocardiography EKG recording paper',
   },
   '42181710': {
-    fr: 'Testeurs d\'électrodes de surface pour électrocardiographie (ECG)',
+    fr: "Testeurs d'électrodes de surface pour électrocardiographie (ECG)",
     en: 'Electrocardiography EKG surface electrode testers',
   },
   '42181711': {
@@ -42944,7 +42944,7 @@ export default {
     en: 'Electrocardiography EKG telephone transmitter or receiver systems',
   },
   '42181712': {
-    fr: 'Analyseurs d\'électrocardiographie (ECG)',
+    fr: "Analyseurs d'électrocardiographie (ECG)",
     en: 'Electrocardiography EKG unit analyzers',
   },
   '42181713': {
@@ -43044,11 +43044,11 @@ export default {
     en: 'Acute care fetal/maternal recording paper',
   },
   '42182000': {
-    fr: 'Spéculums et accessoires d\'examen médical à usage diagnostique',
+    fr: "Spéculums et accessoires d'examen médical à usage diagnostique",
     en: 'Scopes and specula and accessories for medical exam diagnostic use',
   },
   '42182001': {
-    fr: 'Spéculums d\'examen rectal ou anal',
+    fr: "Spéculums d'examen rectal ou anal",
     en: 'Anal or rectal exam specula',
   },
   '42182002': {
@@ -43072,7 +43072,7 @@ export default {
     en: 'Laryngeal or oropharyngial exam specula',
   },
   '42182007': {
-    fr: 'Lampes stylo ou ampoules d\'examen médical',
+    fr: "Lampes stylo ou ampoules d'examen médical",
     en: 'Medical exam scope bulbs or lamps',
   },
   '42182008': {
@@ -43096,7 +43096,7 @@ export default {
     en: 'Nasal exam specula or dilators',
   },
   '42182013': {
-    fr: 'Spéculum d\'examen vaginal',
+    fr: "Spéculum d'examen vaginal",
     en: 'Vaginal exam specula',
   },
   '42182014': {
@@ -43216,7 +43216,7 @@ export default {
     en: 'Reflex hammers or mallets',
   },
   '42182303': {
-    fr: 'Cartes d\'examen neuropsychiatrique',
+    fr: "Cartes d'examen neuropsychiatrique",
     en: 'Neuropsychiatry exam cards',
   },
   '42182304': {
@@ -43264,7 +43264,7 @@ export default {
     en: 'EEG recording paper',
   },
   '42182400': {
-    fr: 'Produits d\'aide auditive',
+    fr: "Produits d'aide auditive",
     en: 'Hearing testing products',
   },
   '42182401': {
@@ -43272,19 +43272,19 @@ export default {
     en: 'Audiometers or accessories',
   },
   '42182402': {
-    fr: 'Vibrateurs audiométriques à conduction osseuse ou analyseurs d\'oreille moyenne',
+    fr: "Vibrateurs audiométriques à conduction osseuse ou analyseurs d'oreille moyenne",
     en: 'Audiometric bone vibrators or middle ear analyzers',
   },
   '42182403': {
-    fr: 'Cabines audiométriques ou chambres acoustiques d\'examen de l\'audition',
+    fr: "Cabines audiométriques ou chambres acoustiques d'examen de l'audition",
     en: 'Audiometric booths or acoustic hearing test chambers',
   },
   '42182404': {
-    fr: 'Ensembles d\'étalonnage pour appareils d\'examen de la fonction auditive',
+    fr: "Ensembles d'étalonnage pour appareils d'examen de la fonction auditive",
     en: 'Auditory function screening unit calibration sets',
   },
   '42182405': {
-    fr: 'Appareils d\'examen de la fonction auditive',
+    fr: "Appareils d'examen de la fonction auditive",
     en: 'Auditory function screening units',
   },
   '42182406': {
@@ -43300,7 +43300,7 @@ export default {
     en: 'Electrocochleographs',
   },
   '42182409': {
-    fr: 'Analyseurs d\'appareil auditif ou systèmes d\'essai',
+    fr: "Analyseurs d'appareil auditif ou systèmes d'essai",
     en: 'Hearing aid analyzers or test systems',
   },
   '42182410': {
@@ -43320,7 +43320,7 @@ export default {
     en: 'Medical tuning fork sets',
   },
   '42182414': {
-    fr: 'Analyseurs d\'acouphènes',
+    fr: "Analyseurs d'acouphènes",
     en: 'Tinnitus analyzers',
   },
   '42182415': {
@@ -43348,7 +43348,7 @@ export default {
     en: 'Aural probes',
   },
   '42182421': {
-    fr: 'Accessoires ou calibres de bouchons d\'oreille',
+    fr: "Accessoires ou calibres de bouchons d'oreille",
     en: 'Ear plug gages or accessories',
   },
   '42182422': {
@@ -43448,31 +43448,31 @@ export default {
     en: 'Covers or liners for weighing scales',
   },
   '42182900': {
-    fr: 'Tables d\'examen de spécialité et produits apparentés',
+    fr: "Tables d'examen de spécialité et produits apparentés",
     en: 'Specialty exam tables and related products',
   },
   '42182901': {
-    fr: 'Tables d\'examen gynécologique et obstétrique',
+    fr: "Tables d'examen gynécologique et obstétrique",
     en: 'Obstetrical or gynecological exam tables',
   },
   '42182902': {
-    fr: 'Étriers de tables d\'examens obstétriques ou gynécologiques',
+    fr: "Étriers de tables d'examens obstétriques ou gynécologiques",
     en: 'Obstetrical or gynecological exam table foot stirrups',
   },
   '42182903': {
-    fr: 'Tables d\'examens pédiatriques',
+    fr: "Tables d'examens pédiatriques",
     en: 'Pediatric examination tables',
   },
   '42182904': {
-    fr: 'Systèmes de contention ou de mesure pour tables d\'examen pédiatriques',
+    fr: "Systèmes de contention ou de mesure pour tables d'examen pédiatriques",
     en: 'Pediatric examination table restraint or measurement systems',
   },
   '42183000': {
-    fr: 'Produits d\'examen pour diagnostics ophtalmiques',
+    fr: "Produits d'examen pour diagnostics ophtalmiques",
     en: 'Ophthalmic diagnostic exam products',
   },
   '42183001': {
-    fr: 'Échelles et cartes d\'acuité visuelle',
+    fr: "Échelles et cartes d'acuité visuelle",
     en: 'Eye charts or vision cards',
   },
   '42183002': {
@@ -43712,11 +43712,11 @@ export default {
     en: 'Patient room lighting or accessories',
   },
   '42191602': {
-    fr: 'Éclairages ou accessoires pour salle d\'opération',
+    fr: "Éclairages ou accessoires pour salle d'opération",
     en: 'Operating room lighting or accessories',
   },
   '42191603': {
-    fr: 'Tableaux de bord pour équipements d\'hôpitaux',
+    fr: "Tableaux de bord pour équipements d'hôpitaux",
     en: 'Hospital equipment instrument panels',
   },
   '42191604': {
@@ -43752,7 +43752,7 @@ export default {
     en: 'Nurse communication modules or systems',
   },
   '42191612': {
-    fr: 'Systèmes d\'interphones pour hôpitaux',
+    fr: "Systèmes d'interphones pour hôpitaux",
     en: 'Hospital intercom systems',
   },
   '42191700': {
@@ -43760,7 +43760,7 @@ export default {
     en: 'Medical gas products',
   },
   '42191701': {
-    fr: 'Rails de distribution d\'électricité ou de gaz médicaux',
+    fr: "Rails de distribution d'électricité ou de gaz médicaux",
     en: 'Medical gas or electric service tracks',
   },
   '42191702': {
@@ -43788,11 +43788,11 @@ export default {
     en: 'Medical vacuum systems',
   },
   '42191708': {
-    fr: 'Boîtiers de régulation de la pression de l\'air médical',
+    fr: "Boîtiers de régulation de la pression de l'air médical",
     en: 'Medical air pressure control cabinets',
   },
   '42191709': {
-    fr: 'Robinets d\'arrêt ou compartiments à robinets pour gaz médicaux',
+    fr: "Robinets d'arrêt ou compartiments à robinets pour gaz médicaux",
     en: 'Medical gas shutoff valves or valve boxes',
   },
   '42191710': {
@@ -43872,7 +43872,7 @@ export default {
     en: 'Bedside clinical cabinets or accessories',
   },
   '42191902': {
-    fr: 'Armoires d\'hôpital',
+    fr: "Armoires d'hôpital",
     en: 'Hospital armoires',
   },
   '42191903': {
@@ -43900,15 +43900,15 @@ export default {
     en: 'Medical chart caddies or accessories',
   },
   '42192000': {
-    fr: 'Tables d\'examen clinique et de soins',
+    fr: "Tables d'examen clinique et de soins",
     en: 'Clinical procedure and examination tables',
   },
   '42192001': {
-    fr: 'Tables d\'examen et de soins médicaux pour usage général',
+    fr: "Tables d'examen et de soins médicaux pour usage général",
     en: 'Medical exam or procedure tables for general use',
   },
   '42192002': {
-    fr: 'Accessoires de tables d\'examen et de soins médicaux pour usage général, à l\'exclusion des housses de protection',
+    fr: "Accessoires de tables d'examen et de soins médicaux pour usage général, à l'exclusion des housses de protection",
     en: 'Medical exam or procedure table accessories for general use excluding cover sheets',
   },
   '42192003': {
@@ -43940,7 +43940,7 @@ export default {
     en: 'Medical facility visitor chairs',
   },
   '42192107': {
-    fr: 'Chaises et accessoires d\'examen clinique',
+    fr: "Chaises et accessoires d'examen clinique",
     en: 'Clinical examination chairs or accessories',
   },
   '42192200': {
@@ -44028,7 +44028,7 @@ export default {
     en: 'Medical equipment transport and transfer products',
   },
   '42192401': {
-    fr: 'Chariots d\'urgence et de réanimation',
+    fr: "Chariots d'urgence et de réanimation",
     en: 'Emergency or resuscitation carts',
   },
   '42192402': {
@@ -44036,7 +44036,7 @@ export default {
     en: 'Diagnostic or monitoring equipment specific carts',
   },
   '42192403': {
-    fr: 'Chariots d\'isolement médical',
+    fr: "Chariots d'isolement médical",
     en: 'Medical isolation carts',
   },
   '42192404': {
@@ -44088,7 +44088,7 @@ export default {
     en: 'Aneurysm encapsulating kits',
   },
   '42200000': {
-    fr: 'Produits d\'imagerie diagnostique médicale et de médecine nucléaire',
+    fr: "Produits d'imagerie diagnostique médicale et de médecine nucléaire",
     en: 'Medical diagnostic imaging and nuclear medicine products',
   },
   '42201500': {
@@ -44128,11 +44128,11 @@ export default {
     en: 'Medical computed tomography CT or CAT monitors',
   },
   '42201509': {
-    fr: 'Conditionneurs d\'alimentation pour tomographie médicale par ordinateur',
+    fr: "Conditionneurs d'alimentation pour tomographie médicale par ordinateur",
     en: 'Medical computed tomography CT or CAT power conditioners',
   },
   '42201510': {
-    fr: 'Dispositifs ou fantômes d\'assurance de la qualité ou d\'étalonnage pour tomographie médicale par ordinateur',
+    fr: "Dispositifs ou fantômes d'assurance de la qualité ou d'étalonnage pour tomographie médicale par ordinateur",
     en: 'Medical computed tomography CT or CAT quality assurance or calibration phantoms or devices',
   },
   '42201511': {
@@ -44148,7 +44148,7 @@ export default {
     en: 'Medical computed tomography CT or CAT ultrafast system components',
   },
   '42201600': {
-    fr: 'Produits d\'imagerie médicale par résonance magnétique',
+    fr: "Produits d'imagerie médicale par résonance magnétique",
     en: 'Medical magnetic resonance imaging MRI products',
   },
   '42201601': {
@@ -44160,11 +44160,11 @@ export default {
     en: 'Medical magnetic resonance imaging MRI mobile or transportable or van systems',
   },
   '42201603': {
-    fr: 'Composants de système tridimensionnel d\'imagerie médicale par résonnance magnétique',
+    fr: "Composants de système tridimensionnel d'imagerie médicale par résonnance magnétique",
     en: 'Medical magnetic resonance imaging MRI 3 dimensional system components',
   },
   '42201604': {
-    fr: 'Dispositifs ou fantômes d\'assurance de la qualité ou d\'étalonnage pour imagerie médicale par résonnance magnétique',
+    fr: "Dispositifs ou fantômes d'assurance de la qualité ou d'étalonnage pour imagerie médicale par résonnance magnétique",
     en: 'Medical magnetic resonance imaging MRI quality assurance or calibration phantoms or devices',
   },
   '42201605': {
@@ -44200,15 +44200,15 @@ export default {
     en: 'Medical ultrasound and doppler and echo imaging products',
   },
   '42201701': {
-    fr: 'Appareils d\'imagerie médicale cardiaque par ultrasons, doppler ou échographie, et cardioscopes',
+    fr: "Appareils d'imagerie médicale cardiaque par ultrasons, doppler ou échographie, et cardioscopes",
     en: 'Cardiac ultrasound or doppler or echo units or cardioscopes',
   },
   '42201702': {
-    fr: 'Appareils à ultrasons ou d\'échographie ftale ou gynécologique',
+    fr: "Appareils à ultrasons ou d'échographie ftale ou gynécologique",
     en: 'Fetal or gynecological ultrasound or echo units',
   },
   '42201703': {
-    fr: 'Appareils à ultrasons médicaux ou d\'échographie pour mammographie',
+    fr: "Appareils à ultrasons médicaux ou d'échographie pour mammographie",
     en: 'Mammographic ultrasound or echo units',
   },
   '42201704': {
@@ -44216,11 +44216,11 @@ export default {
     en: 'Medical ultrasound bone densitometers',
   },
   '42201705': {
-    fr: 'Housses pour sondes à ultrasons médicaux, sonde doppler ou d\'échographie',
+    fr: "Housses pour sondes à ultrasons médicaux, sonde doppler ou d'échographie",
     en: 'Medical ultrasound or doppler or echo probe covers',
   },
   '42201706': {
-    fr: 'Sondes à ultrasons médicaux, sonde doppler ou d\'échographie',
+    fr: "Sondes à ultrasons médicaux, sonde doppler ou d'échographie",
     en: 'Medical ultrasound or doppler or echo probes',
   },
   '42201707': {
@@ -44244,11 +44244,11 @@ export default {
     en: 'Medical ultrasound or doppler or echo transducers or accessories',
   },
   '42201712': {
-    fr: 'Appareils à ultrasons médicaux ou doppler ou à échos d\'impulsions ou d\'échographie pour usage de diagnostic général',
+    fr: "Appareils à ultrasons médicaux ou doppler ou à échos d'impulsions ou d'échographie pour usage de diagnostic général",
     en: 'Medical ultrasound or doppler or pulse echo or echography units for general diagnostic use',
   },
   '42201713': {
-    fr: 'Composants tridimensionnels pour appareils à ultrasons médicaux ou doppler ou à échos d\'impulsions',
+    fr: "Composants tridimensionnels pour appareils à ultrasons médicaux ou doppler ou à échos d'impulsions",
     en: 'Medical ultrasound or doppler or echo three dimensional components',
   },
   '42201714': {
@@ -44256,7 +44256,7 @@ export default {
     en: 'Thesiometers',
   },
   '42201715': {
-    fr: 'Sondes vaginales à ultrasons ou d\'échographie et accessoires',
+    fr: "Sondes vaginales à ultrasons ou d'échographie et accessoires",
     en: 'Vaginal ultrasound or echo probes or accessories',
   },
   '42201716': {
@@ -44320,7 +44320,7 @@ export default {
     en: 'Medical x ray film or cassettes for general use',
   },
   '42201811': {
-    fr: 'Appareils d\'assurance de la qualité ou d\'étalonnage pour radiologie médicale',
+    fr: "Appareils d'assurance de la qualité ou d'étalonnage pour radiologie médicale",
     en: 'Medical x ray quality assurance or calibration devices',
   },
   '42201812': {
@@ -44460,7 +44460,7 @@ export default {
     en: 'Medical x ray film illuminators and viewing equipment',
   },
   '42201901': {
-    fr: 'Spots d\'éclairage pour films radiologiques médicaux',
+    fr: "Spots d'éclairage pour films radiologiques médicaux",
     en: 'Medical x ray film hot spot lights',
   },
   '42201902': {
@@ -44512,7 +44512,7 @@ export default {
     en: 'Lymphatic mapping collimators',
   },
   '42202005': {
-    fr: 'Kit d\'examen de cartographie lymphatique',
+    fr: "Kit d'examen de cartographie lymphatique",
     en: 'Lymphatic mapping procedure pack',
   },
   '42202100': {
@@ -44524,7 +44524,7 @@ export default {
     en: 'Brachytherapy intracavity containers or seeds',
   },
   '42202102': {
-    fr: 'Cathéters, seringues, instruments d\'introduction ou applicateurs pour curiethérapie',
+    fr: "Cathéters, seringues, instruments d'introduction ou applicateurs pour curiethérapie",
     en: 'Brachytherapy catheters or syringes or inserters or applicators',
   },
   '42202103': {
@@ -44556,19 +44556,19 @@ export default {
     en: 'Cushion sets for radiosurgical helmets',
   },
   '42202300': {
-    fr: 'Produits de radiothérapie de conformation avec modulation d\'intensité par accélérateur linéaire',
+    fr: "Produits de radiothérapie de conformation avec modulation d'intensité par accélérateur linéaire",
     en: 'Medical linear accelerator intensity modulated radiation therapy IMRT products',
   },
   '42202301': {
-    fr: 'Unités 2 D de radiothérapie de conformation avec modulation d\'intensité par accélérateur linéaire',
+    fr: "Unités 2 D de radiothérapie de conformation avec modulation d'intensité par accélérateur linéaire",
     en: 'Medical linear accelerator intensity modulated radiation therapy IMRT two dimensional units',
   },
   '42202302': {
-    fr: 'Unités 3 D de radiothérapie de conformation avec modulation d\'intensité par accélérateur linéaire',
+    fr: "Unités 3 D de radiothérapie de conformation avec modulation d'intensité par accélérateur linéaire",
     en: 'Medical linear accelerator intensity modulated radiation therapy IMRT three dimensional units',
   },
   '42202303': {
-    fr: 'Collimateurs de radiothérapie de conformation avec modulation d\'intensité par accélérateur linéaire',
+    fr: "Collimateurs de radiothérapie de conformation avec modulation d'intensité par accélérateur linéaire",
     en: 'Medical linear accelerator intensity modulated radiation therapy IMRT collimators',
   },
   '42202400': {
@@ -44588,11 +44588,11 @@ export default {
     en: 'Medical single photon emission computed tomography SPECT units',
   },
   '42202600': {
-    fr: 'Produits de radioimmunothérapie et d\'administration d\'isotopes radioactifs',
+    fr: "Produits de radioimmunothérapie et d'administration d'isotopes radioactifs",
     en: 'Radioimmunotherapy and radioisotope administration products',
   },
   '42202601': {
-    fr: 'Fournitures pour traitement de l\'irradiation de la thyroïde',
+    fr: "Fournitures pour traitement de l'irradiation de la thyroïde",
     en: 'Thyroid irradiation therapy supplies',
   },
   '42202602': {
@@ -44692,11 +44692,11 @@ export default {
     en: 'Coronary stents',
   },
   '42203402': {
-    fr: 'Cathéters ou jeux de cathéters vasculaires diagnostiques ou d\'intervention',
+    fr: "Cathéters ou jeux de cathéters vasculaires diagnostiques ou d'intervention",
     en: 'Diagnostic or interventional vascular catheters or sets',
   },
   '42203403': {
-    fr: 'Appareils d\'introduction ou kits d\'introduction de cathéters vasculaires diagnostiques ou d\'intervention',
+    fr: "Appareils d'introduction ou kits d'introduction de cathéters vasculaires diagnostiques ou d'intervention",
     en: 'Diagnostic or interventional vascular catheter introducers or sets',
   },
   '42203404': {
@@ -44704,7 +44704,7 @@ export default {
     en: 'Vascular imaging guidewires or snares or accessories',
   },
   '42203405': {
-    fr: 'Ballons-cathéters d\'angioplastie',
+    fr: "Ballons-cathéters d'angioplastie",
     en: 'Angioplasty balloon catheter',
   },
   '42203406': {
@@ -44748,7 +44748,7 @@ export default {
     en: 'Cardiac catheterization lab equipment',
   },
   '42203416': {
-    fr: 'Cathéter  d\'ablation cardiaque',
+    fr: "Cathéter  d'ablation cardiaque",
     en: 'Cardiac ablation catheter',
   },
   '42203417': {
@@ -44768,15 +44768,15 @@ export default {
     en: 'Cardiac pacing leads or electrodes or accessories',
   },
   '42203503': {
-    fr: 'Appareils d\'introduction ou kits d\'introduction de sondes de stimulation cardiaque',
+    fr: "Appareils d'introduction ou kits d'introduction de sondes de stimulation cardiaque",
     en: 'Cardiac pacing lead introducers or sets',
   },
   '42203600': {
-    fr: 'Produits d\'information et darchivage d\'imagerie  radiologique médicale',
+    fr: "Produits d'information et darchivage d'imagerie  radiologique médicale",
     en: 'Medical radiological imaging information and archiving products',
   },
   '42203601': {
-    fr: 'Équipements pour systèmes de réseau d\'imagerie numérique pour la  défense',
+    fr: "Équipements pour systèmes de réseau d'imagerie numérique pour la  défense",
     en: 'Defense Digital Imaging Network DIN system equipment',
   },
   '42203602': {
@@ -44784,15 +44784,15 @@ export default {
     en: 'Digital Imaging Communications in Medicine DICOM standard system equipment',
   },
   '42203603': {
-    fr: 'Systèmes d\'archivage des images médicales',
+    fr: "Systèmes d'archivage des images médicales",
     en: 'Medical picture archiving computer systems PACS',
   },
   '42203604': {
-    fr: 'Matériel d\'archivage de films radiographiques médicaux',
+    fr: "Matériel d'archivage de films radiographiques médicaux",
     en: 'Medical x ray film archiving system hardware',
   },
   '42203605': {
-    fr: 'Logiciels d\'archivage de films radiographiques médicaux',
+    fr: "Logiciels d'archivage de films radiographiques médicaux",
     en: 'Medical x ray film archiving system software',
   },
   '42203606': {
@@ -44800,11 +44800,11 @@ export default {
     en: 'Teleradiography system',
   },
   '42203700': {
-    fr: 'Équipements et fournitures de traitement d\'images médicales',
+    fr: "Équipements et fournitures de traitement d'images médicales",
     en: 'Medical imaging processing equipment and supplies',
   },
   '42203701': {
-    fr: 'Systèmes d\'estampage à la lumière du jour ou imprimantes d\'identification pour films radiographiques médicaux',
+    fr: "Systèmes d'estampage à la lumière du jour ou imprimantes d'identification pour films radiographiques médicaux",
     en: 'Medical x ray film daylight stampers or identification printers',
   },
   '42203702': {
@@ -44888,7 +44888,7 @@ export default {
     en: 'Medical radiological shielding portable containers for radioactive materials',
   },
   '42204004': {
-    fr: 'Bouchons d\'oreilles protecteurs pour radiologie médicale',
+    fr: "Bouchons d'oreilles protecteurs pour radiologie médicale",
     en: 'Medical radiological shielding earplugs',
   },
   '42204005': {
@@ -44984,7 +44984,7 @@ export default {
     en: 'Elevated toilet seats for the physically challenged',
   },
   '42211608': {
-    fr: 'Barres d\'appui ou rampes de sécurité de baignoire pour handicapés physiques',
+    fr: "Barres d'appui ou rampes de sécurité de baignoire pour handicapés physiques",
     en: 'Grab bars or tub safety rails for the physically challenged',
   },
   '42211610': {
@@ -45012,7 +45012,7 @@ export default {
     en: 'Toilet seat lifters for the physically challenged',
   },
   '42211616': {
-    fr: 'Aides d\'hygiène ou de stimulation pour l\'usage des toilettes pour handicapés physiques',
+    fr: "Aides d'hygiène ou de stimulation pour l'usage des toilettes pour handicapés physiques",
     en: 'Hygiene or stimulation toileting aids for the physically challenged',
   },
   '42211617': {
@@ -45020,7 +45020,7 @@ export default {
     en: 'Transfer benches for the physically challenged',
   },
   '42211618': {
-    fr: 'Bracelets d\'alarme dénurésie nocturne pour handicapés physiques',
+    fr: "Bracelets d'alarme dénurésie nocturne pour handicapés physiques",
     en: 'Bedwetting wrist alarms for the physically chalenged',
   },
   '42211700': {
@@ -45028,7 +45028,7 @@ export default {
     en: 'Communication aids for the physically challenged',
   },
   '42211701': {
-    fr: 'Boutons d\'appel adaptables pour handicapés physiques',
+    fr: "Boutons d'appel adaptables pour handicapés physiques",
     en: 'Adaptive communication switches for the physically challenged',
   },
   '42211702': {
@@ -45036,7 +45036,7 @@ export default {
     en: 'Braille devices for the physically challenged',
   },
   '42211703': {
-    fr: 'Papier d\'écriture en braille pour handicapés physiques',
+    fr: "Papier d'écriture en braille pour handicapés physiques",
     en: 'Braille writing paper or plastic for physically challenged',
   },
   '42211704': {
@@ -45064,7 +45064,7 @@ export default {
     en: 'Typing aids for the physically challenged',
   },
   '42211710': {
-    fr: 'Aides à l\'écriture pour handicapés physiques',
+    fr: "Aides à l'écriture pour handicapés physiques",
     en: 'Writing aids for the physically challenged',
   },
   '42211711': {
@@ -45076,7 +45076,7 @@ export default {
     en: 'Cases for hearing aids',
   },
   '42211800': {
-    fr: 'Aides à la toilette et à l\'habillement pour handicapés physiques',
+    fr: "Aides à la toilette et à l'habillement pour handicapés physiques",
     en: 'Dressing and grooming aids for the physically challenged',
   },
   '42211801': {
@@ -45084,11 +45084,11 @@ export default {
     en: 'Button hooks for the physically challenged',
   },
   '42211802': {
-    fr: 'Kits d\'habillement pour handicapés physiques',
+    fr: "Kits d'habillement pour handicapés physiques",
     en: 'Dressing kits for the physically challenged',
   },
   '42211803': {
-    fr: 'Bâtons d\'habillement pour handicapés physiques',
+    fr: "Bâtons d'habillement pour handicapés physiques",
     en: 'Dressing sticks for the physically challenged',
   },
   '42211804': {
@@ -45096,7 +45096,7 @@ export default {
     en: 'Hairbrushes or combs for the physically challenged',
   },
   '42211805': {
-    fr: 'Miroirs d\'inspection pour handicapés physiques',
+    fr: "Miroirs d'inspection pour handicapés physiques",
     en: 'Inspection mirror for the physically challenged',
   },
   '42211806': {
@@ -45140,7 +45140,7 @@ export default {
     en: 'Anti slip materials for the physically challenged',
   },
   '42211902': {
-    fr: 'Appareils d\'aide à la préparation des repas pour handicapés physiques',
+    fr: "Appareils d'aide à la préparation des repas pour handicapés physiques",
     en: 'Assistive cooking devices for the physically challenged',
   },
   '42211903': {
@@ -45176,7 +45176,7 @@ export default {
     en: 'Food catchers or bibs for the physically challenged',
   },
   '42211911': {
-    fr: 'Bagues d\'assiettes pour handicapés physiques',
+    fr: "Bagues d'assiettes pour handicapés physiques",
     en: 'Food guards for the physically challenged',
   },
   '42211912': {
@@ -45208,7 +45208,7 @@ export default {
     en: 'Talking food scales for the physically challenged',
   },
   '42212000': {
-    fr: 'Aides pour l\'entretien ménager et la maison pour handicapés physique',
+    fr: "Aides pour l'entretien ménager et la maison pour handicapés physique",
     en: 'Housekeeping and homemaking aids for the physically challenged',
   },
   '42212001': {
@@ -45224,7 +45224,7 @@ export default {
     en: 'Knob turners for the physically challenged',
   },
   '42212004': {
-    fr: 'Extensions d\'interrupteurs électriques pour handicapés physiques',
+    fr: "Extensions d'interrupteurs électriques pour handicapés physiques",
     en: 'Light switch extensions for the physically challenged',
   },
   '42212005': {
@@ -45236,7 +45236,7 @@ export default {
     en: 'Self opening scissors for the physically challenged',
   },
   '42212007': {
-    fr: 'Brosses d\'aspiration pour handicapés physiques',
+    fr: "Brosses d'aspiration pour handicapés physiques",
     en: 'Suction brushes for the physically challenged',
   },
   '42212100': {
@@ -45388,15 +45388,15 @@ export default {
     en: 'Cardiovascular catheterization kits',
   },
   '42221600': {
-    fr: 'Le tuyau intraveineux et artériel et jeux d\'administration et produits apparentés',
+    fr: "Le tuyau intraveineux et artériel et jeux d'administration et produits apparentés",
     en: 'Intravenous and arterial tubing and administration sets and related products',
   },
   '42221601': {
-    fr: 'Détecteurs de bulles d\'air pour administration intraveineuse ou artérielle',
+    fr: "Détecteurs de bulles d'air pour administration intraveineuse ou artérielle",
     en: 'Intravenous or arterial administration air bubble detectors',
   },
   '42221602': {
-    fr: 'Raccords ou sites d\'injections ou obturateurs ou protecteurs pour administration intraveineuse ou artérielle',
+    fr: "Raccords ou sites d'injections ou obturateurs ou protecteurs pour administration intraveineuse ou artérielle",
     en: 'Intravenous or arterial administration ports or injection sites or caps or protectors',
   },
   '42221603': {
@@ -45428,7 +45428,7 @@ export default {
     en: 'Intravenous or arterial tubing administration sets',
   },
   '42221610': {
-    fr: 'Raccords d\'entrée ou obturateurs ou protecteurs de perforateurs pour tubulures intraveineuses ou artérielles',
+    fr: "Raccords d'entrée ou obturateurs ou protecteurs de perforateurs pour tubulures intraveineuses ou artérielles",
     en: 'Intravenous tubing spike entry ports or caps or protectors',
   },
   '42221611': {
@@ -45436,7 +45436,7 @@ export default {
     en: 'Intravenous tubing spikes or caps or protectors',
   },
   '42221612': {
-    fr: 'Raccords d\'injection sans aiguille ou robinets d\'arrêt ou raccords multiples pour tubulures intraveineuses ou artérielles',
+    fr: "Raccords d'injection sans aiguille ou robinets d'arrêt ou raccords multiples pour tubulures intraveineuses ou artérielles",
     en: 'Intravenous or arterial tubing needleless injection ports or stopcocks or manifolds',
   },
   '42221613': {
@@ -45564,7 +45564,7 @@ export default {
     en: 'Infusion pump kits or accessories',
   },
   '42222100': {
-    fr: 'Systèmes de suspension et de transport d\'équipements intraveineux et artériels',
+    fr: "Systèmes de suspension et de transport d'équipements intraveineux et artériels",
     en: 'Intravenous and arterial equipment suspension and transport systems',
   },
   '42222101': {
@@ -45584,11 +45584,11 @@ export default {
     en: 'Intravenous or arterial line poles or stands',
   },
   '42222200': {
-    fr: 'Systèmes d\'injection intraveineuse  et de retrait sans aiguille',
+    fr: "Systèmes d'injection intraveineuse  et de retrait sans aiguille",
     en: 'Needleless intravenous injection and withdrawal systems',
   },
   '42222201': {
-    fr: 'Jeux de seringues d\'injection intraveineuse sans aiguilles ou canules d\'injection',
+    fr: "Jeux de seringues d'injection intraveineuse sans aiguilles ou canules d'injection",
     en: 'Needleless intravenous injection syringe set or injection cannula',
   },
   '42222202': {
@@ -45600,7 +45600,7 @@ export default {
     en: 'Blood administration and transfusion products',
   },
   '42222301': {
-    fr: 'Kits d\'administration de transfusion sanguine',
+    fr: "Kits d'administration de transfusion sanguine",
     en: 'Blood transfusion administration kits',
   },
   '42222302': {
@@ -45648,11 +45648,11 @@ export default {
     en: 'Enteral feeding infusion pumps',
   },
   '42231502': {
-    fr: 'Kits d\'administration pour alimentation entérale',
+    fr: "Kits d'administration pour alimentation entérale",
     en: 'Enteral feeding administration sets',
   },
   '42231503': {
-    fr: 'Kits ou plateaux d\'irrigation pour alimentation entérale',
+    fr: "Kits ou plateaux d'irrigation pour alimentation entérale",
     en: 'Enteral feeding irrigation sets or trays',
   },
   '42231504': {
@@ -45660,7 +45660,7 @@ export default {
     en: 'Enteral nutrition bags or containers',
   },
   '42231505': {
-    fr: 'Kit d\'alimentation entérale (adaptateurs, connecteurs ou prolongateurs)',
+    fr: "Kit d'alimentation entérale (adaptateurs, connecteurs ou prolongateurs)",
     en: 'Enteral feeding set adapters or connectors or extensions',
   },
   '42231506': {
@@ -45684,7 +45684,7 @@ export default {
     en: 'Enteral feeding infusion pump tubing sets',
   },
   '42231600': {
-    fr: 'Dispositifs d\'accès pour gastrostomie et jéjunostomie',
+    fr: "Dispositifs d'accès pour gastrostomie et jéjunostomie",
     en: 'Gastrostomy and jejunostomy access devices or accessories',
   },
   '42231601': {
@@ -45840,7 +45840,7 @@ export default {
     en: 'Orthopedic casting material for splints',
   },
   '42241507': {
-    fr: 'Systèmes d\'attelles orthopédiques',
+    fr: "Systèmes d'attelles orthopédiques",
     en: 'Orthopedic splint systems',
   },
   '42241509': {
@@ -45916,7 +45916,7 @@ export default {
     en: 'Knee braces or hinged knee supports',
   },
   '42241704': {
-    fr: 'Immobilisateurs pour genou ou contention d\'arthroscopie',
+    fr: "Immobilisateurs pour genou ou contention d'arthroscopie",
     en: 'Knee immobilizers or arthroscopic wraps',
   },
   '42241705': {
@@ -45964,7 +45964,7 @@ export default {
     en: 'Elbow orthopedic softgoods',
   },
   '42241806': {
-    fr: 'Appareillage orthopédique pour l\'avant-bras, le poignet et le pouce',
+    fr: "Appareillage orthopédique pour l'avant-bras, le poignet et le pouce",
     en: 'Forearm or wrist or thumb orthopedic softgoods',
   },
   '42241807': {
@@ -45972,11 +45972,11 @@ export default {
     en: 'Hand or finger orthopedic softgoods',
   },
   '42241808': {
-    fr: 'Appareillage orthopédique pour les côtes ou l\'abdomen',
+    fr: "Appareillage orthopédique pour les côtes ou l'abdomen",
     en: 'Ribs or abdomen orthopedic softgoods',
   },
   '42241809': {
-    fr: 'Appareillage orthopédique pour l\'épaule',
+    fr: "Appareillage orthopédique pour l'épaule",
     en: 'Shoulder orthopedic softgoods',
   },
   '42241811': {
@@ -45984,15 +45984,15 @@ export default {
     en: 'Hernia truss',
   },
   '42241900': {
-    fr: 'Fournitures pour attelles d\'extension ou attelles dynamiques',
+    fr: "Fournitures pour attelles d'extension ou attelles dynamiques",
     en: 'Outrigger and dynamic splinting supplies',
   },
   '42241901': {
-    fr: 'Kits d\'attelles d\'extension',
+    fr: "Kits d'attelles d'extension",
     en: 'Outrigger splint kits',
   },
   '42241902': {
-    fr: 'Pièces ou accessoires d\'attelles d\'extension',
+    fr: "Pièces ou accessoires d'attelles d'extension",
     en: 'Outrigger splint parts or accessories',
   },
   '42242000': {
@@ -46048,7 +46048,7 @@ export default {
     en: 'Orthopedic traction hardware or weights',
   },
   '42242109': {
-    fr: 'Articles pour traction orthopédique d\'usage général',
+    fr: "Articles pour traction orthopédique d'usage général",
     en: 'Orthopedic traction softgoods for general use',
   },
   '42242300': {
@@ -46068,15 +46068,15 @@ export default {
     en: 'Physical and occupational therapy and rehabilitation products',
   },
   '42251500': {
-    fr: 'Produits d\'évaluation des fonctions intellectuelles, de la dextérité, des perceptions et des sensations et produits de traitement',
+    fr: "Produits d'évaluation des fonctions intellectuelles, de la dextérité, des perceptions et des sensations et produits de traitement",
     en: 'Cognitive and dexterity and perceptual and sensory evaluation and therapy products',
   },
   '42251501': {
-    fr: 'Produits d\'apprentissage des techniques de pansage',
+    fr: "Produits d'apprentissage des techniques de pansage",
     en: 'Dressing education products',
   },
   '42251502': {
-    fr: 'Produits d\'évaluation et de test des fonctions intellectuelles, de la dextérité, des perceptions et des sensations',
+    fr: "Produits d'évaluation et de test des fonctions intellectuelles, de la dextérité, des perceptions et des sensations",
     en: 'Cognitive or dexterity or perceptual or sensory evaluation or testing products',
   },
   '42251503': {
@@ -46084,7 +46084,7 @@ export default {
     en: 'Therapeutic games',
   },
   '42251504': {
-    fr: 'Panneaux alvéolés ou panneaux d\'activités thérapeutiques',
+    fr: "Panneaux alvéolés ou panneaux d'activités thérapeutiques",
     en: 'Therapeutic pegboards or activity boards',
   },
   '42251505': {
@@ -46100,11 +46100,11 @@ export default {
     en: 'Rehabilitation exercise devices and equipment',
   },
   '42251601': {
-    fr: 'Poutres ou planches d\'équilibre, blocs de mousse ou planches à bascule pour rééducation ou thérapie',
+    fr: "Poutres ou planches d'équilibre, blocs de mousse ou planches à bascule pour rééducation ou thérapie",
     en: 'Balance beams or boards or bolsters or rockers for rehabilitation or therapy',
   },
   '42251602': {
-    fr: 'Appareils d\'escalade pour rééducation ou thérapie',
+    fr: "Appareils d'escalade pour rééducation ou thérapie",
     en: 'Climbing devices for rehabilitation or therapy',
   },
   '42251603': {
@@ -46112,7 +46112,7 @@ export default {
     en: 'Continuous passive motion CPM devices or accessories',
   },
   '42251604': {
-    fr: 'Patins d\'exercice pour extrémités pour rééducation ou thérapie',
+    fr: "Patins d'exercice pour extrémités pour rééducation ou thérapie",
     en: 'Extremity exercise skates for rehabilitation or therapy',
   },
   '42251605': {
@@ -46196,7 +46196,7 @@ export default {
     en: 'Weight machines for rehabilitation or therapy',
   },
   '42251700': {
-    fr: 'Produits d\'entraînement à la marche',
+    fr: "Produits d'entraînement à la marche",
     en: 'Gait training products',
   },
   '42251701': {
@@ -46204,11 +46204,11 @@ export default {
     en: 'Gait belts for rehabilitation or therapy',
   },
   '42251702': {
-    fr: 'Plans inclinés d\'entraînement à la marche pour rééducation ou thérapie',
+    fr: "Plans inclinés d'entraînement à la marche pour rééducation ou thérapie",
     en: 'Training ramps for rehabilitation or therapy',
   },
   '42251703': {
-    fr: 'Escaliers d\'entraînement pour rééducation ou thérapie',
+    fr: "Escaliers d'entraînement pour rééducation ou thérapie",
     en: 'Training stairs for rehabilitation or therapy',
   },
   '42251704': {
@@ -46220,7 +46220,7 @@ export default {
     en: 'Parallel bars for rehabilitation or therapy',
   },
   '42251706': {
-    fr: 'Tapis roulants ou vélos d\'appartement ou machines d\'exercices ou accessoires d\'exercices',
+    fr: "Tapis roulants ou vélos d'appartement ou machines d'exercices ou accessoires d'exercices",
     en: 'Gait training walkers or bikers or exercisers or accessories',
   },
   '42251800': {
@@ -46324,7 +46324,7 @@ export default {
     en: 'Autopsy equipment and supplies',
   },
   '42261601': {
-    fr: 'Collecteurs de poussière d\'os',
+    fr: "Collecteurs de poussière d'os",
     en: 'Bone dust collectors',
   },
   '42261602': {
@@ -46356,7 +46356,7 @@ export default {
     en: 'Autopsy infectious disease kits',
   },
   '42261609': {
-    fr: 'Étiquettes ou bracelets d\'identification pour autopsie',
+    fr: "Étiquettes ou bracelets d'identification pour autopsie",
     en: 'Postmortem identification tags or bracelets',
   },
   '42261610': {
@@ -46396,11 +46396,11 @@ export default {
     en: 'Necropsy tables or accessories',
   },
   '42261705': {
-    fr: 'Tables de dissection et accessoires pour autopsie d\'animaux',
+    fr: "Tables de dissection et accessoires pour autopsie d'animaux",
     en: 'Postmortem animal dissection tables or accessories',
   },
   '42261706': {
-    fr: 'Stations de travail et accessoires d\'embaumement',
+    fr: "Stations de travail et accessoires d'embaumement",
     en: 'Embalming workstations or accessories',
   },
   '42261707': {
@@ -46456,7 +46456,7 @@ export default {
     en: 'Clinical forensics equipment and supplies',
   },
   '42261901': {
-    fr: 'Matériel de prise d\'empreintes digitales ou d\'impression pour autopsie',
+    fr: "Matériel de prise d'empreintes digitales ou d'impression pour autopsie",
     en: 'Postmortem fingerprint or impression materials',
   },
   '42261902': {
@@ -46468,7 +46468,7 @@ export default {
     en: 'Postmortem blood detection kits or supplies',
   },
   '42261904': {
-    fr: 'Kits de prélèvement d\'éléments biologiques',
+    fr: "Kits de prélèvement d'éléments biologiques",
     en: 'Biological evidence collection kits',
   },
   '42262000': {
@@ -46532,7 +46532,7 @@ export default {
     en: 'Mortuary hardening compounds',
   },
   '42270000': {
-    fr: 'Produits respiratoires, d\'anesthésie et de réanimation',
+    fr: "Produits respiratoires, d'anesthésie et de réanimation",
     en: 'Respiratory and anesthesia and resuscitation products',
   },
   '42271500': {
@@ -46556,7 +46556,7 @@ export default {
     en: 'Esophageal stethoscopes',
   },
   '42271505': {
-    fr: 'Kits pour moniteurs d\'apnée ou accessoires pour moniteur d\'apnée',
+    fr: "Kits pour moniteurs d'apnée ou accessoires pour moniteur d'apnée",
     en: 'Respiratory monitoring kits or its accessories',
   },
   '42271506': {
@@ -46564,7 +46564,7 @@ export default {
     en: 'Oxygen monitors or supplies',
   },
   '42271600': {
-    fr: 'Produits d\'exploration et de traitement de la fonction pulmonaire',
+    fr: "Produits d'exploration et de traitement de la fonction pulmonaire",
     en: 'Pulmonary function testing and treatment products',
   },
   '42271601': {
@@ -46576,7 +46576,7 @@ export default {
     en: 'Spirometers or its accessories or its supplies',
   },
   '42271603': {
-    fr: 'Appareils d\'exploration de la fonction pulmonaire au chevet du patient',
+    fr: "Appareils d'exploration de la fonction pulmonaire au chevet du patient",
     en: 'Bedside pulmonary function screeners',
   },
   '42271604': {
@@ -46588,7 +46588,7 @@ export default {
     en: 'Pulmonary function calculators',
   },
   '42271606': {
-    fr: 'Appareils d\'étalonnage pulmonaire',
+    fr: "Appareils d'étalonnage pulmonaire",
     en: 'Pulmonary calibration devices',
   },
   '42271607': {
@@ -46596,11 +46596,11 @@ export default {
     en: 'Pulmonary functioning tubing or accessories',
   },
   '42271608': {
-    fr: 'Produits d\'évaluation de la charge pulmonaire',
+    fr: "Produits d'évaluation de la charge pulmonaire",
     en: 'Pulmonary stress test products',
   },
   '42271609': {
-    fr: 'Moniteurs ou accessoires pour l\'étude du sommeil',
+    fr: "Moniteurs ou accessoires pour l'étude du sommeil",
     en: 'Sleep study monitors or accessories',
   },
   '42271610': {
@@ -46644,7 +46644,7 @@ export default {
     en: 'Inspiratory muscle trainer',
   },
   '42271700': {
-    fr: 'Systèmes ou appareils d\'oxygénothérapie',
+    fr: "Systèmes ou appareils d'oxygénothérapie",
     en: 'Oxygen therapy delivery systems and devices',
   },
   '42271701': {
@@ -46652,7 +46652,7 @@ export default {
     en: 'Medical gas cylinders or related devices',
   },
   '42271702': {
-    fr: 'Concentrateurs d\'oxygène',
+    fr: "Concentrateurs d'oxygène",
     en: 'Oxygen concentrators',
   },
   '42271703': {
@@ -46776,7 +46776,7 @@ export default {
     en: 'Endotracheal or tracheostomy tube repair kits',
   },
   '42271907': {
-    fr: 'Produits ou accessoires d\'aspiration respiratoires',
+    fr: "Produits ou accessoires d'aspiration respiratoires",
     en: 'Respiratory aspirator products or accessories',
   },
   '42271908': {
@@ -46832,11 +46832,11 @@ export default {
     en: 'Bite blocks',
   },
   '42272004': {
-    fr: 'Stylets d\'intubation',
+    fr: "Stylets d'intubation",
     en: 'Intubation stylets',
   },
   '42272005': {
-    fr: 'Pinces d\'intubation',
+    fr: "Pinces d'intubation",
     en: 'Intubation forceps',
   },
   '42272006': {
@@ -46856,19 +46856,19 @@ export default {
     en: 'Patient carbon dioxide detectors',
   },
   '42272010': {
-    fr: 'Pompes d\'aspiration',
+    fr: "Pompes d'aspiration",
     en: 'Suction pumps',
   },
   '42272011': {
-    fr: 'Cathéters d\'aspiration et accessoires',
+    fr: "Cathéters d'aspiration et accessoires",
     en: 'Suction catheters or its accessories',
   },
   '42272012': {
-    fr: 'Sondes ou tubulures d\'aspiration',
+    fr: "Sondes ou tubulures d'aspiration",
     en: 'Suction tube or tubing',
   },
   '42272013': {
-    fr: 'Bouteilles d\'aspiration ou doublures de protection',
+    fr: "Bouteilles d'aspiration ou doublures de protection",
     en: 'Suction canisters or liners',
   },
   '42272014': {
@@ -46892,7 +46892,7 @@ export default {
     en: 'Negative mechanical pressure ventilators',
   },
   '42272101': {
-    fr: 'Poumon d\'acier',
+    fr: "Poumon d'acier",
     en: 'Iron lung',
   },
   '42272102': {
@@ -46920,7 +46920,7 @@ export default {
     en: 'Transport ventilators',
   },
   '42272205': {
-    fr: 'Respirateurs pour soins intensifs chez l\'adulte ou l\'enfant',
+    fr: "Respirateurs pour soins intensifs chez l'adulte ou l'enfant",
     en: 'Adult or pediatric intensive care ventilators',
   },
   '42272206': {
@@ -46944,7 +46944,7 @@ export default {
     en: 'Breathing circuit bags',
   },
   '42272211': {
-    fr: 'Produits d\'hyperinflation',
+    fr: "Produits d'hyperinflation",
     en: 'Hyperinflation products',
   },
   '42272212': {
@@ -46972,11 +46972,11 @@ export default {
     en: 'Ventilator water traps',
   },
   '42272218': {
-    fr: 'Raccords ou lignes de prélèvement d\'échantillon de gaz pour respirateurs',
+    fr: "Raccords ou lignes de prélèvement d'échantillon de gaz pour respirateurs",
     en: 'Ventilator gas sampling ports or lines',
   },
   '42272219': {
-    fr: 'Échangeurs ou filtres de chaleur ou d\'humidité pour respirateurs',
+    fr: "Échangeurs ou filtres de chaleur ou d'humidité pour respirateurs",
     en: 'Ventilator heat or moisture exchangers or filters',
   },
   '42272220': {
@@ -46984,7 +46984,7 @@ export default {
     en: 'Ventilator accessories',
   },
   '42272221': {
-    fr: 'Produits d\'humidification pour respirateurs',
+    fr: "Produits d'humidification pour respirateurs",
     en: 'Ventilator humidification products',
   },
   '42272222': {
@@ -47020,7 +47020,7 @@ export default {
     en: 'Resuscitation masks or accessories',
   },
   '42272304': {
-    fr: 'Composants ou accessoires d\'appareils de réanimation',
+    fr: "Composants ou accessoires d'appareils de réanimation",
     en: 'Resuscitator components or accessories',
   },
   '42272305': {
@@ -47084,7 +47084,7 @@ export default {
     en: 'Anesthesia apparatus screen filters',
   },
   '42272507': {
-    fr: 'Contrôleur thermique pour appareil d\'anesthésie',
+    fr: "Contrôleur thermique pour appareil d'anesthésie",
     en: 'Temperature control for anesthesia apparatus',
   },
   '42272508': {
@@ -47092,11 +47092,11 @@ export default {
     en: 'Intrathecal pump',
   },
   '42272509': {
-    fr: 'Calibreurs d\'appareil d\'anesthésie ou accessoires',
+    fr: "Calibreurs d'appareil d'anesthésie ou accessoires",
     en: 'Anesthesia machine calibrators or accessories',
   },
   '42272510': {
-    fr: 'Ensembles de mises à niveau d\'appareil d\'anesthésie ou accessoires',
+    fr: "Ensembles de mises à niveau d'appareil d'anesthésie ou accessoires",
     en: 'Anesthesia machine upgrade kits or accessories',
   },
   '42280000': {
@@ -47156,7 +47156,7 @@ export default {
     en: 'Sterilization lids',
   },
   '42281513': {
-    fr: 'Plaques d\'identification pour stérilisation',
+    fr: "Plaques d'identification pour stérilisation",
     en: 'Sterilization nameplates',
   },
   '42281514': {
@@ -47236,7 +47236,7 @@ export default {
     en: 'Disinfecting or presterilization cleaning equipment and solutions',
   },
   '42281701': {
-    fr: 'Appareils de nettoyage d\'enceinte pour autoclaves ou stérilisateurs',
+    fr: "Appareils de nettoyage d'enceinte pour autoclaves ou stérilisateurs",
     en: 'Chamber cleaners for autoclaves or sterilizers',
   },
   '42281702': {
@@ -47244,7 +47244,7 @@ export default {
     en: 'Disinfectant soaking pans',
   },
   '42281703': {
-    fr: 'Kits d\'instruments d\'entretien',
+    fr: "Kits d'instruments d'entretien",
     en: 'Instrument care kits',
   },
   '42281704': {
@@ -47308,15 +47308,15 @@ export default {
     en: 'Sterilization controls',
   },
   '42281805': {
-    fr: 'Courbes d\'indication de stérilisation',
+    fr: "Courbes d'indication de stérilisation",
     en: 'Sterilization indicator records',
   },
   '42281806': {
-    fr: 'Bandelettes d\'indication de stérilisation',
+    fr: "Bandelettes d'indication de stérilisation",
     en: 'Sterilization indicator strips',
   },
   '42281807': {
-    fr: 'Bandes d\'indication de stérilisation',
+    fr: "Bandes d'indication de stérilisation",
     en: 'Sterilization indicator tapes',
   },
   '42281808': {
@@ -47332,7 +47332,7 @@ export default {
     en: 'Sterilization test packs and accessories',
   },
   '42281900': {
-    fr: 'Fournitures d\'emballage pour stérilisation',
+    fr: "Fournitures d'emballage pour stérilisation",
     en: 'Sterilization wraps and packaging supplies',
   },
   '42281901': {
@@ -47360,7 +47360,7 @@ export default {
     en: 'Sterilization instrument bands',
   },
   '42281907': {
-    fr: 'Protecteurs d\'instruments pour stérilisation',
+    fr: "Protecteurs d'instruments pour stérilisation",
     en: 'Sterilization instrument protectors',
   },
   '42281908': {
@@ -47368,7 +47368,7 @@ export default {
     en: 'Sterilization instrument tray liners',
   },
   '42281909': {
-    fr: 'Pistolets à étiquettes, bandes ou stylos d\'étiquetage pour stérilisation',
+    fr: "Pistolets à étiquettes, bandes ou stylos d'étiquetage pour stérilisation",
     en: 'Sterilization labeling guns or tapes or pens',
   },
   '42281912': {
@@ -47420,7 +47420,7 @@ export default {
     en: 'Surgical bolt or cable or pin or wire cutter instruments',
   },
   '42291603': {
-    fr: 'Pinces chirurgicales pour couper l\'os',
+    fr: "Pinces chirurgicales pour couper l'os",
     en: 'Surgical bone cutting forceps',
   },
   '42291604': {
@@ -47572,11 +47572,11 @@ export default {
     en: 'Circumcision clamp or bell',
   },
   '42291900': {
-    fr: 'Supports et positionneurs d\'instruments et de tubulures chirurgicaux',
+    fr: "Supports et positionneurs d'instruments et de tubulures chirurgicaux",
     en: 'Surgical instrument and tube holders and positioners',
   },
   '42291901': {
-    fr: 'Supports ou positionneurs d\'instruments chirurgicaux',
+    fr: "Supports ou positionneurs d'instruments chirurgicaux",
     en: 'Surgical instrument holders or positioners',
   },
   '42291902': {
@@ -47596,7 +47596,7 @@ export default {
     en: 'Surgical inserters and extractors and related products',
   },
   '42292101': {
-    fr: 'Inserseurs chirurgicaux et kits d\'insertion',
+    fr: "Inserseurs chirurgicaux et kits d'insertion",
     en: 'Surgical inserters or inserters kits',
   },
   '42292102': {
@@ -47752,11 +47752,11 @@ export default {
     en: 'Surgical cerclage instruments',
   },
   '42292902': {
-    fr: 'Supports d\'aiguilles laser chirurgicaux',
+    fr: "Supports d'aiguilles laser chirurgicaux",
     en: 'Surgical laser needle holders',
   },
   '42292903': {
-    fr: 'Supports d\'aiguilles chirurgicaux pour usage général',
+    fr: "Supports d'aiguilles chirurgicaux pour usage général",
     en: 'Surgical needle holders for general use',
   },
   '42292904': {
@@ -47988,7 +47988,7 @@ export default {
     en: 'Surgical spreaders',
   },
   '42293400': {
-    fr: 'Manipulateurs chirurgicaux, positionneurs d\'implants et produits apparentés',
+    fr: "Manipulateurs chirurgicaux, positionneurs d'implants et produits apparentés",
     en: 'Surgical manipulators and implant positioners and related products',
   },
   '42293401': {
@@ -48016,11 +48016,11 @@ export default {
     en: 'Ureteral filiforms',
   },
   '42293500': {
-    fr: 'Canules, embouts et stylets d\'aspiration et d\'irrigation chirurgicale et produits apparentés',
+    fr: "Canules, embouts et stylets d'aspiration et d'irrigation chirurgicale et produits apparentés",
     en: 'Surgical suction and irrigation cannulas and tips and stylets and related products',
   },
   '42293501': {
-    fr: 'Pièces à main, canules, cystotomes, embouts dirrigation ou d\'aspiration chirurgicale ou produits apparentés',
+    fr: "Pièces à main, canules, cystotomes, embouts dirrigation ou d'aspiration chirurgicale ou produits apparentés",
     en: 'Surgical irrigation or suction handpieces or cannulas or cystotomes or tips or related products',
   },
   '42293502': {
@@ -48028,7 +48028,7 @@ export default {
     en: 'Surgical laser suction or irrigation cannulas or tips or related products',
   },
   '42293503': {
-    fr: 'Appareils chirurgicaux d\'extraction et curettes à aspiration ou produits apparentés',
+    fr: "Appareils chirurgicaux d'extraction et curettes à aspiration ou produits apparentés",
     en: 'Surgical vacuum extraction devices or curettes or related products',
   },
   '42293504': {
@@ -48156,15 +48156,15 @@ export default {
     en: 'Surgical instrument sets and systems and trays',
   },
   '42294201': {
-    fr: 'Kits d\'instruments pour chirurgie cardiovasculaire et thoracique',
+    fr: "Kits d'instruments pour chirurgie cardiovasculaire et thoracique",
     en: 'Cardiovascular or thoracic surgical instrument sets',
   },
   '42294202': {
-    fr: 'Kits d\'instruments ou systèmes de fixation externe',
+    fr: "Kits d'instruments ou systèmes de fixation externe",
     en: 'External fixation instrument sets or systems',
   },
   '42294203': {
-    fr: 'Kits généraux d\'instruments de chirurgie',
+    fr: "Kits généraux d'instruments de chirurgie",
     en: 'General surgical instrument sets',
   },
   '42294204': {
@@ -48172,7 +48172,7 @@ export default {
     en: 'Micro or delicate or plastic surgery instrument sets',
   },
   '42294205': {
-    fr: 'Kits d\'instruments pour neurochirurgie ou chirurgie de la colonne vertébrale',
+    fr: "Kits d'instruments pour neurochirurgie ou chirurgie de la colonne vertébrale",
     en: 'Neurosurgical or spinal instrument sets',
   },
   '42294206': {
@@ -48184,11 +48184,11 @@ export default {
     en: 'Maxillofacial surgical instrument sets',
   },
   '42294208': {
-    fr: 'Systèmes d\'instruments pour révision orthopédique ou arthroplastie par prothèse totale',
+    fr: "Systèmes d'instruments pour révision orthopédique ou arthroplastie par prothèse totale",
     en: 'Orthopedic revision or total joint instrument systems',
   },
   '42294209': {
-    fr: 'Systèmes d\'instruments pour orthopédie reconstructive',
+    fr: "Systèmes d'instruments pour orthopédie reconstructive",
     en: 'Orthopedic trauma fixation instrument systems',
   },
   '42294210': {
@@ -48232,7 +48232,7 @@ export default {
     en: 'Orthopedic surgical instrument sets',
   },
   '42294220': {
-    fr: 'Systèmes de collecte et d\'administration de sang',
+    fr: "Systèmes de collecte et d'administration de sang",
     en: 'Blood recovery and delivery systems',
   },
   '42294300': {
@@ -48248,7 +48248,7 @@ export default {
     en: 'Minimally invasive breast biopsy premium loading units',
   },
   '42294303': {
-    fr: 'Guides d\'aiguille de biopsie mammaire peu invasive',
+    fr: "Guides d'aiguille de biopsie mammaire peu invasive",
     en: 'Minimally invasive breast biopsy needle guides',
   },
   '42294304': {
@@ -48256,7 +48256,7 @@ export default {
     en: 'Minimally invasive breast biopsy marker instruments',
   },
   '42294305': {
-    fr: 'Appareils d\'aspiration pour biopsie mammaire peu invasive et accessoires',
+    fr: "Appareils d'aspiration pour biopsie mammaire peu invasive et accessoires",
     en: 'Minimally invasive breast biopsy vacuum units or accessories',
   },
   '42294306': {
@@ -48308,7 +48308,7 @@ export default {
     en: 'Ophthalmic burs or handles or rust ring removers',
   },
   '42294508': {
-    fr: 'Embouts d\'irrigation ou d\'aspiration pour aiguilles ophtalmiques',
+    fr: "Embouts d'irrigation ou d'aspiration pour aiguilles ophtalmiques",
     en: 'Ophthalmic needle irrigating or aspirating tips',
   },
   '42294509': {
@@ -48392,7 +48392,7 @@ export default {
     en: 'Viscoelastic agent or viscosurgical device',
   },
   '42294600': {
-    fr: 'Produits d\'autotransfusion',
+    fr: "Produits d'autotransfusion",
     en: 'Autotransfusion products',
   },
   '42294601': {
@@ -48404,7 +48404,7 @@ export default {
     en: 'Autotransfusion bowl kits or centrifugal kits',
   },
   '42294603': {
-    fr: 'Appareils d\'autotransfusion',
+    fr: "Appareils d'autotransfusion",
     en: 'Autotransfusion units',
   },
   '42294604': {
@@ -48416,7 +48416,7 @@ export default {
     en: 'Autotransfusion reservoirs or its accessories',
   },
   '42294606': {
-    fr: 'Jeux ou kits de tubulures d\'autotransfusion',
+    fr: "Jeux ou kits de tubulures d'autotransfusion",
     en: 'Autotransfusion tubing sets or kits',
   },
   '42294607': {
@@ -48436,7 +48436,7 @@ export default {
     en: 'Intraaortic balloon pumps or accessories',
   },
   '42294703': {
-    fr: 'Dispositifs ou accessoires d\'aspiration intracardiaques',
+    fr: "Dispositifs ou accessoires d'aspiration intracardiaques",
     en: 'Intracardiac suction devices or accessories',
   },
   '42294704': {
@@ -48472,7 +48472,7 @@ export default {
     en: 'Perfusion haemoconcentrators or accessories',
   },
   '42294712': {
-    fr: 'Moniteur de saturation en oxygène et d\'hématocryte pour perfusion et accessoires',
+    fr: "Moniteur de saturation en oxygène et d'hématocryte pour perfusion et accessoires",
     en: 'Perfusion oxygen or hematocrit saturation monitors or accessories',
   },
   '42294713': {
@@ -48492,7 +48492,7 @@ export default {
     en: 'Perfusion venous reservoirs',
   },
   '42294717': {
-    fr: 'Appareils d\'assistance ventriculaire',
+    fr: "Appareils d'assistance ventriculaire",
     en: 'Ventricular assist devices',
   },
   '42294718': {
@@ -48556,7 +48556,7 @@ export default {
     en: 'Endoscopic instruments and supplies and accessories and related products',
   },
   '42294901': {
-    fr: 'Positionneurs ou supports d\'endoscopes ou d\'instruments',
+    fr: "Positionneurs ou supports d'endoscopes ou d'instruments",
     en: 'Endoscope or instrument positioners or holders',
   },
   '42294902': {
@@ -48564,7 +48564,7 @@ export default {
     en: 'Endoscopic applicators or elevators',
   },
   '42294903': {
-    fr: 'Aiguilles d\'aspiration ou de biopsie endoscopiques',
+    fr: "Aiguilles d'aspiration ou de biopsie endoscopiques",
     en: 'Endoscopic aspiration or biopsy needles',
   },
   '42294904': {
@@ -48608,7 +48608,7 @@ export default {
     en: 'Endoscopic hemostatic balloons or needles or tubes or accessories',
   },
   '42294914': {
-    fr: 'Kits d\'instruments endoscopiques',
+    fr: "Kits d'instruments endoscopiques",
     en: 'Endoscopic instrument sets',
   },
   '42294915': {
@@ -48616,15 +48616,15 @@ export default {
     en: 'Endoscopic instrument spreaders',
   },
   '42294916': {
-    fr: 'Filtres d\'insufflation pour endoscopie',
+    fr: "Filtres d'insufflation pour endoscopie",
     en: 'Endoscopic insufflation filters',
   },
   '42294917': {
-    fr: 'Aiguilles d\'insufflation pour endoscopie',
+    fr: "Aiguilles d'insufflation pour endoscopie",
     en: 'Endoscopic insufflation needles',
   },
   '42294918': {
-    fr: 'Tubulures d\'insufflation pour endoscopie',
+    fr: "Tubulures d'insufflation pour endoscopie",
     en: 'Endoscopic insufflation tubing',
   },
   '42294919': {
@@ -48660,7 +48660,7 @@ export default {
     en: 'Endoscopic overtubes',
   },
   '42294927': {
-    fr: 'Kits ou plateaux d\'instruments endoscopiques',
+    fr: "Kits ou plateaux d'instruments endoscopiques",
     en: 'Endoscopic instrument packs or trays or kits',
   },
   '42294928': {
@@ -48684,7 +48684,7 @@ export default {
     en: 'Endoscopic stents or tubes',
   },
   '42294933': {
-    fr: 'Embouts d\'aspiration ou d\'irrigation ou sondes de coagulation endoscopiques ou accessoires',
+    fr: "Embouts d'aspiration ou d'irrigation ou sondes de coagulation endoscopiques ou accessoires",
     en: 'Endoscopic suction or irrigation tips or coagulation probes or accessories',
   },
   '42294934': {
@@ -48692,11 +48692,11 @@ export default {
     en: 'Endoscopic suturing devices',
   },
   '42294935': {
-    fr: 'Trocards, gaines, obturateurs, canules ou plateaux d\'instruments ou kits ou produits apparentés',
+    fr: "Trocards, gaines, obturateurs, canules ou plateaux d'instruments ou kits ou produits apparentés",
     en: 'Endoscopic trocars or sheaths or obturators or cannulas or procedure trays or kits or related products',
   },
   '42294936': {
-    fr: 'Conduits d\'instruments ou éléments de conduits endoscopiques',
+    fr: "Conduits d'instruments ou éléments de conduits endoscopiques",
     en: 'Endoscopic working elements or working channels',
   },
   '42294937': {
@@ -48788,7 +48788,7 @@ export default {
     en: 'Endoscopic equipment and accessories and related products',
   },
   '42295001': {
-    fr: 'Appareils de maintenance d\'endoscope ou accessoires',
+    fr: "Appareils de maintenance d'endoscope ou accessoires",
     en: 'Endoscope maintenance units or accessories',
   },
   '42295002': {
@@ -48804,7 +48804,7 @@ export default {
     en: 'Endoscopic equipment or procedure carts or accessories',
   },
   '42295005': {
-    fr: 'Kits d\'équipements endoscopiques',
+    fr: "Kits d'équipements endoscopiques",
     en: 'Endoscopic equipment sets',
   },
   '42295006': {
@@ -48812,11 +48812,11 @@ export default {
     en: 'Endoscopic heater probe units or heater probes or accessories',
   },
   '42295007': {
-    fr: 'Systèmes d\'imagerie endoscopique et accessoires',
+    fr: "Systèmes d'imagerie endoscopique et accessoires",
     en: 'Endoscopic imaging systems or accessories',
   },
   '42295008': {
-    fr: 'Appareils d\'insufflation ou de distension pour endoscopie, et accessoires',
+    fr: "Appareils d'insufflation ou de distension pour endoscopie, et accessoires",
     en: 'Endoscopic insufflation or distention units or accessories',
   },
   '42295009': {
@@ -48860,11 +48860,11 @@ export default {
     en: 'Cryosurgery equipment or accessories',
   },
   '42295103': {
-    fr: 'Salle d\'accouchement ou tables pour césarienne ou accessoires ou produits apparentés',
+    fr: "Salle d'accouchement ou tables pour césarienne ou accessoires ou produits apparentés",
     en: 'Delivery room or cesarean section patient procedure tables or accessories or related products',
   },
   '42295104': {
-    fr: 'Équipements d\'électrochirurgie ou d\'électrocautérisation, accessoires et produits apparentés',
+    fr: "Équipements d'électrochirurgie ou d'électrocautérisation, accessoires et produits apparentés",
     en: 'Electrosurgical or electrocautery equipment or accessories or related products',
   },
   '42295105': {
@@ -48876,15 +48876,15 @@ export default {
     en: 'Lap mayo trays or mayo stands for surgical use or accessories',
   },
   '42295107': {
-    fr: 'Chariots de rangement ou chariots d\'instruments ou casiers muraux pour salles d\'opération',
+    fr: "Chariots de rangement ou chariots d'instruments ou casiers muraux pour salles d'opération",
     en: 'Operating room case carts or procedure carts or wall racks or accessories',
   },
   '42295108': {
-    fr: 'Tables de fracture ou dorthopédie pour salles d\'opération, accessoires et produits apparentés',
+    fr: "Tables de fracture ou dorthopédie pour salles d'opération, accessoires et produits apparentés",
     en: 'Operating room patient fracture tables or orthopedic tables or accessories or related products',
   },
   '42295109': {
-    fr: 'Baquets roulants pour salles d\'opération, accessoires et produits apparentés',
+    fr: "Baquets roulants pour salles d'opération, accessoires et produits apparentés",
     en: 'Operating room kick buckets or accessories or related products',
   },
   '42295110': {
@@ -48892,19 +48892,19 @@ export default {
     en: 'Operating room lighting for surgical field or accessories or related products',
   },
   '42295111': {
-    fr: 'Dispositifs de positionnement du patient pour salles d\'opération et accessoires',
+    fr: "Dispositifs de positionnement du patient pour salles d'opération et accessoires",
     en: 'Operating room patient positioning devices or accessories',
   },
   '42295112': {
-    fr: 'Tables d\'opération pour patient, accessoires et produits apparentés',
+    fr: "Tables d'opération pour patient, accessoires et produits apparentés",
     en: 'Operating room patient procedure tables or accessories or related products',
   },
   '42295113': {
-    fr: 'Équipements d\'irrigation ou d\'aspiration ophtalmique et accessoires',
+    fr: "Équipements d'irrigation ou d'aspiration ophtalmique et accessoires",
     en: 'Ophthalmic irrigation or aspiration equipment or accessories',
   },
   '42295114': {
-    fr: 'Équipements de phacoémulsification ou d\'extraction pour chirurgie ophtalmique et accessoires',
+    fr: "Équipements de phacoémulsification ou d'extraction pour chirurgie ophtalmique et accessoires",
     en: 'Phacoemulsification or extrusion equipment or accessories for ophthalmic surgery',
   },
   '42295115': {
@@ -48920,7 +48920,7 @@ export default {
     en: 'Surgical blanket or solution warming cabinets or accessories',
   },
   '42295118': {
-    fr: 'Équipements pour pompe d\'irrigation chirurgicale ou lavage pulsé, avec ou sans aspiration, et accessoires',
+    fr: "Équipements pour pompe d'irrigation chirurgicale ou lavage pulsé, avec ou sans aspiration, et accessoires",
     en: 'Surgical irrigation pump equipment or pulsed lavage or accessories with or without suction',
   },
   '42295119': {
@@ -48940,7 +48940,7 @@ export default {
     en: 'Surgical pneumatic or electric tourniquets or accessories',
   },
   '42295123': {
-    fr: 'Appareils d\'aspiration chirurgicale, extracteurs à vide, aspirateurs chirurgicaux à ultrasons, régulateurs et accessoires',
+    fr: "Appareils d'aspiration chirurgicale, extracteurs à vide, aspirateurs chirurgicaux à ultrasons, régulateurs et accessoires",
     en: 'Surgical suction machines or vacuum extractors or ultrasonic surgical aspirators or regulators or accessories',
   },
   '42295124': {
@@ -48964,7 +48964,7 @@ export default {
     en: 'Maxillofacial surgical instruments or accessories',
   },
   '42295129': {
-    fr: 'Distributeurs de médication pour salle d\'opération ou produits apparentés',
+    fr: "Distributeurs de médication pour salle d'opération ou produits apparentés",
     en: 'Operating room medication dispensers or related products',
   },
   '42295130': {
@@ -49024,7 +49024,7 @@ export default {
     en: 'Surgical pneumatic or battery or electric saws or drills or pin drivers or accessories',
   },
   '42295203': {
-    fr: 'Kits d\'équipements électrique chirurgical et accessoires',
+    fr: "Kits d'équipements électrique chirurgical et accessoires",
     en: 'Surgical power equipment sets or accessories',
   },
   '42295204': {
@@ -49168,7 +49168,7 @@ export default {
     en: 'Surgical scrub or prep kits for patient',
   },
   '42295423': {
-    fr: 'Compteurs de compresses et d\'instruments',
+    fr: "Compteurs de compresses et d'instruments",
     en: 'Surgical sharps or sponge counters',
   },
   '42295424': {
@@ -49176,7 +49176,7 @@ export default {
     en: 'Surgical shave kits or prep razors or clippers',
   },
   '42295425': {
-    fr: 'Bâtons ou crayons ou cristaux de nitrate d\'argent chirurgical',
+    fr: "Bâtons ou crayons ou cristaux de nitrate d'argent chirurgical",
     en: 'Surgical silver nitrate sticks or pencils or crystals',
   },
   '42295426': {
@@ -49188,11 +49188,11 @@ export default {
     en: 'Surgical sterile instrument brushes or instrument stylets or instrument wipes',
   },
   '42295428': {
-    fr: 'Tubulures d\'aspiration ou d\'irrigation chirurgicales et accessoires',
+    fr: "Tubulures d'aspiration ou d'irrigation chirurgicales et accessoires",
     en: 'Surgical suction or irrigation tubings or accessories',
   },
   '42295429': {
-    fr: 'Flacons d\'aspiration chirurgicale et accessoires',
+    fr: "Flacons d'aspiration chirurgicale et accessoires",
     en: 'Surgical suction canisters or accessories',
   },
   '42295430': {
@@ -49204,7 +49204,7 @@ export default {
     en: 'Surgical transparent incise drapes or instrument pouches',
   },
   '42295432': {
-    fr: 'Stents d\'urologie',
+    fr: "Stents d'urologie",
     en: 'Urological stents',
   },
   '42295433': {
@@ -49216,7 +49216,7 @@ export default {
     en: 'Vaginal or uterine stents',
   },
   '42295435': {
-    fr: 'Protecteurs d\'oreilles',
+    fr: "Protecteurs d'oreilles",
     en: 'Ear protectors or shields',
   },
   '42295436': {
@@ -49424,7 +49424,7 @@ export default {
     en: 'Knee joint implant',
   },
   '42295707': {
-    fr: 'Prothèse de l\'épaule',
+    fr: "Prothèse de l'épaule",
     en: 'Shoulder joint  implant',
   },
   '42295708': {
@@ -49680,15 +49680,15 @@ export default {
     en: 'Medical incision drains and drainage bags and reservoirs and related products',
   },
   '42311901': {
-    fr: 'Accessoires de drain médical d\'incision',
+    fr: "Accessoires de drain médical d'incision",
     en: 'Medical incision drain accessories',
   },
   '42311902': {
-    fr: 'Poches ou réservoirs de drainage médical d\'incision',
+    fr: "Poches ou réservoirs de drainage médical d'incision",
     en: 'Medical incision drainage bags or reservoirs',
   },
   '42311903': {
-    fr: 'Drains médicaux d\'incision',
+    fr: "Drains médicaux d'incision",
     en: 'Medical incision drains',
   },
   '42312000': {
@@ -49716,7 +49716,7 @@ export default {
     en: 'Medical adhesives or glues for skin closure',
   },
   '42312006': {
-    fr: 'Applicateurs d\'agrafes médicales pour utilisation interne',
+    fr: "Applicateurs d'agrafes médicales pour utilisation interne",
     en: 'Medical clip appliers for internal use',
   },
   '42312007': {
@@ -49900,7 +49900,7 @@ export default {
     en: 'Wound packing products',
   },
   '42312401': {
-    fr: 'Compresses à l\'alginate de calcium',
+    fr: "Compresses à l'alginate de calcium",
     en: 'Calcium alginate wound packing',
   },
   '42312402': {
@@ -50352,7 +50352,7 @@ export default {
     en: 'Card cages',
   },
   '43201618': {
-    fr: 'Composants pour rack d\'ordinateurs',
+    fr: "Composants pour rack d'ordinateurs",
     en: 'Computer rack component',
   },
   '43201800': {
@@ -50664,11 +50664,11 @@ export default {
     en: 'Handheld PDA Starter Kits',
   },
   '43211612': {
-    fr: 'Ensembles d\'accessoires informatiques',
+    fr: "Ensembles d'accessoires informatiques",
     en: 'Computer accessory kits',
   },
   '43211613': {
-    fr: 'Supports d\'ordinateurs bloc-notes ou standards',
+    fr: "Supports d'ordinateurs bloc-notes ou standards",
     en: 'Computer or notebook stands',
   },
   '43211700': {
@@ -51352,7 +51352,7 @@ export default {
     en: 'Aerial cable rollers',
   },
   '43222825': {
-    fr: 'Kits d\'adaptateur téléphonique',
+    fr: "Kits d'adaptateur téléphonique",
     en: 'Telephone modification kits',
   },
   '43222900': {
@@ -51484,7 +51484,7 @@ export default {
     en: 'Paging terminals',
   },
   '43223300': {
-    fr: 'Appareils et équipements pour l\'installation des connexions réseaux et datacom',
+    fr: "Appareils et équipements pour l'installation des connexions réseaux et datacom",
     en: 'Datacom and network connectivity installation devices and equipment',
   },
   '43223301': {
@@ -51504,7 +51504,7 @@ export default {
     en: 'Din rail',
   },
   '43223305': {
-    fr: 'Montages pour l\'administration des câbles réseaux',
+    fr: "Montages pour l'administration des câbles réseaux",
     en: 'Network cable management panel assembly',
   },
   '43223306': {
@@ -51600,7 +51600,7 @@ export default {
     en: 'Financial analysis software',
   },
   '43231605': {
-    fr: 'Logiciels de gestion des temps d\'exécution du travail',
+    fr: "Logiciels de gestion des temps d'exécution du travail",
     en: 'Time accounting software',
   },
   '43232000': {
@@ -51764,7 +51764,7 @@ export default {
     en: 'Development environment software',
   },
   '43232403': {
-    fr: 'Logiciels d\'intégration des applications de l\'entreprise',
+    fr: "Logiciels d'intégration des applications de l'entreprise",
     en: 'Enterprise application integration software',
   },
   '43232404': {
@@ -52088,7 +52088,7 @@ export default {
     en: 'Codec stacks',
   },
   '43233417': {
-    fr: 'Composants de logiciel de reconnaissance de l\'écriture manuscrite',
+    fr: "Composants de logiciel de reconnaissance de l'écriture manuscrite",
     en: 'Handwriting recognition software components',
   },
   '43233418': {
@@ -52160,7 +52160,7 @@ export default {
     en: 'Ring tone software',
   },
   '43233600': {
-    fr: 'Logiciels pour l\'équipement électrique',
+    fr: "Logiciels pour l'équipement électrique",
     en: 'Electrical Equipment software',
   },
   '43233601': {
@@ -52168,7 +52168,7 @@ export default {
     en: 'Motor Drive Software',
   },
   '43233602': {
-    fr: 'Logiciels d\'administration de l\'alimentation électrique',
+    fr: "Logiciels d'administration de l'alimentation électrique",
     en: 'Power Monitor Software',
   },
   '43233603': {
@@ -52324,7 +52324,7 @@ export default {
     en: 'Media spindles',
   },
   '44101722': {
-    fr: 'Contrôleurs d\'alimentation électrique de plateau de tri',
+    fr: "Contrôleurs d'alimentation électrique de plateau de tri",
     en: 'Multi bin mailbox power upgrades',
   },
   '44101723': {
@@ -52536,7 +52536,7 @@ export default {
     en: 'Semi automatic labeling systems',
   },
   '44102411': {
-    fr: 'Distributeurs d\'étiquettes',
+    fr: "Distributeurs d'étiquettes",
     en: 'Label dispensers',
   },
   '44102412': {
@@ -52548,7 +52548,7 @@ export default {
     en: 'Sorting machines',
   },
   '44102501': {
-    fr: 'Machines à compter l\'argent',
+    fr: "Machines à compter l'argent",
     en: 'Money counting machines',
   },
   '44102502': {
@@ -52568,7 +52568,7 @@ export default {
     en: 'Typewriters',
   },
   '44102603': {
-    fr: 'Marguerites d\'impression',
+    fr: "Marguerites d'impression",
     en: 'Printwheels',
   },
   '44102604': {
@@ -52704,11 +52704,11 @@ export default {
     en: 'Transfer rolls',
   },
   '44103105': {
-    fr: 'Cartouches d\'encre',
+    fr: "Cartouches d'encre",
     en: 'Ink cartridges',
   },
   '44103106': {
-    fr: 'Bâtons d\'encre',
+    fr: "Bâtons d'encre",
     en: 'Ink sticks',
   },
   '44103107': {
@@ -52724,7 +52724,7 @@ export default {
     en: 'Printer or facsimile or photocopier drums',
   },
   '44103110': {
-    fr: 'Têtes d\'impression',
+    fr: "Têtes d'impression",
     en: 'Print heads',
   },
   '44103111': {
@@ -52832,7 +52832,7 @@ export default {
     en: 'Binding Kits',
   },
   '44103600': {
-    fr: 'Dispositifs et accessoires d\'enlèvement de cassettes',
+    fr: "Dispositifs et accessoires d'enlèvement de cassettes",
     en: 'Cassette disposal equipment and accessories',
   },
   '44103601': {
@@ -53072,7 +53072,7 @@ export default {
     en: 'Chalk boards or accessories',
   },
   '44111907': {
-    fr: 'Tableaux d\'affichage et accessoires',
+    fr: "Tableaux d'affichage et accessoires",
     en: 'Bulletin boards or accessories',
   },
   '44111908': {
@@ -53288,7 +53288,7 @@ export default {
     en: 'Electric pencil sharpener',
   },
   '44121700': {
-    fr: 'Instruments d\'écriture',
+    fr: "Instruments d'écriture",
     en: 'Writing instruments',
   },
   '44121701': {
@@ -53396,7 +53396,7 @@ export default {
     en: 'Electrical erasers',
   },
   '44121900': {
-    fr: 'Mines et recharges d\'encre',
+    fr: "Mines et recharges d'encre",
     en: 'Ink and lead refills',
   },
   '44121902': {
@@ -53404,7 +53404,7 @@ export default {
     en: 'Lead refills',
   },
   '44121904': {
-    fr: 'Recharges d\'encre',
+    fr: "Recharges d'encre",
     en: 'Ink refills',
   },
   '44121905': {
@@ -53596,15 +53596,15 @@ export default {
     en: 'Wall or board clips',
   },
   '45000000': {
-    fr: 'Équipements et fournitures pour l\'impression, la photographie et l\'audiovisuel',
+    fr: "Équipements et fournitures pour l'impression, la photographie et l'audiovisuel",
     en: 'Printing and Photographic and Audio and Visual Equipment and Supplies',
   },
   '45100000': {
-    fr: 'Équipements pour l\'impression et la publication',
+    fr: "Équipements pour l'impression et la publication",
     en: 'Printing and publishing equipment',
   },
   '45101500': {
-    fr: 'Machines et équipements pour l\'impression',
+    fr: "Machines et équipements pour l'impression",
     en: 'Printing machinery and equipment',
   },
   '45101501': {
@@ -53628,7 +53628,7 @@ export default {
     en: 'Photogravure printing machines',
   },
   '45101506': {
-    fr: 'Machines d\'impression à l\'écran de soie',
+    fr: "Machines d'impression à l'écran de soie",
     en: 'Silk screen printing machines',
   },
   '45101507': {
@@ -53648,7 +53648,7 @@ export default {
     en: 'Flexographic printer',
   },
   '45101511': {
-    fr: 'Imprimantes à jet d\'encre pour applications commerciales',
+    fr: "Imprimantes à jet d'encre pour applications commerciales",
     en: 'Inkjet printer for commercial printing applications',
   },
   '45101512': {
@@ -53672,7 +53672,7 @@ export default {
     en: 'Pad printing cliché',
   },
   '45101600': {
-    fr: 'Accessoires pour machines d\'impression',
+    fr: "Accessoires pour machines d'impression",
     en: 'Printing machinery accessories',
   },
   '45101602': {
@@ -53712,7 +53712,7 @@ export default {
     en: 'Silk screen squeegees',
   },
   '45101700': {
-    fr: 'Accessoires d\'imprimerie',
+    fr: "Accessoires d'imprimerie",
     en: 'Printing accessories',
   },
   '45101701': {
@@ -53784,7 +53784,7 @@ export default {
     en: 'Thermal book binding machines',
   },
   '45101900': {
-    fr: 'Équipements de laboratoire d\'impression et accessoires',
+    fr: "Équipements de laboratoire d'impression et accessoires",
     en: 'Printing laboratory equipment and accessories',
   },
   '45101901': {
@@ -53852,7 +53852,7 @@ export default {
     en: 'Gavels or sounding blocks',
   },
   '45111504': {
-    fr: 'Composants déclairage, d\'alimentation électriques ou de traitement de données pour lutrins',
+    fr: "Composants déclairage, d'alimentation électriques ou de traitement de données pour lutrins",
     en: 'Lighting or power or data components for lecterns',
   },
   '45111600': {
@@ -54124,7 +54124,7 @@ export default {
     en: 'Camera lenses or filters',
   },
   '45121604': {
-    fr: 'Obturateurs d\'appareils photo',
+    fr: "Obturateurs d'appareils photo",
     en: 'Camera shutters',
   },
   '45121605': {
@@ -54132,11 +54132,11 @@ export default {
     en: 'Screen frames',
   },
   '45121606': {
-    fr: 'Housses d\'appareils photo',
+    fr: "Housses d'appareils photo",
     en: 'Camera harnesses',
   },
   '45121607': {
-    fr: 'Boîtiers de rangement ou étuis d\'appareils photo',
+    fr: "Boîtiers de rangement ou étuis d'appareils photo",
     en: 'Camera blocks or holders',
   },
   '45121608': {
@@ -54144,11 +54144,11 @@ export default {
     en: 'Camera assemblies',
   },
   '45121609': {
-    fr: 'Griffes dattaches d\'appareils photo',
+    fr: "Griffes dattaches d'appareils photo",
     en: 'Camera brackets',
   },
   '45121610': {
-    fr: 'Câbles d\'appareils photo',
+    fr: "Câbles d'appareils photo",
     en: 'Camera cables',
   },
   '45121611': {
@@ -54168,7 +54168,7 @@ export default {
     en: 'Retrofit kits',
   },
   '45121615': {
-    fr: 'Bagues d\'appareils photo',
+    fr: "Bagues d'appareils photo",
     en: 'Camera rings',
   },
   '45121616': {
@@ -54176,7 +54176,7 @@ export default {
     en: 'Pan heads',
   },
   '45121617': {
-    fr: 'Sacoches d\'appareils photo',
+    fr: "Sacoches d'appareils photo",
     en: 'Camera bags',
   },
   '45121618': {
@@ -54292,7 +54292,7 @@ export default {
     en: 'Microfilm sundry components or accessories',
   },
   '45130000': {
-    fr: 'Supports d\'enregistrement et de photographie',
+    fr: "Supports d'enregistrement et de photographie",
     en: 'Photographic and recording media',
   },
   '45131500': {
@@ -54356,7 +54356,7 @@ export default {
     en: 'Photo development processing kit',
   },
   '45141504': {
-    fr: 'Solution pour la correction et l\'amélioration de tirage photographique',
+    fr: "Solution pour la correction et l'amélioration de tirage photographique",
     en: 'Photo enhancing and correcting solution',
   },
   '45141600': {
@@ -54376,7 +54376,7 @@ export default {
     en: 'Developing tongs',
   },
   '46000000': {
-    fr: 'Équipements et fournitures pour la défense, l\'application de la loi, la sécurité et la protection',
+    fr: "Équipements et fournitures pour la défense, l'application de la loi, la sécurité et la protection",
     en: 'Defense and Law Enforcement and Security and Safety Equipment and Supplies',
   },
   '46100000': {
@@ -54416,7 +54416,7 @@ export default {
     en: 'Ammunition',
   },
   '46101601': {
-    fr: 'Munitions pour la défense et l\'application de la loi',
+    fr: "Munitions pour la défense et l'application de la loi",
     en: 'Defense or law enforcement ammunition',
   },
   '46101700': {
@@ -54544,7 +54544,7 @@ export default {
     en: 'Air to surface missiles',
   },
   '46121512': {
-    fr: 'Missiles d\'entraînement',
+    fr: "Missiles d'entraînement",
     en: 'Training missiles',
   },
   '46121600': {
@@ -54552,7 +54552,7 @@ export default {
     en: 'Missile subsystems',
   },
   '46121601': {
-    fr: 'Dispositifs électroniques de sécurité d\'armement et de mise à feu',
+    fr: "Dispositifs électroniques de sécurité d'armement et de mise à feu",
     en: 'Electronic safe or arm devices',
   },
   '46121602': {
@@ -54568,7 +54568,7 @@ export default {
     en: 'Safety pin pullers',
   },
   '46121605': {
-    fr: 'Assemblages de commande d\'orientation par jets de gaz',
+    fr: "Assemblages de commande d'orientation par jets de gaz",
     en: 'Jet reaction control assemblies',
   },
   '46130000': {
@@ -54604,19 +54604,19 @@ export default {
     en: 'Boosters',
   },
   '46131601': {
-    fr: 'Fusées d\'appoint réutilisables',
+    fr: "Fusées d'appoint réutilisables",
     en: 'Reusable boosters',
   },
   '46131602': {
-    fr: 'Fusées d\'appoint à poudre',
+    fr: "Fusées d'appoint à poudre",
     en: 'Solid boosters',
   },
   '46131603': {
-    fr: 'Fusées d\'appoint à plusieurs étages',
+    fr: "Fusées d'appoint à plusieurs étages",
     en: 'Multi stage boosters',
   },
   '46131604': {
-    fr: 'Fusées d\'appoint à liquides',
+    fr: "Fusées d'appoint à liquides",
     en: 'Liquid boosters',
   },
   '46140000': {
@@ -54688,7 +54688,7 @@ export default {
     en: 'Alcohol analysers',
   },
   '46151605': {
-    fr: 'Détecteurs d\'armes et explosifs et fournitures',
+    fr: "Détecteurs d'armes et explosifs et fournitures",
     en: 'Weapon or explosives detectors and supplies',
   },
   '46151606': {
@@ -54788,7 +54788,7 @@ export default {
     en: 'Traffic control',
   },
   '46161501': {
-    fr: 'Systèmes de signalisation d\'aéroport',
+    fr: "Systèmes de signalisation d'aéroport",
     en: 'Airport signaling systems',
   },
   '46161502': {
@@ -54968,7 +54968,7 @@ export default {
     en: 'Clock timers',
   },
   '46171604': {
-    fr: 'Systèmes d\'alarme',
+    fr: "Systèmes d'alarme",
     en: 'Alarm systems',
   },
   '46171605': {
@@ -54996,7 +54996,7 @@ export default {
     en: 'Security cameras',
   },
   '46171611': {
-    fr: 'Systèmes d\'identification vidéo',
+    fr: "Systèmes d'identification vidéo",
     en: 'Video identification systems',
   },
   '46171612': {
@@ -55356,7 +55356,7 @@ export default {
     en: 'Earmuff replacement parts or accessories',
   },
   '46181904': {
-    fr: 'Distributeur de bouchons d\'oreille',
+    fr: "Distributeur de bouchons d'oreille",
     en: 'Ear plug dispenser',
   },
   '46182000': {
@@ -55420,7 +55420,7 @@ export default {
     en: 'Antistatic belts',
   },
   '46182107': {
-    fr: 'Kits d\'entretien antistatiques',
+    fr: "Kits d'entretien antistatiques",
     en: 'Antistatic maintenance kits',
   },
   '46182108': {
@@ -55476,7 +55476,7 @@ export default {
     en: 'Lumbar protector or back brace',
   },
   '46182212': {
-    fr: 'Renfort ou protection d\'épaule',
+    fr: "Renfort ou protection d'épaule",
     en: 'Shoulder protector or support',
   },
   '46182300': {
@@ -55496,7 +55496,7 @@ export default {
     en: 'Safety harness winders',
   },
   '46182304': {
-    fr: 'Connecteur d\'ancrage',
+    fr: "Connecteur d'ancrage",
     en: 'Anchorage connector',
   },
   '46182305': {
@@ -55576,7 +55576,7 @@ export default {
     en: 'Heat detectors',
   },
   '46191503': {
-    fr: 'Revêtements, mastics ou matériaux d\'étanchéité ignifuges',
+    fr: "Revêtements, mastics ou matériaux d'étanchéité ignifuges",
     en: 'Fire resistant coatings or putties or sealants',
   },
   '46191504': {
@@ -55612,11 +55612,11 @@ export default {
     en: 'Fire blankets',
   },
   '46191605': {
-    fr: 'Outils manuels pour l\'extinction des incendies',
+    fr: "Outils manuels pour l'extinction des incendies",
     en: 'Fire suppression hand tools',
   },
   '46191606': {
-    fr: 'Mousse et produits similaires pour l\'extinction des incendies',
+    fr: "Mousse et produits similaires pour l'extinction des incendies",
     en: 'Fire suppression foam or similar compounds',
   },
   '46191607': {
@@ -55628,11 +55628,11 @@ export default {
     en: 'Fire suppression system',
   },
   '46191609': {
-    fr: 'Equipement de Sortie de Secours en cas d\'Incendie',
+    fr: "Equipement de Sortie de Secours en cas d'Incendie",
     en: 'Fire escape equipment',
   },
   '46191610': {
-    fr: 'Gicleur d\'incendie',
+    fr: "Gicleur d'incendie",
     en: 'Fire sprinkler heads',
   },
   '47000000': {
@@ -55640,11 +55640,11 @@ export default {
     en: 'Cleaning Equipment and Supplies',
   },
   '47100000': {
-    fr: 'Traitement, fournitures et élimination de l\'eau et de l\'eau usée',
+    fr: "Traitement, fournitures et élimination de l'eau et de l'eau usée",
     en: 'Water and wastewater treatment supply and disposal',
   },
   '47101500': {
-    fr: 'Équipements de fourniture et de traitement d\'eau',
+    fr: "Équipements de fourniture et de traitement d'eau",
     en: 'Water treatment and supply equipment',
   },
   '47101501': {
@@ -55652,7 +55652,7 @@ export default {
     en: 'Activated carbon equipment',
   },
   '47101502': {
-    fr: 'Équipements d\'élimination de l\'ammoniaque',
+    fr: "Équipements d'élimination de l'ammoniaque",
     en: 'Ammonia removal equipment',
   },
   '47101503': {
@@ -55660,7 +55660,7 @@ export default {
     en: 'Carbon filtration equipment',
   },
   '47101504': {
-    fr: 'Équipements d\'élimination des bactéries',
+    fr: "Équipements d'élimination des bactéries",
     en: 'Bacterial removal equipment',
   },
   '47101505': {
@@ -55688,7 +55688,7 @@ export default {
     en: 'Iron removal equipment',
   },
   '47101511': {
-    fr: 'Équipements d\'échange d\'ions',
+    fr: "Équipements d'échange d'ions",
     en: 'Ion exchange equipment',
   },
   '47101512': {
@@ -55696,11 +55696,11 @@ export default {
     en: 'Mixers or agitators',
   },
   '47101513': {
-    fr: 'Générateurs d\'oxygène',
+    fr: "Générateurs d'oxygène",
     en: 'Oxygen generators',
   },
   '47101514': {
-    fr: 'Équipements d\'épuration d\'eau',
+    fr: "Équipements d'épuration d'eau",
     en: 'Water purification equipment',
   },
   '47101516': {
@@ -55712,19 +55712,19 @@ export default {
     en: 'Ultraviolet disinfection equipment',
   },
   '47101518': {
-    fr: 'Conditionneurs d\'eau',
+    fr: "Conditionneurs d'eau",
     en: 'Water conditioners',
   },
   '47101519': {
-    fr: 'Accessoires d\'adoucissement d\'eau',
+    fr: "Accessoires d'adoucissement d'eau",
     en: 'Water softening accessories',
   },
   '47101521': {
-    fr: 'Équipements d\'ultrafiltration',
+    fr: "Équipements d'ultrafiltration",
     en: 'Ultrafiltration equipment',
   },
   '47101522': {
-    fr: 'Systèmes préfabriqués pour le traitement d\'eau',
+    fr: "Systèmes préfabriqués pour le traitement d'eau",
     en: 'Packaged water treatment systems',
   },
   '47101523': {
@@ -55736,7 +55736,7 @@ export default {
     en: 'Sludge or sewage composting equipment',
   },
   '47101525': {
-    fr: 'Équipements d\'assèchement',
+    fr: "Équipements d'assèchement",
     en: 'Dewatering equipment',
   },
   '47101526': {
@@ -55748,7 +55748,7 @@ export default {
     en: 'Sludge shredders',
   },
   '47101528': {
-    fr: 'Séchoirs de traitement d\'eau',
+    fr: "Séchoirs de traitement d'eau",
     en: 'Water treatment dryers',
   },
   '47101529': {
@@ -55776,7 +55776,7 @@ export default {
     en: 'Sewage distributors',
   },
   '47101535': {
-    fr: 'Équipements d\'élimination des boues',
+    fr: "Équipements d'élimination des boues",
     en: 'Sludge disposal equipment',
   },
   '47101536': {
@@ -55792,11 +55792,11 @@ export default {
     en: 'Sludge or sewage digesters',
   },
   '47101539': {
-    fr: 'Équipements d\'élimination de boues d\'épuration',
+    fr: "Équipements d'élimination de boues d'épuration",
     en: 'Sludge or sewage removal equipment',
   },
   '47101600': {
-    fr: 'Consommables pour le traitement de l\'eau',
+    fr: "Consommables pour le traitement de l'eau",
     en: 'Water treatment consumables',
   },
   '47101601': {
@@ -55812,11 +55812,11 @@ export default {
     en: 'Descalers',
   },
   '47101604': {
-    fr: 'Produits chimiques pour l\'eau d\'alimentation de chaudières',
+    fr: "Produits chimiques pour l'eau d'alimentation de chaudières",
     en: 'Boiler feed chemicals',
   },
   '47101605': {
-    fr: 'Produits chimiques pour l\'élimination des bactéries',
+    fr: "Produits chimiques pour l'élimination des bactéries",
     en: 'Bacterial removal chemicals',
   },
   '47101606': {
@@ -55836,7 +55836,7 @@ export default {
     en: 'Microbiocides',
   },
   '47101610': {
-    fr: 'Composés d\'adoucisseurs deau',
+    fr: "Composés d'adoucisseurs deau",
     en: 'Water softening compounds',
   },
   '47101611': {
@@ -55912,7 +55912,7 @@ export default {
     en: 'Janitor carts',
   },
   '47121502': {
-    fr: 'Accessoires pour chariots d\'entretien',
+    fr: "Accessoires pour chariots d'entretien",
     en: 'Janitor cart accessories',
   },
   '47121600': {
@@ -56272,7 +56272,7 @@ export default {
     en: 'Laundry products',
   },
   '47131812': {
-    fr: 'Rafraîchisseurs d\'air',
+    fr: "Rafraîchisseurs d'air",
     en: 'Air freshener',
   },
   '47131813': {
@@ -56296,7 +56296,7 @@ export default {
     en: 'Household or automotive protectants',
   },
   '47131818': {
-    fr: 'Produits de purification de l\'air',
+    fr: "Produits de purification de l'air",
     en: 'Air sanitizer',
   },
   '47131819': {
@@ -56304,7 +56304,7 @@ export default {
     en: 'Caustic cleaners',
   },
   '47131820': {
-    fr: 'Produits d\'entretien dérivés du pétrole',
+    fr: "Produits d'entretien dérivés du pétrole",
     en: 'Petroleum derivative cleaners',
   },
   '47131821': {
@@ -56416,7 +56416,7 @@ export default {
     en: 'General purpose cleaning kits',
   },
   '48000000': {
-    fr: 'Machines, équipement et fournitures pour l\'industrie des services',
+    fr: "Machines, équipement et fournitures pour l'industrie des services",
     en: 'Service Industry Machinery and Equipment and Supplies',
   },
   '48100000': {
@@ -56620,7 +56620,7 @@ export default {
     en: 'Commercial use electric can openers',
   },
   '48101603': {
-    fr: 'Hachoirs ou découpeurs d\'aliments en cube à usage commercial',
+    fr: "Hachoirs ou découpeurs d'aliments en cube à usage commercial",
     en: 'Commercial use food choppers or cubers or dicers',
   },
   '48101604': {
@@ -56684,7 +56684,7 @@ export default {
     en: 'Commercial use dishwashing machine parts',
   },
   '48101700': {
-    fr: 'Équipements de distribution d\'aliments et de boissons',
+    fr: "Équipements de distribution d'aliments et de boissons",
     en: 'Food and beverage dispensing equipment',
   },
   '48101701': {
@@ -56728,7 +56728,7 @@ export default {
     en: 'Drinking fountains or bubblers',
   },
   '48101711': {
-    fr: 'Distributeurs d\'eau en bouteille',
+    fr: "Distributeurs d'eau en bouteille",
     en: 'Bottled water dispensers or accessories',
   },
   '48101712': {
@@ -56740,7 +56740,7 @@ export default {
     en: 'Cocktail shakers or accessories',
   },
   '48101714': {
-    fr: 'Distributeurs d\'eau chaude',
+    fr: "Distributeurs d'eau chaude",
     en: 'Hot water dispenser',
   },
   '48101715': {
@@ -56972,7 +56972,7 @@ export default {
     en: 'Catering gloves or glove dispensers',
   },
   '48102108': {
-    fr: 'Feuille d\'aluminium pour l\'emballage alimentaire',
+    fr: "Feuille d'aluminium pour l'emballage alimentaire",
     en: 'Aluminum food wrapping foil',
   },
   '48102109': {
@@ -57052,7 +57052,7 @@ export default {
     en: 'Ticket dispensing machines',
   },
   '48111302': {
-    fr: 'Distributeur de polices d\'assurance',
+    fr: "Distributeur de polices d'assurance",
     en: 'Insurance policy vending machines',
   },
   '48111303': {
@@ -57164,7 +57164,7 @@ export default {
     en: 'Antique musical instruments',
   },
   '49101609': {
-    fr: 'Articles d\'ornement et de décoration',
+    fr: "Articles d'ornement et de décoration",
     en: 'Ornaments or decorations',
   },
   '49101611': {
@@ -57400,7 +57400,7 @@ export default {
     en: 'Parasailing equipment',
   },
   '49150000': {
-    fr: 'Équipements de sports d\'hiver',
+    fr: "Équipements de sports d'hiver",
     en: 'Winter sports equipment',
   },
   '49151500': {
@@ -57512,7 +57512,7 @@ export default {
     en: 'Team handball balls',
   },
   '49161516': {
-    fr: 'Ensembles pour l\'entraînement des équipes de hand-ball scolaires',
+    fr: "Ensembles pour l'entraînement des équipes de hand-ball scolaires",
     en: 'Team handball school sets',
   },
   '49161517': {
@@ -57640,7 +57640,7 @@ export default {
     en: 'Racquet grips',
   },
   '49161700': {
-    fr: 'Équipements d\'athlétisme',
+    fr: "Équipements d'athlétisme",
     en: 'Track sports equipment',
   },
   '49161701': {
@@ -57744,7 +57744,7 @@ export default {
     en: 'Billiard balls',
   },
   '49181506': {
-    fr: 'Tables ou accessoires pour hockey sur coussin d\'air',
+    fr: "Tables ou accessoires pour hockey sur coussin d'air",
     en: 'Air hockey tables or accessories',
   },
   '49181507': {
@@ -57788,7 +57788,7 @@ export default {
     en: 'Target games and equipment',
   },
   '49181601': {
-    fr: 'Cibles de tir à l\'arc',
+    fr: "Cibles de tir à l'arc",
     en: 'Archery targets',
   },
   '49181602': {
@@ -57796,7 +57796,7 @@ export default {
     en: 'Archery bows',
   },
   '49181603': {
-    fr: 'Flèches de tir à l\'arc',
+    fr: "Flèches de tir à l'arc",
     en: 'Archery arrows',
   },
   '49181604': {
@@ -57840,15 +57840,15 @@ export default {
     en: 'Fitness equipment',
   },
   '49201500': {
-    fr: 'Équipements d\'entraînement pour aérobic',
+    fr: "Équipements d'entraînement pour aérobic",
     en: 'Aerobic training equipment',
   },
   '49201501': {
-    fr: 'Tapis d\'exercice',
+    fr: "Tapis d'exercice",
     en: 'Treadmills',
   },
   '49201502': {
-    fr: 'Simulateur d\'escalier',
+    fr: "Simulateur d'escalier",
     en: 'Stair climbers',
   },
   '49201503': {
@@ -57864,7 +57864,7 @@ export default {
     en: 'Jump ropes',
   },
   '49201513': {
-    fr: 'Trampolines d\'exercice',
+    fr: "Trampolines d'exercice",
     en: 'Exercise trampolines',
   },
   '49201514': {
@@ -57880,7 +57880,7 @@ export default {
     en: 'Cross trainers',
   },
   '49201600': {
-    fr: 'Équipements d\'entraînement et de musculation',
+    fr: "Équipements d'entraînement et de musculation",
     en: 'Weight and resistance training equipment',
   },
   '49201601': {
@@ -57904,7 +57904,7 @@ export default {
     en: 'Upper body resistance machines',
   },
   '49201606': {
-    fr: 'Poids d\'exercice',
+    fr: "Poids d'exercice",
     en: 'Fitness weights',
   },
   '49201607': {
@@ -57968,7 +57968,7 @@ export default {
     en: 'Golfscopes',
   },
   '49211609': {
-    fr: 'Appareil d\'entraînement au putting',
+    fr: "Appareil d'entraînement au putting",
     en: 'Golf putting partner',
   },
   '49211700': {
@@ -58156,7 +58156,7 @@ export default {
     en: 'Spa blower',
   },
   '49241704': {
-    fr: 'Kit ou solutions pour tester l\'eau',
+    fr: "Kit ou solutions pour tester l'eau",
     en: 'Water test kit or solutions',
   },
   '49241705': {
@@ -58172,7 +58172,7 @@ export default {
     en: 'Pool or spa heater',
   },
   '49241708': {
-    fr: 'Générateur d\'ozone',
+    fr: "Générateur d'ozone",
     en: 'Ozone generator',
   },
   '49241709': {
@@ -58484,7 +58484,7 @@ export default {
     en: 'Citrus fruit rinds',
   },
   '50102502': {
-    fr: 'Extraits solides de pulpe d\'orange par lavage',
+    fr: "Extraits solides de pulpe d'orange par lavage",
     en: 'Water extracted soluble orange solids wesos',
   },
   '50102503': {
@@ -58848,7 +58848,7 @@ export default {
     en: 'Dairy products and eggs',
   },
   '50131600': {
-    fr: 'ufs et succédanés d\'uf',
+    fr: "ufs et succédanés d'uf",
     en: 'Eggs and egg substitutes',
   },
   '50131606': {
@@ -58856,11 +58856,11 @@ export default {
     en: 'Fresh eggs',
   },
   '50131607': {
-    fr: 'Succédanés de l\'uf',
+    fr: "Succédanés de l'uf",
     en: 'Egg substitutes',
   },
   '50131608': {
-    fr: 'Jaunes ou blancs d\'ufs',
+    fr: "Jaunes ou blancs d'ufs",
     en: 'Egg whites or yolks',
   },
   '50131609': {
@@ -59020,7 +59020,7 @@ export default {
     en: 'Sauces and spreads and condiments',
   },
   '50171830': {
-    fr: 'Sauces d\'accompagnement, condiments, pâtes à tartiner ou marinades',
+    fr: "Sauces d'accompagnement, condiments, pâtes à tartiner ou marinades",
     en: 'Dipping sauces or condiments or spreads or marinades',
   },
   '50171831': {
@@ -59232,7 +59232,7 @@ export default {
     en: 'Frozen sandwich fillers',
   },
   '50192600': {
-    fr: 'Plats d\'accompagnement tout prêts',
+    fr: "Plats d'accompagnement tout prêts",
     en: 'Prepared side dishes',
   },
   '50192601': {
@@ -60520,7 +60520,7 @@ export default {
     en: 'Atovaquone',
   },
   '51101602': {
-    fr: 'Chlorhydrate d\'éflornithine',
+    fr: "Chlorhydrate d'éflornithine",
     en: 'Eflornithine hydrochloride',
   },
   '51101603': {
@@ -60644,7 +60644,7 @@ export default {
     en: 'Diethylcarbamazine citrate',
   },
   '51101712': {
-    fr: 'Thiocyanoacétate d\'isobornyle',
+    fr: "Thiocyanoacétate d'isobornyle",
     en: 'Isobornyl thiocyanoacetate',
   },
   '51101713': {
@@ -60704,7 +60704,7 @@ export default {
     en: 'Clotrimazole',
   },
   '51101806': {
-    fr: 'Nitrate d\'éconazole',
+    fr: "Nitrate d'éconazole",
     en: 'Econazole nitrate',
   },
   '51101807': {
@@ -60744,7 +60744,7 @@ export default {
     en: 'Nystatin',
   },
   '51101816': {
-    fr: 'Nitrate d\'oxiconazole',
+    fr: "Nitrate d'oxiconazole",
     en: 'Oxiconazole nitrate',
   },
   '51101817': {
@@ -61004,7 +61004,7 @@ export default {
     en: 'Idoxuridine',
   },
   '51102309': {
-    fr: 'Sulfate d\'indinavir',
+    fr: "Sulfate d'indinavir",
     en: 'Indinavir sulfate',
   },
   '51102310': {
@@ -61188,7 +61188,7 @@ export default {
     en: 'Formaldehyde antiseptics',
   },
   '51102709': {
-    fr: 'Peroxyde d\'hydrogène',
+    fr: "Peroxyde d'hydrogène",
     en: 'Hydrogen peroxide antiseptics',
   },
   '51102710': {
@@ -61220,7 +61220,7 @@ export default {
     en: 'Nitrofurazone',
   },
   '51102718': {
-    fr: 'Nitrate d\'argent',
+    fr: "Nitrate d'argent",
     en: 'Silver nitrate',
   },
   '51102719': {
@@ -61344,7 +61344,7 @@ export default {
     en: 'Thiotepa',
   },
   '51111517': {
-    fr: 'Moutarde à l\'uracile',
+    fr: "Moutarde à l'uracile",
     en: 'Uracil mustard',
   },
   '51111518': {
@@ -61524,7 +61524,7 @@ export default {
     en: 'Bicalutamide',
   },
   '51111803': {
-    fr: 'Phosphate d\'estramustine disodique',
+    fr: "Phosphate d'estramustine disodique",
     en: 'Estramustine phosphate sodium',
   },
   '51111804': {
@@ -61724,7 +61724,7 @@ export default {
     en: 'Antianginal drugs',
   },
   '51121601': {
-    fr: 'Nitrate d\'amyle',
+    fr: "Nitrate d'amyle",
     en: 'Amyl nitrate',
   },
   '51121602': {
@@ -62104,7 +62104,7 @@ export default {
     en: 'Drugs used for congestive heart failure',
   },
   '51121901': {
-    fr: 'Lactate d\'amrinone',
+    fr: "Lactate d'amrinone",
     en: 'Inamrinone lactate',
   },
   '51121902': {
@@ -62340,11 +62340,11 @@ export default {
     en: 'Tinzaparin sodium',
   },
   '51131617': {
-    fr: 'Solution d\'anticoagulant citrate, phosphate, dextrose.',
+    fr: "Solution d'anticoagulant citrate, phosphate, dextrose.",
     en: 'Anticoagulant citrate phosphate dextrose solution',
   },
   '51131700': {
-    fr: 'Médicament thrombolytiques/inhibiteurs de l\'agrégation des plaquettes',
+    fr: "Médicament thrombolytiques/inhibiteurs de l'agrégation des plaquettes",
     en: 'Thrombolytic drugs and platelet aggregation inhibitors',
   },
   '51131701': {
@@ -62652,7 +62652,7 @@ export default {
     en: 'Doxepin hydrochloride',
   },
   '51141603': {
-    fr: 'Pamoate d\'imipramine',
+    fr: "Pamoate d'imipramine",
     en: 'Imipramine pamoate',
   },
   '51141604': {
@@ -62720,8 +62720,8 @@ export default {
     en: 'Sertraline hydrochloride',
   },
   '51141620': {
-    fr: 'St. John\'s Wort',
-    en: 'St. John\'s Wort',
+    fr: "St. John's Wort",
+    en: "St. John's Wort",
   },
   '51141621': {
     fr: 'Imipramine chlorhydrate',
@@ -63124,7 +63124,7 @@ export default {
     en: 'Salsalate or salicylsalicylic acid',
   },
   '51142018': {
-    fr: 'Injection d\'alcool déshydraté',
+    fr: "Injection d'alcool déshydraté",
     en: 'Dehydrated alcohol injection',
   },
   '51142100': {
@@ -63676,7 +63676,7 @@ export default {
     en: 'Methylphenidate hydrochloride',
   },
   '51142619': {
-    fr: 'Essence d\'ammoniaque',
+    fr: "Essence d'ammoniaque",
     en: 'Ammonia aromatic spirit',
   },
   '51142700': {
@@ -63824,7 +63824,7 @@ export default {
     en: 'Ether',
   },
   '51142931': {
-    fr: 'Chlorure d\'éthyle',
+    fr: "Chlorure d'éthyle",
     en: 'Ethyl chloride',
   },
   '51142932': {
@@ -63908,7 +63908,7 @@ export default {
     en: 'Bethanechol chloride',
   },
   '51151502': {
-    fr: 'Chlorure d\'édrophonium',
+    fr: "Chlorure d'édrophonium",
     en: 'Edrophonium chloride',
   },
   '51151503': {
@@ -63980,7 +63980,7 @@ export default {
     en: 'Cholinergic blocking agents',
   },
   '51151601': {
-    fr: 'Sulfate d\'atropine',
+    fr: "Sulfate d'atropine",
     en: 'Atropine sulfate',
   },
   '51151602': {
@@ -64060,7 +64060,7 @@ export default {
     en: 'Epinephrine',
   },
   '51151704': {
-    fr: 'Borate d\'épinéphrine',
+    fr: "Borate d'épinéphrine",
     en: 'Epinephrine borate',
   },
   '51151705': {
@@ -64072,7 +64072,7 @@ export default {
     en: 'Isoproterenol',
   },
   '51151707': {
-    fr: 'Sulfate d\'isoprotérénol',
+    fr: "Sulfate d'isoprotérénol",
     en: 'Isoproterenol sulfate',
   },
   '51151708': {
@@ -64232,7 +64232,7 @@ export default {
     en: 'Pseudoephedrine sulfate',
   },
   '51151747': {
-    fr: 'Chlorhydrate d\'épinéphrine',
+    fr: "Chlorhydrate d'épinéphrine",
     en: 'Racepinephrine hydrochloride',
   },
   '51151748': {
@@ -64404,7 +64404,7 @@ export default {
     en: 'Neuromuscular blocking agents',
   },
   '51152001': {
-    fr: 'Bésylate d\'atracurium',
+    fr: "Bésylate d'atracurium",
     en: 'Atracurium besylate',
   },
   '51152002': {
@@ -64724,7 +64724,7 @@ export default {
     en: 'Colfosceril palmitate',
   },
   '51161705': {
-    fr: 'Bromure d\'ipratropium',
+    fr: "Bromure d'ipratropium",
     en: 'Ipratropium bromide',
   },
   '51161706': {
@@ -64816,7 +64816,7 @@ export default {
     en: 'Dextromethorphan tannate',
   },
   '51161820': {
-    fr: 'Eucalyptol ou huile d\'Eucalyptus',
+    fr: "Eucalyptol ou huile d'Eucalyptus",
     en: 'Eucalyptol or eucalyptus oil',
   },
   '51161900': {
@@ -65288,7 +65288,7 @@ export default {
     en: 'Alverine',
   },
   '51180000': {
-    fr: 'Hormones et inhibiteurs d\'hormones',
+    fr: "Hormones et inhibiteurs d'hormones",
     en: 'Hormones and hormone antagonists',
   },
   '51181500': {
@@ -65776,11 +65776,11 @@ export default {
     en: 'Ethinyl estradiol and ethynodiol diacetate combination',
   },
   '51181834': {
-    fr: 'Association de noréthistérone et d\'éthinyl-oestradiol',
+    fr: "Association de noréthistérone et d'éthinyl-oestradiol",
     en: 'Norethindrone and ethinyl estradiol combination',
   },
   '51181900': {
-    fr: 'Hormones gonadotropes/Stimulants et inhibiteurs d\'ovulation',
+    fr: "Hormones gonadotropes/Stimulants et inhibiteurs d'ovulation",
     en: 'Gonadotropic hormones and ovarian stimulants and inhibitors',
   },
   '51181901': {
@@ -65796,7 +65796,7 @@ export default {
     en: 'Gonadorelin acetate',
   },
   '51181904': {
-    fr: 'Acétate d\'histreline',
+    fr: "Acétate d'histreline",
     en: 'Histrelin acetate',
   },
   '51181905': {
@@ -65824,7 +65824,7 @@ export default {
     en: 'Gonadorelin hydrochloride',
   },
   '51182000': {
-    fr: 'Androgènes et inhibiteurs  d\'androgènes',
+    fr: "Androgènes et inhibiteurs  d'androgènes",
     en: 'Androgens and androgen inhibitors',
   },
   '51182001': {
@@ -65896,7 +65896,7 @@ export default {
     en: 'Vasopressin',
   },
   '51182200': {
-    fr: 'Médicaments déclenchant le travail d\'accouchement',
+    fr: "Médicaments déclenchant le travail d'accouchement",
     en: 'Drugs for inducing labor',
   },
   '51182201': {
@@ -66012,7 +66012,7 @@ export default {
     en: 'Dihydrotachysterol',
   },
   '51190000': {
-    fr: 'Agents agissant sur l\'eau et les électrolytes',
+    fr: "Agents agissant sur l'eau et les électrolytes",
     en: 'Agents affecting water and electrolytes',
   },
   '51191500': {
@@ -66148,15 +66148,15 @@ export default {
     en: 'Sodium acetate',
   },
   '51191704': {
-    fr: 'Solutions d\'électrolytes multiples',
+    fr: "Solutions d'électrolytes multiples",
     en: 'Multiple electrolyte solutions',
   },
   '51191705': {
-    fr: 'Association d\'acide citrique et de citrate de potassium',
+    fr: "Association d'acide citrique et de citrate de potassium",
     en: 'Citric acid and potassium citrate combination',
   },
   '51191706': {
-    fr: 'Association d\'acide citrique et de citrate de sodium',
+    fr: "Association d'acide citrique et de citrate de sodium",
     en: 'Citric acid and sodium citrate combination',
   },
   '51191800': {
@@ -66300,7 +66300,7 @@ export default {
     en: 'Vaccines and antigens and toxoids',
   },
   '51201601': {
-    fr: 'Antigène de l\'anthrax',
+    fr: "Antigène de l'anthrax",
     en: 'Anthrax antigen',
   },
   '51201602': {
@@ -66316,7 +66316,7 @@ export default {
     en: 'Diphteria',
   },
   '51201605': {
-    fr: 'Vaccin contre l\'encéphalite',
+    fr: "Vaccin contre l'encéphalite",
     en: 'Encephalitis virus vaccine',
   },
   '51201606': {
@@ -66324,7 +66324,7 @@ export default {
     en: 'Hemophilus influenzae',
   },
   '51201607': {
-    fr: 'Vaccin contre l\'hépatite B',
+    fr: "Vaccin contre l'hépatite B",
     en: 'Hepatitis B virus vaccine',
   },
   '51201608': {
@@ -66856,7 +66856,7 @@ export default {
     en: 'Indigotindisulfonate sodium',
   },
   '51212305': {
-    fr: 'Vert d\'indocyanine',
+    fr: "Vert d'indocyanine",
     en: 'Indocyanine green',
   },
   '51212306': {
@@ -66912,11 +66912,11 @@ export default {
     en: 'Opthalmic agents',
   },
   '51241101': {
-    fr: 'Chlorure d\'acétylcholine',
+    fr: "Chlorure d'acétylcholine",
     en: 'Acetylcholine chloride',
   },
   '51241102': {
-    fr: 'Chlorhydrate d\'apraclonidine',
+    fr: "Chlorhydrate d'apraclonidine",
     en: 'Apraclonidine hydrochloride',
   },
   '51241103': {
@@ -66940,11 +66940,11 @@ export default {
     en: 'Dorzolamide hydorchloride',
   },
   '51241108': {
-    fr: 'Iodure d\'Echothiophate',
+    fr: "Iodure d'Echothiophate",
     en: 'Echothiophate iodide',
   },
   '51241109': {
-    fr: 'Borate d\'épinéphryle',
+    fr: "Borate d'épinéphryle",
     en: 'Epinephryl borate',
   },
   '51241110': {
@@ -66976,7 +66976,7 @@ export default {
     en: 'Travoprost',
   },
   '51241117': {
-    fr: 'Isopropyle d\'unoprostone',
+    fr: "Isopropyle d'unoprostone",
     en: 'Unoprostone isoprpyl',
   },
   '51241118': {
@@ -67096,11 +67096,11 @@ export default {
     en: 'Topical camphor preparations',
   },
   '51241226': {
-    fr: 'Préparations topiques à base d\'urée',
+    fr: "Préparations topiques à base d'urée",
     en: 'Topical urea preparations',
   },
   '51241227': {
-    fr: 'Préparations topiques à base d\'essence de térébenthine',
+    fr: "Préparations topiques à base d'essence de térébenthine",
     en: 'Topical turpentine oil preparations',
   },
   '51241228': {
@@ -67116,7 +67116,7 @@ export default {
     en: 'Astringents',
   },
   '51241301': {
-    fr: 'Acétate d\'aluminium',
+    fr: "Acétate d'aluminium",
     en: 'Aluminum acetate',
   },
   '51241302': {
@@ -67604,7 +67604,7 @@ export default {
     en: 'Domestic rotisserie oven',
   },
   '52141600': {
-    fr: 'Mobilier et appareils électroménagers domestiques pour l\'entretien des vêtements et fournitures',
+    fr: "Mobilier et appareils électroménagers domestiques pour l'entretien des vêtements et fournitures",
     en: 'Domestic laundry appliances and supplies',
   },
   '52141601': {
@@ -67648,7 +67648,7 @@ export default {
     en: 'Domestic built in ironing center',
   },
   '52141700': {
-    fr: 'Mobilier et appareils électroménagers domestiques pour l\'entretien de l\'hygiène  personnelle',
+    fr: "Mobilier et appareils électroménagers domestiques pour l'entretien de l'hygiène  personnelle",
     en: 'Domestic bath appliances',
   },
   '52141701': {
@@ -67684,7 +67684,7 @@ export default {
     en: 'Domestic sewing machines',
   },
   '52141802': {
-    fr: 'Appareils de chauffage d\'appoint domestiques',
+    fr: "Appareils de chauffage d'appoint domestiques",
     en: 'Domestic space heaters',
   },
   '52141803': {
@@ -68448,7 +68448,7 @@ export default {
     en: 'Bathroom or toilet mirror',
   },
   '53000000': {
-    fr: 'Habillement, bagages et produits d\'hygiène personnelle',
+    fr: "Habillement, bagages et produits d'hygiène personnelle",
     en: 'Apparel and Luggage and Personal Care Products',
   },
   '53100000': {
@@ -68828,11 +68828,11 @@ export default {
     en: 'Institutional food preparation or service attire',
   },
   '53102705': {
-    fr: 'Uniformes d\'écolier',
+    fr: "Uniformes d'écolier",
     en: 'School uniforms',
   },
   '53102706': {
-    fr: 'Uniformes d\'agent de sécurité',
+    fr: "Uniformes d'agent de sécurité",
     en: 'Security uniforms',
   },
   '53102707': {
@@ -68840,11 +68840,11 @@ export default {
     en: 'Doctors coat',
   },
   '53102708': {
-    fr: 'Uniformes d\'infirmière',
+    fr: "Uniformes d'infirmière",
     en: 'Nurses uniforms',
   },
   '53102709': {
-    fr: 'Uniformes d\'ambulancier',
+    fr: "Uniformes d'ambulancier",
     en: 'Ambulance officers uniforms',
   },
   '53102710': {
@@ -68860,7 +68860,7 @@ export default {
     en: 'Paramedic uniforms',
   },
   '53102713': {
-    fr: 'Uniformes de placier ou  d\'ouvreuse',
+    fr: "Uniformes de placier ou  d'ouvreuse",
     en: 'Ushers uniforms',
   },
   '53102800': {
@@ -69168,7 +69168,7 @@ export default {
     en: 'Equipment cases',
   },
   '53121706': {
-    fr: 'Sacs d\'ordinateurs',
+    fr: "Sacs d'ordinateurs",
     en: 'Computer bags',
   },
   '53121800': {
@@ -69192,7 +69192,7 @@ export default {
     en: 'Makeup or manicure cases',
   },
   '53130000': {
-    fr: 'Produits pour l\'hygiène personnelle',
+    fr: "Produits pour l'hygiène personnelle",
     en: 'Personal care products',
   },
   '53131500': {
@@ -69220,7 +69220,7 @@ export default {
     en: 'Infant soother or pacifier or dummy',
   },
   '53131506': {
-    fr: 'Kits d\'hygiène dentaire',
+    fr: "Kits d'hygiène dentaire",
     en: 'Dental kits',
   },
   '53131507': {
@@ -69236,7 +69236,7 @@ export default {
     en: 'Mouth fresheners',
   },
   '53131600': {
-    fr: 'Produits de bains et d\'hygiène du corps',
+    fr: "Produits de bains et d'hygiène du corps",
     en: 'Bath and body',
   },
   '53131601': {
@@ -69296,7 +69296,7 @@ export default {
     en: 'Foot care products',
   },
   '53131615': {
-    fr: 'Produits d\'hygiène féminine',
+    fr: "Produits d'hygiène féminine",
     en: 'Feminine hygiene products',
   },
   '53131616': {
@@ -69436,7 +69436,7 @@ export default {
     en: 'Miscellaneous sewing supplies',
   },
   '53141601': {
-    fr: 'Pelotes d\'épingles',
+    fr: "Pelotes d'épingles",
     en: 'Pin cushions',
   },
   '53141602': {
@@ -69556,7 +69556,7 @@ export default {
     en: 'Pattern cutting mats or boards',
   },
   '54000000': {
-    fr: 'Produits d\'horlogerie, de bijouterie et gemmes',
+    fr: "Produits d'horlogerie, de bijouterie et gemmes",
     en: 'Timepieces and Jewelry and Gemstone Products',
   },
   '54100000': {
@@ -69580,7 +69580,7 @@ export default {
     en: 'Fine jewelry rings',
   },
   '54101504': {
-    fr: 'Boucles d\'oreille',
+    fr: "Boucles d'oreille",
     en: 'Fine jewelry earrings',
   },
   '54101505': {
@@ -69632,7 +69632,7 @@ export default {
     en: 'Rings',
   },
   '54101604': {
-    fr: 'Boucles d\'oreille',
+    fr: "Boucles d'oreille",
     en: 'Earrings',
   },
   '54101605': {
@@ -69704,19 +69704,19 @@ export default {
     en: 'Hourglasses',
   },
   '54111700': {
-    fr: 'Pièces ou accessoires de montre ou d\'horloge',
+    fr: "Pièces ou accessoires de montre ou d'horloge",
     en: 'Watch or clock parts or accessories',
   },
   '54111701': {
-    fr: 'Cadrans de montre ou d\'horloge',
+    fr: "Cadrans de montre ou d'horloge",
     en: 'Watch or clock dials',
   },
   '54111702': {
-    fr: 'Verres de montre ou d\'horloge',
+    fr: "Verres de montre ou d'horloge",
     en: 'Watch or clock crystals',
   },
   '54111703': {
-    fr: 'Plaques ou dos de montre ou d\'horloge',
+    fr: "Plaques ou dos de montre ou d'horloge",
     en: 'Watch or clock plates or bridges',
   },
   '54111704': {
@@ -69756,7 +69756,7 @@ export default {
     en: 'Diamond gemstones',
   },
   '54121502': {
-    fr: 'Gemmes d\'émeraude',
+    fr: "Gemmes d'émeraude",
     en: 'Emerald gemstones',
   },
   '54121503': {
@@ -69780,7 +69780,7 @@ export default {
     en: 'Jade gemstones',
   },
   '54121603': {
-    fr: 'Gemmes d\'opale',
+    fr: "Gemmes d'opale",
     en: 'Opal gemstones',
   },
   '54121700': {
@@ -69872,7 +69872,7 @@ export default {
     en: 'Promotional material or annual reports',
   },
   '55101516': {
-    fr: 'Manuels d\'opération ou d\'instruction',
+    fr: "Manuels d'opération ou d'instruction",
     en: 'Operation or instruction manuals',
   },
   '55101517': {
@@ -69888,7 +69888,7 @@ export default {
     en: 'Periodicals',
   },
   '55101520': {
-    fr: 'Livrets ou notices d\'instruction',
+    fr: "Livrets ou notices d'instruction",
     en: 'Instruction sheets or booklets',
   },
   '55101521': {
@@ -69964,7 +69964,7 @@ export default {
     en: 'Electronic charts or maps or atlases',
   },
   '55111509': {
-    fr: 'Musique d\'ambiance',
+    fr: "Musique d'ambiance",
     en: 'Background music',
   },
   '55111510': {
@@ -70044,7 +70044,7 @@ export default {
     en: 'Canning or bottling labels',
   },
   '55121605': {
-    fr: 'Étiquettes pour courrier ou étiquette d\'adresse',
+    fr: "Étiquettes pour courrier ou étiquette d'adresse",
     en: 'Addressing or mailing labels',
   },
   '55121606': {
@@ -70232,7 +70232,7 @@ export default {
     en: 'Temporary sign',
   },
   '55121800': {
-    fr: 'Documents d\'identification',
+    fr: "Documents d'identification",
     en: 'Identification documents',
   },
   '55121801': {
@@ -70240,7 +70240,7 @@ export default {
     en: 'Car tax discs',
   },
   '55121802': {
-    fr: 'Cartes ou bracelets d\'identification ou produits assimilés',
+    fr: "Cartes ou bracelets d'identification ou produits assimilés",
     en: 'Identification cards or bands or similar products',
   },
   '55121803': {
@@ -70468,11 +70468,11 @@ export default {
     en: 'Outdoor umbrellas',
   },
   '56101602': {
-    fr: 'Chaises d\'extérieur',
+    fr: "Chaises d'extérieur",
     en: 'Outdoor chairs',
   },
   '56101603': {
-    fr: 'Tables à pique nique et tables d\'extérieur',
+    fr: "Tables à pique nique et tables d'extérieur",
     en: 'Outdoor tables or picnic tables',
   },
   '56101604': {
@@ -70480,7 +70480,7 @@ export default {
     en: 'Outdoor swings',
   },
   '56101605': {
-    fr: 'Bancs d\'extérieur',
+    fr: "Bancs d'extérieur",
     en: 'Outdoor benches',
   },
   '56101606': {
@@ -70568,15 +70568,15 @@ export default {
     en: 'Baby and toddler furniture and accessories',
   },
   '56101803': {
-    fr: 'Landaus, poussettes ou voitures d\'enfant',
+    fr: "Landaus, poussettes ou voitures d'enfant",
     en: 'Carriages or perambulators or strollers',
   },
   '56101804': {
-    fr: 'Lits d\'enfants, parcs ou accessoires',
+    fr: "Lits d'enfants, parcs ou accessoires",
     en: 'Cribs or playpens or accessories',
   },
   '56101805': {
-    fr: 'Siège-bébé d\'automobile',
+    fr: "Siège-bébé d'automobile",
     en: 'Car seats',
   },
   '56101806': {
@@ -70720,7 +70720,7 @@ export default {
     en: 'Storage for panel systems',
   },
   '56111603': {
-    fr: 'Unités d\'organisation pour systèmes de cloisons mobiles',
+    fr: "Unités d'organisation pour systèmes de cloisons mobiles",
     en: 'Organization for panel systems',
   },
   '56111604': {
@@ -70728,7 +70728,7 @@ export default {
     en: 'Work surfaces for panel systems',
   },
   '56111605': {
-    fr: 'Composants de systèmes de cloisons mobiles d\'éclairage, d\'alimentation électrique ou de traitement de données',
+    fr: "Composants de systèmes de cloisons mobiles d'éclairage, d'alimentation électrique ou de traitement de données",
     en: 'Lighting or power or data components for panel systems',
   },
   '56111606': {
@@ -70752,11 +70752,11 @@ export default {
     en: 'Casegood or non modular storage',
   },
   '56111704': {
-    fr: 'Unités d\'organisation en bois massif non modulaires',
+    fr: "Unités d'organisation en bois massif non modulaires",
     en: 'Casegood or non modular organization',
   },
   '56111705': {
-    fr: 'Composants de mobilier en bois massif non modulaire d\'éclairage, d\'alimentation électrique ou de traitement de données',
+    fr: "Composants de mobilier en bois massif non modulaire d'éclairage, d'alimentation électrique ou de traitement de données",
     en: 'Casegood or non modular lighting or power or data components',
   },
   '56111706': {
@@ -70772,7 +70772,7 @@ export default {
     en: 'Freestanding furniture',
   },
   '56111801': {
-    fr: 'Composants de mobiliers autonomes d\'éclairage, d\'alimentation électrique ou de traitement de données',
+    fr: "Composants de mobiliers autonomes d'éclairage, d'alimentation électrique ou de traitement de données",
     en: 'Freestanding lighting or power or data components',
   },
   '56111802': {
@@ -70784,7 +70784,7 @@ export default {
     en: 'Freestanding storage',
   },
   '56111804': {
-    fr: 'Unités d\'organisation autonomes',
+    fr: "Unités d'organisation autonomes",
     en: 'Freestanding organization',
   },
   '56111805': {
@@ -70796,7 +70796,7 @@ export default {
     en: 'Industrial furniture',
   },
   '56111901': {
-    fr: 'Composants de mobilier industriel d\'éclairage, d\'alimentation électrique ou de traitement de données',
+    fr: "Composants de mobilier industriel d'éclairage, d'alimentation électrique ou de traitement de données",
     en: 'Industrial lighting or power or data components',
   },
   '56111902': {
@@ -70808,7 +70808,7 @@ export default {
     en: 'Industrial storage units',
   },
   '56111904': {
-    fr: 'Unités d\'organisations de mobilier industriel',
+    fr: "Unités d'organisations de mobilier industriel",
     en: 'Industrial organization',
   },
   '56111905': {
@@ -70828,7 +70828,7 @@ export default {
     en: 'Computer support furniture',
   },
   '56112001': {
-    fr: 'Composants de mobilier informatique d\'éclairage, d\'alimentation électrique ou de traitement de données',
+    fr: "Composants de mobilier informatique d'éclairage, d'alimentation électrique ou de traitement de données",
     en: 'Computer support lighting or power or data components',
   },
   '56112002': {
@@ -70840,7 +70840,7 @@ export default {
     en: 'Computer support storage accessories',
   },
   '56112004': {
-    fr: 'Unités d\'organisation de mobilier informatique',
+    fr: "Unités d'organisation de mobilier informatique",
     en: 'Computer support organization',
   },
   '56112005': {
@@ -70916,15 +70916,15 @@ export default {
     en: 'Worksurfaces',
   },
   '56112205': {
-    fr: 'Composants d\'éclairage, d\'électricité ou de données',
+    fr: "Composants d'éclairage, d'électricité ou de données",
     en: 'Lighting, power or data components',
   },
   '56112206': {
-    fr: 'Parties ou accessoires associés à l\'installation de bureau',
+    fr: "Parties ou accessoires associés à l'installation de bureau",
     en: 'Desking systems related parts and accessories',
   },
   '56112300': {
-    fr: 'Pièces et accessoires pour sièges d\'auditorium, de stades ou d\'usage spécialisé',
+    fr: "Pièces et accessoires pour sièges d'auditorium, de stades ou d'usage spécialisé",
     en: 'Auditorium or stadium or special use seating parts and accessories',
   },
   '56112301': {
@@ -71008,7 +71008,7 @@ export default {
     en: 'Art classroom furnishings',
   },
   '56121101': {
-    fr: 'Banc d\'artiste',
+    fr: "Banc d'artiste",
     en: 'Art horse',
   },
   '56121102': {
@@ -71264,7 +71264,7 @@ export default {
     en: 'Paint color fan deck',
   },
   '56131700': {
-    fr: 'Matériels d\'installation commerciale, systèmes d\'étagères et accessoires',
+    fr: "Matériels d'installation commerciale, systèmes d'étagères et accessoires",
     en: 'Merchandiser installation hardware, shelving systems and accessories',
   },
   '56131701': {
@@ -71280,11 +71280,11 @@ export default {
     en: 'Waterfalls or straight arm face outs',
   },
   '60000000': {
-    fr: 'Instruments de musique, jeux, jouets, et équipements, matériel, accessoires et fournitures pour l\'enseignement et les activités artisanales et artistiques',
+    fr: "Instruments de musique, jeux, jouets, et équipements, matériel, accessoires et fournitures pour l'enseignement et les activités artisanales et artistiques",
     en: 'Musical Instruments and Games and Toys and Arts and Crafts and Educational Equipment and Materials and Accessories and Supplies',
   },
   '60100000': {
-    fr: 'Auxiliaires, matériel, accessoires et fournitures pédagogiques pour léducation et l\'enseignement professionnel',
+    fr: "Auxiliaires, matériel, accessoires et fournitures pédagogiques pour léducation et l'enseignement professionnel",
     en: 'Developmental and professional teaching aids and materials and accessories and supplies',
   },
   '60101000': {
@@ -71700,7 +71700,7 @@ export default {
     en: 'Pointing sticks',
   },
   '60101800': {
-    fr: 'Matériel pédagogique pour l\'enseignement religieux',
+    fr: "Matériel pédagogique pour l'enseignement religieux",
     en: 'Church school educational resources',
   },
   '60101801': {
@@ -72148,7 +72148,7 @@ export default {
     en: 'Parquetry blocks',
   },
   '60102709': {
-    fr: 'Cartes de formes ou blocs d\'activité en bois',
+    fr: "Cartes de formes ou blocs d'activité en bois",
     en: 'Parquetry blocks activity or pattern cards',
   },
   '60102710': {
@@ -76028,11 +76028,11 @@ export default {
     en: 'Pretend play kits or supplies',
   },
   '70000000': {
-    fr: 'Services professionnels pour l\'agriculture, la pêche, la sylviculture et la faune sauvage',
+    fr: "Services professionnels pour l'agriculture, la pêche, la sylviculture et la faune sauvage",
     en: 'Farming and Fishing and Forestry and Wildlife Contracting Services',
   },
   '70100000': {
-    fr: 'Sociétés de pêche et d\'aquaculture',
+    fr: "Sociétés de pêche et d'aquaculture",
     en: 'Fisheries and aquaculture',
   },
   '70101500': {
@@ -76084,11 +76084,11 @@ export default {
     en: 'Fisheries oversight',
   },
   '70101601': {
-    fr: 'Services d\'information et de documentation sur la pêche',
+    fr: "Services d'information et de documentation sur la pêche",
     en: 'Fishery information or documentation services',
   },
   '70101602': {
-    fr: 'Services de recherche et d\'expérimentation sur la pêche',
+    fr: "Services de recherche et d'expérimentation sur la pêche",
     en: 'Fishery research or experimentation services',
   },
   '70101603': {
@@ -76140,7 +76140,7 @@ export default {
     en: 'Inland water fishery resources',
   },
   '70101802': {
-    fr: 'Ressources halieutiques d\'étang à poissons',
+    fr: "Ressources halieutiques d'étang à poissons",
     en: 'Fish pond resources',
   },
   '70101803': {
@@ -76188,23 +76188,23 @@ export default {
     en: 'Horticulture',
   },
   '70111500': {
-    fr: 'Plantes et arbres d\'ornement',
+    fr: "Plantes et arbres d'ornement",
     en: 'Plants and ornamental trees',
   },
   '70111501': {
-    fr: 'Services de plantation : plantes, buissons et arbres d\'ornement',
+    fr: "Services de plantation : plantes, buissons et arbres d'ornement",
     en: 'Planting services or ornamental plant or bush or tree',
   },
   '70111502': {
-    fr: 'Services de taille : plantes et buissons d\'ornement',
+    fr: "Services de taille : plantes et buissons d'ornement",
     en: 'Pruning services or ornamental plant or bush',
   },
   '70111503': {
-    fr: 'Services d\'élagage des arbres',
+    fr: "Services d'élagage des arbres",
     en: 'Tree trimming services',
   },
   '70111504': {
-    fr: 'Services d\'étayage',
+    fr: "Services d'étayage",
     en: 'Bracing services',
   },
   '70111505': {
@@ -76212,11 +76212,11 @@ export default {
     en: 'Tree surgery services',
   },
   '70111506': {
-    fr: 'Services d\'arboriculture',
+    fr: "Services d'arboriculture",
     en: 'Arborist services',
   },
   '70111507': {
-    fr: 'Services d\'enlèvement : plantes, buissons et arbres d\'ornement',
+    fr: "Services d'enlèvement : plantes, buissons et arbres d'ornement",
     en: 'Removal services or ornamental plant or bush or tree',
   },
   '70111508': {
@@ -76244,15 +76244,15 @@ export default {
     en: 'Parks and gardens and orchards',
   },
   '70111701': {
-    fr: 'Services de gestion et d\'entretien de vergers',
+    fr: "Services de gestion et d'entretien de vergers",
     en: 'Orchard management or maintenance services',
   },
   '70111702': {
-    fr: 'Services de gestion et d\'entretien des vignobles',
+    fr: "Services de gestion et d'entretien des vignobles",
     en: 'Vineyard management or maintenance services',
   },
   '70111703': {
-    fr: 'Services de plantation et d\'entretien des jardins',
+    fr: "Services de plantation et d'entretien des jardins",
     en: 'Garden planting or maintenance services',
   },
   '70111704': {
@@ -76260,15 +76260,15 @@ export default {
     en: 'Horticultural counseling services',
   },
   '70111705': {
-    fr: 'Services d\'entretien des cimetières',
+    fr: "Services d'entretien des cimetières",
     en: 'Cemetery upkeep services',
   },
   '70111706': {
-    fr: 'Services d\'entretien des pelouses',
+    fr: "Services d'entretien des pelouses",
     en: 'Lawn care services',
   },
   '70111707': {
-    fr: 'Services d\'entretien des pelouses d\'autoroute',
+    fr: "Services d'entretien des pelouses d'autoroute",
     en: 'Highway lawn maintenance services',
   },
   '70111708': {
@@ -76276,7 +76276,7 @@ export default {
     en: 'Mulching services',
   },
   '70111709': {
-    fr: 'Services d\'ensemencement',
+    fr: "Services d'ensemencement",
     en: 'Seeding services',
   },
   '70111710': {
@@ -76292,7 +76292,7 @@ export default {
     en: 'Parks or gardens spraying services',
   },
   '70111713': {
-    fr: 'Services de gestion et d\'entretien des parcs',
+    fr: "Services de gestion et d'entretien des parcs",
     en: 'Parks management or maintenance services',
   },
   '70120000': {
@@ -76304,11 +76304,11 @@ export default {
     en: 'Dairying',
   },
   '70121501': {
-    fr: 'Gestion d\'un troupeau',
+    fr: "Gestion d'un troupeau",
     en: 'Dairy herd management',
   },
   '70121502': {
-    fr: 'Mise en valeur de l\'industrie laitière',
+    fr: "Mise en valeur de l'industrie laitière",
     en: 'Dairy industry development',
   },
   '70121503': {
@@ -76340,11 +76340,11 @@ export default {
     en: 'Sericulture',
   },
   '70121604': {
-    fr: 'Elevage d\'animaux',
+    fr: "Elevage d'animaux",
     en: 'Animal husbandry',
   },
   '70121605': {
-    fr: 'Systèmes d\'élevage artificiel',
+    fr: "Systèmes d'élevage artificiel",
     en: 'Farm rearing systems',
   },
   '70121606': {
@@ -76352,7 +76352,7 @@ export default {
     en: 'Poultry production services',
   },
   '70121607': {
-    fr: 'Services d\'élevage de petits animaux',
+    fr: "Services d'élevage de petits animaux",
     en: 'Small animal breeding services',
   },
   '70121608': {
@@ -76376,7 +76376,7 @@ export default {
     en: 'Livestock showing services',
   },
   '70121703': {
-    fr: 'Services d\'abattage du bétail',
+    fr: "Services d'abattage du bétail",
     en: 'Livestock slaughtering services',
   },
   '70121704': {
@@ -76384,19 +76384,19 @@ export default {
     en: 'Herd management',
   },
   '70121705': {
-    fr: 'Services d\'élevage et de pansage du bétail',
+    fr: "Services d'élevage et de pansage du bétail",
     en: 'Livestock breeding or grooming services',
   },
   '70121800': {
-    fr: 'Elevage d\'animaux domestiques',
+    fr: "Elevage d'animaux domestiques",
     en: 'Pets industry',
   },
   '70121801': {
-    fr: 'Services d\'élevage d\'animaux domestiques',
+    fr: "Services d'élevage d'animaux domestiques",
     en: 'Pet breeding services',
   },
   '70121802': {
-    fr: 'Services de pansage d\'animaux domestiques',
+    fr: "Services de pansage d'animaux domestiques",
     en: 'Pet grooming services',
   },
   '70121803': {
@@ -76456,11 +76456,11 @@ export default {
     en: 'Veterinary laboratory technology',
   },
   '70122009': {
-    fr: 'Services d\'hospitalisation des animaux',
+    fr: "Services d'hospitalisation des animaux",
     en: 'Animal hospital services',
   },
   '70122010': {
-    fr: 'Services d\'information sur la santé animale',
+    fr: "Services d'information sur la santé animale",
     en: 'Animal health information services',
   },
   '70130000': {
@@ -76472,7 +76472,7 @@ export default {
     en: 'Land and soil protection',
   },
   '70131501': {
-    fr: 'Services de contrôle et d\'évaluation de la désertification',
+    fr: "Services de contrôle et d'évaluation de la désertification",
     en: 'Desertification assessment or control services',
   },
   '70131502': {
@@ -76480,7 +76480,7 @@ export default {
     en: 'Soil conservation or protection services',
   },
   '70131503': {
-    fr: 'Services de contrôle de l\'érosion',
+    fr: "Services de contrôle de l'érosion",
     en: 'Erosion control services',
   },
   '70131504': {
@@ -76500,11 +76500,11 @@ export default {
     en: 'Land and soil preparation',
   },
   '70131601': {
-    fr: 'Services d\'application d\'engrais',
+    fr: "Services d'application d'engrais",
     en: 'Fertilizer application services',
   },
   '70131602': {
-    fr: 'Services d\'épandage et d\'amendements calcaires',
+    fr: "Services d'épandage et d'amendements calcaires",
     en: 'Lime spreading services',
   },
   '70131603': {
@@ -76524,7 +76524,7 @@ export default {
     en: 'Land and soil management',
   },
   '70131701': {
-    fr: 'Planification de l\'utilisation de la terre',
+    fr: "Planification de l'utilisation de la terre",
     en: 'Land use planning',
   },
   '70131702': {
@@ -76572,7 +76572,7 @@ export default {
     en: 'Hydroponics',
   },
   '70141503': {
-    fr: 'Production d\'herbe et de fourrage',
+    fr: "Production d'herbe et de fourrage",
     en: 'Grass or fodder production',
   },
   '70141504': {
@@ -76596,7 +76596,7 @@ export default {
     en: 'Nut production',
   },
   '70141509': {
-    fr: 'Production de plantes d\'huile essentielle',
+    fr: "Production de plantes d'huile essentielle",
     en: 'Essential oil crops production',
   },
   '70141510': {
@@ -76632,7 +76632,7 @@ export default {
     en: 'Rubber plant production',
   },
   '70141518': {
-    fr: 'Production d\'épices',
+    fr: "Production d'épices",
     en: 'Spice crops production',
   },
   '70141519': {
@@ -76660,7 +76660,7 @@ export default {
     en: 'Weed control services',
   },
   '70141604': {
-    fr: 'Services d\'herbicide',
+    fr: "Services d'herbicide",
     en: 'Herbicide services',
   },
   '70141605': {
@@ -76704,7 +76704,7 @@ export default {
     en: 'Crop specialization',
   },
   '70141707': {
-    fr: 'Gestion du système d\'exploitation agricole',
+    fr: "Gestion du système d'exploitation agricole",
     en: 'Cultivation farming system management',
   },
   '70141708': {
@@ -76724,7 +76724,7 @@ export default {
     en: 'Crop planting and cultivation',
   },
   '70141801': {
-    fr: 'Services de plantation d\'arbre de verger et de plante grimpante',
+    fr: "Services de plantation d'arbre de verger et de plante grimpante",
     en: 'Orchard tree or vine planting services',
   },
   '70141802': {
@@ -76796,7 +76796,7 @@ export default {
     en: 'Tree nut crops market preparation services',
   },
   '70142009': {
-    fr: 'Services d\'égrenage',
+    fr: "Services d'égrenage",
     en: 'Ginning services',
   },
   '70142010': {
@@ -76828,7 +76828,7 @@ export default {
     en: 'Forest organizations or associations or cooperatives',
   },
   '70151504': {
-    fr: 'Services d\'administration forestière',
+    fr: "Services d'administration forestière",
     en: 'Forest administration services',
   },
   '70151505': {
@@ -76844,7 +76844,7 @@ export default {
     en: 'Afforestation services',
   },
   '70151508': {
-    fr: 'Services d\'extension forestière',
+    fr: "Services d'extension forestière",
     en: 'Forestry extension services',
   },
   '70151509': {
@@ -76864,11 +76864,11 @@ export default {
     en: 'Nonwood production services',
   },
   '70151602': {
-    fr: 'Production d\'huiles essentielles',
+    fr: "Production d'huiles essentielles",
     en: 'Essential oils production',
   },
   '70151603': {
-    fr: 'Services de production de bois d\'uvre',
+    fr: "Services de production de bois d'uvre",
     en: 'Timber production services',
   },
   '70151604': {
@@ -76896,7 +76896,7 @@ export default {
     en: 'Forest harvesting mountainous areas',
   },
   '70151703': {
-    fr: 'Opérations spéciales d\'exploitation forestière',
+    fr: "Opérations spéciales d'exploitation forestière",
     en: 'Forest harvesting specialized operations',
   },
   '70151704': {
@@ -76912,7 +76912,7 @@ export default {
     en: 'Temperate forest harvesting',
   },
   '70151707': {
-    fr: 'Exploitation de forêts tropicales d\'altitude',
+    fr: "Exploitation de forêts tropicales d'altitude",
     en: 'Tropical high forests harvesting',
   },
   '70151800': {
@@ -76956,7 +76956,7 @@ export default {
     en: 'Forest resources development',
   },
   '70151902': {
-    fr: 'Ressources d\'agroforesterie',
+    fr: "Ressources d'agroforesterie",
     en: 'Agroforestry resources',
   },
   '70151903': {
@@ -76972,7 +76972,7 @@ export default {
     en: 'Arid rainfed plantation resources',
   },
   '70151906': {
-    fr: 'Ressources de plantation d\'arbres feuillus',
+    fr: "Ressources de plantation d'arbres feuillus",
     en: 'Broad leafed plantation resources',
   },
   '70151907': {
@@ -77012,7 +77012,7 @@ export default {
     en: 'Ecosystems',
   },
   '70161701': {
-    fr: 'Services d\'écodéveloppement',
+    fr: "Services d'écodéveloppement",
     en: 'Ecodevelopment services',
   },
   '70161702': {
@@ -77036,7 +77036,7 @@ export default {
     en: 'Development',
   },
   '70171501': {
-    fr: 'Services d\'évaluation de la qualité de l\'eau',
+    fr: "Services d'évaluation de la qualité de l'eau",
     en: 'Water quality assessment services',
   },
   '70171502': {
@@ -77044,7 +77044,7 @@ export default {
     en: 'Water resources planning services',
   },
   '70171503': {
-    fr: 'Services de mesure de l\'eau souterraine et de surface',
+    fr: "Services de mesure de l'eau souterraine et de surface",
     en: 'Ground or surface water surveying',
   },
   '70171504': {
@@ -77056,7 +77056,7 @@ export default {
     en: 'River basin development',
   },
   '70171506': {
-    fr: 'Services de modélisation de l\'eau souterraine et de surface',
+    fr: "Services de modélisation de l'eau souterraine et de surface",
     en: 'Ground or surface water modeling services',
   },
   '70171600': {
@@ -77076,11 +77076,11 @@ export default {
     en: 'Floodplain management',
   },
   '70171604': {
-    fr: 'Services de conseil pour la conservation de l\'eau',
+    fr: "Services de conseil pour la conservation de l'eau",
     en: 'Water conservation advisory services',
   },
   '70171605': {
-    fr: 'Services de conseil pour les droits de captation d\'eau',
+    fr: "Services de conseil pour les droits de captation d'eau",
     en: 'Water rights advisory services',
   },
   '70171606': {
@@ -77088,7 +77088,7 @@ export default {
     en: 'Water resource recovery services',
   },
   '70171607': {
-    fr: 'Services pour la tarification de l\'eau',
+    fr: "Services pour la tarification de l'eau",
     en: 'Water pricing services',
   },
   '70171700': {
@@ -77096,39 +77096,39 @@ export default {
     en: 'Irrigation',
   },
   '70171701': {
-    fr: 'Services de gestion et d\'entretien des canaux',
+    fr: "Services de gestion et d'entretien des canaux",
     en: 'Canal maintenance or management services',
   },
   '70171702': {
-    fr: 'Services de gestion et d\'entretien des barrages',
+    fr: "Services de gestion et d'entretien des barrages",
     en: 'Dam maintenance or management services',
   },
   '70171703': {
-    fr: 'Services de gestion et d\'entretien des réservoirs',
+    fr: "Services de gestion et d'entretien des réservoirs",
     en: 'Reservoirs maintenance or management services',
   },
   '70171704': {
-    fr: 'Services de gestion et d\'entretien des stations de pompage',
+    fr: "Services de gestion et d'entretien des stations de pompage",
     en: 'Pumping station maintenance or management services',
   },
   '70171705': {
-    fr: 'Services de gestion et d\'entretien des conduites',
+    fr: "Services de gestion et d'entretien des conduites",
     en: 'Pipelines maintenance or management services',
   },
   '70171706': {
-    fr: 'Services de gestion et d\'entretien des digues et des berges',
+    fr: "Services de gestion et d'entretien des digues et des berges",
     en: 'Dike or embankment maintenance or management services',
   },
   '70171707': {
-    fr: 'Services de gestion et d\'entretien des puits',
+    fr: "Services de gestion et d'entretien des puits",
     en: 'Water well maintenance or management services',
   },
   '70171708': {
-    fr: 'Services de conseil pour l\'irrigation',
+    fr: "Services de conseil pour l'irrigation",
     en: 'Irrigation advisory services',
   },
   '70171709': {
-    fr: 'Services de gestion des systèmes d\'irrigation',
+    fr: "Services de gestion des systèmes d'irrigation",
     en: 'Irrigation systems management services',
   },
   '70171800': {
@@ -77148,11 +77148,11 @@ export default {
     en: 'Flood protection or control services',
   },
   '71000000': {
-    fr: 'Services d\'exploitation minière et de forage pour le pétrole et le gaz',
+    fr: "Services d'exploitation minière et de forage pour le pétrole et le gaz",
     en: 'Mining and oil and gas services',
   },
   '71100000': {
-    fr: 'Services d\'exploitation minière',
+    fr: "Services d'exploitation minière",
     en: 'Mining services',
   },
   '71101500': {
@@ -77164,7 +77164,7 @@ export default {
     en: 'Mine development',
   },
   '71101502': {
-    fr: 'Sondage d\'exploration et carottage',
+    fr: "Sondage d'exploration et carottage",
     en: 'Test boring or core drilling',
   },
   '71101600': {
@@ -77192,7 +77192,7 @@ export default {
     en: 'Open pit mining services',
   },
   '71101703': {
-    fr: 'Services d\'exploitation à ciel ouvert',
+    fr: "Services d'exploitation à ciel ouvert",
     en: 'Strip mining services',
   },
   '71101704': {
@@ -77220,7 +77220,7 @@ export default {
     en: 'Mine filling services',
   },
   '71110000': {
-    fr: 'Services pour l\'exploration et la production de pétrole et de gaz',
+    fr: "Services pour l'exploration et la production de pétrole et de gaz",
     en: 'Oil and gas exploration services',
   },
   '71112000': {
@@ -77228,11 +77228,11 @@ export default {
     en: 'Cased hole well logging services',
   },
   '71112001': {
-    fr: 'Services de test et d\'échantillonnage des formations des sondages tubés',
+    fr: "Services de test et d'échantillonnage des formations des sondages tubés",
     en: 'Cased hole formation sampling testing services',
   },
   '71112002': {
-    fr: 'Services de mesure de l\'épaisseur du tubage',
+    fr: "Services de mesure de l'épaisseur du tubage",
     en: 'Casing thickness measurement services',
   },
   '71112003': {
@@ -77256,7 +77256,7 @@ export default {
     en: 'Well fluid temperature measurement services',
   },
   '71112008': {
-    fr: 'Services d\'outils de détection de point libre',
+    fr: "Services d'outils de détection de point libre",
     en: 'Free point tool services',
   },
   '71112009': {
@@ -77264,7 +77264,7 @@ export default {
     en: 'Gamma ray services',
   },
   '71112010': {
-    fr: 'Services d\'abattage par charge creuse ou jet à haute pression',
+    fr: "Services d'abattage par charge creuse ou jet à haute pression",
     en: 'Jet cutter services',
   },
   '71112011': {
@@ -77280,7 +77280,7 @@ export default {
     en: 'Nuclear spectroscopy services',
   },
   '71112014': {
-    fr: 'Services de garnitures d\'étanchéité (parker) des puits',
+    fr: "Services de garnitures d'étanchéité (parker) des puits",
     en: 'Well packer services',
   },
   '71112015': {
@@ -77328,7 +77328,7 @@ export default {
     en: 'Well logging acoustic services',
   },
   '71112027': {
-    fr: 'Services d\'outils pour point de blocage',
+    fr: "Services d'outils pour point de blocage",
     en: 'Stuck point tool services',
   },
   '71112028': {
@@ -77336,11 +77336,11 @@ export default {
     en: 'Thermal decay well logging services',
   },
   '71112029': {
-    fr: 'Services d\'évaluation de la corrosion des puits',
+    fr: "Services d'évaluation de la corrosion des puits",
     en: 'Well tubular corrosion evaluation services',
   },
   '71112030': {
-    fr: 'Services d\'optimisation des performances des puits',
+    fr: "Services d'optimisation des performances des puits",
     en: 'Well performance services',
   },
   '71112031': {
@@ -77368,11 +77368,11 @@ export default {
     en: 'Dipole acoustic logging services',
   },
   '71112106': {
-    fr: 'Services de diagraphie de l\'inclinaison',
+    fr: "Services de diagraphie de l'inclinaison",
     en: 'Directional logging services',
   },
   '71112107': {
-    fr: 'Services d\'étude de l\'inclinaison',
+    fr: "Services d'étude de l'inclinaison",
     en: 'Directional survey services',
   },
   '71112108': {
@@ -77380,7 +77380,7 @@ export default {
     en: 'Electromagnetic propagation logging services',
   },
   '71112109': {
-    fr: 'Services d\'échantillonnage des formations',
+    fr: "Services d'échantillonnage des formations",
     en: 'Formation testing sampling services',
   },
   '71112110': {
@@ -77400,7 +77400,7 @@ export default {
     en: 'Geochemical nuclear logging services',
   },
   '71112114': {
-    fr: 'Services d\'imagerie des puits',
+    fr: "Services d'imagerie des puits",
     en: 'Well imaging services',
   },
   '71112115': {
@@ -77424,7 +77424,7 @@ export default {
     en: 'Slim access acoustic logging services',
   },
   '71112121': {
-    fr: 'Services de diagraphie acoustiques d\'adhésivité du ciment',
+    fr: "Services de diagraphie acoustiques d'adhésivité du ciment",
     en: 'Acoustic cement bond ratio logging services',
   },
   '71112122': {
@@ -77432,7 +77432,7 @@ export default {
     en: 'Well acoustic imaging services',
   },
   '71112123': {
-    fr: 'Services de diagraphie de l\'inclinaison et de la direction de la formation',
+    fr: "Services de diagraphie de l'inclinaison et de la direction de la formation",
     en: 'Formation dip direction and angle logging services',
   },
   '71112200': {
@@ -77464,11 +77464,11 @@ export default {
     en: 'Seismic services',
   },
   '71112301': {
-    fr: 'Services d\'acquisition des données sismiques terrestres à deux, trois ou quatre dimensions',
+    fr: "Services d'acquisition des données sismiques terrestres à deux, trois ou quatre dimensions",
     en: '2d/ 3d/ 4d land seismic acquisition services',
   },
   '71112302': {
-    fr: 'Services d\'acquisition des données sismiques marines à deux, trois ou quatre dimensions',
+    fr: "Services d'acquisition des données sismiques marines à deux, trois ou quatre dimensions",
     en: '2d/ 3d/ 4d marine seismic acquisition services',
   },
   '71112303': {
@@ -77476,11 +77476,11 @@ export default {
     en: '2d/ 3d/ 4d seismic data processing services',
   },
   '71112322': {
-    fr: 'Services d\'interprétation des données sismiques à deux, trois ou quatre dimensions',
+    fr: "Services d'interprétation des données sismiques à deux, trois ou quatre dimensions",
     en: '2d / 3d/ 4d  seismic data interpretation',
   },
   '71112323': {
-    fr: 'Service d\'étude de la vitesse découlement de fluides à lintérieur dun puits',
+    fr: "Service d'étude de la vitesse découlement de fluides à lintérieur dun puits",
     en: 'Well velocity survey services',
   },
   '71112324': {
@@ -77488,11 +77488,11 @@ export default {
     en: 'Other seismic services',
   },
   '71112325': {
-    fr: 'Services d\'acquisition des données sismiques dans les forages terrestres',
+    fr: "Services d'acquisition des données sismiques dans les forages terrestres",
     en: 'Borehole seismic land acquisition services',
   },
   '71112326': {
-    fr: 'Services d\'acquisition des données sismiques dans les forages maritimes',
+    fr: "Services d'acquisition des données sismiques dans les forages maritimes",
     en: 'Borehole seismic marine acquisition services',
   },
   '71112327': {
@@ -77500,19 +77500,19 @@ export default {
     en: 'Borehole seismic processing services',
   },
   '71112328': {
-    fr: 'Services de contrôle de l\'acquisition des données sismiques dans les forages',
+    fr: "Services de contrôle de l'acquisition des données sismiques dans les forages",
     en: 'Borehole seismic monitoring acquisition services',
   },
   '71112329': {
-    fr: 'Services d\'acquisition des données sismiques pendant le forage',
+    fr: "Services d'acquisition des données sismiques pendant le forage",
     en: 'Borehole seismic while drilling acquisition services',
   },
   '71112330': {
-    fr: 'Services d\'acquisition simultanée des données sismiques de surface et de forage',
+    fr: "Services d'acquisition simultanée des données sismiques de surface et de forage",
     en: 'Simultaneous borehole and surface seismic acquisition services',
   },
   '71120000': {
-    fr: 'Services d\'ouverture et de réalisation des puits pétroliers',
+    fr: "Services d'ouverture et de réalisation des puits pétroliers",
     en: 'Well drilling and construction services',
   },
   '71121000': {
@@ -77532,11 +77532,11 @@ export default {
     en: 'Oilwell lost circulation services',
   },
   '71121009': {
-    fr: 'Services d\'extraction des boues des puits pétroliers',
+    fr: "Services d'extraction des boues des puits pétroliers",
     en: 'Oilfield mud removal services',
   },
   '71121010': {
-    fr: 'Services de cimentation pour l\'obturation des puits',
+    fr: "Services de cimentation pour l'obturation des puits",
     en: 'Plug cement services',
   },
   '71121011': {
@@ -77548,15 +77548,15 @@ export default {
     en: 'Oilfield pressure testing services',
   },
   '71121016': {
-    fr: 'Services de cimentation pour l\'isolement des puits',
+    fr: "Services de cimentation pour l'isolement des puits",
     en: 'Squeeze well cementing services',
   },
   '71121017': {
-    fr: 'Services d\'aménagement hydraulique des puits',
+    fr: "Services d'aménagement hydraulique des puits",
     en: 'Well water control services',
   },
   '71121018': {
-    fr: 'Services d\'analyse des ciments des puits',
+    fr: "Services d'analyse des ciments des puits",
     en: 'Well cement evaluation services',
   },
   '71121024': {
@@ -77568,15 +77568,15 @@ export default {
     en: 'Other cementing services',
   },
   '71121100': {
-    fr: 'Services d\'intervention par tubage enroulé',
+    fr: "Services d'intervention par tubage enroulé",
     en: 'Coiled tubing services',
   },
   '71121101': {
-    fr: 'Services d\'acidification par tubage enroulé',
+    fr: "Services d'acidification par tubage enroulé",
     en: 'Acidizing through coiled tubing services',
   },
   '71121102': {
-    fr: 'Services d\'installation de câbles par tubage enroulé',
+    fr: "Services d'installation de câbles par tubage enroulé",
     en: 'Cable installation through coiled tubing services',
   },
   '71121103': {
@@ -77596,7 +77596,7 @@ export default {
     en: 'Completion through coiled tubing services',
   },
   '71121107': {
-    fr: 'Services d\'installation de garnitures gonflables par tubage enroulé',
+    fr: "Services d'installation de garnitures gonflables par tubage enroulé",
     en: 'Conveying inflatables through coiled tubing services',
   },
   '71121108': {
@@ -77620,7 +77620,7 @@ export default {
     en: 'High pressure coiled tubing services',
   },
   '71121113': {
-    fr: 'Services d\'isolation horizontale de puit pétrolier par tubage enroulé',
+    fr: "Services d'isolation horizontale de puit pétrolier par tubage enroulé",
     en: 'Horizontal isolation oilfield services',
   },
   '71121114': {
@@ -77632,7 +77632,7 @@ export default {
     en: 'Milling through coiled tubing services',
   },
   '71121116': {
-    fr: 'Services d\'intervention à l\'azote par tubage enroulé',
+    fr: "Services d'intervention à l'azote par tubage enroulé",
     en: 'Nitrogen related applications through coiled tubing',
   },
   '71121117': {
@@ -77640,11 +77640,11 @@ export default {
     en: 'Perforating through coiled tubing services',
   },
   '71121118': {
-    fr: 'Services d\'installation de conduite de transport ou d\'écoulement par tubage enroulé',
+    fr: "Services d'installation de conduite de transport ou d'écoulement par tubage enroulé",
     en: 'Pipeline or flow line laying services',
   },
   '71121119': {
-    fr: 'Services d\'intervention sur conduite de transport par tubage enroulé',
+    fr: "Services d'intervention sur conduite de transport par tubage enroulé",
     en: 'Pipeline intervention services',
   },
   '71121120': {
@@ -77652,7 +77652,7 @@ export default {
     en: 'Sand control through coiled tubing services',
   },
   '71121121': {
-    fr: 'Services d\'entretien des puits par abrasif par tubage enroulé',
+    fr: "Services d'entretien des puits par abrasif par tubage enroulé",
     en: 'Abrasive tubular cleaning services',
   },
   '71121122': {
@@ -77688,7 +77688,7 @@ export default {
     en: 'Oriented coring services',
   },
   '71121206': {
-    fr: 'Services d\'analyse des carottes sur site de forage',
+    fr: "Services d'analyse des carottes sur site de forage",
     en: 'Rig site core analysis services',
   },
   '71121207': {
@@ -77708,7 +77708,7 @@ export default {
     en: 'Motor coring services',
   },
   '71121211': {
-    fr: 'Services de carottage par système d\'isolation complète',
+    fr: "Services de carottage par système d'isolation complète",
     en: 'Full closure systems services',
   },
   '71121300': {
@@ -77720,19 +77720,19 @@ export default {
     en: 'Downhole drilling vibration control services',
   },
   '71121302': {
-    fr: 'Services d\'élargissement des forages de fond de puits',
+    fr: "Services d'élargissement des forages de fond de puits",
     en: 'Downhole drilling borehole enlargement services',
   },
   '71121303': {
-    fr: 'Services d\'alésage et de renforcement de la cavité de forage',
+    fr: "Services d'alésage et de renforcement de la cavité de forage",
     en: 'Downhole drilling reaming and gauge protection services',
   },
   '71121304': {
-    fr: 'Services de contrôle du couple et de l\'entraînement en fond de puits',
+    fr: "Services de contrôle du couple et de l'entraînement en fond de puits",
     en: 'Downhole drilling torque or drag reduction services',
   },
   '71121305': {
-    fr: 'Services d\'extraction des tubes bloqués en fond de puits',
+    fr: "Services d'extraction des tubes bloqués en fond de puits",
     en: 'Downhole drilling stuck pipe alleviation services',
   },
   '71121306': {
@@ -77756,7 +77756,7 @@ export default {
     en: 'Oilfield drilling bit design services',
   },
   '71121402': {
-    fr: 'Services d\'optimisation hydraulique des trépans des puits pétroliers',
+    fr: "Services d'optimisation hydraulique des trépans des puits pétroliers",
     en: 'Oilfield drilling bit hydraulic optimization services',
   },
   '71121403': {
@@ -77764,7 +77764,7 @@ export default {
     en: 'Oilfield drilling bit planning services',
   },
   '71121404': {
-    fr: 'Services d\'enregistrement sismique pour trépans des puits pétroliers',
+    fr: "Services d'enregistrement sismique pour trépans des puits pétroliers",
     en: 'Oilfield drilling bit recording services',
   },
   '71121405': {
@@ -77772,11 +77772,11 @@ export default {
     en: 'Oilfield drilling bit repair services',
   },
   '71121406': {
-    fr: 'Services de suivi de l\'avancement des trépans des puits pétroliers',
+    fr: "Services de suivi de l'avancement des trépans des puits pétroliers",
     en: 'Oilfield drilling bit footage contracts',
   },
   '71121407': {
-    fr: 'Services d\'assistance sur site pour l\'optimisation des puits',
+    fr: "Services d'assistance sur site pour l'optimisation des puits",
     en: 'Well site drilling optimization assistance service',
   },
   '71121408': {
@@ -77848,7 +77848,7 @@ export default {
     en: 'Well surveying management services',
   },
   '71121516': {
-    fr: 'Services de câble d\'arpentage',
+    fr: "Services de câble d'arpentage",
     en: 'Surveying wireline services',
   },
   '71121600': {
@@ -77856,7 +77856,7 @@ export default {
     en: 'Oil well drilling services',
   },
   '71121601': {
-    fr: 'Services de mise à disposition d\'équipes de tubage de puits',
+    fr: "Services de mise à disposition d'équipes de tubage de puits",
     en: 'Well casing crew service',
   },
   '71121602': {
@@ -77888,7 +77888,7 @@ export default {
     en: 'Well drilling contract development services',
   },
   '71121610': {
-    fr: 'Services d\'ingénierie de forage des puits',
+    fr: "Services d'ingénierie de forage des puits",
     en: 'Well drilling engineering services',
   },
   '71121611': {
@@ -77900,7 +77900,7 @@ export default {
     en: 'Well drilling of water intake well services',
   },
   '71121613': {
-    fr: 'Services de surveillances de l\'appareil de forage des puits',
+    fr: "Services de surveillances de l'appareil de forage des puits",
     en: 'Well drilling rig monitor services',
   },
   '71121614': {
@@ -77956,7 +77956,7 @@ export default {
     en: 'Short radius directional well drilling services',
   },
   '71121627': {
-    fr: 'Services d\'élargissement dirigé pendant le forage des puits',
+    fr: "Services d'élargissement dirigé pendant le forage des puits",
     en: 'Steerable underreaming while well drilling services',
   },
   '71121628': {
@@ -77992,7 +77992,7 @@ export default {
     en: 'Rig well pulling crew services',
   },
   '71121636': {
-    fr: 'Services d\'équipement pour tête de puit',
+    fr: "Services d'équipement pour tête de puit",
     en: 'Wellhead equipment services',
   },
   '71121637': {
@@ -78008,7 +78008,7 @@ export default {
     en: 'Oilfield fishing service design services',
   },
   '71121702': {
-    fr: 'Services d\'évaluation financière du repêchage pour puits de pétrole',
+    fr: "Services d'évaluation financière du repêchage pour puits de pétrole",
     en: 'Oilfield fishing service economic evaluation services',
   },
   '71121703': {
@@ -78028,39 +78028,39 @@ export default {
     en: 'Oilfield fishing or drilling services',
   },
   '71121800': {
-    fr: 'Services d\'injection de gaz à haute pression',
+    fr: "Services d'injection de gaz à haute pression",
     en: 'Artificial lift services',
   },
   '71121805': {
-    fr: 'Services d\'injection par pompes pneumatiques',
+    fr: "Services d'injection par pompes pneumatiques",
     en: 'Plunger lift services',
   },
   '71121806': {
-    fr: 'Services d\'injection par pompes à piston hydraulique RRL',
+    fr: "Services d'injection par pompes à piston hydraulique RRL",
     en: 'Reciprocating rod lift services',
   },
   '71121807': {
-    fr: 'Services d\'injection hydraulique',
+    fr: "Services d'injection hydraulique",
     en: 'Hydraulic lifting services',
   },
   '71121808': {
-    fr: 'Services d\'injection par pompes à cavité progressive',
+    fr: "Services d'injection par pompes à cavité progressive",
     en: 'Progressive cavity lift CVX services',
   },
   '71121809': {
-    fr: 'Services d\'automatisation et d\'optimisation des sites de forage',
+    fr: "Services d'automatisation et d'optimisation des sites de forage",
     en: 'Well site optimization and automation services',
   },
   '71121810': {
-    fr: 'Services d\'injection par pompes immergées électroniques',
+    fr: "Services d'injection par pompes immergées électroniques",
     en: 'Electronic submersible pump lifting services',
   },
   '71121811': {
-    fr: 'Autres systèmes d\'optimisation des extractions',
+    fr: "Autres systèmes d'optimisation des extractions",
     en: 'Other lift systems',
   },
   '71121812': {
-    fr: 'Services d\'injection de gaz à haute pression',
+    fr: "Services d'injection de gaz à haute pression",
     en: 'Gas lift Services',
   },
   '71121900': {
@@ -78068,7 +78068,7 @@ export default {
     en: 'Downhole fluid services',
   },
   '71121901': {
-    fr: 'Services d\'étude pour les fluides de fond de puits',
+    fr: "Services d'étude pour les fluides de fond de puits",
     en: 'Downhole fluid evaluation services',
   },
   '71121902': {
@@ -78076,11 +78076,11 @@ export default {
     en: 'Downhole fluid laboratory services',
   },
   '71121903': {
-    fr: 'Services d\'échantillonnage des fluides de fond de puits',
+    fr: "Services d'échantillonnage des fluides de fond de puits",
     en: 'Downhole fluid sampling services',
   },
   '71121904': {
-    fr: 'Services d\'ingénierie des fluides de fond de puits',
+    fr: "Services d'ingénierie des fluides de fond de puits",
     en: 'Downhole fluid engineering services',
   },
   '71122000': {
@@ -78184,7 +78184,7 @@ export default {
     en: 'Slickline fishing services',
   },
   '71122202': {
-    fr: 'Services de levage par câble lisse pour l\'injection de gaz',
+    fr: "Services de levage par câble lisse pour l'injection de gaz",
     en: 'Slickline lifting services',
   },
   '71122203': {
@@ -78200,7 +78200,7 @@ export default {
     en: 'Slickline logging services',
   },
   '71122206': {
-    fr: 'Services d\'exploitation d\'outils mécaniques par câble lisse',
+    fr: "Services d'exploitation d'outils mécaniques par câble lisse",
     en: 'Slickline mechanical services',
   },
   '71122207': {
@@ -78220,7 +78220,7 @@ export default {
     en: 'Subsea well remote operation vehicle rov services',
   },
   '71122303': {
-    fr: 'Services de matériel de fixation et d\'essai pour les puits sous marins',
+    fr: "Services de matériel de fixation et d'essai pour les puits sous marins",
     en: 'Subsea well fixturing or test equipment services',
   },
   '71122304': {
@@ -78228,7 +78228,7 @@ export default {
     en: 'Subsea well intervention or completion services',
   },
   '71122305': {
-    fr: 'Services afférents aux arbres d\'essai des puits sous marins',
+    fr: "Services afférents aux arbres d'essai des puits sous marins",
     en: 'Subsea well safety test tree services',
   },
   '71122306': {
@@ -78240,31 +78240,31 @@ export default {
     en: 'Subsea dredging trenching and excavation services',
   },
   '71122308': {
-    fr: 'Services d\'immersion de câbles et canalisations',
+    fr: "Services d'immersion de câbles et canalisations",
     en: 'Subsea pipe laying and cable laying services',
   },
   '71122400': {
-    fr: 'Services d\'essai des puits',
+    fr: "Services d'essai des puits",
     en: 'Well testing services',
   },
   '71122407': {
-    fr: 'Services de train de tiges d\'essai aux tiges',
+    fr: "Services de train de tiges d'essai aux tiges",
     en: 'Drill stem testing services',
   },
   '71122408': {
-    fr: 'Services d\'essai périodique des puits',
+    fr: "Services d'essai périodique des puits",
     en: 'Periodic well testing services',
   },
   '71122409': {
-    fr: 'Services d\'essai de surface des puits',
+    fr: "Services d'essai de surface des puits",
     en: 'Surface well testing services',
   },
   '71122410': {
-    fr: 'Services d\'essai sous-pression pendant le forage',
+    fr: "Services d'essai sous-pression pendant le forage",
     en: 'Underbalanced testing while drilling services',
   },
   '71122500': {
-    fr: 'Services de contrôle du gaz ou de l\'eau',
+    fr: "Services de contrôle du gaz ou de l'eau",
     en: 'Water or gas control services',
   },
   '71122501': {
@@ -78284,7 +78284,7 @@ export default {
     en: 'Water or gas control testing services',
   },
   '71122505': {
-    fr: 'Services d\'échantillonnage pour le contrôle du gaz ou de leau',
+    fr: "Services d'échantillonnage pour le contrôle du gaz ou de leau",
     en: 'Water or gas testing services',
   },
   '71122506': {
@@ -78364,7 +78364,7 @@ export default {
     en: 'Oilfield tubing anchor services',
   },
   '71122708': {
-    fr: 'Services d\'entretien mécanique sur les pompes des puits de pétrole',
+    fr: "Services d'entretien mécanique sur les pompes des puits de pétrole",
     en: 'Oilfield pump mechanic services',
   },
   '71122709': {
@@ -78384,7 +78384,7 @@ export default {
     en: 'Downhole recording services',
   },
   '71122802': {
-    fr: 'Services de surveillance des vitesses d\'écoulement des puits',
+    fr: "Services de surveillance des vitesses d'écoulement des puits",
     en: 'Well flow monitoring services',
   },
   '71122803': {
@@ -78420,23 +78420,23 @@ export default {
     en: 'Oilfield rigs',
   },
   '71122901': {
-    fr: 'Services d\'installations de forage en eau profonde',
+    fr: "Services d'installations de forage en eau profonde",
     en: 'Deepwater oilfield rig services',
   },
   '71122902': {
-    fr: 'Services d\'installations de forage sur plate-forme auto-élévatrice',
+    fr: "Services d'installations de forage sur plate-forme auto-élévatrice",
     en: 'Jackup oilfield rig services',
   },
   '71122903': {
-    fr: 'Services d\'installations de forage sur barge',
+    fr: "Services d'installations de forage sur barge",
     en: 'Barge oilfield rig services',
   },
   '71122904': {
-    fr: 'Services d\'installations de forage terrestre',
+    fr: "Services d'installations de forage terrestre",
     en: 'Land oilfield rig services',
   },
   '71122905': {
-    fr: 'Services d\'installations de forage sur plate-forme',
+    fr: "Services d'installations de forage sur plate-forme",
     en: 'Platform oilfield rig services',
   },
   '71123000': {
@@ -78444,15 +78444,15 @@ export default {
     en: 'Integrated services',
   },
   '71123001': {
-    fr: 'Services de gestion et de mise en service d\'équipement, ingénierie, aménagement et maintenance de site ou de plate-forme.',
+    fr: "Services de gestion et de mise en service d'équipement, ingénierie, aménagement et maintenance de site ou de plate-forme.",
     en: 'Management and provision of all facilities engineering modification and maintenance services for a site or platform',
   },
   '71123002': {
-    fr: 'Services de gestion et d\'exploitation d\'équipement, ingénierie, aménagement et maintenance de site ou de plate-forme.',
+    fr: "Services de gestion et d'exploitation d'équipement, ingénierie, aménagement et maintenance de site ou de plate-forme.",
     en: 'Management and operation of all facilities, engineering, modification and maintenance services for site or platform',
   },
   '71123003': {
-    fr: 'Services d\'installation et de développement de réservoirs d\'hydrocarbure',
+    fr: "Services d'installation et de développement de réservoirs d'hydrocarbure",
     en: 'Hydrocarbon reservoir development and production services',
   },
   '71123004': {
@@ -78464,15 +78464,15 @@ export default {
     en: 'Management and provision of all catering, cleaning, office and security services at location or platform',
   },
   '71123006': {
-    fr: 'Services de développement de champs d\'exploitation',
+    fr: "Services de développement de champs d'exploitation",
     en: 'Field development',
   },
   '71123007': {
-    fr: 'Services de réaménagement de champs d\'exploitation',
+    fr: "Services de réaménagement de champs d'exploitation",
     en: 'Integrated field rehabilitation services',
   },
   '71130000': {
-    fr: 'Services d\'optimisation de l\'extraction et de la production de gaz et de pétrole',
+    fr: "Services d'optimisation de l'extraction et de la production de gaz et de pétrole",
     en: 'Oil and gas extraction and production enhancement services',
   },
   '71131000': {
@@ -78500,7 +78500,7 @@ export default {
     en: 'Oil well scale control services',
   },
   '71131006': {
-    fr: 'Services d\'essai de fracture des puits de pétrole',
+    fr: "Services d'essai de fracture des puits de pétrole",
     en: 'Well fracture testing services',
   },
   '71131007': {
@@ -78568,7 +78568,7 @@ export default {
     en: 'Matrix organic cleanup services',
   },
   '71131104': {
-    fr: 'Services d\'inhibition des matrices organiques',
+    fr: "Services d'inhibition des matrices organiques",
     en: 'Matrix organic inhibition services',
   },
   '71131105': {
@@ -78576,7 +78576,7 @@ export default {
     en: 'Matrix scale cleanup services',
   },
   '71131106': {
-    fr: 'Services d\'inhibition des couches de matrice',
+    fr: "Services d'inhibition des couches de matrice",
     en: 'Matrix scale inhibition services',
   },
   '71131107': {
@@ -78600,11 +78600,11 @@ export default {
     en: 'Non acid based matrix stimulation services',
   },
   '71131200': {
-    fr: 'Services afférents à l\'azote pour les champs pétrolifères',
+    fr: "Services afférents à l'azote pour les champs pétrolifères",
     en: 'Oilfield nitrogen services',
   },
   '71131201': {
-    fr: 'Services afférents à l\'azote pour les puits',
+    fr: "Services afférents à l'azote pour les puits",
     en: 'Nitrogen well services',
   },
   '71131300': {
@@ -78620,7 +78620,7 @@ export default {
     en: 'Cable deployed oilfield pumping services',
   },
   '71131303': {
-    fr: 'Services de pompage d\'anhydride carbonique (CO2) pour les puits de pétrole',
+    fr: "Services de pompage d'anhydride carbonique (CO2) pour les puits de pétrole",
     en: 'Co2 oilfield pumping services',
   },
   '71131304': {
@@ -78640,7 +78640,7 @@ export default {
     en: 'Horizontal pumping well services',
   },
   '71131308': {
-    fr: 'Services de levage ou de maintenance d\'installation de pompage pour les puits de pétrole',
+    fr: "Services de levage ou de maintenance d'installation de pompage pour les puits de pétrole",
     en: 'Oilfield pumping installation pull or operation services',
   },
   '71131309': {
@@ -78672,7 +78672,7 @@ export default {
     en: 'Oilfield flare system services',
   },
   '71131402': {
-    fr: 'Services afférents au pétrole lourd ou à l\'eau pour les puits de pétrole',
+    fr: "Services afférents au pétrole lourd ou à l'eau pour les puits de pétrole",
     en: 'Oilfield hot oil or water service',
   },
   '71131403': {
@@ -78680,11 +78680,11 @@ export default {
     en: 'Oilfield steaming services',
   },
   '71131404': {
-    fr: 'Services d\'épuration de l\'hydrogène sulfuré',
+    fr: "Services d'épuration de l'hydrogène sulfuré",
     en: 'Sulfide scavenging services',
   },
   '71131405': {
-    fr: 'Services de prévention de la formation d\'hydrates dans les conduites',
+    fr: "Services de prévention de la formation d'hydrates dans les conduites",
     en: 'Flow line hydrate formation control services',
   },
   '71131406': {
@@ -78692,11 +78692,11 @@ export default {
     en: 'Iron sulfide deposit removal services',
   },
   '71131407': {
-    fr: 'Services de modélisation d\'esquiche',
+    fr: "Services de modélisation d'esquiche",
     en: 'Squeeze modeling services',
   },
   '71131408': {
-    fr: 'Services de modélisation de la formation d\'hydrates',
+    fr: "Services de modélisation de la formation d'hydrates",
     en: 'Hydrate formation modeling services',
   },
   '71131409': {
@@ -78708,7 +78708,7 @@ export default {
     en: 'Pipeline cleaning services',
   },
   '71131411': {
-    fr: 'Services visant à améliorer les vitesses d\'écoulement dans les conduites',
+    fr: "Services visant à améliorer les vitesses d'écoulement dans les conduites",
     en: 'Pipeline flow enhancement services',
   },
   '71131412': {
@@ -78724,7 +78724,7 @@ export default {
     en: 'Scale inhibiting services',
   },
   '71131415': {
-    fr: 'Services de certification des vitesses d\'écoulement dans les conduites',
+    fr: "Services de certification des vitesses d'écoulement dans les conduites",
     en: 'Pipeline flow assurance services',
   },
   '71131416': {
@@ -78744,7 +78744,7 @@ export default {
     en: 'Oil and gas restoration and reclamation services',
   },
   '71141000': {
-    fr: 'Services d\'urgence pour les puits',
+    fr: "Services d'urgence pour les puits",
     en: 'Emergency well control services',
   },
   '71141001': {
@@ -78768,15 +78768,15 @@ export default {
     en: 'Dead well workover',
   },
   '71141006': {
-    fr: 'Services d\'isolation des puits par bouchon de glace',
+    fr: "Services d'isolation des puits par bouchon de glace",
     en: 'Well freeze operations',
   },
   '71141007': {
-    fr: 'Services d\'étude et de réalisation de profils de puits',
+    fr: "Services d'étude et de réalisation de profils de puits",
     en: 'Relief well design and implementation',
   },
   '71141008': {
-    fr: 'Services d\'ingénierie de puits',
+    fr: "Services d'ingénierie de puits",
     en: 'Well control engineering services',
   },
   '71141100': {
@@ -78792,7 +78792,7 @@ export default {
     en: 'Well plugging services',
   },
   '71141103': {
-    fr: 'Services de fermeture et d\'abandon de plate-forme',
+    fr: "Services de fermeture et d'abandon de plate-forme",
     en: 'Well abandonment platform removal services',
   },
   '71141104': {
@@ -78848,7 +78848,7 @@ export default {
     en: 'Oilfield data management services',
   },
   '71151101': {
-    fr: 'Services de gestion des éléments d\'actifs relatifs aux champs pétrolifères',
+    fr: "Services de gestion des éléments d'actifs relatifs aux champs pétrolifères",
     en: 'Oilfield asset data management services',
   },
   '71151102': {
@@ -78868,7 +78868,7 @@ export default {
     en: 'Seismic data management services',
   },
   '71151106': {
-    fr: 'Services de sauvegarde et d\'archivage des données',
+    fr: "Services de sauvegarde et d'archivage des données",
     en: 'Data storage and backup',
   },
   '71151200': {
@@ -78888,7 +78888,7 @@ export default {
     en: 'Oilfield decision tree services',
   },
   '71151300': {
-    fr: 'Services d\'interprétation pour les champs pétrolifères',
+    fr: "Services d'interprétation pour les champs pétrolifères",
     en: 'Oilfield interpretation services',
   },
   '71151301': {
@@ -78920,7 +78920,7 @@ export default {
     en: 'Geophysics services',
   },
   '71151308': {
-    fr: 'Services d\'interprétation des filtres à sable',
+    fr: "Services d'interprétation des filtres à sable",
     en: 'Gravel pack interpretation services',
   },
   '71151309': {
@@ -78936,7 +78936,7 @@ export default {
     en: 'Petrophysics services',
   },
   '71151315': {
-    fr: 'Services d\'interprétation en mécanique des roches',
+    fr: "Services d'interprétation en mécanique des roches",
     en: 'Rock mechanics services',
   },
   '71151316': {
@@ -78944,51 +78944,51 @@ export default {
     en: 'Reservoir services',
   },
   '71151317': {
-    fr: 'Services d\'évaluation générale des formations',
+    fr: "Services d'évaluation générale des formations",
     en: 'General formation evaluation',
   },
   '71151318': {
-    fr: 'Services d\'analyse des formes d\'onde acoustique',
+    fr: "Services d'analyse des formes d'onde acoustique",
     en: 'Acoustic waveform processing services',
   },
   '71151319': {
-    fr: 'Services d\'analyse des conditions géomécaniques',
+    fr: "Services d'analyse des conditions géomécaniques",
     en: 'Geomechanical services processing',
   },
   '71151320': {
-    fr: 'Services d\'analyse et d\'interprétation et par résonance magnétique nucléaire',
+    fr: "Services d'analyse et d'interprétation et par résonance magnétique nucléaire",
     en: 'Nuclear magnetic resonance processing and interpretation services',
   },
   '71151321': {
-    fr: 'Services d\'analyse et d\'interprétation des mesures de résistivité',
+    fr: "Services d'analyse et d'interprétation des mesures de résistivité",
     en: 'Resistivity processing and interpretation services',
   },
   '71151322': {
-    fr: 'Services d\'analyse de l\'inclinaison et de la direction des formations',
+    fr: "Services d'analyse de l'inclinaison et de la direction des formations",
     en: 'Dip angle and direction processing',
   },
   '71151323': {
-    fr: 'Services d\'analyse des images de fond de puits',
+    fr: "Services d'analyse des images de fond de puits",
     en: 'Borehole image processing',
   },
   '71151324': {
-    fr: 'Services d\'analyse des diagraphies en cours de forage',
+    fr: "Services d'analyse des diagraphies en cours de forage",
     en: 'Logging while drilling processing',
   },
   '71151325': {
-    fr: 'Services d\'analyse et d\'interprétation des mesures par neutron pulsé',
+    fr: "Services d'analyse et d'interprétation des mesures par neutron pulsé",
     en: 'Pulsed neutron processing and interpretation services',
   },
   '71151326': {
-    fr: 'Services d\'analyse et d\'interprétation des mesures générale de production  des puits tubés',
+    fr: "Services d'analyse et d'interprétation des mesures générale de production  des puits tubés",
     en: 'General cased hole and production log processing',
   },
   '71151327': {
-    fr: 'Services d\'analyse et d\'interprétation des mesures sur le cuvelage',
+    fr: "Services d'analyse et d'interprétation des mesures sur le cuvelage",
     en: 'Casing inspection analysis services processing',
   },
   '71151400': {
-    fr: 'Services d\'ingénierie en matière de puits de pétrole',
+    fr: "Services d'ingénierie en matière de puits de pétrole",
     en: 'Well service engineering',
   },
   '71151401': {
@@ -79056,7 +79056,7 @@ export default {
     en: 'Reservoir models',
   },
   '71161100': {
-    fr: 'Gestion d\'ingénierie de production des champs pétrolifères',
+    fr: "Gestion d'ingénierie de production des champs pétrolifères",
     en: 'Oilfield production engineering management',
   },
   '71161101': {
@@ -79064,7 +79064,7 @@ export default {
     en: 'Oilfield artificial lift services',
   },
   '71161102': {
-    fr: 'Services d\'extraction accélérée du pétrole',
+    fr: "Services d'extraction accélérée du pétrole",
     en: 'Enhanced oil recovery services',
   },
   '71161103': {
@@ -79136,7 +79136,7 @@ export default {
     en: 'Oilfield audits or inspection services',
   },
   '71161302': {
-    fr: 'Services de planification des interventions d\'urgence sur les champs pétrolifères',
+    fr: "Services de planification des interventions d'urgence sur les champs pétrolifères",
     en: 'Oilfield emergency response planning services',
   },
   '71161303': {
@@ -79160,7 +79160,7 @@ export default {
     en: 'Oilfield training matrix services',
   },
   '71161308': {
-    fr: 'Services d\'approvisionnement ou de logistique des chantiers de pétrole',
+    fr: "Services d'approvisionnement ou de logistique des chantiers de pétrole",
     en: 'Well site logistics or procurement services',
   },
   '71161400': {
@@ -79168,7 +79168,7 @@ export default {
     en: 'Well construction management services',
   },
   '71161402': {
-    fr: 'Services d\'ingénierie de la complétion des puits',
+    fr: "Services d'ingénierie de la complétion des puits",
     en: 'Well completion engineering services',
   },
   '71161403': {
@@ -79180,7 +79180,7 @@ export default {
     en: 'Well site pit lining services',
   },
   '71161407': {
-    fr: 'Services des unités d\'extraction des puits',
+    fr: "Services des unités d'extraction des puits",
     en: 'Well pulling unit services',
   },
   '71161408': {
@@ -79188,7 +79188,7 @@ export default {
     en: 'Shorebased services',
   },
   '71161409': {
-    fr: 'Services de contrôle des revêtements des puits d\'essai',
+    fr: "Services de contrôle des revêtements des puits d'essai",
     en: 'Test pit lining services',
   },
   '71161410': {
@@ -79196,7 +79196,7 @@ export default {
     en: 'Well site vacuum truck services',
   },
   '71161411': {
-    fr: 'Services d\'ingénierie des opérations sous-équilibrées',
+    fr: "Services d'ingénierie des opérations sous-équilibrées",
     en: 'Underbalanced applications engineering services',
   },
   '71161412': {
@@ -79212,7 +79212,7 @@ export default {
     en: 'Well site operations services',
   },
   '71161501': {
-    fr: 'Services afférents à l\'instrumentation ou à l\'alimentation électrique des chantiers de pétrole',
+    fr: "Services afférents à l'instrumentation ou à l'alimentation électrique des chantiers de pétrole",
     en: 'Well site electrical or instrumentation services',
   },
   '71161502': {
@@ -79256,7 +79256,7 @@ export default {
     en: 'Oilfield consultancy services',
   },
   '72000000': {
-    fr: 'Services de construction et d\'entretien de bâtiment',
+    fr: "Services de construction et d'entretien de bâtiment",
     en: 'Building and Construction and Maintenance Services',
   },
   '72100000': {
@@ -79268,19 +79268,19 @@ export default {
     en: 'Building support services',
   },
   '72101501': {
-    fr: 'Services d\'homme à tout faire',
+    fr: "Services d'homme à tout faire",
     en: 'Handyman services',
   },
   '72101502': {
-    fr: 'Services d\'échafaudage',
+    fr: "Services d'échafaudage",
     en: 'Scaffolding services',
   },
   '72101503': {
-    fr: 'Services de montage d\'appareils de levage',
+    fr: "Services de montage d'appareils de levage",
     en: 'Rigging services',
   },
   '72101504': {
-    fr: 'Services de prévoyance et de mise à l\'épreuve de catastrophe',
+    fr: "Services de prévoyance et de mise à l'épreuve de catastrophe",
     en: 'Disaster proofing or contingency services',
   },
   '72101505': {
@@ -79352,7 +79352,7 @@ export default {
     en: 'Sandblasting',
   },
   '72101802': {
-    fr: 'Décapage à l\'eau à haute pression',
+    fr: "Décapage à l'eau à haute pression",
     en: 'High pressure water blasting',
   },
   '72101803': {
@@ -79364,7 +79364,7 @@ export default {
     en: 'Interior finishing',
   },
   '72101901': {
-    fr: 'Décoration d\'intérieur',
+    fr: "Décoration d'intérieur",
     en: 'Interior design or decorating',
   },
   '72101902': {
@@ -79392,7 +79392,7 @@ export default {
     en: 'Coating or glazing of metal or wood or concrete structural materials',
   },
   '72102004': {
-    fr: 'Protection contre l\'humidité',
+    fr: "Protection contre l'humidité",
     en: 'Dampproofing',
   },
   '72102005': {
@@ -79416,7 +79416,7 @@ export default {
     en: 'Termite control services',
   },
   '72102103': {
-    fr: 'Services d\'extermination et de fumigation',
+    fr: "Services d'extermination et de fumigation",
     en: 'Extermination or fumigation services',
   },
   '72102104': {
@@ -79424,7 +79424,7 @@ export default {
     en: 'Structural pest control',
   },
   '72102105': {
-    fr: 'Piégeage d\'animal',
+    fr: "Piégeage d'animal",
     en: 'Animal trapping',
   },
   '72102106': {
@@ -79444,7 +79444,7 @@ export default {
     en: 'Electronic controls installation',
   },
   '72102203': {
-    fr: 'Installation d\'équipement de communication',
+    fr: "Installation d'équipement de communication",
     en: 'Communication equipment installation',
   },
   '72102204': {
@@ -79476,7 +79476,7 @@ export default {
     en: 'Power cable installation and supply',
   },
   '72102211': {
-    fr: 'Installation d\'antennes à hyperfréquences',
+    fr: "Installation d'antennes à hyperfréquences",
     en: 'Microwave antenna installation',
   },
   '72102300': {
@@ -79484,7 +79484,7 @@ export default {
     en: 'Plumbing and heating and air conditioning',
   },
   '72102301': {
-    fr: 'Services d\'installation, de réglage, d\'entretien et de réparation de chaudière',
+    fr: "Services d'installation, de réglage, d'entretien et de réparation de chaudière",
     en: 'Boiler installation or adjustment or maintenance or repair services',
   },
   '72102302': {
@@ -79500,7 +79500,7 @@ export default {
     en: 'Plumbing system maintenance or repair',
   },
   '72102305': {
-    fr: 'Services d\'installation, d\'entretien et de réparation de la climatisation',
+    fr: "Services d'installation, d'entretien et de réparation de la climatisation",
     en: 'Air conditioning installation or maintenance or repair services',
   },
   '72102306': {
@@ -79580,7 +79580,7 @@ export default {
     en: 'Rough carpentry',
   },
   '72102602': {
-    fr: 'Pose de fenêtres, de portes et d\'installations à demeure',
+    fr: "Pose de fenêtres, de portes et d'installations à demeure",
     en: 'Windows or door or fixture installation',
   },
   '72102700': {
@@ -79604,11 +79604,11 @@ export default {
     en: 'Refurbishing services',
   },
   '72102801': {
-    fr: 'Rénovation de bâtiments, de points d\'intérêt touristique et de monuments',
+    fr: "Rénovation de bâtiments, de points d'intérêt touristique et de monuments",
     en: 'Renovation of buildings or landmarks or monuments',
   },
   '72102802': {
-    fr: 'Restauration de bâtiments, de points d\'intérêt touristique et de monuments',
+    fr: "Restauration de bâtiments, de points d'intérêt touristique et de monuments",
     en: 'Restoration of buildings or landmarks or monuments',
   },
   '72102803': {
@@ -79616,7 +79616,7 @@ export default {
     en: 'Test equipment refurbishment',
   },
   '72102900': {
-    fr: 'Services d\'entretien des parcs',
+    fr: "Services d'entretien des parcs",
     en: 'Grounds maintenance services',
   },
   '72102901': {
@@ -79688,7 +79688,7 @@ export default {
     en: 'Tank construction and servicing',
   },
   '72131700': {
-    fr: 'Construction d\'infrastructure',
+    fr: "Construction d'infrastructure",
     en: 'Infrastructure construction',
   },
   '72131701': {
@@ -79720,7 +79720,7 @@ export default {
     en: 'Natural gas production services',
   },
   '73101503': {
-    fr: 'Services de production d\'huiles et de graisses',
+    fr: "Services de production d'huiles et de graisses",
     en: 'Oils or greases production services',
   },
   '73101504': {
@@ -79732,7 +79732,7 @@ export default {
     en: 'Plastics or resins or fibers manufacturing services',
   },
   '73101600': {
-    fr: 'Services de production de  produits chimiques et d\'engrais',
+    fr: "Services de production de  produits chimiques et d'engrais",
     en: 'Chemicals and fertilizers production',
   },
   '73101601': {
@@ -79744,7 +79744,7 @@ export default {
     en: 'Soda ash or chlorine or caustic soda production services',
   },
   '73101603': {
-    fr: 'Services de production d\'acides inorganiques',
+    fr: "Services de production d'acides inorganiques",
     en: 'Inorganic acids production services',
   },
   '73101604': {
@@ -79752,23 +79752,23 @@ export default {
     en: 'Organic chemical production services',
   },
   '73101605': {
-    fr: 'Services de production d\'acétylène ou de produits dérivés',
+    fr: "Services de production d'acétylène ou de produits dérivés",
     en: 'Acetylene or derivatives production services',
   },
   '73101606': {
-    fr: 'Services de production d\'éthylène ou de produits dérivés',
+    fr: "Services de production d'éthylène ou de produits dérivés",
     en: 'Ethylene or derivatives production services',
   },
   '73101607': {
-    fr: 'Services de production d\'éthanol, de méthanol ou de produits dérivés',
+    fr: "Services de production d'éthanol, de méthanol ou de produits dérivés",
     en: 'Ethanol or methanol or derivatives production services',
   },
   '73101608': {
-    fr: 'Services de production d\'engrais',
+    fr: "Services de production d'engrais",
     en: 'Fertilizers production services',
   },
   '73101609': {
-    fr: 'Services d\'exploitation minière ou de traitement de potasse',
+    fr: "Services d'exploitation minière ou de traitement de potasse",
     en: 'Potash mining or processing services',
   },
   '73101610': {
@@ -79788,7 +79788,7 @@ export default {
     en: 'Solvents or glycols or detergents production services',
   },
   '73101614': {
-    fr: 'Services de production de ferments ou d\'enzymes',
+    fr: "Services de production de ferments ou d'enzymes",
     en: 'Ferments or enzymes services',
   },
   '73101700': {
@@ -79800,7 +79800,7 @@ export default {
     en: 'Drugs or medicine production services',
   },
   '73101702': {
-    fr: 'Services de production de vaccins, de sérums et d\'antibiotiques',
+    fr: "Services de production de vaccins, de sérums et d'antibiotiques",
     en: 'Vaccines or sera or antibiotics production services',
   },
   '73101703': {
@@ -79868,7 +79868,7 @@ export default {
     en: 'Cork products manufacturing services',
   },
   '73111507': {
-    fr: 'Services de traitement de la canne et de l\'osier',
+    fr: "Services de traitement de la canne et de l'osier",
     en: 'Cane or wickerware processing services',
   },
   '73111600': {
@@ -79900,7 +79900,7 @@ export default {
     en: 'Metal smelting and refining and forming processes',
   },
   '73121501': {
-    fr: 'Services de production d\'alliages ferreux',
+    fr: "Services de production d'alliages ferreux",
     en: 'Ferrous alloy production services',
   },
   '73121502': {
@@ -79908,15 +79908,15 @@ export default {
     en: 'Basic metal combination processes services',
   },
   '73121503': {
-    fr: 'Services de réfraction pour la production d\'acier ou de métal',
+    fr: "Services de réfraction pour la production d'acier ou de métal",
     en: 'Refractors services for iron or steel production',
   },
   '73121504': {
-    fr: 'Services de fabrication d\'acier ou de métal',
+    fr: "Services de fabrication d'acier ou de métal",
     en: 'Iron or steel making services',
   },
   '73121505': {
-    fr: 'Services de forgeage de l\'acier ou de métal',
+    fr: "Services de forgeage de l'acier ou de métal",
     en: 'Iron or steel forging services',
   },
   '73121506': {
@@ -79956,7 +79956,7 @@ export default {
     en: 'Metal forging services',
   },
   '73121607': {
-    fr: 'Services d\'emboutissage du métal',
+    fr: "Services d'emboutissage du métal",
     en: 'Metal drawing services',
   },
   '73121608': {
@@ -80004,7 +80004,7 @@ export default {
     en: 'Concrete or aggregates or stone products manufacturing services',
   },
   '73121806': {
-    fr: 'Services de fabrication d\'abrasifs',
+    fr: "Services de fabrication d'abrasifs",
     en: 'Abrasives manufacturing services',
   },
   '73121807': {
@@ -80036,7 +80036,7 @@ export default {
     en: 'Non alcoholic fruit based beverage processing services',
   },
   '73131505': {
-    fr: 'Services de traitement de boissons à l\'eau',
+    fr: "Services de traitement de boissons à l'eau",
     en: 'Water beverages processing services',
   },
   '73131506': {
@@ -80068,7 +80068,7 @@ export default {
     en: 'Poultry processing services',
   },
   '73131604': {
-    fr: 'Services d\'inspection et d\'hygiène de la viande',
+    fr: "Services d'inspection et d'hygiène de la viande",
     en: 'Meat hygiene or inspection services',
   },
   '73131605': {
@@ -80076,7 +80076,7 @@ export default {
     en: 'Meat plant operation or management services',
   },
   '73131606': {
-    fr: 'Services d\'abattoirs',
+    fr: "Services d'abattoirs",
     en: 'Slaughter houses services',
   },
   '73131607': {
@@ -80084,7 +80084,7 @@ export default {
     en: 'Butcher services',
   },
   '73131608': {
-    fr: 'Services d\'entreposage frigorifique',
+    fr: "Services d'entreposage frigorifique",
     en: 'Cold storage services',
   },
   '73131700': {
@@ -80156,7 +80156,7 @@ export default {
     en: 'Fiber production',
   },
   '73141501': {
-    fr: 'Services de fabrication de fibres de rayonne et d\'acétate',
+    fr: "Services de fabrication de fibres de rayonne et d'acétate",
     en: 'Rayon or acetate fiber manufacturing services',
   },
   '73141502': {
@@ -80224,7 +80224,7 @@ export default {
     en: 'Cordage or rope or twine manufacturing services',
   },
   '73141706': {
-    fr: 'Services de teinture, d\'impression et de finition',
+    fr: "Services de teinture, d'impression et de finition",
     en: 'Dyeing or printing or finishing services',
   },
   '73141707': {
@@ -80236,7 +80236,7 @@ export default {
     en: 'Woven outerwear clothing manufacturing services',
   },
   '73141709': {
-    fr: 'Services d\'apprêtage et de teinture',
+    fr: "Services d'apprêtage et de teinture",
     en: 'Fur dressing or dyeing services',
   },
   '73141710': {
@@ -80268,7 +80268,7 @@ export default {
     en: 'Manufacturing support services',
   },
   '73151500': {
-    fr: 'Services d\'assemblage',
+    fr: "Services d'assemblage",
     en: 'Assembly services',
   },
   '73151501': {
@@ -80316,11 +80316,11 @@ export default {
     en: 'Material treatment',
   },
   '73151701': {
-    fr: 'Services d\'imperméabilisation des matériaux',
+    fr: "Services d'imperméabilisation des matériaux",
     en: 'Water proofing material treatment services',
   },
   '73151702': {
-    fr: 'Services d\'ignifugeage des matériaux',
+    fr: "Services d'ignifugeage des matériaux",
     en: 'Fire protection material treatment services',
   },
   '73151703': {
@@ -80420,7 +80420,7 @@ export default {
     en: 'Engineering equipment maintenance services',
   },
   '73160000': {
-    fr: 'Fabrication de machines et d\'équipement de transport',
+    fr: "Fabrication de machines et d'équipement de transport",
     en: 'Machinery and transport equipment manufacture',
   },
   '73161500': {
@@ -80432,7 +80432,7 @@ export default {
     en: 'Engine or turbine manufacturing services',
   },
   '73161502': {
-    fr: 'Services de fabrication d\'équipement et de machine pour l\'agriculture',
+    fr: "Services de fabrication d'équipement et de machine pour l'agriculture",
     en: 'Agricultural machinery or equipment manufacturing services',
   },
   '73161503': {
@@ -80440,39 +80440,39 @@ export default {
     en: 'Machine tools or metal or wood working manufacturing services',
   },
   '73161504': {
-    fr: 'Services de fabrication d\'installations et de machines industrielles spéciales',
+    fr: "Services de fabrication d'installations et de machines industrielles spéciales",
     en: 'Special industrial plants or machinery manufacturing services',
   },
   '73161505': {
-    fr: 'Services de fabrication d\'équipement et de machines pour la construction',
+    fr: "Services de fabrication d'équipement et de machines pour la construction",
     en: 'Construction machinery or equipment manufacturing services',
   },
   '73161506': {
-    fr: 'Services de fabrication d\'équipement et de machines pour l\'exploitation minière',
+    fr: "Services de fabrication d'équipement et de machines pour l'exploitation minière",
     en: 'Mining machinery or equipment manufacturing services',
   },
   '73161507': {
-    fr: 'Services de fabrication d\'équipement et de machines pour l\'industrie alimentaire',
+    fr: "Services de fabrication d'équipement et de machines pour l'industrie alimentaire",
     en: 'Food products machinery or equipment manufacturing services',
   },
   '73161508': {
-    fr: 'Services de fabrication d\'équipement et de machines pour l\'impression de papier',
+    fr: "Services de fabrication d'équipement et de machines pour l'impression de papier",
     en: 'Paper printing machinery or equipment manufacture services',
   },
   '73161509': {
-    fr: 'Services de fabrication d\'équipement et de machines métallurgiques',
+    fr: "Services de fabrication d'équipement et de machines métallurgiques",
     en: 'Metallurgical machinery or equipment manufacture services',
   },
   '73161510': {
-    fr: 'Services de fabrication d\'équipement et de machines pour la production chimique et pharmaceutique',
+    fr: "Services de fabrication d'équipement et de machines pour la production chimique et pharmaceutique",
     en: 'Chemical or pharmaceutical machinery or equipment manufacture services',
   },
   '73161511': {
-    fr: 'Services de fabrication d\'équipement et de machines pour la cimenterie',
+    fr: "Services de fabrication d'équipement et de machines pour la cimenterie",
     en: 'Cement plant machinery or equipment manufacture services',
   },
   '73161512': {
-    fr: 'Services de fabrication d\'équipement et de machines pour la production textile',
+    fr: "Services de fabrication d'équipement et de machines pour la production textile",
     en: 'Textile machinery or equipment manufacture services',
   },
   '73161513': {
@@ -80484,15 +80484,15 @@ export default {
     en: 'Furnaces or ovens manufacture services',
   },
   '73161515': {
-    fr: 'Services de fabrication d\'équipement et de machines pour le bureau',
+    fr: "Services de fabrication d'équipement et de machines pour le bureau",
     en: 'Office machinery or equipment manufacture services',
   },
   '73161516': {
-    fr: 'Services de fabrication d\'équipement de levage, de grutage et de transport',
+    fr: "Services de fabrication d'équipement de levage, de grutage et de transport",
     en: 'Lifting or hoisting or conveying equipment manufacture services',
   },
   '73161517': {
-    fr: 'Services de fabrication d\'équipement de climatisation, de ventilation et de réfrigération',
+    fr: "Services de fabrication d'équipement de climatisation, de ventilation et de réfrigération",
     en: 'Air conditioning or ventilating or refrigeration equipment manufacture services',
   },
   '73161518': {
@@ -80504,7 +80504,7 @@ export default {
     en: 'Pumps or compressors manufacture services',
   },
   '73161600': {
-    fr: 'Fabrication d\'équipement de transport',
+    fr: "Fabrication d'équipement de transport",
     en: 'Manufacture of transport equipment',
   },
   '73161601': {
@@ -80524,7 +80524,7 @@ export default {
     en: 'Motor vehicles manufacture services',
   },
   '73161605': {
-    fr: 'Services de fabrication de pièces détachées et d\'accessoires de véhicules à moteur',
+    fr: "Services de fabrication de pièces détachées et d'accessoires de véhicules à moteur",
     en: 'Motor vehicles parts or accessories manufacture services',
   },
   '73161606': {
@@ -80532,31 +80532,31 @@ export default {
     en: 'Motorcycle or bicycle manufacture services',
   },
   '73161607': {
-    fr: 'Services de fabrication d\'astronef',
+    fr: "Services de fabrication d'astronef",
     en: 'Air or spacecraft manufacture services',
   },
   '73170000': {
-    fr: 'Fabrication d\'appareils électriques et d\'instruments de précision',
+    fr: "Fabrication d'appareils électriques et d'instruments de précision",
     en: 'Manufacture of electrical goods and precision instruments',
   },
   '73171500': {
-    fr: 'Fabrication d\'appareils électriques',
+    fr: "Fabrication d'appareils électriques",
     en: 'Manufacture of electrical goods',
   },
   '73171501': {
-    fr: 'Services de fabrication d\'équipement pour la production, la transmission et la distribution d\'énergie',
+    fr: "Services de fabrication d'équipement pour la production, la transmission et la distribution d'énergie",
     en: 'Power generation or transmission or distribution equipment manufacture services',
   },
   '73171502': {
-    fr: 'Services de fabrication de piles sèches et d\'accumulateurs',
+    fr: "Services de fabrication de piles sèches et d'accumulateurs",
     en: 'Dry or storage battery manufacture services',
   },
   '73171503': {
-    fr: 'Services de fabrication d\'outils électriques',
+    fr: "Services de fabrication d'outils électriques",
     en: 'Electrical tools manufacture services',
   },
   '73171504': {
-    fr: 'Services de fabrication d\'instruments de mesure et d\'évaluation',
+    fr: "Services de fabrication d'instruments de mesure et d'évaluation",
     en: 'Measuring or testing instruments manufacture services',
   },
   '73171505': {
@@ -80564,11 +80564,11 @@ export default {
     en: 'Radio or television manufacture services',
   },
   '73171506': {
-    fr: 'Services de fabrication d\'équipement de communication',
+    fr: "Services de fabrication d'équipement de communication",
     en: 'Communication equipment manufacture services',
   },
   '73171507': {
-    fr: 'Services de fabrication d\'appareils domestiques électriques',
+    fr: "Services de fabrication d'appareils domestiques électriques",
     en: 'Electrical household appliances manufacture services',
   },
   '73171508': {
@@ -80576,35 +80576,35 @@ export default {
     en: 'Insulated wire or cable manufacture services',
   },
   '73171510': {
-    fr: 'Services de fabrication d\'accessoires et de fournitures électriques',
+    fr: "Services de fabrication d'accessoires et de fournitures électriques",
     en: 'Electrical accessories or supplies manufacture services',
   },
   '73171511': {
-    fr: 'Services de fabrication d\'équipement électronique',
+    fr: "Services de fabrication d'équipement électronique",
     en: 'Electronic equipment manufacture services',
   },
   '73171512': {
-    fr: 'Services de fabrication d\'équipement d\'ordinateurs et de traitement de données électroniques',
+    fr: "Services de fabrication d'équipement d'ordinateurs et de traitement de données électroniques",
     en: 'Electronic computers or data processing equipment manufacture services',
   },
   '73171513': {
-    fr: 'Services d\'épitaxie',
+    fr: "Services d'épitaxie",
     en: 'Epitaxial services',
   },
   '73171600': {
-    fr: 'Fabrication d\'instruments de précision',
+    fr: "Fabrication d'instruments de précision",
     en: 'Manufacture of precision instruments',
   },
   '73171601': {
-    fr: 'Services de fabrication d\'équipement d\'instruments de mesure scientifique',
+    fr: "Services de fabrication d'équipement d'instruments de mesure scientifique",
     en: 'Scientific instruments or measuring equipment manufacture services',
   },
   '73171602': {
-    fr: 'Services de fabrication d\'équipement médical et dentaire',
+    fr: "Services de fabrication d'équipement médical et dentaire",
     en: 'Medical or dental equipment manufacture services',
   },
   '73171603': {
-    fr: 'Services de fabrication d\'équipement photographique et optique',
+    fr: "Services de fabrication d'équipement photographique et optique",
     en: 'Photographic or optical equipment manufacture services',
   },
   '73171604': {
@@ -80612,7 +80612,7 @@ export default {
     en: 'Watches or clocks manufacture services',
   },
   '73171605': {
-    fr: 'Services de fabrication d\'équipement de laboratoire',
+    fr: "Services de fabrication d'équipement de laboratoire",
     en: 'Laboratory equipment manufacture services',
   },
   '73171606': {
@@ -80864,7 +80864,7 @@ export default {
     en: 'Radioactive decontamination services',
   },
   '76101602': {
-    fr: 'Retrait et décontamination de l\'amiante',
+    fr: "Retrait et décontamination de l'amiante",
     en: 'Asbestos decontamination or removal',
   },
   '76110000': {
@@ -80872,7 +80872,7 @@ export default {
     en: 'Cleaning and janitorial services',
   },
   '76111500': {
-    fr: 'Services généraux d\'entretien et de nettoyage des bureaux et de l\'immeuble',
+    fr: "Services généraux d'entretien et de nettoyage des bureaux et de l'immeuble",
     en: 'General building and office cleaning and maintenance services',
   },
   '76111501': {
@@ -80880,7 +80880,7 @@ export default {
     en: 'Building cleaning services',
   },
   '76111503': {
-    fr: 'Services d\'entretien de l\'éclairage',
+    fr: "Services d'entretien de l'éclairage",
     en: 'Lighting maintenance services',
   },
   '76111504': {
@@ -80892,7 +80892,7 @@ export default {
     en: 'Fabric and furniture cleaning services',
   },
   '76111506': {
-    fr: 'Services d\'aménagement paysager d\'intérieur',
+    fr: "Services d'aménagement paysager d'intérieur",
     en: 'Interior plant landscaping services',
   },
   '76111600': {
@@ -80904,7 +80904,7 @@ export default {
     en: 'Acoustical tile or ceiling cleaning services',
   },
   '76111602': {
-    fr: 'Services de nettoyage des conduites d\'air',
+    fr: "Services de nettoyage des conduites d'air",
     en: 'Air duct cleaning',
   },
   '76111603': {
@@ -80928,7 +80928,7 @@ export default {
     en: 'Construction site clean up services',
   },
   '76111702': {
-    fr: 'Services d\'enlèvement par camion des sites de construction',
+    fr: "Services d'enlèvement par camion des sites de construction",
     en: 'Construction site haul away services',
   },
   '76111800': {
@@ -80976,7 +80976,7 @@ export default {
     en: 'Sludge disposal',
   },
   '76121604': {
-    fr: 'Services d\'élimination des animaux morts',
+    fr: "Services d'élimination des animaux morts",
     en: 'Dead animal disposal services',
   },
   '76121700': {
@@ -81048,7 +81048,7 @@ export default {
     en: 'Fuel blending for hazardous waste',
   },
   '76122200': {
-    fr: 'Services d\'incinération des déchets',
+    fr: "Services d'incinération des déchets",
     en: 'Waste incineration services',
   },
   '76122201': {
@@ -81076,7 +81076,7 @@ export default {
     en: 'Recycling of used oil',
   },
   '76122303': {
-    fr: 'Recyclage des chiffons d\'essuyage',
+    fr: "Recyclage des chiffons d'essuyage",
     en: 'Recycling of cleaning rags',
   },
   '76122304': {
@@ -81140,19 +81140,19 @@ export default {
     en: 'Toxic substances spill cleanup',
   },
   '76131700': {
-    fr: 'Nettoyage des déversements d\'hydrocarbures',
+    fr: "Nettoyage des déversements d'hydrocarbures",
     en: 'Oil spill cleanup',
   },
   '76131701': {
-    fr: 'Services d\'élimination et de contrôle de résidus d\'hydrocarbures',
+    fr: "Services d'élimination et de contrôle de résidus d'hydrocarbures",
     en: 'Oil residue disposal or control services',
   },
   '76131702': {
-    fr: 'Services de traitement des déversements d\'hydrocarbures',
+    fr: "Services de traitement des déversements d'hydrocarbures",
     en: 'Oil spill treatment services',
   },
   '77000000': {
-    fr: 'Services de l\'environnement',
+    fr: "Services de l'environnement",
     en: 'Environmental Services',
   },
   '77100000': {
@@ -81160,7 +81160,7 @@ export default {
     en: 'Environmental management',
   },
   '77101500': {
-    fr: 'Evaluation de l\'impact sur l\'environnement',
+    fr: "Evaluation de l'impact sur l'environnement",
     en: 'Environmental impact assessment',
   },
   '77101501': {
@@ -81176,7 +81176,7 @@ export default {
     en: 'Environmental indicators analysis',
   },
   '77101504': {
-    fr: 'Services d\'évaluation de l\'impact sur l\'environnement (EIA)',
+    fr: "Services d'évaluation de l'impact sur l'environnement (EIA)",
     en: 'Environmental Impact Assessment EIA services',
   },
   '77101505': {
@@ -81184,11 +81184,11 @@ export default {
     en: 'Environmental monitoring',
   },
   '77101600': {
-    fr: 'Planification de l\'environnement',
+    fr: "Planification de l'environnement",
     en: 'Environmental planning',
   },
   '77101601': {
-    fr: 'Planification de la mise en valeur de l\'environnement urbain',
+    fr: "Planification de la mise en valeur de l'environnement urbain",
     en: 'Urban environmental development planning',
   },
   '77101602': {
@@ -81204,7 +81204,7 @@ export default {
     en: 'Natural resources management or conservation strategy planning services',
   },
   '77101605': {
-    fr: 'Création et planification d\'institution environnementale',
+    fr: "Création et planification d'institution environnementale",
     en: 'Environmental institution building or planning',
   },
   '77101700': {
@@ -81244,7 +81244,7 @@ export default {
     en: 'Environmental auditing',
   },
   '77101801': {
-    fr: 'Systèmes d\'information environnementale',
+    fr: "Systèmes d'information environnementale",
     en: 'Environmental information systems',
   },
   '77101802': {
@@ -81256,7 +81256,7 @@ export default {
     en: 'Sectoral environmental auditing services',
   },
   '77101804': {
-    fr: 'Services de contrôle de la conformité aux normes environnementales d\'activité spécifique',
+    fr: "Services de contrôle de la conformité aux normes environnementales d'activité spécifique",
     en: 'Activity specific environmental auditing services',
   },
   '77101805': {
@@ -81280,23 +81280,23 @@ export default {
     en: 'Industrial waste site investigation',
   },
   '77101903': {
-    fr: 'Recherche sur un site d\'usine à gaz',
+    fr: "Recherche sur un site d'usine à gaz",
     en: 'Gasworks site investigation',
   },
   '77101904': {
-    fr: 'Recherche sur un site d\'usine à produits chimiques et déchets de raffinerie de pétrole',
+    fr: "Recherche sur un site d'usine à produits chimiques et déchets de raffinerie de pétrole",
     en: 'Chemical works or oil refinery waste site investigation',
   },
   '77101905': {
-    fr: 'Recherche sur un site d\'usine de traitement du bois',
+    fr: "Recherche sur un site d'usine de traitement du bois",
     en: 'Wood treatment plant site investigation',
   },
   '77101906': {
-    fr: 'Etude de site de dépôt d\'hydrocarbures ou terminal pétrolier',
+    fr: "Etude de site de dépôt d'hydrocarbures ou terminal pétrolier",
     en: 'Oil depot or terminal site investigation',
   },
   '77101907': {
-    fr: 'Recherche sur un site d\'installation de nettoyage chimique',
+    fr: "Recherche sur un site d'installation de nettoyage chimique",
     en: 'Dry cleaning plants site investigation',
   },
   '77101908': {
@@ -81304,11 +81304,11 @@ export default {
     en: 'Foundry site investigation',
   },
   '77101909': {
-    fr: 'Recherche sur un site d\'usine de recyclage',
+    fr: "Recherche sur un site d'usine de recyclage",
     en: 'Recycling plant site investigation',
   },
   '77101910': {
-    fr: 'Recherche sur un site d\'usine de traitement des aliments',
+    fr: "Recherche sur un site d'usine de traitement des aliments",
     en: 'Food processing plant site investigation',
   },
   '77110000': {
@@ -81324,11 +81324,11 @@ export default {
     en: 'Landscape protection services',
   },
   '77111502': {
-    fr: 'Services de protection de l\'ozone',
+    fr: "Services de protection de l'ozone",
     en: 'Ozone protection services',
   },
   '77111503': {
-    fr: 'Services de protection contre la contamination de l\'alimentation',
+    fr: "Services de protection contre la contamination de l'alimentation",
     en: 'Food or feed contamination protection services',
   },
   '77111504': {
@@ -81376,7 +81376,7 @@ export default {
     en: 'Air pollution',
   },
   '77121501': {
-    fr: 'Gestion de la qualité de l\'air',
+    fr: "Gestion de la qualité de l'air",
     en: 'Air quality management',
   },
   '77121502': {
@@ -81408,7 +81408,7 @@ export default {
     en: 'Airborne particle monitoring',
   },
   '77121509': {
-    fr: 'Services de surveillance de l\'appauvrissement en ozone',
+    fr: "Services de surveillance de l'appauvrissement en ozone",
     en: 'Ozone depletion monitoring services',
   },
   '77121600': {
@@ -81420,7 +81420,7 @@ export default {
     en: 'Soil pollution protection services',
   },
   '77121602': {
-    fr: 'Services d\'enlèvement des sols pollués',
+    fr: "Services d'enlèvement des sols pollués",
     en: 'Polluted soil removal services',
   },
   '77121603': {
@@ -81456,7 +81456,7 @@ export default {
     en: 'Phosphates pollution assessment',
   },
   '77121700': {
-    fr: 'Pollution de l\'eau',
+    fr: "Pollution de l'eau",
     en: 'Water pollution',
   },
   '77121701': {
@@ -81504,15 +81504,15 @@ export default {
     en: 'Oil pollution',
   },
   '77131501': {
-    fr: 'Services de surveillance de l\'écoulement accidentel d\'hydrocarbures',
+    fr: "Services de surveillance de l'écoulement accidentel d'hydrocarbures",
     en: 'Oil spillage monitoring services',
   },
   '77131502': {
-    fr: 'Services de lutte contre l\'écoulement accidentel d\'hydrocarbures',
+    fr: "Services de lutte contre l'écoulement accidentel d'hydrocarbures",
     en: 'Oil spillage control services',
   },
   '77131503': {
-    fr: 'Services de réhabilitation de l\'écoulement accidentel d\'hydrocarbures',
+    fr: "Services de réhabilitation de l'écoulement accidentel d'hydrocarbures",
     en: 'Oil spillage rehabilitation services',
   },
   '77131600': {
@@ -81680,7 +81680,7 @@ export default {
     en: 'Petroleum products transport',
   },
   '78102102': {
-    fr: 'Transport de l\'eau',
+    fr: "Transport de l'eau",
     en: 'Water transport',
   },
   '78102200': {
@@ -81720,7 +81720,7 @@ export default {
     en: 'Passenger air transportation',
   },
   '78111501': {
-    fr: 'Services d\'hélicoptère',
+    fr: "Services d'hélicoptère",
     en: 'Helicopter services',
   },
   '78111502': {
@@ -81812,7 +81812,7 @@ export default {
     en: 'Containerization of goods',
   },
   '78121502': {
-    fr: 'Services d\'emballage',
+    fr: "Services d'emballage",
     en: 'Crating services',
   },
   '78121600': {
@@ -81852,7 +81852,7 @@ export default {
     en: 'Palletized cargo storage',
   },
   '78131602': {
-    fr: 'Stockage de documents d\'archives',
+    fr: "Stockage de documents d'archives",
     en: 'File archive storage',
   },
   '78131603': {
@@ -81884,7 +81884,7 @@ export default {
     en: 'Hazardous materials storage',
   },
   '78131804': {
-    fr: 'Services d\'archivage',
+    fr: "Services d'archivage",
     en: 'Document storage services',
   },
   '78131805': {
@@ -81916,11 +81916,11 @@ export default {
     en: 'Inspection',
   },
   '78141601': {
-    fr: 'Services d\'expertise du colisage',
+    fr: "Services d'expertise du colisage",
     en: 'Packing inspection services',
   },
   '78141602': {
-    fr: 'Services d\'expertise du fret',
+    fr: "Services d'expertise du fret",
     en: 'Cargo survey services',
   },
   '78141603': {
@@ -81952,11 +81952,11 @@ export default {
     en: 'Stevedoring services',
   },
   '78141802': {
-    fr: 'Services d\'amarrage des bateaux',
+    fr: "Services d'amarrage des bateaux",
     en: 'Vessel docking services',
   },
   '78141803': {
-    fr: 'Services d\'entrepôts des bateaux',
+    fr: "Services d'entrepôts des bateaux",
     en: 'Vessel stores services',
   },
   '78180000': {
@@ -81980,7 +81980,7 @@ export default {
     en: 'Oil or transmission fluid change services',
   },
   '78180104': {
-    fr: 'Réparation de train d\'atterrissage',
+    fr: "Réparation de train d'atterrissage",
     en: 'Landing gear repair',
   },
   '78180105': {
@@ -82024,15 +82024,15 @@ export default {
     en: 'Business and corporate management consultation services',
   },
   '80101501': {
-    fr: 'Services de conseils en création d\'entreprise',
+    fr: "Services de conseils en création d'entreprise",
     en: 'New business start up consultation services',
   },
   '80101502': {
-    fr: 'Services de conseils en fusion d\'entreprises',
+    fr: "Services de conseils en fusion d'entreprises",
     en: 'Corporate mergers consultation services',
   },
   '80101503': {
-    fr: 'Services de conseils en cessions d\'entreprises',
+    fr: "Services de conseils en cessions d'entreprises",
     en: 'Corporate divestiture consultation services',
   },
   '80101504': {
@@ -82040,11 +82040,11 @@ export default {
     en: 'Strategic planning consultation services',
   },
   '80101505': {
-    fr: 'Conseils en stratégie et en développement d\'entreprise',
+    fr: "Conseils en stratégie et en développement d'entreprise",
     en: 'Corporate objectives or policy development',
   },
   '80101506': {
-    fr: 'Conseils en structure d\'organisation',
+    fr: "Conseils en structure d'organisation",
     en: 'Organizational structure consultation',
   },
   '80101507': {
@@ -82080,7 +82080,7 @@ export default {
     en: 'Industrial management',
   },
   '80101701': {
-    fr: 'Services de gestion d\'usine',
+    fr: "Services de gestion d'usine",
     en: 'Factory management services',
   },
   '80101702': {
@@ -82216,7 +82216,7 @@ export default {
     en: 'Temporary customer service personnel',
   },
   '80111617': {
-    fr: 'Services d\'architecture temporaires',
+    fr: "Services d'architecture temporaires",
     en: 'Temporary architectural services',
   },
   '80111618': {
@@ -82236,7 +82236,7 @@ export default {
     en: 'Temporary research and development services',
   },
   '80111622': {
-    fr: 'Services temporaires d\'hygiène et sécurité',
+    fr: "Services temporaires d'hygiène et sécurité",
     en: 'Temporary safety health environmental services',
   },
   '80111623': {
@@ -82244,7 +82244,7 @@ export default {
     en: 'Temporary sourcing and logistics services',
   },
   '80111624': {
-    fr: 'Services temporaires en personnel pour l\'industrie du voyage',
+    fr: "Services temporaires en personnel pour l'industrie du voyage",
     en: 'Temporary Travel Staffing',
   },
   '80111700': {
@@ -82256,11 +82256,11 @@ export default {
     en: 'Staff recruiting services',
   },
   '80111702': {
-    fr: 'Services de vérification de l\'expérience et des références du personnel',
+    fr: "Services de vérification de l'expérience et des références du personnel",
     en: 'Reference or background check services',
   },
   '80111703': {
-    fr: 'Services d\'examen des curriculums présentés par les candidats',
+    fr: "Services d'examen des curriculums présentés par les candidats",
     en: 'Resume or curriculum vitae screening services',
   },
   '80111704': {
@@ -82328,7 +82328,7 @@ export default {
     en: 'Juvenile justice law services',
   },
   '80121502': {
-    fr: 'Services de procédure d\'appel',
+    fr: "Services de procédure d'appel",
     en: 'Appellate procedure services',
   },
   '80121503': {
@@ -82360,7 +82360,7 @@ export default {
     en: 'Liquidation law services',
   },
   '80121606': {
-    fr: 'Lois en matière d\'immobilier',
+    fr: "Lois en matière d'immobilier",
     en: 'Real estate law',
   },
   '80121607': {
@@ -82392,7 +82392,7 @@ export default {
     en: 'Malpractice or negligence law services',
   },
   '80121702': {
-    fr: 'Services légaux en matière d\'accidents de travail',
+    fr: "Services légaux en matière d'accidents de travail",
     en: 'Personal injury law services',
   },
   '80121703': {
@@ -82424,11 +82424,11 @@ export default {
     en: 'Divorce law services',
   },
   '80121802': {
-    fr: 'Services légaux en matière d\'adoption',
+    fr: "Services légaux en matière d'adoption",
     en: 'Adoption law services',
   },
   '80121803': {
-    fr: 'Lois sur l\'immigration et la naturalisation',
+    fr: "Lois sur l'immigration et la naturalisation",
     en: 'Immigration or naturalization law',
   },
   '80121804': {
@@ -82480,7 +82480,7 @@ export default {
     en: 'Sale of commercial building',
   },
   '80131700': {
-    fr: 'Services de convention d\'entiercement et de titres',
+    fr: "Services de convention d'entiercement et de titres",
     en: 'Escrow and title services',
   },
   '80131701': {
@@ -82504,11 +82504,11 @@ export default {
     en: 'Property management',
   },
   '80131802': {
-    fr: 'Services d\'évaluation des biens immobiliers',
+    fr: "Services d'évaluation des biens immobiliers",
     en: 'Real estate appraisal services',
   },
   '80131803': {
-    fr: 'Services d\'inventaire des biens immobiliers',
+    fr: "Services d'inventaire des biens immobiliers",
     en: 'Real estate listing services',
   },
   '80140000': {
@@ -82532,7 +82532,7 @@ export default {
     en: 'Commodity price forecasting',
   },
   '80141504': {
-    fr: 'Préparation d\'études de marché des produits de base',
+    fr: "Préparation d'études de marché des produits de base",
     en: 'Preparation of commodity market surveys',
   },
   '80141505': {
@@ -82548,7 +82548,7 @@ export default {
     en: 'Consumer based research or clinics or focus groups',
   },
   '80141508': {
-    fr: 'Etudes prévisionnelles d\'entreprise ou souscrites',
+    fr: "Etudes prévisionnelles d'entreprise ou souscrites",
     en: 'Syndicated or proprietary forecast studies',
   },
   '80141509': {
@@ -82604,7 +82604,7 @@ export default {
     en: 'Direct marketing fulfillment',
   },
   '80141607': {
-    fr: 'Gestion d\'événements',
+    fr: "Gestion d'événements",
     en: 'Events management',
   },
   '80141609': {
@@ -82624,7 +82624,7 @@ export default {
     en: 'Sales or marketing programs',
   },
   '80141613': {
-    fr: 'Programmes d\'après-vente',
+    fr: "Programmes d'après-vente",
     en: 'After sales programs',
   },
   '80141614': {
@@ -82688,7 +82688,7 @@ export default {
     en: 'Auction services',
   },
   '80141800': {
-    fr: 'Services d\'expédition du courrier',
+    fr: "Services d'expédition du courrier",
     en: 'Mailing services',
   },
   '80141801': {
@@ -82732,11 +82732,11 @@ export default {
     en: 'Commodity policy or projections services',
   },
   '80151502': {
-    fr: 'Services d\'expansion économique',
+    fr: "Services d'expansion économique",
     en: 'Trade expansion',
   },
   '80151503': {
-    fr: 'Services d\'information commerciale',
+    fr: "Services d'information commerciale",
     en: 'Trade information services',
   },
   '80151504': {
@@ -82768,7 +82768,7 @@ export default {
     en: 'Import procurement services',
   },
   '80160000': {
-    fr: 'Services d\'administration d\'entreprise',
+    fr: "Services d'administration d'entreprise",
     en: 'Business administration services',
   },
   '80161500': {
@@ -82776,11 +82776,11 @@ export default {
     en: 'Management support services',
   },
   '80161501': {
-    fr: 'Services de secrétariat ou d\'administration de bureau',
+    fr: "Services de secrétariat ou d'administration de bureau",
     en: 'Office administration or secretarial services',
   },
   '80161502': {
-    fr: 'Services d\'organisation de réunions',
+    fr: "Services d'organisation de réunions",
     en: 'Meeting planning services',
   },
   '80161503': {
@@ -82808,7 +82808,7 @@ export default {
     en: 'Document destruction services',
   },
   '80161600': {
-    fr: 'Surveillance des installations d\'entreprise',
+    fr: "Surveillance des installations d'entreprise",
     en: 'Business facilities oversight',
   },
   '80161601': {
@@ -82828,11 +82828,11 @@ export default {
     en: '80161800',
   },
   '81000000': {
-    fr: 'Services d\'ingénierie et de recherche et services technologiques',
+    fr: "Services d'ingénierie et de recherche et services technologiques",
     en: 'Engineering and Research and Technology Based Services',
   },
   '81100000': {
-    fr: 'Services d\'ingénierie professionnelle',
+    fr: "Services d'ingénierie professionnelle",
     en: 'Professional engineering services',
   },
   '81101500': {
@@ -82880,7 +82880,7 @@ export default {
     en: 'Railway engineering',
   },
   '81101512': {
-    fr: 'Services de système d\'information géographique (gis)',
+    fr: "Services de système d'information géographique (gis)",
     en: 'Geographic information system GIS services',
   },
   '81101513': {
@@ -82904,7 +82904,7 @@ export default {
     en: 'Mechanical drawing',
   },
   '81101602': {
-    fr: 'Conception de l\'habillage des produits mécaniques',
+    fr: "Conception de l'habillage des produits mécaniques",
     en: 'Mechanical product enclosures design',
   },
   '81101603': {
@@ -82940,7 +82940,7 @@ export default {
     en: 'Electrical equipment maintenance or repair',
   },
   '81101705': {
-    fr: 'Réparation ou maintenance des équipements générateurs d\'énergie électrique',
+    fr: "Réparation ou maintenance des équipements générateurs d'énergie électrique",
     en: 'Power generation equipment maintenance or repair',
   },
   '81101800': {
@@ -83016,15 +83016,15 @@ export default {
     en: 'Permitting services',
   },
   '81102501': {
-    fr: 'Service de délivrance de permis pour l\'exploitation minière',
+    fr: "Service de délivrance de permis pour l'exploitation minière",
     en: 'Mine permitting service',
   },
   '81102600': {
-    fr: 'Services d\'échantillonnage',
+    fr: "Services d'échantillonnage",
     en: 'Sampling services',
   },
   '81102601': {
-    fr: 'Services d\'échantillonnage du charbon',
+    fr: "Services d'échantillonnage du charbon",
     en: 'Coal sampling service',
   },
   '81110000': {
@@ -83040,19 +83040,19 @@ export default {
     en: 'Mainframe software applications design',
   },
   '81111502': {
-    fr: 'Conception d\'applications pour PC',
+    fr: "Conception d'applications pour PC",
     en: 'Personal computer PC application design',
   },
   '81111503': {
-    fr: 'Conception de l\'intégration de systèmes',
+    fr: "Conception de l'intégration de systèmes",
     en: 'Systems integration design',
   },
   '81111504': {
-    fr: 'Services de programmation d\'applications',
+    fr: "Services de programmation d'applications",
     en: 'Application programming services',
   },
   '81111505': {
-    fr: 'Services de programmation de systèmes d\'exploitation',
+    fr: "Services de programmation de systèmes d'exploitation",
     en: 'Operating system programming services',
   },
   '81111506': {
@@ -83060,19 +83060,19 @@ export default {
     en: 'Client or server programming services',
   },
   '81111507': {
-    fr: 'Progiciel de gestion intégré ou services de programmation d\'applications de base de données',
+    fr: "Progiciel de gestion intégré ou services de programmation d'applications de base de données",
     en: 'ERP or database applications programming services',
   },
   '81111508': {
-    fr: 'Services d\'implémentation d\'applications',
+    fr: "Services d'implémentation d'applications",
     en: 'Application implementation services',
   },
   '81111509': {
-    fr: 'Services de développement d\'application client Internet ou intra-net',
+    fr: "Services de développement d'application client Internet ou intra-net",
     en: 'Internet or intranet client application development services',
   },
   '81111510': {
-    fr: 'Services de développement d\'application serveur Internet ou intra-net',
+    fr: "Services de développement d'application serveur Internet ou intra-net",
     en: 'Internet or intranet server application development services',
   },
   '81111600': {
@@ -83136,11 +83136,11 @@ export default {
     en: 'Management information systems MIS',
   },
   '81111701': {
-    fr: 'Conception des communications au sein d\'un réseau étendu (WAN)',
+    fr: "Conception des communications au sein d'un réseau étendu (WAN)",
     en: 'Wide area network communications design',
   },
   '81111702': {
-    fr: 'Conception des communications au sein d\'un réseau local (LAN)',
+    fr: "Conception des communications au sein d'un réseau local (LAN)",
     en: 'Local area network communications design',
   },
   '81111703': {
@@ -83172,11 +83172,11 @@ export default {
     en: 'System administrators',
   },
   '81111801': {
-    fr: 'sécurité d\'informatique, réseau ou Internet',
+    fr: "sécurité d'informatique, réseau ou Internet",
     en: 'Computer or network or internet security',
   },
   '81111802': {
-    fr: 'Services d\'administration dordinateur central',
+    fr: "Services d'administration dordinateur central",
     en: 'Mainframe administration services',
   },
   '81111803': {
@@ -83212,7 +83212,7 @@ export default {
     en: 'Software coding',
   },
   '81111811': {
-    fr: 'Services de support technique ou d\'aide',
+    fr: "Services de support technique ou d'aide",
     en: 'Technical support or help desk services',
   },
   '81111812': {
@@ -83228,11 +83228,11 @@ export default {
     en: 'Third party warranty',
   },
   '81111819': {
-    fr: 'Services d\'assurance qualité',
+    fr: "Services d'assurance qualité",
     en: 'Quality assurance services',
   },
   '81111820': {
-    fr: 'Services d\'ergonomie des systèmes',
+    fr: "Services d'ergonomie des systèmes",
     en: 'System usability services',
   },
   '81111900': {
@@ -83240,7 +83240,7 @@ export default {
     en: 'Information retrieval systems',
   },
   '81111901': {
-    fr: 'Récupération d\'informations de base de données',
+    fr: "Récupération d'informations de base de données",
     en: 'Database information retrieval',
   },
   '81111902': {
@@ -83392,7 +83392,7 @@ export default {
     en: 'Foreign exchange control',
   },
   '81121607': {
-    fr: 'Marchés d\'échange des devises',
+    fr: "Marchés d'échange des devises",
     en: 'Currency exchange markets',
   },
   '81130000': {
@@ -83416,7 +83416,7 @@ export default {
     en: 'Regression analysis',
   },
   '81131504': {
-    fr: 'Etudes d\'échantillonnage',
+    fr: "Etudes d'échantillonnage",
     en: 'Sampling surveys',
   },
   '81131505': {
@@ -83456,7 +83456,7 @@ export default {
     en: 'Product testing',
   },
   '81141600': {
-    fr: 'Gestion de la chaîne d\'approvisionnement',
+    fr: "Gestion de la chaîne d'approvisionnement",
     en: 'Supply chain management',
   },
   '81141601': {
@@ -83500,7 +83500,7 @@ export default {
     en: 'Production scheduling',
   },
   '81141704': {
-    fr: 'Services d\'analyse ou de collecte des statistiques de production',
+    fr: "Services d'analyse ou de collecte des statistiques de production",
     en: 'Production statistics collection or analysis services',
   },
   '81141800': {
@@ -83516,23 +83516,23 @@ export default {
     en: 'Industrial hygiene or ventilation',
   },
   '81141803': {
-    fr: 'Contrôle des nuisances sonores et de l\'acoustique',
+    fr: "Contrôle des nuisances sonores et de l'acoustique",
     en: 'Acoustics or noise control',
   },
   '81141804': {
-    fr: 'Service d\'inspection des équipements',
+    fr: "Service d'inspection des équipements",
     en: 'Equipment inspection service',
   },
   '81141805': {
-    fr: 'Service d\'inspection des bâtiments',
+    fr: "Service d'inspection des bâtiments",
     en: 'Building inspection service',
   },
   '81141806': {
-    fr: 'Service d\'inspection des conduites d\'alimentation en énergie',
+    fr: "Service d'inspection des conduites d'alimentation en énergie",
     en: 'Power line inspection service',
   },
   '81141807': {
-    fr: 'Service d\'inspection des évacuations et du réseau de plomberie',
+    fr: "Service d'inspection des évacuations et du réseau de plomberie",
     en: 'Plumbing or sewer inspection service',
   },
   '81150000': {
@@ -83656,15 +83656,15 @@ export default {
     en: 'Access management services',
   },
   '81161501': {
-    fr: 'Services d\'administration des applications logicielle',
+    fr: "Services d'administration des applications logicielle",
     en: 'Software application administration service',
   },
   '81161502': {
-    fr: 'Services d\'administration des comptes réseaux',
+    fr: "Services d'administration des comptes réseaux",
     en: 'Network Account Administration Service',
   },
   '81161503': {
-    fr: 'Services d\'administration des répertoires réseaux',
+    fr: "Services d'administration des répertoires réseaux",
     en: 'Network folder administration service',
   },
   '81161600': {
@@ -83672,7 +83672,7 @@ export default {
     en: 'Electronic mail and messaging services',
   },
   '81161601': {
-    fr: 'Services d\'administration de messageries instantanées',
+    fr: "Services d'administration de messageries instantanées",
     en: 'Instant Messaging Administration Service',
   },
   '81161700': {
@@ -83844,11 +83844,11 @@ export default {
     en: 'Instruction writing services',
   },
   '82111502': {
-    fr: 'Services d\'écriture de manuels',
+    fr: "Services d'écriture de manuels",
     en: 'Manual writing services',
   },
   '82111503': {
-    fr: 'Rédaction d\'articles scientifiques ou académiques',
+    fr: "Rédaction d'articles scientifiques ou académiques",
     en: 'Academic or scientific article writing',
   },
   '82111600': {
@@ -83856,11 +83856,11 @@ export default {
     en: 'Non technical writing',
   },
   '82111601': {
-    fr: 'Services d\'écriture de lettres',
+    fr: "Services d'écriture de lettres",
     en: 'Letter writing services',
   },
   '82111602': {
-    fr: 'Services d\'écriture de résumés',
+    fr: "Services d'écriture de résumés",
     en: 'Resume writing services',
   },
   '82111603': {
@@ -83900,7 +83900,7 @@ export default {
     en: 'Editorial and support services',
   },
   '82111801': {
-    fr: 'Services d\'édition',
+    fr: "Services d'édition",
     en: 'Editing services',
   },
   '82111802': {
@@ -83928,7 +83928,7 @@ export default {
     en: 'Special interest newsletter services',
   },
   '82111903': {
-    fr: 'Services d\'agence de presse',
+    fr: "Services d'agence de presse",
     en: 'News agency wire services',
   },
   '82111904': {
@@ -83976,7 +83976,7 @@ export default {
     en: 'Wrap or tag or label or seal or bag printing',
   },
   '82121509': {
-    fr: 'Impression d\'instruments financiers ou de sécurité',
+    fr: "Impression d'instruments financiers ou de sécurité",
     en: 'Security or financial instruments printing',
   },
   '82121510': {
@@ -84152,11 +84152,11 @@ export default {
     en: 'Graphic display services',
   },
   '82141601': {
-    fr: 'Services d\'encadrement ou de montage d\'images ou de photographies',
+    fr: "Services d'encadrement ou de montage d'images ou de photographies",
     en: 'Photographic or picture mounting or framing services',
   },
   '82141602': {
-    fr: 'Agencement d\'articles',
+    fr: "Agencement d'articles",
     en: 'Article display arrangement',
   },
   '82150000': {
@@ -84164,7 +84164,7 @@ export default {
     en: 'Professional artists and performers',
   },
   '82151500': {
-    fr: 'Services d\'art visuel',
+    fr: "Services d'art visuel",
     en: 'Visual art services',
   },
   '82151501': {
@@ -84204,11 +84204,11 @@ export default {
     en: 'Circus Performers',
   },
   '82151601': {
-    fr: 'Services de dresseurs d\'animaux',
+    fr: "Services de dresseurs d'animaux",
     en: 'Animal trainers services',
   },
   '82151602': {
-    fr: 'Services d\'acrobates',
+    fr: "Services d'acrobates",
     en: 'Acrobats services',
   },
   '82151603': {
@@ -84220,11 +84220,11 @@ export default {
     en: 'Clowns services',
   },
   '82151700': {
-    fr: 'Professionnels des arts d\'interprétation',
+    fr: "Professionnels des arts d'interprétation",
     en: 'Performing arts professionals',
   },
   '82151701': {
-    fr: 'Services d\'interprètes',
+    fr: "Services d'interprètes",
     en: 'Acting services',
   },
   '82151702': {
@@ -84256,7 +84256,7 @@ export default {
     en: 'Utilities',
   },
   '83101500': {
-    fr: 'Services publics de distribution d\'eau et d\'égouts',
+    fr: "Services publics de distribution d'eau et d'égouts",
     en: 'Water and sewer utilities',
   },
   '83101501': {
@@ -84268,15 +84268,15 @@ export default {
     en: 'Water resource management',
   },
   '83101503': {
-    fr: 'Gestion du contrôle de la qualité de l\'eau',
+    fr: "Gestion du contrôle de la qualité de l'eau",
     en: 'Water quality control management',
   },
   '83101504': {
-    fr: 'Gestion de la distribution d\'eau',
+    fr: "Gestion de la distribution d'eau",
     en: 'Water distribution management',
   },
   '83101505': {
-    fr: 'Services consultatifs en matière de politique de l\'eau',
+    fr: "Services consultatifs en matière de politique de l'eau",
     en: 'Water policy advisory services',
   },
   '83101506': {
@@ -84312,7 +84312,7 @@ export default {
     en: 'Supply of fuel oil',
   },
   '83101603': {
-    fr: 'Services d\'oléoducs',
+    fr: "Services d'oléoducs",
     en: 'Oil pipeline services',
   },
   '83101604': {
@@ -84320,39 +84320,39 @@ export default {
     en: 'Gas pipeline services',
   },
   '83101605': {
-    fr: 'Services d\'installations de gaz',
+    fr: "Services d'installations de gaz",
     en: 'Gas facility charge',
   },
   '83101800': {
-    fr: 'Services publics d\'électricité',
+    fr: "Services publics d'électricité",
     en: 'Electric utilities',
   },
   '83101801': {
-    fr: 'Distribution d\'électricité en courant monophasé',
+    fr: "Distribution d'électricité en courant monophasé",
     en: 'Supply of single phase electricity',
   },
   '83101802': {
-    fr: 'Distribution d\'électricité en courant biphasé',
+    fr: "Distribution d'électricité en courant biphasé",
     en: 'Supply of two phase electricity',
   },
   '83101803': {
-    fr: 'Distribution d\'électricité en courant triphasé',
+    fr: "Distribution d'électricité en courant triphasé",
     en: 'Supply of three phase electricity',
   },
   '83101804': {
-    fr: 'Services de transport de l\'énergie électrique',
+    fr: "Services de transport de l'énergie électrique",
     en: 'Electric power transmission services',
   },
   '83101805': {
-    fr: 'Réseaux industriels de distribution d\'électricité',
+    fr: "Réseaux industriels de distribution d'électricité",
     en: 'Industrial electric power distribution',
   },
   '83101806': {
-    fr: 'Réseaux ruraux de distribution d\'électricité',
+    fr: "Réseaux ruraux de distribution d'électricité",
     en: 'Rural electrical power distribution',
   },
   '83101807': {
-    fr: 'Réseaux urbains de distribution d\'électricité',
+    fr: "Réseaux urbains de distribution d'électricité",
     en: 'Municipal electric power distribution',
   },
   '83101808': {
@@ -84360,15 +84360,15 @@ export default {
     en: 'Power quality monitoring',
   },
   '83101900': {
-    fr: 'Economie de l\'énergie',
+    fr: "Economie de l'énergie",
     en: 'Energy conservation',
   },
   '83101901': {
-    fr: 'Programmes d\'économie de l\'énergie',
+    fr: "Programmes d'économie de l'énergie",
     en: 'Energy conservation programs',
   },
   '83101902': {
-    fr: 'Mesures de réduction de l\'utilisation de l\'énergie',
+    fr: "Mesures de réduction de l'utilisation de l'énergie",
     en: 'Energy use reduction measures',
   },
   '83101903': {
@@ -84484,7 +84484,7 @@ export default {
     en: 'Closed circuit television services',
   },
   '83111803': {
-    fr: 'Services de location ou de construction d\'antennes de télévision',
+    fr: "Services de location ou de construction d'antennes de télévision",
     en: 'Television antenna construction or rental services',
   },
   '83111804': {
@@ -84508,7 +84508,7 @@ export default {
     en: 'Small scale radio systems',
   },
   '83111904': {
-    fr: 'Services d\'équipement ou de studio de radio',
+    fr: "Services d'équipement ou de studio de radio",
     en: 'Radio studio or equipment services',
   },
   '83111905': {
@@ -84548,11 +84548,11 @@ export default {
     en: 'Dark fiber',
   },
   '83112302': {
-    fr: 'Multiplexage par répartition en longueur d\'onde MDRL',
+    fr: "Multiplexage par répartition en longueur d'onde MDRL",
     en: 'Dense wavelength division multiplexing DWDM',
   },
   '83112303': {
-    fr: 'Multiplexage par répartition en longueur d\'onde MRL',
+    fr: "Multiplexage par répartition en longueur d'onde MRL",
     en: 'Wave division multiplexing WDM',
   },
   '83112304': {
@@ -84588,7 +84588,7 @@ export default {
     en: 'DSL digital subscriber line',
   },
   '83112500': {
-    fr: 'Mises à disposition de réseaux d\'infrastructure',
+    fr: "Mises à disposition de réseaux d'infrastructure",
     en: 'Backbone capacities',
   },
   '83112501': {
@@ -84596,15 +84596,15 @@ export default {
     en: 'Submarine cable capacities and submarine cable PoP to PoP capacities',
   },
   '83112502': {
-    fr: 'Mises à disposition de réseaux d\'infrastructure terrestre',
+    fr: "Mises à disposition de réseaux d'infrastructure terrestre",
     en: 'Terrestrial backbone capacities',
   },
   '83112503': {
-    fr: 'Services d\'allocation des droits de passage pour le transit des systèmes de demi circuit, de traitement réparti et de location administration',
+    fr: "Services d'allocation des droits de passage pour le transit des systèmes de demi circuit, de traitement réparti et de location administration",
     en: 'Rights of way for transit for half circuit systems, DDPs and admin lease',
   },
   '83112504': {
-    fr: 'Services d\'allocation  de droits inviolables dutilisation des systèmes de câblage terrestres et sous-marins',
+    fr: "Services d'allocation  de droits inviolables dutilisation des systèmes de câblage terrestres et sous-marins",
     en: 'Indefeasible rights of use IRU for submarine cable or terrestrial cable systems',
   },
   '83112505': {
@@ -84628,7 +84628,7 @@ export default {
     en: 'International access lines',
   },
   '83112604': {
-    fr: 'Services d\'accès par réseau de commutation',
+    fr: "Services d'accès par réseau de commutation",
     en: 'Dial access services',
   },
   '83112605': {
@@ -84636,7 +84636,7 @@ export default {
     en: 'External international lines',
   },
   '83120000': {
-    fr: 'Services d\'information',
+    fr: "Services d'information",
     en: 'Information services',
   },
   '83121500': {
@@ -84648,7 +84648,7 @@ export default {
     en: 'General municipal public use libraries',
   },
   '83121502': {
-    fr: 'Bibliothèques d\'université ou de collège',
+    fr: "Bibliothèques d'université ou de collège",
     en: 'College or university libraries',
   },
   '83121503': {
@@ -84660,7 +84660,7 @@ export default {
     en: 'National government or military post libraries',
   },
   '83121600': {
-    fr: 'Centres d\'information',
+    fr: "Centres d'information",
     en: 'Information centers',
   },
   '83121601': {
@@ -84668,19 +84668,19 @@ export default {
     en: 'Chambers of Commerce',
   },
   '83121602': {
-    fr: 'Services d\'office du tourisme',
+    fr: "Services d'office du tourisme",
     en: 'Tourism board services',
   },
   '83121603': {
-    fr: 'Systèmes de récupération d\'informations par ordinateur',
+    fr: "Systèmes de récupération d'informations par ordinateur",
     en: 'Computerized information retrieval systems',
   },
   '83121604': {
-    fr: 'Systèmes de récupération d\'informations de base de données en ligne',
+    fr: "Systèmes de récupération d'informations de base de données en ligne",
     en: 'Online database information retrieval systems',
   },
   '83121605': {
-    fr: 'Systèmes de récupération d\'informations de base de données à distance',
+    fr: "Systèmes de récupération d'informations de base de données à distance",
     en: 'Remote database information retrieval services',
   },
   '83121606': {
@@ -84704,11 +84704,11 @@ export default {
     en: 'Internet related services',
   },
   '83121704': {
-    fr: 'Systèmes d\'avertissement ou d\'alarme des citoyens',
+    fr: "Systèmes d'avertissement ou d'alarme des citoyens",
     en: 'Citizen warning systems',
   },
   '84000000': {
-    fr: 'Services Financiers et d\'Assurance',
+    fr: "Services Financiers et d'Assurance",
     en: 'Financial and Insurance Services',
   },
   '84100000': {
@@ -84732,7 +84732,7 @@ export default {
     en: 'Guarantee agreements',
   },
   '84101600': {
-    fr: 'Financement d\'aide',
+    fr: "Financement d'aide",
     en: 'Aid financing',
   },
   '84101601': {
@@ -84784,7 +84784,7 @@ export default {
     en: 'Accounting services',
   },
   '84111501': {
-    fr: 'Comptabilité d\'exploitation',
+    fr: "Comptabilité d'exploitation",
     en: 'Cost accounting',
   },
   '84111502': {
@@ -84812,11 +84812,11 @@ export default {
     en: 'Inventory accounting',
   },
   '84111600': {
-    fr: 'Services d\'audit',
+    fr: "Services d'audit",
     en: 'Audit services',
   },
   '84111601': {
-    fr: 'Vérification des comptes de fin d\'exercice',
+    fr: "Vérification des comptes de fin d'exercice",
     en: 'Year end audits',
   },
   '84111602': {
@@ -84828,7 +84828,7 @@ export default {
     en: 'Internal audits',
   },
   '84111700': {
-    fr: 'Finances d\'entreprise',
+    fr: "Finances d'entreprise",
     en: 'Corporate finance',
   },
   '84111701': {
@@ -84896,7 +84896,7 @@ export default {
     en: 'Currency exchange services',
   },
   '84121604': {
-    fr: 'Services d\'opérations de change au comptant',
+    fr: "Services d'opérations de change au comptant",
     en: 'Spot exchange transaction services',
   },
   '84121605': {
@@ -84912,7 +84912,7 @@ export default {
     en: 'Operating lease finance service',
   },
   '84121700': {
-    fr: 'Conseils en matière d\'investissements',
+    fr: "Conseils en matière d'investissements",
     en: 'Investment advice',
   },
   '84121701': {
@@ -84920,7 +84920,7 @@ export default {
     en: 'Investment advisers',
   },
   '84121702': {
-    fr: 'Politique d\'investissement',
+    fr: "Politique d'investissement",
     en: 'Investment policy',
   },
   '84121703': {
@@ -84928,7 +84928,7 @@ export default {
     en: 'Investment analysis',
   },
   '84121704': {
-    fr: 'Accords d\'investissement',
+    fr: "Accords d'investissement",
     en: 'Investment agreements',
   },
   '84121705': {
@@ -84940,7 +84940,7 @@ export default {
     en: 'Securities and commodities markets services',
   },
   '84121801': {
-    fr: 'Services d\'opérations sur le marché financier',
+    fr: "Services d'opérations sur le marché financier",
     en: 'Stock market trading services',
   },
   '84121802': {
@@ -84948,7 +84948,7 @@ export default {
     en: 'Commodities or futures market services',
   },
   '84121803': {
-    fr: 'Obligations d\'Etat',
+    fr: "Obligations d'Etat",
     en: 'Government bonds',
   },
   '84121804': {
@@ -84964,7 +84964,7 @@ export default {
     en: 'Securities Custodial Services',
   },
   '84121900': {
-    fr: 'Banques d\'hypothèques',
+    fr: "Banques d'hypothèques",
     en: 'Mortgage banking',
   },
   '84121901': {
@@ -84976,7 +84976,7 @@ export default {
     en: 'Re financing services',
   },
   '84121903': {
-    fr: 'Financement d\'hypothèques commerciales',
+    fr: "Financement d'hypothèques commerciales",
     en: 'Commercial mortgage finance',
   },
   '84122000': {
@@ -84988,11 +84988,11 @@ export default {
     en: 'Deposit verification services',
   },
   '84130000': {
-    fr: 'Services de retraite et d\'assurance',
+    fr: "Services de retraite et d'assurance",
     en: 'Insurance and retirement services',
   },
   '84131500': {
-    fr: 'Services d\'assurance de la propriété, des biens et des structures',
+    fr: "Services d'assurance de la propriété, des biens et des structures",
     en: 'Insurance services for structures and property and possessions',
   },
   '84131501': {
@@ -85100,7 +85100,7 @@ export default {
     en: 'Medical Claims Review and Management',
   },
   '84131609': {
-    fr: 'Programmes d\'assistance aux employés',
+    fr: "Programmes d'assistance aux employés",
     en: 'Employee assistance programs',
   },
   '84131610': {
@@ -85112,7 +85112,7 @@ export default {
     en: 'Pension funds',
   },
   '84131701': {
-    fr: 'Fonds de pension gérés par l\'employeur',
+    fr: "Fonds de pension gérés par l'employeur",
     en: 'Employer administered pension funds',
   },
   '84131702': {
@@ -85156,7 +85156,7 @@ export default {
     en: 'Personal credit agencies',
   },
   '84141601': {
-    fr: 'Services de collecte ou d\'analyse des crédits de consommation',
+    fr: "Services de collecte ou d'analyse des crédits de consommation",
     en: 'Consumer credit gathering or reporting services',
   },
   '84141602': {
@@ -85168,7 +85168,7 @@ export default {
     en: 'Business credit agencies',
   },
   '84141701': {
-    fr: 'Services de collecte ou d\'analyse des crédits aux entreprises',
+    fr: "Services de collecte ou d'analyse des crédits aux entreprises",
     en: 'Business credit gathering or reporting services',
   },
   '84141702': {
@@ -85188,7 +85188,7 @@ export default {
     en: 'Healthcare centers',
   },
   '85101501': {
-    fr: 'Services hospitaliers chirurgicaux ou d\'urgence',
+    fr: "Services hospitaliers chirurgicaux ou d'urgence",
     en: 'Emergency or surgical hospital services',
   },
   '85101502': {
@@ -85208,7 +85208,7 @@ export default {
     en: 'Respiratory hospital services',
   },
   '85101506': {
-    fr: 'Services hospitaliers pour le traitement de l\'abus de substances toxiques',
+    fr: "Services hospitaliers pour le traitement de l'abus de substances toxiques",
     en: 'Substance abuse hospital services',
   },
   '85101507': {
@@ -85228,7 +85228,7 @@ export default {
     en: 'Healthcare provider support persons',
   },
   '85101601': {
-    fr: 'Services d\'infirmier',
+    fr: "Services d'infirmier",
     en: 'Nursing services',
   },
   '85101602': {
@@ -85240,7 +85240,7 @@ export default {
     en: 'Personal care services in specialized institutions',
   },
   '85101604': {
-    fr: 'Services d\'aide soignant',
+    fr: "Services d'aide soignant",
     en: 'Physicians personnel assistance services',
   },
   '85101605': {
@@ -85248,7 +85248,7 @@ export default {
     en: 'Home health assistants',
   },
   '85101700': {
-    fr: 'Services d\'administration des soins médicaux',
+    fr: "Services d'administration des soins médicaux",
     en: 'Health administration services',
   },
   '85101701': {
@@ -85276,7 +85276,7 @@ export default {
     en: 'Traditional healthcare services',
   },
   '85101707': {
-    fr: 'Services d\'évaluation des systèmes de santé',
+    fr: "Services d'évaluation des systèmes de santé",
     en: 'Health systems evaluation services',
   },
   '85110000': {
@@ -85332,7 +85332,7 @@ export default {
     en: 'Quarantine services',
   },
   '85111512': {
-    fr: 'Services d\'immunisation',
+    fr: "Services d'immunisation",
     en: 'Immunization services',
   },
   '85111513': {
@@ -85408,7 +85408,7 @@ export default {
     en: 'Diarrheal diseases prevention or control services',
   },
   '85111616': {
-    fr: 'Services de prévention ou de contrôle de l\'alcoolisme',
+    fr: "Services de prévention ou de contrôle de l'alcoolisme",
     en: 'Alcoholism prevention or control services',
   },
   '85111617': {
@@ -85456,7 +85456,7 @@ export default {
     en: 'Primary care physicians control services',
   },
   '85121504': {
-    fr: 'Services médicaux d\'urgence des médecins généralistes ou de soins primaires',
+    fr: "Services médicaux d'urgence des médecins généralistes ou de soins primaires",
     en: 'Primary care physicians emergency medical services',
   },
   '85121600': {
@@ -85540,7 +85540,7 @@ export default {
     en: 'Speech specialists services',
   },
   '85121705': {
-    fr: 'Services d\'acupuncteurs',
+    fr: "Services d'acupuncteurs",
     en: 'Acupuncturists services',
   },
   '85121706': {
@@ -85552,7 +85552,7 @@ export default {
     en: 'Medical laboratories',
   },
   '85121801': {
-    fr: 'Services de laboratoire d\'analyse sanguine',
+    fr: "Services de laboratoire d'analyse sanguine",
     en: 'Blood analysis laboratory services',
   },
   '85121802': {
@@ -85568,7 +85568,7 @@ export default {
     en: 'Pathological laboratory services',
   },
   '85121805': {
-    fr: 'Services de laboratoire d\'analyse d\'urine',
+    fr: "Services de laboratoire d'analyse d'urine",
     en: 'Urinalysis laboratory services',
   },
   '85121806': {
@@ -85576,7 +85576,7 @@ export default {
     en: 'Neurological laboratory services',
   },
   '85121807': {
-    fr: 'Services de laboratoire d\'ultrasons',
+    fr: "Services de laboratoire d'ultrasons",
     en: 'Ultrasound laboratory services',
   },
   '85121808': {
@@ -85612,11 +85612,11 @@ export default {
     en: 'Dentists services',
   },
   '85122002': {
-    fr: 'Services d\'hygiénistes dentaires',
+    fr: "Services d'hygiénistes dentaires",
     en: 'Dental hygienists services',
   },
   '85122003': {
-    fr: 'Services d\'auxiliaires dentaires',
+    fr: "Services d'auxiliaires dentaires",
     en: 'Dentist support staff services',
   },
   '85122004': {
@@ -85664,7 +85664,7 @@ export default {
     en: 'Speech or language therapy',
   },
   '85122109': {
-    fr: 'Services de réadaptation pour personnes souffrant d\'un handicap chronique',
+    fr: "Services de réadaptation pour personnes souffrant d'un handicap chronique",
     en: 'Rehabilitation services for people with chronic disabilities',
   },
   '85122200': {
@@ -85684,7 +85684,7 @@ export default {
     en: 'Experimental medicine services',
   },
   '85131501': {
-    fr: 'Services de transplantation d\'organes',
+    fr: "Services de transplantation d'organes",
     en: 'Organ transplant services',
   },
   '85131502': {
@@ -85696,11 +85696,11 @@ export default {
     en: 'Animal experimentation',
   },
   '85131504': {
-    fr: 'Expérimentation sur l\'être humain',
+    fr: "Expérimentation sur l'être humain",
     en: 'Human experimentation',
   },
   '85131505': {
-    fr: 'Expérimentation dans l\'espace',
+    fr: "Expérimentation dans l'espace",
     en: 'Space experimentation',
   },
   '85131600': {
@@ -85708,7 +85708,7 @@ export default {
     en: 'Medical ethics',
   },
   '85131601': {
-    fr: 'Problèmes de l\'euthanasie',
+    fr: "Problèmes de l'euthanasie",
     en: 'Euthanasia issues',
   },
   '85131602': {
@@ -85828,7 +85828,7 @@ export default {
     en: 'Initial diagnostic assessment',
   },
   '85141702': {
-    fr: 'Consultations pour la recherche d\'un remède',
+    fr: "Consultations pour la recherche d'un remède",
     en: 'Remedy consultations',
   },
   '85150000': {
@@ -85840,7 +85840,7 @@ export default {
     en: 'Food technology',
   },
   '85151501': {
-    fr: 'Services de contrôle de l\'hygiène alimentaire',
+    fr: "Services de contrôle de l'hygiène alimentaire",
     en: 'Food hygiene control services',
   },
   '85151502': {
@@ -85848,11 +85848,11 @@ export default {
     en: 'Food contamination control services',
   },
   '85151503': {
-    fr: 'Services de contrôle ou de gestion de la conservation d\'aliments',
+    fr: "Services de contrôle ou de gestion de la conservation d'aliments",
     en: 'Food preservation management or control services',
   },
   '85151504': {
-    fr: 'Services de contrôle ou de conseils pour la préparation d\'aliments',
+    fr: "Services de contrôle ou de conseils pour la préparation d'aliments",
     en: 'Food preparation counseling or control services',
   },
   '85151505': {
@@ -85864,11 +85864,11 @@ export default {
     en: 'Studies on foods or food habits',
   },
   '85151507': {
-    fr: 'Services de normes de qualité ou d\'additifs alimentaires',
+    fr: "Services de normes de qualité ou d'additifs alimentaires",
     en: 'Food additive or quality standards services',
   },
   '85151508': {
-    fr: 'Services d\'analyse alimentaire',
+    fr: "Services d'analyse alimentaire",
     en: 'Food analysis services',
   },
   '85151509': {
@@ -85884,7 +85884,7 @@ export default {
     en: 'Nutrition programming services',
   },
   '85151602': {
-    fr: 'Politique d\'alimentation au lait maternel ou au lait en bouteille',
+    fr: "Politique d'alimentation au lait maternel ou au lait en bouteille",
     en: 'Breast or bottle feeding policy',
   },
   '85151603': {
@@ -85916,19 +85916,19 @@ export default {
     en: 'Food standards',
   },
   '85151702': {
-    fr: 'Services de systèmes d\'alerte anticipée ou d\'information globale sur l\'aide alimentaire',
+    fr: "Services de systèmes d'alerte anticipée ou d'information globale sur l'aide alimentaire",
     en: 'Food aid global information or early warning systems services',
   },
   '85151703': {
-    fr: 'Evaluation des nécessités alimentaires d\'urgence',
+    fr: "Evaluation des nécessités alimentaires d'urgence",
     en: 'Assessment of emergency food requirements',
   },
   '85151704': {
-    fr: 'Programmes ou politique nationale d\'intervention alimentaire',
+    fr: "Programmes ou politique nationale d'intervention alimentaire",
     en: 'National food intervention policy or programs',
   },
   '85151705': {
-    fr: 'Evaluation de l\'impact nutritionnel de l\'aide alimentaire',
+    fr: "Evaluation de l'impact nutritionnel de l'aide alimentaire",
     en: 'Evaluation of food aid nutritional impact',
   },
   '85160000': {
@@ -85952,7 +85952,7 @@ export default {
     en: 'Medical or surgical instrument maintenance or repair',
   },
   '86000000': {
-    fr: 'Services d\'enseignement et de formation',
+    fr: "Services d'enseignement et de formation",
     en: 'Education and Training Services',
   },
   '86100000': {
@@ -86008,7 +86008,7 @@ export default {
     en: 'Computer vocational training services',
   },
   '86101602': {
-    fr: 'Services de formation technique et professionnelle en rapport avec l\'énergie',
+    fr: "Services de formation technique et professionnelle en rapport avec l'énergie",
     en: 'Energy related vocational training services',
   },
   '86101603': {
@@ -86060,7 +86060,7 @@ export default {
     en: 'Library or documentation training',
   },
   '86101704': {
-    fr: 'Formation sur la constitution des stocks ou les chaînes d\'approvisionnement',
+    fr: "Formation sur la constitution des stocks ou les chaînes d'approvisionnement",
     en: 'Procurement or supply chain training',
   },
   '86101705': {
@@ -86068,7 +86068,7 @@ export default {
     en: 'Clerical training',
   },
   '86101706': {
-    fr: 'Services de formation technique et professionnelle d\'auxiliaire médical',
+    fr: "Services de formation technique et professionnelle d'auxiliaire médical",
     en: 'Health assistance vocational training services',
   },
   '86101707': {
@@ -86076,7 +86076,7 @@ export default {
     en: 'Personal care vocational training services',
   },
   '86101708': {
-    fr: 'Services d\'alphabétisation',
+    fr: "Services d'alphabétisation",
     en: 'Literacy services',
   },
   '86101709': {
@@ -86108,7 +86108,7 @@ export default {
     en: 'Road or rail transportation vocational training services',
   },
   '86101716': {
-    fr: 'Services de formation technique et professionnelle à l\'expédition',
+    fr: "Services de formation technique et professionnelle à l'expédition",
     en: 'Shipping vocational training services',
   },
   '86101800': {
@@ -86152,31 +86152,31 @@ export default {
     en: 'Merchant marine vocational training services',
   },
   '86110000': {
-    fr: 'Systèmes d\'enseignement alternatifs',
+    fr: "Systèmes d'enseignement alternatifs",
     en: 'Alternative educational systems',
   },
   '86111500': {
-    fr: 'Services d\'enseignement à distance',
+    fr: "Services d'enseignement à distance",
     en: 'Distance learning services',
   },
   '86111501': {
-    fr: 'Services d\'orientation scolaire pour l\'enseignement à distance',
+    fr: "Services d'orientation scolaire pour l'enseignement à distance",
     en: 'Distance learning guidance services',
   },
   '86111502': {
-    fr: 'Services d\'enseignement à distance',
+    fr: "Services d'enseignement à distance",
     en: 'Distance teaching services',
   },
   '86111503': {
-    fr: 'Services d\'enseignement à distance sanctionné par un diplôme',
+    fr: "Services d'enseignement à distance sanctionné par un diplôme",
     en: 'Certificated distance learning services',
   },
   '86111504': {
-    fr: 'Services d\'enseignement à distance non sanctionné par un diplôme',
+    fr: "Services d'enseignement à distance non sanctionné par un diplôme",
     en: 'Non certificated distance learning services',
   },
   '86111505': {
-    fr: 'Services d\'évaluation de l\'enseignement à distance',
+    fr: "Services d'évaluation de l'enseignement à distance",
     en: 'Distance learning assessment services',
   },
   '86111600': {
@@ -86224,7 +86224,7 @@ export default {
     en: 'Educational exchanges between schools',
   },
   '86120000': {
-    fr: 'Institutions d\'enseignement',
+    fr: "Institutions d'enseignement",
     en: 'Educational institutions',
   },
   '86121500': {
@@ -86236,15 +86236,15 @@ export default {
     en: 'Pre school educational services',
   },
   '86121502': {
-    fr: 'Ecoles primaires ou secondaires de l\'enseignement confessionnel',
+    fr: "Ecoles primaires ou secondaires de l'enseignement confessionnel",
     en: 'Religious elementary or secondary schools',
   },
   '86121503': {
-    fr: 'Ecoles primaires ou secondaires de l\'enseignement privé',
+    fr: "Ecoles primaires ou secondaires de l'enseignement privé",
     en: 'Private elementary or secondary schools',
   },
   '86121504': {
-    fr: 'Ecoles primaires ou secondaires de l\'enseignement public',
+    fr: "Ecoles primaires ou secondaires de l'enseignement public",
     en: 'Public elementary or secondary schools',
   },
   '86121600': {
@@ -86288,7 +86288,7 @@ export default {
     en: 'Non technical professional schools',
   },
   '86130000': {
-    fr: 'Services d\'enseignement spécialisé',
+    fr: "Services d'enseignement spécialisé",
     en: 'Specialized educational services',
   },
   '86131500': {
@@ -86332,15 +86332,15 @@ export default {
     en: 'Driving and flying and sailing',
   },
   '86131701': {
-    fr: 'Services d\'écoles de conduite de véhicules',
+    fr: "Services d'écoles de conduite de véhicules",
     en: 'Vehicle driving schools services',
   },
   '86131702': {
-    fr: 'Services d\'école de pilotage',
+    fr: "Services d'école de pilotage",
     en: 'Flight school services',
   },
   '86131703': {
-    fr: 'Services d\'écoles de yachting ou de canotage',
+    fr: "Services d'écoles de yachting ou de canotage",
     en: 'Yachting or boating school services',
   },
   '86131800': {
@@ -86368,19 +86368,19 @@ export default {
     en: 'Schools for people with disabilities',
   },
   '86131901': {
-    fr: 'Services d\'instruction primaire pour personnes souffrant d\'un handicap',
+    fr: "Services d'instruction primaire pour personnes souffrant d'un handicap",
     en: 'Primary schooling services for people with disabilities',
   },
   '86131902': {
-    fr: 'Services d\'instruction secondaire pour personnes souffrant d\'un handicap',
+    fr: "Services d'instruction secondaire pour personnes souffrant d'un handicap",
     en: 'Secondary schooling services for people with disabilities',
   },
   '86131903': {
-    fr: 'Ecoles spécialisées pour personnes souffrant d\'un handicap',
+    fr: "Ecoles spécialisées pour personnes souffrant d'un handicap",
     en: 'Specialized schools for people with disabilities',
   },
   '86131904': {
-    fr: 'Services spécialisés de rééducation pour personnes souffrant d\'un handicap',
+    fr: "Services spécialisés de rééducation pour personnes souffrant d'un handicap",
     en: 'Specialized rehabilitation services for people with disabilities',
   },
   '86140000': {
@@ -86388,19 +86388,19 @@ export default {
     en: 'Educational facilities',
   },
   '86141500': {
-    fr: 'Services d\'orientation scolaire',
+    fr: "Services d'orientation scolaire",
     en: 'Educational guidance services',
   },
   '86141501': {
-    fr: 'Services consultatifs pour l\'enseignement',
+    fr: "Services consultatifs pour l'enseignement",
     en: 'Educational advisory services',
   },
   '86141502': {
-    fr: 'Services d\'orientation scolaire pour la coopération entre universités',
+    fr: "Services d'orientation scolaire pour la coopération entre universités",
     en: 'Universities cooperation guidance services',
   },
   '86141503': {
-    fr: 'Services d\'orientation scolaire pour les études à l\'étranger',
+    fr: "Services d'orientation scolaire pour les études à l'étranger",
     en: 'Study abroad advisory services',
   },
   '86141504': {
@@ -86412,11 +86412,11 @@ export default {
     en: 'Students organizations',
   },
   '86141601': {
-    fr: 'Clubs d\'agrément pour étudiants',
+    fr: "Clubs d'agrément pour étudiants",
     en: 'Students hobby clubs',
   },
   '86141602': {
-    fr: 'Associations d\'étudiants',
+    fr: "Associations d'étudiants",
     en: 'Students unions',
   },
   '86141603': {
@@ -86424,7 +86424,7 @@ export default {
     en: 'Students travelling organizations',
   },
   '86141700': {
-    fr: 'Technologie de l\'éducation',
+    fr: "Technologie de l'éducation",
     en: 'Educational technology',
   },
   '86141701': {
@@ -86444,7 +86444,7 @@ export default {
     en: 'Library or documentation services',
   },
   '90000000': {
-    fr: 'Services de divertissement, de loisirs, de restauration, d\'hébergement et de tourisme',
+    fr: "Services de divertissement, de loisirs, de restauration, d'hébergement et de tourisme",
     en: 'Travel and Food and Lodging and Entertainment Services',
   },
   '90100000': {
@@ -86472,7 +86472,7 @@ export default {
     en: 'On street food vendors',
   },
   '90101600': {
-    fr: 'Services de traiteurs et d\'organisation de banquets',
+    fr: "Services de traiteurs et d'organisation de banquets",
     en: 'Banquet and catering services',
   },
   '90101601': {
@@ -86512,7 +86512,7 @@ export default {
     en: 'Delivered meals services',
   },
   '90110000': {
-    fr: 'Installations hôtelières, d\'hébergement et de tenue de réunions',
+    fr: "Installations hôtelières, d'hébergement et de tenue de réunions",
     en: 'Hotels and lodging and meeting facilities',
   },
   '90111500': {
@@ -86596,7 +86596,7 @@ export default {
     en: 'Travel agents',
   },
   '90121501': {
-    fr: 'Services d\'organisation de voyages',
+    fr: "Services d'organisation de voyages",
     en: 'Tour arrangement services',
   },
   '90121502': {
@@ -86604,11 +86604,11 @@ export default {
     en: 'Travel agencies',
   },
   '90121503': {
-    fr: 'Services d\'affrètement',
+    fr: "Services d'affrètement",
     en: 'Chartering services',
   },
   '90121600': {
-    fr: 'Assistance pour l\'obtention de documents de voyage',
+    fr: "Assistance pour l'obtention de documents de voyage",
     en: 'Travel document assistance',
   },
   '90121601': {
@@ -86688,7 +86688,7 @@ export default {
     en: 'Exhibitions',
   },
   '90141600': {
-    fr: 'Patronage et promotion d\'événements sportifs',
+    fr: "Patronage et promotion d'événements sportifs",
     en: 'Sports event promotion and sponsorship',
   },
   '90141601': {
@@ -86700,7 +86700,7 @@ export default {
     en: 'Company sponsored amateur sports events',
   },
   '90141603': {
-    fr: 'Services de promotion d\'événements sportifs',
+    fr: "Services de promotion d'événements sportifs",
     en: 'Sporting event promotion services',
   },
   '90141700': {
@@ -86756,7 +86756,7 @@ export default {
     en: 'Art exhibitions',
   },
   '90151700': {
-    fr: 'Parcs d\'attractions',
+    fr: "Parcs d'attractions",
     en: 'Amusement parks',
   },
   '90151701': {
@@ -86780,7 +86780,7 @@ export default {
     en: 'Travelling carnivals',
   },
   '90151802': {
-    fr: 'Services de gestion ou d\'organisation de foires',
+    fr: "Services de gestion ou d'organisation de foires",
     en: 'Fair organization or management services',
   },
   '90151803': {
@@ -86820,7 +86820,7 @@ export default {
     en: 'Concierge services',
   },
   '90152101': {
-    fr: 'Services d\'assistance personnelle',
+    fr: "Services d'assistance personnelle",
     en: 'Personal assistance services',
   },
   '91000000': {
@@ -86848,7 +86848,7 @@ export default {
     en: 'Massage services',
   },
   '91101504': {
-    fr: 'Séances de gymnastique ou d\'aérobic',
+    fr: "Séances de gymnastique ou d'aérobic",
     en: 'Aerobics or exercise classes',
   },
   '91101505': {
@@ -86932,7 +86932,7 @@ export default {
     en: 'Laundering services',
   },
   '91111501': {
-    fr: 'Location d\'uniformes',
+    fr: "Location d'uniformes",
     en: 'Uniform rental',
   },
   '91111502': {
@@ -86948,7 +86948,7 @@ export default {
     en: 'Coin operated self service laundries',
   },
   '91111600': {
-    fr: 'Services d\'entretien de la maison et services ménagers',
+    fr: "Services d'entretien de la maison et services ménagers",
     en: 'Household assistance and care',
   },
   '91111601': {
@@ -86956,19 +86956,19 @@ export default {
     en: 'Housekeeping services',
   },
   '91111602': {
-    fr: 'Services d\'entretien de jardins ou de piscines',
+    fr: "Services d'entretien de jardins ou de piscines",
     en: 'Yard or pool care services',
   },
   '91111603': {
-    fr: 'Services de préparation ou de cuisson d\'aliments',
+    fr: "Services de préparation ou de cuisson d'aliments",
     en: 'Cooking or food preparation services',
   },
   '91111700': {
-    fr: 'Services d\'achat et de troc pour les consommateurs',
+    fr: "Services d'achat et de troc pour les consommateurs",
     en: 'Consumer buying and bartering services',
   },
   '91111701': {
-    fr: 'Services de consignation de vêtements d\'occasion',
+    fr: "Services de consignation de vêtements d'occasion",
     en: 'Used clothing consignment services',
   },
   '91111702': {
@@ -86976,7 +86976,7 @@ export default {
     en: 'Barter clubs or consortiums',
   },
   '91111703': {
-    fr: 'Services d\'achat de garde-robe',
+    fr: "Services d'achat de garde-robe",
     en: 'Wardrobe buying services',
   },
   '91111800': {
@@ -87000,27 +87000,27 @@ export default {
     en: 'Fur storage',
   },
   '91111900': {
-    fr: 'Services d\'assistance aux personnes',
+    fr: "Services d'assistance aux personnes",
     en: 'Personal care services',
   },
   '91111901': {
-    fr: 'Services de garderie d\'enfants ou de crèches',
+    fr: "Services de garderie d'enfants ou de crèches",
     en: 'Infant or child daycare services',
   },
   '91111902': {
-    fr: 'Services de baby-sitting ou de bonne d\'enfants',
+    fr: "Services de baby-sitting ou de bonne d'enfants",
     en: 'Nanny or babysitting services',
   },
   '91111903': {
-    fr: 'Services de centre d\'accueil de jour pour personnes âgées',
+    fr: "Services de centre d'accueil de jour pour personnes âgées",
     en: 'Elderly daycare services',
   },
   '91111904': {
-    fr: 'Services d\'aides ménagères',
+    fr: "Services d'aides ménagères",
     en: 'Assisted living services',
   },
   '92000000': {
-    fr: 'Services de défense nationale, d\'ordre public, de secours et de sécurité',
+    fr: "Services de défense nationale, d'ordre public, de secours et de sécurité",
     en: 'National Defense and Public Order and Security and Safety Services',
   },
   '92100000': {
@@ -87032,11 +87032,11 @@ export default {
     en: 'Police services',
   },
   '92101501': {
-    fr: 'Services de maintien de l\'ordre',
+    fr: "Services de maintien de l'ordre",
     en: 'Policing services',
   },
   '92101502': {
-    fr: 'Groupes d\'Intervention spéciale ou unités anti-émeutes',
+    fr: "Groupes d'Intervention spéciale ou unités anti-émeutes",
     en: 'Special weapons and tactics SWAT or riot teams',
   },
   '92101503': {
@@ -87052,7 +87052,7 @@ export default {
     en: 'Fire services',
   },
   '92101601': {
-    fr: 'Services nationaux ou municipaux de lutte contre l\'incendie',
+    fr: "Services nationaux ou municipaux de lutte contre l'incendie",
     en: 'Municipal or national firefighting services',
   },
   '92101602': {
@@ -87064,7 +87064,7 @@ export default {
     en: 'Fire prevention services',
   },
   '92101604': {
-    fr: 'Services de lutte contre l\'incendie en forêts ou en étendues désertes',
+    fr: "Services de lutte contre l'incendie en forêts ou en étendues désertes",
     en: 'Forest or wilderness firefighting services',
   },
   '92101700': {
@@ -87072,11 +87072,11 @@ export default {
     en: 'Jail and prison system',
   },
   '92101701': {
-    fr: 'Services des maisons de détention,  maisons d\'arrêt ou centres pénitentiaires',
+    fr: "Services des maisons de détention,  maisons d'arrêt ou centres pénitentiaires",
     en: 'Jail or prison or penitentiary services',
   },
   '92101702': {
-    fr: 'Services d\'établissements ou de camps pour la jeunesse',
+    fr: "Services d'établissements ou de camps pour la jeunesse",
     en: 'Youth camps or facilities services',
   },
   '92101703': {
@@ -87096,19 +87096,19 @@ export default {
     en: 'Sheriffs services',
   },
   '92101802': {
-    fr: 'Accords pour revoir à la baisse les chefs d\'inculpation',
+    fr: "Accords pour revoir à la baisse les chefs d'inculpation",
     en: 'Plea bargain agreements',
   },
   '92101803': {
-    fr: 'Frais judiciaires de l\'action civile',
+    fr: "Frais judiciaires de l'action civile",
     en: 'Civil case court expenses',
   },
   '92101804': {
-    fr: 'Amendes ou droits de greffe de l\'action pénale',
+    fr: "Amendes ou droits de greffe de l'action pénale",
     en: 'Criminal case fees or fines',
   },
   '92101805': {
-    fr: 'Processus d\'appel ou réexamen d\'une décision de justice',
+    fr: "Processus d'appel ou réexamen d'une décision de justice",
     en: 'Appeals process or judicial review',
   },
   '92101900': {
@@ -87120,7 +87120,7 @@ export default {
     en: 'Search and rescue teams',
   },
   '92101902': {
-    fr: 'Services d\'ambulance',
+    fr: "Services d'ambulance",
     en: 'Ambulance services',
   },
   '92101903': {
@@ -87316,7 +87316,7 @@ export default {
     en: 'Peace zones',
   },
   '92112004': {
-    fr: 'Zones d\'interdiction de survol aérien',
+    fr: "Zones d'interdiction de survol aérien",
     en: 'No fly zones',
   },
   '92112100': {
@@ -87328,7 +87328,7 @@ export default {
     en: 'Nuclear safeguards',
   },
   '92112102': {
-    fr: 'Essais d\'armes nucléaires',
+    fr: "Essais d'armes nucléaires",
     en: 'Nuclear weapon tests',
   },
   '92112103': {
@@ -87348,7 +87348,7 @@ export default {
     en: 'Military reconnaissance',
   },
   '92112203': {
-    fr: 'Transferts d\'armements',
+    fr: "Transferts d'armements",
     en: 'Arms transfers',
   },
   '92112204': {
@@ -87376,7 +87376,7 @@ export default {
     en: 'Domestic military bases',
   },
   '92112302': {
-    fr: 'Bases militaires à l\'étranger',
+    fr: "Bases militaires à l'étranger",
     en: 'Foreign military bases',
   },
   '92112303': {
@@ -87448,7 +87448,7 @@ export default {
     en: 'Lie detection services',
   },
   '92121604': {
-    fr: 'Services d\'enquête privés',
+    fr: "Services d'enquête privés",
     en: 'Private investigation services',
   },
   '92121700': {
@@ -87456,11 +87456,11 @@ export default {
     en: 'Security systems services',
   },
   '92121701': {
-    fr: 'Surveillance ou maintenance d\'alarme ou de surveillance',
+    fr: "Surveillance ou maintenance d'alarme ou de surveillance",
     en: 'Surveillance or alarm maintenance or monitoring',
   },
   '92121702': {
-    fr: 'Surveillance ou maintenance d\'alarme d\'incendie',
+    fr: "Surveillance ou maintenance d'alarme d'incendie",
     en: 'Fire alarm maintenance or monitoring',
   },
   '92121703': {
@@ -87492,7 +87492,7 @@ export default {
     en: 'Political parties fund raising services',
   },
   '93101503': {
-    fr: 'Services d\'apparition publique des partis politiques',
+    fr: "Services d'apparition publique des partis politiques",
     en: 'Political parties public appearance services',
   },
   '93101504': {
@@ -87520,7 +87520,7 @@ export default {
     en: 'Governors services',
   },
   '93101603': {
-    fr: 'Services de chefs d\'Etats',
+    fr: "Services de chefs d'Etats",
     en: 'Heads of states services',
   },
   '93101604': {
@@ -87536,7 +87536,7 @@ export default {
     en: 'Monarch services',
   },
   '93101607': {
-    fr: 'Services d\'hommes d\'Etat',
+    fr: "Services d'hommes d'Etat",
     en: 'Statesmen services',
   },
   '93101608': {
@@ -87548,7 +87548,7 @@ export default {
     en: 'Legislative bodies and practice',
   },
   '93101701': {
-    fr: 'Services du Conseil d\'Etat',
+    fr: "Services du Conseil d'Etat",
     en: 'National council services',
   },
   '93101702': {
@@ -87560,7 +87560,7 @@ export default {
     en: 'Bill drafting services',
   },
   '93101704': {
-    fr: 'Services d\'écoute législative',
+    fr: "Services d'écoute législative",
     en: 'Legislative hearings services',
   },
   '93101705': {
@@ -87608,7 +87608,7 @@ export default {
     en: 'Peasant movements',
   },
   '93111507': {
-    fr: 'Mouvements d\'opposition',
+    fr: "Mouvements d'opposition",
     en: 'Opposition movements',
   },
   '93111600': {
@@ -87632,7 +87632,7 @@ export default {
     en: 'Vote catcher services',
   },
   '93111605': {
-    fr: 'Services denregistrement des électeurs, de recensement, d\'analyse ou de vérification',
+    fr: "Services denregistrement des électeurs, de recensement, d'analyse ou de vérification",
     en: 'Voter registration or counting or analysis or scrutiny services',
   },
   '93111606': {
@@ -87640,11 +87640,11 @@ export default {
     en: 'Pressure groups representation or participation services',
   },
   '93111607': {
-    fr: 'Services d\'analyse des élections',
+    fr: "Services d'analyse des élections",
     en: 'Election analysis services',
   },
   '93111608': {
-    fr: 'Services d\'organisation des élections',
+    fr: "Services d'organisation des élections",
     en: 'Election organization services',
   },
   '93120000': {
@@ -87672,7 +87672,7 @@ export default {
     en: 'Diplomatic privileges or immunities services',
   },
   '93121505': {
-    fr: 'Services des immunités d\'Etat',
+    fr: "Services des immunités d'Etat",
     en: 'State immunities services',
   },
   '93121506': {
@@ -87680,7 +87680,7 @@ export default {
     en: 'Embassies or Ambassadors services',
   },
   '93121507': {
-    fr: 'Services d\'organisation des visites officielles',
+    fr: "Services d'organisation des visites officielles",
     en: 'State visits organization services',
   },
   '93121508': {
@@ -87744,11 +87744,11 @@ export default {
     en: 'Peace treaties cooperation',
   },
   '93121613': {
-    fr: 'Services de signature ou d\'adhésion à un traité ou de rectification de traité',
+    fr: "Services de signature ou d'adhésion à un traité ou de rectification de traité",
     en: 'Treaty signature or accessions or rectification services',
   },
   '93121614': {
-    fr: 'Services de coopération des cours d\'eau internationaux',
+    fr: "Services de coopération des cours d'eau internationaux",
     en: 'International watercourse cooperation services',
   },
   '93121615': {
@@ -87780,7 +87780,7 @@ export default {
     en: 'Trustship council services',
   },
   '93121706': {
-    fr: 'Services de l\'Assemblée Générale des Nations Unies',
+    fr: "Services de l'Assemblée Générale des Nations Unies",
     en: 'General assembly services',
   },
   '93121707': {
@@ -87812,19 +87812,19 @@ export default {
     en: 'Refugee programs',
   },
   '93131501': {
-    fr: 'Services de protection des droits de l\'homme',
+    fr: "Services de protection des droits de l'homme",
     en: 'Protection of human rights services',
   },
   '93131502': {
-    fr: 'Services de promotion des droits de l\'homme',
+    fr: "Services de promotion des droits de l'homme",
     en: 'Promotion of human rights services',
   },
   '93131503': {
-    fr: 'Services d\'éducation et d\'information sur les droits de l\'homme',
+    fr: "Services d'éducation et d'information sur les droits de l'homme",
     en: 'Human rights education or information dissemination services',
   },
   '93131504': {
-    fr: 'Services d\'aide d\'urgence aux réfugiés',
+    fr: "Services d'aide d'urgence aux réfugiés",
     en: 'Refugee emergency assistance services',
   },
   '93131505': {
@@ -87832,11 +87832,11 @@ export default {
     en: 'Refugee camps services',
   },
   '93131506': {
-    fr: 'Services d\'intégration et de rapatriement des réfugiés',
+    fr: "Services d'intégration et de rapatriement des réfugiés",
     en: 'Refugee resettlements or repatriation services',
   },
   '93131507': {
-    fr: 'Services d\'aide aux personnes déplacées',
+    fr: "Services d'aide aux personnes déplacées",
     en: 'Displaced persons assistance services',
   },
   '93131600': {
@@ -87844,11 +87844,11 @@ export default {
     en: 'Food and nutrition policy planning and programs',
   },
   '93131601': {
-    fr: 'Programmes d\'éradication de la faim',
+    fr: "Programmes d'éradication de la faim",
     en: 'Hunger eradication programs',
   },
   '93131602': {
-    fr: 'Services de fournitures alimentaires d\'urgence',
+    fr: "Services de fournitures alimentaires d'urgence",
     en: 'Emergency food supply services',
   },
   '93131603': {
@@ -87856,7 +87856,7 @@ export default {
     en: 'World food program services',
   },
   '93131604': {
-    fr: 'Services de l\'Organisation Alimentaire et Agricole des Nations Unies',
+    fr: "Services de l'Organisation Alimentaire et Agricole des Nations Unies",
     en: 'Food or agriculture organization services',
   },
   '93131605': {
@@ -87876,7 +87876,7 @@ export default {
     en: 'Food supply services',
   },
   '93131609': {
-    fr: 'Politiques et programmes d\'aide alimentaire',
+    fr: "Politiques et programmes d'aide alimentaire",
     en: 'Food aid policies or programs',
   },
   '93131610': {
@@ -87904,7 +87904,7 @@ export default {
     en: 'Anti tobacco campaigns',
   },
   '93131702': {
-    fr: 'Programmes d\'hygiène',
+    fr: "Programmes d'hygiène",
     en: 'Sanitation programs',
   },
   '93131703': {
@@ -87924,15 +87924,15 @@ export default {
     en: 'Disaster preparedness and relief',
   },
   '93131801': {
-    fr: 'Services d\'alerte aux catastrophes naturelles',
+    fr: "Services d'alerte aux catastrophes naturelles",
     en: 'Disaster warning services',
   },
   '93131802': {
-    fr: 'Services d\'intervention et de planification préalable aux catastrophes',
+    fr: "Services d'intervention et de planification préalable aux catastrophes",
     en: 'Disaster preparedness response services',
   },
   '93131803': {
-    fr: 'Services d\'hébergement d\'urgence',
+    fr: "Services d'hébergement d'urgence",
     en: 'Emergency housing services',
   },
   '93140000': {
@@ -87956,11 +87956,11 @@ export default {
     en: 'Social planning services',
   },
   '93141504': {
-    fr: 'Services de centre de placement familial et d\'orphelinat',
+    fr: "Services de centre de placement familial et d'orphelinat",
     en: 'Foster home care services or orphanage',
   },
   '93141505': {
-    fr: 'Services d\'adoption',
+    fr: "Services d'adoption",
     en: 'Adoption services',
   },
   '93141506': {
@@ -87968,7 +87968,7 @@ export default {
     en: 'Social welfare services',
   },
   '93141507': {
-    fr: 'Services d\'administration de travail social',
+    fr: "Services d'administration de travail social",
     en: 'Social work administration services',
   },
   '93141508': {
@@ -87976,7 +87976,7 @@ export default {
     en: 'Voluntary service management',
   },
   '93141509': {
-    fr: 'Services d\'analyse et de gestion des problèmes sociaux',
+    fr: "Services d'analyse et de gestion des problèmes sociaux",
     en: 'Social problems analysis or management services',
   },
   '93141510': {
@@ -88008,7 +88008,7 @@ export default {
     en: 'Population census services',
   },
   '93141602': {
-    fr: 'Services d\'études d\'échantillon de la population',
+    fr: "Services d'études d'échantillon de la population",
     en: 'Population sample surveys services',
   },
   '93141603': {
@@ -88020,7 +88020,7 @@ export default {
     en: 'Population control services',
   },
   '93141605': {
-    fr: 'Services d\'analyse des  tendances et de projections sur la population',
+    fr: "Services d'analyse des  tendances et de projections sur la population",
     en: 'Population trends or projections services',
   },
   '93141606': {
@@ -88032,11 +88032,11 @@ export default {
     en: 'Marriage research or statistics services',
   },
   '93141608': {
-    fr: 'Services de répartition ou d\'analyse de la population',
+    fr: "Services de répartition ou d'analyse de la population",
     en: 'Population distribution or analysis services',
   },
   '93141609': {
-    fr: 'Services d\'analyse de la composition de la population',
+    fr: "Services d'analyse de la composition de la population",
     en: 'Population composition analysis services',
   },
   '93141610': {
@@ -88044,7 +88044,7 @@ export default {
     en: 'Demographic studies',
   },
   '93141611': {
-    fr: 'Services d\'analyse de l\'immigration',
+    fr: "Services d'analyse de l'immigration",
     en: 'Immigration analysis or services',
   },
   '93141612': {
@@ -88060,7 +88060,7 @@ export default {
     en: 'Culture',
   },
   '93141701': {
-    fr: 'Organisations d\'événements culturels',
+    fr: "Organisations d'événements culturels",
     en: 'Cultural events organizations',
   },
   '93141702': {
@@ -88068,7 +88068,7 @@ export default {
     en: 'Culture promotional services',
   },
   '93141703': {
-    fr: 'Services liés à l\'art',
+    fr: "Services liés à l'art",
     en: 'Art related services',
   },
   '93141704': {
@@ -88084,7 +88084,7 @@ export default {
     en: 'Minorities protection services',
   },
   '93141707': {
-    fr: 'Services de conservation et de promotion de l\'héritage culturel',
+    fr: "Services de conservation et de promotion de l'héritage culturel",
     en: 'Cultural heritage preservation or promotion services',
   },
   '93141708': {
@@ -88100,7 +88100,7 @@ export default {
     en: 'Archaic or indigenous language services',
   },
   '93141711': {
-    fr: 'Services de promotion de l\'artisanat traditionnel',
+    fr: "Services de promotion de l'artisanat traditionnel",
     en: 'Traditional handcrafts promotion services',
   },
   '93141712': {
@@ -88120,7 +88120,7 @@ export default {
     en: 'Employment',
   },
   '93141801': {
-    fr: 'Services de planification et de promotion de l\'emploi',
+    fr: "Services de planification et de promotion de l'emploi",
     en: 'Employment promotion or planning services',
   },
   '93141802': {
@@ -88132,7 +88132,7 @@ export default {
     en: 'International labor standards services',
   },
   '93141804': {
-    fr: 'Services d\'inscription du travail international',
+    fr: "Services d'inscription du travail international",
     en: 'International labor registration services',
   },
   '93141805': {
@@ -88140,7 +88140,7 @@ export default {
     en: 'Unemployment services',
   },
   '93141806': {
-    fr: 'Services de statistiques et de prévisions pour l\'emploi',
+    fr: "Services de statistiques et de prévisions pour l'emploi",
     en: 'Employment statistics or forecasting services',
   },
   '93141807': {
@@ -88160,7 +88160,7 @@ export default {
     en: 'Promotional services',
   },
   '93141812': {
-    fr: 'Services d\'inspection du travail',
+    fr: "Services d'inspection du travail",
     en: 'Labor inspection services',
   },
   '93141813': {
@@ -88180,11 +88180,11 @@ export default {
     en: 'Agricultural commercial banking services',
   },
   '93141902': {
-    fr: 'Services d\'investissement rural',
+    fr: "Services d'investissement rural",
     en: 'Rural investment services',
   },
   '93141903': {
-    fr: 'Services d\'organisation et de gestion des institutions agricoles',
+    fr: "Services d'organisation et de gestion des institutions agricoles",
     en: 'Agricultural institutions organization or management services',
   },
   '93141904': {
@@ -88228,7 +88228,7 @@ export default {
     en: 'Urban land administration services',
   },
   '93142003': {
-    fr: 'Services de programmation de l\'investissement urbain',
+    fr: "Services de programmation de l'investissement urbain",
     en: 'Urban investment programming services',
   },
   '93142004': {
@@ -88236,7 +88236,7 @@ export default {
     en: 'Slum redevelopment services',
   },
   '93142005': {
-    fr: 'Services d\'éclairage urbain',
+    fr: "Services d'éclairage urbain",
     en: 'Urban lighting services',
   },
   '93142006': {
@@ -88252,7 +88252,7 @@ export default {
     en: 'Urban community services',
   },
   '93142009': {
-    fr: 'Services d\'administration et de gestion de projet ou de programme urbain',
+    fr: "Services d'administration et de gestion de projet ou de programme urbain",
     en: 'Urban project or program administration or management services',
   },
   '93142100': {
@@ -88288,7 +88288,7 @@ export default {
     en: 'Public enterprises management or financial services',
   },
   '93151502': {
-    fr: 'Services de systèmes d\'information et de contrôle des entreprises publiques',
+    fr: "Services de systèmes d'information et de contrôle des entreprises publiques",
     en: 'Public enterprises information or control systems services',
   },
   '93151503': {
@@ -88316,11 +88316,11 @@ export default {
     en: 'Government departments services',
   },
   '93151509': {
-    fr: 'Services d\'information du gouvernement',
+    fr: "Services d'information du gouvernement",
     en: 'Government information services',
   },
   '93151510': {
-    fr: 'Services de collecte des frais administratifs et de recouvrement de l\'impôt',
+    fr: "Services de collecte des frais administratifs et de recouvrement de l'impôt",
     en: 'Administrative fees or tax collection services',
   },
   '93151511': {
@@ -88384,7 +88384,7 @@ export default {
     en: 'Lotteries services',
   },
   '93151610': {
-    fr: 'Services de recouvrement de l\'impôt',
+    fr: "Services de recouvrement de l'impôt",
     en: 'Tax collection services',
   },
   '93151611': {
@@ -88428,7 +88428,7 @@ export default {
     en: 'Excess profits tax',
   },
   '93161600': {
-    fr: 'Impositions autres que l\'impôt sur le revenu',
+    fr: "Impositions autres que l'impôt sur le revenu",
     en: 'Taxes other than income tax',
   },
   '93161601': {
@@ -88468,7 +88468,7 @@ export default {
     en: 'Tax collation',
   },
   '93161702': {
-    fr: 'Mesures d\'incitation fiscale',
+    fr: "Mesures d'incitation fiscale",
     en: 'Tax incentives',
   },
   '93161703': {
@@ -88496,7 +88496,7 @@ export default {
     en: 'Tax research',
   },
   '93161804': {
-    fr: 'Crédit d\'impôt à l\'investissement',
+    fr: "Crédit d'impôt à l'investissement",
     en: 'Investment tax credit',
   },
   '93161805': {
@@ -88548,7 +88548,7 @@ export default {
     en: 'International commodity agreements',
   },
   '93171602': {
-    fr: 'Politique d\'exportation',
+    fr: "Politique d'exportation",
     en: 'Export policy',
   },
   '93171603': {
@@ -88600,11 +88600,11 @@ export default {
     en: 'Work related organizations',
   },
   '94101500': {
-    fr: 'Associations d\'entreprises',
+    fr: "Associations d'entreprises",
     en: 'Business associations',
   },
   '94101501': {
-    fr: 'Associations de l\'industrie agricole',
+    fr: "Associations de l'industrie agricole",
     en: 'Agricultural industry associations',
   },
   '94101502': {
@@ -88620,7 +88620,7 @@ export default {
     en: 'International business associations',
   },
   '94101505': {
-    fr: 'Associations d\'employeurs',
+    fr: "Associations d'employeurs",
     en: 'Employers associations',
   },
   '94101600': {
@@ -88636,7 +88636,7 @@ export default {
     en: 'Medical health associations',
   },
   '94101603': {
-    fr: 'Associations d\'infirmiers',
+    fr: "Associations d'infirmiers",
     en: 'Nursing associations',
   },
   '94101604': {
@@ -88644,7 +88644,7 @@ export default {
     en: 'Accounting associations',
   },
   '94101605': {
-    fr: 'Associations d\'architectes',
+    fr: "Associations d'architectes",
     en: 'Architect associations',
   },
   '94101606': {
@@ -88652,11 +88652,11 @@ export default {
     en: 'Bar associations',
   },
   '94101607': {
-    fr: 'Associations d\'enseignants ou des métiers éducatifs',
+    fr: "Associations d'enseignants ou des métiers éducatifs",
     en: 'Educational or teacher associations',
   },
   '94101608': {
-    fr: 'Associations de techniciens ou d\'ingénieurs',
+    fr: "Associations de techniciens ou d'ingénieurs",
     en: 'Engineering associations',
   },
   '94101609': {
@@ -88668,23 +88668,23 @@ export default {
     en: 'Professional standards review boards',
   },
   '94101700': {
-    fr: 'Associations d\'employés',
+    fr: "Associations d'employés",
     en: 'Staff associations',
   },
   '94101701': {
-    fr: 'Clubs de loisirs d\'employés',
+    fr: "Clubs de loisirs d'employés",
     en: 'Staff hobby clubs',
   },
   '94101702': {
-    fr: 'Associations sportives d\'employés',
+    fr: "Associations sportives d'employés",
     en: 'Staff sports associations',
   },
   '94101703': {
-    fr: 'Associations féminine d\'employés',
+    fr: "Associations féminine d'employés",
     en: 'Women staff associations',
   },
   '94101704': {
-    fr: 'Associations d\'employés retraités',
+    fr: "Associations d'employés retraités",
     en: 'Pensionnist staff associations',
   },
   '94101705': {
@@ -88696,7 +88696,7 @@ export default {
     en: 'Trade unions',
   },
   '94101801': {
-    fr: 'Syndicats d\'ouvriers',
+    fr: "Syndicats d'ouvriers",
     en: 'Labor or general workers trade unions',
   },
   '94101802': {
@@ -88704,7 +88704,7 @@ export default {
     en: 'Trade union activists services',
   },
   '94101803': {
-    fr: 'Services d\'information de syndicats',
+    fr: "Services d'information de syndicats",
     en: 'Trade union information services',
   },
   '94101804': {
@@ -88712,7 +88712,7 @@ export default {
     en: 'Transport Unions',
   },
   '94101805': {
-    fr: 'Syndicats d\'enseignants',
+    fr: "Syndicats d'enseignants",
     en: 'Teachers unions',
   },
   '94101806': {
@@ -88720,7 +88720,7 @@ export default {
     en: 'Medical personnel unions',
   },
   '94101807': {
-    fr: 'Syndicats d\'employeurs',
+    fr: "Syndicats d'employeurs",
     en: 'Employers unions',
   },
   '94101808': {
@@ -88728,11 +88728,11 @@ export default {
     en: 'Civil servants unions',
   },
   '94101809': {
-    fr: 'Associations de services d\'assistance personnelle',
+    fr: "Associations de services d'assistance personnelle",
     en: 'Personal assistance service unions',
   },
   '94101810': {
-    fr: 'Syndicats de l\'aviation',
+    fr: "Syndicats de l'aviation",
     en: 'Aviation unions',
   },
   '94110000': {
@@ -88772,7 +88772,7 @@ export default {
     en: 'Vatican pilgrimage organizations or services',
   },
   '94111803': {
-    fr: 'Services d\'assistance de voyage de pèlerinage',
+    fr: "Services d'assistance de voyage de pèlerinage",
     en: 'Pilgrimage travel assistance services',
   },
   '94111804': {
@@ -88784,7 +88784,7 @@ export default {
     en: 'Missionary services',
   },
   '94111901': {
-    fr: 'Services d\'ordres religieux',
+    fr: "Services d'ordres religieux",
     en: 'Religious orders services',
   },
   '94111902': {
@@ -88836,23 +88836,23 @@ export default {
     en: 'Boating or swimming sport clubs',
   },
   '94121503': {
-    fr: 'Clubs d\'armes et de chasse',
+    fr: "Clubs d'armes et de chasse",
     en: 'Gun or hunting sport clubs',
   },
   '94121504': {
-    fr: 'Clubs de sports d\'extérieur',
+    fr: "Clubs de sports d'extérieur",
     en: 'Outdoor field sport clubs',
   },
   '94121505': {
-    fr: 'Clubs de sports d\'intérieur et d\'extérieur',
+    fr: "Clubs de sports d'intérieur et d'extérieur",
     en: 'Indoor or outdoor court sport clubs',
   },
   '94121506': {
-    fr: 'Clubs de sports d\'hiver',
+    fr: "Clubs de sports d'hiver",
     en: 'Winter sport clubs',
   },
   '94121507': {
-    fr: 'Clubs de sports de plage et d\'eau',
+    fr: "Clubs de sports de plage et d'eau",
     en: 'Beach or water sport clubs',
   },
   '94121508': {
@@ -88860,7 +88860,7 @@ export default {
     en: 'Cycling sport clubs',
   },
   '94121509': {
-    fr: 'Clubs d\'alpinisme',
+    fr: "Clubs d'alpinisme",
     en: 'Mountaineering sport clubs',
   },
   '94121510': {
@@ -88876,7 +88876,7 @@ export default {
     en: 'Professional or semiprofessional sports clubs',
   },
   '94121513': {
-    fr: 'Services d\'organisation d\'événement en stade',
+    fr: "Services d'organisation d'événement en stade",
     en: 'Stadium event operator services',
   },
   '94121514': {
@@ -88884,7 +88884,7 @@ export default {
     en: 'Sport club managers or promoters services',
   },
   '94121600': {
-    fr: 'Clubs d\'agrément',
+    fr: "Clubs d'agrément",
     en: 'Hobby clubs',
   },
   '94121601': {
@@ -88892,7 +88892,7 @@ export default {
     en: 'Playing card hobby clubs',
   },
   '94121602': {
-    fr: 'Clubs d\'activité artisanale',
+    fr: "Clubs d'activité artisanale",
     en: 'Handcrafts clubs',
   },
   '94121603': {
@@ -88916,7 +88916,7 @@ export default {
     en: 'Scouting club',
   },
   '94121700': {
-    fr: 'Clubs d\'amateurs',
+    fr: "Clubs d'amateurs",
     en: 'Amateurs clubs',
   },
   '94121701': {
@@ -88952,7 +88952,7 @@ export default {
     en: 'Social gathering clubs',
   },
   '94121804': {
-    fr: 'Clubs sociaux pour personnes souffrant d\'un handicap',
+    fr: "Clubs sociaux pour personnes souffrant d'un handicap",
     en: 'Social clubs for people with disabilities',
   },
   '94121805': {
@@ -88988,7 +88988,7 @@ export default {
     en: 'Charity organizations',
   },
   '94131601': {
-    fr: 'Services d\'abri d\'organisations caritatives',
+    fr: "Services d'abri d'organisations caritatives",
     en: 'Charity organizations shelter services',
   },
   '94131602': {
@@ -88996,7 +88996,7 @@ export default {
     en: 'Food relief services',
   },
   '94131603': {
-    fr: 'Services d\'assistance juridique',
+    fr: "Services d'assistance juridique",
     en: 'Legal assistance services',
   },
   '94131604': {
@@ -89004,19 +89004,19 @@ export default {
     en: 'Resource mobilization services',
   },
   '94131605': {
-    fr: 'Services d\'aide et d\'assistance internationale',
+    fr: "Services d'aide et d'assistance internationale",
     en: 'International aid assistance services',
   },
   '94131606': {
-    fr: 'Services d\'orphelinat et d\'adoption',
+    fr: "Services d'orphelinat et d'adoption",
     en: 'Orphanage or adoption services',
   },
   '94131607': {
-    fr: 'Organisations d\'assistance aux personnes âgées',
+    fr: "Organisations d'assistance aux personnes âgées",
     en: 'Elderly assistance organizations',
   },
   '94131608': {
-    fr: 'Organisations d\'assistance aux détenus',
+    fr: "Organisations d'assistance aux détenus",
     en: 'Prisoner assistance organizations',
   },
   '94131700': {
@@ -89072,7 +89072,7 @@ export default {
     en: 'Animal liberation movements',
   },
   '94131902': {
-    fr: 'Associations de protection des espèces menacées d\'extinction',
+    fr: "Associations de protection des espèces menacées d'extinction",
     en: 'Endangered species protection associations',
   },
   '94131903': {
@@ -89080,11 +89080,11 @@ export default {
     en: 'Threatened animals protection associations',
   },
   '94132000': {
-    fr: 'Associations d\'assistance et de défense des droits de l\'homme',
+    fr: "Associations d'assistance et de défense des droits de l'homme",
     en: 'Human rights advocacy and defense associations',
   },
   '94132001': {
-    fr: 'Associations de défense des droits de l\'enfant',
+    fr: "Associations de défense des droits de l'enfant",
     en: 'Children rights defense services',
   },
   '94132002': {
@@ -89096,7 +89096,7 @@ export default {
     en: 'Physical or mental torture defense associations',
   },
   '94132004': {
-    fr: 'Associations de défense de la liberté d\'expression',
+    fr: "Associations de défense de la liberté d'expression",
     en: 'Freedom of speech defense associations',
   },
   '99539200': {
@@ -89111,60 +89111,60 @@ export default {
     fr: '99539400',
     en: '99539400',
   },
-  'EPFL0004': {
+  EPFL0004: {
     fr: 'Consommables biologiques, chimiques et gazeux',
     en: 'Biological, chemical, and gaseous consumables',
   },
-  'EPFL0005': {
+  EPFL0005: {
     fr: 'Machines et équipements divers',
     en: 'Various machines and equipment',
   },
-  'EPFL0007': {
-    fr: 'Matériel d\'exploitation, fourniture et outillage',
+  EPFL0007: {
+    fr: "Matériel d'exploitation, fourniture et outillage",
     en: 'Operating equipment, supplies, and tools',
   },
-  'EPFL0008': {
+  EPFL0008: {
     fr: 'Prestations et services',
     en: 'Service provision',
   },
-  'A': {
+  A: {
     fr: 'Composants, fournitures et équipements informatiques et de communication',
     en: 'IT and communications components, supplies and equipment',
   },
-  'B': {
+  B: {
     fr: 'Produits chimiques, biochimiques et gazeux',
     en: 'Biological, chemical and gaseous consumables',
   },
-  'C': {
+  C: {
     fr: 'Équipement de bureau, accessoires et fournitures',
     en: 'Office equipment, accessories and supplies',
   },
-  'D': {
-    fr: 'Équipements de laboratoire, de mesure, d\'observation et d\'essai',
+  D: {
+    fr: "Équipements de laboratoire, de mesure, d'observation et d'essai",
     en: 'Laboratory, measuring, observation and testing equipment',
   },
-  'E': {
+  E: {
     fr: 'Outils et machineries',
     en: 'Miscellaneous machinery and equipment',
   },
-  'F': {
+  F: {
     fr: 'Engins et accessoires de construction lourde',
     en: 'Construction equipment',
   },
-  'G': {
+  G: {
     fr: 'Outils et machineries',
     en: 'Operating equipment, supplies and tools',
   },
-  'H': {
+  H: {
     fr: 'Mobilier',
     en: 'Furniture',
   },
-  'I': {
+  I: {
     fr: 'Prestations et services',
     en: 'Services',
   },
-  'J': {
-    fr: 'Équipements et fournitures pour l\'impression, la photographie et l\'audiovisuel',
+  J: {
+    fr: "Équipements et fournitures pour l'impression, la photographie et l'audiovisuel",
     en: 'Printing, photographic and audiovisual equipment and supplies',
   },
 } as const;

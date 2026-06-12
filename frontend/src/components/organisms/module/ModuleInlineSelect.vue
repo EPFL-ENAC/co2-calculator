@@ -18,9 +18,13 @@
       dense
       outlined
       hide-bottom-space
+      use-input
+      input-debounce="300"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
+      @filter="handleFilter"
+      @virtual-scroll="handleVirtualScroll"
       @update:model-value="onChange"
     />
   </div>
@@ -31,6 +35,7 @@ import { computed, toRef } from 'vue';
 import { QSelect } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import { useVirtualSelectOptions } from 'src/composables/useVirtualSelectOptions';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { sortByOrder } from 'src/utils/options';
@@ -147,9 +152,42 @@ const subClassOptions = computed(() => {
   });
 });
 
-const options = computed(() => {
-  return isClass.value ? classOptions.value : subClassOptions.value;
-});
+const selectedClassValue = computed(() =>
+  isClass.value ? String(props.row[props.fieldId] ?? '') : '',
+);
+const selectedSubclassValue = computed(() =>
+  isSubClass.value ? String(props.row[props.fieldId] ?? '') : '',
+);
+
+const {
+  visibleOptions: virtualClassOptions,
+  filterFn: filterClassFn,
+  onVirtualScroll: onClassScroll,
+} = useVirtualSelectOptions(classOptions, selectedClassValue);
+
+const {
+  visibleOptions: virtualSubclassOptions,
+  filterFn: filterSubclassFn,
+  onVirtualScroll: onSubclassScroll,
+} = useVirtualSelectOptions(subClassOptions, selectedSubclassValue);
+
+const options = computed(() =>
+  isClass.value ? virtualClassOptions.value : virtualSubclassOptions.value,
+);
+
+function handleFilter(
+  val: string,
+  update: (cb: () => void) => void,
+  abort?: () => void,
+) {
+  if (isClass.value) filterClassFn(val, update, abort);
+  else filterSubclassFn(val, update, abort);
+}
+
+function handleVirtualScroll(info: { to: number }) {
+  if (isClass.value) onClassScroll(info);
+  else onSubclassScroll(info);
+}
 
 const model = computed({
   get() {

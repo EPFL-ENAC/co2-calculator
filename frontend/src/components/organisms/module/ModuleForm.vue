@@ -166,6 +166,54 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <q-select
+                v-else-if="
+                  inp.optionsId === 'kind' || inp.optionsId === 'subkind'
+                "
+                v-model="form[inp.id]"
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :options="
+                  inp.optionsId === 'kind'
+                    ? virtualKindOptions
+                    : virtualSubkindOptions
+                "
+                :loading="
+                  inp.optionsId === 'kind' ? loadingClasses : loadingSubclasses
+                "
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                use-input
+                input-debounce="300"
+                dense
+                outlined
+                emit-value
+                map-options
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                @filter="
+                  (val, update, abort) =>
+                    inp.optionsId === 'kind'
+                      ? filterKindFn(val, update, abort)
+                      : filterSubkindFn(val, update, abort)
+                "
+                @virtual-scroll="
+                  (info) =>
+                    inp.optionsId === 'kind'
+                      ? onKindScroll(info)
+                      : onSubkindScroll(info)
+                "
+                @update:model-value="(val) => (form[inp.id] = val)"
+              >
+                <template v-if="inp.icon" #prepend>
+                  <q-icon :name="inp.icon" color="grey-6" size="xs" />
+                </template>
+              </q-select>
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -179,13 +227,7 @@
                 :hint="inp.hint ? $t(inp.hint) : null"
                 :inputmode="inp.type === 'number' ? 'decimal' : undefined"
                 :options="getFilteredOptions(inp)"
-                :loading="
-                  inp.optionsId === 'kind'
-                    ? loadingClasses
-                    : inp.optionsId === 'subkind'
-                      ? loadingSubclasses
-                      : false
-                "
+                :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
                 :min="inp.min"
@@ -312,6 +354,7 @@ import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import { useVirtualSelectOptions } from 'src/composables/useVirtualSelectOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
@@ -619,6 +662,28 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     },
     toRef(props, 'year'),
   );
+
+const kindFullOptions = computed(() => dynamicOptions['kind'] ?? []);
+const subkindFullOptions = computed(() => dynamicOptions['subkind'] ?? []);
+
+const selectedKindValue = computed(() =>
+  kindFieldId.value ? String(form[kindFieldId.value] ?? '') : '',
+);
+const selectedSubkindValue = computed(() =>
+  subkindFieldId.value ? String(form[subkindFieldId.value] ?? '') : '',
+);
+
+const {
+  visibleOptions: virtualKindOptions,
+  filterFn: filterKindFn,
+  onVirtualScroll: onKindScroll,
+} = useVirtualSelectOptions(kindFullOptions, selectedKindValue);
+
+const {
+  visibleOptions: virtualSubkindOptions,
+  filterFn: filterSubkindFn,
+  onVirtualScroll: onSubkindScroll,
+} = useVirtualSelectOptions(subkindFullOptions, selectedSubkindValue);
 
 const { dynamicOptions: buildingRoomDynamicOptions } =
   useBuildingRoomDynamicOptions(
