@@ -42,8 +42,8 @@
     "@playwright/experimental-ct-vue": "=1.60.0",
     "@playwright/test": "=1.60.0",
     "@quasar/app-vite": "=2.6.2",
-    "@types/node": "=24.12.3",
-    "@vue/eslint-config-typescript": "=14.7.0",
+    "@types/node": "=24.13.0",
+    "@vue/eslint-config-typescript": "=14.8.0",
     "autoprefixer": "=10.5.0",
     "chokidar": "=4.0.3",
     "eslint": "=10.4.1",
@@ -62,7 +62,7 @@
     "typescript": "=5.9.3",
     "typescript-eslint": "^8.60.1",
     "vue-eslint-parser": "=10.4.1",
-    "vue-tsc": "=3.3.3"
+    "vue-tsc": "=3.3.4"
   },
   "overrides": {
     "minimatch": "=10.2.4",
