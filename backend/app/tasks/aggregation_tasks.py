@@ -183,15 +183,16 @@ async def aggregation_handler(
             f"in scope module_type_id={job.module_type_id}/year={job.year}"
         )
 
-    for module in affected:
-        if module.id is None:
-            # Defensive: rows fetched from DB always have ids, but the
-            # SQLModel field is Optional[int] so mypy needs the guard.
-            continue
-        await svc.recompute_stats(module.id)
+    # Set-based recompute: 3 grouped queries for the module level + 2
+    # for the report rollup, instead of ~8 queries per module (a 137-
+    # module scope was ~1.1k sequential statements; a full 2.2k-module
+    # slice was minutes).
+    refreshed = await svc.recompute_stats_many(
+        [m.id for m in affected if m.id is not None]
+    )
 
     return {
         "status_message": "Aggregation completed",
         "result": IngestionResult.SUCCESS,
-        "modules_refreshed": len(affected),
+        "modules_refreshed": refreshed,
     }

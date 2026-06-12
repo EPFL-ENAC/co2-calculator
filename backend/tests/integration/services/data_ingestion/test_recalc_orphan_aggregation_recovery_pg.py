@@ -189,7 +189,7 @@ async def test_handler_stamps_recalc_work_complete_on_raise(Sf, monkeypatch):
         def __init__(self, _session):
             pass
 
-        async def recalculate_for_data_entry_type(self, _det, _year):
+        async def recalculate_for_data_entry_type(self, _det, _year, **_kwargs):
             raise RuntimeError("simulated recalc workflow failure")
 
     monkeypatch.setattr(

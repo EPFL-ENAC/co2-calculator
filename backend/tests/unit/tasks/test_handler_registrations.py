@@ -110,9 +110,12 @@ async def test_emission_recalc_handler_calls_workflow_and_returns_meta():
     ):
         meta = await recalc_mod.emission_recalc_handler(job, job_session, data_session)
 
-    workflow.recalculate_for_data_entry_type.assert_awaited_once_with(
-        DataEntryTypeEnum(DataEntryTypeEnum.it.value), 2025
-    )
+    assert workflow.recalculate_for_data_entry_type.await_count == 1
+    await_args = workflow.recalculate_for_data_entry_type.await_args
+    assert await_args.args == (DataEntryTypeEnum(DataEntryTypeEnum.it.value), 2025)
+    # The handler wires a progress callback so the job row (and SSE)
+    # tracks long recalcs.
+    assert callable(await_args.kwargs.get("progress_callback"))
     assert meta["status_message"] == "Emission recalculation completed"
     assert meta["result"] == IngestionResult.SUCCESS
     assert meta["recalculation"]["recalculated"] == 7

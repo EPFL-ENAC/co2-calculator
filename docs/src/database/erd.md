@@ -77,7 +77,9 @@ erDiagram
     INTEGER id PK
     INTEGER source "indexed"
     VARCHAR status
+    INTEGER unit_id "indexed"
     DATETIME updated_at
+    INTEGER year "indexed"
   }
   data_entry_emissions {
     FLOAT additional_value "Polymorphic physical quantity tied to this emission row. Unit is inferred from emission_type_id (e.g. km for commuting and travel, kg for food and waste)."
