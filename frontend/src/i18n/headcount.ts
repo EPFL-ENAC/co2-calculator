@@ -14,10 +14,6 @@ export default {
     en: `This module automatically displays the names, roles, and FTE values of your unit’s personnel as of the end of the year. Review and make any necessary adjustments to ensure your team profile is complete. For student contributions, use the integrated Student FTE Calculator Helper to add their total FTE over the year.`,
     fr: `Ce module affiche automatiquement les noms, rôles et EPT des membres de votre unité à la fin de l’année. Passez en revue ces informations et apportez les ajustements nécessaires pour garantir que le profil de votre équipe soit complet. Pour les contributions des étudiants, utilisez l’outil intégré Calculateur d’EPT étudiants afin d’ajouter leur EPT total sur l’année.`,
   },
-  [`${MODULES.Headcount}-title-tooltip-title`]: {
-    en: 'The total FTE is used to generate the generic indicators for Food and Commuting, as well as total carbon footprint per FTE for your unit.',
-    fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs génériques relatifs à l'Alimentation et au Mobilité pendulaire, ainsi que l'empreinte carbone totale par EPT pour votre unité.",
-  },
   [`${MODULES.Headcount}-member`]: {
     en: 'Member| Members',
     fr: 'Membre| Membres',
@@ -35,17 +31,9 @@ export default {
     fr: 'Étudiants',
   },
 
-  [`${MODULES.Headcount}-member-table-title-info-tooltip`]: {
-    en: 'You can add data one at a time using the Add FTE below, or upload several entries at once using a file that follows the template.',
-    fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter un EPT » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
-  },
   [`${MODULES.Headcount}-student-table-title-info-label`]: {
     en: 'Students table information',
     fr: 'Informations sur le tableau des étudiants',
-  },
-  [`${MODULES.Headcount}-student-table-title-info-tooltip`]: {
-    en: 'Due to data-protection rules, students names and individual FTE are not shown automatically.',
-    fr: 'En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.',
   },
   [`${MODULES.Headcount}-charts-title`]: {
     en: 'FTE per function',
@@ -100,30 +88,14 @@ export default {
     fr: 'Ajouter un EPT étudiant',
   },
 
-  [`${MODULES.Headcount}-student-form-title-info-tooltip`]: {
-    en: `Due to data-protection rules, students’ names and individual FTE are not shown automatically.`,
-    fr: `En raison des règles de protection des données, les noms des étudiant·es et les EPT individuels ne sont pas affichés automatiquement.`,
-  },
   [`${MODULES.Headcount}-student-form-subtitle`]: {
     en: 'Enter the aggregated student FTE for your unit over the year.',
     fr: 'Entrez l’EPT étudiant agrégé pour votre unité sur l’année.',
-  },
-  [`${MODULES.Headcount}-member-form-title-info-label`]: {
-    en: 'fte member tooltip',
-    fr: 'info-bulle membre EPT',
-  },
-  [`${MODULES.Headcount}-member-form-title-info-tooltip`]: {
-    en: 'lorem ipsum',
-    fr: 'Texte d’exemple',
   },
 
   [`${MODULES.Headcount}-student-form-title-info-label`]: {
     en: 'fte student tooltip',
     fr: 'info-bulle étudiant EPT',
-  },
-  [`${MODULES.Headcount}-student-form-title-info-tooltip`]: {
-    en: 'lorem ipsum',
-    fr: 'Texte d’exemple',
   },
   'headcount-member-function-required': {
     en: 'Function is required',
@@ -168,9 +140,5 @@ export default {
   headcount_other: {
     en: 'Other',
     fr: 'Autre',
-  },
-  [`${MODULES.Headcount}-title-tooltip-subtext`]: {
-    en: 'The total FTE is used to generate the generic indicators for Food and Commuting, as well as total carbon footprint per FTE for your unit.',
-    fr: "Le nombre total d'EPT est utilisé pour générer les indicateurs génériques relatifs à l'Alimentation et au Mobilité pendulaire, ainsi que l'empreinte carbone totale par EPT pour votre unité.",
   },
 } as const;

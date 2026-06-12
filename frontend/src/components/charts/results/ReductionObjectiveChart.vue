@@ -52,7 +52,7 @@ const chartTitle = computed(() =>
         </h2>
         <q-icon name="o_info" size="sm" class="text-primary">
           <q-tooltip class="text-body2 text-black" max-width="320px">
-            {{ $t('results_objectives_2030_tooltip') }}
+            {{ $t('results-reduction-title') }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -115,7 +115,7 @@ const chartTitle = computed(() =>
       </div>
 
       <div v-else class="text-body2 text-secondary">
-        {{ $t('results_objectives_unit_chart_tooltip') }}
+        {{ $t('results-charts-unit-trajectory-title') }}
       </div>
     </div>
 

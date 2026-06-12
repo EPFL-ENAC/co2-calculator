@@ -494,7 +494,7 @@ const getUncertainty = (
                 :bordered="false"
               >
                 <template v-if="hasCo2PerKmKg" #tooltip>{{
-                  $t('results_total_unit_carbon_footprint_tooltip', {
+                  $t('results-stats-total-unit-carbon-footprint-title', {
                     value: $nOrDash(co2PerKmKg, {
                       options: {
                         minimumFractionDigits: 1,
@@ -743,10 +743,13 @@ const getUncertainty = (
                           :bordered="false"
                         >
                           <template v-if="hasCo2PerKmKg" #tooltip>{{
-                            $t('results_total_unit_carbon_footprint_tooltip', {
-                              value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
-                              unit: $t('results_kg_co2eq_per_km'),
-                            })
+                            $t(
+                              'results-stats-total-unit-carbon-footprint-title',
+                              {
+                                value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
+                                unit: $t('results_kg_co2eq_per_km'),
+                              },
+                            )
                           }}</template>
                         </BigNumber>
                         <q-separator vertical />

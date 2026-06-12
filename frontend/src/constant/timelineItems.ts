@@ -1,16 +1,6 @@
-export type Module =
-  | 'headcount'
-  | 'professional-travel'
-  | 'process-emissions'
-  | 'buildings'
-  | 'equipment-electric-consumption'
-  | 'purchase'
-  | 'research-facilities'
-  | 'external-cloud-and-ai'
-  | 'commuting'
-  | 'food'
-  | 'waste'
-  | 'embodied-energy';
+import type { Module } from 'src/constant/modules';
+
+export type { Module };
 
 export const timelineItems = [
   {
@@ -28,7 +18,7 @@ export const timelineItems = [
   },
   {
     icon: 'o_bolt',
-    link: 'equipment-electric-consumption' as Module,
+    link: 'equipment' as Module,
   },
   {
     icon: 'o_filter_drama',

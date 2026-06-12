@@ -8,7 +8,7 @@ import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
 const BREAKDOWN_MODULES = [
   MODULES.ProcessEmissions,
   MODULES.Buildings,
-  MODULES.EquipmentElectricConsumption,
+  MODULES.Equipment,
   MODULES.ExternalCloudAndAI,
   MODULES.Purchase,
   MODULES.ResearchFacilities,

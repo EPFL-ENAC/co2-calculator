@@ -93,10 +93,10 @@ export const MODULE_SUBMODULES: Partial<
       dataEntryTypeId: 50,
     },
   ],
-  [MODULES.EquipmentElectricConsumption]: [
+  [MODULES.Equipment]: [
     {
       key: 'scientific',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-scientific`,
+      labelKey: `${MODULES.Equipment}-scientific`,
       moduleTypeId: 4,
       dataEntryTypeId: 10,
       noData: true,
@@ -104,7 +104,7 @@ export const MODULE_SUBMODULES: Partial<
     },
     {
       key: 'it',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-it`,
+      labelKey: `${MODULES.Equipment}-it`,
       moduleTypeId: 4,
       dataEntryTypeId: 11,
       noData: true,
@@ -112,7 +112,7 @@ export const MODULE_SUBMODULES: Partial<
     },
     {
       key: 'other',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-other`,
+      labelKey: `${MODULES.Equipment}-other`,
       moduleTypeId: 4,
       dataEntryTypeId: 12,
       noData: true,
@@ -218,10 +218,10 @@ export const MODULE_SUBMODULES: Partial<
 export const MODULE_COMMON_UPLOADS: Partial<
   Record<(typeof MODULES)[keyof typeof MODULES], SubmoduleConfig[]>
 > = {
-  [MODULES.EquipmentElectricConsumption]: [
+  [MODULES.Equipment]: [
     {
       key: 'equipment',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-common`,
+      labelKey: `${MODULES.Equipment}-common`,
       moduleTypeId: 4,
       headerIcon: 'o_folder_shared',
       descriptionKey: 'data_management_equipment_common_description',

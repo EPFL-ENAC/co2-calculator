@@ -126,8 +126,8 @@ export default {
     fr: "Trouvez tous les textes liés aux bâtiments dans l'application.",
   },
   documentation_editing_rows_equipment_electric_consumption_topic: {
-    en: 'Equipment Electric Consumption',
-    fr: 'Consommation Électrique des Équipements',
+    en: 'Equipment',
+    fr: 'Équipements',
   },
   documentation_editing_rows_equipment_electric_consumption_description: {
     en: 'Find all text related to equipment electric consumption within the application.',

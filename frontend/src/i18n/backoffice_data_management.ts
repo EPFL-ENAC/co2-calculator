@@ -725,25 +725,9 @@ export default {
     en: 'Loading year configuration…',
     fr: "Chargement de la configuration de l'année…",
   },
-  data_management_open_year_disabled_tooltip: {
-    en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
-    fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
-  },
-  data_management_job_in_progress: {
-    en: 'Job in progress…',
-    fr: 'Traitement en cours…',
-  },
   data_management_cancel_job: {
     en: 'Cancel',
     fr: 'Annuler',
-  },
-  data_management_year_already_open: {
-    en: 'Year is already open to users',
-    fr: "L'année est déjà ouverte aux utilisateurs",
-  },
-  data_management_year_opened_success: {
-    en: 'Year {year} opened to users',
-    fr: 'Année {year} ouverte aux utilisateurs avec succès',
   },
   data_management_year_is_open: {
     en: 'Open to users',
@@ -752,5 +736,13 @@ export default {
   data_management_year_is_not_open: {
     en: 'Not yet open',
     fr: 'Pas encore ouverte',
+  },
+  data_management_job_in_progress: {
+    en: 'Job in progress…',
+    fr: 'Traitement en cours…',
+  },
+  data_management_year_opened_success: {
+    en: 'Year {year} opened to users',
+    fr: 'Année {year} ouverte aux utilisateurs avec succès',
   },
 } as const;

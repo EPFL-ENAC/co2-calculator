@@ -409,10 +409,10 @@ async function handleDialogCompleted() {
         @click="handleOpenForUsers"
       >
         <q-tooltip v-if="yearConfigStore.config?.is_started">
-          {{ $t('data_management_year_already_open') }}
+          {{ $t('backoffice-data-management-year-already-open') }}
         </q-tooltip>
         <q-tooltip v-else-if="yearConfigStore.anyModuleIncomplete">
-          {{ $t('data_management_open_year_disabled_tooltip') }}
+          {{ $t('backoffice-data-management-open-year-disabled') }}
         </q-tooltip>
       </q-btn>
     </div>

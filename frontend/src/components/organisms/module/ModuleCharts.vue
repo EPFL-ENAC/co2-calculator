@@ -282,7 +282,7 @@ const activeButtonStyle = computed((): Record<string, string> => {
 
 // Modules that support the top-class breakdown chart
 const TOP_CLASS_MODULES: Module[] = [
-  MODULES.EquipmentElectricConsumption,
+  MODULES.Equipment,
   MODULES.Purchase,
   MODULES.ResearchFacilities,
 ];

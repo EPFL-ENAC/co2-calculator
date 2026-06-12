@@ -8,19 +8,14 @@
       </div>
 
       <q-icon
-        v-if="hasTooltip"
+        v-if="formTooltipText"
         :name="outlinedInfo"
         size="sm"
         class="cursor-pointer"
-        :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
+        :aria-label="$t('module-info-label')"
       >
-        <q-tooltip
-          v-if="typeof hasTooltip === 'string'"
-          anchor="center right"
-          self="top right"
-          class="u-tooltip"
-        >
-          {{ $t(hasTooltip) }}
+        <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+          {{ formTooltipText }}
         </q-tooltip>
       </q-icon>
     </q-card-section>
@@ -349,7 +344,6 @@ const props = withDefaults(
     rowData?: Record<string, FieldValue> | null;
     submoduleType: AllSubmoduleTypes;
     moduleType: Module | string;
-    hasTooltip?: boolean | string;
     hasSubtitle?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
@@ -361,7 +355,6 @@ const props = withDefaults(
   {
     fields: null,
     rowData: null,
-    hasTooltip: true,
     hasSubtitle: false,
     hasAddWithNote: true,
     addButtonLabelKey: 'common_add_button',
@@ -370,6 +363,10 @@ const props = withDefaults(
     formDefaults: undefined,
     moduleColor: undefined,
   },
+);
+
+const formTooltipText = computed(() =>
+  $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),
 );
 
 const moduleColors = computed(() =>
@@ -595,7 +592,7 @@ const subkindFieldId = computed(() => {
 //   saved value is preserved.
 const factorValueFieldIds: string[] = [];
 const factorDefaultFieldIds: string[] = [];
-if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+if (props.moduleType === MODULES.Equipment) {
   factorValueFieldIds.push('active_power_w', 'standby_power_w');
   factorDefaultFieldIds.push(
     'active_usage_hours_per_week',

@@ -41,7 +41,7 @@ const isPrintMode = usePrintMode();
 const TREEMAP_MODULES = [
   MODULES.ProcessEmissions,
   MODULES.Buildings,
-  MODULES.EquipmentElectricConsumption,
+  MODULES.Equipment,
   MODULES.ExternalCloudAndAI,
   MODULES.Purchase,
   MODULES.ResearchFacilities,

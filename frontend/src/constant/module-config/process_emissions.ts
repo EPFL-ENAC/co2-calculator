@@ -18,6 +18,8 @@ const processEmissionsFields: ModuleField[] = [
     hideIn: { form: false },
     icon: 'o_science',
     columnSize: 'lg',
+    tooltip:
+      'module-process-emissions-submodule-process_emissions-table-category',
   },
   {
     id: 'subcategory',
@@ -39,6 +41,8 @@ const processEmissionsFields: ModuleField[] = [
       },
     },
     icon: 'o_category',
+    tooltip:
+      'module-process-emissions-submodule-process_emissions-table-subcategory',
   },
   {
     id: 'quantity',
@@ -51,6 +55,8 @@ const processEmissionsFields: ModuleField[] = [
     sortable: true,
     hideIn: { form: false },
     min: 0.001,
+    tooltip:
+      'module-process-emissions-submodule-process_emissions-table-quantity',
   },
   {
     id: 'kg_co2eq',
@@ -59,6 +65,8 @@ const processEmissionsFields: ModuleField[] = [
     readOnly: true,
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-process-emissions-submodule-process_emissions-table-kg_co2eq',
   },
 ];
 
@@ -67,8 +75,6 @@ export const processEmissions: ModuleConfig = {
   type: MODULES.ProcessEmissions as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   description:
     'Estimate greenhouse gas emissions from chemical/physical reactions',
   hasSubmodules: true,

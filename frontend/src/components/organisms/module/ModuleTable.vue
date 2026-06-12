@@ -82,7 +82,7 @@
         >
           <span>{{ col.label }}</span>
           <q-icon
-            v-if="col.tooltip"
+            v-if="col.tooltip && $t(col.tooltip)"
             name="o_info"
             size="16px"
             color="grey-6"
@@ -1385,7 +1385,7 @@ function isComplete(row: ModuleRow) {
     // For Headcount, consider complete if name and status are set
     return isCompleteHeadcount(row);
   }
-  if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+  if (props.moduleType === MODULES.Equipment) {
     return isCompleteEquipement(row);
   }
   if (props.moduleType === MODULES.ResearchFacilities) {
@@ -1477,7 +1477,7 @@ function onFormSubmit(
 
   const perform = async () => {
     // Module-specific payload adjustments
-    if (moduleType === MODULES.EquipmentElectricConsumption) {
+    if (moduleType === MODULES.Equipment) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
       basePayload.active_usage_hours_per_week = Number(
