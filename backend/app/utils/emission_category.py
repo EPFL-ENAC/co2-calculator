@@ -158,7 +158,9 @@ def _build_category_row(
             parent_keys_order.append(bar_key)
     flat["emissions"] = emissions
     flat["parent_keys_order"] = parent_keys_order
-    flat.update(parent_sums)
+
+    for parent_key, value in parent_sums.items():
+        flat[parent_key] = flat.get(parent_key, 0.0) + value
     return flat
 
 

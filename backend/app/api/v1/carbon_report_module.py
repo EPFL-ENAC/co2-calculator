@@ -384,6 +384,16 @@ _MODULE_TOP_CLASS_LABEL_FIELD: dict[ModuleTypeEnum, str] = {
     ModuleTypeEnum.purchase: "translation_key",
 }
 
+# Per data-entry-type overrides of the group field. Animal facility bars
+# segment by facility type (mice / fish) rather than by facility name.
+_MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES: dict[
+    ModuleTypeEnum, dict[DataEntryTypeEnum, str]
+] = {
+    ModuleTypeEnum.research_facilities: {
+        DataEntryTypeEnum.mice_and_fish_animal_facilities: "researchfacility_type",
+    },
+}
+
 
 @router.get(
     "/{unit_id}/{year}/{module_id}/top-class-breakdown",
@@ -431,13 +441,25 @@ async def get_top_class_breakdown(
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
+    # Partition data entry types by their effective group field so types with
+    # an override (e.g. animal facilities grouped by mice/fish type) are
+    # aggregated separately, preserving the configured bar order.
+    overrides = _MODULE_TOP_CLASS_GROUP_FIELD_OVERRIDES.get(module_type, {})
+    field_groups: dict[str, List[DataEntryTypeEnum]] = {}
+    for det in data_entry_types:
+        field_groups.setdefault(overrides.get(det, group_field), []).append(det)
+
     svc = DataEntryEmissionService(db)
-    stats = await svc.get_top_class_breakdown(
-        carbon_report_module_id=carbon_report_module_id,
-        data_entry_types=data_entry_types,
-        group_by_field=group_field,
-        report_year=int(year),
-    )
+    stats = []
+    for field, dets in field_groups.items():
+        stats.extend(
+            await svc.get_top_class_breakdown(
+                carbon_report_module_id=carbon_report_module_id,
+                data_entry_types=dets,
+                group_by_field=field,
+                report_year=int(year),
+            )
+        )
 
     factor_tk_field = _MODULE_TOP_CLASS_LABEL_FIELD.get(module_type)
     if factor_tk_field:
