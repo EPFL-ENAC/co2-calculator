@@ -225,7 +225,7 @@ export const equipment: ModuleConfig = {
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Scientific,
       type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
-      // name: 'Scientific Equipment',
+      // name: 'Scientific equipment',
       tableNameKey: 'equipment-scientific-equipment-table-title',
       count: 4,
       moduleFields: baseModuleFields,
@@ -233,7 +233,7 @@ export const equipment: ModuleConfig = {
     {
       id: SUBMODULE_EQUIPMENT_TYPES.IT,
       type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
-      // name: 'IT Equipment',
+      // name: 'IT equipment',
       tableNameKey: 'equipment-it-equipment-table-title',
       count: 4,
       moduleFields: itmodulefields,

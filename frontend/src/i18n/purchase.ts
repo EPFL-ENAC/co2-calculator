@@ -67,17 +67,17 @@ export default {
   },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-table-title`]:
     {
-      en: 'Scientific Equipments ({count})',
+      en: 'Scientific equipment ({count})',
       fr: 'Équipements scientifiques ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ScientificEquipmentPurchases}-form-title`]:
     {
-      en: 'Add Scientific Equipment',
+      en: 'Add scientific equipment',
       fr: 'Ajouter un équipement scientifique',
     },
   [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-table-title`]:
     {
-      en: 'IT equipments ({count})',
+      en: 'IT equipment ({count})',
       fr: 'Équipements informatiques ({count})',
     },
   [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.ITEquipmentPurchases}-form-title`]:

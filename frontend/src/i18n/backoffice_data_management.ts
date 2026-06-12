@@ -506,7 +506,7 @@ export default {
     fr: 'Émissions de procédés',
   },
   data_management_submodule_scientific_equipment: {
-    en: 'Scientific Equipment',
+    en: 'Scientific equipment',
     fr: 'Équipements scientifiques',
   },
   data_management_submodule_it_equipment: {
