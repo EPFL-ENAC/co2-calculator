@@ -231,6 +231,35 @@ def test_plane_create_dto_rejects_invalid_cabin_class():
         )
 
 
+def test_plane_create_dto_rejects_eco_cabin_class():
+    """'eco' (old abbreviation) is not accepted — the backend expects 'economy'.
+    The frontend option value must be 'economy', not 'eco'."""
+    with pytest.raises(ValidationError):
+        ProfessionalTravelPlaneHandlerCreate(
+            data_entry_type_id=DataEntryTypeEnum.plane.value,
+            carbon_report_module_id=1,
+            user_institutional_id="11111",
+            origin_iata="GVA",
+            destination_iata="JFK",
+            cabin_class="eco",
+            number_of_trips=1,
+        )
+
+
+def test_plane_create_dto_accepts_economy_cabin_class():
+    """'economy' is the canonical value accepted by the backend validator."""
+    dto = ProfessionalTravelPlaneHandlerCreate(
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        carbon_report_module_id=1,
+        user_institutional_id="11111",
+        origin_iata="GVA",
+        destination_iata="JFK",
+        cabin_class="economy",
+        number_of_trips=1,
+    )
+    assert dto.cabin_class == "economy"
+
+
 def test_plane_create_dto_rejects_zero_trips():
     with pytest.raises(ValidationError):
         ProfessionalTravelPlaneHandlerCreate(

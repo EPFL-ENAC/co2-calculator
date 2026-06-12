@@ -147,7 +147,7 @@ const planeFields: ModuleField[] = [
     options: [
       { value: 'first', label: 'First' },
       { value: 'business', label: 'Business' },
-      { value: 'eco', label: 'Eco' },
+      { value: 'economy', label: 'Economy' },
     ],
   },
 ];
