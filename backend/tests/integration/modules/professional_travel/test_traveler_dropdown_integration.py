@@ -26,8 +26,11 @@ from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeE
 from app.models.module_type import ModuleTypeEnum
 from app.modules.professional_travel.schemas import (
     ProfessionalTravelPlaneHandlerCreate,
+    ProfessionalTravelPlaneModuleHandler,
     ProfessionalTravelTrainHandlerCreate,
+    ProfessionalTravelTrainModuleHandler,
 )
+from app.schemas.data_entry import DataEntryUpdate
 from app.services.data_entry_service import DataEntryService
 
 # ---------------------------------------------------------------------------
@@ -489,3 +492,116 @@ async def test_dropdown_iid_matches_travel_entry_iid(
         f"Travel entry iid {stored_iid!r} does not match "
         f"dropdown selection {selected_iid!r}"
     )
+
+
+# ---------------------------------------------------------------------------
+# PATCH: validate_update with existing data merged (regression for slash dates)
+# ---------------------------------------------------------------------------
+# When a departure_date was entered with slashes (e.g. "2026/01/19") the value
+# is stored verbatim in DataEntry.data.  A partial PATCH (e.g. number_of_trips)
+# merges existing_data into the update_payload; the Update DTO must normalise
+# the slash date or validation raises a 400.
+
+
+def test_plane_patch_validate_update_with_slash_date():
+    """Plane PATCH with a slash-formatted departure_date from existing data must
+    not raise a ValidationError (regression for missing DepartureDateMixin)."""
+    existing_data = {
+        "user_institutional_id": "12345",
+        "origin_iata": "GVA",
+        "destination_iata": "JFK",
+        "cabin_class": "economy",
+        "departure_date": "2026/01/19",  # slash format stored by the UI
+        "number_of_trips": 3,
+        "primary_factor_id": None,
+    }
+    update_payload = {
+        **existing_data,
+        "number_of_trips": 10,
+        "data_entry_type_id": DataEntryTypeEnum.plane.value,
+        "carbon_report_module_id": 1,
+    }
+    handler = ProfessionalTravelPlaneModuleHandler()
+    validated = handler.validate_update(update_payload)
+    assert validated.departure_date is not None
+    from datetime import date
+
+    assert validated.departure_date == date(2026, 1, 19)
+
+
+def test_train_patch_validate_update_with_slash_date():
+    """Train PATCH with a slash-formatted departure_date from existing data must
+    not raise a ValidationError (regression for missing DepartureDateMixin)."""
+    existing_data = {
+        "user_institutional_id": "12345",
+        "origin_name": "Geneva",
+        "destination_name": "Paris",
+        "origin_country_code": "CH",
+        "destination_country_code": "FR",
+        "origin_natural_key": "geneva_ch",
+        "destination_natural_key": "paris_fr",
+        "cabin_class": "second",
+        "departure_date": "2026/01/19",  # slash format
+        "number_of_trips": 3,
+        "primary_factor_id": None,
+    }
+    update_payload = {
+        **existing_data,
+        "number_of_trips": 10,
+        "data_entry_type_id": DataEntryTypeEnum.train.value,
+        "carbon_report_module_id": 1,
+    }
+    handler = ProfessionalTravelTrainModuleHandler()
+    validated = handler.validate_update(update_payload)
+    assert validated.departure_date is not None
+    from datetime import date
+
+    assert validated.departure_date == date(2026, 1, 19)
+
+
+def test_plane_patch_validate_update_no_departure_date():
+    """Plane PATCH with no departure_date in the PATCH payload (number_of_trips only)
+    and no departure_date in existing data succeeds without a date error."""
+    existing_data = {
+        "user_institutional_id": "12345",
+        "origin_iata": "GVA",
+        "destination_iata": "JFK",
+        "cabin_class": "economy",
+        "number_of_trips": 3,
+        "primary_factor_id": None,
+    }
+    update_payload = {
+        **existing_data,
+        "number_of_trips": 10,
+        "data_entry_type_id": DataEntryTypeEnum.plane.value,
+        "carbon_report_module_id": 1,
+    }
+    handler = ProfessionalTravelPlaneModuleHandler()
+    validated = handler.validate_update(update_payload)
+    assert validated.number_of_trips == 10
+    assert validated.departure_date is None
+
+
+def test_plane_patch_produces_valid_data_entry_update():
+    """Full PATCH pipeline: validate_update → model_dump → DataEntryUpdate
+    succeeds and the final data dict contains the updated number_of_trips."""
+    existing_data = {
+        "user_institutional_id": "12345",
+        "origin_iata": "GVA",
+        "destination_iata": "JFK",
+        "cabin_class": "economy",
+        "departure_date": "2026/01/19",
+        "number_of_trips": 3,
+        "primary_factor_id": None,
+    }
+    update_payload = {
+        **existing_data,
+        "number_of_trips": 10,
+        "data_entry_type_id": DataEntryTypeEnum.plane.value,
+        "carbon_report_module_id": 1,
+    }
+    handler = ProfessionalTravelPlaneModuleHandler()
+    validated = handler.validate_update(update_payload)
+    data_entry_update = DataEntryUpdate(**validated.model_dump(exclude_unset=True))
+    final = data_entry_update.model_dump(exclude_unset=True)
+    assert final["data"]["number_of_trips"] == 10
