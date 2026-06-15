@@ -837,6 +837,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         result=None,
                         extra_metadata=dict(stats),
                     )
+                # if empty row, skip
+                if not row:
+                    continue
+                # Skip completely blank rows
+                if not any(
+                    value is not None and str(value).strip() for value in row.values()
+                ):
+                    continue
+
                 # Process single row, returns
                 # (data_entry, error_msg, factor, kg_co2eq_override)
                 (
