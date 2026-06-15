@@ -190,11 +190,24 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
                 filtered_row, handlers
             )
 
-            data_entry_type = lookup_data_entry_type_by_kind(
-                kind=kind_value,
-                subkind=subkind_value,
-                factors_maps_by_type=factors_maps_by_type,
+            # Type inference scans every factor key (tens of thousands) per
+            # call — the dominant per-row cost (a 9.5k-row purchase upload spent
+            # ~33s here). The result is a pure function of (kind, subkind), and
+            # those repeat heavily across rows, so memoise per file:
+            # O(rows × factors) → O(distinct kinds × factors).
+            type_cache: Dict[tuple[str, str | None], DataEntryTypeEnum | None] = (
+                setup_result.setdefault("type_by_kind_cache", {})
             )
+            cache_key = (kind_value, subkind_value)
+            if cache_key in type_cache:
+                data_entry_type = type_cache[cache_key]
+            else:
+                data_entry_type = lookup_data_entry_type_by_kind(
+                    kind=kind_value,
+                    subkind=subkind_value,
+                    factors_maps_by_type=factors_maps_by_type,
+                )
+                type_cache[cache_key] = data_entry_type
 
             if data_entry_type is None:
                 error_msg = (

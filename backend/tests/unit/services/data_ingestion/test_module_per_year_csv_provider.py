@@ -426,3 +426,63 @@ async def test_resolve_configured_type_accepts_string_id():
     assert data_entry_type == DataEntryTypeEnum.member
     assert resolved_handler == handler
     assert error_msg is None
+
+
+@pytest.mark.asyncio
+async def test_type_inference_is_memoised_per_kind(monkeypatch):
+    """The per-row kind→type inference scans the full factors_map; the measured
+    cost of a 9.5k-row purchase upload was ~33s spent entirely here. Its result
+    is a pure function of (kind, subkind), which repeat across rows, so it must
+    be memoised on setup_result: the same kind is inferred once, not per row."""
+    provider = ModulePerYearCSVProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.purchase.value)
+
+    # Force the inference branch (no configured type, no category column) and
+    # stub the registry handler lookup so the test isolates memoisation.
+    monkeypatch.setattr(
+        provider,
+        "_resolve_type_from_config_or_category",
+        MagicMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        csv_providers_module.module_per_year.BaseModuleHandler,
+        "get_by_type",
+        MagicMock(return_value=SimpleNamespace()),
+    )
+    spy = MagicMock(return_value=DataEntryTypeEnum.scientific)
+    monkeypatch.setattr(
+        csv_providers_module.module_per_year,
+        "lookup_data_entry_type_by_kind",
+        spy,
+    )
+
+    handler = SimpleNamespace(
+        kind_field="kind", subkind_field=None, category_field=None
+    )
+    setup_result = {"handlers": [handler], "factors_map": {}}
+    stats = _build_stats()
+
+    async def _resolve(kind):
+        return await provider._resolve_handler_and_validate(
+            filtered_row={"kind": kind},
+            factor=None,
+            stats=stats,
+            row_idx=1,
+            max_row_errors=5,
+            setup_result=setup_result,
+        )
+
+    type_a, _, _ = await _resolve("hood")
+    type_a2, _, _ = await _resolve("hood")  # same kind → cache hit
+    await _resolve("bench")  # new kind → one more scan
+
+    # One scan per distinct kind, not per row.
+    assert spy.call_count == 2
+    assert setup_result["type_by_kind_cache"] == {
+        ("hood", None): DataEntryTypeEnum.scientific,
+        ("bench", None): DataEntryTypeEnum.scientific,
+    }
+    # Caching does not change the inferred type.
+    assert type_a == type_a2 == DataEntryTypeEnum.scientific

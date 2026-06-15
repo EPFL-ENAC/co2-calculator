@@ -1,9 +1,9 @@
 ---
-status: proposed
+status: in_progress
 issue: 310-f
-last_updated: 2026-06-15
+last_updated: 2026-06-16
 title: "310-f Ingestion per-row efficiency"
-summary: "The CSV ingest parse/validate loop dominates wall-clock (~34s for 9555 purchase rows on dev). The first cut of this plan guessed line-level suspects and they were wrong (purchase rows aren't `member`, so the batched-uniqueness fix never ran). Rewritten measure-first: a row-loop profiler now logs where the time goes; optimize only the bucket the trace blames, and control for the dev CPU throttle."
+summary: "The CSV ingest parse/validate loop dominated wall-clock (~34s for 9555 purchase rows on dev). The first cut guessed line-level suspects and they were wrong. A row-loop profiler was added, and the trace pinned 33.4s of 34.5s on `resolve` — a per-row linear scan of ~23k factor keys in `lookup_data_entry_type_by_kind` (O(rows × factors)). Fixed by memoising the kind→type inference per (kind, subkind). Re-measure pending."
 ---
 
 # 310-f Ingestion per-row efficiency
@@ -32,12 +32,13 @@ Lesson: **profile before optimizing.** This rewrite makes that the first step.
 ## Step 0 (shipped): a row-loop profiler
 
 `base_csv_provider` now logs one diagnostic line at the end of the parse phase,
-on real data / real DB / real handlers:
+on real data / real DB / real handlers. The actual line for the 9555-row
+purchase upload (dev, 2026-06-16):
 
 ```
-Row-loop profile: 9555 rows in 33.8s (3.54 ms/row) | row=31.2s
-  [resolve=4.1 validate=18.7 enrich=0.2 populate=6.9 row_other=1.3]
-  loop_overhead=2.6s
+Row-loop profile: 9555 rows in 34.5s (3.61 ms/row) | row=34.2s
+  [resolve=33.4 validate=0.2 enrich=0.0 populate=0.0 row_other=0.6]
+  loop_overhead=0.3s
 ```
 
 Buckets (wall time, accumulated per row via `time.perf_counter`):
@@ -54,6 +55,35 @@ Buckets (wall time, accumulated per row via `time.perf_counter`):
 A **DB-bound** segment (hidden lazy-load N+1) shows as a large bucket dominated
 by await time; a **CPU-bound** segment shows as large under no concurrency. The
 breakdown tells which, without guessing.
+
+## Result: `resolve` was 33.4s of 34.5s — and the fix
+
+The trace ended the guessing. Not Pydantic (`validate=0.2`), not DB
+(`populate`/`enrich`≈0): **97% of the time was `resolve`**, in
+`lookup_data_entry_type_by_kind` (`seed_helper.py`). For every row it linearly
+scans **all ~23k factor keys** to infer the row's `data_entry_type` from its
+kind:
+
+```python
+keys = [k for k in factors_map.keys() if k.__contains__(f":{kind}:")]  # per type, per row
+```
+
+That's `O(rows × factors)` ≈ 9555 × 23k ≈ 220M substring checks ≈ 33s — so a CPU
+bump barely helps; it's an algorithm problem. (The original "23k factors"
+hunch was right, just via a per-row rescan, not memory.)
+
+**Fix (shipped):** the inference is a pure function of `(kind, subkind)`, which
+repeat heavily across rows, so memoise it per file on `setup_result` —
+`O(rows × factors)` → `O(distinct kinds × factors)`. Same result, computed once
+per distinct kind. Mirrors the existing #1415 memoisation of the per-type split.
+Regression test: `test_type_inference_is_memoised_per_kind`.
+
+**Re-measure pending** — capture a fresh `Row-loop profile` line after deploy to
+confirm `resolve` collapses. If a file ever has near-unique kinds per row (memo
+ineffective), the follow-up is a one-time `kind → types` index in
+`lookup_data_entry_type_by_kind` instead of the per-row scan.
+
+The method below stays on record for future buckets.
 
 ## Step 1: read the trace, then pick the target
 
