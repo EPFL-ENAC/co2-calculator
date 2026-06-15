@@ -64,16 +64,19 @@ class LocationRepository:
 
         # Use PostgreSQL trigram similarity for efficient searching
         # This works with our GIN indexes using gin_trgm_ops
+        wildcard_query = f"%{query}%"
         search_condition = or_(
-            text("LOWER(name) % LOWER(:query)").bindparams(bindparam("query", query)),
-            text("LOWER(iata_code) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("name ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
-            text("LOWER(municipality) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("iata_code ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
-            text("LOWER(keywords) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("municipality ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
+            ),
+            text("keywords ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
         )
 
