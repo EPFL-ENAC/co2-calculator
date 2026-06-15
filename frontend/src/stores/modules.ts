@@ -540,6 +540,28 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Re-fetch every currently-loaded submodule of a module, preserving
+   * each one's pagination/sort/filter state.  Used by ModulePage when
+   * the bulk pipeline's `emissions` phase completes so per-row
+   * kg_co2eq refreshes without the operator re-opening submodules.
+   * Collapsed / never-opened submodules are skipped.
+   */
+  async function refreshLoadedSubmodules(
+    moduleType: Module,
+    unit: number,
+    year: string,
+    submoduleTypes: string[],
+  ): Promise<void> {
+    await Promise.all(
+      submoduleTypes
+        .filter((submoduleType) => state.loadedSubmodules[submoduleType])
+        .map((submoduleType) =>
+          getSubmoduleData({ moduleType, submoduleType, unit, year }),
+        ),
+    );
+  }
+
   async function getSubmoduleTaxonomy(
     moduleType: Module,
     submoduleType: string,
@@ -1071,6 +1093,7 @@ export const useModuleStore = defineStore('modules', () => {
     getModuleTotals,
     getModuleTaxonomy,
     getSubmoduleData,
+    refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
     postItem,
     patchItem,

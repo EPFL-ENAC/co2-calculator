@@ -86,6 +86,17 @@ def _build_job_lookup(
         if job.id is None:
             continue
         target_val = job.target_type.value if job.target_type is not None else None
+        # The year-config view's ``latest_data_job`` reflects per-year
+        # (module-level) uploads only.  Unit-specific data uploads
+        # (ModuleUnitSpecificCSVProvider, entity_type=MODULE_UNIT_SPECIFIC)
+        # are per-unit work done on the module page; skip them so they
+        # neither surface as nor mask the module-level data job (they'd
+        # otherwise collide on the same lookup key).
+        if (
+            target_val == TargetType.DATA_ENTRIES.value
+            and job.entity_type == EntityType.MODULE_UNIT_SPECIFIC
+        ):
+            continue
         method_val = (
             job.ingestion_method.value if job.ingestion_method is not None else 0
         )

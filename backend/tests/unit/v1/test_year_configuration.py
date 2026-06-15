@@ -10,6 +10,7 @@ from app.api.v1.year_configuration import (
     generate_unique_filename,
     get_files_storage_path,
 )
+from app.models.data_ingestion import EntityType
 
 # ---------------------------------------------------------------------------
 # Helpers — fake job objects
@@ -28,6 +29,7 @@ def _fake_job(**overrides):
         result=SimpleNamespace(value=0),
         status_message="OK",
         meta={"rows": 10},
+        entity_type=EntityType.MODULE_PER_YEAR,
     )
     defaults.update(overrides)
     return SimpleNamespace(**defaults)
@@ -61,6 +63,47 @@ class TestBuildJobLookup:
         assert summary.target_type is None
         assert summary.state is None
         assert summary.result is None
+
+    def test_skips_unit_specific_data_job(self):
+        """A MODULE_UNIT_SPECIFIC data-entry upload must not occupy the
+        per-year ``latest_data_job`` slot — it neither surfaces nor
+        masks the module-level (MODULE_PER_YEAR) job."""
+        unit_specific = _fake_job(
+            id=7,
+            target_type=SimpleNamespace(value=0),  # DATA_ENTRIES
+            ingestion_method=SimpleNamespace(value=1),  # CSV
+            entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        )
+        lookup = _build_job_lookup([unit_specific])
+        assert lookup == {}
+
+    def test_keeps_per_year_data_job(self):
+        per_year = _fake_job(
+            id=8,
+            target_type=SimpleNamespace(value=0),  # DATA_ENTRIES
+            ingestion_method=SimpleNamespace(value=1),  # CSV
+            entity_type=EntityType.MODULE_PER_YEAR,
+        )
+        lookup = _build_job_lookup([per_year])
+        assert lookup[(2, 20, 0, 1)].job_id == 8
+
+    def test_unit_specific_does_not_mask_per_year(self):
+        """Both jobs share the (module, det, DATA_ENTRIES, CSV) key;
+        only the per-year one survives regardless of list order."""
+        per_year = _fake_job(
+            id=8,
+            target_type=SimpleNamespace(value=0),
+            ingestion_method=SimpleNamespace(value=1),
+            entity_type=EntityType.MODULE_PER_YEAR,
+        )
+        unit_specific = _fake_job(
+            id=9,
+            target_type=SimpleNamespace(value=0),
+            ingestion_method=SimpleNamespace(value=1),
+            entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        )
+        lookup = _build_job_lookup([per_year, unit_specific])
+        assert lookup[(2, 20, 0, 1)].job_id == 8
 
 
 # ---------------------------------------------------------------------------
