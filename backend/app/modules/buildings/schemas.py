@@ -648,7 +648,7 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
         return self.update_dto.model_validate(payload)
 
     def resolve_computations(self, data_entry, emission_type, ctx):
-        if emission_type != EmissionType.buildings__embodied_energy:
+        if emission_type != EmissionType.buildings__construction_and_renovation:
             return []
 
         def _building_embodied_energy_formula(
@@ -726,7 +726,7 @@ class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
     registration_keys = [
         DataEntryTypeEnum.building_embodied_energy,
     ]
-    emission_type: EmissionType = EmissionType.buildings__embodied_energy
+    emission_type: EmissionType = EmissionType.buildings__construction_and_renovation
 
     create_dto = BuildingEmbodiedEnergyFactorCreate
     update_dto = BuildingEmbodiedEnergyFactorUpdate
