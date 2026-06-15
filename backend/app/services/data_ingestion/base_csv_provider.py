@@ -375,6 +375,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self.data_session, entry_type, self.year
             )
             factors_map.update(type_factors)
+            # Yield between factor-type merges: building a large factors_map
+            # (tens of thousands of factors) is a CPU burst that would
+            # otherwise block the event loop during setup.
+            await asyncio.sleep(0)
 
         return handlers, factors_map
 
@@ -825,10 +829,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Row processing is mostly CPU (parse/validate, cached
                 # lookups) — with 50k-row COPY batches nothing else
                 # would run on the event loop for the whole file.
-                # Yield regularly so the API, SSE and heartbeats stay
-                # responsive, and surface interim progress to the job
-                # row between (now rare) batch flushes.
-                if row_idx % 1000 == 0:
+                # Yield every 100 rows so /healthz & /ready stay under the
+                # liveness/readiness probe timeout even on a CPU-tight pod;
+                # a 1000-row stretch could exceed 2s and trigger a restart.
+                if row_idx % 100 == 0:
                     await asyncio.sleep(0)
                 if row_idx % 5000 == 0:
                     await self._update_job(
