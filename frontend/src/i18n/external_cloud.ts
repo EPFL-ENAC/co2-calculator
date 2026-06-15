@@ -28,17 +28,17 @@ export default {
 
   // CHARTS external-cloud-and-ai.charts-title
   [`${MODULES.ExternalCloudAndAI}-charts-title`]: {
-    en: 'External Cloud Emissions CHARTS',
+    en: 'External cloud Emissions CHARTS',
     fr: 'Émissions du cloud externe CHARTS',
   },
   // external-cloud-and-ai.cloud_services_table_title
   [`${MODULES.ExternalCloudAndAI}.cloud_services_table_title`]: {
-    en: 'External Cloud ({count}) | External Clouds ({count})',
-    fr: 'Cloud Externe ({count}) | Clouds Externes ({count})',
+    en: 'External cloud ({count}) | External cloud ({count})',
+    fr: 'Cloud externe ({count}) | Clouds externes ({count})',
   },
   [`${MODULES.ExternalCloudAndAI}.cloud-services`]: {
-    en: 'External Cloud | External Clouds',
-    fr: 'Cloud Externe | Clouds Externes',
+    en: 'External cloud | External cloud',
+    fr: 'Cloud externe | Clouds externes',
   },
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {

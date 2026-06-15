@@ -66,19 +66,19 @@ export default {
     fr: 'Divers',
   },
   [`${MODULES.Buildings}.room_type.Laboratories`]: {
-    en: 'Laboratories',
-    fr: 'Laboratoires',
+    en: 'Laboratory',
+    fr: 'Laboratoire',
   },
   [`${MODULES.Buildings}.room_type.Archives`]: {
     en: 'Archives',
     fr: 'Archives',
   },
   [`${MODULES.Buildings}.room_type.Libraries`]: {
-    en: 'Libraries',
-    fr: 'Bibliothèques',
+    en: 'Library',
+    fr: 'Bibliothèque',
   },
   [`${MODULES.Buildings}.room_type.Auditoriums`]: {
-    en: 'Auditoriums',
+    en: 'Auditorium',
     fr: 'Auditoires',
   },
   [`${MODULES.Buildings}.inputs.room_surface_square_meter`]: {

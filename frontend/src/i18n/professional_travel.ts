@@ -182,15 +182,15 @@ export default {
   },
   business: {
     en: 'Business',
-    fr: 'Affaires',
+    fr: 'Business',
   },
   eco: {
     en: 'Eco',
-    fr: 'Éco',
+    fr: 'Eco',
   },
   eco_plus: {
     en: 'Eco+',
-    fr: 'Éco+',
+    fr: 'Eco+',
   },
   // Category keys
   train: {

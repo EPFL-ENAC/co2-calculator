@@ -91,7 +91,7 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     fr: 'Puissance standby (W)',
   },
   [`${MODULES.Equipment}-scientific`]: {
-    en: 'Scientific Equipment',
+    en: 'Scientific equipment',
     fr: 'Équipements scientifiques',
   },
   [`${MODULES.Equipment}-it`]: {
@@ -103,7 +103,7 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     fr: 'Autres équipements',
   },
   [`${MODULES.Equipment}-scientific-equipment-table-title`]: {
-    en: 'Scientific Equipment ({count}) | Scientific Equipments ({count})',
+    en: 'Scientific equipment ({count}) | Scientific equipment ({count})',
     fr: 'Équipement scientifique ({count}) | Équipements scientifiques ({count})',
   },
   [`${MODULES.Equipment}-it-equipment-table-title`]: {
@@ -115,11 +115,11 @@ Si la puissance moyenne active ou standby de votre équipement est différente d
     fr: 'Autres équipements ({count}) | Autres équipements ({count})',
   },
   [`${MODULES.Equipment}-scientific-form-title`]: {
-    en: 'Add Scientific Equipment',
+    en: 'Add scientific equipment',
     fr: 'Ajouter un équipement scientifique',
   },
   [`${MODULES.Equipment}-it-form-title`]: {
-    en: 'Add IT Equipment',
+    en: 'Add IT equipment',
     fr: 'Ajouter un équipement informatique',
   },
   [`${MODULES.Equipment}-other-form-title`]: {
