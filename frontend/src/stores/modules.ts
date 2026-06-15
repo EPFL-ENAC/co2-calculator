@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
 import {
@@ -578,7 +578,7 @@ export const useModuleStore = defineStore('modules', () => {
           `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
         )
         .json()) as TaxonomyNode;
-      state.taxonomySubmodule[submoduleType] = taxonomy;
+      state.taxonomySubmodule[submoduleType] = markRaw(taxonomy);
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';

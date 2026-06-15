@@ -40,7 +40,7 @@
                 v-if="
                   (inp.disableUntilField && !form[inp.disableUntilField]) ||
                   (inp.optionsId === 'subkind' &&
-                    !loadingSubclasses &&
+                    !isSubkindLoading &&
                     (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
                 "
               >
@@ -166,11 +166,16 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
-              <q-select
+              <VirtualSelectField
                 v-else-if="
-                  inp.optionsId === 'kind' || inp.optionsId === 'subkind'
+                  (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
+                  moduleType === MODULES.Purchase
                 "
-                v-model="form[inp.id]"
+                :model-value="form[inp.id]"
+                :options="getFilteredOptions(inp)"
+                :loading="
+                  inp.optionsId === 'kind' ? loadingClasses : isSubkindLoading
+                "
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
                     submoduleTitle: $t(`${moduleType}-${submoduleType}`),
@@ -178,42 +183,13 @@
                 "
                 :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
                 :hint="inp.hint ? $t(inp.hint) : null"
-                :options="
-                  inp.optionsId === 'kind'
-                    ? virtualKindOptions
-                    : virtualSubkindOptions
-                "
-                :loading="
-                  inp.optionsId === 'kind' ? loadingClasses : loadingSubclasses
-                "
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
-                use-input
-                input-debounce="300"
-                dense
-                outlined
-                emit-value
-                map-options
                 :readonly="isReadOnly(inp)"
                 :disable="inp.disable"
-                @filter="
-                  (val, update, abort) =>
-                    inp.optionsId === 'kind'
-                      ? filterKindFn(val, update, abort)
-                      : filterSubkindFn(val, update, abort)
-                "
-                @virtual-scroll="
-                  (info) =>
-                    inp.optionsId === 'kind'
-                      ? onKindScroll(info)
-                      : onSubkindScroll(info)
-                "
+                :icon="inp.icon"
                 @update:model-value="(val) => (form[inp.id] = val)"
-              >
-                <template v-if="inp.icon" #prepend>
-                  <q-icon :name="inp.icon" color="grey-6" size="xs" />
-                </template>
-              </q-select>
+              />
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -351,10 +327,10 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
 import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
-import { useVirtualSelectOptions } from 'src/composables/useVirtualSelectOptions';
 import { useBuildingRoomDynamicOptions } from 'src/composables/useBuildingRoomDynamicOptions';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
@@ -557,6 +533,10 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
+  const taxoChildMap = new Map(
+    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
+  );
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
       const key = inp.optionLabelKey.replace(
@@ -566,9 +546,7 @@ function getFilteredOptions(
       opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
-    const taxoOptNode = taxoNode?.children?.find(
-      (node) => node.name === opt.value,
-    );
+    const taxoOptNode = taxoChildMap.get(opt.value);
     const translationKey = taxoOptNode?.translation_key;
     if (translationKey && $te(translationKey)) {
       opt.label = $t(translationKey);
@@ -663,35 +641,22 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     toRef(props, 'year'),
   );
 
-const kindFullOptions = computed(() => dynamicOptions['kind'] ?? []);
-const subkindFullOptions = computed(() => dynamicOptions['subkind'] ?? []);
-
-const selectedKindValue = computed(() =>
-  kindFieldId.value ? String(form[kindFieldId.value] ?? '') : '',
-);
-const selectedSubkindValue = computed(() =>
-  subkindFieldId.value ? String(form[subkindFieldId.value] ?? '') : '',
-);
-
-const {
-  visibleOptions: virtualKindOptions,
-  filterFn: filterKindFn,
-  onVirtualScroll: onKindScroll,
-} = useVirtualSelectOptions(kindFullOptions, selectedKindValue);
-
-const {
-  visibleOptions: virtualSubkindOptions,
-  filterFn: filterSubkindFn,
-  onVirtualScroll: onSubkindScroll,
-} = useVirtualSelectOptions(subkindFullOptions, selectedSubkindValue);
-
-const { dynamicOptions: buildingRoomDynamicOptions } =
+const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
   useBuildingRoomDynamicOptions(
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     toRef(props, 'year'),
   );
+
+const isSubkindLoading = computed(() => {
+  if (
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
+  )
+    return loadingRooms.value;
+  return loadingSubclasses.value;
+});
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
