@@ -32,6 +32,13 @@ import { computed, reactive, type ComputedRef } from 'vue';
 export interface PipelineJob {
   id: number;
   job_type: string | null;
+  /**
+   * The data_entry_type this job operates on, or null for module-wide
+   * jobs (aggregation, or a module-level csv_ingest with no pinned
+   * det).  Lets consumers scope a per-submodule phase badge to the
+   * dets actually in the pipeline.
+   */
+  data_entry_type_id?: number | null;
   state: string | null;
   result: string | null;
   status_message: string | null;
