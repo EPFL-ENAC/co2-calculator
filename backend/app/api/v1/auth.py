@@ -63,10 +63,10 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
+from fastapi_csrf_protect import CsrfProtect
 from pydantic import BaseModel
 from sqlalchemy import update
 from sqlmodel import col, select
-from fastapi_csrf_protect import CsrfProtect
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -673,6 +673,8 @@ async def oauth_callback(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication failed",
             )
+
+
 # /login-test is registered only in DEBUG builds — see the function's
 # docstring for the security rationale. In production the route does not
 # exist at all.

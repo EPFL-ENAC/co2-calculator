@@ -360,43 +360,6 @@ export const api = ky.create({
           }
         }
         if (!res.ok) {
-          // Sentry capture for 5xx
-          if (res.status >= 500) {
-            let body: string | undefined;
-            try {
-              body = await res.clone().text();
-            } catch {
-              // Body already consumed elsewhere; not fatal for the report.
-            }
-            void import('@sentry/vue').then(({ captureMessage }) => {
-              captureMessage(`HTTP ${res.status} ${req.method} ${req.url}`, {
-                level: 'error',
-                extra: {
-                  status: res.status,
-                  statusText: res.statusText,
-                  url: req.url,
-                  method: req.method,
-                  body: body?.slice(0, 2000),
-                },
-              });
-            });
-          }
-
-          // Generic toast + skipErrorCodes
-          const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];
-          if (!skipCodes.includes(res.status)) {
-            Notify.create({
-              color: 'negative',
-              message: i18n.global.t('http_error_occurred', {
-                status: res.status,
-                text: res.statusText,
-              }),
-              position: 'top',
-              timeout: 3000,
-              actions: [{ icon: 'close', color: 'white' }],
-            });
-          }
-        } else if (!res.ok) {
           // Capture 5xx in Sentry. 4xx is usually client/business-logic
           // (validation, "not found", etc.) and not worth exception noise;
           // 5xx means our backend or infra failed and we want to know.
