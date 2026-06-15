@@ -4,6 +4,7 @@ import io
 import time
 import urllib.parse
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col, select
@@ -196,6 +197,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._phase = ""
         self._phase_started_at = 0.0
         self._last_report_at = 0.0
+        # Per-segment wall-time accumulator for the row-loop profile (diagnostic;
+        # answers "where do the N seconds go" — DB-heavy segments stand out).
+        self._seg: Dict[str, float] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -780,6 +784,46 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._phase = phase
         self._phase_started_at = time.monotonic()
 
+    @contextmanager
+    def _timed(self, key: str):
+        """Accumulate wall time spent in a row-loop segment under ``key``.
+
+        Cheap (one perf_counter read each side); records on exit even when the
+        wrapped block returns/raises, so per-row early-exits still count.
+        """
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self._seg[key] = self._seg.get(key, 0.0) + (time.perf_counter() - start)
+
+    def _log_row_loop_profile(self, parse_elapsed: float, rows: int) -> None:
+        """One-line breakdown of where the row-loop wall time went.
+
+        ``row`` is the total in ``_process_row``; ``loop_overhead`` is the rest
+        of the loop (CSV parse, blank-row skips, progress reports). ``row_other``
+        is per-row work outside the four timed sub-calls (filter/key/build).
+        """
+        seg = self._seg
+        row_t = seg.get("row", 0.0)
+        inner = ("resolve", "validate", "enrich", "populate")
+        per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
+        logger.info(
+            "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
+            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "loop_overhead=%.1fs",
+            rows,
+            parse_elapsed,
+            per_row_ms,
+            row_t,
+            seg.get("resolve", 0.0),
+            seg.get("validate", 0.0),
+            seg.get("enrich", 0.0),
+            seg.get("populate", 0.0),
+            row_t - sum(seg.get(k, 0.0) for k in inner),
+            parse_elapsed - row_t,
+        )
+
     @staticmethod
     def _format_progress(
         phase: str, processed: int | None, total: int | None, elapsed: float
@@ -877,6 +921,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             await self._report(
                 "Parsing rows", processed=0, total=total_rows, stats=stats, force=True
             )
+            # Row-loop profile baseline (diagnostic).
+            self._seg = {}
+            parse_start = time.perf_counter()
+            row_idx = 0
             batch: List[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
@@ -916,6 +964,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
                 # Process single row, returns
                 # (data_entry, error_msg, factor, kg_co2eq_override)
+                _row_t0 = time.perf_counter()
                 (
                     data_entry,
                     error_msg,
@@ -928,6 +977,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     stats,
                     max_row_errors,
                     unit_to_module_map,
+                )
+                self._seg["row"] = self._seg.get("row", 0.0) + (
+                    time.perf_counter() - _row_t0
                 )
 
                 if error_msg:
@@ -999,6 +1051,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             result=None,
                             extra_metadata=dict(stats),
                         )
+
+            # Diagnostic: where did the row-loop time go (DB-heavy segments
+            # stand out vs CPU)? One line, real data/DB/handlers.
+            self._log_row_loop_profile(time.perf_counter() - parse_start, row_idx)
 
             # Finalize: process remaining batch, move file, update job
             self._enter_phase("Inserting")
@@ -1166,13 +1222,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             # Resolve handler and data_entry_type first (needed for factor lookup)
-            (
-                data_entry_type,
-                handler,
-                error_msg,
-            ) = await self._resolve_handler_and_validate(
-                filtered_row, None, stats, row_idx, max_row_errors, setup_result
-            )
+            with self._timed("resolve"):
+                (
+                    data_entry_type,
+                    handler,
+                    error_msg,
+                ) = await self._resolve_handler_and_validate(
+                    filtered_row, None, stats, row_idx, max_row_errors, setup_result
+                )
 
             if error_msg:
                 return None, error_msg, None, None
@@ -1277,7 +1334,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             payload["primary_factor_id"] = primary_factor_id
 
             try:
-                validated = handler.validate_create(payload)
+                with self._timed("validate"):
+                    validated = handler.validate_create(payload)
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -1290,18 +1348,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # it to resolve origin_name/destination_name → *_natural_key via
             # a Location lookup so the recalc-time pre_compute can compute
             # distance. Returning a non-None error_msg skips the row.
-            data, enrich_error = await handler.enrich_csv_row(data, self.data_session)
+            with self._timed("enrich"):
+                data, enrich_error = await handler.enrich_csv_row(
+                    data, self.data_session
+                )
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-            handler_service = ModuleHandlerService(self.data_session)
-            if primary_factor_id and "factor_id_to_factor" in setup_result:
-                factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                if factor is not None:
-                    data = await handler_service.populate_defaults(
-                        handler, data, factor
-                    )
+            with self._timed("populate"):
+                handler_service = ModuleHandlerService(self.data_session)
+                if primary_factor_id and "factor_id_to_factor" in setup_result:
+                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
+                    if factor is not None:
+                        data = await handler_service.populate_defaults(
+                            handler, data, factor
+                        )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
