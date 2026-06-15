@@ -11,7 +11,7 @@
     "test:ci": "concurrently -k -s first -n \"SB,TEST\" -c \"magenta,blue\" \"npm run dev -- --no-open --quiet --ci\" \"wait-on tcp:127.0.0.1:6006 && npm run test\""
   },
   "devDependencies": {
-    "@storybook/addon-a11y": "=10.4.2",
+    "@storybook/addon-a11y": "=10.4.4",
     "@storybook/addon-docs": "=10.4.2",
     "@storybook/test-runner": "=0.24.4",
     "@storybook/vue3-vite": "=10.4.2",
