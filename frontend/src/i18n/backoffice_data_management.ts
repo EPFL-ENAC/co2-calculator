@@ -582,8 +582,8 @@ export default {
     fr: 'Échec du téléversement du fichier',
   },
   data_management_compute_factors: {
-    en: 'Compute Factors',
-    fr: 'Calculer les facteurs',
+    en: 'Compute Missing Factors',
+    fr: 'Calculer les facteurs manquants',
   },
   data_management_compute_factors_confirm_title: {
     en: 'Compute Missing Factors',
@@ -594,16 +594,16 @@ export default {
     fr: "Ceci calculera les facteurs d'émission à partir des données existantes pour ce sous-module. Uniquement les facteurs avec des valeurs manquantes seront mis à jour. Souhaitez-vous continuer ?",
   },
   data_management_compute_factors_success: {
-    en: 'Factors computed successfully',
-    fr: 'Facteurs calculés avec succès',
+    en: 'Missing factors computed successfully',
+    fr: 'Facteurs manquants calculés avec succès',
   },
   data_management_compute_factors_warning: {
-    en: 'Factors computed with warnings',
-    fr: 'Facteurs calculés avec avertissements',
+    en: 'Missing factors computed with warnings',
+    fr: 'Facteurs manquants calculés avec avertissements',
   },
   data_management_compute_factors_error: {
-    en: 'Factor computation failed',
-    fr: 'Le calcul des facteurs a échoué',
+    en: 'Missing factors computation failed',
+    fr: 'Le calcul des facteurs manquants a échoué',
   },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
