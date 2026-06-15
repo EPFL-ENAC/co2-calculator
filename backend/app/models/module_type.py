@@ -93,7 +93,7 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
     ModuleTypeEnum.professional_travel: [EmissionType.professional_travel],
     ModuleTypeEnum.buildings: [
         EmissionType.buildings,
-        EmissionType.buildings__embodied_energy,
+        EmissionType.buildings__construction_and_renovation,
     ],
     ModuleTypeEnum.equipment: [EmissionType.equipment],
     ModuleTypeEnum.purchase: [EmissionType.purchases],

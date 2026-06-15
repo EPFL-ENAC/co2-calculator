@@ -1161,9 +1161,9 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
         db_session.add(
             DataEntryEmission(
                 data_entry_id=entry.id,
-                emission_type_id=EmissionType.buildings__embodied_energy,
+                emission_type_id=EmissionType.buildings__construction_and_renovation,
                 kg_co2eq=kg,
-                scope=EmissionType.buildings__embodied_energy.scope,
+                scope=EmissionType.buildings__construction_and_renovation.scope,
             )
         )
         entries.append(entry)

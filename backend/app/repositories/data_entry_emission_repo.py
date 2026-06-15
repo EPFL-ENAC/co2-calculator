@@ -637,7 +637,7 @@ class DataEntryEmissionRepository:
                 col(DataEntry.data_entry_type_id)
                 == DataEntryTypeEnum.building_embodied_energy.value,
                 col(DataEntryEmission.emission_type_id)
-                == EmissionType.buildings__embodied_energy.value,
+                == EmissionType.buildings__construction_and_renovation.value,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 building_name_expr.isnot(None),
                 building_name_expr != "",
@@ -686,7 +686,7 @@ class DataEntryEmissionRepository:
                 col(DataEntry.data_entry_type_id)
                 == DataEntryTypeEnum.building_embodied_energy.value,
                 col(DataEntryEmission.emission_type_id)
-                == EmissionType.buildings__embodied_energy.value,
+                == EmissionType.buildings__construction_and_renovation.value,
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 col(DataEntryEmission.kg_co2eq) > 0,
             )
