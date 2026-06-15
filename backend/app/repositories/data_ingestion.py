@@ -1343,7 +1343,7 @@ class DataIngestionRepository:
                     col(DataIngestionJob.data_entry_type_id).is_(None),
                 )
 
-            logger.info(f"Unsetting is_current for: {where_clause}")
+            logger.debug(f"Unsetting is_current for: {where_clause}")
 
             # Unset previous current job for this combination
             unset_stmt = (
