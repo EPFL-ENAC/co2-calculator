@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ref, computed, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import {
   useYearConfigStore,
   type ReductionObjectiveGoal,
@@ -16,11 +17,8 @@ import {
 } from 'src/stores/backofficeDataManagement';
 import UploadCard from 'src/components/molecules/data-management/UploadCard.vue';
 
-const props = defineProps<{
-  selectedYear: number;
-}>();
-
 const yearConfigStore = useYearConfigStore();
+const { selectedYear } = storeToRefs(yearConfigStore);
 const { t: $t } = useI18n();
 
 const reductionObjectivesExpanded = ref(false);
@@ -85,7 +83,7 @@ const goalsAreValid = computed(() =>
       !g.target_year && !g.reference_year && !g.reduction_percentage;
     if (isEmpty) return true;
     return (
-      g.target_year > props.selectedYear &&
+      g.target_year > selectedYear.value &&
       g.reduction_percentage >= 0 &&
       g.reduction_percentage <= 100 &&
       g.reference_year > 0
@@ -104,7 +102,7 @@ async function saveReductionGoals(): Promise<void> {
 
   isSavingGoals.value = true;
   try {
-    await yearConfigStore.updateConfig(props.selectedYear, {
+    await yearConfigStore.updateConfig(selectedYear.value, {
       config: {
         reduction_objectives: { goals: goalsToSave },
       },

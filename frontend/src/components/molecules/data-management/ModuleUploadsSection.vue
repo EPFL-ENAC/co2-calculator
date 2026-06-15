@@ -13,7 +13,6 @@ import UploadCardFactors from 'src/components/molecules/data-management/UploadCa
 
 interface Props {
   module: string;
-  selectedYear: number;
   isModuleEnabled: boolean;
 }
 
@@ -26,13 +25,10 @@ const openDataEntryDialog = inject<
 const { getImportRow, downloadLastCsv, commonUploads, submodules } =
   useModuleConfig({
     module: props.module,
-    selectedYear: props.selectedYear,
   });
 
 const { recalcTypeRunning, getRecalcStatus, triggerTypeRecalculation } =
-  useRecalculation({
-    selectedYear: props.selectedYear,
-  });
+  useRecalculation();
 
 // Issue #1219 — the module's authoritative pipeline progress, provided
 // by ModuleConfig (the single SSE subscriber). Shared by every card in

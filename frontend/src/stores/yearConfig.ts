@@ -177,6 +177,21 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const configuredYears = ref<YearConfigurationListItem[]>([]);
 
   /**
+   * Backoffice data-management year selection — the single source of truth
+   * that the year dropdown writes and every config composable reads, so a
+   * year change trickles down to sub-components without prop drilling.
+   */
+  // TODO: fix the available years dynamically (drive from configuredYears
+  // rather than a hardcoded 2023..now range).
+  const MIN_YEAR = 2023;
+  const availableYears = ref<number[]>([]);
+  const thisYear = new Date().getFullYear();
+  for (let y = MIN_YEAR; y <= thisYear; y++) availableYears.value.push(y);
+  const selectedYear = ref<number>(
+    availableYears.value[availableYears.value.length - 1] ?? thisYear,
+  );
+
+  /**
    * Set of years that are globally open (`is_started`). The list endpoint
    * already filters these for regular users; admins receive every row, so we
    * re-filter client-side to keep the meaning identical for both.
@@ -530,6 +545,8 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     loading,
     notFound,
     configuredYears,
+    availableYears,
+    selectedYear,
     // Computed
     startedYears,
     anyModuleIncomplete,

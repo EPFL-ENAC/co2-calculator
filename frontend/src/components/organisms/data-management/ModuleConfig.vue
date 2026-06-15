@@ -20,7 +20,6 @@ import SubmoduleConfig from 'src/components/organisms/data-management/SubmoduleC
 
 interface Props {
   module: string;
-  selectedYear: number;
 }
 
 const props = defineProps<Props>();
@@ -31,7 +30,6 @@ const pipelineStateStore = usePipelineStateStore();
 const { getModuleTypeIdFromName, isModuleEnabled, isModuleIncomplete } =
   useModuleConfig({
     module: props.module,
-    selectedYear: props.selectedYear,
   });
 
 // Plan 310-D / Issue #1062 — pipeline-scoped SSE consumer drives the
@@ -51,7 +49,7 @@ const {
 const currentPipelineId = computed<string | null>(() =>
   pipelineStateStore.getPipelineId(
     getModuleTypeIdFromName(props.module),
-    props.selectedYear,
+    yearConfigStore.selectedYear,
   ),
 );
 
@@ -62,14 +60,16 @@ async function refreshPipelineState() {
   // the store with a ``0:<year>`` cache key.  Mirrors the falsy-id guard
   // pattern in other useModuleConfig helpers.
   if (!moduleTypeId) return;
-  await pipelineStateStore.loadFor(props.selectedYear, [moduleTypeId]);
+  await pipelineStateStore.loadFor(yearConfigStore.selectedYear, [
+    moduleTypeId,
+  ]);
 }
 
 // Initial fetch + re-fetch on year change — the same module can have
 // different pipeline state across years (e.g. operator switching
 // between report years while a chain runs in the background).
 watch(
-  () => props.selectedYear,
+  () => yearConfigStore.selectedYear,
   () => {
     void refreshPipelineState();
   },
@@ -183,7 +183,7 @@ watch(
     if (finished && !wasFinished && !hasRecalcFailure.value) {
       await Promise.all([
         refreshPipelineState(),
-        yearConfigStore.fetchConfig(props.selectedYear),
+        yearConfigStore.fetchConfig(yearConfigStore.selectedYear),
       ]);
     }
   },
@@ -195,9 +195,7 @@ const {
   confirmModuleRecalculation,
   triggerTypeRecalculation,
   staleTypesForModule,
-} = useRecalculation({
-  selectedYear: props.selectedYear,
-});
+} = useRecalculation();
 
 const showDataEntryDialog = ref(false);
 const dialogCurrentRow = ref<ImportRow | null>(null);
@@ -238,7 +236,7 @@ function openRecalcDialog(moduleTypeId: number) {
 
 async function handleJobCompleted() {
   await Promise.all([
-    yearConfigStore.fetchConfig(props.selectedYear),
+    yearConfigStore.fetchConfig(yearConfigStore.selectedYear),
     refreshPipelineState(),
   ]);
 }
@@ -417,15 +415,14 @@ provide('currentPipelineId', currentPipelineId);
         </q-item-section>
       </template>
 
-      <ModuleConfigSection :module="module" :selected-year="selectedYear" />
+      <ModuleConfigSection :module="module" />
 
       <ModuleUploadsSection
         :module="module"
-        :selected-year="selectedYear"
         :is-module-enabled="isModuleEnabled(module)"
       >
         <template #submodules>
-          <SubmoduleConfig :module="module" :selected-year="selectedYear" />
+          <SubmoduleConfig :module="module" />
         </template>
       </ModuleUploadsSection>
     </q-expansion-item>
@@ -434,7 +431,7 @@ provide('currentPipelineId', currentPipelineId);
   <DataEntryDialog
     v-model="showDataEntryDialog"
     :row="dialogCurrentRow || ({} as ImportRow)"
-    :year="selectedYear"
+    :year="yearConfigStore.selectedYear"
     :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
     @completed="handleJobCompleted"
     @progressing="handleJobProgressing"
