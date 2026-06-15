@@ -18,6 +18,7 @@ import type {
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
 
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
@@ -360,14 +361,9 @@ export const useModuleStore = defineStore('modules', () => {
     // submodule title counts are available without fetching full submodule data.
     moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
-  function modulePath(moduleType: Module, unit: number, year: string) {
-    const moduleTypeEncoded = encodeURIComponent(moduleType);
-    const unitEncoded = encodeURIComponent(unit);
-    const yearEncoded = encodeURIComponent(year);
-    // Backend expects /{unit_id}/{year}/{module_id}
-    const path = `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
-    return path;
-  }
+  // Backend expects /{unit_id}/{year}/{module_id}; buildModulePath throws on
+  // unresolved unit/year so we never fire a `modules/undefined/null/...` 422.
+  const modulePath = buildModulePath;
 
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
@@ -399,6 +395,8 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   async function getModuleData(moduleType: Module, unit: number, year: string) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -426,6 +424,8 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
   ) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
     try {
@@ -478,6 +478,8 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number;
     year: string;
   }) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loadingSubmodule[submoduleType] = true;
     state.errorSubmodule[submoduleType] = null;
     state.dataSubmodule[submoduleType] = null;

@@ -67,6 +67,13 @@ const error = computed(() => moduleStore.state.error);
 // get data on mount and when route params change
 const getData = () => {
   if (!currentModuleType.value) return;
+  // Wait for the workspace to resolve unit/year; the watch re-fires once
+  // they land, so this only defers the fetch (it never drops it).
+  if (
+    workspaceStore.selectedUnit?.id == null ||
+    workspaceStore.selectedYear == null
+  )
+    return;
   if (
     currentModuleType.value &&
     forbiddenModules.includes(currentModuleType.value)
