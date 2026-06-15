@@ -53,6 +53,13 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
             ValueError: When the Unit or CarbonReport cannot be found — these
                         are surfaced as errors, not silent skips.
         """
+        # Skip if kg_co2eq_sum is not missing (already computed)
+        if factor.values.get("kg_co2eq_sum") is not None:
+            logger.info(
+                f"Factor {factor.id} already has kg_co2eq_sum; skipping computation"
+            )
+            return None
+
         researchfacility_id: Optional[str] = factor.classification.get(
             "researchfacility_id"
         )
