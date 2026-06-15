@@ -10,6 +10,7 @@ from typing import Any, Dict, Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
+from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
@@ -94,7 +95,18 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
         breakdown = await DataEntryEmissionRepository(session).get_emission_breakdown(
             carbon_report.id
         )
+        # Filter per emission type: process_emissions, buildings, equipment, purchases
+        included_emission_type_ids = [
+            EmissionType.process_emissions.value,
+            EmissionType.buildings.value,
+            EmissionType.equipment.value,
+            EmissionType.purchases.value,
+        ]
         # breakdown: list of (module_type_id, emission_type_id, kg_co2eq_sum)
-        total: float = sum(kg for _module_type_id, _emission_type_id, kg in breakdown)
+        total: float = sum(
+            kg
+            for _module_type_id, _emission_type_id, kg in breakdown
+            if _emission_type_id in included_emission_type_ids
+        )
 
         return {"kg_co2eq_sum": total}

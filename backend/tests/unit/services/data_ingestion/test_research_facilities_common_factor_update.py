@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.data_entry_emission import EmissionType
 from app.services.data_ingestion.computed_providers.research_facilities_common import (
     ResearchFacilitiesCommonFactorUpdateProvider,
 )
@@ -36,16 +37,18 @@ def _make_carbon_report(report_id: int = 10) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_happy_path_sums_all_emissions():
-    """Multiple emission rows from different modules → kg_co2eq_sum = sum of all."""
+async def test_happy_path_sums_all_valid_emissions():
+    """Multiple emission rows from different modules
+    → kg_co2eq_sum = sum of all emissions of interest."""
     provider = _make_provider()
     factor = _make_factor("RF-001")
     session = MagicMock()
 
     breakdown = [
-        (1, 100, 500.0),
-        (2, 200, 300.0),
-        (3, 300, 200.0),
+        (1, EmissionType.process_emissions.value, 500.0),
+        (2, EmissionType.buildings.value, 300.0),
+        (3, EmissionType.equipment.value, 200.0),
+        (4, EmissionType.research_facilities.value, 600.0),  # Not included in sum
     ]
 
     with (
