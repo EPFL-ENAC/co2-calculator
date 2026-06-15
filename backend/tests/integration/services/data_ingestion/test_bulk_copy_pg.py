@@ -115,3 +115,62 @@ async def test_bulk_copy_rolls_back_with_session_transaction(
 async def test_bulk_copy_empty_batch_is_noop(psycopg_session):
     repo = DataEntryRepository(psycopg_session)
     assert await repo.bulk_copy([]) == 0
+
+
+async def test_year_delete_replaces_only_matching_source_and_year(
+    psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+):
+    """Full-year replace contract: ``bulk_delete_by_source_year`` removes
+    rows matching (year, type, source) via the denormalized ``year``
+    column, leaving other sources and other years untouched."""
+    from app.models.data_entry import DataEntrySourceEnum
+
+    module = await _seed_module(
+        psycopg_session, make_unit, make_carbon_report, make_carbon_report_module
+    )
+    module_id = module.id
+    repo = DataEntryRepository(psycopg_session)
+
+    def _entry(year, source):
+        return DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module_id,
+            data={"name": "x"},
+            year=year,
+            source=source,
+        )
+
+    await repo.bulk_copy(
+        [
+            _entry(2026, DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value),
+            _entry(2026, DataEntrySourceEnum.USER_MANUAL.value),
+            _entry(2025, DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value),
+        ]
+    )
+    await psycopg_session.commit()
+
+    deleted = await repo.bulk_delete_by_source_year(
+        year=2026,
+        data_entry_type_ids=[DataEntryTypeEnum.member.value],
+        source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+    )
+    await psycopg_session.commit()
+    psycopg_session.expire_all()
+
+    assert deleted == 1
+    rows = (
+        (
+            await psycopg_session.execute(
+                select(DataEntry).where(
+                    col(DataEntry.carbon_report_module_id) == module_id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    survivors = {(r.year, r.source) for r in rows}
+    assert survivors == {
+        (2026, DataEntrySourceEnum.USER_MANUAL.value),
+        (2025, DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value),
+    }
