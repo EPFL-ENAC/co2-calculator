@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import urllib.parse
@@ -179,6 +180,13 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
 
             for row_idx, row in enumerate(csv_reader, start=1):
+                # Row processing is pure CPU (validate, in-memory resolution)
+                # and the COPY batch is 50k rows, so without an explicit yield
+                # a large factor file (tens of thousands of rows) starves the
+                # event loop for its whole duration — freezing the API and SSE.
+                # Mirror the data-entry provider and yield regularly.
+                if row_idx % 1000 == 0:
+                    await asyncio.sleep(0)
                 factor, error_msg = await self._process_row(
                     row,
                     row_idx,
