@@ -29,7 +29,6 @@ import { useI18n } from 'vue-i18n';
 
 interface UseModuleConfigOptions {
   module: string;
-  selectedYear: number;
 }
 
 export function useModuleConfig(options: UseModuleConfigOptions) {
@@ -127,7 +126,7 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
     const moduleTypeId = getModuleTypeIdFromName(module);
     if (!moduleTypeId) return;
     try {
-      await yearConfigStore.updateConfig(options.selectedYear, {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
         config: { modules: { [String(moduleTypeId)]: { enabled: value } } },
       });
       Notify.create({ type: 'positive', message: $t('year_config_saved') });
@@ -151,7 +150,7 @@ export function useModuleConfig(options: UseModuleConfigOptions) {
     const moduleTypeId = getModuleTypeIdFromName(module);
     if (!moduleTypeId) return;
     try {
-      await yearConfigStore.updateConfig(options.selectedYear, {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
         config: {
           modules: { [String(moduleTypeId)]: { uncertainty_tag: value } },
         },

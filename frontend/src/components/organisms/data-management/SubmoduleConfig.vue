@@ -4,7 +4,6 @@ import SubmoduleItem from 'src/components/molecules/data-management/SubmoduleIte
 
 interface Props {
   module: string;
-  selectedYear: number;
 }
 
 defineProps<Props>();
@@ -15,7 +14,6 @@ defineProps<Props>();
     v-for="submodule in MODULE_SUBMODULES[module] ?? []"
     :key="submodule.key"
     :submodule="submodule"
-    :selected-year="selectedYear"
   />
 </template>
 

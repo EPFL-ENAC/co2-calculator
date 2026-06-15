@@ -14,12 +14,7 @@ import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
 
-interface UseSubmoduleConfigOptions {
-  module: string;
-  selectedYear: number;
-}
-
-export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
+export function useSubmoduleConfig() {
   const { t: $t } = useI18n();
   const yearConfigStore = useYearConfigStore();
   const backofficeDataManagement = useBackofficeDataManagement();
@@ -124,7 +119,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         : undefined;
     if (!subKey) return;
     try {
-      await yearConfigStore.updateConfig(options.selectedYear, {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
         config: {
           modules: {
             [moduleKey]: { submodules: { [subKey]: { enabled: value } } },
@@ -151,7 +146,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         : undefined;
     if (!subKey) return;
     try {
-      await yearConfigStore.updateConfig(options.selectedYear, {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
         config: {
           modules: {
             [moduleKey]: {
@@ -185,7 +180,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
         : undefined;
     if (!subKey) return;
     try {
-      await yearConfigStore.updateConfig(options.selectedYear, {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
         config: {
           modules: {
             [moduleKey]: {
@@ -220,7 +215,7 @@ export function useSubmoduleConfig(options: UseSubmoduleConfigOptions) {
       const jobId = await backofficeDataManagement.initiateComputedFactorSync(
         sub.moduleTypeId,
         sub.dataEntryTypeId,
-        options.selectedYear,
+        yearConfigStore.selectedYear,
       );
       backofficeDataManagement.subscribeToJobUpdates(
         jobId,
