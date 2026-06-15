@@ -90,6 +90,7 @@ function onValueChange() {
         dense
         outlined
         class="bg-white"
+        @keydown="(e) => e.key === ',' && e.preventDefault()"
         @update:model-value="onValueChange"
       />
       <div v-else class="text-body2">

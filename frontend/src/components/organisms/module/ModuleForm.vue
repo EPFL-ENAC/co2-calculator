@@ -199,6 +199,10 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
+                @keydown="
+                  (e) =>
+                    inp.type === 'number' && e.key === ',' && e.preventDefault()
+                "
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
