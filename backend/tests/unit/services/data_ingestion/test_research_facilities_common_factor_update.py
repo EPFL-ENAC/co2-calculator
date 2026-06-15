@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.data_entry_emission import EmissionType
 from app.services.data_ingestion.computed_providers.research_facilities_common import (
     ResearchFacilitiesCommonFactorUpdateProvider,
 )
@@ -16,7 +17,9 @@ def _make_provider() -> ResearchFacilitiesCommonFactorUpdateProvider:
     )
 
 
-def _make_factor(researchfacility_id: str | None) -> MagicMock:
+def _make_factor(
+    researchfacility_id: str | None, kg_co2eq_sum: float | None = None
+) -> MagicMock:
     factor = MagicMock()
     factor.id = 42
     factor.classification = (
@@ -24,6 +27,7 @@ def _make_factor(researchfacility_id: str | None) -> MagicMock:
         if researchfacility_id is not None
         else {}
     )
+    factor.values = {"kg_co2eq_sum": kg_co2eq_sum} if kg_co2eq_sum is not None else {}
     return factor
 
 
@@ -36,16 +40,18 @@ def _make_carbon_report(report_id: int = 10) -> SimpleNamespace:
 
 
 @pytest.mark.asyncio
-async def test_happy_path_sums_all_emissions():
-    """Multiple emission rows from different modules → kg_co2eq_sum = sum of all."""
+async def test_happy_path_sums_all_valid_emissions():
+    """Multiple emission rows from different modules
+    → kg_co2eq_sum = sum of all emissions of interest."""
     provider = _make_provider()
-    factor = _make_factor("RF-001")
+    factor = _make_factor("RF-001", None)
     session = MagicMock()
 
     breakdown = [
-        (1, 100, 500.0),
-        (2, 200, 300.0),
-        (3, 300, 200.0),
+        (1, EmissionType.process_emissions.value, 500.0),
+        (2, EmissionType.buildings.value, 300.0),
+        (3, EmissionType.equipment.value, 200.0),
+        (4, EmissionType.research_facilities.value, 600.0),  # Not included in sum
     ]
 
     with (
@@ -94,7 +100,7 @@ async def test_unit_not_found_raises_value_error():
 async def test_carbon_report_not_found_raises_value_error():
     """CarbonReport not found → ValueError raised."""
     provider = _make_provider()
-    factor = _make_factor("RF-001")
+    factor = _make_factor("RF-001", None)
     session = MagicMock()
 
     with (
@@ -118,7 +124,7 @@ async def test_carbon_report_not_found_raises_value_error():
 async def test_zero_emissions_returns_zero_sum():
     """Empty emission breakdown → returns {"kg_co2eq_sum": 0.0}."""
     provider = _make_provider()
-    factor = _make_factor("RF-002")
+    factor = _make_factor("RF-002", None)
     session = MagicMock()
 
     with (
@@ -149,7 +155,19 @@ async def test_zero_emissions_returns_zero_sum():
 async def test_missing_researchfacility_id_returns_none():
     """Missing researchfacility_id in classification → returns None (factor skipped)."""
     provider = _make_provider()
-    factor = _make_factor(None)
+    factor = _make_factor(None, None)
+    session = MagicMock()
+
+    result = await provider.compute_factor_values(factor, 2025, session)
+
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_existing_kg_co2eq_sum_skips_computation():
+    """Existing kg_co2eq_sum in factor.values → returns None (factor skipped)."""
+    provider = _make_provider()
+    factor = _make_factor("RF-003", kg_co2eq_sum=123.45)
     session = MagicMock()
 
     result = await provider.compute_factor_values(factor, 2025, session)

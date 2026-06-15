@@ -586,12 +586,12 @@ export default {
     fr: 'Calculer les facteurs',
   },
   data_management_compute_factors_confirm_title: {
-    en: 'Recompute Factors',
-    fr: 'Recalculer les facteurs',
+    en: 'Compute Missing Factors',
+    fr: 'Calculer les facteurs manquants',
   },
   data_management_compute_factors_confirm_message: {
-    en: 'This will recompute the emission factors from the existing data entries for this submodule. Any previously computed factors will be overwritten. Do you want to proceed?',
-    fr: "Ceci recalculera les facteurs d'émission à partir des données existantes pour ce sous-module. Les facteurs précédemment calculés seront écrasés. Souhaitez-vous continuer ?",
+    en: 'This will compute the emission factors from the existing data entries for this submodule. Only factors with missing values will be updated. Do you want to proceed?',
+    fr: "Ceci calculera les facteurs d'émission à partir des données existantes pour ce sous-module. Uniquement les facteurs avec des valeurs manquantes seront mis à jour. Souhaitez-vous continuer ?",
   },
   data_management_compute_factors_success: {
     en: 'Factors computed successfully',
