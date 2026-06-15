@@ -665,7 +665,7 @@ class TestDelegationMethods:
 
 # from app.models.data_entry import DataEntryTypeEnum
 # from app.models.factor import Factor
-# from app.modules.equipment_electric_consumption.emissions import (
+# from app.modules.equipment.emissions import (
 #     compute_scientific_it_other,
 # )
 # from app.modules.external_cloud_and_ai.emissions import (

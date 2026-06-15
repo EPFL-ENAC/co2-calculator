@@ -45,7 +45,7 @@ from app.models.user import UserProvider
 _MT_NO_AGG = 1  # ModuleTypeEnum.headcount
 _MT_FAILED = 2  # ModuleTypeEnum.professional_travel
 _MT_TOO_OLD = 3  # ModuleTypeEnum.buildings
-_MT_STUCK = 4  # ModuleTypeEnum.equipment_electric_consumption
+_MT_STUCK = 4  # ModuleTypeEnum.equipment
 
 _YEAR = 2025
 

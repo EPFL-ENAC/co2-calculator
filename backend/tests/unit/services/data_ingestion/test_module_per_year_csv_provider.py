@@ -241,14 +241,12 @@ async def test_resolve_handler_and_validate_missing_factor_no_config():
 
 @pytest.mark.asyncio
 async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
-    """ModuleTypeEnum.equipment_electric_consumption + empty factors_map
+    """ModuleTypeEnum.equipment + empty factors_map
     raises at setup — the per-row loop is never entered."""
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
-    provider.job = SimpleNamespace(
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value
-    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.equipment.value)
 
     handler = MagicMock()
     handler.create_dto.model_fields = {}
@@ -269,7 +267,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
         await provider._setup_handlers_and_factors()
 
     msg = str(exc.value)
-    assert "equipment_electric_consumption" in msg
+    assert "equipment" in msg
     assert "factors" in msg.lower()
     assert "infers" in msg.lower()
 

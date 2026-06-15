@@ -349,7 +349,7 @@ async def _chain_recalc_for_stale(
         ]
     elif job.module_type_id is not None and job.data_entry_type_id is None:
         # Multi-type factor upload (e.g. equipments_factors.csv covers
-        # scientific + it + other under module=equipment_electric_consumption).
+        # scientific + it + other under module=equipment).
         # Same RUNNING-parent hazard, different resolution: expand to one
         # target per det via MODULE_TYPE_TO_DATA_ENTRY_TYPES.
         try:

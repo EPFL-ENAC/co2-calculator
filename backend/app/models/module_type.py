@@ -25,7 +25,7 @@ class ModuleTypeEnum(IntEnum):
     headcount = 1
     professional_travel = 2
     buildings = 3
-    equipment_electric_consumption = 4
+    equipment = 4
     purchase = 5
     research_facilities = 6
     external_cloud_and_ai = 7
@@ -42,7 +42,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.member,
         DataEntryTypeEnum.student,
     ],
-    ModuleTypeEnum.equipment_electric_consumption: [
+    ModuleTypeEnum.equipment: [
         DataEntryTypeEnum.scientific,
         DataEntryTypeEnum.it,
         DataEntryTypeEnum.other,
@@ -95,7 +95,7 @@ MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
         EmissionType.buildings,
         EmissionType.buildings__embodied_energy,
     ],
-    ModuleTypeEnum.equipment_electric_consumption: [EmissionType.equipment],
+    ModuleTypeEnum.equipment: [EmissionType.equipment],
     ModuleTypeEnum.purchase: [EmissionType.purchases],
     ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
     ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],

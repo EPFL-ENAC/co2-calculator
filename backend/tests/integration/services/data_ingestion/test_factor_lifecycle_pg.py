@@ -197,14 +197,14 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
     try:
         async with Sf() as s:
             module_id = await _seed_unit_and_module(
-                s, module_type=ModuleTypeEnum.equipment_electric_consumption
+                s, module_type=ModuleTypeEnum.equipment
             )
 
             # FACTORS job that ``upsert_factors`` will stamp on
             # ``last_seen_job_id``.  ``data_entry_type_id`` pinned to ``it``
             # so the row is shaped like a single-type factor upload.
             job = _seed_factor_job(
-                module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+                module_type_id=ModuleTypeEnum.equipment.value,
                 data_entry_type_id=DataEntryTypeEnum.it.value,
             )
             s.add(job)
@@ -468,12 +468,12 @@ async def test_factor_upsert_triggers_recompute(pg_dsn):
     try:
         async with Sf() as s:
             module_id = await _seed_unit_and_module(
-                s, module_type=ModuleTypeEnum.equipment_electric_consumption
+                s, module_type=ModuleTypeEnum.equipment
             )
 
             # First factor job — original values.
             job_v1 = _seed_factor_job(
-                module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+                module_type_id=ModuleTypeEnum.equipment.value,
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 is_current=False,
             )
@@ -562,7 +562,7 @@ async def test_factor_upsert_triggers_recompute(pg_dsn):
         # Reupload — same identity, doubled EF.  Second is_current job.
         async with Sf() as s:
             job_v2 = _seed_factor_job(
-                module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+                module_type_id=ModuleTypeEnum.equipment.value,
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 is_current=True,
             )
@@ -678,12 +678,12 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     try:
         async with Sf() as s:
             module_id = await _seed_unit_and_module(
-                s, module_type=ModuleTypeEnum.equipment_electric_consumption
+                s, module_type=ModuleTypeEnum.equipment
             )
 
             # ── factors.csv #1 — F (Laptop / Standard) ─────────────────
             job_v1 = _seed_factor_job(
-                module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+                module_type_id=ModuleTypeEnum.equipment.value,
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 is_current=False,  # demoted by the v2 upload below
             )
@@ -774,7 +774,7 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
         # ── factors.csv #2 — F MISSING, only Tablet/Standard ───────────
         async with Sf() as s:
             job_v2 = _seed_factor_job(
-                module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+                module_type_id=ModuleTypeEnum.equipment.value,
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 is_current=True,
             )

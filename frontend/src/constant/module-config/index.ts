@@ -1,5 +1,5 @@
 import { ModuleConfig } from 'src/constant/moduleConfig';
-import { equipment } from 'src/constant/module-config/equipment-electric-consumption';
+import { equipment } from 'src/constant/module-config/equipment';
 import { professionalTravel } from 'src/constant/module-config/professional-travel';
 import { headcount } from 'src/constant/module-config/headcount';
 import { researchFacilities } from 'src/constant/module-config/research-facilities';

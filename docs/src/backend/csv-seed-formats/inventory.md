@@ -31,7 +31,7 @@ One row per `(classification, year)` tuple. Required columns come from the corre
 | `travel_planes_factors.csv`              | `category`, `ef_kg_co2eq_per_km`, `class_adjustement`, `rfi_adjustment`, `min_distance`, `max_distance`                                                                                                                                                                                |
 | `travel_trains_factors.csv`              | `country_code`, `ef_kg_co2eq_per_km`                                                                                                                                                                                                                                                   |
 
-[^1]: Listed in spec; **not a column on `EquipmentFactorCreate`** in `backend/app/modules/equipment_electric_consumption/schemas.py:267-275`. The string `equipment_category` is `EquipmentModuleHandler.category_field`, used to resolve the `data_entry_type` (it/scientific/other) from the row at parse time, not stored on the factor row.
+[^1]: Listed in spec; **not a column on `EquipmentFactorCreate`** in `backend/app/modules/equipment/schemas.py:267-275`. The string `equipment_category` is `EquipmentModuleHandler.category_field`, used to resolve the `data_entry_type` (it/scientific/other) from the row at parse time, not stored on the factor row.
 
 [^2]: Listed in spec; **not a column on `PurchaseCommonFactorCreate`** in `backend/app/modules/purchase/schemas.py:398-410`. Same shape as `equipment_category`: `purchase_category` is `PurchaseModuleHandler.category_field`, used to resolve the purchase data_entry_type (e.g. `services`, `vehicles`) from the row, not persisted as a factor field.
 

@@ -348,7 +348,7 @@ async def test_get_emission_breakdown_includes_non_validated_modules(
 
     validated_module = CarbonReportModule(
         carbon_report_id=42,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     in_progress_module = CarbonReportModule(
@@ -395,11 +395,9 @@ async def test_get_emission_breakdown_includes_non_validated_modules(
     result = await repo.get_emission_breakdown(carbon_report_id=42)
 
     result_by_module = {row[0]: row for row in result}
-    assert ModuleTypeEnum.equipment_electric_consumption.value in result_by_module
+    assert ModuleTypeEnum.equipment.value in result_by_module
     assert ModuleTypeEnum.professional_travel.value in result_by_module
-    assert result_by_module[ModuleTypeEnum.equipment_electric_consumption.value][
-        2
-    ] == pytest.approx(1200.0)
+    assert result_by_module[ModuleTypeEnum.equipment.value][2] == pytest.approx(1200.0)
     assert result_by_module[ModuleTypeEnum.professional_travel.value][
         2
     ] == pytest.approx(800.0)
@@ -412,12 +410,12 @@ async def test_get_emission_breakdown_excludes_other_reports(db_session: AsyncSe
 
     module_target = CarbonReportModule(
         carbon_report_id=100,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.IN_PROGRESS,
     )
     module_other = CarbonReportModule(
         carbon_report_id=101,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     db_session.add_all([module_target, module_other])
@@ -459,7 +457,7 @@ async def test_get_emission_breakdown_excludes_other_reports(db_session: AsyncSe
     result = await repo.get_emission_breakdown(carbon_report_id=100)
 
     assert len(result) == 1
-    assert result[0][0] == ModuleTypeEnum.equipment_electric_consumption.value
+    assert result[0][0] == ModuleTypeEnum.equipment.value
     assert result[0][2] == pytest.approx(500.0)
 
 
@@ -702,7 +700,7 @@ async def _seed_emission(db_session, module, name, kg):
     await db_session.flush()
 
 
-_EQ = ModuleTypeEnum.equipment_electric_consumption.value
+_EQ = ModuleTypeEnum.equipment.value
 _PT = ModuleTypeEnum.professional_travel.value
 _VAL = ModuleStatus.VALIDATED
 _WIP = ModuleStatus.IN_PROGRESS
@@ -826,7 +824,7 @@ async def test_emission_stats_single_validated(db_session: AsyncSession):
 
     module = CarbonReportModule(
         carbon_report_id=1,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     db_session.add(module)
@@ -835,9 +833,7 @@ async def test_emission_stats_single_validated(db_session: AsyncSession):
     await _seed_emission(db_session, module, "Item", 4200.0)
 
     result = await repo.get_stats_by_carbon_report_id(1)
-    assert result == {
-        str(ModuleTypeEnum.equipment_electric_consumption.value): pytest.approx(4200.0)
-    }
+    assert result == {str(ModuleTypeEnum.equipment.value): pytest.approx(4200.0)}
 
 
 @pytest.mark.asyncio
@@ -847,7 +843,7 @@ async def test_emission_stats_multi_modules(db_session: AsyncSession):
 
     equip = CarbonReportModule(
         carbon_report_id=2,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     travel = CarbonReportModule(
@@ -863,9 +859,7 @@ async def test_emission_stats_multi_modules(db_session: AsyncSession):
 
     result = await repo.get_stats_by_carbon_report_id(2)
     assert len(result) == 2
-    assert result[
-        str(ModuleTypeEnum.equipment_electric_consumption.value)
-    ] == pytest.approx(3000.0)
+    assert result[str(ModuleTypeEnum.equipment.value)] == pytest.approx(3000.0)
     assert result[str(ModuleTypeEnum.professional_travel.value)] == pytest.approx(
         1500.0
     )
@@ -878,7 +872,7 @@ async def test_emission_stats_excludes_in_progress(db_session: AsyncSession):
 
     module = CarbonReportModule(
         carbon_report_id=3,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.IN_PROGRESS,
     )
     db_session.add(module)
@@ -897,12 +891,12 @@ async def test_emission_stats_excludes_other_report(db_session: AsyncSession):
 
     mod_a = CarbonReportModule(
         carbon_report_id=10,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     mod_b = CarbonReportModule(
         carbon_report_id=11,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.VALIDATED,
     )
     db_session.add_all([mod_a, mod_b])
@@ -1009,7 +1003,7 @@ async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
 
     module = CarbonReportModule(
         carbon_report_id=200,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.IN_PROGRESS,
     )
     db_session.add(module)
@@ -1038,7 +1032,7 @@ async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
     result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=200)
     assert len(result) == 1
     module_type_id, emission_type_id, kg, additional_value = result[0]
-    assert module_type_id == ModuleTypeEnum.equipment_electric_consumption.value
+    assert module_type_id == ModuleTypeEnum.equipment.value
     assert emission_type_id == EmissionType.equipment__scientific.value
     assert kg == pytest.approx(1500.0)
     assert additional_value is None

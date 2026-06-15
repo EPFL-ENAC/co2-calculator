@@ -373,7 +373,7 @@ async def get_stats_by_class(
 # Configuration for the generic top-class breakdown endpoint.
 # Maps module type → JSON data field to group by.
 _MODULE_TOP_CLASS_GROUP_FIELD: dict[ModuleTypeEnum, str] = {
-    ModuleTypeEnum.equipment_electric_consumption: "equipment_class",
+    ModuleTypeEnum.equipment: "equipment_class",
     ModuleTypeEnum.purchase: "purchase_institutional_code",
     ModuleTypeEnum.research_facilities: "researchfacility_name",
 }

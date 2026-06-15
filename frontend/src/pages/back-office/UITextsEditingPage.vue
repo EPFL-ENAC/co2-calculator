@@ -33,10 +33,8 @@ const rows = computed(() => [
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/buildings.ts',
   },
   {
-    topic: t('documentation_editing_rows_equipment_electric_consumption_topic'),
-    description: t(
-      'documentation_editing_rows_equipment_electric_consumption_description',
-    ),
+    topic: t('documentation_editing_rows_equipment_topic'),
+    description: t('documentation_editing_rows_equipment_description'),
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator/blob/dev/frontend/src/i18n/equipment.ts',
   },

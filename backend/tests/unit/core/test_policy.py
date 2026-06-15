@@ -23,8 +23,8 @@ class TestGetModulePermissionPath:
         assert result == "modules.professional_travel"
 
     def test_equipment_module(self):
-        """Test mapping for equipment-electric-consumption module."""
-        result = _get_module_permission_path("equipment-electric-consumption")
+        """Test mapping for equipment module."""
+        result = _get_module_permission_path("equipment")
         assert result == "modules.equipment"
 
     def test_buildings_module(self):
@@ -123,9 +123,7 @@ class TestCheckModulePermission:
 
         # Should raise HTTPException
         with pytest.raises(HTTPException) as exc_info:
-            await check_module_permission(
-                user, "equipment-electric-consumption", "edit"
-            )
+            await check_module_permission(user, "equipment", "edit")
 
         assert exc_info.value.status_code == 403
         assert "Permission denied" in exc_info.value.detail
@@ -216,7 +214,7 @@ class TestCheckModulePermission:
 
         modules = [
             ("professional-travel", "modules.professional_travel"),
-            ("equipment-electric-consumption", "modules.equipment"),
+            ("equipment", "modules.equipment"),
             ("my-lab", "modules.headcount"),
             ("external-cloud-and-ai", "modules.external_cloud_and_ai"),
         ]

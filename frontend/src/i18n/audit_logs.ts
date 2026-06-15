@@ -77,9 +77,9 @@ export default {
     en: 'Buildings',
     fr: 'Bâtiments',
   },
-  audit_module_equipment_electric: {
-    en: 'Equipment Electric Consumption',
-    fr: 'Consommation électrique des équipements',
+  audit_module_equipment: {
+    en: 'Equipment',
+    fr: 'Équipements',
   },
   audit_module_purchase: {
     en: 'Purchase',

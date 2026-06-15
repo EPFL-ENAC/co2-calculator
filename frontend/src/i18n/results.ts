@@ -465,10 +465,6 @@ export default {
     en: 'Construction and renovation',
     fr: 'Constructions et rénovations',
   },
-  'charts-equipment-electric-consumption-category': {
-    en: 'Equipment',
-    fr: 'Équipements',
-  },
   'charts-external-cloud-category': {
     en: 'External clouds & AI',
     fr: 'Clouds externes & IA',

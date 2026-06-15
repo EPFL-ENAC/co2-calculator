@@ -1,7 +1,7 @@
-"""Integration tests: equipment-electric-consumption sort by ``equipment_class``.
+"""Integration tests: equipment sort by ``equipment_class``.
 
 Reproduces the bug reported against the ``scientific`` submodule list endpoint
-(e.g. ``/api/v1/modules/610/2025/equipment-electric-consumption/scientific
+(e.g. ``/api/v1/modules/610/2025/equipment/scientific
 ?sort_by=equipment_class&sort_order=asc``).
 
 Two behaviours are pinned:
@@ -40,7 +40,7 @@ async def _seed_base(session: AsyncSession) -> CarbonReportModule:
 
     module = CarbonReportModule(
         carbon_report_id=report.id,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         status=ModuleStatus.NOT_STARTED,
     )
     session.add(module)

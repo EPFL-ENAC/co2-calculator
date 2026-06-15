@@ -123,7 +123,7 @@ export const enumSubmodule = {
 
 export type EnumSubmoduleType = keyof typeof enumSubmodule;
 
-export type EquipmentElectricConsumptionSubType =
+export type EquipmentSubType =
   (typeof SUBMODULE_EQUIPMENT_TYPES)[keyof typeof SUBMODULE_EQUIPMENT_TYPES];
 
 export const SUBMODULE_HEADCOUNT_TYPES = {
@@ -150,7 +150,7 @@ type BuildingsProps = {
 
 type EquipmentElectricConsumptionProps = {
   moduleType: typeof MODULES.Equipment;
-  submoduleType?: AllSubmoduleTypes; // EquipmentElectricConsumptionSubType;
+  submoduleType?: AllSubmoduleTypes; // EquipmentSubType;
 };
 
 export type HeadcountProps = {

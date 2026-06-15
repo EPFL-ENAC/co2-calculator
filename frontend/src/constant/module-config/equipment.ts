@@ -1,9 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
-import type {
-  Module,
-  EquipmentElectricConsumptionSubType,
-} from 'src/constant/modules';
+import type { Module, EquipmentSubType } from 'src/constant/modules';
 
 import {
   MODULES,
@@ -224,7 +221,7 @@ export const equipment: ModuleConfig = {
   submodules: [
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Scientific,
-      type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentElectricConsumptionSubType,
+      type: SUBMODULE_EQUIPMENT_TYPES.Scientific as EquipmentSubType,
       // name: 'Scientific equipment',
       tableNameKey: 'equipment-scientific-equipment-table-title',
       count: 4,
@@ -232,7 +229,7 @@ export const equipment: ModuleConfig = {
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.IT,
-      type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentElectricConsumptionSubType,
+      type: SUBMODULE_EQUIPMENT_TYPES.IT as EquipmentSubType,
       // name: 'IT equipment',
       tableNameKey: 'equipment-it-equipment-table-title',
       count: 4,
@@ -240,7 +237,7 @@ export const equipment: ModuleConfig = {
     },
     {
       id: SUBMODULE_EQUIPMENT_TYPES.Other,
-      type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentElectricConsumptionSubType,
+      type: SUBMODULE_EQUIPMENT_TYPES.Other as EquipmentSubType,
       // name: 'Other',
       tableNameKey: 'equipment-other-equipment-table-title',
       count: 4,

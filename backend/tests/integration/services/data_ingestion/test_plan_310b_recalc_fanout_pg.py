@@ -47,7 +47,7 @@ def _multi_type_factor_job() -> DataIngestionJob:
     the equipments module with no specific data_entry_type set."""
     return DataIngestionJob(
         entity_type=EntityType.MODULE_PER_YEAR,
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+        module_type_id=ModuleTypeEnum.equipment.value,
         data_entry_type_id=None,  # multi-type CSV — det resolved per row
         year=2025,
         target_type=TargetType.FACTORS,
@@ -98,7 +98,7 @@ async def test_fanout_creates_one_child_per_det_for_multitype_parent(pg_dsn):
             await session.execute(
                 select(DataIngestionJob).where(
                     col(DataIngestionJob.module_type_id)
-                    == ModuleTypeEnum.equipment_electric_consumption.value,
+                    == ModuleTypeEnum.equipment.value,
                     col(DataIngestionJob.target_type) == TargetType.FACTORS,
                 )
             )

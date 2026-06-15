@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 # to ``DataEntryTypeEnum`` names, so an empty factors_map is a
 # legitimate state (they ingest rows with ``primary_factor_id=None``).
 _FACTOR_INFERRED_MODULES: set[ModuleTypeEnum] = {
-    ModuleTypeEnum.equipment_electric_consumption,
+    ModuleTypeEnum.equipment,
     ModuleTypeEnum.purchase,
 }
 

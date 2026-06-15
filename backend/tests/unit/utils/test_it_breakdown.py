@@ -36,7 +36,7 @@ class TestBuildItBreakdown:
     def test_basic_aggregation_from_all_sources(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 5_000.0,
             ),
@@ -83,7 +83,7 @@ class TestBuildItBreakdown:
     def test_zero_fte_gives_zero_per_fte(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 5_000.0,
             ),
@@ -96,7 +96,7 @@ class TestBuildItBreakdown:
     def test_zero_total_emissions_gives_zero_percentage(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 5_000.0,
             ),
@@ -108,12 +108,12 @@ class TestBuildItBreakdown:
     def test_non_it_rows_are_ignored(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__scientific.value,
                 10_000.0,
             ),
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 2_000.0,
             ),
@@ -130,7 +130,7 @@ class TestBuildItBreakdown:
     def test_scope_breakdown(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 4_000.0,
             ),
@@ -184,7 +184,7 @@ class TestBuildItBreakdown:
 
     def test_validation_all_validated(self):
         validated = {
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             ModuleTypeEnum.purchase.value,
             ModuleTypeEnum.external_cloud_and_ai.value,
             ModuleTypeEnum.research_facilities.value,
@@ -199,7 +199,7 @@ class TestBuildItBreakdown:
         assert len(result["validated_sources"]) == 4
 
     def test_validation_partial(self):
-        validated = {ModuleTypeEnum.equipment_electric_consumption.value}
+        validated = {ModuleTypeEnum.equipment.value}
         result = build_it_breakdown(
             [],
             validated_module_type_ids=validated,
@@ -220,7 +220,7 @@ class TestBuildItBreakdown:
     def test_percentage_correctness(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 3_000.0,
             ),
@@ -246,7 +246,7 @@ class TestBuildItBreakdown:
         rows = [
             (4, 999999, 5_000.0),
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 1_000.0,
             ),
@@ -257,7 +257,7 @@ class TestBuildItBreakdown:
     def test_exclude_modules_drops_research_and_recomputes_percentage_denominator(self):
         rows = [
             (
-                ModuleTypeEnum.equipment_electric_consumption.value,
+                ModuleTypeEnum.equipment.value,
                 EmissionType.equipment__it.value,
                 1_000.0,
             ),
@@ -280,7 +280,7 @@ class TestBuildItBreakdown:
 
     def test_exclude_modules_omits_excluded_category_from_validation_requirement(self):
         validated = {
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             ModuleTypeEnum.purchase.value,
             ModuleTypeEnum.external_cloud_and_ai.value,
         }

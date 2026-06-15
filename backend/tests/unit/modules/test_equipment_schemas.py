@@ -28,7 +28,7 @@ from pydantic import ValidationError
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
-from app.modules.equipment_electric_consumption.schemas import (
+from app.modules.equipment.schemas import (
     EquipmentFactorCreate,
     EquipmentHandlerCreate,
 )
