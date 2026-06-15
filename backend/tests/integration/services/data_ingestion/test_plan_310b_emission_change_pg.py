@@ -61,7 +61,7 @@ async def test_factor_reupload_recomputes_emission_in_db(pg_dsn):
 
         module = CarbonReportModule(
             carbon_report_id=report_id,
-            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+            module_type_id=ModuleTypeEnum.equipment.value,
         )
         s.add(module)
         await s.commit()

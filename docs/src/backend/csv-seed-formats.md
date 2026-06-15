@@ -159,7 +159,7 @@ loads one handler. Required columns come from the handler's
 For the equipment handler the columns are
 `name, equipment_class, sub_class, active_usage_hours_per_week,
 standby_usage_hours_per_week, note` (verified against
-`backend/app/modules/equipment_electric_consumption/schemas.py::EquipmentHandlerCreate`).
+`backend/app/modules/equipment/schemas.py::EquipmentHandlerCreate`).
 
 ### Validation rules
 

@@ -55,8 +55,8 @@ const moduleOptions = computed(() => [
   },
   { label: t('audit_module_buildings'), value: 'buildings' },
   {
-    label: t('audit_module_equipment_electric'),
-    value: 'equipment_electric_consumption',
+    label: t('audit_module_equipment'),
+    value: 'equipment',
   },
   { label: t('audit_module_purchase'), value: 'purchase' },
   {

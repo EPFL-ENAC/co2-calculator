@@ -8,19 +8,14 @@
       </div>
 
       <q-icon
-        v-if="hasTooltip"
+        v-if="formTooltipText"
         :name="outlinedInfo"
         size="sm"
         class="cursor-pointer"
-        :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
+        :aria-label="$t('module-info-label')"
       >
-        <q-tooltip
-          v-if="typeof hasTooltip === 'string'"
-          anchor="center right"
-          self="top right"
-          class="u-tooltip"
-        >
-          {{ $t(hasTooltip) }}
+        <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+          {{ formTooltipText }}
         </q-tooltip>
       </q-icon>
     </q-card-section>
@@ -45,7 +40,7 @@
                 v-if="
                   (inp.disableUntilField && !form[inp.disableUntilField]) ||
                   (inp.optionsId === 'subkind' &&
-                    !loadingSubclasses &&
+                    !isSubkindLoading &&
                     (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
                 "
               >
@@ -171,6 +166,30 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <VirtualSelectField
+                v-else-if="
+                  (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
+                  moduleType === MODULES.Purchase
+                "
+                :model-value="form[inp.id]"
+                :options="getFilteredOptions(inp)"
+                :loading="
+                  inp.optionsId === 'kind' ? loadingClasses : isSubkindLoading
+                "
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                :icon="inp.icon"
+                @update:model-value="(val) => (form[inp.id] = val)"
+              />
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -182,15 +201,9 @@
                 "
                 :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
                 :hint="inp.hint ? $t(inp.hint) : null"
-                :type="inp.type === 'number' ? 'number' : undefined"
+                :inputmode="inp.type === 'number' ? 'decimal' : undefined"
                 :options="getFilteredOptions(inp)"
-                :loading="
-                  inp.optionsId === 'kind'
-                    ? loadingClasses
-                    : inp.optionsId === 'subkind'
-                      ? loadingSubclasses
-                      : false
-                "
+                :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
                 :min="inp.min"
@@ -204,6 +217,7 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
+                @blur="validateField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -313,6 +327,7 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
 import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
@@ -349,7 +364,6 @@ const props = withDefaults(
     rowData?: Record<string, FieldValue> | null;
     submoduleType: AllSubmoduleTypes;
     moduleType: Module | string;
-    hasTooltip?: boolean | string;
     hasSubtitle?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
@@ -361,7 +375,6 @@ const props = withDefaults(
   {
     fields: null,
     rowData: null,
-    hasTooltip: true,
     hasSubtitle: false,
     hasAddWithNote: true,
     addButtonLabelKey: 'common_add_button',
@@ -370,6 +383,10 @@ const props = withDefaults(
     formDefaults: undefined,
     moduleColor: undefined,
   },
+);
+
+const formTooltipText = computed(() =>
+  $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),
 );
 
 const moduleColors = computed(() =>
@@ -516,6 +533,10 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
+  const taxoChildMap = new Map(
+    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
+  );
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
       const key = inp.optionLabelKey.replace(
@@ -525,9 +546,7 @@ function getFilteredOptions(
       opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
-    const taxoOptNode = taxoNode?.children?.find(
-      (node) => node.name === opt.value,
-    );
+    const taxoOptNode = taxoChildMap.get(opt.value);
     const translationKey = taxoOptNode?.translation_key;
     if (translationKey && $te(translationKey)) {
       opt.label = $t(translationKey);
@@ -595,7 +614,7 @@ const subkindFieldId = computed(() => {
 //   saved value is preserved.
 const factorValueFieldIds: string[] = [];
 const factorDefaultFieldIds: string[] = [];
-if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+if (props.moduleType === MODULES.Equipment) {
   factorValueFieldIds.push('active_power_w', 'standby_power_w');
   factorDefaultFieldIds.push(
     'active_usage_hours_per_week',
@@ -622,13 +641,22 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     toRef(props, 'year'),
   );
 
-const { dynamicOptions: buildingRoomDynamicOptions } =
+const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
   useBuildingRoomDynamicOptions(
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     toRef(props, 'year'),
   );
+
+const isSubkindLoading = computed(() => {
+  if (
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
+  )
+    return loadingRooms.value;
+  return loadingSubclasses.value;
+});
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
@@ -943,12 +971,22 @@ function validateField(i: ModuleField) {
     }
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
-    const n = Number(v);
-    if (Number.isNaN(n)) errors[i.id] = $t('validation_number_required');
-    if (i.min !== undefined && n < i.min)
-      errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
-    if (i.max !== undefined && n > i.max)
-      errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+    const s = typeof v === 'string' ? v.trim() : String(v);
+    // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+    const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+
+    if (s.includes(',')) {
+      // Targeted message: FR/CH users instinctively type a comma separator
+      errors[i.id] = $t('validation_use_dot_not_comma');
+    } else if (!NUMBER_RE.test(s)) {
+      errors[i.id] = $t('validation_number_format');
+    } else {
+      const n = Number(s);
+      if (i.min !== undefined && n < i.min)
+        errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
+      else if (i.max !== undefined && n > i.max)
+        errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+    }
   }
   return !errors[i.id];
 }

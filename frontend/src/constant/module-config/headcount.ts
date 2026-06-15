@@ -85,6 +85,7 @@ const studentFields: ModuleField[] = [
     sortable: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],
+    tooltip: 'module-headcount-submodule-student-table-fte',
   },
 ];
 
@@ -93,8 +94,6 @@ export const headcount: ModuleConfig = {
   type: MODULES.Headcount as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   name: 'Headcount',
   description:
     'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',
@@ -115,7 +114,6 @@ export const headcount: ModuleConfig = {
       type: 'member',
       tableNameKey: 'headcount-member-table-title',
       moduleFields: memberFieldDynamicIcons,
-      hasFormTooltip: false,
       csvTemplateHeaders: [
         'name',
         'sius_code',
@@ -129,7 +127,6 @@ export const headcount: ModuleConfig = {
       type: 'student',
       tableNameKey: 'headcount-student-table-title',
       hasTableTopBar: false,
-      hasFormTooltip: false,
       hasFormSubtitle: true,
       hasFormAddWithNote: false,
       hasTablePagination: false,

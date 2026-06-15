@@ -8,7 +8,7 @@ import { MODULE_TO_CATEGORIES } from 'src/constant/charts';
 const BREAKDOWN_MODULES = [
   MODULES.ProcessEmissions,
   MODULES.Buildings,
-  MODULES.EquipmentElectricConsumption,
+  MODULES.Equipment,
   MODULES.ExternalCloudAndAI,
   MODULES.Purchase,
   MODULES.ResearchFacilities,
@@ -32,6 +32,9 @@ export function useBackofficePrintBase() {
   const loading = computed(() => backofficeStore.unitsLoading);
   const reportingEmissionBreakdown = computed(
     () => units.value?.emission_breakdown ?? null,
+  );
+  const reportingItBreakdown = computed(
+    () => units.value?.it_breakdown ?? null,
   );
   const validatedCount = computed(
     () => units.value?.validated_units_count ?? 0,
@@ -69,6 +72,7 @@ export function useBackofficePrintBase() {
     units,
     loading,
     reportingEmissionBreakdown,
+    reportingItBreakdown,
     validatedCount,
     tableTotal,
     availableModules,

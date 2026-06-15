@@ -230,6 +230,9 @@ class DataEntryEmissionService:
         self,
         data_entry: DataEntry | DataEntryResponse,
         kg_co2eq_override: float | None = None,
+        *,
+        year: int | None = None,
+        factor_cache: dict[int, Factor] | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
 
@@ -311,7 +314,11 @@ class DataEntryEmissionService:
         # This avoids unnecessary DB calls to fetch the report when tests
         # replace `_get_year_from_data_entry` with an AsyncMock.
         report = None
-        year = await self._get_year_from_data_entry(data_entry)
+        # Bulk callers (the recalc workflow) pass ``year`` directly —
+        # they already know the slice's year, so the per-entry
+        # module→report lookup is skipped entirely.
+        if year is None:
+            year = await self._get_year_from_data_entry(data_entry)
         if year is None:
             # Fallback to loading the full report only when year couldn't be
             # resolved via the helper. This keeps behavior unchanged for
@@ -339,7 +346,9 @@ class DataEntryEmissionService:
             computations = handler.resolve_computations(data_entry, emission_type, ctx)
 
             for comp in computations:
-                factors = await self._fetch_factors(comp, year)
+                factors = await self._fetch_factors(
+                    comp, year, factor_cache=factor_cache
+                )
 
                 if report is not None:
                     override_kg = await self._get_percentage_override_kg(
@@ -482,7 +491,11 @@ class DataEntryEmissionService:
         return results
 
     async def _fetch_factors(
-        self, comp: EmissionComputation, year: Optional[int] = None
+        self,
+        comp: EmissionComputation,
+        year: Optional[int] = None,
+        *,
+        factor_cache: dict[int, Factor] | None = None,
     ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
 
@@ -514,7 +527,14 @@ class DataEntryEmissionService:
 
         # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
-            factor = await factor_service.get(comp.factor_id)
+            # Bulk callers prefetch the slice's factors once; a cache
+            # miss still falls back to the DB so semantics (including
+            # the year-mismatch warning below) are unchanged.
+            factor = None
+            if factor_cache is not None:
+                factor = factor_cache.get(comp.factor_id)
+            if factor is None:
+                factor = await factor_service.get(comp.factor_id)
             # Filter by year if factor exists and year is specified
             if factor and year is not None and factor.year != year:
                 logger.warning(
@@ -659,6 +679,24 @@ class DataEntryEmissionService:
         """Create emissions for multiple data entries, if applicable."""
         created_emissions = await self.repo.bulk_create(emission_records)
         return created_emissions
+
+    async def bulk_replace_for_entries(
+        self,
+        data_entry_ids: list[int],
+        emissions: list[DataEntryEmission],
+    ) -> int:
+        """Replace the emissions of a whole recalc slice in two set
+        operations: one chunked DELETE over ``data_entry_ids``, one COPY
+        of the freshly computed ``emissions``.
+
+        Entries whose recompute produced no emissions must still be in
+        ``data_entry_ids`` so their stale rows are deleted — the same
+        contract ``upsert_by_data_entry`` honors per entry.
+        """
+        if not data_entry_ids:
+            return 0
+        await self.repo.delete_by_data_entry_ids(data_entry_ids)
+        return await self.repo.bulk_copy(emissions)
 
     async def upsert_by_data_entry(
         self, data_entry_response: DataEntryResponse

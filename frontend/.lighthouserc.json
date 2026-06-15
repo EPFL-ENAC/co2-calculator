@@ -20,7 +20,7 @@
         "http://localhost:8080/en/MOCK/2024/research-facilities",
         "http://localhost:8080/en/MOCK/2024/process-emissions",
         "http://localhost:8080/en/MOCK/2024/professional-travel",
-        "http://localhost:8080/en/MOCK/2024/equipment-electric-consumption",
+        "http://localhost:8080/en/MOCK/2024/equipment",
         "http://localhost:8080/en/back-office/reporting",
         "http://localhost:8080/en/back-office/user-management",
         "http://localhost:8080/en/back-office/data-management",

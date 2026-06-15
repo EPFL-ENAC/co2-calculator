@@ -236,7 +236,7 @@ const seriesArray = computed(() => {
       },
     },
     {
-      name: t('equipment-electric-consumption'),
+      name: t('equipment'),
       type: 'bar' as const,
       stack: 'total',
       encode: encodeFor('category', 'equipment'),

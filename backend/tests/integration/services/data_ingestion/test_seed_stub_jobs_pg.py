@@ -129,7 +129,7 @@ async def test_stub_orphan_no_pipeline_id(Sf):
     async with Sf() as s:
         job_id = await create_seed_stub_job(
             s,
-            module_type_id=int(ModuleTypeEnum.equipment_electric_consumption),
+            module_type_id=int(ModuleTypeEnum.equipment),
             data_entry_type_id=None,
             year=2025,
             target_type=TargetType.DATA_ENTRIES,

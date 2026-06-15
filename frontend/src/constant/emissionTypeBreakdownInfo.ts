@@ -5,12 +5,10 @@ import { MODULES } from 'src/constant/modules';
 export const EMISSION_TYPE_BREAKDOWN_INFO_KEYS: Partial<
   Record<Module, string>
 > = {
-  [MODULES.EquipmentElectricConsumption]:
-    'emission-type-breakdown-info-equipment',
-  [MODULES.Buildings]: 'emission-type-breakdown-info-buildings',
-  [MODULES.ExternalCloudAndAI]: 'emission-type-breakdown-info-external-cloud',
-  [MODULES.ResearchFacilities]:
-    'emission-type-breakdown-info-research-facilities',
+  [MODULES.Equipment]: 'module-equipment-charts',
+  [MODULES.Buildings]: 'module-buildings-charts',
+  [MODULES.ExternalCloudAndAI]: 'module-external-cloud-and-ai-charts',
+  [MODULES.ResearchFacilities]: 'module-research-facilities-charts',
 };
 
 /** Returns the i18n message key for the module, or null when there is no copy. */

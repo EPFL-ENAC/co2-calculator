@@ -125,7 +125,6 @@ export interface Submodule {
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
   hasTablePagination?: boolean;
-  hasFormTooltip?: boolean | string;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;
   /** Show note button in the table even when data rows are read-only. */
@@ -163,8 +162,6 @@ export interface ModuleConfig {
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;
-  hasTooltip: boolean;
-  hasTooltipSubText?: boolean;
   hasSubmodules: boolean;
   isCollapsible?: boolean;
   uncertainty?: 'high' | 'medium' | 'low';

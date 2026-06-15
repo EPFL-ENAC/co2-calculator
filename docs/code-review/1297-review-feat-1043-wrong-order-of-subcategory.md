@@ -38,7 +38,7 @@ However, the author bundled a SECONDARY improvement — replacing raw UNSPSC cod
 
 **Evidence**: `backend/app/api/v1/carbon_report_module.py` — `_MODULE_TOP_CLASS_LABEL_FIELD` is registered ONLY for `ModuleTypeEnum.purchase`. Equipment uses `group_by_field='equipment_class'`, whose values in `equipments_factors.csv` are raw free-form English strings (`'Power supplies'`, `'AFM microscopes'`, `'3D printer'`).
 
-**Consequence**: A French-locale user viewing `equipment_electric_consumption` top-class breakdown sees segments labelled in English (`'Power supplies'` etc.) because `te('Power supplies')` returns false. Issue #1043 explicitly states the fix must apply to **both Purchase AND Equipment** — only the sort half does.
+**Consequence**: A French-locale user viewing `equipment` top-class breakdown sees segments labelled in English (`'Power supplies'` etc.) because `te('Power supplies')` returns false. Issue #1043 explicitly states the fix must apply to **both Purchase AND Equipment** — only the sort half does.
 
 **Fix**: Either register Equipment in `_MODULE_TOP_CLASS_LABEL_FIELD` with the right `factor_label_field`, OR explicitly document that Equipment labels are already canonical and the sort-only fix is intentional.
 
@@ -177,7 +177,7 @@ Path A is recommended: it ships the actual issue #1043 fix today and gives the l
     "file": "backend/app/api/v1/carbon_report_module.py",
     "line": 382,
     "summary": "Equipment branch lacks label enrichment despite #1043 requiring fix in both Purchase AND Equipment",
-    "failure_scenario": "fr-CH user opens equipment_electric_consumption top-class breakdown; backend returns name='Power supplies' (no translation_key), frontend te() returns false, French UI shows English source string."
+    "failure_scenario": "fr-CH user opens equipment top-class breakdown; backend returns name='Power supplies' (no translation_key), frontend te() returns false, French UI shows English source string."
   },
   {
     "file": "backend/app/services/data_entry_emission_service.py",

@@ -241,14 +241,12 @@ async def test_resolve_handler_and_validate_missing_factor_no_config():
 
 @pytest.mark.asyncio
 async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
-    """ModuleTypeEnum.equipment_electric_consumption + empty factors_map
+    """ModuleTypeEnum.equipment + empty factors_map
     raises at setup — the per-row loop is never entered."""
     provider = ModulePerYearCSVProvider(
         {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
-    provider.job = SimpleNamespace(
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value
-    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.equipment.value)
 
     handler = MagicMock()
     handler.create_dto.model_fields = {}
@@ -269,7 +267,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
         await provider._setup_handlers_and_factors()
 
     msg = str(exc.value)
-    assert "equipment_electric_consumption" in msg
+    assert "equipment" in msg
     assert "factors" in msg.lower()
     assert "infers" in msg.lower()
 
@@ -348,6 +346,46 @@ async def test_setup_raises_when_year_missing(monkeypatch):
 
     with pytest.raises(ValueError, match="year is required"):
         await provider._setup_handlers_and_factors()
+
+
+def test_get_factors_maps_by_type_splits_by_type_prefix():
+    """The merged factors_map is split into per-type maps keyed by the
+    ``{type_value}:`` prefix, preserving every entry under its type."""
+    member = DataEntryTypeEnum.member
+    scientific = DataEntryTypeEnum.scientific
+    setup_result = {
+        "factors_map": {
+            f"{member.value}:2026:kind_a:": "f1",
+            f"{member.value}:2026:kind_b:sub": "f2",
+            f"{scientific.value}:2026:hood:": "f3",
+        }
+    }
+
+    result = ModulePerYearCSVProvider._get_factors_maps_by_type(
+        setup_result, [member, scientific]
+    )
+
+    assert result[member] == {
+        f"{member.value}:2026:kind_a:": "f1",
+        f"{member.value}:2026:kind_b:sub": "f2",
+    }
+    assert result[scientific] == {f"{scientific.value}:2026:hood:": "f3"}
+
+
+def test_get_factors_maps_by_type_is_memoised():
+    """Regression (#1415): the per-type split scanned the full factors_map
+    once per type *for every row*, turning a 9.5k-row upload into minutes of
+    pure CPU. It depends only on the (year-scoped) factors_map and valid
+    entry types — both invariant for the file — so it must be built once and
+    cached on setup_result, not rebuilt per row."""
+    member = DataEntryTypeEnum.member
+    setup_result = {"factors_map": {f"{member.value}:2026:k:": "f1"}}
+
+    first = ModulePerYearCSVProvider._get_factors_maps_by_type(setup_result, [member])
+    second = ModulePerYearCSVProvider._get_factors_maps_by_type(setup_result, [member])
+
+    assert setup_result["factors_maps_by_type"] is first
+    assert second is first  # same object reused — no per-row rebuild
 
 
 @pytest.mark.asyncio

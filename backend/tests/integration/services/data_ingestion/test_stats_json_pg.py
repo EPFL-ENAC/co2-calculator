@@ -36,7 +36,7 @@ Pragmatic coverage (per the unit's spec)
 - 3 modules with hand-computed math:
     * ``headcount`` — multi-root (food + waste + commuting), exercises
       cross-root scope3 totals.
-    * ``equipment_electric_consumption`` — single root, single leaf
+    * ``equipment`` — single root, single leaf
       (Strategy-A flat shape).
     * ``professional_travel`` — single root, multi-level rollup (leaf
       → train/plane → professional_travel) which validates that
@@ -179,7 +179,7 @@ _MODULE_SHAPE_PROBES: list[tuple[ModuleTypeEnum, DataEntryTypeEnum, EmissionType
         EmissionType.buildings__combustion__natural_gas,
     ),
     (
-        ModuleTypeEnum.equipment_electric_consumption,
+        ModuleTypeEnum.equipment,
         DataEntryTypeEnum.it,
         EmissionType.equipment__it,
     ),
@@ -436,9 +436,7 @@ async def test_equipment_stats_math_single_root_scope2(seeded) -> None:
     """
     seed, Sf = seeded
     unit_id = seed.units[0].id
-    crm = seed.modules_by_unit_and_type[
-        (unit_id, int(ModuleTypeEnum.equipment_electric_consumption))
-    ]
+    crm = seed.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.equipment))]
 
     async with Sf() as s:
         await _seed_emission(
@@ -578,9 +576,7 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
     """
     seed, Sf = seeded
     unit_id = seed.units[0].id
-    eq_crm = seed.modules_by_unit_and_type[
-        (unit_id, int(ModuleTypeEnum.equipment_electric_consumption))
-    ]
+    eq_crm = seed.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.equipment))]
     purchase_crm = seed.modules_by_unit_and_type[
         (unit_id, int(ModuleTypeEnum.purchase))
     ]

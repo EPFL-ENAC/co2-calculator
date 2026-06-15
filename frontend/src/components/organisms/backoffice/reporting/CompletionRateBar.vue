@@ -25,7 +25,7 @@ const resolvedTitle = computed(
   () => props.title ?? t('backoffice_reporting_completion_bar_title'),
 );
 const resolvedHelperText = computed(
-  () => props.helperText ?? t('backoffice_reporting_completion_bar_helper'),
+  () => props.helperText ?? t('backoffice-reporting-completion-rate'),
 );
 const resolvedScopeLabel = computed(
   () => props.scopeLabel ?? t('backoffice_reporting_completion_bar_scope'),

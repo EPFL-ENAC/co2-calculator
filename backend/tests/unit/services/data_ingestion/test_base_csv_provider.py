@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.core.config import get_settings
 from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
-    BATCH_SIZE,
     BaseCSVProvider,
     StatsDict,
     _get_expected_columns_from_handlers,
@@ -183,6 +183,73 @@ async def test_validate_csv_headers_empty_file():
 
     with pytest.raises(ValueError, match="CSV file is empty"):
         await provider._validate_csv_headers(csv_text, set(), set())
+
+
+@pytest.mark.asyncio
+async def test_process_csv_with_blank_rows_does_not_raise_value_error():
+    """Regression test: Verifies that intermittent and trailing structural
+    blank rows (like ',,') are skipped by the loop guard and do not cause
+    the batch processor to raise a 'Data entry is None without error message'
+    ValueError.
+    """
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99, "year": 2025}
+
+    # 1. Use an AsyncMock session to satisfy general async database dependencies
+    mock_session = AsyncMock()
+    provider = ConcreteCSVProvider(config, data_session=mock_session)
+
+    # Mock out the batch-saving step completely to avoid database repository
+    # dependencies
+    provider._process_batch = AsyncMock(return_value=2)
+
+    # 2. Mock the async files_store layer
+    mock_files_store = MagicMock()
+    mock_files_store.move_file = AsyncMock(return_value="processing/test.csv")
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+
+    # Provide csv_content as raw bytes (b"...") so .decode() succeeds
+    csv_content = b"head1,head2,head3\nval1,val2,val3\n,,\nvala,valb,valc\n,,\n,,"
+    mock_files_store.get_file = AsyncMock(return_value=(csv_content, "text/csv"))
+
+    # Patch the private backend attribute
+    provider._files_store = mock_files_store
+
+    # 3. Mock handlers and setup results so _process_row works for valid rows
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={"head1": "val", "primary_factor_id": 1}
+    )
+    handler.kind_field = "head1"
+    handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
+
+    async def mock_setup():
+        return {
+            "handlers": [handler],
+            "factors_map": {},
+            "factor_id_to_factor": {},
+            "expected_columns": {"head1", "head2", "head3"},
+            "required_columns": {"head1"},
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.student, handler, None)
+    )
+
+    # 4. Trigger the ingestion processor method
+    try:
+        result = await provider.process_csv_in_batches()
+    except ValueError as e:
+        if "Data entry is None without error message" in str(e):
+            pytest.fail(
+                "Regression caught! Deleting the blank row loop guard causes "
+                "a structural empty row to trigger an absolute process crash."
+            )
+        raise e
+
+    # 5. Assertions: check execution runs without completely failing out
+    assert result is not None
 
 
 @pytest.mark.asyncio
@@ -429,13 +496,13 @@ async def test_load_data_default():
 
 
 # ======================================================================
-# Batch Size Constant Test
+# Batch Size Setting Test
 # ======================================================================
 
 
-def test_batch_size_constant():
-    """Test that BATCH_SIZE is set to expected value."""
-    assert BATCH_SIZE == 1000
+def test_copy_batch_size_setting():
+    """Data-entry COPY batches are sized by INGEST_COPY_BATCH_SIZE."""
+    assert get_settings().INGEST_COPY_BATCH_SIZE >= 1
 
 
 # ======================================================================
@@ -1029,8 +1096,7 @@ async def test_process_batch_skips_emissions_when_pure_async():
     data_entry_service = MagicMock()
     emission_service = AsyncMock()
 
-    created_entry = SimpleNamespace(id=1, carbon_report_module_id=999)
-    data_entry_service.bulk_create = AsyncMock(return_value=[created_entry])
+    data_entry_service.bulk_copy = AsyncMock(return_value=1)
     emission_service.prepare_create = AsyncMock()
     emission_service.bulk_create = AsyncMock()
 
@@ -1048,8 +1114,8 @@ async def test_process_batch_skips_emissions_when_pure_async():
         [batch_entry], data_entry_service, emission_service, user, [None]
     )
 
-    # data_entries STILL written.
-    data_entry_service.bulk_create.assert_awaited_once()
+    # data_entries STILL written (COPY path).
+    data_entry_service.bulk_copy.assert_awaited_once()
     # Emissions writes are skipped — chain handles them.
     emission_service.prepare_create.assert_not_awaited()
     emission_service.bulk_create.assert_not_awaited()
@@ -1332,7 +1398,11 @@ class TestResolveDataEntryTypeFromCategory:
 
 def _make_provider_with_job(module_type_id: int, data_entry_type_id: int | None):
     """Return a ConcreteCSVProvider whose self.job is pre-populated."""
-    config = {"file_path": "tmp/test.csv", "module_type_id": module_type_id}
+    config = {
+        "file_path": "tmp/test.csv",
+        "module_type_id": module_type_id,
+        "year": 2026,
+    }
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
     provider.job = SimpleNamespace(
         module_type_id=module_type_id,
@@ -1365,17 +1435,20 @@ async def test_delete_scoped_to_specific_data_entry_type():
     provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=70)
 
     data_entry_service = MagicMock()
-    data_entry_service.bulk_delete_by_source = AsyncMock()
+    data_entry_service.repo.bulk_delete_by_source_year = AsyncMock(return_value=0)
 
     unit_to_module_map = {"unit-1": 999}
     await provider._delete_existing_entries_for_module_per_year(
         unit_to_module_map, _make_stats(), data_entry_service
     )
 
-    # bulk_delete_by_source must be called exactly once — for type 70 only
-    assert data_entry_service.bulk_delete_by_source.call_count == 1
-    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
-    assert call_kwargs["data_entry_type_id"] == DataEntryTypeEnum.research_facilities
+    # One set-based delete, scoped to type 70 only
+    assert data_entry_service.repo.bulk_delete_by_source_year.call_count == 1
+    call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
+    assert call_kwargs["year"] == 2026
+    assert call_kwargs["data_entry_type_ids"] == [
+        DataEntryTypeEnum.research_facilities.value
+    ]
     assert call_kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
 
 
@@ -1385,19 +1458,18 @@ async def test_delete_sibling_submodule_not_wiped():
     provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=71)
 
     data_entry_service = MagicMock()
-    data_entry_service.bulk_delete_by_source = AsyncMock()
+    data_entry_service.repo.bulk_delete_by_source_year = AsyncMock(return_value=0)
 
     unit_to_module_map = {"unit-1": 999}
     await provider._delete_existing_entries_for_module_per_year(
         unit_to_module_map, _make_stats(), data_entry_service
     )
 
-    assert data_entry_service.bulk_delete_by_source.call_count == 1
-    call_kwargs = data_entry_service.bulk_delete_by_source.call_args.kwargs
-    assert (
-        call_kwargs["data_entry_type_id"]
-        == DataEntryTypeEnum.mice_and_fish_animal_facilities
-    )
+    assert data_entry_service.repo.bulk_delete_by_source_year.call_count == 1
+    call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
+    assert call_kwargs["data_entry_type_ids"] == [
+        DataEntryTypeEnum.mice_and_fish_animal_facilities.value
+    ]
 
 
 @pytest.mark.asyncio
@@ -1407,18 +1479,16 @@ async def test_delete_all_types_when_no_data_entry_type_id():
     provider = _make_provider_with_job(module_type_id=6, data_entry_type_id=None)
 
     data_entry_service = MagicMock()
-    data_entry_service.bulk_delete_by_source = AsyncMock()
+    data_entry_service.repo.bulk_delete_by_source_year = AsyncMock(return_value=0)
 
     unit_to_module_map = {"unit-1": 999}
     await provider._delete_existing_entries_for_module_per_year(
         unit_to_module_map, _make_stats(), data_entry_service
     )
 
-    # Both types (70 and 71) should be deleted
-    assert data_entry_service.bulk_delete_by_source.call_count == 2
-    deleted_types = {
-        call.kwargs["data_entry_type_id"]
-        for call in data_entry_service.bulk_delete_by_source.call_args_list
-    }
-    assert DataEntryTypeEnum.research_facilities in deleted_types
-    assert DataEntryTypeEnum.mice_and_fish_animal_facilities in deleted_types
+    # Both types (70 and 71) deleted in the single set-based call
+    assert data_entry_service.repo.bulk_delete_by_source_year.call_count == 1
+    call_kwargs = data_entry_service.repo.bulk_delete_by_source_year.call_args.kwargs
+    deleted_types = set(call_kwargs["data_entry_type_ids"])
+    assert DataEntryTypeEnum.research_facilities.value in deleted_types
+    assert DataEntryTypeEnum.mice_and_fish_animal_facilities.value in deleted_types

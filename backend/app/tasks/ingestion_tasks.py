@@ -60,6 +60,20 @@ async def csv_ingest_handler(
     that pair; a multi-det module upload (det NULL) fans out one
     child per det in ``MODULE_TYPE_TO_DATA_ENTRY_TYPES``.
     """
+    # Same per-``(module, year)`` advisory lock as the recalc chain:
+    # the pre-import DELETE's ON DELETE CASCADE into
+    # ``data_entry_emissions`` takes row locks on the very rows a
+    # still-running ``emission_recalc`` of the previous pipeline is
+    # rewriting.  Without this lock the DELETE sits in a row-level
+    # lock queue mid-statement (observed: 0.3s vs 3min for the same
+    # 9.5k-row delete); with it, the ingest waits politely at one
+    # well-known gate until the prior transaction commits.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"csv_ingest job {job.id}",
+    )
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
         # No data_entries committed (or partial state we don't trust)
@@ -89,6 +103,13 @@ async def api_ingest_handler(
     same (det, year) slice regardless of how the data_entries
     arrived).
     """
+    # Same serialization rationale as csv_ingest_handler above.
+    await acquire_factor_recalc_lock(
+        data_session,
+        module_type_id=job.module_type_id,
+        year=job.year,
+        handler_label=f"api_ingest job {job.id}",
+    )
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
         return meta
@@ -349,7 +370,7 @@ async def _chain_recalc_for_stale(
         ]
     elif job.module_type_id is not None and job.data_entry_type_id is None:
         # Multi-type factor upload (e.g. equipments_factors.csv covers
-        # scientific + it + other under module=equipment_electric_consumption).
+        # scientific + it + other under module=equipment).
         # Same RUNNING-parent hazard, different resolution: expand to one
         # target per det via MODULE_TYPE_TO_DATA_ENTRY_TYPES.
         try:
@@ -476,6 +497,7 @@ async def _chain_emission_recalc_for_data_ingest(
         # Multi-det data ingest (e.g. headcount.csv covers member +
         # student in one upload).  Late import avoids the
         # data_ingestion → tasks → module_type cycle.
+        # TODO: avoid circular import by refactoring
         from app.models.module_type import (
             MODULE_TYPE_TO_DATA_ENTRY_TYPES,
             ModuleTypeEnum,
@@ -507,6 +529,23 @@ async def _chain_emission_recalc_for_data_ingest(
         )
         return 0
 
+    # Unit-specific ingests know exactly which module they wrote — pin
+    # that scope on the child so its recalc touches one module's
+    # entries instead of the whole (det, year) slice (a 20-row upload
+    # was recomputing 15k+ entries).  Per-year ingests leave it None:
+    # full-slice recalc is their contract.
+    parent_config = (job.meta or {}).get("config") or {}
+    raw_module_id = parent_config.get("carbon_report_module_id")
+    child_config: Optional[dict[str, Any]] = None
+    if raw_module_id is not None:
+        try:
+            child_config = {"carbon_report_module_ids": [int(raw_module_id)]}
+        except (TypeError, ValueError):
+            logger.warning(
+                f"data ingest job {job.id}: non-int carbon_report_module_id="
+                f"{raw_module_id!r} in config — chaining unscoped recalc"
+            )
+
     # ``dedup_config`` (Fix #1219): a pre-existing active recalc for
     # this scope now yields a logged no-op (``chain_job`` returns
     # ``None``) instead of an uncaught IntegrityError that poisoned the
@@ -520,6 +559,7 @@ async def _chain_emission_recalc_for_data_ingest(
             module_type_id=row["module_type_id"],
             data_entry_type_id=row["data_entry_type_id"],
             year=year,
+            config=child_config,
             session=session,
             dedup_config=EMISSION_RECALC_DEDUP,
         )

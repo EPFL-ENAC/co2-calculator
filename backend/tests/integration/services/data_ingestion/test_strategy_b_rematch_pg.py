@@ -772,7 +772,7 @@ async def test_building_embodied_energy_factor_values_change_propagates(pg_dsn):
         )
 
         factor = Factor(
-            emission_type_id=EmissionType.buildings__embodied_energy.value,
+            emission_type_id=EmissionType.buildings__construction_and_renovation.value,
             data_entry_type_id=DataEntryTypeEnum.building_embodied_energy.value,
             classification={"building_name": "BC", "category": "default"},
             values={"ef_kgco2eq_per_m2": 100.0},

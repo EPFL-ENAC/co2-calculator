@@ -7,6 +7,7 @@ import {
   TargetType,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
 import type { PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
@@ -16,10 +17,11 @@ import ComputedFactorDialog from 'src/components/molecules/data-management/Compu
 
 interface Props {
   submodule: SubmoduleConfig;
-  selectedYear: number;
 }
 
 const props = defineProps<Props>();
+
+const yearConfigStore = useYearConfigStore();
 
 const {
   isSubmoduleEnabled,
@@ -35,14 +37,9 @@ const {
   computedFactorRunning,
   anyComputedFactorRunning,
   confirmComputedFactorSync,
-} = useSubmoduleConfig({
-  module: '',
-  selectedYear: props.selectedYear,
-});
+} = useSubmoduleConfig();
 
-const { getRecalcStatus } = useRecalculation({
-  selectedYear: props.selectedYear,
-});
+const { getRecalcStatus } = useRecalculation();
 
 const backofficeStore = useBackofficeDataManagement();
 
@@ -279,7 +276,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       <UploadCardReferences
         v-if="getImportRow(submodule).hasOtherUpload"
         :row="getImportRow(submodule)"
-        :year="selectedYear"
+        :year="yearConfigStore.selectedYear"
         @completed="handleReferenceCompleted"
         @progressing="handleReferenceProgressing"
       />

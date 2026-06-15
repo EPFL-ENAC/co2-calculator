@@ -1,7 +1,4 @@
-import {
-  MODULES,
-  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-} from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   // Table (Chapter 5)
@@ -132,10 +129,6 @@ export default {
     en: 'Total Travel Carbon Footprint',
     fr: 'Empreinte CO₂ totale déplacements',
   },
-  [`${MODULES.ProfessionalTravel}-title-tooltip-title`]: {
-    en: 'Professional Travel Title Tooltip',
-    fr: 'Professional Travel Title Tooltip',
-  },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {
       en: 'Total carbon footprint from all professional travel including flights, trains, and commuting',
@@ -189,15 +182,15 @@ export default {
   },
   business: {
     en: 'Business',
-    fr: 'Affaires',
+    fr: 'Business',
   },
   eco: {
     en: 'Eco',
-    fr: 'Éco',
+    fr: 'Eco',
   },
   eco_plus: {
     en: 'Eco+',
-    fr: 'Éco+',
+    fr: 'Eco+',
   },
   // Category keys
   train: {
@@ -219,21 +212,6 @@ export default {
   [`${MODULES.ProfessionalTravel}-field-traveler-not-validated`]: {
     en: 'You have not been validated in the headcount. Please contact your unit manager.',
     fr: "Vous n'avez pas été validé dans les effectifs. Veuillez contacter votre responsable d'unité.",
-  },
-  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane}-table-title-info-tooltip`]:
-    {
-      en: 'Professional Travel Plane Tooltip',
-      fr: 'Professional Travel Plane Tooltip',
-    },
-  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train}-table-title-info-tooltip`]:
-    {
-      en: 'Professional Travel Train Tooltip',
-      fr: 'Professional Travel Train Tooltip',
-    },
-
-  [`${MODULES.ProfessionalTravel}-title-tooltip-subtext`]: {
-    en: 'Professional Travel Title Tooltip',
-    fr: 'Professional Travel Title Tooltip',
   },
 
   // Trip-map widget (issue #282). One Pinia slot feeds three maps —

@@ -15,6 +15,10 @@ export default {
     en: 'Print',
     fr: 'Imprimer',
   },
+  module_stats_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
+  },
   results_loading: {
     en: 'Loading…',
     fr: 'Chargement…',
@@ -107,7 +111,7 @@ export default {
     en: 'Purchases carbon footprint',
     fr: 'Empreinte carbone des achats',
   },
-  'results_total_module_carbon_footprint_equipment-electric-consumption': {
+  results_total_module_carbon_footprint_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
@@ -147,18 +151,6 @@ export default {
     en: '{module} carbon footprint',
     fr: 'Empreinte carbone de {module}',
   },
-  results_total_unit_carbon_footprint_tooltip: {
-    en: 'A km driven by car is equivalent to {value}kg CO₂-eq',
-    fr: 'Un km parcouru en voiture est équivalent à {value}kg CO₂-eq',
-  },
-  results_carbon_footprint_per_fte_tooltip: {
-    en: 'Carbon footprint per Full-Time Equivalent (FTE) employee',
-    fr: 'Empreinte carbone par équivalent temps plein (ETP)',
-  },
-  results_unit_carbon_footprint_tooltip: {
-    en: 'Unit carbon footprint compared to previous year',
-    fr: "Empreinte carbone de l'unité par rapport à l'année précédente",
-  },
   results_equivalent_to_car: {
     en: 'This corresponds to {km}km driven by car',
     fr: 'Cela correspond à {km}km parcourus en voiture',
@@ -166,10 +158,6 @@ export default {
   results_paris_agreement_value: {
     en: 'The total carbon budget per person according to the Paris Agreement is {value}',
     fr: "Le budget carbone total par personne selon l'accord de Paris est de {value}",
-  },
-  results_paris_agreement_tooltip: {
-    en: 'Following the Paris Agreement.',
-    fr: "Conformément à l'accord de Paris.",
   },
   results_compared_to: {
     en: 'compared to {year}',
@@ -287,54 +275,6 @@ export default {
     en: 'Study',
     fr: 'Étude',
   },
-  results_objectives_unit_category_tooltip_process_emissions: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_buildings_energy_combustion: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_buildings_room: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_equipment: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_external_cloud_and_ai: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_purchases: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_research_facilities: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_professional_travel: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_commuting: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_food: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_waste: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
-  results_objectives_unit_category_tooltip_embodied_energy: {
-    en: 'Placeholder tooltip for {category}',
-    fr: 'Texte placeholder pour {category}',
-  },
   results_objectives_2040_epfl_button: {
     en: 'EPFL',
     fr: 'EPFL',
@@ -343,17 +283,9 @@ export default {
     en: 'My unit',
     fr: 'Mon unité',
   },
-  results_objectives_2030_tooltip: {
-    en: "This section presents two graphs. The first illustrates the reference “net zero” trajectory for EPFL, aligned with the CO₂ emission reduction targets set by the Swiss Confederation and the Climate Act. The second allows you to simulate the evolution of your unit's emissions and adjust each category in order to converge towards this reference trajectory.",
-    fr: 'Cette section présente deux graphiques. Le premier illustre la trajectoire « net zéro » de référence pour l’EPFL, alignée sur les objectifs de réduction des émissions de CO₂ fixés par la Confédération et la Loi Climat. Le second vous permet de simuler l’évolution des émissions de votre unité et d’ajuster chaque catégorie afin de converger vers cette trajectoire de référence.',
-  },
   results_objectives_epfl_chart_title: {
     en: 'EPFL carbon footprint goals over the years',
     fr: 'Objectifs CO2 de l’EPFL au fil des années',
-  },
-  results_objectives_epfl_chart_tooltip: {
-    en: 'The goal is to reach -40% by 2030 and -90% by 2040 with respect to 2019. The overall goal is net zero by 2040.',
-    fr: "L’objectif est de -40 % d'ici 2030 et -90 % d'ici 2040 par rapport à 2019. L'objectif global est d'atteindre la neutralité carbone d'ici 2040.",
   },
   results_objectives_total: {
     en: 'Total carbon footprint',
@@ -362,10 +294,6 @@ export default {
   results_objectives_unit_chart_title: {
     en: 'My unit carbon footprint by category over the years',
     fr: 'Empreinte carbone de mon unité par catégorie au fil des années',
-  },
-  results_objectives_unit_chart_tooltip: {
-    en: 'Play around with the different reduction sliders to see if your unit can follow the EPFL objective trajectory.',
-    fr: "Jouez avec les différents curseurs de réduction pour voir si votre unité peut suivre la trajectoire des objectifs de l'EPFL.",
   },
   results_objectives_epfl_no_data_title: {
     en: 'EPFL objectives not available yet',
@@ -541,29 +469,9 @@ export default {
     en: 'Construction and renovation',
     fr: 'Constructions et rénovations',
   },
-  'charts-equipment-electric-consumption-category': {
-    en: 'Equipment',
-    fr: 'Équipements',
-  },
   'charts-external-cloud-category': {
     en: 'External clouds & AI',
     fr: 'Clouds externes & IA',
-  },
-  'emission-type-breakdown-info-equipment': {
-    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
-  },
-  'emission-type-breakdown-info-buildings': {
-    en: 'The emissions considered here are those related to the energy used for heating, lighting, ventilation, and cooling in buildings.',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire pour le chauffage, l'éclairage, la ventilation et le froid dans les bâtiments.",
-  },
-  'emission-type-breakdown-info-external-cloud': {
-    en: 'Here, we visualize the emissions corresponding to the use of AI and external clouds. Other emissions related to IT services are present in other modules, such as IT equipment purchases in the Purchases module, electricity consumption in the Equipment module, and the use of internal clouds in the Research Facilities module.',
-    fr: "Ici, on visualise les émissions correspondantes à l'utilisation de l'IA et de clouds externes. D'autres émissions liées aux services informatiques sont présentes dans d'autres modules, comme les achats d'équipements informatiques dans le module Achats, la consommation d'électricité dans le module Équipement et l'utilisation de clouds internes dans le module Infrastructure de recherche.",
-  },
-  'emission-type-breakdown-info-research-facilities': {
-    en: 'If these research activities were performed independently by the unit, the emissions coming from them would be higher. Using shared research facilities helps to reduce overall EPFL emissions.',
-    fr: "Si ces activités de recherche étaient menées de manière indépendante par l'unité, les émissions qu'elles génèrent seraient plus élevées. L'utilisation mutualisée d'infrastructures de recherche contribue à réduire les émissions globales de l'EPFL.",
   },
   'emission-type-breakdown-info-aria': {
     en: 'Additional information about this emission breakdown',
@@ -813,14 +721,6 @@ export default {
     en: 'Total waste carbon footprint',
     fr: 'Empreinte carbone totale des déchets',
   },
-  results_additional_waste_tooltip: {
-    en: 'All waste is recycled, apart from domestic waste which is incinerated.',
-    fr: 'Tous les déchets sont recyclés à l’exception de déchets municipaux qui sont incinérés.',
-  },
-  results_waste_tooltip: {
-    en: 'All waste is recycled, apart from domestic waste which is incinerated.',
-    fr: "Tous les déchets sont recyclés à l'exception de déchets municipaux qui sont incinérés.",
-  },
   results_additional_commuting_breakdown_title: {
     en: 'Breakdown of commuting carbon footprint by category',
     fr: "Contribution des différentes catégories à l'empreinte carbone de la pendularité",
@@ -864,14 +764,6 @@ export default {
   results_grey_energy_placeholder: {
     en: 'Grey energy data coming soon',
     fr: "Données sur l'énergie grise bientôt disponibles",
-  },
-  results_additional_embodied_energy_tooltip: {
-    en: 'This corresponds to embedded energy emissions in buildings.',
-    fr: "Ces émissions correspondent à l'énergie grise des bâtiments.",
-  },
-  results_additional_embodied_energy_chart_tooltip: {
-    en: 'This analysis only covers current constructions, renovations and demolitions; it does not include buildings constructed, renovated or demolished in other years. The actual footprint of EPFL buildings is higher.',
-    fr: "Cette analyse ne concerne que les constructions, rénovations et démolitions en cours; elle n'inclut pas les bâtiments construits, rénovés ou démolis dans le passé. L'empreinte carbone réelle des bâtiments de l'EPFL est plus élevée.",
   },
   results_additional_embodied_energy_breakdown_title: {
     en: 'Breakdown of construction and renovation carbon footprint by category',
@@ -1073,10 +965,6 @@ export default {
   'it-focus-breakdown-bar-title': {
     en: 'IT emissions breakdown',
     fr: 'Répartition des émissions IT',
-  },
-  'it-focus-breakdown-bar-title-tooltip': {
-    en: 'The emissions considered here are those related to the purchase of IT equipment, the energy required for its use, and the use of services (internal or external) such as AI and cloud services.',
-    fr: "Les émissions considérées ici sont celles liées à l'achat d'équipement informatique, à l'énergie nécessaire pour l'utiliser, et à l'usage des services (internes ou externes) tels que l'IA et les clouds externes.",
   },
 
   'it-focus-cloud-ai-detail-title': {

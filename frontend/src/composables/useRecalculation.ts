@@ -12,11 +12,7 @@ import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { SubmoduleConfig as SubmoduleConfigItem } from 'src/constant/backoffice-module-config';
 
-interface UseRecalculationOptions {
-  selectedYear: number;
-}
-
-export function useRecalculation(options: UseRecalculationOptions) {
+export function useRecalculation() {
   const { t: $t } = useI18n();
   const backofficeDataManagement = useBackofficeDataManagement();
   const yearConfigStore = useYearConfigStore();
@@ -25,7 +21,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
   const recalcTypeRunning = ref<Record<string, boolean>>({});
 
   async function refreshAfterRecalc(): Promise<void> {
-    await yearConfigStore.fetchConfig(options.selectedYear);
+    await yearConfigStore.fetchConfig(yearConfigStore.selectedYear);
   }
 
   function getRecalcStatus(
@@ -47,7 +43,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
       const jobId =
         await backofficeDataManagement.initiateModuleEmissionRecalculation(
           moduleTypeId,
-          options.selectedYear,
+          yearConfigStore.selectedYear,
           true,
         );
       backofficeDataManagement.subscribeToJobUpdates(
@@ -119,7 +115,7 @@ export function useRecalculation(options: UseRecalculationOptions) {
         await backofficeDataManagement.initiateEmissionRecalculation(
           sub.moduleTypeId,
           sub.dataEntryTypeId,
-          options.selectedYear,
+          yearConfigStore.selectedYear,
         );
       backofficeDataManagement.subscribeToJobUpdates(
         jobId,

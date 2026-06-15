@@ -81,7 +81,7 @@ CATEGORY_TO_MODULE_PER_UNIT: dict[EmissionCategory, int] = {
     EmissionCategory.process_emissions: ModuleTypeEnum.process_emissions.value,
     EmissionCategory.buildings_energy_combustion: ModuleTypeEnum.buildings.value,
     EmissionCategory.buildings_room: ModuleTypeEnum.buildings.value,
-    EmissionCategory.equipment: ModuleTypeEnum.equipment_electric_consumption.value,
+    EmissionCategory.equipment: ModuleTypeEnum.equipment.value,
     EmissionCategory.external_cloud_and_ai: ModuleTypeEnum.external_cloud_and_ai.value,
     EmissionCategory.purchases: ModuleTypeEnum.purchase.value,
     EmissionCategory.research_facilities: ModuleTypeEnum.research_facilities.value,
@@ -92,7 +92,7 @@ CATEGORY_TO_MODULE_PER_UNIT: dict[EmissionCategory, int] = {
 MODULE_TYPE_TO_PER_FTE_KEY: dict[int, str] = {
     ModuleTypeEnum.process_emissions.value: "process_emissions",
     ModuleTypeEnum.buildings.value: "buildings",
-    ModuleTypeEnum.equipment_electric_consumption.value: "equipment",
+    ModuleTypeEnum.equipment.value: "equipment",
     ModuleTypeEnum.external_cloud_and_ai.value: "external_cloud_and_ai",
     ModuleTypeEnum.purchase.value: "purchases",
     ModuleTypeEnum.research_facilities.value: "research_facilities",
@@ -158,7 +158,9 @@ def _build_category_row(
             parent_keys_order.append(bar_key)
     flat["emissions"] = emissions
     flat["parent_keys_order"] = parent_keys_order
-    flat.update(parent_sums)
+
+    for parent_key, value in parent_sums.items():
+        flat[parent_key] = flat.get(parent_key, 0.0) + value
     return flat
 
 

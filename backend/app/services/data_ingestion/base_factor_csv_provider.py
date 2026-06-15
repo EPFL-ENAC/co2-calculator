@@ -1,9 +1,11 @@
+import asyncio
 import csv
 import io
 import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypedDict
 
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import (
@@ -19,10 +21,7 @@ from app.models.user import User
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
-from app.services.data_ingestion.base_csv_provider import (
-    BATCH_SIZE,
-    _validate_file_path,
-)
+from app.services.data_ingestion.base_csv_provider import _validate_file_path
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.factor_service import FactorService
 
@@ -176,10 +175,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             # factors absent from the new CSV are kept and surfaced as stale
             # via last_seen_job_id.
 
+            copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             batch: List[Factor] = []
             csv_reader = csv.DictReader(io.StringIO(setup_result["csv_text"]))
 
             for row_idx, row in enumerate(csv_reader, start=1):
+                # Row processing is pure CPU (validate, in-memory resolution)
+                # and the COPY batch is 50k rows, so without an explicit yield
+                # a large factor file (tens of thousands of rows) starves the
+                # event loop for its whole duration — freezing the API and SSE.
+                # Mirror the data-entry provider and yield regularly.
+                if row_idx % 1000 == 0:
+                    await asyncio.sleep(0)
                 factor, error_msg = await self._process_row(
                     row,
                     row_idx,
@@ -197,7 +204,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 batch.append(factor)
                 stats["rows_processed"] += 1
 
-                if len(batch) >= BATCH_SIZE:
+                if len(batch) >= copy_batch_size:
                     upserted = await self._upsert_batch(batch, factor_repo)
                     stats["factors_upserted"] += upserted
                     stats["batches_processed"] += 1

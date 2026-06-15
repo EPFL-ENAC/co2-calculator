@@ -1,5 +1,5 @@
 import { ModuleConfig } from 'src/constant/moduleConfig';
-import { equipmentElectricConsumption } from 'src/constant/module-config/equipment-electric-consumption';
+import { equipment } from 'src/constant/module-config/equipment';
 import { professionalTravel } from 'src/constant/module-config/professional-travel';
 import { headcount } from 'src/constant/module-config/headcount';
 import { researchFacilities } from 'src/constant/module-config/research-facilities';
@@ -10,7 +10,7 @@ import { processEmissions } from 'src/constant/module-config/process_emissions';
 import { MODULES } from 'src/constant/modules';
 
 export const MODULES_CONFIG: Record<string, ModuleConfig> = {
-  [MODULES.EquipmentElectricConsumption]: equipmentElectricConsumption,
+  [MODULES.Equipment]: equipment,
   [MODULES.ProfessionalTravel]: professionalTravel,
   [MODULES.Headcount]: headcount,
   [MODULES.ResearchFacilities]: researchFacilities,
@@ -21,7 +21,7 @@ export const MODULES_CONFIG: Record<string, ModuleConfig> = {
 };
 
 export {
-  equipmentElectricConsumption,
+  equipment,
   professionalTravel,
   headcount,
   researchFacilities,

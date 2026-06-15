@@ -654,7 +654,7 @@ const downloadPNG = () => {
                     class="q-ml-xs text-primary"
                   >
                     <q-tooltip class="text-body2 text-black">
-                      {{ $t('results_additional_waste_tooltip') }}
+                      {{ $t('results-stats-waste-title') }}
                     </q-tooltip>
                   </q-icon>
                 </div>
@@ -775,7 +775,7 @@ const downloadPNG = () => {
                   class="q-ml-xs text-primary"
                 >
                   <q-tooltip class="text-body2 text-black">
-                    {{ $t('results_additional_embodied_energy_tooltip') }}
+                    {{ $t('results-stats-embodied-energy-title') }}
                   </q-tooltip>
                 </q-icon>
               </div>
@@ -832,7 +832,7 @@ const downloadPNG = () => {
               <div
                 class="text-caption text-secondary q-mt-md text-center text-italic"
               >
-                {{ $t('results_additional_embodied_energy_chart_tooltip') }}
+                {{ $t('results-charts-embodied-energy-title') }}
               </div>
             </div>
             <div v-else class="q-pt-md q-pb-md q-px-md">

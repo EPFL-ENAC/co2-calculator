@@ -84,7 +84,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
             DataEntryTypeEnum.it,
             DataEntryTypeEnum.other,
         ],
-        module_type=ModuleTypeEnum.equipment_electric_consumption,
+        module_type=ModuleTypeEnum.equipment,
     ),
     DataEntrySeedConfig(
         path=SEED_FOLDER / "headcount_data.csv",

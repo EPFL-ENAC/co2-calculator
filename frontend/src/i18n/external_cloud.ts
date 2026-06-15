@@ -13,10 +13,6 @@ export default {
     en: 'This module calculates the carbon footprint associated with the use of cloud services, all features combined. Data entry is manual and can be reviewed and added or deleted by the user.\nSome cells may or may not be editable depending on the type of service selected.',
     fr: "Ce module calcule l'empreinte carbone liée à l'utilisation de clouds externes, toutes fonctionnalités confondues. La saisie des informations est manuelle. Vous pouvez consulter, ajouter ou supprimer des entrées selon vos besoins.\nCertaines cellules seront ou non éditables en fonction du type de service sélectionné.",
   },
-  [`${MODULES.ExternalCloudAndAI}-title-tooltip-title`]: {
-    en: 'You can add data one at a time using the Add button below, or upload several entries at once using a file that follows the template.',
-    fr: 'Vous pouvez ajouter les données une par une en utilisant le bouton « Ajouter » ci-dessous, ou importer plusieurs entrées à la fois via un fichier respectant le modèle fourni.',
-  },
   // external-cloud-and-ai-external_clouds-form-title
   // Add an external cloud usage / Ajouter une utilisation de cloud externe
   [`${MODULES.ExternalCloudAndAI}-external_clouds-form-title`]: {
@@ -32,17 +28,17 @@ export default {
 
   // CHARTS external-cloud-and-ai.charts-title
   [`${MODULES.ExternalCloudAndAI}-charts-title`]: {
-    en: 'External Cloud Emissions CHARTS',
+    en: 'External cloud Emissions CHARTS',
     fr: 'Émissions du cloud externe CHARTS',
   },
   // external-cloud-and-ai.cloud_services_table_title
   [`${MODULES.ExternalCloudAndAI}.cloud_services_table_title`]: {
-    en: 'External Cloud ({count}) | External Clouds ({count})',
-    fr: 'Cloud Externe ({count}) | Clouds Externes ({count})',
+    en: 'External cloud ({count}) | External cloud ({count})',
+    fr: 'Cloud externe ({count}) | Clouds externes ({count})',
   },
   [`${MODULES.ExternalCloudAndAI}.cloud-services`]: {
-    en: 'External Cloud | External Clouds',
-    fr: 'Cloud Externe | Clouds Externes',
+    en: 'External cloud | External cloud',
+    fr: 'Cloud externe | Clouds externes',
   },
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {
@@ -108,16 +104,6 @@ export default {
     en: 'Number of users (FTE)',
     fr: "Nombre d'utilisateurs (EPT)",
   },
-  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-table-title-info-tooltip`]:
-    {
-      en: 'External Cloud Tooltip',
-      fr: 'External Cloud Tooltip',
-    },
-  [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}-table-title-info-tooltip`]:
-    {
-      en: 'External AI Tooltip',
-      fr: 'External AI Tooltip',
-    },
 
   [`${MODULES.ExternalCloudAndAI}-${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_clouds}-form-disclaimer`]:
     {

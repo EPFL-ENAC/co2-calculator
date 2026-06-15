@@ -192,8 +192,6 @@ export const professionalTravel: ModuleConfig = {
   type: 'professional-travel',
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   hasSubmodules: true,
   formStructure: 'perSubmodule',
   numberFormatOptions: {
@@ -230,7 +228,6 @@ export const professionalTravel: ModuleConfig = {
       hasTablePagination: true,
       hasTableAction: true,
       topVisualization: 'trips-map',
-      hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-plane-button`,
     },
     {
@@ -256,7 +253,6 @@ export const professionalTravel: ModuleConfig = {
       hasTablePagination: true,
       hasTableAction: true,
       topVisualization: 'trips-map',
-      hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-train-button`,
     },
   ],

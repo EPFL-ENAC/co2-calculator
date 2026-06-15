@@ -80,6 +80,14 @@ const comparisonParts = computed(() => {
     ]"
   >
     <q-card-section class="flex items-center q-mb-xs">
+      <span
+        class="text-body1 text-weight-medium q-mb-none"
+        :class="{
+          'q-mr-sm': $slots.tooltip && tooltipPlacement === 'title',
+        }"
+      >
+        {{ title }}
+      </span>
       <q-icon
         v-if="$slots.tooltip && tooltipPlacement === 'title' && !printMode"
         name="o_info"
@@ -90,14 +98,6 @@ const comparisonParts = computed(() => {
           <slot name="tooltip"></slot>
         </q-tooltip>
       </q-icon>
-      <span
-        class="text-body1 text-weight-medium q-mb-none"
-        :class="{
-          'q-ml-sm': $slots.tooltip && tooltipPlacement === 'title',
-        }"
-      >
-        {{ title }}
-      </span>
     </q-card-section>
 
     <q-card-section class="flex no-wrap justify-between big-number__content">

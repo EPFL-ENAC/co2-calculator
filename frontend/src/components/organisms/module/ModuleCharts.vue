@@ -1,5 +1,16 @@
 <template>
   <q-card-section class="text-left module-charts q-px-none">
+    <!-- Stats are being recomputed by the bulk pipeline (emissions +
+         aggregation phases).  Surface a spinner so the charts below —
+         which still show the pre-upload numbers until aggregation
+         lands — aren't mistaken for the final result. -->
+    <div
+      v-if="statsRecalculating"
+      class="flex items-center q-gutter-sm q-mx-lg q-mb-sm text-secondary"
+    >
+      <q-spinner size="18px" />
+      <span class="text-body2">{{ $t('module_stats_recalculating') }}</span>
+    </div>
     <template v-if="type === 'headcount'">
       <div class="q-mx-lg">
         <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
@@ -157,7 +168,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, inject, ref, watch, type ComputedRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { Module, MODULES } from 'src/constant/modules';
 import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
@@ -197,6 +208,14 @@ const props = withDefaults(
 );
 
 const { t, te } = useI18n();
+
+// Provided by ModulePage while a bulk pipeline for this module/year is
+// computing emissions/aggregation.  Falls back to a constant false when
+// ModuleCharts is used outside that context (results / simulation).
+const statsRecalculating = inject<ComputedRef<boolean>>(
+  'moduleStatsRecalculating',
+  computed(() => false),
+);
 
 const moduleChartView = ref<'breakdown' | 'type'>(props.forcedView ?? 'type');
 
@@ -282,7 +301,7 @@ const activeButtonStyle = computed((): Record<string, string> => {
 
 // Modules that support the top-class breakdown chart
 const TOP_CLASS_MODULES: Module[] = [
-  MODULES.EquipmentElectricConsumption,
+  MODULES.Equipment,
   MODULES.Purchase,
   MODULES.ResearchFacilities,
 ];

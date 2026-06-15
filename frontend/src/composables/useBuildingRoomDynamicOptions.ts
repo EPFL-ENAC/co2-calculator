@@ -1,4 +1,4 @@
-import { computed, reactive, watch, type Ref } from 'vue';
+import { computed, ref, shallowReactive, watch, type Ref } from 'vue';
 import {
   MODULES,
   SUBMODULE_BUILDINGS_TYPES,
@@ -18,9 +18,10 @@ export function useBuildingRoomDynamicOptions(
 ) {
   const buildingRoomStore = useBuildingRoomStore();
 
-  const dynamicOptions = reactive<
+  const dynamicOptions = shallowReactive<
     Record<string, Array<{ value: string; label: string }>>
   >({});
+  const loadingRooms = ref(false);
   let buildingRoomsRequestId = 0;
   let roomSelectionRequestId = 0;
   let energyDefaultsRequestId = 0;
@@ -61,6 +62,7 @@ export function useBuildingRoomDynamicOptions(
         form['lighting_kwh_per_square_meter'] = null;
       }
 
+      loadingRooms.value = true;
       try {
         const requestId = ++buildingRoomsRequestId;
         const rooms = await buildingRoomStore.fetchRooms(newVal);
@@ -71,6 +73,8 @@ export function useBuildingRoomDynamicOptions(
         }));
       } catch {
         dynamicOptions['subkind'] = [];
+      } finally {
+        loadingRooms.value = false;
       }
     },
     { immediate: true },
@@ -169,5 +173,5 @@ export function useBuildingRoomDynamicOptions(
     },
   );
 
-  return { dynamicOptions };
+  return { dynamicOptions, loadingRooms };
 }

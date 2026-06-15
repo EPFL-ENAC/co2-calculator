@@ -59,20 +59,20 @@ export default {
     fr: 't CO₂-eq',
   },
   [ROLES.StandardUser]: {
-    en: 'User',
-    fr: 'Utilisateur',
+    en: 'Standard User',
+    fr: 'Utilisateur Standard',
   },
   [ROLES.PrincipalUser]: {
-    en: 'Unit Manager',
-    fr: "Responsable d'unité",
+    en: 'Principal User',
+    fr: 'Utilisateur Principal',
   },
   [ROLES.BackOfficeMetier]: {
-    en: 'Backoffice Administrator',
-    fr: 'Administrateur métier',
+    en: 'Back-Office Standard',
+    fr: 'Back-Office Standard',
   },
   [ROLES.SuperAdmin]: {
-    en: 'Super Admin',
-    fr: 'Super Admin',
+    en: 'Back-Office Admin',
+    fr: 'Back-Office Admin',
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
@@ -460,6 +460,14 @@ export default {
     en: 'Number required',
     fr: 'Nombre requis',
   },
+  validation_number_format: {
+    en: 'Please use a dot as the decimal separator (e.g. 4242424.2424)',
+    fr: 'Veuillez utiliser un point comme séparateur décimal (ex. 4242424.2424)',
+  },
+  validation_use_dot_not_comma: {
+    en: 'Use a dot (.) not a comma (,) — e.g. 42.45',
+    fr: 'Utilisez un point (.) et non une virgule (,) — ex. 42.45',
+  },
   validation_must_be_non_negative: {
     en: 'Must be >= 0',
     fr: 'Doit être >= 0',
@@ -488,11 +496,11 @@ export default {
     en: 'Process emissions carbon footprint',
     fr: 'Empreinte carbone des émissions de procédés',
   },
-  'carbon_footprint_title_equipment-electric-consumption': {
+  carbon_footprint_title_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
-  'carbon_footprint_tooltip_equipment-electric-consumption': {
+  carbon_footprint_tooltip_equipment: {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
     fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
   },

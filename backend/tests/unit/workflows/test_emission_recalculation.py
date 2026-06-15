@@ -56,7 +56,10 @@ async def test_recalculate_all_success():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         mock_response_cls.model_validate.return_value = mock_entry_response
 
         result = await svc.recalculate_for_data_entry_type(
@@ -118,11 +121,15 @@ async def test_recalculate_partial_error():
 
         mock_response_cls.model_validate.side_effect = _model_validate
 
-        async def _upsert(entry_response):
+        async def _prepare(entry_response, **kwargs):
             if entry_response.id == 2:
                 raise ValueError("factor not found")
+            return []
 
-        mock_emission_cls.return_value.upsert_by_data_entry = _upsert
+        mock_emission_cls.return_value.prepare_create = _prepare
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
 
         result = await svc.recalculate_for_data_entry_type(
             DataEntryTypeEnum.plane, 2025
@@ -191,7 +198,7 @@ async def test_recalculate_aborts_batch_on_connection_invalidated():
 
         upsert_calls: list[int] = []
 
-        async def _upsert(entry_response):
+        async def _prepare(entry_response, **kwargs):
             upsert_calls.append(entry_response.id)
             if entry_response.id == 1:
                 raise DBAPIError(
@@ -200,8 +207,12 @@ async def test_recalculate_aborts_batch_on_connection_invalidated():
                     Exception("server closed the connection unexpectedly"),
                     connection_invalidated=True,
                 )
+            return []
 
-        mock_emission_cls.return_value.upsert_by_data_entry = _upsert
+        mock_emission_cls.return_value.prepare_create = _prepare
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
 
         with pytest.raises(DBAPIError):
             await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
@@ -261,15 +272,19 @@ async def test_recalculate_aborts_batch_on_pending_rollback():
 
         upsert_calls: list[int] = []
 
-        async def _upsert(entry_response):
+        async def _prepare(entry_response, **kwargs):
             upsert_calls.append(entry_response.id)
             if entry_response.id == 1:
                 raise PendingRollbackError(
                     "This Session's transaction has been rolled back "
                     "due to a previous exception during flush."
                 )
+            return []
 
-        mock_emission_cls.return_value.upsert_by_data_entry = _upsert
+        mock_emission_cls.return_value.prepare_create = _prepare
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
 
         with pytest.raises(PendingRollbackError):
             await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
@@ -345,7 +360,10 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[new_factor]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         # Strategy A handler: kind_field maps to a key in entry.data so
         # the gate ``handler.kind_field in entry.data`` evaluates True.
         strategy_a_handler = MagicMock()
@@ -392,7 +410,10 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         # Handler with no kind_field (MagicMock attr is not in entry.data
         # so the rematch gate fails) — entry.data stays untouched.
         mock_handler_cls.get_by_type.return_value = MagicMock()
@@ -444,7 +465,10 @@ async def test_recalculate_reports_affected_module_ids_for_chain():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         mock_response_cls.model_validate.return_value = mock_entry_response
 
         result = await svc.recalculate_for_data_entry_type(
@@ -500,7 +524,10 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         # Strategy B handler shape: kind_field set, but its value isn't
         # present in entry.data (would be derived via pre_compute).
         strategy_b_handler = MagicMock()
@@ -517,19 +544,22 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
     # the gate above is now the only thing keeping Strategy B safe.)
     assert entry.data["primary_factor_id"] == 7
     assert result["recalculated"] == 1
-    # Plan 310D Copilot follow-up: the bulk-prefetch SELECT must also be
-    # skipped for Strategy B slices.  Without this gate every Strategy B
-    # recalc paid for an extra ``list_by_data_entry_type`` query that
-    # was guaranteed to feed zero useful lookups.
-    mock_factor_repo_cls.return_value.list_by_data_entry_type.assert_not_called()
+    # Batched-write refactor: the bulk-prefetch SELECT now runs for
+    # every slice (one query) because it also feeds the Strategy-A
+    # id→Factor cache inside ``prepare_create``.  For Strategy B it
+    # feeds no rematch lookups — the gate above still keeps the
+    # rematch itself off — but the single SELECT is the price of
+    # removing one factor SELECT per entry on Strategy A slices.
+    mock_factor_repo_cls.return_value.list_by_data_entry_type.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
-    """Plan 310B Part 6 (Copilot follow-up): if ``upsert_by_data_entry``
-    raises mid-loop, the in-memory ``entry.data`` mutation must be
-    rolled back so the outer ``data_session.commit()`` doesn't persist
-    a stale primary_factor_id alongside an old emissions row.
+    """Plan 310B Part 6 (Copilot follow-up): if the per-entry compute
+    (``prepare_create``) raises mid-loop, the in-memory ``entry.data``
+    mutation must be rolled back so the outer ``data_session.commit()``
+    doesn't persist a stale primary_factor_id alongside an old
+    emissions row.
     """
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
@@ -568,8 +598,11 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         )
         # The compute step raises — simulates a downstream failure between
         # the rematch swap and the emissions-row write.
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock(
+        mock_emission_cls.return_value.prepare_create = AsyncMock(
             side_effect=RuntimeError("compute blew up")
+        )
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
         )
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
@@ -643,7 +676,10 @@ async def test_recalculate_uses_single_factor_bulk_fetch():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[laptop_factor]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         strategy_a_handler = MagicMock()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
@@ -709,7 +745,10 @@ async def test_recalculate_kind_only_fallback_in_dict():
         mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
             return_value=[kind_only_factor]
         )
-        mock_emission_cls.return_value.upsert_by_data_entry = AsyncMock()
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
         handler = MagicMock()
         handler.kind_field = "equipment_class"
         handler.subkind_field = "sub_class"
@@ -720,3 +759,54 @@ async def test_recalculate_kind_only_fallback_in_dict():
     # Kind-only fallback hit — primary_factor_id resolved to 555 from
     # the (Laptop, None) bulk-dict entry, NOT cleared and NOT a DB call.
     assert entry.data["primary_factor_id"] == 555
+
+
+@pytest.mark.asyncio
+async def test_recalculate_reports_progress_at_interval(monkeypatch):
+    """Every PROGRESS_INTERVAL computed entries, the workflow logs and
+    invokes the caller's progress callback (the handlers stamp it onto
+    the job row so SSE/UI can track long recalcs)."""
+    import app.workflows.emission_recalculation as wf_mod
+
+    monkeypatch.setattr(wf_mod, "PROGRESS_INTERVAL", 1)
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entries = [_make_mock_entry(1, 10), _make_mock_entry(2, 10)]
+    progress_calls: list[tuple[int, int]] = []
+
+    async def _progress(done: int, total: int) -> None:
+        progress_calls.append((done, total))
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=entries
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[]
+        )
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
+
+        await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.plane, 2025, progress_callback=_progress
+        )
+
+    assert progress_calls == [(1, 2), (2, 2)]

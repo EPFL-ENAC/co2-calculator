@@ -119,6 +119,7 @@ async def test_full_dag_csv_ingest_chains_emission_recalc_chains_aggregation(pg_
     # wiring is what we're testing here, not the stats math).
     crm_svc = MagicMock()
     crm_svc.list_modules_for = AsyncMock(return_value=[])
+    crm_svc.recompute_stats_many = AsyncMock(return_value=0)
 
     # The runner has its own session factory tied to the
     # production DB URL.  Replace ``fire_and_forget`` with a shim

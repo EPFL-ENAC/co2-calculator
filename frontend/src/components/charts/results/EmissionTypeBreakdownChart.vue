@@ -56,6 +56,12 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   ventilation: 'charts-ventilation-subcategory',
   heating_elec: 'charts-heating-elec-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
+  laboratories: 'charts-laboratories-subcategory',
+  office: 'charts-office-subcategory',
+  archives: 'charts-archives-subcategory',
+  libraries: 'charts-libraries-subcategory',
+  auditoriums: 'charts-auditoriums-subcategory',
+  miscellaneous: 'charts-miscellaneous-subcategory',
   combustion: 'charts-energy-combustion-subcategory',
   natural_gas: 'charts-natural-gas-subcategory',
   heating_oil: 'charts-heating-oil-subcategory',
@@ -223,8 +229,7 @@ const chartData = computed(() => {
         // Use a numeric suffix to guarantee unique, parseable segment keys
         const segKey = `_tcb_${segCounter++}`;
         segmentKeysSet.add(segKey);
-        // Prefer translation_key (i18n key from Factor table) over raw name
-        segmentLabelOverrides.set(segKey, child.translation_key ?? child.name);
+        segmentLabelOverrides.set(segKey, child.name);
         barData[segKey] = child.value / 1000.0; // kg → tonnes
       }
       bars.push(barData);

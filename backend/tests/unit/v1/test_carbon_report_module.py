@@ -441,10 +441,7 @@ class TestGetProfessionalTravelFilter:
 
 
 def test_module_top_class_group_field_mapping():
-    assert (
-        ModuleTypeEnum.equipment_electric_consumption
-        in crm._MODULE_TOP_CLASS_GROUP_FIELD
-    )
+    assert ModuleTypeEnum.equipment in crm._MODULE_TOP_CLASS_GROUP_FIELD
     assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_GROUP_FIELD
 
 

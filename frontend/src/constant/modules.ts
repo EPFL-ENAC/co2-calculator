@@ -5,7 +5,7 @@ export const MODULES = {
   ProfessionalTravel: 'professional-travel',
   ProcessEmissions: 'process-emissions',
   Buildings: 'buildings',
-  EquipmentElectricConsumption: 'equipment-electric-consumption',
+  Equipment: 'equipment',
   Purchase: 'purchase',
   ResearchFacilities: 'research-facilities',
   ExternalCloudAndAI: 'external-cloud-and-ai',
@@ -123,7 +123,7 @@ export const enumSubmodule = {
 
 export type EnumSubmoduleType = keyof typeof enumSubmodule;
 
-export type EquipmentElectricConsumptionSubType =
+export type EquipmentSubType =
   (typeof SUBMODULE_EQUIPMENT_TYPES)[keyof typeof SUBMODULE_EQUIPMENT_TYPES];
 
 export const SUBMODULE_HEADCOUNT_TYPES = {
@@ -149,8 +149,8 @@ type BuildingsProps = {
 };
 
 type EquipmentElectricConsumptionProps = {
-  moduleType: typeof MODULES.EquipmentElectricConsumption;
-  submoduleType?: AllSubmoduleTypes; // EquipmentElectricConsumptionSubType;
+  moduleType: typeof MODULES.Equipment;
+  submoduleType?: AllSubmoduleTypes; // EquipmentSubType;
 };
 
 export type HeadcountProps = {
@@ -270,7 +270,7 @@ export function getBackendModuleName(frontendModule: Module): string {
     [MODULES.Headcount]: 'headcount',
     [MODULES.ProfessionalTravel]: 'professional_travel',
     [MODULES.Buildings]: 'buildings',
-    [MODULES.EquipmentElectricConsumption]: 'equipment_electric_consumption',
+    [MODULES.Equipment]: 'equipment',
     [MODULES.Purchase]: 'purchase',
     [MODULES.ResearchFacilities]: 'research_facilities',
     [MODULES.ExternalCloudAndAI]: 'external_cloud_and_ai',

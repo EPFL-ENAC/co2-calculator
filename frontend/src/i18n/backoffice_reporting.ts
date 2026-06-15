@@ -269,10 +269,6 @@ export default {
     en: 'Calculator Completion Rate',
     fr: 'Taux de complétion du calculateur',
   },
-  backoffice_reporting_completion_bar_helper: {
-    en: 'Each unit has equal weight, independent of FTE size',
-    fr: 'Chaque unité a le même poids, indépendamment de la taille en EPT',
-  },
   backoffice_reporting_completion_bar_scope: {
     en: 'in current selection',
     fr: 'dans la sélection actuelle',

@@ -164,7 +164,7 @@ class EmissionType(int, Enum):
     buildings__combustion__pellets = 60204
     buildings__combustion__forest_chips = 60205
     buildings__combustion__wood_logs = 60206
-    buildings__embodied_energy = (
+    buildings__construction_and_renovation = (
         60300  # scope 3 — embodied emissions of construction materials
     )
 
@@ -443,7 +443,9 @@ _PARENT_MAP: dict[int, int] = {
     EmissionType.buildings__combustion__wood_logs.value: (
         EmissionType.buildings__combustion.value
     ),
-    EmissionType.buildings__embodied_energy.value: EmissionType.buildings.value,
+    EmissionType.buildings__construction_and_renovation.value: (
+        EmissionType.buildings.value
+    ),
     # process_emissions
     EmissionType.process_emissions__ch4.value: EmissionType.process_emissions.value,
     EmissionType.process_emissions__co2.value: EmissionType.process_emissions.value,
@@ -817,7 +819,7 @@ _SCOPE_CATEGORY_MAP: dict[int, EmissionMeta] = {
         "scope": Scope.scope1,
         "category": EmissionCategory.buildings_energy_combustion,
     },
-    EmissionType.buildings__embodied_energy.value: {
+    EmissionType.buildings__construction_and_renovation.value: {
         "scope": Scope.scope3,
         "category": EmissionCategory.embodied_energy,
     },

@@ -4,7 +4,7 @@ Covers the CSV ingest path for the five ``MODULE_PER_YEAR`` modules
 that route through the **plain** ``ModulePerYearCSVProvider`` and key
 emissions on ``primary_factor_id``:
 
-* ``equipment_electric_consumption``
+* ``equipment``
 * ``purchase``
 * ``external_cloud_and_ai``
 * ``process_emissions``
@@ -134,8 +134,8 @@ _SPECS: dict[str, _ModuleSpec] = {
         # Row 1: quantity=100.0, ef=1.5 → 150.0 kg.
         expected_kg_first_row=150.0,
     ),
-    "equipment_electric_consumption": _ModuleSpec(
-        module_type=ModuleTypeEnum.equipment_electric_consumption,
+    "equipment": _ModuleSpec(
+        module_type=ModuleTypeEnum.equipment,
         data_entry_type=DataEntryTypeEnum.it,
         csv_module="equipments",
         emission_type=EmissionType.equipment__it,
