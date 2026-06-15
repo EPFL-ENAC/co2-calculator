@@ -1,9 +1,9 @@
 ---
-status: in_progress
+status: delivered
 issue: 310-f
 last_updated: 2026-06-16
 title: "310-f Ingestion per-row efficiency"
-summary: "The CSV ingest parse/validate loop dominated wall-clock (~34s for 9555 purchase rows on dev). The first cut guessed line-level suspects and they were wrong. A row-loop profiler was added, and the trace pinned 33.4s of 34.5s on `resolve` — a per-row linear scan of ~23k factor keys in `lookup_data_entry_type_by_kind` (O(rows × factors)). Fixed by memoising the kind→type inference per (kind, subkind). Re-measure pending."
+summary: "The CSV ingest parse/validate loop dominated wall-clock (~34s for 9555 purchase rows on dev). The first cut guessed line-level suspects and they were wrong. A row-loop profiler was added, and the trace pinned 33.4s of 34.5s on `resolve` — a per-row linear scan of ~23k factor keys in `lookup_data_entry_type_by_kind` (O(rows × factors)). Fixed by memoising the kind→type inference per (kind, subkind); re-measured 34.5s → 1.7s (20×). A one-time index is a documented follow-up, not needed at current data shape."
 ---
 
 # 310-f Ingestion per-row efficiency
@@ -78,10 +78,20 @@ repeat heavily across rows, so memoise it per file on `setup_result` —
 per distinct kind. Mirrors the existing #1415 memoisation of the per-type split.
 Regression test: `test_type_inference_is_memoised_per_kind`.
 
-**Re-measure pending** — capture a fresh `Row-loop profile` line after deploy to
-confirm `resolve` collapses. If a file ever has near-unique kinds per row (memo
-ineffective), the follow-up is a one-time `kind → types` index in
-`lookup_data_entry_type_by_kind` instead of the per-row scan.
+**Re-measured (2026-06-16): 34.5s → 1.7s** — a 20× drop on the same 9555-row
+file (`resolve` 33.4s → 1.0s):
+
+```
+Row-loop profile: 9555 rows in 1.7s (0.17 ms/row) | row=1.6s
+  [resolve=1.0 validate=0.2 enrich=0.0 populate=0.0 row_other=0.5] loop_overhead=0.0s
+```
+
+The memo is sufficient at the current data shape — distinct kinds are few, so
+the per-distinct-kind scan that remains (the 1.0s) is cheap. **Possible
+follow-up, not currently needed:** if a file ever has near-unique kinds per row
+(memo ineffective), build a one-time `kind → types` index where the factor pools
+are computed and make each lookup O(1). `lookup_data_entry_type_by_kind` has
+exactly one caller, so that refactor is self-contained. Deferred — 1.7s is fine.
 
 The method below stays on record for future buckets.
 
