@@ -177,7 +177,7 @@
                 "
                 :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
                 :hint="inp.hint ? $t(inp.hint) : null"
-                :type="inp.type === 'number' ? 'number' : undefined"
+                :inputmode="inp.type === 'number' ? 'decimal' : undefined"
                 :options="getFilteredOptions(inp)"
                 :loading="
                   inp.optionsId === 'kind'
@@ -190,6 +190,7 @@
                 :error-message="errors[inp.id]"
                 :min="inp.min"
                 :max="inp.max"
+                @blur="validateField(inp)"
                 :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
@@ -940,12 +941,22 @@ function validateField(i: ModuleField) {
     }
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
-    const n = Number(v);
-    if (Number.isNaN(n)) errors[i.id] = $t('validation_number_required');
-    if (i.min !== undefined && n < i.min)
-      errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
-    if (i.max !== undefined && n > i.max)
-      errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+    const s = typeof v === 'string' ? v.trim() : String(v);
+    // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+    const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+
+    if (s.includes(',')) {
+      // Targeted message: FR/CH users instinctively type a comma separator
+      errors[i.id] = $t('validation_use_dot_not_comma');
+    } else if (!NUMBER_RE.test(s)) {
+      errors[i.id] = $t('validation_number_format');
+    } else {
+      const n = Number(s);
+      if (i.min !== undefined && n < i.min)
+        errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
+      else if (i.max !== undefined && n > i.max)
+        errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+    }
   }
   return !errors[i.id];
 }

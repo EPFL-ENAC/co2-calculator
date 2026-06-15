@@ -460,6 +460,14 @@ export default {
     en: 'Number required',
     fr: 'Nombre requis',
   },
+  validation_number_format: {
+    en: 'Please use a dot as the decimal separator (e.g. 4242424.2424)',
+    fr: 'Veuillez utiliser un point comme séparateur décimal (ex. 4242424.2424)',
+  },
+  validation_use_dot_not_comma: {
+    en: 'Use a dot (.) not a comma (,) — e.g. 42.45',
+    fr: 'Utilisez un point (.) et non une virgule (,) — ex. 42.45',
+  },
   validation_must_be_non_negative: {
     en: 'Must be >= 0',
     fr: 'Doit être >= 0',

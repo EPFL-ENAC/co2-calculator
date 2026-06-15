@@ -159,7 +159,7 @@
               v-else
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
-              :type="getColumnInputType(col)"
+              :inputmode="getColumnInputmode(col)"
               :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
@@ -407,6 +407,13 @@ import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
+
+  rules.push((val: string | number | null) => {
+    if (val === '' || val === null || val === undefined) return true;
+    const s = typeof val === 'string' ? val.trim() : String(val);
+    if (s.includes(',')) return $t('validation_use_dot_not_comma');
+    return /^-?\d+(\.\d+)?$/.test(s) || $t('validation_number_format');
+  });
 
   if (col.min !== undefined) {
     rules.push((val: string | number | null) => {
@@ -759,8 +766,11 @@ const noteDialogMode = computed<'add' | 'edit'>(() =>
   noteDialogCurrentNote.value ? 'edit' : 'add',
 );
 
-function getColumnInputType(col: TableViewColumn): string | undefined {
-  return col.type === 'number' ? 'number' : undefined;
+function getColumnInputmode(col: TableViewColumn): string | undefined {
+  // Text input + decimal inputmode (no native number type) so invalid keystrokes
+  // stay in the cell instead of being silently dropped by the browser; the format
+  // is validated on commit.
+  return col.type === 'number' ? 'decimal' : undefined;
 }
 
 function getColumnTitle(col: TableViewColumn): string | undefined {
@@ -1195,12 +1205,19 @@ async function commitInline(
       return validation.parsed;
     }
     if (isNumeric) {
-      const n = Number(rawVal);
-      if (!Number.isFinite(n)) {
-        setError(row, col, $t('validation_number_required'));
+      const s = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
+      if (s.includes(',')) {
+        // Targeted message: FR/CH users instinctively type a comma separator
+        setError(row, col, $t('validation_use_dot_not_comma'));
         return null;
       }
-      // NEW: Validate min/max constraints
+      // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+      if (!/^-?\d+(\.\d+)?$/.test(s)) {
+        setError(row, col, $t('validation_number_format'));
+        return null;
+      }
+      const n = Number(s);
+      // Validate min/max constraints
       if (col.min !== undefined && n < col.min) {
         setError(row, col, $t('validation_must_be_at_least', { min: col.min }));
         return null;
