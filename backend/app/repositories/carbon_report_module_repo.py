@@ -1071,15 +1071,64 @@ class CarbonReportModuleRepository:
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
             return []
 
+        # Pre-aggregate CO2 by (unit_id, year, module_status) across all modules
+        # so each data-entry row can carry per-status totals for its unit-year.
+        status_co2_cols: List[Any] = [
+            col(CarbonReport.unit_id).label("s_unit_id"),
+            col(CarbonReport.year).label("s_year"),
+            col(CarbonReportModule.status).label("module_status"),
+            func.coalesce(func.sum(col(DataEntryEmission.kg_co2eq)), 0).label(
+                "total_co2"
+            ),
+        ]
+        status_stmt = (
+            select(*status_co2_cols)
+            .select_from(DataEntry)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.id == DataEntry.carbon_report_module_id,
+            )
+            .join(
+                CarbonReport,
+                CarbonReport.id == CarbonReportModule.carbon_report_id,
+            )
+            .outerjoin(
+                DataEntryEmission,
+                DataEntryEmission.data_entry_id == DataEntry.id,
+            )
+            .group_by(
+                col(CarbonReport.unit_id),
+                col(CarbonReport.year),
+                col(CarbonReportModule.status),
+            )
+        )
+        if years:
+            status_stmt = status_stmt.where(col(CarbonReport.year).in_(years))
+        if hierarchy_unit_ids is not None:
+            status_stmt = status_stmt.where(
+                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+            )
+
+        status_rows = (await self.session.exec(status_stmt)).all()
+        status_co2_lookup: dict[tuple, dict[int, float]] = {}
+        for sr in status_rows:
+            key = (sr.s_unit_id, sr.s_year)
+            if key not in status_co2_lookup:
+                status_co2_lookup[key] = {}
+            status_co2_lookup[key][sr.module_status] = float(sr.total_co2)
+
         report: list[dict] = []
 
         columns: List[Any] = [
             col(DataEntry.data_entry_type_id),
             col(CarbonReport.year),
+            col(Unit.id).label("unit_id"),
             col(Unit.institutional_id).label("unit_institutional_id"),
             col(Unit.path_name).label("unit_path_name"),
             col(DataEntry.id).label("data_entry_id"),
             col(DataEntry.data),
+            col(CarbonReportModule.last_updated).label("module_last_updated"),
+            col(User.display_name).label("principal_user_name"),
             func.coalesce(
                 func.sum(col(DataEntryEmission.kg_co2eq)),
                 0,
@@ -1101,12 +1150,19 @@ class CarbonReportModuleRepository:
                 DataEntryEmission,
                 DataEntryEmission.data_entry_id == DataEntry.id,
             )
+            .outerjoin(
+                User,
+                User.institutional_id == Unit.principal_user_institutional_id,
+            )
             .where(DataEntry.data_entry_type_id == data_entry_type.value)
             .group_by(
                 col(CarbonReport.year),
+                col(Unit.id),
                 col(Unit.institutional_id),
                 col(Unit.path_name),
                 col(DataEntry.id),
+                col(CarbonReportModule.last_updated),
+                col(User.display_name),
             )
         )
 
@@ -1166,16 +1222,37 @@ class CarbonReportModuleRepository:
                 # Remove primary_factor_id from data
                 data = row.data.copy() if row.data else {}
                 data.pop("primary_factor_id", None)
+
+                last_update_iso = None
+                if row.module_last_updated is not None:
+                    last_update_iso = datetime.fromtimestamp(
+                        row.module_last_updated, tz=timezone.utc
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                status_breakdown = status_co2_lookup.get((row.unit_id, row.year), {})
+
                 report.append(
                     {
+                        "unit_id": row.unit_id,
                         "data_entry_type": DataEntryTypeEnum(
                             row.data_entry_type_id
                         ).name,
                         "year": row.year,
                         "unit_institutional_id": row.unit_institutional_id,
                         "unit_path_name": row.unit_path_name,
+                        "principal_user": row.principal_user_name or "",
+                        "last_update": last_update_iso,
                         "data_entry_id": row.data_entry_id,
                         **data,
+                        "validated_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.VALIDATED, 0), 1
+                        ),
+                        "in_progress_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.IN_PROGRESS, 0), 1
+                        ),
+                        "not_started_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.NOT_STARTED, 0), 1
+                        ),
                         "kg_co2eq": row.kg_co2eq,
                     }
                 )
