@@ -190,7 +190,6 @@
                 :error-message="errors[inp.id]"
                 :min="inp.min"
                 :max="inp.max"
-                @blur="validateField(inp)"
                 :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
@@ -200,6 +199,7 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
+                @blur="validateField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
