@@ -1,6 +1,7 @@
 import asyncio
 import csv
 import io
+import time
 import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
@@ -48,6 +49,12 @@ from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
 logger = get_logger(__name__)
+
+# Minimum wall-clock seconds between two progress writes for the same job.
+# Progress is checked per-row (cheap monotonic read) but the DB write + log
+# line only fire this often, so a long CPU phase shows motion without
+# hammering the session.
+PROGRESS_REPORT_INTERVAL_S = 2.0
 
 
 def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
@@ -185,6 +192,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
         self._year_cache: Dict[int, int] = {}
+        # Progress reporting: current phase label + throttle/rate bookkeeping.
+        self._phase = ""
+        self._phase_started_at = 0.0
+        self._last_report_at = 0.0
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -598,10 +609,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
-        logger.info(
-            f"Found {len(unit_codes)} unique unit institutional_ids in CSV: "
-            f"{sorted(unit_codes)}"
-        )
+        logger.info(f"Found {len(unit_codes)} unique unit institutional_ids in CSV")
+        logger.debug("Unique unit institutional_ids: %s", sorted(unit_codes))
 
         # Scope the map to the CSV's units.  The bulk join above covers
         # EVERY unit with a report for this (year, module_type) — using
@@ -766,6 +775,54 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
+    def _enter_phase(self, phase: str) -> None:
+        """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
+        self._phase = phase
+        self._phase_started_at = time.monotonic()
+
+    @staticmethod
+    def _format_progress(
+        phase: str, processed: int | None, total: int | None, elapsed: float
+    ) -> str:
+        """Human-readable progress line with throughput + rough ETA."""
+        if not processed or not total:
+            return phase
+        rate = processed / max(elapsed, 1e-3)
+        eta = (total - processed) / rate if rate > 0 else 0.0
+        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
+
+    async def _report(
+        self,
+        phase: str,
+        *,
+        processed: int | None = None,
+        total: int | None = None,
+        stats: "StatsDict | None" = None,
+        force: bool = False,
+    ) -> None:
+        """Throttled progress write to the job row + an INFO log line.
+
+        Safe to call per-row: only the monotonic clock is read unless a
+        write is due (every ``PROGRESS_REPORT_INTERVAL_S``) or ``force``.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_report_at < PROGRESS_REPORT_INTERVAL_S:
+            return
+        self._last_report_at = now
+
+        msg = self._format_progress(
+            phase, processed, total, now - self._phase_started_at
+        )
+        meta: Dict[str, Any] = dict(stats) if stats else {}
+        meta["progress"] = {"phase": phase, "processed": processed, "total": total}
+        logger.info(msg)
+        await self._update_job(
+            status_message=msg,
+            state=IngestionState.RUNNING,
+            result=None,
+            extra_metadata=meta,
+        )
+
     async def process_csv_in_batches(self) -> Dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
@@ -795,9 +852,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self.entity_type == EntityType.MODULE_PER_YEAR
                 and not self.carbon_report_module_id
             ):
-                logger.info(
-                    "Resolving carbon_report_module_ids for MODULE_PER_YEAR import"
-                )
+                self._enter_phase("Resolving modules")
+                await self._report("Resolving modules", force=True)
                 unit_to_module_map = await self._resolve_carbon_report_modules(
                     setup_result["csv_text"]
                 )
@@ -806,15 +862,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 await self.data_session.flush()  # Flush report/module creation
 
                 # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
-                logger.info(
-                    "Deleting existing CSV_MODULE_PER_YEAR entries before re-import"
-                )
+                self._enter_phase("Deleting previous entries")
+                await self._report("Deleting previous entries", force=True)
                 await self._delete_existing_entries_for_module_per_year(
                     unit_to_module_map, stats, data_entry_service
                 )
 
             # Process CSV rows
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
+            # Rough row count for progress/ETA (header line excluded); the CSV
+            # text is already in memory, so counting newlines is cheap.
+            total_rows = max(setup_result["csv_text"].count("\n") - 1, 0)
+            self._enter_phase("Parsing rows")
+            await self._report(
+                "Parsing rows", processed=0, total=total_rows, stats=stats, force=True
+            )
             batch: List[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
@@ -834,12 +896,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # a 1000-row stretch could exceed 2s and trigger a restart.
                 if row_idx % 100 == 0:
                     await asyncio.sleep(0)
-                if row_idx % 5000 == 0:
-                    await self._update_job(
-                        status_message=f"Processing: {stats['rows_processed']}",
-                        state=IngestionState.RUNNING,
-                        result=None,
-                        extra_metadata=dict(stats),
+                    # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
+                    # long parse/validate phase shows live throughput + ETA
+                    # instead of going silent for tens of seconds.
+                    await self._report(
+                        "Parsing rows",
+                        processed=row_idx,
+                        total=total_rows,
+                        stats=stats,
                     )
                 # if empty row, skip
                 if not row:
@@ -937,6 +1001,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         )
 
             # Finalize: process remaining batch, move file, update job
+            self._enter_phase("Inserting")
+            await self._report(
+                "Inserting", processed=stats["rows_processed"], force=True
+            )
             return await self._finalize_and_commit(
                 batch,
                 data_entry_service,
