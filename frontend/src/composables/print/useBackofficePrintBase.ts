@@ -33,6 +33,9 @@ export function useBackofficePrintBase() {
   const reportingEmissionBreakdown = computed(
     () => units.value?.emission_breakdown ?? null,
   );
+  const reportingItBreakdown = computed(
+    () => units.value?.it_breakdown ?? null,
+  );
   const validatedCount = computed(
     () => units.value?.validated_units_count ?? 0,
   );
@@ -69,6 +72,7 @@ export function useBackofficePrintBase() {
     units,
     loading,
     reportingEmissionBreakdown,
+    reportingItBreakdown,
     validatedCount,
     tableTotal,
     availableModules,
