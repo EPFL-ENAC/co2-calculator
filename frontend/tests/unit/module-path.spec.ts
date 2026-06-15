@@ -31,5 +31,7 @@ test('rejects unresolved unit/year (the reported bug)', () => {
 
 test('throws rather than emit undefined/null segments', () => {
   expect(() => buildModulePath(MODULES.Equipment, undefined, null)).toThrow();
-  expect(() => buildModulePath(MODULES.Equipment, 'undefined', '2026')).toThrow();
+  expect(() =>
+    buildModulePath(MODULES.Equipment, 'undefined', '2026'),
+  ).toThrow();
 });
