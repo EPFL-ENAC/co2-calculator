@@ -23,8 +23,8 @@ const role = ref(ROLES.StandardUser);
 const roleOptions = computed(() => [
   { value: ROLES.StandardUser, label: 'User Standard' },
   { value: ROLES.PrincipalUser, label: 'Unit Manager' },
-  { value: ROLES.BackOfficeMetier, label: 'Backoffice Administrator' },
-  { value: ROLES.SuperAdmin, label: 'Super Admin' },
+  { value: ROLES.BackOfficeMetier, label: 'Back-Office Standard' },
+  { value: ROLES.SuperAdmin, label: 'Back-Office Admin' },
 ]);
 const isTestMode = computed(() => props.mode === 'test');
 
