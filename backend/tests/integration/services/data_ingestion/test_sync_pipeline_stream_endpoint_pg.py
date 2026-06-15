@@ -22,6 +22,7 @@ in ``tests/unit/repositories/test_data_ingestion_repo.py`` cover the data
 shape; the contract tests below cover gating and not-found.
 """
 
+import json
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -358,6 +359,16 @@ async def test_disconnect_releases_pool_slot(pg_dsn, monkeypatch):
         assert events, "Generator emitted no events before disconnect"
         # The first event should be the initial pipeline snapshot.
         assert b"pipeline-update" in events[0]
+
+        # The job payload carries ``data_entry_type_id`` so the frontend
+        # can scope a per-submodule phase badge to the dets actually in
+        # the pipeline.  The seeded factor job is pinned to det 1.
+        data_line = next(
+            ln for ln in events[0].decode().splitlines() if ln.startswith("data: ")
+        )
+        first_payload = json.loads(data_line[len("data: ") :])
+        assert first_payload["jobs"], "snapshot carried no jobs"
+        assert first_payload["jobs"][0]["data_entry_type_id"] == 1
 
         # The fix's contract: per-iteration sessions return their pool
         # slot before each ``asyncio.sleep`` and the generator exits when

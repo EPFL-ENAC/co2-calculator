@@ -6,7 +6,7 @@ Pins the contract:
 - Reads ``module_type_id`` and ``year`` from the job row; raises
   ``ValueError`` if either is missing so the runner records
   FINISHED+ERROR with a clear message.
-- Calls ``CarbonReportModuleService.recompute_stats`` once per affected
+- Calls ``CarbonReportModuleService.recompute_stats_many`` once with the affected
   module; returns ``modules_refreshed`` in the meta dict.
 - Empty module set → ``modules_refreshed: 0`` and no recompute calls.
 
@@ -71,8 +71,8 @@ def test_aggregation_registered():
 
 @pytest.mark.asyncio
 async def test_aggregation_calls_recompute_stats_for_each_affected_module():
-    """N modules in the (module_type, year) slice → N ``recompute_stats``
-    calls, one per module id."""
+    """N modules in the (module_type, year) slice → one batched
+    ``recompute_stats_many`` call with every module id."""
     job = _make_job()
     job_session = MagicMock()
     data_session = MagicMock()
@@ -80,16 +80,13 @@ async def test_aggregation_calls_recompute_stats_for_each_affected_module():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, job_session, data_session)
 
     svc.list_modules_for.assert_awaited_once_with(module_type_id=11, year=2025)
-    assert svc.recompute_stats.await_count == 3
-    svc.recompute_stats.assert_any_await(101)
-    svc.recompute_stats.assert_any_await(202)
-    svc.recompute_stats.assert_any_await(303)
+    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303])
     assert meta["modules_refreshed"] == 3
     assert meta["status_message"] == "Aggregation completed"
     assert meta["result"] == IngestionResult.SUCCESS
@@ -102,7 +99,7 @@ async def test_aggregation_returns_modules_refreshed_in_meta():
     job = _make_job()
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
@@ -122,12 +119,12 @@ async def test_aggregation_handles_empty_module_set():
     job = _make_job()
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    svc.recompute_stats.assert_not_called()
+    svc.recompute_stats_many.assert_awaited_once_with([])
     assert meta["modules_refreshed"] == 0
     assert meta["result"] == IngestionResult.SUCCESS
 
@@ -184,7 +181,7 @@ async def test_aggregation_acquires_advisory_lock_on_postgres():
 
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
@@ -210,7 +207,7 @@ async def test_aggregation_skips_advisory_lock_on_non_postgres():
 
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
@@ -233,7 +230,7 @@ async def test_aggregation_scopes_to_affected_module_ids():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with (
         patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
@@ -245,9 +242,7 @@ async def test_aggregation_scopes_to_affected_module_ids():
     ):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    assert svc.recompute_stats.await_count == 2
-    svc.recompute_stats.assert_any_await(101)
-    svc.recompute_stats.assert_any_await(303)
+    svc.recompute_stats_many.assert_awaited_once_with([101, 303])
     assert meta["modules_refreshed"] == 2
 
 
@@ -259,7 +254,7 @@ async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats = AsyncMock()
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
 
     with (
         patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
@@ -271,5 +266,5 @@ async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
     ):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    assert svc.recompute_stats.await_count == 3
+    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303])
     assert meta["modules_refreshed"] == 3

@@ -3,14 +3,18 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from sqlmodel import select
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReportType
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportType,
+)
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import (
     CarbonReportCreate,
@@ -21,6 +25,87 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 logger = get_logger(__name__)
+
+
+def _build_report_stats(modules) -> dict:
+    """Aggregate a report's stats JSON from its modules' stats dicts.
+
+    Pure function shared by the single-report and batched recompute
+    paths; ``modules`` only needs ``.stats``, ``.status`` and
+    ``.module_type_id`` attributes.
+    """
+    scope1_total = 0.0
+    scope2_total = 0.0
+    scope3_total = 0.0
+    by_emission_type: dict[str, float] = {}
+    by_additional_value: dict[str, float] = {}
+    total_entry_count = 0
+
+    for module in modules:
+        module_stats = module.stats
+        if not module_stats:
+            continue
+
+        scope1_total += module_stats.get("scope1", 0.0) or 0.0
+        scope2_total += module_stats.get("scope2", 0.0) or 0.0
+        scope3_total += module_stats.get("scope3", 0.0) or 0.0
+
+        module_by_et = module_stats.get("by_emission_type", {})
+        if isinstance(module_by_et, dict):
+            for et_id_str, kg_co2eq in module_by_et.items():
+                if kg_co2eq:
+                    current = by_emission_type.get(et_id_str, 0.0)
+                    by_emission_type[et_id_str] = current + kg_co2eq
+
+        module_by_add = module_stats.get("by_additional_value", {})
+        if isinstance(module_by_add, dict):
+            for et_id_str, add_val in module_by_add.items():
+                if add_val:
+                    current = by_additional_value.get(et_id_str, 0.0)
+                    by_additional_value[et_id_str] = current + float(add_val)
+
+        total_entry_count += module_stats.get("entry_count", 0) or 0
+
+    total = scope1_total + scope2_total + scope3_total
+
+    _it_et_id_strs = {str(et.value) for et in IT_EMISSION_TYPES}
+    it_total_kg = sum(v for k, v in by_emission_type.items() if k in _it_et_id_strs)
+
+    highest_category_module_id: Optional[int] = None
+    highest_category_total = 0.0
+    for module in modules:
+        if module.status != ModuleStatus.VALIDATED:
+            continue
+        module_total = module.stats.get("total", 0) if module.stats else 0
+        if module_total and module_total > highest_category_total:
+            highest_category_total = module_total
+            highest_category_module_id = module.module_type_id
+
+    return {
+        "scope1": scope1_total,
+        "scope2": scope2_total,
+        "scope3": scope3_total,
+        "total": total,
+        "it_total_kg": it_total_kg,
+        "by_emission_type": by_emission_type,
+        "by_additional_value": by_additional_value,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "entry_count": total_entry_count,
+        "highest_category_module_id": highest_category_module_id,
+    }
+
+
+def _build_report_progress(modules) -> tuple[str, ModuleStatus]:
+    """Derive (completion_progress, overall_status) from a module list."""
+    total_modules = len(modules)
+    completed_modules = sum(1 for m in modules if m.status == ModuleStatus.VALIDATED)
+    if completed_modules == 0:
+        overall_status = ModuleStatus.NOT_STARTED
+    elif completed_modules == total_modules:
+        overall_status = ModuleStatus.VALIDATED
+    else:
+        overall_status = ModuleStatus.IN_PROGRESS
+    return f"{completed_modules}/{total_modules}", overall_status
 
 
 class CarbonReportService:
@@ -212,65 +297,7 @@ class CarbonReportService:
             )
             return
 
-        scope1_total = 0.0
-        scope2_total = 0.0
-        scope3_total = 0.0
-        by_emission_type: dict[str, float] = {}
-        by_additional_value: dict[str, float] = {}
-        total_entry_count = 0
-
-        for module in modules:
-            module_stats = module.stats
-            if not module_stats:
-                continue
-
-            scope1_total += module_stats.get("scope1", 0.0) or 0.0
-            scope2_total += module_stats.get("scope2", 0.0) or 0.0
-            scope3_total += module_stats.get("scope3", 0.0) or 0.0
-
-            module_by_et = module_stats.get("by_emission_type", {})
-            if isinstance(module_by_et, dict):
-                for et_id_str, kg_co2eq in module_by_et.items():
-                    if kg_co2eq:
-                        current = by_emission_type.get(et_id_str, 0.0)
-                        by_emission_type[et_id_str] = current + kg_co2eq
-
-            module_by_add = module_stats.get("by_additional_value", {})
-            if isinstance(module_by_add, dict):
-                for et_id_str, add_val in module_by_add.items():
-                    if add_val:
-                        current = by_additional_value.get(et_id_str, 0.0)
-                        by_additional_value[et_id_str] = current + float(add_val)
-
-            total_entry_count += module_stats.get("entry_count", 0) or 0
-
-        total = scope1_total + scope2_total + scope3_total
-
-        _it_et_id_strs = {str(et.value) for et in IT_EMISSION_TYPES}
-        it_total_kg = sum(v for k, v in by_emission_type.items() if k in _it_et_id_strs)
-
-        highest_category_module_id: Optional[int] = None
-        highest_category_total = 0.0
-        for module in modules:
-            if module.status != ModuleStatus.VALIDATED:
-                continue
-            module_total = module.stats.get("total", 0) if module.stats else 0
-            if module_total and module_total > highest_category_total:
-                highest_category_total = module_total
-                highest_category_module_id = module.module_type_id
-
-        stats = {
-            "scope1": scope1_total,
-            "scope2": scope2_total,
-            "scope3": scope3_total,
-            "total": total,
-            "it_total_kg": it_total_kg,
-            "by_emission_type": by_emission_type,
-            "by_additional_value": by_additional_value,
-            "computed_at": datetime.now(timezone.utc).isoformat(),
-            "entry_count": total_entry_count,
-            "highest_category_module_id": highest_category_module_id,
-        }
+        stats = _build_report_stats(modules)
 
         report = await self.repo.get(carbon_report_id)
         report_id_sanitized = sanitize(carbon_report_id)
@@ -281,14 +308,73 @@ class CarbonReportService:
             await self.recompute_report_progress(carbon_report_id)
             logger.info(
                 f"Report stats recomputed for carbon_report_id={report_id_sanitized}: "
-                f"total={total:.2f} kgCO2eq, "
-                f"{len(by_emission_type)} emission types, "
-                f"{total_entry_count} entries"
+                f"total={stats['total']:.2f} kgCO2eq, "
+                f"{len(stats['by_emission_type'])} emission types, "
+                f"{stats['entry_count']} entries"
             )
         else:
             logger.warning(
                 f"recompute_report_stats: report {report_id_sanitized} not found"
             )
+
+    async def recompute_report_stats_many(self, carbon_report_ids: list[int]) -> None:
+        """Batched report rollup for the aggregation job.
+
+        Two SELECTs (all child modules, all reports) + one flush for the
+        whole set, instead of ~4 queries + 2 flushes per report.  Applies
+        the same stats AND progress derivations as the single-report
+        functions, from one module load.
+        """
+        if not carbon_report_ids:
+            return
+        modules_by_report: dict[int, list[CarbonReportModule]] = {}
+        module_rows = (
+            (
+                await self.session.execute(
+                    select(CarbonReportModule).where(
+                        col(CarbonReportModule.carbon_report_id).in_(carbon_report_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for m in module_rows:
+            modules_by_report.setdefault(m.carbon_report_id, []).append(m)
+        reports = (
+            (
+                await self.session.execute(
+                    select(CarbonReport).where(
+                        col(CarbonReport.id).in_(carbon_report_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        updated = 0
+        for report in reports:
+            modules = modules_by_report.get(report.id or -1)
+            if not modules:
+                logger.warning(
+                    f"recompute_report_stats_many: no modules for report "
+                    f"{sanitize(report.id)}, skipping"
+                )
+                continue
+            report.stats = _build_report_stats(modules)
+            progress, status = _build_report_progress(modules)
+            report.completion_progress = progress
+            report.overall_status = status
+            report.last_updated = now_ts
+            self.session.add(report)
+            updated += 1
+        await self.session.flush()
+        logger.info(
+            f"Report stats recomputed for {updated}/{len(carbon_report_ids)} "
+            "report(s) (batched)"
+        )
 
     async def recompute_report_progress(self, carbon_report_id: int) -> None:
         """
@@ -312,19 +398,7 @@ class CarbonReportService:
             )
             return
 
-        total_modules = len(modules)
-        completed_modules = sum(
-            1 for m in modules if m.status == ModuleStatus.VALIDATED
-        )
-
-        if completed_modules == 0:
-            overall_status = ModuleStatus.NOT_STARTED
-        elif completed_modules == total_modules:
-            overall_status = ModuleStatus.VALIDATED
-        else:
-            overall_status = ModuleStatus.IN_PROGRESS
-
-        completion_progress = f"{completed_modules}/{total_modules}"
+        completion_progress, overall_status = _build_report_progress(modules)
 
         report = await self.repo.get(carbon_report_id)
         report_id_sanitized = sanitize(carbon_report_id)

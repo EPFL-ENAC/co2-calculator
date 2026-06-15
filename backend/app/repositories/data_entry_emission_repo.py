@@ -2,8 +2,11 @@
 
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import ColumnElement, Select, and_, case, literal
-from sqlmodel import col, func, select
+from psycopg.types.json import Json
+from sqlalchemy import ColumnElement, Integer, Select, and_, bindparam, case, literal
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlmodel import col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
@@ -13,6 +16,15 @@ from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.utils.data_entry_emission_type_map import ROLLUP_EMISSION_TYPE_IDS
 from app.utils.it_breakdown import ITSqlTotals
+
+# COPY target for ``bulk_copy`` — every non-defaulted column;
+# ``id`` is omitted so the sequence assigns it server-side.
+_EMISSION_COPY_SQL = """
+COPY data_entry_emissions (
+    data_entry_id, emission_type_id, primary_factor_id, kg_co2eq,
+    additional_value, scope, meta, computed_at
+) FROM STDIN
+"""
 
 
 def _is_leaf_emission() -> ColumnElement[bool]:
@@ -84,6 +96,73 @@ class DataEntryEmissionRepository:
         await self.session.flush()
         return objs
 
+    async def delete_by_data_entry_ids(self, data_entry_ids: list[int]) -> None:
+        """Set-based DELETE for a whole recalc slice.
+
+        On PostgreSQL the whole id set ships as ONE array bind param
+        (``= ANY(:ids)``) — a 49k-entry slice is a single statement with
+        a single parameter, instead of 49k expanded ``IN`` binds.  The
+        SQLite test harness has no array type, so it falls back to
+        chunked ``IN`` lists.
+        """
+        if not data_entry_ids:
+            return
+        bind = self.session.get_bind()
+        if bind.dialect.name == "postgresql":
+            await self.session.execute(
+                sa_text(
+                    "DELETE FROM data_entry_emissions WHERE data_entry_id = ANY(:ids)"
+                ).bindparams(bindparam("ids", data_entry_ids, type_=ARRAY(Integer)))
+            )
+            return
+        chunk = 10_000
+        for i in range(0, len(data_entry_ids), chunk):
+            await self.session.execute(
+                delete(DataEntryEmission).where(
+                    col(DataEntryEmission.data_entry_id).in_(
+                        data_entry_ids[i : i + chunk]
+                    )
+                )
+            )
+
+    async def bulk_copy(self, emissions: list[DataEntryEmission]) -> int:
+        """Bulk insert via PostgreSQL ``COPY … FROM STDIN`` (psycopg3).
+
+        Same contract as ``DataEntryRepository.bulk_copy``: runs on the
+        session's own connection (transactional), returns a row count,
+        never populates ids.  Non-psycopg drivers (SQLite / asyncpg test
+        fixtures) take the ORM bulk path.
+        """
+        if not emissions:
+            return 0
+        bind = self.session.get_bind()
+        if bind.dialect.driver != "psycopg":
+            self.session.add_all(emissions)
+            await self.session.flush()
+            return len(emissions)
+
+        sa_conn = await self.session.connection()
+        raw = await sa_conn.get_raw_connection()
+        driver_conn = raw.driver_connection  # psycopg AsyncConnection
+        if driver_conn is None:
+            raise RuntimeError("bulk_copy: raw connection has no driver connection")
+        async with driver_conn.cursor() as cur:
+            async with cur.copy(_EMISSION_COPY_SQL) as copy:
+                for e in emissions:
+                    await copy.write_row(
+                        (
+                            e.data_entry_id,
+                            e.emission_type_id,
+                            e.primary_factor_id,
+                            e.kg_co2eq,
+                            e.additional_value,
+                            e.scope,
+                            Json(e.meta) if e.meta is not None else None,
+                            e.computed_at,
+                        )
+                    )
+        return len(emissions)
+
     async def get_stats(
         self,
         carbon_report_module_id,
@@ -130,6 +209,47 @@ class DataEntryEmissionRepository:
             aggregation[label] = total_count
 
         return aggregation
+
+    async def get_stats_pair_many(
+        self,
+        carbon_report_module_ids: list[int],
+    ) -> Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]]:
+        """``get_stats_pair`` for a whole module set in ONE grouped query.
+
+        Returns {module_id: (by_emission_type kg_co2eq, additional_value)}.
+        Modules with no emissions are absent from the result — callers
+        treat a miss as empty stats.
+        """
+        if not carbon_report_module_ids:
+            return {}
+        query = (
+            select(
+                col(DataEntry.carbon_report_module_id),
+                col(DataEntryEmission.emission_type_id),
+                func.sum(col(DataEntryEmission.kg_co2eq)).label("primary_total"),
+                func.sum(col(DataEntryEmission.additional_value)).label(
+                    "secondary_total"
+                ),
+            )
+            .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
+            .where(col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids))
+            .group_by(
+                col(DataEntry.carbon_report_module_id),
+                col(DataEntryEmission.emission_type_id),
+            )
+        )
+        rows = (await self.session.execute(query)).all()
+        result: Dict[int, tuple[Dict[str, float | None], Dict[str, float | None]]] = {}
+        for module_id, emission_type_id, primary_total, secondary_total in rows:
+            by_primary, by_secondary = result.setdefault(module_id, ({}, {}))
+            key = str(emission_type_id)
+            by_primary[key] = (
+                float(primary_total) if primary_total is not None else None
+            )
+            by_secondary[key] = (
+                float(secondary_total) if secondary_total is not None else None
+            )
+        return result
 
     async def get_stats_pair(
         self,

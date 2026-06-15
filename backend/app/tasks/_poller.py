@@ -24,8 +24,6 @@ from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
 
-POLL_INTERVAL_SECONDS = 10
-
 
 def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
     """Fire-and-forget: dispatch a job, logging any unhandled exception.
@@ -123,14 +121,14 @@ async def poll_pending_jobs() -> None:
                     )
 
                 # Sweep 2: dispatch NOT_STARTED jobs through the unified runner.
-                stmt = _pending_runner_jobs_query(10)
+                stmt = _pending_runner_jobs_query(settings.POLLER_BATCH_LIMIT)
                 jobs = (await session.execute(stmt)).scalars().all()
                 for job in jobs:
                     logger.info(f"Poller: scheduling orphaned job {job.id}")
                     schedule_job(job, POD_ID)
         except Exception as exc:
             logger.warning(f"Poller iteration failed: {exc}", exc_info=True)
-        await asyncio.sleep(POLL_INTERVAL_SECONDS)
+        await asyncio.sleep(settings.POLLER_INTERVAL_SECONDS)
 
 
 # Safety poller task is managed in main.py lifespan context manager,

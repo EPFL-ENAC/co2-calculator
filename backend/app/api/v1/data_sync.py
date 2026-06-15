@@ -1815,6 +1815,11 @@ async def pipeline_stream_by_id(
                 {
                     "id": job.id,
                     "job_type": job.job_type,
+                    # Carried so the frontend can scope a per-submodule
+                    # phase badge to the dets actually in the pipeline
+                    # (a single-submodule upload recalcs only its det;
+                    # other submodule cards must stay quiet).
+                    "data_entry_type_id": job.data_entry_type_id,
                     # Enum NAME so the frontend's string comparisons
                     # (``j.state === 'FINISHED'``) work uniformly across
                     # the list endpoint, single endpoint, and this SSE

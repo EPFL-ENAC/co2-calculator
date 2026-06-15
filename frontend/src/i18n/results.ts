@@ -15,6 +15,10 @@ export default {
     en: 'Print',
     fr: 'Imprimer',
   },
+  module_stats_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
+  },
   results_loading: {
     en: 'Loading…',
     fr: 'Chargement…',

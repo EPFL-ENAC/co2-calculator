@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Optional
 
+from psycopg.types.json import Json
 from sqlalchemy import case, or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, select
@@ -22,6 +23,64 @@ from app.models.module_type import (
     ModuleTypeEnum,
 )
 from app.schemas.data_entry import BaseModuleHandler
+
+# Staging table for the COPY-based factor upsert.  TEMP + per-session:
+# concurrent factor jobs on other connections each get their own.
+# ``IF NOT EXISTS`` + TRUNCATE because one job upserts multiple batches
+# inside the same transaction.
+_FACTOR_STAGING_DDL = """
+CREATE TEMP TABLE IF NOT EXISTS factors_staging (
+    emission_type_id INTEGER NOT NULL,
+    data_entry_type_id INTEGER NOT NULL,
+    classification JSON,
+    "values" JSON,
+    year INTEGER,
+    last_seen_job_id INTEGER
+) ON COMMIT DROP
+"""
+
+_FACTOR_STAGING_COPY_SQL = """
+COPY factors_staging (
+    emission_type_id, data_entry_type_id, classification,
+    "values", year, last_seen_job_id
+) FROM STDIN
+"""
+
+# One INSERT…SELECT per identity-index partition (year IS NOT NULL vs
+# IS NULL) — same split as the VALUES-based fallback, because the two
+# partial unique indexes have different column lists and predicates.
+_FACTOR_UPSERT_FROM_STAGING = {
+    True: """
+        INSERT INTO factors (
+            emission_type_id, data_entry_type_id, classification,
+            "values", year, last_seen_job_id
+        )
+        SELECT emission_type_id, data_entry_type_id, classification,
+               "values", year, last_seen_job_id
+        FROM factors_staging
+        WHERE year IS NOT NULL
+        ON CONFLICT (data_entry_type_id, year, emission_type_id,
+                     (classification::text))
+        WHERE year IS NOT NULL
+        DO UPDATE SET "values" = EXCLUDED."values",
+                      last_seen_job_id = EXCLUDED.last_seen_job_id
+    """,
+    False: """
+        INSERT INTO factors (
+            emission_type_id, data_entry_type_id, classification,
+            "values", year, last_seen_job_id
+        )
+        SELECT emission_type_id, data_entry_type_id, classification,
+               "values", year, last_seen_job_id
+        FROM factors_staging
+        WHERE year IS NULL
+        ON CONFLICT (data_entry_type_id, emission_type_id,
+                     (classification::text))
+        WHERE year IS NULL
+        DO UPDATE SET "values" = EXCLUDED."values",
+                      last_seen_job_id = EXCLUDED.last_seen_job_id
+    """,
+}
 
 
 class FactorRepository:
@@ -102,6 +161,12 @@ class FactorRepository:
         if not factors:
             return 0
 
+        bind = self.session.get_bind()
+        if bind.dialect.driver == "psycopg":
+            return await self._upsert_via_copy(factors, current_job_id)
+
+        # Non-psycopg drivers (asyncpg test fixtures): VALUES-based
+        # upsert, partitioned by year-presence.
         with_year: List[Factor] = []
         no_year: List[Factor] = []
         for f in factors:
@@ -121,6 +186,54 @@ class FactorRepository:
             )
         return affected
 
+    async def _upsert_via_copy(
+        self,
+        factors: List[Factor],
+        current_job_id: int,
+    ) -> int:
+        """COPY → staging → ``INSERT … SELECT … ON CONFLICT`` upsert.
+
+        Streams the whole batch through one COPY instead of a multi-row
+        VALUES insert, so batch size is no longer bounded by bind-parameter
+        limits (a 25k-factor purchases file is one COPY + two upserts
+        instead of 25 chunked statements).  Runs on the session's own
+        connection: same transaction, rollback discards everything,
+        and the TEMP staging table drops on commit.
+        """
+        sa_conn = await self.session.connection()
+        raw = await sa_conn.get_raw_connection()
+        driver_conn = raw.driver_connection  # psycopg AsyncConnection
+        if driver_conn is None:
+            raise RuntimeError(
+                "upsert_factors: raw connection has no driver connection"
+            )
+
+        await self.session.execute(text(_FACTOR_STAGING_DDL))
+        await self.session.execute(text("TRUNCATE factors_staging"))
+        async with driver_conn.cursor() as cur:
+            async with cur.copy(_FACTOR_STAGING_COPY_SQL) as copy:
+                for f in factors:
+                    await copy.write_row(
+                        (
+                            f.emission_type_id,
+                            f.data_entry_type_id,
+                            Json(f.classification)
+                            if f.classification is not None
+                            else None,
+                            Json(f.values) if f.values is not None else None,
+                            f.year,
+                            current_job_id,
+                        )
+                    )
+
+        affected = 0
+        for year_present in (True, False):
+            result = await self.session.execute(
+                text(_FACTOR_UPSERT_FROM_STAGING[year_present])
+            )
+            affected += getattr(result, "rowcount", 0) or 0
+        return affected
+
     async def _upsert_subset(
         self,
         factors: List[Factor],
@@ -128,6 +241,18 @@ class FactorRepository:
         *,
         year_present: bool,
     ) -> int:
+        # Chunk so a COPY-sized batch (INGEST_COPY_BATCH_SIZE, e.g. 50k)
+        # handed to this fallback never exceeds driver bind-param limits.
+        chunk_size = 1000
+        if len(factors) > chunk_size:
+            affected = 0
+            for i in range(0, len(factors), chunk_size):
+                affected += await self._upsert_subset(
+                    factors[i : i + chunk_size],
+                    current_job_id,
+                    year_present=year_present,
+                )
+            return affected
         payload = [
             {
                 **f.model_dump(exclude={"id", "last_seen_job_id"}),

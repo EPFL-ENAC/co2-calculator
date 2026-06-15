@@ -128,6 +128,23 @@ class DataEntry(DataEntryBase, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
 
+    # Denormalized scope columns (source of truth is
+    # carbon_report_module → carbon_report).  Carried on the row so
+    # bulk operations — most importantly the per-year full-replace
+    # delete in CSV ingest — can filter by year/unit without resolving
+    # the module tree.  Stamped by the bulk ingest paths; immutable
+    # facts of an entry (entries never move between modules).
+    year: Optional[int] = Field(
+        default=None,
+        description="Denormalized report year (from carbon_report)",
+        sa_column=Column(Integer, nullable=True, index=True),
+    )
+    unit_id: Optional[int] = Field(
+        default=None,
+        description="Denormalized unit id (from carbon_report.unit_id)",
+        sa_column=Column(Integer, nullable=True, index=True),
+    )
+
     # Source tracking fields
     source: Optional[int] = Field(
         default=None,

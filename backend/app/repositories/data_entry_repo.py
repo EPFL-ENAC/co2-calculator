@@ -2,6 +2,7 @@
 
 from typing import Any, Dict, Optional
 
+from psycopg.types.json import Json
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
@@ -36,6 +37,15 @@ logger = get_logger(__name__)
 
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
+
+# COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
+# ``id`` is omitted so the sequence assigns it server-side.
+_DATA_ENTRY_COPY_SQL = """
+COPY data_entries (
+    data_entry_type_id, carbon_report_module_id, data, status,
+    source, created_by_id, created_at, updated_at, year, unit_id
+) FROM STDIN
+"""
 
 
 class DataEntryRepository:
@@ -84,6 +94,59 @@ class DataEntryRepository:
         await self.session.flush()
         return db_objs
 
+    async def bulk_copy(self, data_entries: list[DataEntry]) -> int:
+        """Bulk insert via PostgreSQL ``COPY … FROM STDIN`` (psycopg3).
+
+        Runs on the session's own connection, so the COPY participates in
+        the session's open transaction — a later rollback discards it.
+        Unlike ``bulk_create`` it never returns ORM objects and ids are
+        NOT populated; callers that need ids (audit trail, immediate
+        emission build) must use ``bulk_create``.
+
+        On non-PostgreSQL binds (the SQLite test harness) COPY is not part
+        of the wire protocol, so the ORM bulk path is used instead.
+        """
+        db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
+        if not db_objs:
+            return 0
+        bind = self.session.get_bind()
+        if bind.dialect.driver != "psycopg":
+            # COPY streaming here is psycopg3-specific (``cursor().copy()``).
+            # Production runs ``postgresql+psycopg``; SQLite and the
+            # asyncpg-based test fixtures take the ORM path.
+            logger.info(
+                f"bulk_copy: non-psycopg driver ({bind.dialect.driver}) — "
+                f"using ORM bulk insert for {len(db_objs)} entries"
+            )
+            self.session.add_all(db_objs)
+            await self.session.flush()
+            return len(db_objs)
+
+        sa_conn = await self.session.connection()
+        raw = await sa_conn.get_raw_connection()
+        driver_conn = raw.driver_connection  # psycopg AsyncConnection
+        if driver_conn is None:
+            raise RuntimeError("bulk_copy: raw connection has no driver connection")
+        async with driver_conn.cursor() as cur:
+            async with cur.copy(_DATA_ENTRY_COPY_SQL) as copy:
+                for obj in db_objs:
+                    await copy.write_row(
+                        (
+                            obj.data_entry_type_id,
+                            obj.carbon_report_module_id,
+                            Json(obj.data or {}),
+                            # Native PG enum column stores the member name.
+                            obj.status.name if obj.status is not None else None,
+                            obj.source,
+                            obj.created_by_id,
+                            obj.created_at,
+                            obj.updated_at,
+                            obj.year,
+                            obj.unit_id,
+                        )
+                    )
+        return len(db_objs)
+
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
     ) -> None:
@@ -116,6 +179,31 @@ class DataEntryRepository:
         )
         await self.session.execute(statement)
         await self.session.flush()
+
+    async def bulk_delete_by_source_year(
+        self,
+        year: int,
+        data_entry_type_ids: list[int],
+        source: int,  # DataEntrySourceEnum value
+    ) -> int:
+        """Full-year replace delete for MODULE_PER_YEAR ingest.
+
+        Per-year CSVs are complete exports: a new upload replaces ALL
+        prior rows of that (year, type, source) regardless of unit, so
+        the delete keys on the denormalized ``data_entries.year`` column
+        — no module-tree resolution, one indexed statement.  Returns
+        the number of rows deleted.
+        """
+        if not data_entry_type_ids:
+            return 0
+        statement = delete(DataEntry).where(
+            col(DataEntry.year) == year,
+            col(DataEntry.data_entry_type_id).in_(data_entry_type_ids),
+            col(DataEntry.source) == source,
+        )
+        result = await self.session.execute(statement)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
@@ -215,7 +303,10 @@ class DataEntryRepository:
         return list(result.scalars().all())
 
     async def list_by_data_entry_type_and_year(
-        self, data_entry_type_id: DataEntryTypeEnum, year: int
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+        carbon_report_module_ids: Optional[list[int]] = None,
     ) -> list[DataEntry]:
         """Fetch all DataEntries for a given data_entry_type and report year.
 
@@ -224,6 +315,9 @@ class DataEntryRepository:
         Args:
             data_entry_type_id: The data entry type to filter on.
             year: The carbon report year to filter on.
+            carbon_report_module_ids: Optional module scope — set by
+                unit-specific ingests so their recalc touches only the
+                uploaded module instead of the whole (det, year) slice.
 
         Returns:
             List of matching DataEntry rows (may be empty).
@@ -247,6 +341,10 @@ class DataEntryRepository:
                 col(CarbonReport.year) == year,
             )
         )
+        if carbon_report_module_ids:
+            statement = statement.where(
+                col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+            )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
