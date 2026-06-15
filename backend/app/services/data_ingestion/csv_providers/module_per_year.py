@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -113,6 +113,35 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             required_columns={"unit_institutional_id"},
         )
 
+    @staticmethod
+    def _get_factors_maps_by_type(
+        setup_result: Dict[str, Any],
+        valid_entry_types: List[DataEntryTypeEnum],
+    ) -> Dict[DataEntryTypeEnum, Dict[str, Any]]:
+        """Split the merged factors_map into per-type maps, computed once.
+
+        Factor-map keys are prefixed ``{type_value}:``. The split depends only
+        on factors_map and valid_entry_types, both fixed for the whole file, so
+        the result is memoised on setup_result to avoid a full-map scan per row.
+        """
+        cached = setup_result.get("factors_maps_by_type")
+        if cached is not None:
+            return cached
+
+        original_map = setup_result["factors_map"]
+        factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {
+            entry_type: {} for entry_type in valid_entry_types
+        }
+        prefixes = [(f"{t.value}:", t) for t in valid_entry_types]
+        for key, factor in original_map.items():
+            for prefix, entry_type in prefixes:
+                if key.startswith(prefix):
+                    factors_maps_by_type[entry_type][key] = factor
+                    break
+
+        setup_result["factors_maps_by_type"] = factors_maps_by_type
+        return factors_maps_by_type
+
     async def _resolve_handler_and_validate(
         self,
         filtered_row: Dict[str, str],
@@ -149,17 +178,13 @@ class ModulePerYearCSVProvider(BaseCSVProvider):
             module_type = ModuleTypeEnum(self.job.module_type_id)
             valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
-            original_map = setup_result["factors_map"]
-            factors_maps_by_type: Dict[DataEntryTypeEnum, Dict[str, Any]] = {}
-            for entry_type in valid_entry_types:
-                # Factor-map keys are prefixed "{type_value}:" — split the
-                # merged map back per type for the lookup helper
-                prefix = f"{entry_type.value}:"
-                factors_maps_by_type[entry_type] = {
-                    key: factor
-                    for key, factor in original_map.items()
-                    if key.startswith(prefix)
-                }
+            # The per-type split depends only on factors_map and the module's
+            # valid entry types — both invariant for the whole file. Building it
+            # per row scans the full factors_map (tens of thousands of entries)
+            # once per type for every row; cache it in setup_result instead.
+            factors_maps_by_type = self._get_factors_maps_by_type(
+                setup_result, valid_entry_types
+            )
 
             kind_value, subkind_value = self._extract_kind_subkind_values(
                 filtered_row, handlers
