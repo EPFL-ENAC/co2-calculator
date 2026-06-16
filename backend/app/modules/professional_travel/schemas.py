@@ -280,9 +280,55 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     kind_field: str = "category"
     subkind_field: str = "cabin_class"
 
-    async def pre_compute(self, data_entry: Any, session: Any) -> dict:
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: Any,
+        *,
+        year: int | None = None,
+    ) -> dict:
+        """Bulk-load the slice's airports + plane factors once per recalc.
+
+        Without this, ``pre_compute`` does two airport point-lookups, a year
+        lookup and a full plane-factor reload *per entry* — ~4 DB round-trips
+        × every flight in the slice. All three are constant across a
+        ``(plane, year)`` slice, so we resolve them here in two queries and
+        ``pre_compute`` reads them in-memory. Returns ``{}`` when the slice
+        has no year (``pre_compute`` then keeps its per-entry fallback).
+        """
+        if year is None:
+            return {}
+        iata_codes: set[str] = set()
+        for entry in entries:
+            origin = entry.data.get("origin_iata")
+            destination = entry.data.get("destination_iata")
+            if origin:
+                iata_codes.add(origin)
+            if destination:
+                iata_codes.add(destination)
+        locations = await LocationService(session).get_locations_by_iata(
+            list(iata_codes)
+        )
+        plane_factors = await FactorService(session).list_by_data_entry_type(
+            DataEntryTypeEnum.plane,
+            year=year,
+        )
+        return {
+            "locations": {loc.iata_code: loc for loc in locations},
+            "plane_factors": plane_factors,
+            "year": year,
+        }
+
+    async def pre_compute(
+        self, data_entry: Any, session: Any, *, slice_cache: dict | None = None
+    ) -> dict:
         """Compute flight distance and haul category
-        from origin/destination airports."""
+        from origin/destination airports.
+
+        ``slice_cache`` (from ``prefetch_slice``) supplies airports, year and
+        plane factors in-memory during a recalc; absent it (single-entry
+        create/update), the per-entry DB lookups below run unchanged.
+        """
         origin_iata = data_entry.data.get("origin_iata")
         destination_iata = data_entry.data.get("destination_iata")
         number_of_trips = data_entry.data.get("number_of_trips", 1)
@@ -300,9 +346,9 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
             )
             return {}
 
-        loc_service = LocationService(session)
-        origin = await loc_service.get_location_by_iata(origin_iata)
-        dest = await loc_service.get_location_by_iata(destination_iata)
+        origin, dest = await self._lookup_airports(
+            session, origin_iata, destination_iata, slice_cache
+        )
         if not origin or not dest:
             logger.warning(
                 "plane.pre_compute: skipping entry id=%s — IATA not found "
@@ -328,12 +374,8 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
                 destination_iata,
             )
             return {}
-        year = await _get_report_year_for_module(
-            session, data_entry.carbon_report_module_id
-        )
-        plane_factors = await FactorService(session).list_by_data_entry_type(
-            DataEntryTypeEnum.plane,
-            year=year,
+        year, plane_factors = await self._year_and_plane_factors(
+            session, data_entry, slice_cache
         )
         haul_category = get_haul_category(distance_one_trip_km, plane_factors)
         if haul_category is None:
@@ -351,6 +393,42 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
             "haul_category": haul_category,
             "distance_km": distance_km,
         }
+
+    async def _lookup_airports(
+        self,
+        session: Any,
+        origin_iata: str,
+        destination_iata: str,
+        slice_cache: dict | None,
+    ) -> tuple[Any, Any]:
+        """Origin/destination ``Location`` from the slice cache, else two
+        per-entry point lookups (single-entry path)."""
+        if slice_cache is not None:
+            locations = slice_cache["locations"]
+            return locations.get(origin_iata), locations.get(destination_iata)
+        loc_service = LocationService(session)
+        return (
+            await loc_service.get_location_by_iata(origin_iata),
+            await loc_service.get_location_by_iata(destination_iata),
+        )
+
+    async def _year_and_plane_factors(
+        self,
+        session: Any,
+        data_entry: Any,
+        slice_cache: dict | None,
+    ) -> tuple[int | None, list]:
+        """Slice year + plane factors from the cache, else per-entry lookups."""
+        if slice_cache is not None:
+            return slice_cache["year"], slice_cache["plane_factors"]
+        year = await _get_report_year_for_module(
+            session, data_entry.carbon_report_module_id
+        )
+        plane_factors = await FactorService(session).list_by_data_entry_type(
+            DataEntryTypeEnum.plane,
+            year=year,
+        )
+        return year, plane_factors
 
     def resolve_computations(
         self, data_entry: Any, emission_type: Any, ctx: dict

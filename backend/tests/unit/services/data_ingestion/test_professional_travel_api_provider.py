@@ -9,11 +9,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.data_entry import DataEntryTypeEnum
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
     normalize_vds_payload,
     to_bool,
 )
+from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 # ---------------------------------------------------------------------------
 # to_bool
@@ -140,7 +142,7 @@ class TestParseDate:
 class TestNormalizeClass:
     def test_economy(self):
         p = _make_provider()
-        assert p._normalize_class("AIR ECONOMY CLASS") == "eco"
+        assert p._normalize_class("AIR ECONOMY CLASS") == "economy"
 
     def test_business(self):
         p = _make_provider()
@@ -150,10 +152,50 @@ class TestNormalizeClass:
         p = _make_provider()
         assert p._normalize_class("AIR FIRST CLASS") == "first"
 
-    def test_unknown_defaults_to_eco(self):
+    def test_unknown_defaults_to_economy(self):
         p = _make_provider()
-        assert p._normalize_class("SOMETHING ELSE") == "eco"
-        assert p._normalize_class("") == "eco"
+        assert p._normalize_class("SOMETHING ELSE") == "economy"
+        assert p._normalize_class("") == "economy"
+
+
+# ---------------------------------------------------------------------------
+# _normalize_class ↔ resolve_emission_types contract (regression)
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizedCabinClassResolves:
+    """The cabin_class the provider writes MUST be a key the emission-type
+    resolver accepts for plane.
+
+    Commit 0d7e1575 renamed the resolver map key ``eco`` → ``economy`` (the
+    canonical value used by the manual-entry validator and the UI) but left
+    ``_normalize_class`` emitting ``eco``. Result: every economy-class flight
+    resolved to ``None`` ("Unhandled type: plane") and produced zero emission
+    rows — the override at prepare_create was never reached. The per-side unit
+    tests both passed because neither checked the value across the boundary;
+    this test pins the two sides together so they can't drift again.
+    """
+
+    @pytest.mark.parametrize(
+        "tableau_class",
+        [
+            "AIR ECONOMY CLASS",
+            "AIR BUSINESS CLASS",
+            "AIR FIRST CLASS",
+            "SOMETHING ELSE",  # default branch must also be resolvable
+        ],
+    )
+    def test_normalized_cabin_class_is_resolvable(self, tableau_class):
+        p = _make_provider()
+        normalized = p._normalize_class(tableau_class)
+        emission_types = resolve_emission_types(
+            DataEntryTypeEnum.plane, {"cabin_class": normalized}
+        )
+        assert emission_types, (
+            f"cabin_class={normalized!r} (from {tableau_class!r}) did not resolve "
+            f"to an emission type — provider vocabulary drifted from the resolver "
+            f"map; resolve_emission_types returned {emission_types!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +334,7 @@ class TestTransformData:
         assert entry["user_institutional_id"] == "123456"
         assert entry["origin_iata"] == "GVA"
         assert entry["destination_iata"] == "CDG"
-        assert entry["cabin_class"] == "eco"
+        assert entry["cabin_class"] == "economy"
         assert entry["number_of_trips"] == 2
         assert entry["round_trip"] is True
         assert entry["kg_co2eq"] == 150.5

@@ -159,6 +159,13 @@ class ModuleHandler(Protocol[T]):
         data_entry: Any,
         session: AsyncSession,
     ) -> dict: ...
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: AsyncSession,
+        *,
+        year: Optional[int] = None,
+    ) -> dict: ...
     def resolve_computations(
         self,
         data_entry: Any,
@@ -282,6 +289,24 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
 
         Returns:
             Dict of additional context keys (empty by default).
+        """
+        return {}
+
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: AsyncSession,
+        *,
+        year: Optional[int] = None,
+    ) -> dict:
+        """Per-slice prefetch hook called once before a recalc loops entries.
+
+        Override to bulk-load data that is constant across the whole
+        ``(data_entry_type, year)`` slice (e.g. all airports for plane
+        travel) so ``pre_compute`` reads it from the returned cache instead
+        of re-querying per entry. The dict is passed back into
+        ``pre_compute`` via ``slice_cache``. Empty by default — handlers
+        whose ``pre_compute`` needs no shared state ignore it.
         """
         return {}
 

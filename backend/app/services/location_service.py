@@ -96,6 +96,13 @@ class LocationService:
         """
         return await self.repo.get_by_iata(iata_code)
 
+    async def get_locations_by_iata(self, iata_codes: List[str]) -> List[Location]:
+        """Bulk-fetch locations for many IATA codes in one query.
+
+        Used by the plane recalc slice to resolve all airports up front.
+        """
+        return await self.repo.get_by_iata_codes(iata_codes)
+
     async def resolve_train_station_for_csv(
         self,
         name: str,

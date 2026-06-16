@@ -138,6 +138,13 @@ class EmissionRecalculationWorkflow:
                 # callers don't depend on ordering when the index is consistent.
                 factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
+        # Plan 310D — per-slice prefetch: handlers that otherwise re-query
+        # slice-constant data per entry (plane reloads airports + the full
+        # plane-factor set on every entry) bulk-load it once here; pre_compute
+        # then reads it from slice_cache in-memory. Empty for handlers that
+        # don't override the hook, so their per-entry path is unchanged.
+        slice_cache = await handler.prefetch_slice(entries, self.session, year=year)
+
         recalculated = 0
         errors = 0
         error_details: list[dict] = []
@@ -228,6 +235,7 @@ class EmissionRecalculationWorkflow:
                     year=year,
                     factor_cache=factor_cache,
                     factor_query_cache=factor_query_cache,
+                    slice_cache=slice_cache,
                 )
                 seg["prepare"] += time.perf_counter() - _t
                 if entry.id is not None:
