@@ -141,11 +141,11 @@ export default {
     },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte`]: {
     en: 'Travel per FTE',
-    fr: 'Déplacements par ETP',
+    fr: 'Déplacements par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-unit`]: {
     en: 'per FTE',
-    fr: 'par ETP',
+    fr: 'par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-tooltip`]: {
     en: 'Average travel carbon footprint per Full-Time Equivalent employee',
