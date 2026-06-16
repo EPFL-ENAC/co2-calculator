@@ -1,4 +1,3 @@
-import { ROLES } from 'src/constant/roles';
 import { MODULES } from 'src/constant/modules';
 
 export default {
@@ -57,22 +56,6 @@ export default {
   tco2eq: {
     en: 't CO₂-eq',
     fr: 't CO₂-eq',
-  },
-  [ROLES.StandardUser]: {
-    en: 'Standard User',
-    fr: 'Utilisateur Standard',
-  },
-  [ROLES.PrincipalUser]: {
-    en: 'Principal User',
-    fr: 'Utilisateur Principal',
-  },
-  [ROLES.BackOfficeMetier]: {
-    en: 'Back-Office Standard',
-    fr: 'Back-Office Standard',
-  },
-  [ROLES.SuperAdmin]: {
-    en: 'Back-Office Admin',
-    fr: 'Back-Office Admin',
   },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
