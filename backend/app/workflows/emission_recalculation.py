@@ -110,6 +110,13 @@ class EmissionRecalculationWorkflow:
         # below (only built when the handler actually rematches).
         factors = await factor_repo.list_by_data_entry_type(data_entry_type_id, year)
         factor_cache: dict[int, Factor] = {f.id: f for f in factors if f.id is not None}
+        # Strategy-B (classification-query) factor lookups hit the DB once per
+        # emission per entry — an N+1 that dominated headcount recalc (member:
+        # ~25 queries/entry × thousands of entries). The factor table is held
+        # stable for the slice by the recalc advisory lock, and the same
+        # (kind, subkind, context, year) criteria recur across entries, so a
+        # slice-scoped memo collapses it to one query per distinct criteria.
+        factor_query_cache: dict = {}
         if handler.kind_field is not None and any(
             handler.kind_field in e.data for e in entries
         ):
@@ -217,7 +224,10 @@ class EmissionRecalculationWorkflow:
 
                 _t = time.perf_counter()
                 emissions = await emission_svc.prepare_create(
-                    entry_response, year=year, factor_cache=factor_cache
+                    entry_response,
+                    year=year,
+                    factor_cache=factor_cache,
+                    factor_query_cache=factor_query_cache,
                 )
                 seg["prepare"] += time.perf_counter() - _t
                 if entry.id is not None:
