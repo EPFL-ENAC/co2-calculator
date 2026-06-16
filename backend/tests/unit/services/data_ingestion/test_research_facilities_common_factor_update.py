@@ -35,8 +35,10 @@ def _make_unit(unit_id: int = 1) -> SimpleNamespace:
     return SimpleNamespace(id=unit_id)
 
 
-def _make_carbon_report(report_id: int = 10) -> SimpleNamespace:
-    return SimpleNamespace(id=report_id)
+def _make_carbon_report(
+    report_id: int = 10, stats: dict | None = None
+) -> SimpleNamespace:
+    return SimpleNamespace(id=report_id, stats=stats)
 
 
 @pytest.mark.asyncio
@@ -48,10 +50,10 @@ async def test_happy_path_sums_all_valid_emissions():
     session = MagicMock()
 
     breakdown = [
-        (1, EmissionType.process_emissions.value, 500.0),
-        (2, EmissionType.buildings.value, 300.0),
-        (3, EmissionType.equipment.value, 200.0),
-        (4, EmissionType.research_facilities.value, 600.0),  # Not included in sum
+        (EmissionType.process_emissions.value, 500.0),
+        (EmissionType.buildings.value, 300.0),
+        (EmissionType.equipment.value, 200.0),
+        (EmissionType.research_facilities.value, 600.0),  # Not included in sum
     ]
 
     with (
@@ -61,18 +63,14 @@ async def test_happy_path_sums_all_valid_emissions():
         patch(
             "app.services.data_ingestion.computed_providers.research_facilities_common.CarbonReportRepository"
         ) as MockCRRepo,
-        patch(
-            "app.services.data_ingestion.computed_providers.research_facilities_common.DataEntryEmissionRepository"
-        ) as MockDEERepo,
     ):
         MockUnitRepo.return_value.get_by_institutional_id = AsyncMock(
             return_value=_make_unit(1)
         )
         MockCRRepo.return_value.get_by_unit_and_year = AsyncMock(
-            return_value=_make_carbon_report(10)
-        )
-        MockDEERepo.return_value.get_emission_breakdown = AsyncMock(
-            return_value=breakdown
+            return_value=_make_carbon_report(
+                10, {"by_emission_type": {str(id): amount for id, amount in breakdown}}
+            )
         )
 
         result = await provider.compute_factor_values(factor, 2025, session)
@@ -134,9 +132,6 @@ async def test_zero_emissions_returns_zero_sum():
         patch(
             "app.services.data_ingestion.computed_providers.research_facilities_common.CarbonReportRepository"
         ) as MockCRRepo,
-        patch(
-            "app.services.data_ingestion.computed_providers.research_facilities_common.DataEntryEmissionRepository"
-        ) as MockDEERepo,
     ):
         MockUnitRepo.return_value.get_by_institutional_id = AsyncMock(
             return_value=_make_unit(1)
@@ -144,7 +139,6 @@ async def test_zero_emissions_returns_zero_sum():
         MockCRRepo.return_value.get_by_unit_and_year = AsyncMock(
             return_value=_make_carbon_report(10)
         )
-        MockDEERepo.return_value.get_emission_breakdown = AsyncMock(return_value=[])
 
         result = await provider.compute_factor_values(factor, 2025, session)
 

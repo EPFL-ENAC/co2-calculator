@@ -13,7 +13,6 @@ from app.core.logging import get_logger
 from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.repositories.carbon_report_repo import CarbonReportRepository
-from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.repositories.unit_repo import UnitRepository
 from app.services.data_ingestion.factor_update_provider import BaseFactorUpdateProvider
 
@@ -98,22 +97,29 @@ class ResearchFacilitiesCommonFactorUpdateProvider(BaseFactorUpdateProvider):
                 f"CarbonReport has no database id for unit_id={unit.id}, year={year}"
             )
 
-        # 3. Aggregate ALL emissions across the entire CarbonReport into one total
-        breakdown = await DataEntryEmissionRepository(session).get_emission_breakdown(
-            carbon_report.id
-        )
+        # 3. Aggregate some emissions across the entire CarbonReport into one total
+        stats = carbon_report.stats or {}
+        by_emission_type = stats.get("by_emission_type", {})
+        breakdown = [
+            (int(emission_type_id), float(kg_co2eq_sum))
+            for emission_type_id, kg_co2eq_sum in by_emission_type.items()
+        ]
         # Filter per emission type: process_emissions, buildings, equipment, purchases
         included_emission_type_ids = [
+            # All process emissions types
             EmissionType.process_emissions.value,
+            # All building emissions types
             EmissionType.buildings.value,
+            # All equipment emissions types
             EmissionType.equipment.value,
+            # All purchases emissions types
             EmissionType.purchases.value,
         ]
-        # breakdown: list of (module_type_id, emission_type_id, kg_co2eq_sum)
+        # breakdown: list of (emission_type_id, kg_co2eq_sum)
         total: float = sum(
             kg
-            for _module_type_id, _emission_type_id, kg in breakdown
-            if _emission_type_id in included_emission_type_ids
+            for emission_type_id, kg in breakdown
+            if emission_type_id in included_emission_type_ids
         )
 
         return {"kg_co2eq_sum": total}
