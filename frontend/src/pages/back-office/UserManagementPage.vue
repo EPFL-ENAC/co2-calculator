@@ -9,24 +9,24 @@ const { t } = useI18n();
 
 const roles = computed(() => [
   {
-    name: t('user_management_role_standard_name'),
+    name: t(ROLES.StandardUser),
     id: ROLES.StandardUser,
-    description: t('user_management_role_standard_description'),
+    description: t('role_standard_description'),
   },
   {
-    name: t('user_management_role_principal_name'),
+    name: t(ROLES.PrincipalUser),
     id: ROLES.PrincipalUser,
-    description: t('user_management_role_principal_description'),
+    description: t('role_principal_description'),
   },
   {
-    name: t('user_management_role_backoffice_name'),
+    name: t(ROLES.BackOfficeMetier),
     id: ROLES.BackOfficeMetier,
-    description: t('user_management_role_backoffice_description'),
+    description: t('role_backoffice_description'),
   },
   {
-    name: t('user_management_role_superadmin_name'),
+    name: t(ROLES.SuperAdmin),
     id: ROLES.SuperAdmin,
-    description: t('user_management_role_superadmin_description'),
+    description: t('role_superadmin_description'),
   },
 ]);
 </script>

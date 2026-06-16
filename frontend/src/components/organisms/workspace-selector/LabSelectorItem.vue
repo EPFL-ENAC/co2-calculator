@@ -46,7 +46,7 @@ const completedModules = 0;
     </div>
     <div class="row items-center justify-between q-mt-xl">
       <span class="text-body2 text-weight-medium">{{
-        $t('workspace_setup_unit_manager')
+        $t(ROLES.PrincipalUser)
       }}</span>
       <span class="text-body2 text-weight-bold">{{
         unit.principal_user_name
