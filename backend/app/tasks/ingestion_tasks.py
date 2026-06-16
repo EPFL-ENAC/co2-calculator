@@ -80,6 +80,11 @@ async def csv_ingest_handler(
         # — nothing to recalc against.  Runner will mark FINISHED+ERROR.
         return meta
 
+    # #1530 — flip freshly-populated NOT_STARTED modules to IN_PROGRESS so
+    # the nav-bar status icon shows.  Rides ``data_session`` so the status
+    # commits atomically with the rows that justified it.
+    await _mark_modules_in_progress_for_data_ingest(job, data_session)
+
     # Phase 5B (#1236) — chained count no longer threaded through
     # ``meta.recalc_jobs_chained``; ``recompute_pipeline_status``
     # derives the same value from the live job count and writes it to
@@ -113,6 +118,10 @@ async def api_ingest_handler(
     meta = await _run_ingest(job, job_session, data_session)
     if meta.get("result") == IngestionResult.ERROR:
         return meta
+
+    # #1530 — see csv_ingest_handler; a successful travel sync advances the
+    # modules it just populated out of NOT_STARTED.
+    await _mark_modules_in_progress_for_data_ingest(job, data_session)
 
     await _chain_emission_recalc_for_data_ingest(job, job_session)
     return meta
@@ -434,6 +443,81 @@ async def _chain_recalc_for_stale(
         f"emission_recalc child(ren) for year={year}"
     )
     return chained
+
+
+# ---------------------------------------------------------------------------
+# csv_ingest / api_ingest post-success status bump
+# ---------------------------------------------------------------------------
+
+
+async def _mark_modules_in_progress_for_data_ingest(
+    job: DataIngestionJob,
+    data_session: AsyncSession,
+) -> int:
+    """Persist IN_PROGRESS on modules a data ingest just populated (#1530).
+
+    A CSV data-entry upload or travel API sync writes ``data_entries``
+    against one or more ``carbon_report_modules`` but never advanced
+    their ``status`` — so a freshly-populated module stayed
+    ``NOT_STARTED`` and its nav-bar status icon was missing.  After a
+    successful ingest we bump every ``NOT_STARTED`` module in this
+    ``(module_type_id, year)`` slice that now holds at least one data
+    entry to ``IN_PROGRESS`` via ``CarbonReportModuleRepository``.
+    ``VALIDATED`` / already-``IN_PROGRESS`` modules are left untouched
+    (the status filter excludes them), and the data-entry join means
+    only modules that actually received rows are bumped — a WARNING
+    ingest that inserted nothing leaves status alone.
+
+    A unit-specific upload pins one module via
+    ``config.carbon_report_module_id``; a per-year travel sync spans
+    every unit it wrote, so the affected reports are resolved from data
+    presence rather than assuming a single module.  Returns the number
+    of modules bumped.
+    """
+    if job.module_type_id is None or job.year is None:
+        return 0
+
+    # Late imports mirror this module's other lookups — keeps the
+    # data_ingestion → tasks import graph acyclic.
+    from app.core.constants import ModuleStatus
+    from app.repositories.carbon_report_module_repo import (
+        CarbonReportModuleRepository,
+    )
+
+    # Scope to the single module a unit-specific upload pinned, when set —
+    # avoids scanning the whole (module_type, year) slice for the common
+    # one-unit CSV path.
+    parent_config = (job.meta or {}).get("config") or {}
+    raw_module_id = parent_config.get("carbon_report_module_id")
+    carbon_report_module_id: Optional[int] = None
+    if raw_module_id is not None:
+        try:
+            carbon_report_module_id = int(raw_module_id)
+        except (TypeError, ValueError):
+            logger.warning(
+                f"data ingest job {job.id}: non-int carbon_report_module_id="
+                f"{raw_module_id!r} in config — bumping by (module_type, year)"
+            )
+
+    repo = CarbonReportModuleRepository(data_session)
+    report_ids = await repo.get_report_ids_with_entries_by_status(
+        module_type_id=job.module_type_id,
+        year=job.year,
+        status=ModuleStatus.NOT_STARTED,
+        carbon_report_module_id=carbon_report_module_id,
+    )
+    if not report_ids:
+        return 0
+
+    for carbon_report_id in report_ids:
+        await repo.update_status(
+            carbon_report_id, job.module_type_id, ModuleStatus.IN_PROGRESS
+        )
+    logger.info(
+        f"data ingest job {job.id}: marked {len(report_ids)} module(s) "
+        f"IN_PROGRESS for module_type_id={job.module_type_id}/year={job.year}"
+    )
+    return len(report_ids)
 
 
 # ---------------------------------------------------------------------------

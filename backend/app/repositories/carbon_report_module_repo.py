@@ -195,6 +195,45 @@ class CarbonReportModuleRepository:
         await self.session.refresh(db_obj)
         return db_obj
 
+    async def get_report_ids_with_entries_by_status(
+        self,
+        module_type_id: int,
+        year: int,
+        status: int,
+        carbon_report_module_id: Optional[int] = None,
+    ) -> List[int]:
+        """Distinct carbon_report_ids whose ``module_type_id`` module in
+        ``year`` has the given ``status`` and at least one data entry.
+
+        Used by the ingestion tasks to bump freshly-populated NOT_STARTED
+        modules to IN_PROGRESS (#1530) without embedding SQL in the task
+        layer. ``carbon_report_module_id`` narrows to a single module (a
+        unit-specific upload); omit it for a per-year slice.
+        """
+        statement = (
+            select(col(CarbonReportModule.carbon_report_id))
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .join(
+                DataEntry,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(
+                col(CarbonReportModule.module_type_id) == module_type_id,
+                col(CarbonReport.year) == year,
+                col(CarbonReportModule.status) == status,
+            )
+            .distinct()
+        )
+        if carbon_report_module_id is not None:
+            statement = statement.where(
+                col(CarbonReportModule.id) == carbon_report_module_id
+            )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def delete(self, carbon_report_module_id: int) -> bool:
         """Delete a carbon report module by ID."""
         statement = select(CarbonReportModule).where(

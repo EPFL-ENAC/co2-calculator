@@ -106,6 +106,80 @@ async def test_module_status_update(async_session):
 
 
 @pytest.mark.asyncio
+async def test_mark_modules_in_progress_bumps_populated_not_started_module(
+    async_session,
+):
+    """A successful data ingest flips a freshly-populated NOT_STARTED
+    module to IN_PROGRESS so the nav-bar status icon shows (#1530);
+    empty modules stay NOT_STARTED."""
+    from unittest.mock import MagicMock
+
+    from app.models.data_entry import DataEntry
+    from app.tasks.ingestion_tasks import _mark_modules_in_progress_for_data_ingest
+
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    modules = await service.module_service.list_modules(report.id)
+    target = modules[0]
+
+    async_session.add(
+        DataEntry(data_entry_type_id=1, carbon_report_module_id=target.id, data={})
+    )
+    await async_session.flush()
+
+    job = MagicMock()
+    job.id = 1
+    job.module_type_id = target.module_type_id
+    job.year = 2025
+    job.meta = {"config": {"carbon_report_module_id": target.id}}
+
+    bumped = await _mark_modules_in_progress_for_data_ingest(job, async_session)
+    assert bumped == 1
+
+    refreshed = await service.module_service.list_modules(report.id)
+    by_id = {m.id: m for m in refreshed}
+    assert by_id[target.id].status == ModuleStatus.IN_PROGRESS
+    for mod in refreshed:
+        if mod.id != target.id:
+            assert mod.status == ModuleStatus.NOT_STARTED
+
+
+@pytest.mark.asyncio
+async def test_mark_modules_in_progress_leaves_validated_untouched(async_session):
+    """A VALIDATED module with data is never downgraded to IN_PROGRESS."""
+    from unittest.mock import MagicMock
+
+    from app.models.data_entry import DataEntry
+    from app.tasks.ingestion_tasks import _mark_modules_in_progress_for_data_ingest
+
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+    modules = await service.module_service.list_modules(report.id)
+    target = modules[0]
+
+    await service.module_service.update_status(
+        report.id, target.module_type_id, ModuleStatus.VALIDATED
+    )
+    async_session.add(
+        DataEntry(data_entry_type_id=1, carbon_report_module_id=target.id, data={})
+    )
+    await async_session.flush()
+
+    job = MagicMock()
+    job.id = 1
+    job.module_type_id = target.module_type_id
+    job.year = 2025
+    job.meta = {"config": {}}
+
+    bumped = await _mark_modules_in_progress_for_data_ingest(job, async_session)
+    assert bumped == 0
+
+    refreshed = await service.module_service.list_modules(report.id)
+    by_id = {m.id: m for m in refreshed}
+    assert by_id[target.id].status == ModuleStatus.VALIDATED
+
+
+@pytest.mark.asyncio
 async def test_recompute_report_stats_merges_by_additional_value(async_session):
     service = CarbonReportService(async_session)
     report = await service.create(CarbonReportCreate(year=2025, unit_id=1))

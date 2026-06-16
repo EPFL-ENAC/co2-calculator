@@ -25,9 +25,21 @@ from app.tasks.registry import _REGISTRY, get_handler
 
 @pytest.fixture(autouse=True)
 def _registry_snapshot():
-    """Snapshot+restore the registry so tests don't bleed across files."""
+    """Snapshot+restore the registry so tests don't bleed across files.
+
+    Also stub the #1530 status bump: it issues real DB I/O against
+    ``data_session`` on the success arm, but these handler tests drive
+    MagicMock sessions and assert on the ``_run_ingest`` / fan-out
+    contract only.  The bump is covered directly against a real session
+    in ``test_carbon_report_service.py``.
+    """
     snapshot = dict(_REGISTRY)
-    yield
+    with patch.object(
+        ingest_mod,
+        "_mark_modules_in_progress_for_data_ingest",
+        new_callable=AsyncMock,
+    ):
+        yield
     _REGISTRY.clear()
     _REGISTRY.update(snapshot)
 
