@@ -234,6 +234,7 @@ class DataEntryEmissionService:
         year: int | None = None,
         factor_cache: dict[int, Factor] | None = None,
         factor_query_cache: dict | None = None,
+        slice_cache: dict | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
 
@@ -309,7 +310,13 @@ class DataEntryEmissionService:
         # data entry is left intact so re-runs remain idempotent.
         ctx: dict = {**data_entry.data}
         ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
-        ctx.update(await handler.pre_compute(data_entry, self.session))
+        # Forward the slice prefetch only when a caller (the recalc workflow)
+        # actually preloaded one — keeps handlers whose pre_compute takes no
+        # slice_cache (the base + non-plane modules) callable as-is.
+        pre_compute_kwargs = {"slice_cache": slice_cache} if slice_cache else {}
+        ctx.update(
+            await handler.pre_compute(data_entry, self.session, **pre_compute_kwargs)
+        )
 
         # Prefer using the lightweight hook that tests commonly patch.
         # This avoids unnecessary DB calls to fetch the report when tests

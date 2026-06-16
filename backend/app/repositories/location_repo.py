@@ -171,6 +171,18 @@ class LocationRepository:
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
 
+    async def get_by_iata_codes(self, iata_codes: List[str]) -> List[Location]:
+        """Bulk-fetch locations for a set of IATA codes in one query.
+
+        Lets the recalc slice resolve every flight's airports up front
+        instead of two point lookups per entry. Empty input short-circuits.
+        """
+        if not iata_codes:
+            return []
+        statement = select(Location).where(col(Location.iata_code).in_(iata_codes))
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def find_train_stations_by_name(
         self,
         name: str,
