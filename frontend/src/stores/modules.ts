@@ -1115,6 +1115,7 @@ export const useModuleStore = defineStore('modules', () => {
     getItBreakdown,
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
+    carbonProjectType,
     state,
   };
 });

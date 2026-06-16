@@ -328,7 +328,11 @@ const travelerNames = ref<Map<string, string>>(new Map());
 
 async function loadTravelerNames(unitId: number, year: number | string) {
   try {
-    const members = await getHeadcountMembers(unitId, year);
+    const members = await getHeadcountMembers(
+      unitId,
+      year,
+      moduleStore.carbonProjectType,
+    );
     travelerNames.value = new Map(
       members.map((m) => [m.institutional_id, m.name]),
     );

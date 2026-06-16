@@ -103,4 +103,64 @@ test.describe('simulation explore — reactive updates after adding entry', () =
     // page reload.  formatTonnesCO2(5) = "5".
     await expect(page.locator('.big-number__value')).toContainText('5');
   });
+
+  test('plane traveler dropdown populates after adding a headcount member', async ({
+    page,
+  }) => {
+    const { requests } = await mockSimulatorBackend(page);
+    await page.goto(SIMULATOR_URL);
+
+    await expect(page.locator('.q-list')).toBeVisible();
+
+    // Expand Professional travel → Plane so the traveler dropdown
+    // (HeadcountMemberSelect) mounts and performs its initial fetch.
+    const travelSection = page.locator('.q-expansion-item', {
+      has: page.getByText('Professional travel', { exact: true }),
+    });
+    await page.getByText('Professional travel', { exact: true }).click();
+    await travelSection.getByText('Plane Trips (0)').click();
+
+    // The traveler select is the field labelled "Name" inside the plane form.
+    const travelerField = travelSection
+      .locator('.q-field', {
+        has: page.locator('.q-field__label', { hasText: 'Name' }),
+      })
+      .first();
+    // Initially disabled — no members exist in the simulator report yet.
+    await expect(travelerField).toHaveClass(/q-field--disabled/);
+
+    // The simulator must read its OWN report: every members request carries
+    // carbon_project_type=1.  Guards against the original bug where the
+    // dropdown read the calculator report (no carbon_project_type).
+    await expect
+      .poll(() =>
+        requests.some(
+          (r) =>
+            r.url.includes('/headcount/members') &&
+            r.url.includes('carbon_project_type=1'),
+        ),
+      )
+      .toBe(true);
+
+    // Add a headcount member.
+    await page.getByText('Headcount', { exact: true }).first().click();
+    await page.getByText('Members (0)').click();
+    await expect(
+      page.getByRole('button', { name: 'Add', exact: true }),
+    ).toBeVisible();
+    await page.locator('input[type="text"]').first().fill('Test Member');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+
+    // Member count updates → HeadcountMemberSelect :key changes → it remounts
+    // and refetches.  The traveler dropdown must become enabled WITHOUT a
+    // page reload (refresh-as-soon-as-entry-created).
+    await expect(page.getByText('Member (1)')).toBeVisible();
+    await expect(travelerField).not.toHaveClass(/q-field--disabled/);
+
+    // The newly added member is now selectable in the plane traveler dropdown.
+    await travelerField.click();
+    await expect(
+      page.locator('.q-menu .q-item', { hasText: 'Test Member' }),
+    ).toBeVisible();
+  });
 });

@@ -27,9 +27,11 @@ const MOCK_USER = {
   display_name: 'Test User',
   institutional_id: 'test-user',
   roles_raw: [],
-  // Global edit permission for headcount so the member form is shown.
+  // Global edit permission for headcount + professional-travel so both the
+  // member form and the plane/train traveler dropdown are shown.
   permissions: {
     'modules.headcount': ['view', 'edit'],
+    'modules.professional_travel': ['view', 'edit'],
   },
 };
 
@@ -87,6 +89,14 @@ function buildSubmoduleResponse(items: object[]) {
       total_kg_co2eq: 0,
     },
   };
+}
+
+// Traveler-dropdown payload (GET /modules/{unit}/{year}/headcount/members).
+// Shape differs from the submodule list: a flat array of {institutional_id, name}.
+function buildMembersDropdown(memberPosted: boolean) {
+  return memberPosted
+    ? [{ institutional_id: 'sciper-1', name: 'Test Member' }]
+    : [];
 }
 
 function buildEmissionBreakdown(totalTonnesCo2eq: number) {
@@ -178,17 +188,14 @@ export async function mockSimulatorBackend(page: Page): Promise<{
 
   // Headcount module totals (preview_limit=0) — stateful.
   // \? ensures this only matches the module endpoint, NOT /headcount/member.
-  await page.route(
-    /.*\/api\/v1\/modules\/10\/2024\/headcount\?/,
-    (route) => {
-      const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
-      });
-    },
-  );
+  await page.route(/.*\/api\/v1\/modules\/10\/2024\/headcount\?/, (route) => {
+    const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
+    });
+  });
 
   // headcount/member submodule — POST (create entry) + GET (list items).
   await page.route(
@@ -210,6 +217,22 @@ export async function mockSimulatorBackend(page: Page): Promise<{
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(buildSubmoduleResponse(items)),
+      });
+    },
+  );
+
+  // Traveler dropdown (headcount/members) — stateful. Registered AFTER the
+  // headcount/member route so its higher LIFO priority wins for the trailing
+  // "s". Returns [] before a member is posted, [Test Member] after. The
+  // assertion side also checks this is called with carbon_project_type=1 so
+  // the simulator reads its own report, not the calculator's.
+  await page.route(
+    /.*\/api\/v1\/modules\/10\/2024\/headcount\/members/,
+    (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildMembersDropdown(memberPosted)),
       });
     },
   );

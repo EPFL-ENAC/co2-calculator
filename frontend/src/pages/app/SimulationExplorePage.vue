@@ -94,9 +94,7 @@
           />
           <template v-if="mountPrimaryCharts">
             <div class="chart-wrapper">
-              <ModuleCarbonFootprintChart
-                :breakdown-data="filteredBreakdown"
-              />
+              <ModuleCarbonFootprintChart :breakdown-data="filteredBreakdown" />
             </div>
           </template>
           <q-skeleton v-else type="rect" height="360px" class="full-width" />
