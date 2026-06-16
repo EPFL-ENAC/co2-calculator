@@ -1438,6 +1438,7 @@ const downloadCSV = () => {
         :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
+        :update-options="{ replaceMerge: ['dataset'] }"
         @rendered="recalculateScopeRects"
         @vue:mounted="onChartReady"
       />

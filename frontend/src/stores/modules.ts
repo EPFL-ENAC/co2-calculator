@@ -435,6 +435,10 @@ export const useModuleStore = defineStore('modules', () => {
           searchParams: { carbon_project_type: carbonProjectType.value },
         })
         .json()) as ModuleResponse;
+      if (state.data?.data_entry_types_total_items) {
+        state.moduleTotalsMap[moduleType] =
+          state.data.data_entry_types_total_items;
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';

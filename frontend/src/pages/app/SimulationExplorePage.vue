@@ -95,7 +95,7 @@
           <template v-if="mountPrimaryCharts">
             <div class="chart-wrapper">
               <ModuleCarbonFootprintChart
-                :breakdown-data="moduleStore.state.emissionBreakdown"
+                :breakdown-data="filteredBreakdown"
               />
             </div>
           </template>
@@ -231,6 +231,17 @@ const totalTonnesCo2eq = computed(() => {
   }, 0);
 
   return moduleTotal || breakdown.total_tonnes_co2eq || 0;
+});
+
+const filteredBreakdown = computed(() => {
+  const bd = moduleStore.state.emissionBreakdown;
+  if (!bd) return bd;
+  return {
+    ...bd,
+    module_breakdown: bd.module_breakdown.filter(
+      (entry) => entry.category !== 'research_facilities',
+    ),
+  };
 });
 
 async function fetchEmissionBreakdown() {
