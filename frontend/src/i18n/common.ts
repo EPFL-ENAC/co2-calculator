@@ -89,7 +89,7 @@ export default {
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.Headcount) {
-        return 'Total ETP';
+        return 'Total EPT';
       }
       if (named('typeI18n')) {
         return `Empreinte Carbone ${named('typeI18n')}`;
@@ -106,7 +106,7 @@ export default {
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.Headcount) {
-        return 'ETP';
+        return 'EPT';
       }
       return 't CO₂-eq';
     },
