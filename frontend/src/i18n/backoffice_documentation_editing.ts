@@ -62,7 +62,7 @@ export default {
   },
   documentation_editing_calculator_developer_documentation_title: {
     en: 'Developer Documentation',
-    fr: 'Documentation développeur',
+    fr: 'Documentation développeur·euse',
   },
   documentation_editing_calculator_developer_documentation_description: {
     en: 'Repository link to the developer documentation of the CO₂ calculator application.',

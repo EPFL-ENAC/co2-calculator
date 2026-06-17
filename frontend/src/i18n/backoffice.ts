@@ -18,8 +18,8 @@ export default {
     fr: 'backoffice-data-management-description',
   },
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.routeName]: {
-    en: 'Documentation Editing',
-    fr: 'Édition de la documentation',
+    en: 'Documentation',
+    fr: 'Documentation',
   },
   [BACKOFFICE_NAV.BACKOFFICE_DOCUMENTATION_EDITING.description]: {
     en: 'Manage and update documentation and translation files.',

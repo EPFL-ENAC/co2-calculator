@@ -13,6 +13,7 @@ const docRows = computed(() => [
     description: t(
       'documentation_editing_calculator_user_documentation_description',
     ),
+    docUrl: 'https://epfl-enac.github.io/co2-calculator-user-doc/',
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator-user-doc/tree/main/docs',
   },
@@ -21,6 +22,7 @@ const docRows = computed(() => [
     description: t(
       'documentation_editing_calculator_backoffice_documentation_description',
     ),
+    docUrl: 'https://epfl-enac.github.io/co2-calculator-back-office-doc/',
     githubUrl:
       'https://github.com/EPFL-ENAC/co2-calculator-back-office-doc/tree/main/docs',
   },
@@ -29,6 +31,7 @@ const docRows = computed(() => [
     description: t(
       'documentation_editing_calculator_developer_documentation_description',
     ),
+    docUrl: '/docs/',
     githubUrl: 'https://github.com/EPFL-ENAC/co2-calculator/tree/main/docs/src',
   },
 ]);
@@ -92,7 +95,13 @@ const columns: QTableColumn[] = [
           <template #body="props">
             <q-tr :props="props" class="q-tr--no-hover">
               <q-td key="topic" :props="props">
-                {{ props.row.topic }}
+                <a
+                  :href="props.row.docUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {{ props.row.topic }}
+                </a>
               </q-td>
               <q-td key="description" :props="props">
                 {{ props.row.description }}
