@@ -42,7 +42,11 @@
       <!-- header: status badge -->
       <div class="mtr-sidebar__header">
         <span class="mtr-sidebar__badge" :class="badgeClass">
-          <q-icon v-if="statusDisplay.icon" :name="statusDisplay.icon" size="xs" />
+          <q-icon
+            v-if="statusDisplay.icon"
+            :name="statusDisplay.icon"
+            size="xs"
+          />
           {{ $t(statusDisplay.label) }}
         </span>
       </div>
@@ -144,7 +148,10 @@ import { useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { Module } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULE_STATES, MODULE_STATUS_DISPLAY } from 'src/constant/moduleStates';
+import {
+  MODULE_STATES,
+  MODULE_STATUS_DISPLAY,
+} from 'src/constant/moduleStates';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 const props = defineProps<{
@@ -178,8 +185,10 @@ const toggleIcon = computed(() =>
 const statusDisplay = computed(() => MODULE_STATUS_DISPLAY[moduleState.value]);
 
 const badgeClass = computed(() => ({
-  'mtr-sidebar__badge--validated': moduleState.value === MODULE_STATES.Validated,
-  'mtr-sidebar__badge--progress': moduleState.value === MODULE_STATES.InProgress,
+  'mtr-sidebar__badge--validated':
+    moduleState.value === MODULE_STATES.Validated,
+  'mtr-sidebar__badge--progress':
+    moduleState.value === MODULE_STATES.InProgress,
   'mtr-sidebar__badge--not-started':
     moduleState.value === MODULE_STATES.Default,
 }));

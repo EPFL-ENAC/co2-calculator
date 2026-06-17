@@ -607,7 +607,9 @@ export const useModuleStore = defineStore('modules', () => {
   async function refreshModuleStates() {
     const timelineStore = useTimelineStore();
     if (timelineStore.currentCarbonReportId !== null) {
-      await timelineStore.fetchModuleStates(timelineStore.currentCarbonReportId);
+      await timelineStore.fetchModuleStates(
+        timelineStore.currentCarbonReportId,
+      );
     }
   }
 
