@@ -601,6 +601,18 @@ export const useModuleStore = defineStore('modules', () => {
     value: string;
   }
   type FieldValue = string | number | boolean | null | Option;
+  // A create/patch/delete recomputes module stats on the backend, which flips
+  // the module to IN_PROGRESS. Refresh the timeline statuses so the sidebar
+  // status icon updates live instead of staying stale until the next navigation.
+  async function refreshModuleStates() {
+    const timelineStore = useTimelineStore();
+    if (timelineStore.currentCarbonReportId !== null) {
+      await timelineStore.fetchModuleStates(
+        timelineStore.currentCarbonReportId,
+      );
+    }
+  }
+
   async function postItem(
     moduleType: Module,
     unitId: number,
@@ -707,6 +719,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -764,6 +777,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -802,6 +816,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';

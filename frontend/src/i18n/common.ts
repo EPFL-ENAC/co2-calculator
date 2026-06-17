@@ -123,6 +123,10 @@ export default {
     en: 'In progress',
     fr: 'En cours',
   },
+  module_status_not_started: {
+    en: 'Not started',
+    fr: 'Non commencé',
+  },
   common_filter_all: {
     en: 'All',
     fr: 'Tous',

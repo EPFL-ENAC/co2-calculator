@@ -41,15 +41,13 @@
     <div class="mtr-sidebar__body">
       <!-- header: status badge -->
       <div class="mtr-sidebar__header">
-        <span
-          class="mtr-sidebar__badge"
-          :class="{
-            'mtr-sidebar__badge--validated': isValidated,
-            'mtr-sidebar__badge--progress': !isValidated,
-          }"
-        >
-          <q-icon :name="statusIcon" size="xs" />
-          {{ statusLabel }}
+        <span class="mtr-sidebar__badge" :class="badgeClass">
+          <q-icon
+            v-if="statusDisplay.icon"
+            :name="statusDisplay.icon"
+            size="xs"
+          />
+          {{ $t(statusDisplay.label) }}
         </span>
       </div>
 
@@ -150,7 +148,10 @@ import { useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
 import { Module } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import {
+  MODULE_STATES,
+  MODULE_STATUS_DISPLAY,
+} from 'src/constant/moduleStates';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 const props = defineProps<{
@@ -169,23 +170,28 @@ const moduleColors = computed(() => getModuleIconColors(props.type));
 // standard (own-scope) users, who never hold the `module.status` permission.
 const canValidate = computed(() => authStore.hasUserCanValidateModuleStatus());
 
+const moduleState = computed(() => timelineStore.itemStates[props.type]);
+
 const isValidated = computed(
-  () => timelineStore.itemStates[props.type] === MODULE_STATES.Validated,
+  () => moduleState.value === MODULE_STATES.Validated,
 );
 
 const toggleIcon = computed(() =>
   isValidated.value ? 'o_remove_circle' : 'o_check_circle',
 );
 
-const statusIcon = computed(() =>
-  isValidated.value ? 'o_check_circle' : 'o_pending',
-);
+// Three-state badge: validated / in progress / not started. Not started has no
+// icon, so the template guards on `statusDisplay.icon` before rendering one.
+const statusDisplay = computed(() => MODULE_STATUS_DISPLAY[moduleState.value]);
 
-const statusLabel = computed(() =>
-  isValidated.value
-    ? t('module_status_validated')
-    : t('module_status_in_progress'),
-);
+const badgeClass = computed(() => ({
+  'mtr-sidebar__badge--validated':
+    moduleState.value === MODULE_STATES.Validated,
+  'mtr-sidebar__badge--progress':
+    moduleState.value === MODULE_STATES.InProgress,
+  'mtr-sidebar__badge--not-started':
+    moduleState.value === MODULE_STATES.Default,
+}));
 
 const validationShortActionLabel = computed(() => {
   const action = isValidated.value
@@ -329,6 +335,12 @@ function toggleValidation() {
         tokens.$mtr-sidebar-badge-bg-opacity-progress
       );
       color: var(--q-warning);
+    }
+
+    // Not started: neutral, no icon — distinct from the in-progress badge.
+    &--not-started {
+      background-color: rgba(0, 0, 0, 0.06);
+      color: tokens.$mtr-color-muted;
     }
   }
 
