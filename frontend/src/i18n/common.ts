@@ -241,7 +241,7 @@ export default {
   },
   documentation_dev_button_label: {
     en: 'Developer Documentation',
-    fr: 'Documentation Développeur',
+    fr: 'Documentation développeur·euse',
   },
   common_add_button: {
     en: 'Add',
