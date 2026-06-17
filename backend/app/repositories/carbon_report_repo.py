@@ -148,7 +148,7 @@ class CarbonReportRepository:
         path_lvl2: Optional[List[str]] = None,
         path_lvl3: Optional[List[str]] = None,
         path_lvl4: Optional[List[str]] = None,
-        completion_status: Optional[ModuleStatus] = None,
+        overall_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
         years: Optional[List[int]] = None,

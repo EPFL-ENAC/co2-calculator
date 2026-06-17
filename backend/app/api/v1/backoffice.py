@@ -72,7 +72,7 @@ class BackofficeFilters(NamedTuple):
 
     path_affiliation: Optional[List[str]]
     path_lvl4: Optional[List[str]]
-    completion_status: Optional[ModuleStatus]
+    overall_status: Optional[ModuleStatus]
     search: Optional[str]
     modules: Optional[List[str]]
     years: Optional[List[int]]
@@ -93,10 +93,10 @@ def get_backoffice_filters(
             "Returns exact matches only (not descendants)."
         ),
     ),
-    completion_status: Optional[ModuleStatus] = Query(
+    overall_status: Optional[ModuleStatus] = Query(
         None,
         description=(
-            "Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), "
+            "Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), "
             "VALIDATED (2)"
         ),
     ),
@@ -119,7 +119,7 @@ def get_backoffice_filters(
     return BackofficeFilters(
         path_affiliation=path_affiliation,
         path_lvl4=path_lvl4,
-        completion_status=completion_status,
+        overall_status=overall_status,
         search=search,
         modules=modules,
         years=years,
@@ -273,7 +273,7 @@ async def list_backoffice_units(
         path_lvl4=filters.path_lvl4,
         is_global=is_global,
         scope_cfs=affiliations,
-        completion_status=filters.completion_status,
+        overall_status=filters.overall_status,
         search=filters.search,
         modules=filters.modules,
         years=filters.years,
@@ -287,12 +287,12 @@ async def list_backoffice_units(
     for item in result.get("data", []):
         if isinstance(item, dict):
             completion = item.get("completion_progress", DEFAULT_COMPLETION_PROGRESS)
-            completion_status = ModuleStatus.NOT_STARTED
+            overall_status = ModuleStatus.NOT_STARTED
             left, right = completion.split("/")
             if left == right and left != "0":
-                completion_status = ModuleStatus.VALIDATED
+                overall_status = ModuleStatus.VALIDATED
             elif left != "0":
-                completion_status = ModuleStatus.IN_PROGRESS
+                overall_status = ModuleStatus.IN_PROGRESS
             unit_reporting_data.append(
                 UnitReportingData(
                     id=item.get("id", -1),
@@ -307,7 +307,7 @@ async def list_backoffice_units(
                     ),
                     total_fte=item.get("total_fte"),
                     view_url=item.get("view_url"),
-                    completion=completion_status,
+                    completion=overall_status,
                     completion_progress=item.get("completion_progress"),
                 )
             )
@@ -455,7 +455,7 @@ async def report_usage(
                 path_lvl4=filters.path_lvl4,
                 is_global=is_global,
                 scope_cfs=affiliations,
-                completion_status=filters.completion_status,
+                overall_status=filters.overall_status,
                 search=filters.search,
                 modules=filters.modules,
                 years=filters.years,
@@ -532,7 +532,7 @@ async def report_detailed(
                         path_lvl4=filters.path_lvl4,
                         is_global=is_global,
                         scope_cfs=affiliations,
-                        completion_status=filters.completion_status,
+                        overall_status=filters.overall_status,
                         search=filters.search,
                         modules=filters.modules,
                         years=filters.years,
@@ -613,7 +613,7 @@ async def report_results(
                 path_lvl4=filters.path_lvl4,
                 is_global=is_global,
                 scope_cfs=affiliations,
-                completion_status=filters.completion_status,
+                overall_status=filters.overall_status,
                 search=filters.search,
                 years=filters.years,
             )
