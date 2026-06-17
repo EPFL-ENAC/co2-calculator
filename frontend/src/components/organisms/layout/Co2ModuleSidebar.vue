@@ -5,7 +5,7 @@ import { useAuthStore } from 'src/stores/auth';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { PermissionAction } from 'src/stores/auth';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import { MODULE_STATUS_DISPLAY } from 'src/constant/moduleStates';
 import { timelineItems } from 'src/constant/timelineItems';
 import { MODULES, type Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
@@ -40,27 +40,26 @@ const currentTotalResult = computed(() => {
   return moduleStore.state.data?.totals?.total_tonnes_co2eq;
 });
 
-const visibleItems = computed(() =>
-  timelineItems.filter(
-    (item) =>
-      yearConfigStore.isModuleVisible(item.link as Module) &&
-      authStore.canUserAccessModule(item.link as Module),
-  ),
+// Decorate each visible module with its backend-driven status display so the
+// template reads precomputed values instead of re-invoking helpers per render.
+// An empty `statusColor` means "not started" — no dot/icon is shown.
+const sidebarItems = computed(() =>
+  timelineItems
+    .filter(
+      (item) =>
+        yearConfigStore.isModuleVisible(item.link as Module) &&
+        authStore.canUserAccessModule(item.link as Module),
+    )
+    .map((item) => {
+      const display =
+        MODULE_STATUS_DISPLAY[timelineStore.itemStates[item.link as Module]];
+      return {
+        link: item.link,
+        statusColor: display.color,
+        statusIcon: display.icon,
+      };
+    }),
 );
-
-function getStatusColor(moduleLink: string): string {
-  const state = timelineStore.itemStates[moduleLink as Module];
-  if (state === MODULE_STATES.Validated) return 'positive';
-  if (state === MODULE_STATES.InProgress) return 'warning';
-  return '';
-}
-
-function getStatusIcon(moduleLink: string): string {
-  const state = timelineStore.itemStates[moduleLink as Module];
-  if (state === MODULE_STATES.Validated) return 'o_check_circle';
-  if (state === MODULE_STATES.InProgress) return 'o_pending';
-  return '';
-}
 
 function hasPermission(moduleLink: string): boolean {
   return authStore.hasUserModulePermission(
@@ -106,7 +105,7 @@ function navigateToResults() {
     />
     <q-list class="sidebar-items">
       <q-item
-        v-for="item in visibleItems"
+        v-for="item in sidebarItems"
         :key="item.link"
         class="sidebar-item"
         :class="{ 'sidebar-item--selected': isModuleSelected(item.link) }"
@@ -118,9 +117,9 @@ function navigateToResults() {
           <ModuleIconBox :name="item.link" size="md" />
           <!-- Collapsed: small dot at bottom-right of icon box -->
           <span
-            v-if="getStatusColor(item.link) && collapsed"
+            v-if="item.statusColor && collapsed"
             class="status-dot"
-            :class="`bg-${getStatusColor(item.link)}`"
+            :class="`bg-${item.statusColor}`"
           />
         </span>
         <q-item-label
@@ -130,9 +129,9 @@ function navigateToResults() {
         >
         <!-- Expanded: status icon pushed to far right -->
         <q-icon
-          v-if="getStatusColor(item.link) && !collapsed"
-          :name="getStatusIcon(item.link)"
-          :color="getStatusColor(item.link)"
+          v-if="item.statusColor && !collapsed"
+          :name="item.statusIcon"
+          :color="item.statusColor"
           class="status-icon"
           size="xs"
         />
