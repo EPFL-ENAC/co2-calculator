@@ -28,6 +28,22 @@ from app.utils.it_breakdown import (
 
 logger = get_logger(__name__)
 
+# Top-level emission category roots exposed in the results report CSV/JSON, in
+
+RESULTS_REPORT_CATEGORY_ROOTS: list[EmissionType] = [
+    EmissionType.process_emissions,
+    EmissionType.buildings,
+    EmissionType.equipment,
+    EmissionType.external,
+    EmissionType.professional_travel,
+    EmissionType.purchases,
+    EmissionType.research_facilities,
+    EmissionType.commuting,
+    EmissionType.food,
+    EmissionType.waste,
+    EmissionType.buildings__construction_and_renovation,
+]
+
 
 class CarbonReportModuleRepository:
     """Repository for CarbonReportModule database operations."""
@@ -1326,17 +1342,11 @@ class CarbonReportModuleRepository:
             for row in partition:
                 stats = row.stats if isinstance(row.stats, dict) else {}
                 by_emission_type = stats.get("by_emission_type") or {}
-                # Convert emission type keys to names if possible
-                converted_by_emission_type: dict[str, Any] = {}
-                for k, v in by_emission_type.items():
-                    k_str = str(k)
-                    try:
-                        emission_type = EmissionType(int(k_str))
-                        key = emission_type.name.replace("__", "_")
-                    except (ValueError, TypeError):
-                        key = k_str
-                    converted_by_emission_type[key] = v
-                by_emission_type = converted_by_emission_type
+                # Keep only the top-level category scope totals
+                category_totals = {
+                    root.name: by_emission_type.get(str(root.value), 0)
+                    for root in RESULTS_REPORT_CATEGORY_ROOTS
+                }
                 report.append(
                     {
                         "year": row.year,
@@ -1346,8 +1356,7 @@ class CarbonReportModuleRepository:
                         "scope2": stats.get("scope2"),
                         "scope3": stats.get("scope3"),
                         "total": stats.get("total"),
-                        # Flatten by_emission_type into top-level keys
-                        **by_emission_type,
+                        **category_totals,
                     }
                 )
 
