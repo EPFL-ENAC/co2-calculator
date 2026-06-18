@@ -45,19 +45,19 @@ the `APP_SENTRY_DSN` env name is wired through `runtime.ts`, `quasar.config.js`,
 set and wires every source to `captureError`, keeping the existing `ignoreErrors`
 list and user-facing toasts:
 
-| Source                          | Hook                      | mechanism    |
-| ------------------------------- | ------------------------- | ------------ |
-| Vue component errors            | `app.config.errorHandler` | `vue`        |
-| Vue Router (chunk load, guards) | `router.onError` _(new)_  | `vue-router` |
+| Source                          | Hook                                         | mechanism                              |
+| ------------------------------- | -------------------------------------------- | -------------------------------------- |
+| Vue component errors            | `app.config.errorHandler`                    | `vue`                                  |
+| Vue Router (chunk load, guards) | `router.onError` _(new)_                     | `vue-router`                           |
+| Global synchronous / DOM-event  | `window 'error'` (ResizeObserver suppressed) | `onerror`                              |
+| Unhandled promise rejection     | `window 'unhandledrejection'`                | `onunhandledrejection` (handled:false) |
+| ky HTTP 5xx                     | `afterResponse` in `src/api/http.ts`         | `generic`                              |
 
 `router.onError` also detects stale route-chunk load failures (cross-engine
 message match) and shows a single sticky "new version available — reload"
 toast, so a client holding an old `index.html` after a deploy can recover in
 one click instead of hitting a dead navigation. The error is still captured.
 Strings `new_version_available` / `reload` added to `src/i18n/common.ts`.
-| Global synchronous / DOM-event | `window 'error'` (ResizeObserver suppressed) | `onerror` |
-| Unhandled promise rejection | `window 'unhandledrejection'` | `onunhandledrejection` (handled:false) |
-| ky HTTP 5xx | `afterResponse` in `src/api/http.ts` | `generic` |
 
 **Removed:** `@sentry/vue` dependency (`package.json`) and both its usages
 (`boot/sentry.ts`, `api/http.ts`'s lazy `captureMessage`); deleted the dead
@@ -77,8 +77,11 @@ Prod: `APP_SENTRY_DSN` from the pod env via Helm → `injectEnv.js`.
 
 - `make type-check` (vue-tsc) and `npm run lint` — both green; no `@sentry`
   imports remain.
-- Manual (`quasar dev`): console `throw new Error('aefaef')` produces a
+- Manual (`quasar dev`, with the DSN in `.env.local` and the dev server
+  restarted): `setTimeout(() => { throw new Error('x') }, 0)` and
+  `Promise.reject(new Error('y'))` each produce a
   `POST …/api/<projectId>/envelope/?sentry_key=…` → 200 and a visible GlitchTip
-  event. Exercise each source (component throw, `Promise.reject`, route error,
-  backend 500); confirm ResizeObserver / `AbortError` / `Failed to fetch` are
-  not sent.
+  event. (A bare `throw` typed at the console REPL does **not** fire
+  `window.onerror` in WebKit — use `setTimeout`.) Exercise each source
+  (component throw, rejection, route error, backend 500); confirm ResizeObserver
+  / `AbortError` / `Failed to fetch` are not sent.
