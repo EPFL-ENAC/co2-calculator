@@ -63,6 +63,11 @@ list and user-facing toasts:
 | Unhandled promise rejection     | `window 'unhandledrejection'`                | `onunhandledrejection` (handled:false) |
 | ky HTTP 5xx                     | `afterResponse` in `src/api/http.ts`         | `generic`                              |
 
+Vue component errors also attach a `contexts.vue` panel (component name,
+lifecycle hook, depth-1 props — nested values collapse to `[Object]`/`[Array]`
+to dodge circular refs) — the `@sentry/vue` equivalent. `captureError` accepts
+an optional `contexts` map for this.
+
 `router.onError` also detects stale route-chunk load failures (cross-engine
 message match) and shows a single sticky "new version available — reload"
 toast, so a client holding an old `index.html` after a deploy can recover in

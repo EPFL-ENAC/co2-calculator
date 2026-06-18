@@ -1,6 +1,7 @@
 import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
+import type { ComponentPublicInstance } from 'vue';
 import { runtimeConfig } from 'src/config/runtime';
 import { i18n } from 'src/boot/i18n';
 import {
@@ -8,6 +9,41 @@ import {
   captureError,
   initGlitchTip,
 } from 'src/utils/glitchtip';
+
+// Shallow (depth-1) copy of a component's props for the report: nested values
+// collapse to "[Object]" / "[Array]". Avoids circular refs (which would make
+// JSON.stringify throw on the whole event) and giant payloads — matches what
+// @sentry/vue sends.
+function shallowProps(
+  props: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(props ?? {})) {
+    out[key] =
+      value === null || typeof value !== 'object'
+        ? value
+        : Array.isArray(value)
+          ? '[Array]'
+          : '[Object]';
+  }
+  return out;
+}
+
+// The `contexts.vue` panel GlitchTip renders: which component threw, in which
+// lifecycle hook, with which props — the @sentry/vue equivalent.
+function vueErrorContext(
+  instance: ComponentPublicInstance | null,
+  info: string,
+): Record<string, unknown> {
+  const type = instance?.$?.type as
+    | { name?: string; __name?: string }
+    | undefined;
+  return {
+    componentName: type?.name || type?.__name || 'Anonymous Component',
+    lifecycleHook: info,
+    propsData: shallowProps(instance?.$props),
+  };
+}
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
 // captureError() drops events whose message matches any of these.
@@ -93,7 +129,10 @@ export default boot(({ app, router }) => {
     if (typeof previousVueHandler === 'function') {
       previousVueHandler(err, instance, info);
     }
-    captureError(err, { mechanism: 'vue', extra: { info } });
+    captureError(err, {
+      mechanism: 'vue',
+      contexts: { vue: vueErrorContext(instance, info) },
+    });
     if (import.meta.env.DEV) {
       console.error('[vue errorHandler]', err, info);
     }

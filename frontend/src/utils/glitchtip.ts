@@ -15,6 +15,9 @@ export interface CaptureContext {
   handled?: boolean;
   level?: 'error' | 'warning' | 'info';
   extra?: Record<string, unknown>;
+  // Structured context sections (e.g. `{ vue: { componentName, … } }`), each
+  // rendered as its own panel in GlitchTip alongside browser/os/device.
+  contexts?: Record<string, Record<string, unknown>>;
 }
 
 export interface GlitchTipOptions {
@@ -196,6 +199,7 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
         headers: { 'User-Agent': navigator.userAgent },
       },
       breadcrumbs: { values: breadcrumbs.slice() },
+      contexts: ctx?.contexts,
       exception: {
         values: [
           {
