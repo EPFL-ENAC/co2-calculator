@@ -1,12 +1,11 @@
 import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
-import type { App } from 'vue';
-import type { Router } from 'vue-router';
 import { runtimeConfig } from 'src/config/runtime';
+import { captureError, initGlitchTip } from 'src/utils/glitchtip';
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
-// Sentry drops events whose message matches any of these.
+// captureError() drops events whose message matches any of these.
 const ignoreErrors: (string | RegExp)[] = [
   // Harmless browser-bug noise from libraries that observe element sizes.
   // See https://github.com/vuejs/vue-cli/issues/7431
@@ -32,65 +31,26 @@ function notifyError(message: string, caption?: string) {
   });
 }
 
-// Sentry init is split out and dynamic-imported so the @sentry/vue chunk
-// (~900 KiB unminified, drags replay+feedback+browser-utils via transitive
-// deps) is NOT in the eager bundle. Without DSN — i.e. dev, CI Lighthouse
-// runs, any unconfigured deploy — the chunk never loads at all. With DSN it
-// loads asynchronously, parallel with app startup, instead of blocking LCP.
-async function initSentry(
-  app: App,
-  router: Router,
-  dsn: string,
-  environment: string,
-  release: string | undefined,
-) {
-  const Sentry = await import('@sentry/vue');
-  Sentry.init({
-    app,
-    dsn,
-    environment,
-    release,
-    ignoreErrors,
-    integrations: [
-      // Auto-instruments vue-router navigations + fetch/XHR as Sentry
-      // transactions. This is what gives GlitchTip "slow route" visibility.
-      Sentry.browserTracingIntegration({ router }),
-    ],
-    // Same bundle hits dev/stage/prod via runtime DSN, so this rate applies
-    // everywhere. 5% balances signal on rare slow routes against GlitchTip
-    // ingestion cost.
-    tracesSampleRate: 0.05,
-    // Only attach trace headers (sentry-trace, baggage) to our own backend.
-    // Never propagate to third-party endpoints (CDNs, analytics) — they'll
-    // reject CORS preflights and pollute their logs.
-    tracePropagationTargets: ['localhost', /^\/api\//],
-  });
-}
-
 export default boot(({ app, router }) => {
   const { sentryDsn, environment, release } = runtimeConfig;
 
-  // Fire-and-forget: don't block app mount on Sentry loading. Worst case is
-  // a sub-second window after first paint where Sentry isn't capturing yet
-  // — acceptable cost for keeping the SDK off the critical path.
+  // Init is a no-op without a DSN (dev, CI Lighthouse, unconfigured deploys),
+  // so the handlers below simply report nowhere in those environments.
   if (sentryDsn) {
-    void initSentry(app, router, sentryDsn, environment, release);
+    initGlitchTip({ dsn: sentryDsn, release, environment, ignoreErrors });
   }
 
   // -------------------------------------------------------------------------
-  // Vue-level uncaught errors.
-  //
-  // Fires for errors thrown inside component lifecycle hooks, watchers,
-  // computeds, etc. @sentry/vue wires its own capture via `attachErrorHandler`
-  // when init runs (which preserves any prior handler). We layer a Notify
-  // toast on top so users see *something* when a render fails instead of a
-  // silent broken UI.
+  // Vue-level uncaught errors: thrown inside component lifecycle hooks,
+  // watchers, computeds, render, etc. We report them and layer a toast so
+  // users see *something* when a render fails instead of a silent broken UI.
   // -------------------------------------------------------------------------
   const previousVueHandler = app.config.errorHandler;
   app.config.errorHandler = (err, instance, info) => {
     if (typeof previousVueHandler === 'function') {
       previousVueHandler(err, instance, info);
     }
+    captureError(err, { mechanism: 'vue', extra: { info } });
     if (import.meta.env.DEV) {
       console.error('[vue errorHandler]', err, info);
     }
@@ -101,22 +61,28 @@ export default boot(({ app, router }) => {
   };
 
   // -------------------------------------------------------------------------
-  // Browser-level synchronous errors.
-  //
-  // Catches errors thrown outside Vue (third-party libs, setTimeout callbacks,
-  // event handlers attached directly to DOM). Sentry auto-captures these via
-  // its global handler once init runs; we add ResizeObserver suppression and
-  // a user-facing toast unconditionally.
+  // Vue Router errors: failed dynamic-import of a route chunk, errors thrown
+  // in navigation guards/resolvers. These never reach the Vue error handler.
+  // -------------------------------------------------------------------------
+  router.onError((err) => {
+    captureError(err, { mechanism: 'vue-router' });
+  });
+
+  // -------------------------------------------------------------------------
+  // Browser-level synchronous errors: thrown outside Vue (third-party libs,
+  // setTimeout callbacks, DOM event handlers). Suppress ResizeObserver noise
+  // entirely; report and toast everything else.
   // -------------------------------------------------------------------------
   window.addEventListener('error', (event) => {
     if (event.message?.includes('ResizeObserver loop')) {
-      // Browser bug, not a real failure. Stop propagation so neither Sentry
-      // nor the toast layer treats it as one.
+      // Browser bug, not a real failure. Stop propagation so nothing treats it
+      // as one.
       event.stopImmediatePropagation();
       event.stopPropagation();
       event.preventDefault();
       return;
     }
+    captureError(event.error ?? event.message, { mechanism: 'onerror' });
     if (import.meta.env.DEV) {
       console.error('[window error]', event.error ?? event.message);
     }
@@ -127,14 +93,17 @@ export default boot(({ app, router }) => {
   });
 
   // -------------------------------------------------------------------------
-  // Unhandled promise rejections.
-  //
-  // Sentry auto-captures the reason. We skip notifying when the reason is a
-  // ky HTTPError — api/http.ts's afterResponse hook already toasted it, and
+  // Unhandled promise rejections. We still report ky HTTPErrors (an unhandled
+  // one means a caller forgot to await/catch — worth knowing) but skip the
+  // toast: api/http.ts's afterResponse hook already toasted it, and
   // double-toasting is worse than missing one.
   // -------------------------------------------------------------------------
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
+    captureError(reason, {
+      mechanism: 'onunhandledrejection',
+      handled: false,
+    });
     if (reason instanceof HTTPError) {
       return;
     }
