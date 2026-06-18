@@ -131,6 +131,18 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
   const [, publicKey, host, projectId] = parsed;
   const url = `https://${host}/api/${projectId}/envelope/?sentry_key=${publicKey}&sentry_version=7`;
 
+  // Locale / timezone / calendar of the user's browser, sent on every event as
+  // the `culture` panel (the @sentry/vue equivalent, which reads it from Intl).
+  // Resolved once — it doesn't change over a session.
+  const culture = (() => {
+    try {
+      const o = Intl.DateTimeFormat().resolvedOptions();
+      return { locale: o.locale, timezone: o.timeZone, calendar: o.calendar };
+    } catch {
+      return undefined;
+    }
+  })();
+
   const breadcrumbs: Breadcrumb[] = [];
   let lastSig: string | null = null;
 
@@ -199,7 +211,7 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
         headers: { 'User-Agent': navigator.userAgent },
       },
       breadcrumbs: { values: breadcrumbs.slice() },
-      contexts: ctx?.contexts,
+      contexts: { ...(culture ? { culture } : {}), ...ctx?.contexts },
       exception: {
         values: [
           {

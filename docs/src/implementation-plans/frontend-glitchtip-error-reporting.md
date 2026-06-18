@@ -40,7 +40,8 @@ GlitchTip accepts). No-op without a DSN, so dev/CI stay silent.
   offline buffer + flush on init, `keepalive` POST.
 - Context parity with the SDK: ships `request.headers["User-Agent"]` so
   GlitchTip derives the `browser` / `os` / `device` tags (+ icons) server-side;
-  and auto-records breadcrumbs (`fetch` — skipping its own ingest POSTs —
+  sends a `culture` panel (locale / timezone / calendar from `Intl`) on every
+  event; and auto-records breadcrumbs (`fetch` — skipping its own ingest POSTs —
   `console.error/warn`, `ui.click`; `navigation` from `router.afterEach`).
 - Non-Error rejections (`Promise.reject({...})`, numbers) keep their payload in
   the title (`NonError: Non-Error rejection: …`) instead of "Unknown error".
