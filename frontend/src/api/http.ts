@@ -214,17 +214,20 @@ export const api = ky.create({
             } catch {
               // Body already consumed elsewhere; not fatal for the report.
             }
-            captureError(new Error(`HTTP ${res.status} ${req.method} ${req.url}`), {
-              extra: {
-                status: res.status,
-                statusText: res.statusText,
-                url: req.url,
-                method: req.method,
-                // Truncate to keep events small; full body rarely fits in
-                // GlitchTip's payload limit and isn't usually needed for triage.
-                body: body?.slice(0, 2000),
+            captureError(
+              new Error(`HTTP ${res.status} ${req.method} ${req.url}`),
+              {
+                extra: {
+                  status: res.status,
+                  statusText: res.statusText,
+                  url: req.url,
+                  method: req.method,
+                  // Truncate to keep events small; full body rarely fits in
+                  // GlitchTip's payload limit and isn't usually needed for triage.
+                  body: body?.slice(0, 2000),
+                },
               },
-            });
+            );
           }
 
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];

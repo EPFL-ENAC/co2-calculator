@@ -112,7 +112,9 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
 
   const storeOffline = (body: string) => {
     try {
-      const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]') as string[];
+      const q = JSON.parse(
+        localStorage.getItem(OFFLINE_KEY) || '[]',
+      ) as string[];
       q.push(body);
       localStorage.setItem(OFFLINE_KEY, JSON.stringify(q.slice(-10)));
     } catch {
@@ -132,7 +134,9 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
 
   const flush = () => {
     try {
-      const q = JSON.parse(localStorage.getItem(OFFLINE_KEY) || '[]') as string[];
+      const q = JSON.parse(
+        localStorage.getItem(OFFLINE_KEY) || '[]',
+      ) as string[];
       localStorage.removeItem(OFFLINE_KEY);
       q.forEach(send);
     } catch {
