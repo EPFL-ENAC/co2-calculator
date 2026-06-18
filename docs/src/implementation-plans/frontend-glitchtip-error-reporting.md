@@ -38,6 +38,10 @@ GlitchTip accepts). No-op without a DSN, so dev/CI stay silent.
   per-capture `mechanism { type, handled }`.
 - Retained from the draft: consecutive-error dedupe, best-effort `localStorage`
   offline buffer + flush on init, `keepalive` POST.
+- Context parity with the SDK: ships `request.headers["User-Agent"]` so
+  GlitchTip derives the `browser` / `os` / `device` tags (+ icons) server-side;
+  and auto-records breadcrumbs (`fetch` — skipping its own ingest POSTs —
+  `console.error/warn`, `ui.click`; `navigation` from `router.afterEach`).
 
 **Rewired — `frontend/src/boot/sentry.ts`** (boot slot name kept as `sentry`;
 the `APP_SENTRY_DSN` env name is wired through `runtime.ts`, `quasar.config.js`,

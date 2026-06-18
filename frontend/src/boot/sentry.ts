@@ -3,7 +3,11 @@ import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
 import { runtimeConfig } from 'src/config/runtime';
 import { i18n } from 'src/boot/i18n';
-import { captureError, initGlitchTip } from 'src/utils/glitchtip';
+import {
+  addBreadcrumb,
+  captureError,
+  initGlitchTip,
+} from 'src/utils/glitchtip';
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
 // captureError() drops events whose message matches any of these.
@@ -110,6 +114,12 @@ export default boot(({ app, router }) => {
     if (isChunkLoadError(err)) {
       notifyReloadOnce();
     }
+  });
+
+  // Navigation breadcrumbs: the "how did the user get here" trail attached to
+  // any later crash. No-op until a DSN is configured.
+  router.afterEach((to, from) => {
+    addBreadcrumb(`${from.fullPath} → ${to.fullPath}`, 'navigation');
   });
 
   // -------------------------------------------------------------------------

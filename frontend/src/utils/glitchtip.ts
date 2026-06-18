@@ -162,6 +162,13 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
       level: ctx?.level ?? 'error',
       release,
       environment,
+      // GlitchTip parses the User-Agent server-side into browser/os/device
+      // tags (+ icons) — the same way the Sentry SDK gets them. We just have
+      // to ship the header in the request context.
+      request: {
+        url: location.href,
+        headers: { 'User-Agent': navigator.userAgent },
+      },
       breadcrumbs: { values: breadcrumbs.slice() },
       exception: {
         values: [
@@ -197,7 +204,85 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
   };
 
   client = { capture, breadcrumb };
+  installInstrumentation(breadcrumb, host);
   flush();
+}
+
+// Auto-record the actions leading up to a crash — the Sentry SDK's default
+// breadcrumbs (fetch, console, ui.click; navigation is wired from the router
+// in boot/sentry.ts). Installed once, best-effort: a wrapper must never throw
+// into the app's own fetch/console.
+let instrumented = false;
+function installInstrumentation(
+  record: (message: string, category: string) => void,
+  ingestHost: string,
+): void {
+  if (instrumented) return;
+  instrumented = true;
+
+  // fetch — covers all ky/API traffic. Skip our own ingest POSTs (else every
+  // captured error spawns a self-referential breadcrumb).
+  const origFetch = window.fetch.bind(window);
+  window.fetch = (...args: Parameters<typeof fetch>) => {
+    const [input, init] = args;
+    const url =
+      typeof input === 'string'
+        ? input
+        : input instanceof Request
+          ? input.url
+          : String(input);
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : 'GET')
+    ).toUpperCase();
+    const promise = origFetch(...args);
+    if (!url.includes(ingestHost)) {
+      promise.then(
+        (res) => record(`${method} ${url} [${res.status}]`, 'fetch'),
+        () => record(`${method} ${url} [failed]`, 'fetch'),
+      );
+    }
+    return promise;
+  };
+
+  // console.error / warn — the signals devs already emit when things go wrong.
+  (['error', 'warn'] as const).forEach((level) => {
+    const orig = console[level].bind(console);
+    console[level] = (...args: unknown[]) => {
+      record(
+        args
+          .map((a) => String(a))
+          .join(' ')
+          .slice(0, 200),
+        'console',
+      );
+      orig(...args);
+    };
+  });
+
+  // ui.click — capture phase, so we still see it if a handler stops propagation.
+  window.addEventListener(
+    'click',
+    (e) => {
+      if (e.target instanceof Element) {
+        record(describeTarget(e.target), 'ui.click');
+      }
+    },
+    { capture: true, passive: true },
+  );
+}
+
+// Compact CSS-ish description of a clicked element for the breadcrumb trail,
+// e.g. `button#save.btn.primary "Save changes"`.
+function describeTarget(el: Element): string {
+  const sel = [el.tagName.toLowerCase()];
+  if (el.id) sel.push(`#${el.id}`);
+  const cls =
+    typeof el.className === 'string'
+      ? el.className.trim().split(/\s+/).filter(Boolean).slice(0, 2)
+      : [];
+  if (cls.length) sel.push('.' + cls.join('.'));
+  const text = (el.textContent ?? '').trim().slice(0, 30);
+  return text ? `${sel.join('')} "${text}"` : sel.join('');
 }
 
 // No-ops until initGlitchTip runs (no DSN → no reporting), so callers never
