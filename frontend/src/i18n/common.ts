@@ -523,4 +523,12 @@ export default {
     en: 'Records per page',
     fr: 'Entrées par page',
   },
+  new_version_available: {
+    en: 'A new version is available. Reload to continue.',
+    fr: 'Une nouvelle version est disponible. Rechargez pour continuer.',
+  },
+  reload: {
+    en: 'Reload',
+    fr: 'Recharger',
+  },
 };

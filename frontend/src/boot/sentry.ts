@@ -2,6 +2,7 @@ import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
 import { runtimeConfig } from 'src/config/runtime';
+import { i18n } from 'src/boot/i18n';
 import { captureError, initGlitchTip } from 'src/utils/glitchtip';
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
@@ -28,6 +29,44 @@ function notifyError(message: string, caption?: string) {
     position: 'top',
     timeout: 5000,
     actions: [{ icon: 'close', color: 'white' }],
+  });
+}
+
+// A route's lazy chunk (or its CSS) failed to load. After a deploy, clients
+// holding an old index.html request hashed chunks that no longer exist on the
+// server — the dynamic import rejects. Messages differ per engine, hence the
+// broad match (WebKit: "Importing a module script failed."; Chromium: "Failed
+// to fetch dynamically imported module"; Firefox/Vite variants below).
+function isChunkLoadError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /error loading dynamically imported module/i.test(message) ||
+    /Importing a module script failed/i.test(message) ||
+    /Unable to preload CSS/i.test(message) ||
+    /Loading chunk \S+ failed/i.test(message)
+  );
+}
+
+// Persistent "reload to get the new version" prompt. Guarded so a burst of
+// chunk errors (one per failed prefetch) shows a single toast. We prompt
+// rather than auto-reload to avoid clobbering unsaved work.
+let reloadPromptShown = false;
+function notifyReloadOnce() {
+  if (reloadPromptShown) return;
+  reloadPromptShown = true;
+  Notify.create({
+    color: 'info',
+    message: i18n.global.t('new_version_available'),
+    position: 'top',
+    timeout: 0, // sticky until the user acts
+    actions: [
+      {
+        label: i18n.global.t('reload'),
+        color: 'white',
+        handler: () => window.location.reload(),
+      },
+    ],
   });
 }
 
@@ -63,9 +102,14 @@ export default boot(({ app, router }) => {
   // -------------------------------------------------------------------------
   // Vue Router errors: failed dynamic-import of a route chunk, errors thrown
   // in navigation guards/resolvers. These never reach the Vue error handler.
+  // A chunk-load failure is usually a stale client after a deploy, not a code
+  // bug — surface a reload prompt so the user can recover in one click.
   // -------------------------------------------------------------------------
   router.onError((err) => {
     captureError(err, { mechanism: 'vue-router' });
+    if (isChunkLoadError(err)) {
+      notifyReloadOnce();
+    }
   });
 
   // -------------------------------------------------------------------------
