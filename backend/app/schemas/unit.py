@@ -27,6 +27,9 @@ class UnitWithUserRole(BaseModel):
     principal_user_function: Optional[str] = Field(
         None, description="Principal user function/title"
     )
+    principal_user_email: Optional[str] = Field(
+        None, description="Principal user email"
+    )
     affiliations: list[str] = Field(
         default_factory=list, description="List of affiliated units/units"
     )

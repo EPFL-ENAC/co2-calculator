@@ -11,6 +11,7 @@ export interface Unit {
   principal_user_id: string;
   principal_user_function: string;
   principal_user_name: string;
+  principal_user_email?: string | null;
   affiliations: string[];
   current_user_role: string;
   visibility?: string;

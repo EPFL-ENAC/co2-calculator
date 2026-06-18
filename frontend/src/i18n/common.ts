@@ -431,6 +431,14 @@ export default {
     en: 'New',
     fr: 'Nouveau',
   },
+  common_ask_head_of_unit: {
+    en: 'Ask your head of unit to edit',
+    fr: 'Demandez au responsable pour éditer',
+  },
+  common_request_edit: {
+    en: 'Request Edit',
+    fr: 'Demander une modification',
+  },
   validation_required: {
     en: 'Required',
     fr: 'Obligatoire',
@@ -522,5 +530,13 @@ export default {
   rows_per_page: {
     en: 'Records per page',
     fr: 'Entrées par page',
+  },
+  new_version_available: {
+    en: 'A new version is available. Reload to continue.',
+    fr: 'Une nouvelle version est disponible. Rechargez pour continuer.',
+  },
+  reload: {
+    en: 'Reload',
+    fr: 'Recharger',
   },
 };
