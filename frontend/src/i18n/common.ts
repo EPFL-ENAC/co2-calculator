@@ -432,12 +432,12 @@ export default {
     fr: 'Nouveau',
   },
   common_ask_head_of_unit: {
-    en: 'Ask your head of unit to edit',
-    fr: 'Demandez au responsable pour éditer',
+    en: 'This module has been validate by your head of unit. Ask them to switch it to "Edition mode" to add your data. ',
+    fr: 'Ce module a été validé par votre responsable d\'unité. Demandez-lui ou elle de le passer en "mode Édition" pour pouvoir saisir vos données. ',
   },
   common_request_edit: {
-    en: 'Request Edit',
-    fr: 'Demander une modification',
+    en: 'Request Edit mode',
+    fr: 'Débloquer la saisie',
   },
   validation_required: {
     en: 'Required',

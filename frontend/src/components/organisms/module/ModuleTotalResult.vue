@@ -104,22 +104,22 @@
         }"
         @click="toggleValidation"
       />
-      <template v-else-if="showContactHead && isValidated">
-        <q-btn
-          icon="o_mail"
-          :label="$t('common_request_edit')"
-          color="info"
-          unelevated
-          no-caps
-          class="mtr-sidebar__btn text-weight-medium full-width"
-          size="md"
-          type="a"
-          :href="`mailto:${headOfUnitEmail}`"
-        />
-        <span class="text-caption text-grey-6 text-center">
+      <q-btn
+        v-else-if="showContactHead && isValidated"
+        icon="o_mail"
+        :label="$t('common_request_edit')"
+        color="info"
+        unelevated
+        no-caps
+        class="mtr-sidebar__btn text-weight-medium full-width"
+        size="md"
+        type="a"
+        :href="`mailto:${headOfUnitEmail}`"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[6, 0]">
           {{ $t('common_ask_head_of_unit') }}
-        </span>
-      </template>
+        </q-tooltip>
+      </q-btn>
     </div>
   </div>
 
@@ -175,7 +175,7 @@
       </div>
       <div
         v-else-if="showContactHead && isValidated"
-        class="module-total-result__button column items-end"
+        class="module-total-result__button"
       >
         <q-btn
           icon="o_mail"
@@ -187,10 +187,11 @@
           class="text-weight-medium"
           type="a"
           :href="`mailto:${headOfUnitEmail}`"
-        />
-        <span class="text-caption text-grey-6 q-mt-xs">
-          {{ $t('common_ask_head_of_unit') }}
-        </span>
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[6, 0]">
+            {{ $t('common_ask_head_of_unit') }}
+          </q-tooltip>
+        </q-btn>
       </div>
     </q-card-section>
   </q-card>
