@@ -8,6 +8,7 @@ import {
   addBreadcrumb,
   captureError,
   initGlitchTip,
+  startNavigationTrace,
 } from 'src/utils/glitchtip';
 
 // Shallow (depth-1) copy of a component's props for the report: nested values
@@ -156,8 +157,10 @@ export default boot(({ app, router }) => {
   });
 
   // Navigation breadcrumbs: the "how did the user get here" trail attached to
-  // any later crash. No-op until a DSN is configured.
+  // any later crash. Also start a fresh trace so errors on the new page group
+  // under one trace_id. No-op until a DSN is configured.
   router.afterEach((to, from) => {
+    startNavigationTrace();
     addBreadcrumb(`${from.fullPath} → ${to.fullPath}`, 'navigation');
   });
 

@@ -80,9 +80,15 @@ Strings `new_version_available` / `reload` added to `src/i18n/common.ts`.
 `scripts/glitchtip.js`. No prod Docker/Helm change — `docker/entrypoint.sh` writes
 any `APP_*` var into `injectEnv.js` generically.
 
-**Trade-off (in scope):** loses performance tracing / slow-route visibility,
-session replay, and server-side source-map frame resolution. Scoped to "errors
-only".
+A `contexts.trace` (trace_id rotated per navigation + span_id) tags every event
+so errors within one navigation group together (Tier A). No transaction/span
+events are emitted — GlitchTip's Performance tab stays empty by design. See the
+header comment in `glitchtip.ts` for what full performance / distributed tracing
+would require (out of scope).
+
+**Trade-off (in scope):** no performance/transaction tracing (only the trace
+IDs above), no session replay, no server-side source-map frame resolution.
+Scoped to "errors only".
 
 ## 3. Configuration
 

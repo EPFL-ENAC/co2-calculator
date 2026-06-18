@@ -115,6 +115,39 @@ interface Client {
 
 let client: Client | null = null;
 
+// --- Trace context (Tier A: IDs only, no spans emitted) --------------------
+// Every event is tagged with a trace_id (rotated per navigation) + span_id, so
+// errors that happen within the same navigation group under one trace. We do
+// NOT emit transaction/span events, so GlitchTip's Performance tab stays empty
+// — that is deliberately out of scope.
+//
+// To go further (NOT done here):
+//   • Performance monitoring: emit `transaction` envelope items per
+//     pageload/navigation with real span timings (PerformanceObserver +
+//     performance.now()/timeOrigin), gated by a tracesSampleRate to cap ingest.
+//     ~250–400 lines — this is the bulk of @sentry/vue's tracing and the
+//     subtle, bug-prone part (span lifecycles, sampling, clocks). Prefer
+//     lazily re-adding @sentry/vue for tracing only over hand-rolling it.
+//   • Distributed tracing: inject `sentry-trace` + `baggage` headers on /api
+//     requests (a ky beforeRequest hook) AND run a Sentry/OTel SDK on the
+//     backend reporting to the same GlitchTip — only then do these IDs link a
+//     request across front ↔ back. Without the backend half, the IDs alone
+//     just group front-end errors.
+function randomHex(bytes: number): string {
+  const buf = new Uint8Array(bytes);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+let traceId = randomHex(16); // 32 hex chars; stable for the current navigation
+let spanId = randomHex(8); // 16 hex chars
+
+// Begin a fresh trace for a new route navigation (called from boot/sentry.ts).
+export function startNavigationTrace(): void {
+  traceId = randomHex(16);
+  spanId = randomHex(8);
+}
+
 export function initGlitchTip(opts: GlitchTipOptions): void {
   const { dsn, release, environment, maxBreadcrumbs = 15 } = opts;
   const ignoreErrors = opts.ignoreErrors ?? [];
@@ -211,7 +244,11 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
         headers: { 'User-Agent': navigator.userAgent },
       },
       breadcrumbs: { values: breadcrumbs.slice() },
-      contexts: { ...(culture ? { culture } : {}), ...ctx?.contexts },
+      contexts: {
+        trace: { trace_id: traceId, span_id: spanId },
+        ...(culture ? { culture } : {}),
+        ...ctx?.contexts,
+      },
       exception: {
         values: [
           {
