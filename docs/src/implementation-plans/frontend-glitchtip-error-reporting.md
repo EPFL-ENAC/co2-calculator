@@ -45,13 +45,19 @@ the `APP_SENTRY_DSN` env name is wired through `runtime.ts`, `quasar.config.js`,
 set and wires every source to `captureError`, keeping the existing `ignoreErrors`
 list and user-facing toasts:
 
-| Source                          | Hook                                         | mechanism                              |
-| ------------------------------- | -------------------------------------------- | -------------------------------------- |
-| Vue component errors            | `app.config.errorHandler`                    | `vue`                                  |
-| Vue Router (chunk load, guards) | `router.onError` _(new)_                     | `vue-router`                           |
-| Global synchronous / DOM-event  | `window 'error'` (ResizeObserver suppressed) | `onerror`                              |
-| Unhandled promise rejection     | `window 'unhandledrejection'`                | `onunhandledrejection` (handled:false) |
-| ky HTTP 5xx                     | `afterResponse` in `src/api/http.ts`         | `generic`                              |
+| Source                          | Hook                      | mechanism    |
+| ------------------------------- | ------------------------- | ------------ |
+| Vue component errors            | `app.config.errorHandler` | `vue`        |
+| Vue Router (chunk load, guards) | `router.onError` _(new)_  | `vue-router` |
+
+`router.onError` also detects stale route-chunk load failures (cross-engine
+message match) and shows a single sticky "new version available — reload"
+toast, so a client holding an old `index.html` after a deploy can recover in
+one click instead of hitting a dead navigation. The error is still captured.
+Strings `new_version_available` / `reload` added to `src/i18n/common.ts`.
+| Global synchronous / DOM-event | `window 'error'` (ResizeObserver suppressed) | `onerror` |
+| Unhandled promise rejection | `window 'unhandledrejection'` | `onunhandledrejection` (handled:false) |
+| ky HTTP 5xx | `afterResponse` in `src/api/http.ts` | `generic` |
 
 **Removed:** `@sentry/vue` dependency (`package.json`) and both its usages
 (`boot/sentry.ts`, `api/http.ts`'s lazy `captureMessage`); deleted the dead
