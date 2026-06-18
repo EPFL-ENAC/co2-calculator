@@ -9,7 +9,7 @@
         :offset="[6, 0]"
         class="sidebar-tooltip"
       >
-        {{ validationShortActionLabel }}
+        {{ sidebarMiniTooltip }}
       </q-tooltip>
       <template v-if="isValidated">
         <span
@@ -36,6 +36,17 @@
         }"
         @click="toggleValidation"
       />
+      <q-btn
+        v-else-if="showContactHead && isValidated"
+        icon="o_mail"
+        color="info"
+        unelevated
+        no-caps
+        size="xs"
+        class="mtr-sidebar__mini-btn"
+        type="a"
+        :href="`mailto:${headOfUnitEmail}`"
+      />
     </div>
 
     <div class="mtr-sidebar__body">
@@ -52,7 +63,10 @@
       </div>
 
       <!-- value area — fixed height, stable layout -->
-      <div v-if="canValidate" class="mtr-sidebar__value-area">
+      <div
+        v-if="canValidate || showContactHead"
+        class="mtr-sidebar__value-area"
+      >
         <template v-if="isValidated">
           <div
             class="mtr-sidebar__value"
@@ -68,6 +82,9 @@
           <span class="mtr-sidebar__placeholder">
             {{ $t('module_total_result_placeholder') }}
           </span>
+        </template>
+        <template v-else>
+          <div class="mtr-sidebar__value mtr-sidebar__value--empty">—</div>
         </template>
       </div>
 
@@ -87,6 +104,22 @@
         }"
         @click="toggleValidation"
       />
+      <template v-else-if="showContactHead && isValidated">
+        <q-btn
+          icon="o_mail"
+          :label="$t('common_request_edit')"
+          color="info"
+          unelevated
+          no-caps
+          class="mtr-sidebar__btn text-weight-medium full-width"
+          size="md"
+          type="a"
+          :href="`mailto:${headOfUnitEmail}`"
+        />
+        <span class="text-caption text-grey-6 text-center">
+          {{ $t('common_ask_head_of_unit') }}
+        </span>
+      </template>
     </div>
   </div>
 
@@ -119,10 +152,13 @@
             {{ $t('module_total_result_title_unit', { type: type }) }}
           </p>
         </template>
-        <template v-else>
+        <template v-else-if="canValidate">
           <div class="text-caption text-secondary">
             {{ $t('module_total_result_placeholder') }}
           </div>
+        </template>
+        <template v-else>
+          <h1 class="text-body1 text-weight-bold text-grey-5 q-mb-none">—</h1>
         </template>
       </div>
       <div v-if="canValidate" class="module-total-result__button">
@@ -137,6 +173,25 @@
           @click="toggleValidation"
         />
       </div>
+      <div
+        v-else-if="showContactHead && isValidated"
+        class="module-total-result__button column items-end"
+      >
+        <q-btn
+          icon="o_mail"
+          :label="$t('common_request_edit')"
+          color="info"
+          unelevated
+          no-caps
+          size="md"
+          class="text-weight-medium"
+          type="a"
+          :href="`mailto:${headOfUnitEmail}`"
+        />
+        <span class="text-caption text-grey-6 q-mt-xs">
+          {{ $t('common_ask_head_of_unit') }}
+        </span>
+      </div>
     </q-card-section>
   </q-card>
 </template>
@@ -146,6 +201,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTimelineStore } from 'src/stores/modules';
 import { useAuthStore } from 'src/stores/auth';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { Module } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
 import {
@@ -164,6 +220,7 @@ const props = defineProps<{
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
 const authStore = useAuthStore();
+const workspaceStore = useWorkspaceStore();
 const moduleColors = computed(() => getModuleIconColors(props.type));
 
 // Validating a module's status is a unit-level action: hide the button from
@@ -174,6 +231,17 @@ const moduleState = computed(() => timelineStore.itemStates[props.type]);
 
 const isValidated = computed(
   () => moduleState.value === MODULE_STATES.Validated,
+);
+
+const headOfUnitEmail = computed(
+  () => workspaceStore.selectedUnit?.principal_user_email ?? null,
+);
+
+// Non-validators (standard users) get a "request edit" affordance in place of
+// the hidden validate button, but only once the module is validated — before
+// that there is nothing to request an edit for.
+const showContactHead = computed(
+  () => !canValidate.value && !!headOfUnitEmail.value,
 );
 
 const toggleIcon = computed(() =>
@@ -199,6 +267,12 @@ const validationShortActionLabel = computed(() => {
     : t('common_validate_short');
   return `${action} ${t(props.type)}`;
 });
+
+const sidebarMiniTooltip = computed(() =>
+  canValidate.value
+    ? validationShortActionLabel.value
+    : t('common_ask_head_of_unit'),
+);
 
 const validationLabel = computed(() =>
   isValidated.value ? t('common_unvalidate') : t('common_validate'),
@@ -367,6 +441,11 @@ function toggleValidation() {
     font-weight: tokens.$mtr-sidebar-value-font-weight;
     line-height: tokens.$text-line-height-none;
     letter-spacing: tokens.$mtr-sidebar-value-letter-spacing;
+
+    // Empty state (e.g. standard users before validation): a muted dash.
+    &--empty {
+      color: tokens.$mtr-color-muted;
+    }
   }
 
   &__unit {

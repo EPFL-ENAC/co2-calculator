@@ -428,6 +428,8 @@ export const useModuleStore = defineStore('modules', () => {
     if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
+
+    state.data = null;
     try {
       const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
       state.data = (await api

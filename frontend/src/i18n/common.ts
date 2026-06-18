@@ -431,6 +431,14 @@ export default {
     en: 'New',
     fr: 'Nouveau',
   },
+  common_ask_head_of_unit: {
+    en: 'Ask your head of unit to edit',
+    fr: 'Demandez au responsable pour éditer',
+  },
+  common_request_edit: {
+    en: 'Request Edit',
+    fr: 'Demander une modification',
+  },
   validation_required: {
     en: 'Required',
     fr: 'Obligatoire',
