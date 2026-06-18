@@ -32,7 +32,7 @@ def _row(
 def test_build_chart_breakdown_returns_emission_entries_only():
     rows = [
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
         ),
@@ -117,7 +117,7 @@ def test_build_chart_breakdown_per_person_exposes_only_value_keys():
 def test_build_chart_breakdown_validated_categories_follow_module_validation():
     rows = [
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__scientific.value,
             1_000.0,
         )
@@ -127,7 +127,7 @@ def test_build_chart_breakdown_validated_categories_follow_module_validation():
         rows,
         total_fte=10.0,
         headcount_validated=True,
-        validated_module_type_ids={ModuleTypeEnum.equipment_electric_consumption.value},
+        validated_module_type_ids={ModuleTypeEnum.equipment.value},
     )
 
     assert "equipment" in result["validated_categories"]
@@ -143,7 +143,7 @@ def test_build_chart_breakdown_excludes_single_module():
             5_000.0,
         ),
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
         ),
@@ -175,7 +175,7 @@ def test_build_chart_breakdown_excludes_multiple_modules():
             3_000.0,
         ),
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__scientific.value,
             10_000.0,
         ),
@@ -296,12 +296,12 @@ def test_parent_keys_order_standalone_leaf_uses_own_key():
     # level-1 leaves: no parent_key is set, so bar_key == key.
     rows = [
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__scientific.value,  # 80100
             8_000.0,
         ),
         _row(
-            ModuleTypeEnum.equipment_electric_consumption.value,
+            ModuleTypeEnum.equipment.value,
             EmissionType.equipment__it.value,  # 80200
             2_000.0,
         ),

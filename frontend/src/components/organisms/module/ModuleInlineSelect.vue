@@ -1,36 +1,24 @@
 <template>
   <div class="inline-select-wrapper">
-    <div
-      v-if="
-        isSubClass &&
-        !loadingSubclasses &&
-        (!subClassOptions || subClassOptions.length === 0) &&
-        !model
-      "
-      class="inline-subclass-placeholder"
-    ></div>
-    <q-select
+    <div v-if="showPlaceholder" class="inline-subclass-placeholder"></div>
+    <VirtualSelectField
       v-else
-      v-model="model"
-      :options="options"
-      emit-value
-      map-options
-      dense
-      outlined
-      hide-bottom-space
+      :model-value="model"
+      :options="currentOptions"
       :loading="isClass ? loadingClasses : loadingSubclasses"
       :disable="props.disable"
       :title="props.hint ? $t(props.hint) : undefined"
-      @update:model-value="onChange"
+      hide-bottom-space
+      @update:model-value="onValueChange"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
-import { QSelect } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
+import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
 import type { Module, ConditionalSubmoduleProps } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import { sortByOrder } from 'src/utils/options';
@@ -56,6 +44,7 @@ type CommonProps = {
   fieldId: string;
   optionsId: string;
   optionLabelKey?: string;
+  optionLabelPrefix?: string;
   optionOrder?: string[];
   hint?: string;
   cols: TableViewColumnSubset[];
@@ -95,18 +84,26 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
 const classOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = dynamicOptions['kind'] ?? [];
+  // Build O(1) lookup map to avoid O(n²) Array.find() over 10k taxonomy children
+  const kindNodeMap = new Map(taxo?.children?.map((c) => [c.name, c]) ?? []);
   const mapped = opts.map((opt) => {
     if (props.optionLabelKey) {
+      const key = props.optionLabelKey.replace(
+        '{value}',
+        opt.value.toLowerCase(),
+      );
       return {
         value: opt.value,
-        label: t(
-          props.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
-        ),
+        label: te(key) ? t(key) : opt.value,
       };
     }
-    const kindNode = taxo?.children?.find((node) => node.name === opt.value);
-    if (kindNode?.translation_key && te(kindNode.translation_key)) {
-      return { value: opt.value, label: t(kindNode.translation_key) };
+    const kindNode = kindNodeMap.get(opt.value);
+    const translationKey = kindNode?.translation_key;
+    if (translationKey && te(translationKey)) {
+      return { value: opt.value, label: t(translationKey) };
+    }
+    if (te(opt.value)) {
+      return { value: opt.value, label: t(opt.value) };
     }
     return {
       value: opt.value,
@@ -118,15 +115,21 @@ const classOptions = computed(() => {
 const subClassOptions = computed(() => {
   const taxo = moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = dynamicOptions['subkind'] ?? [];
+  // Build flat map of subkind name → node to avoid nested O(n²) finds
+  const subKindNodeMap = new Map<string, { label: string; name: string }>();
+  taxo?.children?.forEach((kindNode) => {
+    kindNode.children?.forEach((child) => {
+      subKindNodeMap.set(child.name, child);
+    });
+  });
   return opts.map((opt) => {
-    // Find node that includes the subkind option
-    const kindNode = taxo?.children?.find((node) =>
-      node.children?.some((child) => child.name === opt.value),
-    );
-    // Then find the subkind node to get the label
-    const subKindNode = kindNode?.children?.find(
-      (child) => child.name === opt.value,
-    );
+    if (props.optionLabelPrefix) {
+      return {
+        value: opt.value,
+        label: t(opt.value.toLowerCase(), opt.label || opt.value),
+      };
+    }
+    const subKindNode = subKindNodeMap.get(opt.value);
     return {
       value: opt.value,
       label: subKindNode ? subKindNode.label : opt.label || opt.value,
@@ -134,9 +137,17 @@ const subClassOptions = computed(() => {
   });
 });
 
-const options = computed(() => {
-  return isClass.value ? classOptions.value : subClassOptions.value;
-});
+const currentOptions = computed(() =>
+  isClass.value ? classOptions.value : subClassOptions.value,
+);
+
+const showPlaceholder = computed(
+  () =>
+    isSubClass.value &&
+    !loadingSubclasses.value &&
+    subClassOptions.value.length === 0 &&
+    !model.value,
+);
 
 const model = computed({
   get() {
@@ -148,14 +159,14 @@ const model = computed({
   },
 });
 
-async function onChange() {
-  // Persist only the changed class/sub_class field.
-  // Backend will auto-resolve power_factor_id and power values.
+async function onValueChange(val: string | number | null) {
+  model.value = val;
+
   const idNum = Number(props.row.id);
   if (!Number.isFinite(idNum)) return;
 
   const payload: Record<string, string | number | boolean | null> = {
-    [props.fieldId]: model.value as string | number | boolean | null,
+    [props.fieldId]: val,
   };
 
   await moduleStore.patchItem(

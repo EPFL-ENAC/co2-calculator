@@ -91,10 +91,6 @@ export default {
     en: 'Start Over',
     fr: 'Recommencer',
   },
-  workspace_setup_unit_manager: {
-    en: 'Unit Manager',
-    fr: "Responsable d'unité",
-  },
   workspace_setup_unit_affiliation: {
     en: 'Affiliation',
     fr: 'Affiliation',

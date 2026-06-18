@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed, nextTick } from 'vue';
+import { api } from 'src/api/http';
 
 export interface Options {
   label: string;
@@ -53,21 +54,18 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
       params.append('page_size', '50');
       params.append('page', page.toString());
 
-      const res = await fetch(
-        `/api/v1/backoffice-reporting/affiliations?${params.toString()}`,
-      );
+      // Route through the shared `api` client so 401s trigger the silent
+      // token-refresh retry and 403s land on /unauthorized — raw fetch()
+      // bypassed both (see http.ts interceptor).
+      const units = await api
+        .get('backoffice-reporting/affiliations', { searchParams: params })
+        .json<Array<{ id: number; name: string; unit_type_label: string }>>();
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const units = await res.json();
-
-      const mapped: Options[] = units.map(
-        (item: { id: number; name: string; unit_type_label: string }) => ({
-          label: item.name,
-          value: item.id,
-          unit_type_label: item.unit_type_label || '',
-        }),
-      );
+      const mapped: Options[] = units.map((item) => ({
+        label: item.name,
+        value: item.id,
+        unit_type_label: item.unit_type_label || '',
+      }));
 
       dataAffiliation.value =
         page === 1 ? mapped : [...dataAffiliation.value, ...mapped];
@@ -101,20 +99,15 @@ export const useUnitFiltersStore = defineStore('unitFilters', () => {
       params.append('page_size', '50');
       params.append('page', page.toString());
 
-      const res = await fetch(
-        `/api/v1/backoffice-reporting/units?${params.toString()}`,
-      );
+      // Route through the shared `api` client (see fetchAffiliationUnits).
+      const units = await api
+        .get('backoffice-reporting/units', { searchParams: params })
+        .json<Array<{ id: number; name: string }>>();
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const units = await res.json();
-
-      const mapped: Options[] = units.map(
-        (item: { id: number; name: string }) => ({
-          label: item.name,
-          value: item.id,
-        }),
-      );
+      const mapped: Options[] = units.map((item) => ({
+        label: item.name,
+        value: item.id,
+      }));
 
       dataLevel4.value = page === 1 ? mapped : [...dataLevel4.value, ...mapped];
 

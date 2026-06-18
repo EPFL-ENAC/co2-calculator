@@ -1678,9 +1678,7 @@ async def list_pipelines(
 async def get_pipeline_jobs(
     pipeline_id: UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.pipeline_operations")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ) -> PipelineResponse:
     """Return every job in a multi-step pipeline run, ordered by id.
 
@@ -1733,9 +1731,7 @@ async def get_pipeline_jobs(
 async def pipeline_stream_by_id(
     pipeline_id: UUID,
     request: Request,
-    current_user: User = Depends(
-        require_any_scope("view", "backoffice.pipeline_operations")
-    ),
+    current_user: User = Depends(require_module_or_config_view()),
 ):
     """Server-Sent Events stream for every job sharing a ``pipeline_id``.
 
@@ -1815,6 +1811,11 @@ async def pipeline_stream_by_id(
                 {
                     "id": job.id,
                     "job_type": job.job_type,
+                    # Carried so the frontend can scope a per-submodule
+                    # phase badge to the dets actually in the pipeline
+                    # (a single-submodule upload recalcs only its det;
+                    # other submodule cards must stay quiet).
+                    "data_entry_type_id": job.data_entry_type_id,
                     # Enum NAME so the frontend's string comparisons
                     # (``j.state === 'FINISHED'``) work uniformly across
                     # the list endpoint, single endpoint, and this SSE

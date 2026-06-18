@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, provide } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
@@ -19,27 +20,22 @@ import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
-// TODO: fix the available years dynamically
 const route = useRoute();
 const router = useRouter();
-const MIN_YEARS = 2023;
-const availableYears = ref<number[]>([]);
-const currentYear = new Date().getFullYear();
-if (currentYear > MIN_YEARS) {
-  for (let year = MIN_YEARS; year <= currentYear; year++) {
-    availableYears.value.push(year);
-  }
-}
+
+const yearConfigStore = useYearConfigStore();
+// Year selection is store-owned (single source of truth) so a dropdown
+// change trickles down to every config composable without prop drilling.
+const { availableYears, selectedYear } = storeToRefs(yearConfigStore);
+
+// Honour a ?year= deep link on entry; the store already defaults to the
+// latest available year otherwise.
 const queryYear = route.query.year
   ? parseInt(route.query.year as string, 10)
   : null;
-const selectedYear = ref<number>(
-  queryYear && availableYears.value.includes(queryYear)
-    ? queryYear
-    : availableYears.value[availableYears.value.length - 1],
-);
-
-const yearConfigStore = useYearConfigStore();
+if (queryYear && availableYears.value.includes(queryYear)) {
+  selectedYear.value = queryYear;
+}
 const pipelineStateStore = usePipelineStateStore();
 const { t: $t } = useI18n();
 
@@ -373,9 +369,9 @@ async function handleDialogCompleted() {
         -->
         <div :inert="yearSyncInFlight" class="relative-position">
           <template v-for="module in MODULES_LIST" :key="module">
-            <ModuleConfig :module="module" :selected-year="selectedYear" />
+            <ModuleConfig :module="module" />
           </template>
-          <ReductionObjectivesSection :selected-year="selectedYear" />
+          <ReductionObjectivesSection />
           <q-inner-loading :showing="yearSyncInFlight" color="primary">
             <div class="text-center q-pa-md">
               <q-spinner-dots size="48px" color="primary" class="q-mb-md" />
@@ -409,10 +405,10 @@ async function handleDialogCompleted() {
         @click="handleOpenForUsers"
       >
         <q-tooltip v-if="yearConfigStore.config?.is_started">
-          {{ $t('data_management_year_already_open') }}
+          {{ $t('backoffice-data-management-year-already-open') }}
         </q-tooltip>
         <q-tooltip v-else-if="yearConfigStore.anyModuleIncomplete">
-          {{ $t('data_management_open_year_disabled_tooltip') }}
+          {{ $t('backoffice-data-management-open-year-disabled') }}
         </q-tooltip>
       </q-btn>
     </div>

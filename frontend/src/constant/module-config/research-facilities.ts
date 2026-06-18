@@ -17,6 +17,8 @@ const researchFacilitiesFields: ModuleField[] = [
     align: 'left',
     ratio: '1/4',
     hideIn: { form: true },
+    tooltip:
+      'module-research-facilities-submodule-research-facilities-table-researchfacility_name',
   },
   {
     id: 'use',
@@ -26,6 +28,8 @@ const researchFacilitiesFields: ModuleField[] = [
     ratio: '1/4',
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-research-facilities-submodule-research-facilities-table-use',
   },
   {
     id: 'use_unit',
@@ -35,6 +39,8 @@ const researchFacilitiesFields: ModuleField[] = [
     ratio: '1/4',
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-research-facilities-submodule-research-facilities-table-use_unit',
   },
   {
     id: 'kg_co2eq',
@@ -42,6 +48,8 @@ const researchFacilitiesFields: ModuleField[] = [
     type: 'number',
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-research-facilities-submodule-research-facilities-table-kg_co2eq',
   },
 ];
 
@@ -56,6 +64,8 @@ const animalFields: ModuleField[] = [
     align: 'left',
     ratio: '1/5',
     hideIn: { form: true },
+    tooltip:
+      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_name',
   },
   {
     id: 'researchfacility_type',
@@ -65,6 +75,8 @@ const animalFields: ModuleField[] = [
     ratio: '1/5',
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-researchfacility_type',
   },
   {
     id: 'use',
@@ -74,7 +86,8 @@ const animalFields: ModuleField[] = [
     ratio: '1/5',
     hideIn: { form: true },
     sortable: true,
-    tooltip: `${MODULES.ResearchFacilities}.inputs.housing_nb-tooltip`,
+    tooltip:
+      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-use',
   },
   {
     id: 'kg_co2eq',
@@ -82,6 +95,8 @@ const animalFields: ModuleField[] = [
     type: 'number',
     hideIn: { form: true },
     sortable: true,
+    tooltip:
+      'module-research-facilities-submodule-mice_and_fish_animal_facilities-table-kg_co2eq',
   },
 ];
 
@@ -91,8 +106,6 @@ export const researchFacilities: ModuleConfig = {
   name: 'Research Facilities',
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   description:
     'This module estimates the carbon footprint of research facilities, including animal facilities.',
   hasSubmodules: true,
@@ -104,16 +117,16 @@ export const researchFacilities: ModuleConfig = {
       type: SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities as ResearchFacilitiesSubType,
       tableNameKey: `${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities}-table-title`,
       moduleFields: researchFacilitiesFields,
-      hasFormTooltip: false,
       hasTableAction: false,
+      hasTableNote: true,
     },
     {
       id: SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities,
       type: SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities as ResearchFacilitiesSubType,
       tableNameKey: `${MODULES.ResearchFacilities}.${SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities}-table-title`,
       moduleFields: animalFields,
-      hasFormTooltip: false,
       hasTableAction: false,
+      hasTableNote: true,
     },
   ],
 };

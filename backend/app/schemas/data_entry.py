@@ -123,6 +123,10 @@ class ModuleHandler(Protocol[T]):
 
     # kind/subkind fields
     kind_field: Optional[str] = None
+    # Alternate kind key: when present on the entry it overrides kind_field
+    # for factor lookup; factors carrying it are excluded from the
+    # kind_field fallback match (those rows are implicit averages).
+    kind_field_override: Optional[str] = None
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
@@ -154,6 +158,13 @@ class ModuleHandler(Protocol[T]):
         self,
         data_entry: Any,
         session: AsyncSession,
+    ) -> dict: ...
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: AsyncSession,
+        *,
+        year: Optional[int] = None,
     ) -> dict: ...
     def resolve_computations(
         self,
@@ -206,6 +217,11 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Name of the data-dict key that holds the primary classification value
     # used to look up a matching Factor (e.g. "equipment_class", "category").
     kind_field: Optional[str] = None
+    # Alternate kind key (e.g. "purchase_additional_code"): when the entry
+    # carries a value for it, it overrides kind_field for factor lookup.
+    # When absent, only factors WITHOUT this classification key are eligible
+    # for the kind_field match (those rows are implicit averages).
+    kind_field_override: Optional[str] = None
     # Name of the data-dict key for the secondary classification value
     # (e.g. "sub_class"). Used together with kind_field for a more precise
     # factor match. None means the module has no sub-classification.
@@ -273,6 +289,24 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
 
         Returns:
             Dict of additional context keys (empty by default).
+        """
+        return {}
+
+    async def prefetch_slice(
+        self,
+        entries: list[Any],
+        session: AsyncSession,
+        *,
+        year: Optional[int] = None,
+    ) -> dict:
+        """Per-slice prefetch hook called once before a recalc loops entries.
+
+        Override to bulk-load data that is constant across the whole
+        ``(data_entry_type, year)`` slice (e.g. all airports for plane
+        travel) so ``pre_compute`` reads it from the returned cache instead
+        of re-querying per entry. The dict is passed back into
+        ``pre_compute`` via ``slice_cache``. Empty by default — handlers
+        whose ``pre_compute`` needs no shared state ignore it.
         """
         return {}
 

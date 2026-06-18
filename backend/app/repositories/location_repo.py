@@ -64,16 +64,19 @@ class LocationRepository:
 
         # Use PostgreSQL trigram similarity for efficient searching
         # This works with our GIN indexes using gin_trgm_ops
+        wildcard_query = f"%{query}%"
         search_condition = or_(
-            text("LOWER(name) % LOWER(:query)").bindparams(bindparam("query", query)),
-            text("LOWER(iata_code) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("name ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
-            text("LOWER(municipality) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("iata_code ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
-            text("LOWER(keywords) % LOWER(:query)").bindparams(
-                bindparam("query", query)
+            text("municipality ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
+            ),
+            text("keywords ilike :wildcard_query").bindparams(
+                bindparam("wildcard_query", wildcard_query)
             ),
         )
 
@@ -167,6 +170,18 @@ class LocationRepository:
         statement = select(Location).where(col(Location.iata_code) == iata_code)
         result = await self.session.execute(statement)
         return result.scalar_one_or_none()
+
+    async def get_by_iata_codes(self, iata_codes: List[str]) -> List[Location]:
+        """Bulk-fetch locations for a set of IATA codes in one query.
+
+        Lets the recalc slice resolve every flight's airports up front
+        instead of two point lookups per entry. Empty input short-circuits.
+        """
+        if not iata_codes:
+            return []
+        statement = select(Location).where(col(Location.iata_code).in_(iata_codes))
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
 
     async def find_train_stations_by_name(
         self,

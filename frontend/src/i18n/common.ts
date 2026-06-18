@@ -1,4 +1,3 @@
-import { ROLES } from 'src/constant/roles';
 import { MODULES } from 'src/constant/modules';
 
 export default {
@@ -58,22 +57,6 @@ export default {
     en: 't CO₂-eq',
     fr: 't CO₂-eq',
   },
-  [ROLES.StandardUser]: {
-    en: 'User',
-    fr: 'Utilisateur',
-  },
-  [ROLES.PrincipalUser]: {
-    en: 'Unit Manager',
-    fr: "Responsable d'unité",
-  },
-  [ROLES.BackOfficeMetier]: {
-    en: 'Backoffice Administrator',
-    fr: 'Administrateur métier',
-  },
-  [ROLES.SuperAdmin]: {
-    en: 'Super Admin',
-    fr: 'Super Admin',
-  },
   info_with_link: {
     en: '<span>For more information, visit <a href="{url}" target="_blank">{linkText}</a>.</span>',
     fr: '<span>Pour plus d\'informations, visitez <a href="{url}" target="_blank">{linkText}</a>.</span>',
@@ -106,7 +89,7 @@ export default {
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.Headcount) {
-        return 'Total ETP';
+        return 'Total EPT';
       }
       if (named('typeI18n')) {
         return `Empreinte Carbone ${named('typeI18n')}`;
@@ -123,7 +106,7 @@ export default {
     },
     fr: ({ named }) => {
       if (named('type') === MODULES.Headcount) {
-        return 'ETP';
+        return 'EPT';
       }
       return 't CO₂-eq';
     },
@@ -139,6 +122,10 @@ export default {
   module_status_in_progress: {
     en: 'In progress',
     fr: 'En cours',
+  },
+  module_status_not_started: {
+    en: 'Not started',
+    fr: 'Non commencé',
   },
   common_filter_all: {
     en: 'All',
@@ -254,7 +241,7 @@ export default {
   },
   documentation_dev_button_label: {
     en: 'Developer Documentation',
-    fr: 'Documentation Développeur',
+    fr: 'Documentation développeur·euse',
   },
   common_add_button: {
     en: 'Add',
@@ -444,6 +431,14 @@ export default {
     en: 'New',
     fr: 'Nouveau',
   },
+  common_ask_head_of_unit: {
+    en: 'This module has been validate by your head of unit. Ask them to switch it to "Edition mode" to add your data. ',
+    fr: 'Ce module a été validé par votre responsable d\'unité. Demandez-lui ou elle de le passer en "mode Édition" pour pouvoir saisir vos données. ',
+  },
+  common_request_edit: {
+    en: 'Request Edit mode',
+    fr: 'Débloquer la saisie',
+  },
   validation_required: {
     en: 'Required',
     fr: 'Obligatoire',
@@ -459,6 +454,14 @@ export default {
   validation_number_required: {
     en: 'Number required',
     fr: 'Nombre requis',
+  },
+  validation_number_format: {
+    en: 'Please use a dot as the decimal separator (e.g. 4242424.2424)',
+    fr: 'Veuillez utiliser un point comme séparateur décimal (ex. 4242424.2424)',
+  },
+  validation_use_dot_not_comma: {
+    en: 'Use a dot (.) not a comma (,) — e.g. 42.45',
+    fr: 'Utilisez un point (.) et non une virgule (,) — ex. 42.45',
   },
   validation_must_be_non_negative: {
     en: 'Must be >= 0',
@@ -488,11 +491,11 @@ export default {
     en: 'Process emissions carbon footprint',
     fr: 'Empreinte carbone des émissions de procédés',
   },
-  'carbon_footprint_title_equipment-electric-consumption': {
+  carbon_footprint_title_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
-  'carbon_footprint_tooltip_equipment-electric-consumption': {
+  carbon_footprint_tooltip_equipment: {
     en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
     fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
   },
@@ -527,5 +530,13 @@ export default {
   rows_per_page: {
     en: 'Records per page',
     fr: 'Entrées par page',
+  },
+  new_version_available: {
+    en: 'A new version is available. Reload to continue.',
+    fr: 'Une nouvelle version est disponible. Rechargez pour continuer.',
+  },
+  reload: {
+    en: 'Reload',
+    fr: 'Recharger',
   },
 };

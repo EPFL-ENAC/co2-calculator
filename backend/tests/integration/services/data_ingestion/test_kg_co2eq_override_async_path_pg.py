@@ -70,7 +70,7 @@ async def test_kg_co2eq_override_survives_async_recalc(pg_dsn):
 
         module = CarbonReportModule(
             carbon_report_id=report_id,
-            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+            module_type_id=ModuleTypeEnum.equipment.value,
         )
         s.add(module)
         await s.commit()
@@ -199,7 +199,7 @@ async def test_kg_co2eq_override_survives_recalc_workflow(pg_dsn):
 
         module = CarbonReportModule(
             carbon_report_id=report.id,
-            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+            module_type_id=ModuleTypeEnum.equipment.value,
         )
         s.add(module)
         await s.commit()
@@ -300,7 +300,7 @@ async def test_kg_co2eq_override_function_arg_takes_precedence(pg_dsn):
 
         module = CarbonReportModule(
             carbon_report_id=report.id,
-            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+            module_type_id=ModuleTypeEnum.equipment.value,
         )
         s.add(module)
         await s.commit()

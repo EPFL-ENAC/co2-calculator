@@ -31,39 +31,43 @@ GitHub API; `gh` auth was unavailable).
 ## Action Items
 
 ### Critical: logic, security, correctness
+
 - [ ] **frontend/src/stores/modules.ts** (#2, valid) — `getProfessionalTravelTripsMap`
-  omits `carbon_project_type`, yet the backend route (`carbon_report_module.py:581/596`)
-  resolves the report type from it (default `0` = Calculator). So the map always renders
-  Calculator data, and the cache key `${unit}|${year}` reuses it when switching to
-  Simulator. Fix: send `searchParams: { carbon_project_type: carbonProjectType.value }`
-  on the `api.get`, and add `carbonProjectType.value` to `cacheKey` (mirror the pattern at
-  modules.ts:406/433).
+      omits `carbon_project_type`, yet the backend route (`carbon_report_module.py:581/596`)
+      resolves the report type from it (default `0` = Calculator). So the map always renders
+      Calculator data, and the cache key `${unit}|${year}` reuses it when switching to
+      Simulator. Fix: send `searchParams: { carbon_project_type: carbonProjectType.value }`
+      on the `api.get`, and add `carbonProjectType.value` to `cacheKey` (mirror the pattern at
+      modules.ts:406/433).
 
 ### Correctness (minor / edge cases)
+
 - [ ] **backend/app/repositories/data_entry_repo.py** (#4, valid) — `statement.limit(max_rows)`
-  is inside the plane/train loop, so the cap is per-mode and the method can return up to
-  2×`max_rows`. Fix: track a remaining budget `max_rows - (len(legs) + dropped)` and limit
-  the second query to it (break early if ≤ 0). Low severity — it's a safety cap on a viz
-  endpoint, not user-facing.
+      is inside the plane/train loop, so the cap is per-mode and the method can return up to
+      2×`max_rows`. Fix: track a remaining budget `max_rows - (len(legs) + dropped)` and limit
+      the second query to it (break early if ≤ 0). Low severity — it's a safety cap on a viz
+      endpoint, not user-facing.
 - [ ] **backend/app/repositories/data_entry_repo.py:858** (#6, valid) — `int(n_trips) if
-  n_trips else 1` turns a stored `0` (and `None`) into `1`. Fix: `int(n_trips) if n_trips
-  is not None else 1` to preserve `0`.
+n_trips else 1` turns a stored `0` (and `None`) into `1`. Fix: `int(n_trips) if n_trips
+is not None else 1` to preserve `0`.
 - [ ] **frontend/src/components/molecules/TripsMap.vue:8** (#8, valid) — `role="img"` on a
-  pan/zoom MapLibre canvas misrepresents it to assistive tech. Fix: change the wrapper to
-  `role="region"` (keep `aria-label`); the existing `sr-only` leg list still provides the
-  text alternative.
+      pan/zoom MapLibre canvas misrepresents it to assistive tech. Fix: change the wrapper to
+      `role="region"` (keep `aria-label`); the existing `sr-only` leg list still provides the
+      text alternative.
 
 ### Maintainability (optional, low priority)
+
 - [ ] **backend/app/repositories/data_entry_repo.py:820-826** (#5, partial) — Location join
-  conditions don't use `col(...)` like the rest of the query. CI mypy is green, so this is
-  consistency-only; wrap them if you want uniformity, otherwise skip.
+      conditions don't use `col(...)` like the rest of the query. CI mypy is green, so this is
+      consistency-only; wrap them if you want uniformity, otherwise skip.
 - [ ] **backend/tests/integration/v1/test_professional_travel_trips_map.py:96** (#7, valid) —
-  Replace the `MagicMock`-with-`model_dump()` service stub with a plain dict or a real
-  `TripsMapResponse` so the test doesn't lean on FastAPI's arbitrary-object handling.
+      Replace the `MagicMock`-with-`model_dump()` service stub with a plain dict or a real
+      `TripsMapResponse` so the test doesn't lean on FastAPI's arbitrary-object handling.
 
 ### Dropped (verified false / stale)
-- **#1 trips-map.ts:57** — WRONG. Lexicographic string comparison is still a *consistent
-  total order*, so for any pair {A,B} both input directions canonicalise to the same
+
+- **#1 trips-map.ts:57** — WRONG. Lexicographic string comparison is still a _consistent
+  total order_, so for any pair {A,B} both input directions canonicalise to the same
   `(from,to)` and collapse into one bucket. It only affects which endpoint is labelled
   "from" — cosmetic, and the popup shows `from ↔ to` anyway. No dedup bug.
 - **#3 docker-compose.yml:49** — WRONG/stale. Image is `postgres:18-alpine`; PG18 changed

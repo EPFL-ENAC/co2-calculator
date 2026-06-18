@@ -3,12 +3,14 @@
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReportModule, CarbonReportType
+from app.models.data_entry import DataEntry
 from app.models.data_entry_emission import (
     EmissionType,
     get_all_nodes,
@@ -267,67 +269,99 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def recompute_stats(self, carbon_report_module_id: int) -> None:
-        """Recompute and persist the stats JSON for a module."""
-        module = await self.repo.get(carbon_report_module_id)
-        if module is None:
-            logger.warning(
-                f"recompute_stats: module {sanitize(carbon_report_module_id)} "
-                "not found, skipping"
-            )
-            return
+    async def recompute_stats_many(self, carbon_report_module_ids: list[int]) -> int:
+        """Set-based stats recompute for the aggregation job.
 
-        emission_roots = MODULE_TYPE_TO_EMISSION_ROOTS.get(
-            ModuleTypeEnum(module.module_type_id)
-        )
-        if not emission_roots:
-            # Module type has no emission mapping (e.g. global_energy)
-            return
-
-        emission_repo = DataEntryEmissionRepository(self.session)
-        leaf_emissions, additional_values = await emission_repo.get_stats_pair(
-            carbon_report_module_id=carbon_report_module_id,
-            aggregate_by="emission_type_id",
-            primary_field="kg_co2eq",
-            secondary_field="additional_value",
-        )
-
-        # entry_count: count data entries for this module
-        from sqlmodel import func, select
-
-        from app.models.data_entry import DataEntry
-
-        result = await self.session.execute(
-            select(func.count()).where(
-                DataEntry.carbon_report_module_id == carbon_report_module_id
-            )
-        )
-        entry_count = result.scalar_one()
-
-        stats = compute_module_stats(
-            leaf_emissions=leaf_emissions,
-            additional_values=additional_values,
-            emission_roots=emission_roots,
-            entry_count=entry_count,
-        )
-
-        await self.repo.update_stats(carbon_report_module_id, stats)
-
-        now_utc = int(datetime.now(timezone.utc).timestamp())
-        module.last_updated = now_utc
-        self.session.add(module)
-
-        logger.info(
-            f"Stats recomputed for module {sanitize(carbon_report_module_id)}: "
-            f"total={stats['total']:.2f} kgCO2eq, "
-            f"{len(stats['by_emission_type'])} emission types, "
-            f"last_updated={now_utc}"
-        )
-
+        Replaces N sequential ``recompute_stats`` calls (~8 queries per
+        module) with: 1 module load, 1 grouped emissions query, 1 grouped
+        entry-count query, then one batched report rollup
+        (``recompute_report_stats_many``) over the distinct parent
+        reports.  Each refreshed module is also marked IN_PROGRESS (data
+        changed → prior validation is stale).  Returns the number of
+        modules refreshed.
+        """
+        if not carbon_report_module_ids:
+            return 0
+        # Local import mirrors ``recompute_stats`` below — top-level would
+        # be circular (CarbonReportService imports this module).
         from app.services.carbon_report_service import CarbonReportService
 
+        modules = (
+            (
+                await self.session.execute(
+                    select(CarbonReportModule).where(
+                        col(CarbonReportModule.id).in_(carbon_report_module_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        emission_repo = DataEntryEmissionRepository(self.session)
+        pairs = await emission_repo.get_stats_pair_many(carbon_report_module_ids)
+
+        count_rows = (
+            await self.session.execute(
+                select(
+                    col(DataEntry.carbon_report_module_id),
+                    func.count(),
+                )
+                .where(
+                    col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+                )
+                .group_by(col(DataEntry.carbon_report_module_id))
+            )
+        ).all()
+        counts = {module_id: count for module_id, count in count_rows}
+
+        now_utc = int(datetime.now(timezone.utc).timestamp())
+        refreshed = 0
+        report_ids: set[int] = set()
+        for module in modules:
+            if module.id is None:
+                continue
+            emission_roots = MODULE_TYPE_TO_EMISSION_ROOTS.get(
+                ModuleTypeEnum(module.module_type_id)
+            )
+            if not emission_roots:
+                # Module type has no emission mapping (e.g. global_energy)
+                continue
+            leaf_emissions, additional_values = pairs.get(module.id, ({}, {}))
+            module.stats = compute_module_stats(
+                leaf_emissions=leaf_emissions,
+                additional_values=additional_values,
+                emission_roots=emission_roots,
+                entry_count=counts.get(module.id, 0),
+            )
+            module.last_updated = now_utc
+            # Recomputing means the underlying data changed, so the module is
+            # back in progress: any prior validation is now stale. The report
+            # rollup below re-derives overall_status from these statuses.
+            module.status = ModuleStatus.IN_PROGRESS
+            self.session.add(module)
+            report_ids.add(module.carbon_report_id)
+            refreshed += 1
+        await self.session.flush()
+        logger.info(
+            f"Stats recomputed for {refreshed} module(s) (batched), "
+            f"{len(report_ids)} report rollup(s) pending"
+        )
+
         report_service = CarbonReportService(self.session)
-        await report_service.recompute_report_stats(module.carbon_report_id)
+        await report_service.recompute_report_stats_many(sorted(report_ids))
+        return refreshed
+
+    async def recompute_stats(self, carbon_report_module_id: int) -> None:
+        """Recompute and persist the stats JSON for a single module.
+
+        Thin wrapper over the set-based :meth:`recompute_stats_many` so the
+        single- and many-module paths share one implementation: stats math,
+        the IN_PROGRESS status bump, and the report rollup. A missing or
+        unmapped module is skipped there (no stats written), matching the
+        prior early-return behaviour.
+        """
+        await self.recompute_stats_many([carbon_report_module_id])
 
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""

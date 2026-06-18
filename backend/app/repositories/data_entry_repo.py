@@ -1,7 +1,9 @@
 """Data entry repository for database operations."""
 
+import asyncio
 from typing import Any, Dict, Optional
 
+from psycopg.types.json import Json
 from pydantic import BaseModel
 from sqlalchemy import Select, asc, desc, func, or_
 from sqlalchemy import select as sa_select
@@ -36,6 +38,15 @@ logger = get_logger(__name__)
 
 # Default filter map when handler doesn't provide one
 DEFAULT_FILTER_MAP = {"name": DataEntry.data["name"].as_string()}
+
+# COPY target for ``bulk_copy`` — every non-defaulted data_entries column.
+# ``id`` is omitted so the sequence assigns it server-side.
+_DATA_ENTRY_COPY_SQL = """
+COPY data_entries (
+    data_entry_type_id, carbon_report_module_id, data, status,
+    source, created_by_id, created_at, updated_at, year, unit_id
+) FROM STDIN
+"""
 
 
 class DataEntryRepository:
@@ -84,6 +95,66 @@ class DataEntryRepository:
         await self.session.flush()
         return db_objs
 
+    async def bulk_copy(self, data_entries: list[DataEntry]) -> int:
+        """Bulk insert via PostgreSQL ``COPY … FROM STDIN`` (psycopg3).
+
+        Runs on the session's own connection, so the COPY participates in
+        the session's open transaction — a later rollback discards it.
+        Unlike ``bulk_create`` it never returns ORM objects and ids are
+        NOT populated; callers that need ids (audit trail, immediate
+        emission build) must use ``bulk_create``.
+
+        On non-PostgreSQL binds (the SQLite test harness) COPY is not part
+        of the wire protocol, so the ORM bulk path is used instead.
+        """
+        # Validate in chunks, yielding between them: a full batch can be
+        # INGEST_COPY_BATCH_SIZE (50k) rows, and one un-yielded model_validate
+        # list-comp blocks the event loop long enough to fail liveness probes.
+        db_objs: list[DataEntry] = []
+        for i, entry in enumerate(data_entries):
+            db_objs.append(DataEntry.model_validate(entry))
+            if (i + 1) % 1000 == 0:
+                await asyncio.sleep(0)
+        if not db_objs:
+            return 0
+        bind = self.session.get_bind()
+        if bind.dialect.driver != "psycopg":
+            # COPY streaming here is psycopg3-specific (``cursor().copy()``).
+            # Production runs ``postgresql+psycopg``; SQLite and the
+            # asyncpg-based test fixtures take the ORM path.
+            logger.info(
+                f"bulk_copy: non-psycopg driver ({bind.dialect.driver}) — "
+                f"using ORM bulk insert for {len(db_objs)} entries"
+            )
+            self.session.add_all(db_objs)
+            await self.session.flush()
+            return len(db_objs)
+
+        sa_conn = await self.session.connection()
+        raw = await sa_conn.get_raw_connection()
+        driver_conn = raw.driver_connection  # psycopg AsyncConnection
+        if driver_conn is None:
+            raise RuntimeError("bulk_copy: raw connection has no driver connection")
+        async with driver_conn.cursor() as cur:
+            async with cur.copy(_DATA_ENTRY_COPY_SQL) as copy:
+                for obj in db_objs:
+                    await copy.write_row(
+                        (
+                            obj.data_entry_type_id,
+                            obj.carbon_report_module_id,
+                            Json(obj.data or {}),
+                            # Native PG enum column stores the member name.
+                            obj.status.name if obj.status is not None else None,
+                            obj.source,
+                            obj.created_by_id,
+                            obj.created_at,
+                            obj.updated_at,
+                            obj.year,
+                            obj.unit_id,
+                        )
+                    )
+        return len(db_objs)
+
     async def bulk_delete(
         self, carbon_report_module_id: int, data_entry_type_id: DataEntryTypeEnum
     ) -> None:
@@ -116,6 +187,31 @@ class DataEntryRepository:
         )
         await self.session.execute(statement)
         await self.session.flush()
+
+    async def bulk_delete_by_source_year(
+        self,
+        year: int,
+        data_entry_type_ids: list[int],
+        source: int,  # DataEntrySourceEnum value
+    ) -> int:
+        """Full-year replace delete for MODULE_PER_YEAR ingest.
+
+        Per-year CSVs are complete exports: a new upload replaces ALL
+        prior rows of that (year, type, source) regardless of unit, so
+        the delete keys on the denormalized ``data_entries.year`` column
+        — no module-tree resolution, one indexed statement.  Returns
+        the number of rows deleted.
+        """
+        if not data_entry_type_ids:
+            return 0
+        statement = delete(DataEntry).where(
+            col(DataEntry.year) == year,
+            col(DataEntry.data_entry_type_id).in_(data_entry_type_ids),
+            col(DataEntry.source) == source,
+        )
+        result = await self.session.execute(statement)
+        await self.session.flush()
+        return getattr(result, "rowcount", 0) or 0
 
     async def update(
         self, id: int, data: DataEntryUpdate, user_id: int
@@ -215,7 +311,10 @@ class DataEntryRepository:
         return list(result.scalars().all())
 
     async def list_by_data_entry_type_and_year(
-        self, data_entry_type_id: DataEntryTypeEnum, year: int
+        self,
+        data_entry_type_id: DataEntryTypeEnum,
+        year: int,
+        carbon_report_module_ids: Optional[list[int]] = None,
     ) -> list[DataEntry]:
         """Fetch all DataEntries for a given data_entry_type and report year.
 
@@ -224,6 +323,9 @@ class DataEntryRepository:
         Args:
             data_entry_type_id: The data entry type to filter on.
             year: The carbon report year to filter on.
+            carbon_report_module_ids: Optional module scope — set by
+                unit-specific ingests so their recalc touches only the
+                uploaded module instead of the whole (det, year) slice.
 
         Returns:
             List of matching DataEntry rows (may be empty).
@@ -247,6 +349,10 @@ class DataEntryRepository:
                 col(CarbonReport.year) == year,
             )
         )
+        if carbon_report_module_ids:
+            statement = statement.where(
+                col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids)
+            )
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
@@ -652,29 +758,17 @@ class DataEntryRepository:
             _origin_loc: Location | None = None
             _dest_loc: Location | None = None
             # Unpack based on query shape
+            # 1. Extract the common base fields right away
+            data_entry, total_kg_co2eq, primary_factor = row[:3]
+
+            # 2. Unpack only the remaining tail fields
             if is_travel_entry:
                 if is_train_entry or is_plane_entry:
-                    (
-                        data_entry,
-                        total_kg_co2eq,
-                        primary_factor,
-                        member_entry,
-                        _emission,
-                        _origin_loc,
-                        _dest_loc,
-                    ) = row
+                    member_entry, _emission, _origin_loc, _dest_loc = row[3:]
                 else:
-                    (
-                        data_entry,
-                        total_kg_co2eq,
-                        primary_factor,
-                        member_entry,
-                        _emission,
-                    ) = row
+                    member_entry, _emission = row[3:]
             elif is_buildings_entry:
-                data_entry, total_kg_co2eq, primary_factor, building_room = row
-            else:
-                data_entry, total_kg_co2eq, primary_factor = row
+                building_room = row[3]
 
             # Defense-in-depth: detach loaded ORM rows from the session so any
             # accidental mutation (here or downstream) cannot be flushed back to
@@ -764,10 +858,22 @@ class DataEntryRepository:
         ``number_of_trips``. Rows whose origin or destination location did not
         resolve are dropped and counted into the returned ``dropped`` total.
         """
-        emission_agg_q = select(
-            DataEntryEmission.data_entry_id,
-            func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
-        ).group_by(col(DataEntryEmission.data_entry_id))
+        # Scope the per-entry emission rollup to THIS module's entries. Without
+        # it, the subquery seq-scans and aggregates the whole emissions table
+        # (~700k rows) on every call — and the mode loop below runs it twice —
+        # which dominates the query (seconds on a cold cache). Restricting by
+        # data_entry_id turns that into an indexed lookup of the module's rows.
+        module_entry_ids = select(col(DataEntry.id)).where(
+            col(DataEntry.carbon_report_module_id) == carbon_report_module_id
+        )
+        emission_agg_q = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq).label("total_kg_co2eq"),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(module_entry_ids))
+            .group_by(col(DataEntryEmission.data_entry_id))
+        )
         if ROLLUP_EMISSION_TYPE_IDS:
             emission_agg_q = emission_agg_q.where(
                 col(DataEntryEmission.emission_type_id).notin_(ROLLUP_EMISSION_TYPE_IDS)
@@ -797,6 +903,10 @@ class DataEntryRepository:
         ):
             OriginLocation = aliased(Location)
             DestLocation = aliased(Location)
+            # Traveler identity (SCIPER) stored on the entry. The display name is
+            # resolved later from the unit's headcount roster (the canonical
+            # source), not the User table — see ``get_professional_travel_trips_map``.
+            traveler_id_key = DataEntry.data["user_institutional_id"].as_string()
 
             select_entities: list[Any] = [
                 OriginLocation.latitude,
@@ -807,6 +917,7 @@ class DataEntryRepository:
                 DestLocation.name,
                 emission_agg.c.total_kg_co2eq,
                 DataEntry.data["number_of_trips"].as_float(),
+                traveler_id_key,
             ]
             statement: Select[Any] = (
                 sa_select(*select_entities)
@@ -846,10 +957,21 @@ class DataEntryRepository:
             statement = statement.limit(remaining)
             result = await self.session.execute(statement)
             for row in result.all():
-                (o_lat, o_lng, o_name, d_lat, d_lng, d_name, kg, n_trips) = row
+                (
+                    o_lat,
+                    o_lng,
+                    o_name,
+                    d_lat,
+                    d_lng,
+                    d_name,
+                    kg,
+                    n_trips,
+                    traveler_id,
+                ) = row
                 if o_lat is None or o_lng is None or d_lat is None or d_lng is None:
                     dropped += 1
                     continue
+                tid = traveler_id or ""
                 legs.append(
                     {
                         "mode": mode,
@@ -861,6 +983,10 @@ class DataEntryRepository:
                         "destination_name": d_name or "",
                         "kg_co2eq": float(kg or 0.0),
                         "number_of_trips": int(n_trips) if n_trips is not None else 1,
+                        "traveler_id": tid,
+                        # traveler_name is filled from the headcount roster in the
+                        # service; default to the SCIPER until then.
+                        "traveler_name": tid,
                     }
                 )
 

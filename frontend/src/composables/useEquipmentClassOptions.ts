@@ -1,4 +1,4 @@
-import { reactive, ref, watch, type Ref } from 'vue';
+import { ref, shallowReactive, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useFactorsStore } from 'src/stores/factors';
 import { AllSubmoduleTypes } from 'src/constant/modules';
@@ -54,7 +54,7 @@ export function useEquipmentClassOptions<
   const fetchFactorValuesOnChange: boolean =
     config.fetchFactorValuesOnChange ?? false;
 
-  const dynamicOptions = reactive<Record<string, Option[]>>({});
+  const dynamicOptions = shallowReactive<Record<string, Option[]>>({});
   const loadingClasses = ref(false);
   const loadingSubclasses = ref(false);
   const loadingPowerFactor = ref(false);

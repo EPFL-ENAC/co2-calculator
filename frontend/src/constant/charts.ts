@@ -387,7 +387,7 @@ export const RESULTS_CATEGORY_LABEL_KEYS: Record<
   process_emissions: 'charts-process-emissions-category',
   buildings_room: 'charts-buildings-room-category',
   buildings_energy_combustion: 'charts-buildings-energy-combustion-category',
-  equipment: 'charts-equipment-electric-consumption-category',
+  equipment: 'charts-equipment-category',
   external_cloud_and_ai: 'charts-external-cloud-category',
   purchases: 'charts-purchases-category',
   research_facilities: 'charts-research-facilities-category',
@@ -454,7 +454,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
     },
     professional_travel: {
       plane: colors.value.babyBlue.darker,
-      train: colors.value.babyBlue.dark,
+      train: colors.value.babyBlue.light,
     },
     external_cloud_and_ai: {
       clouds: colors.value.lavender.darker,
@@ -557,7 +557,7 @@ export const MODULE_TO_CATEGORIES = computed(
     [MODULES.Headcount]: ['headcount'],
     [MODULES.ProcessEmissions]: ['process_emissions'],
     [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
-    [MODULES.EquipmentElectricConsumption]: ['equipment'],
+    [MODULES.Equipment]: ['equipment'],
     [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
     [MODULES.Purchase]: ['purchases'],
     [MODULES.ProfessionalTravel]: ['professional_travel'],

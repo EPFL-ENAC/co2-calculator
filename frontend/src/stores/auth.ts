@@ -12,18 +12,20 @@ import { Router } from 'vue-router';
 import { computed } from 'vue';
 import {
   PermissionAction,
-  type FlatUserPermissions,
-} from 'src/constant/permissions';
-import {
+  MODULE_STATUS_PERMISSION,
   hasPermission,
   hasAnyScopePermission,
   hasBackOfficeAreaPermission,
-  hasUnitScopePermission,
   getModulePermissionPath,
+  type FlatUserPermissions,
 } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
 import type { components } from 'src/types/api/openapi';
 import { useWorkspaceStore } from './workspace';
+
+// Re-export the action enum so the auth store is the single entry point
+// callers import from (check functions AND the action enum).
+export { PermissionAction };
 
 // `UserRead` comes from the FastAPI OpenAPI schema (issue #217 POC).
 // `permissions` and `roles_raw` are intentionally widened in the backend
@@ -161,7 +163,8 @@ export const useAuthStore = defineStore('auth', () => {
     // append workspace context to permission path if available. A unit-context
     // lookup matches either the unit-scoped key (principal) or the own-scoped
     // key (standard user, ``modules.X/<unit>/own``) — mirrors the backend
-    // ``has_permission``. Unit-level controls use ``hasUserUnitScopePermission``.
+    // ``has_permission``. Unit-level-only controls (e.g. the validate button)
+    // use a dedicated permission key (``module.status``), not scope inference.
     const institutionalId = workspaceStore.selectedUnit?.institutional_id;
     if (institutionalId) {
       const unitPath = `${path}/${institutionalId}`;
@@ -190,6 +193,17 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(path, action);
   }
 
+  /**
+   * Whether the current user may validate a module's status — gates the
+   * sidebar validate button. One key (`module.status/<cf>`) governs all
+   * modules; only unit-breadth users (principals) hold it, so standard (own)
+   * users never see the button. UX only — the backend PATCH stays enforced by
+   * `require_module_unit_scope`.
+   */
+  function hasUserCanValidateModuleStatus(): boolean {
+    return hasUserPermission(MODULE_STATUS_PERMISSION, PermissionAction.EDIT);
+  }
+
   function canUserAccessModule(module: Module): boolean {
     const path = getModulePermissionPath(module);
     if (!path) return true; // Unprotected module, accessible to all users
@@ -210,29 +224,6 @@ export const useAuthStore = defineStore('auth', () => {
   ): boolean {
     if (!user.value || !user.value.permissions) return false;
     return hasBackOfficeAreaPermission(user.value.permissions, action);
-  }
-
-  /**
-   * Check if the current user has UNIT-level (or global) breadth on `path`
-   * for the selected workspace — i.e. a unit-scoped key, NOT the own-scoped
-   * (`/own`) variant. Use to gate unit-level controls such as validating a
-   * module's status, which standard (own-scoped) users must not see.
-   */
-  function hasUserUnitScopePermission(
-    path: string,
-    action: PermissionAction = PermissionAction.VIEW,
-  ): boolean {
-    if (!user.value || !user.value.permissions) return false;
-    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
-    if (!institutionalId) return false;
-    // Restrict to the selected workspace's unit key (or a global key) — the
-    // own-scoped (`/own`) variant must NOT grant unit-level controls.
-    return hasUnitScopePermission(
-      user.value.permissions,
-      path,
-      action,
-      institutionalId,
-    );
   }
 
   /**
@@ -261,8 +252,8 @@ export const useAuthStore = defineStore('auth', () => {
     exchange,
     isAuthenticated,
     hasUserPermission,
-    hasUserUnitScopePermission,
     hasUserModulePermission,
+    hasUserCanValidateModuleStatus,
     canUserAccessModule,
     hasUserBackOfficeAreaPermission,
     hasUserAnyScopePermission,

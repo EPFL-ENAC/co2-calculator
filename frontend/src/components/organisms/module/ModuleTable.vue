@@ -1,6 +1,6 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div v-if="hasModuleUpload" class="q-gutter-sm">
+    <div v-if="hasModuleUpload && !isInputDeactivated" class="q-gutter-sm">
       <q-btn
         outline
         icon="o_view_list"
@@ -82,7 +82,7 @@
         >
           <span>{{ col.label }}</span>
           <q-icon
-            v-if="col.tooltip"
+            v-if="col.tooltip && $t(col.tooltip)"
             name="o_info"
             size="16px"
             color="grey-6"
@@ -144,6 +144,7 @@
               :field-id="col.field"
               :options-id="col.optionsId"
               :option-label-key="col.optionLabelKey"
+              :option-label-prefix="col.optionLabelPrefix"
               :option-order="col.optionOrder"
               :cols="qCols"
               :module-type="moduleType"
@@ -158,7 +159,7 @@
               v-else
               v-model="slotProps.row[col.field]"
               :disable="isDisabled"
-              :type="getColumnInputType(col)"
+              :inputmode="getColumnInputmode(col)"
               :options="getInlineOptions(col)"
               :dense="true"
               hide-bottom-space
@@ -176,18 +177,14 @@
               @blur="commitInline(slotProps.row, col)"
             ></component>
           </template>
-          <template
-            v-else-if="
-              col.name === 'action' &&
-              props.submoduleConfig?.hasTableAction !== false
-            "
-          >
+          <template v-else-if="col.name === 'action' && showTableActions">
             <q-btn
+              v-if="showTableNote"
               :icon="noteButtonIcon(slotProps.row.note)"
               :color="noteButtonColor(slotProps.row.note)"
               :style="noteButtonStyle(slotProps.row.note)"
               :text-color="noteButtonTextColor(slotProps.row.note)"
-              :disable="isDisabled"
+              :disable="isNoteDisabled"
               unelevated
               no-caps
               dense
@@ -201,7 +198,7 @@
               </q-tooltip>
             </q-btn>
             <q-btn
-              v-if="canEdit && hasModuleUpload"
+              v-if="showTableRowActions && canEdit && hasModuleUpload"
               icon="o_delete"
               color="grey-4"
               text-color="primary"
@@ -315,42 +312,48 @@
         />
       </q-card-section>
       <q-separator />
-      <q-card-section class="q-py-lg q-px-md">
-        <span class="text-body1">
-          {{
-            $t('common_delete_dialog_description', {
-              item: ItemName || 'this item',
-            })
-          }}
-        </span>
-      </q-card-section>
-      <q-separator />
-      <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
-        <q-btn
-          color="grey-4"
-          text-color="primary"
-          :label="$t('common_cancel')"
-          unelevated
-          no-caps
-          outline
-          size="md"
-          class="text-weight-medium col"
-          @click="confirmDelete = false"
-        />
-        <q-btn
-          :style="{
-            background: moduleColors.bgColorLighter,
-            color: moduleColors.buttonTextColor,
-            border: `1px solid ${moduleColors.buttonTextColor}`,
-          }"
-          :label="$t('common_delete')"
-          unelevated
-          no-caps
-          size="md"
-          class="text-weight-medium col"
-          @click="onConfirmDelete"
-        />
-      </q-card-actions>
+      <!-- q-form so Enter submits the dialog (autofocus on the submit button
+           gives the native form an Enter target — there are no text inputs). -->
+      <q-form @submit.prevent="onConfirmDelete">
+        <q-card-section class="q-py-lg q-px-md">
+          <span class="text-body1">
+            {{
+              $t('common_delete_dialog_description', {
+                item: ItemName || 'this item',
+              })
+            }}
+          </span>
+        </q-card-section>
+        <q-separator />
+        <q-card-actions class="q-py-lg q-px-md row q-gutter-sm">
+          <q-btn
+            type="button"
+            color="grey-4"
+            text-color="primary"
+            :label="$t('common_cancel')"
+            unelevated
+            no-caps
+            outline
+            size="md"
+            class="text-weight-medium col"
+            @click="confirmDelete = false"
+          />
+          <q-btn
+            type="submit"
+            autofocus
+            :style="{
+              background: moduleColors.bgColorLighter,
+              color: moduleColors.buttonTextColor,
+              border: `1px solid ${moduleColors.buttonTextColor}`,
+            }"
+            :label="$t('common_delete')"
+            unelevated
+            no-caps
+            size="md"
+            class="text-weight-medium col"
+          />
+        </q-card-actions>
+      </q-form>
     </q-card>
   </q-dialog>
 </template>
@@ -371,13 +374,14 @@ import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import { useAuthStore } from 'src/stores/auth';
 import {
   useBackofficeDataManagement,
   TargetType,
 } from 'src/stores/backofficeDataManagement';
 import type { JobUpdatePayload } from 'src/stores/backofficeDataManagement';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import { getTemplateFileName } from 'src/constant/templateMapping';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
 import type {
@@ -403,6 +407,13 @@ import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
+
+  rules.push((val: string | number | null) => {
+    if (val === '' || val === null || val === undefined) return true;
+    const s = typeof val === 'string' ? val.trim() : String(val);
+    if (s.includes(',')) return $t('validation_use_dot_not_comma');
+    return /^-?\d+(\.\d+)?$/.test(s) || $t('validation_number_format');
+  });
 
   if (col.min !== undefined) {
     rules.push((val: string | number | null) => {
@@ -706,6 +717,14 @@ const props = withDefaults(defineProps<ModuleTableProps>(), {
 });
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
+const yearConfigStore = useYearConfigStore();
+
+const isInputDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[props.submoduleType as string];
+  return subConfig?.inputs_deactivated ?? false;
+});
 
 const moduleColors = computed(() =>
   getModuleIconColors(String(props.moduleType), String(props.submoduleType)),
@@ -747,8 +766,11 @@ const noteDialogMode = computed<'add' | 'edit'>(() =>
   noteDialogCurrentNote.value ? 'edit' : 'add',
 );
 
-function getColumnInputType(col: TableViewColumn): string | undefined {
-  return col.type === 'number' ? 'number' : undefined;
+function getColumnInputmode(col: TableViewColumn): string | undefined {
+  // Text input + decimal inputmode (no native number type) so invalid keystrokes
+  // stay in the cell instead of being silently dropped by the browser; the format
+  // is validated on commit.
+  return col.type === 'number' ? 'decimal' : undefined;
 }
 
 function getColumnTitle(col: TableViewColumn): string | undefined {
@@ -780,6 +802,25 @@ const isDisabled = computed(
     !props.isSimulator &&
     (props.disable ||
       timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
+      !canEdit.value),
+);
+
+const showTableRowActions = computed(
+  () => props.submoduleConfig?.hasTableAction !== false,
+);
+
+const showTableNote = computed(
+  () =>
+    showTableRowActions.value || props.submoduleConfig?.hasTableNote === true,
+);
+
+const showTableActions = computed(() => showTableNote.value);
+
+// Notes stay available on read-only tables; only permission and validation block them.
+const isNoteDisabled = computed(
+  () =>
+    !props.isSimulator &&
+    (timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
       !canEdit.value),
 );
 
@@ -921,7 +962,7 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
-  if (props.submoduleConfig.hasTableAction !== false) {
+  if (showTableActions.value) {
     baseCols.push({
       name: 'action',
       label: $t('common_actions'),
@@ -952,6 +993,8 @@ const taxonomyKindLabelMap = computed<Record<string, string>>(() => {
     if (node.name && node.label) {
       if (node.translation_key && $te(node.translation_key)) {
         map[node.name] = $t(node.translation_key);
+      } else if ($te(node.name)) {
+        map[node.name] = $t(node.name);
       } else {
         map[node.name] = node.label;
       }
@@ -1002,6 +1045,7 @@ function renderCell(
     maxColumnWidth?: number;
     options?: Array<{ value: string; label: string }>;
     optionLabelPrefix?: string;
+    optionLabelKey?: string;
     optionsId?: string;
   },
 ) {
@@ -1035,7 +1079,11 @@ function renderCell(
   }
   // Factor-sourced options: translate using optionLabelPrefix
   if (col.optionLabelPrefix && typeof val === 'string') {
-    const key = `${col.optionLabelPrefix}${val.toLowerCase()}`;
+    return $t(val.toLowerCase(), val);
+  }
+  // Translate stored values that are i18n keys (e.g. researchfacility_type: fish, mice)
+  if (col.optionLabelKey && typeof val === 'string') {
+    const key = col.optionLabelKey.replace('{value}', val.toLowerCase());
     return $te(key) ? $t(key) : val;
   }
   // Factor-sourced kind/subkind: look up label from taxonomy
@@ -1157,12 +1205,19 @@ async function commitInline(
       return validation.parsed;
     }
     if (isNumeric) {
-      const n = Number(rawVal);
-      if (!Number.isFinite(n)) {
-        setError(row, col, $t('validation_number_required'));
+      const s = typeof rawVal === 'string' ? rawVal.trim() : String(rawVal);
+      if (s.includes(',')) {
+        // Targeted message: FR/CH users instinctively type a comma separator
+        setError(row, col, $t('validation_use_dot_not_comma'));
         return null;
       }
-      // NEW: Validate min/max constraints
+      // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+      if (!/^-?\d+(\.\d+)?$/.test(s)) {
+        setError(row, col, $t('validation_number_format'));
+        return null;
+      }
+      const n = Number(s);
+      // Validate min/max constraints
       if (col.min !== undefined && n < col.min) {
         setError(row, col, $t('validation_must_be_at_least', { min: col.min }));
         return null;
@@ -1347,7 +1402,7 @@ function isComplete(row: ModuleRow) {
     // For Headcount, consider complete if name and status are set
     return isCompleteHeadcount(row);
   }
-  if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+  if (props.moduleType === MODULES.Equipment) {
     return isCompleteEquipement(row);
   }
   if (props.moduleType === MODULES.ResearchFacilities) {
@@ -1439,7 +1494,7 @@ function onFormSubmit(
 
   const perform = async () => {
     // Module-specific payload adjustments
-    if (moduleType === MODULES.EquipmentElectricConsumption) {
+    if (moduleType === MODULES.Equipment) {
       // Backend will auto-resolve power_factor_id and power values
       // based on class/sub_class, so no need to fetch them here
       basePayload.active_usage_hours_per_week = Number(
@@ -1628,6 +1683,7 @@ onMounted(async () => {
       const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
         props.unitId,
         props.year,
+        moduleStore.carbonProjectType,
       );
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),

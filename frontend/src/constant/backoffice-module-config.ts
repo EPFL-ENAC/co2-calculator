@@ -15,6 +15,8 @@ export type SubmoduleConfig = {
   factorsOnly?: true;
   mandatoryData?: boolean;
   mandatoryReference?: boolean;
+  noThreshold?: true;
+  forceInputsDeactivated?: true;
 };
 
 export const MODULE_SUBMODULES: Partial<
@@ -26,6 +28,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.Headcount}-member`,
       moduleTypeId: 1,
       dataEntryTypeId: 1,
+      noThreshold: true,
     },
     {
       key: 'student',
@@ -33,6 +36,7 @@ export const MODULE_SUBMODULES: Partial<
       moduleTypeId: 1,
       dataEntryTypeId: 2,
       noData: true,
+      noThreshold: true,
     },
   ],
   [MODULES.ProfessionalTravel]: [
@@ -89,10 +93,10 @@ export const MODULE_SUBMODULES: Partial<
       dataEntryTypeId: 50,
     },
   ],
-  [MODULES.EquipmentElectricConsumption]: [
+  [MODULES.Equipment]: [
     {
       key: 'scientific',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-scientific`,
+      labelKey: `${MODULES.Equipment}-scientific`,
       moduleTypeId: 4,
       dataEntryTypeId: 10,
       noData: true,
@@ -100,7 +104,7 @@ export const MODULE_SUBMODULES: Partial<
     },
     {
       key: 'it',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-it`,
+      labelKey: `${MODULES.Equipment}-it`,
       moduleTypeId: 4,
       dataEntryTypeId: 11,
       noData: true,
@@ -108,7 +112,7 @@ export const MODULE_SUBMODULES: Partial<
     },
     {
       key: 'other',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-other`,
+      labelKey: `${MODULES.Equipment}-other`,
       moduleTypeId: 4,
       dataEntryTypeId: 12,
       noData: true,
@@ -185,12 +189,14 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: 'data_management_submodule_research_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 70,
+      forceInputsDeactivated: true,
     },
     {
       key: 'mice_and_fish_animal_facilities',
       labelKey: 'data_management_submodule_animal_facilities',
       moduleTypeId: 6,
       dataEntryTypeId: 71,
+      forceInputsDeactivated: true,
     },
   ],
   [MODULES.ExternalCloudAndAI]: [
@@ -212,10 +218,10 @@ export const MODULE_SUBMODULES: Partial<
 export const MODULE_COMMON_UPLOADS: Partial<
   Record<(typeof MODULES)[keyof typeof MODULES], SubmoduleConfig[]>
 > = {
-  [MODULES.EquipmentElectricConsumption]: [
+  [MODULES.Equipment]: [
     {
       key: 'equipment',
-      labelKey: `${MODULES.EquipmentElectricConsumption}-common`,
+      labelKey: `${MODULES.Equipment}-common`,
       moduleTypeId: 4,
       headerIcon: 'o_folder_shared',
       descriptionKey: 'data_management_equipment_common_description',

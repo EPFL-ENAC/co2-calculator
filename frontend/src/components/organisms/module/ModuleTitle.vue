@@ -23,16 +23,14 @@
           </p>
         </div>
         <q-icon
-          v-if="hasTooltip"
+          v-if="tooltipText"
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer"
           :aria-label="$t('module-info-label')"
         >
           <q-tooltip anchor="center right" self="top right" class="u-tooltip">
-            <p v-if="hasTooltipSubText">
-              {{ $t(`${type}-title-tooltip-subtext`) }}
-            </p>
+            {{ tooltipText }}
           </q-tooltip>
         </q-icon>
       </div>
@@ -41,35 +39,26 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 
-/*
-i18n keys used in this component:
-- module-info-label
-- {module-type}
-- {module-type}-description
-- {module-type}-subtext
-- {module-type}-title-tooltip-title
-- {module-type}-title-subtext
-*/
-
-withDefaults(
+const props = withDefaults(
   defineProps<{
     type: Module;
-    hasTooltip?: boolean;
     hasDescription?: boolean;
     hasDescriptionSubtext?: boolean;
-    hasTooltipSubText?: boolean;
   }>(),
   {
-    hasTooltip: true,
     hasDescription: false,
     hasDescriptionSubtext: false,
-    hasTooltipSubText: false,
   },
 );
+
+const { t } = useI18n();
+const tooltipText = computed(() => t(`module-${props.type}-title`));
 </script>
 
 <style scoped lang="scss">

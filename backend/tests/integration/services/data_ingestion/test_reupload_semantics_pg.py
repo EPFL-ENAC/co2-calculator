@@ -81,8 +81,8 @@ from .conftest import (
 # --------------------------------------------------------------------------- #
 # CSV builders — minimal headcount.member rows shaped so the real provider   #
 # accepts them: ``unit_institutional_id`` ties to a seeded Unit, the columns #
-# match ``HeadCountCreate``'s field set, and ``position_category`` is in     #
-# ``POSITION_CATEGORY_VALUES``.                                              #
+# match ``HeadCountCreate``'s field set, and ``sius_code`` is in             #
+# ``SIUS_CODE_VALUES``.                                                       #
 # --------------------------------------------------------------------------- #
 
 
@@ -98,7 +98,7 @@ def _csv_with_unit_column(
     Layout (one column-list, one branch on the optional ``kg_co2eq``
     override column):
 
-        unit_institutional_id,name,position_title,position_category,
+        unit_institutional_id,name,function,
         user_institutional_id,fte,note[,kg_co2eq]
 
     Every row is the same unit + a different (name, uid) pair so the
@@ -108,8 +108,7 @@ def _csv_with_unit_column(
     header_cols = [
         "unit_institutional_id",
         "name",
-        "position_title",
-        "position_category",
+        "sius_code",
         "user_institutional_id",
         "fte",
         "note",
@@ -121,8 +120,7 @@ def _csv_with_unit_column(
         cols = [
             unit_institutional_id,
             name,
-            "Adjoint",
-            "professor",
+            "51",
             user_uid,
             "0.50",
             "",

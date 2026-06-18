@@ -4,6 +4,7 @@ import type { QTableColumn } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { formatRelativeTime } from 'src/utils/date';
 import { useBackofficeStore } from 'src/stores/backoffice';
+import { ROLES } from 'src/constant/roles';
 
 interface UnitReportingData {
   id: string | number;
@@ -138,7 +139,7 @@ const columns = computed<QTableColumn[]>(() => [
   },
   {
     name: 'principal_user',
-    label: t('backoffice_reporting_column_principal_user'),
+    label: t(ROLES.PrincipalUser),
     field: 'principal_user',
     align: 'left',
     sortable: true,

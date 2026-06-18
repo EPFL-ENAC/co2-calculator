@@ -1,2 +1,2 @@
 unit_institutional_id,origin_iata,destination_iata,user_institutional_id,departure_date,number_of_trips,cabin_class,note,kg_co2eq
-TC-TRAVEL-1,GVA,XXX,U-001,2025-03-10,1,eco,,
+TC-TRAVEL-1,GVA,XXX,U-001,2025-03-10,1,economy,,

@@ -483,6 +483,10 @@ provider_type
       }
 
       try {
+        // Intentionally NOT routed through the `api` ky client: EventSource is
+        // a browser primitive with no hook surface, so it can't inherit the
+        // 401-refresh/403-redirect interceptor. It relies on same-origin
+        // cookies; on token expiry the stream errors and is retried below.
         sseConnection = new EventSource(`/api/v1/sync/jobs/${jobId}/stream`);
 
         sseConnection.onmessage = (event: MessageEvent) => {

@@ -9,11 +9,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from app.models.data_entry import DataEntryTypeEnum
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
     normalize_vds_payload,
     to_bool,
 )
+from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 # ---------------------------------------------------------------------------
 # to_bool
@@ -140,7 +142,7 @@ class TestParseDate:
 class TestNormalizeClass:
     def test_economy(self):
         p = _make_provider()
-        assert p._normalize_class("AIR ECONOMY CLASS") == "eco"
+        assert p._normalize_class("AIR ECONOMY CLASS") == "economy"
 
     def test_business(self):
         p = _make_provider()
@@ -150,10 +152,50 @@ class TestNormalizeClass:
         p = _make_provider()
         assert p._normalize_class("AIR FIRST CLASS") == "first"
 
-    def test_unknown_defaults_to_eco(self):
+    def test_unknown_defaults_to_economy(self):
         p = _make_provider()
-        assert p._normalize_class("SOMETHING ELSE") == "eco"
-        assert p._normalize_class("") == "eco"
+        assert p._normalize_class("SOMETHING ELSE") == "economy"
+        assert p._normalize_class("") == "economy"
+
+
+# ---------------------------------------------------------------------------
+# _normalize_class ↔ resolve_emission_types contract (regression)
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizedCabinClassResolves:
+    """The cabin_class the provider writes MUST be a key the emission-type
+    resolver accepts for plane.
+
+    Commit 0d7e1575 renamed the resolver map key ``eco`` → ``economy`` (the
+    canonical value used by the manual-entry validator and the UI) but left
+    ``_normalize_class`` emitting ``eco``. Result: every economy-class flight
+    resolved to ``None`` ("Unhandled type: plane") and produced zero emission
+    rows — the override at prepare_create was never reached. The per-side unit
+    tests both passed because neither checked the value across the boundary;
+    this test pins the two sides together so they can't drift again.
+    """
+
+    @pytest.mark.parametrize(
+        "tableau_class",
+        [
+            "AIR ECONOMY CLASS",
+            "AIR BUSINESS CLASS",
+            "AIR FIRST CLASS",
+            "SOMETHING ELSE",  # default branch must also be resolvable
+        ],
+    )
+    def test_normalized_cabin_class_is_resolvable(self, tableau_class):
+        p = _make_provider()
+        normalized = p._normalize_class(tableau_class)
+        emission_types = resolve_emission_types(
+            DataEntryTypeEnum.plane, {"cabin_class": normalized}
+        )
+        assert emission_types, (
+            f"cabin_class={normalized!r} (from {tableau_class!r}) did not resolve "
+            f"to an emission type — provider vocabulary drifted from the resolver "
+            f"map; resolve_emission_types returned {emission_types!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +334,7 @@ class TestTransformData:
         assert entry["user_institutional_id"] == "123456"
         assert entry["origin_iata"] == "GVA"
         assert entry["destination_iata"] == "CDG"
-        assert entry["cabin_class"] == "eco"
+        assert entry["cabin_class"] == "economy"
         assert entry["number_of_trips"] == 2
         assert entry["round_trip"] is True
         assert entry["kg_co2eq"] == 150.5
@@ -450,11 +492,6 @@ class TestLoadDataKgCo2eqHandling:
                 "professional_travel_api_provider.DataEntryService",
                 return_value=mock_service,
             ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
             caplog.at_level(
                 logging.WARNING,
                 logger="app.services.data_ingestion."
@@ -497,26 +534,12 @@ class TestLoadDataKgCo2eqHandling:
         itself is path-independent and would also pass under the
         async path; this test specifically pins the override carrier.
         """
-        from app.services.data_ingestion.api_providers import (
-            professional_travel_api_provider as travel_mod,
-        )
 
         # Patch ``get_settings`` on the provider module so the gate
         # in ``_load_data`` sees BULK_PATH_PURE_ASYNC=False without
         # needing to clear the lru_cache.  The other settings reads
         # in this module (Tableau creds) need the real values, so we
         # delegate every other attribute to the cached Settings.
-        fake_settings = MagicMock()
-        fake_settings.BULK_PATH_PURE_ASYNC = False
-        real = travel_mod.get_settings()
-        fake_settings.configure_mock(
-            **{
-                attr: getattr(real, attr)
-                for attr in dir(real)
-                if not attr.startswith("_") and attr != "BULK_PATH_PURE_ASYNC"
-            }
-        )
-        monkeypatch.setattr(travel_mod, "get_settings", lambda: fake_settings)
         provider = _make_provider()
         provider.user = None  # bypass UserRead.model_validate on MagicMock
 
@@ -524,26 +547,15 @@ class TestLoadDataKgCo2eqHandling:
 
         async def fake_bulk_create(entries, *_args, **_kwargs):
             captured_entries.extend(entries)
-            # Mimic real bulk_create: order-preserving response with IDs.
             return [MagicMock(id=i) for i, _ in enumerate(entries, start=1)]
 
         mock_service = MagicMock()
         mock_service.bulk_create = AsyncMock(side_effect=fake_bulk_create)
-        mock_emission_service = MagicMock()
-        mock_emission_service.prepare_create = AsyncMock(return_value=[])
-        mock_emission_service.bulk_create = AsyncMock()
 
-        with (
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryService",
-                return_value=mock_service,
-            ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "professional_travel_api_provider.DataEntryService",
+            return_value=mock_service,
         ):
             await provider._load_data(
                 [
@@ -569,21 +581,10 @@ class TestLoadDataKgCo2eqHandling:
                 f"kg_co2eq leaked into DataEntry.data: {entry.data!r}"
             )
 
-        # B-H1 — the valid float reaches prepare_create as the override; the
-        # garbage one resolves to None (no override) — verified through the
-        # {id: ov} routing built inside ``_load_data``.
-        prepare_calls = mock_emission_service.prepare_create.await_args_list
-        overrides_by_id = {
-            call.args[0].id: call.kwargs.get("kg_co2eq_override")
-            for call in prepare_calls
-        }
-        assert overrides_by_id == {1: 152.685, 2: None}
-
-        # B-H1 — the parseable override is also persisted under the reserved
+        # B-H1 — the parseable override is persisted under the reserved
         # ``__kg_co2eq_override__`` carrier so the async recalc path picks
         # it up via ``prepare_create``'s data-keyed fallback.  Garbage
-        # values are dropped (no carrier set) — operators see the WARNING
-        # logged above and the row falls back to formula-based emissions.
+        # values are dropped (no carrier set).
         assert captured_entries[0].data.get("__kg_co2eq_override__") == 152.685
         assert "__kg_co2eq_override__" not in captured_entries[1].data
 
@@ -601,21 +602,11 @@ class TestLoadDataKgCo2eqHandling:
 
         mock_service = MagicMock()
         mock_service.bulk_create = AsyncMock(return_value=[MagicMock(id=1)])
-        mock_emission_service = MagicMock()
-        mock_emission_service.prepare_create = AsyncMock()
-        mock_emission_service.bulk_create = AsyncMock()
 
-        with (
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryService",
-                return_value=mock_service,
-            ),
-            patch(
-                "app.services.data_ingestion.api_providers."
-                "professional_travel_api_provider.DataEntryEmissionService",
-                return_value=mock_emission_service,
-            ),
+        with patch(
+            "app.services.data_ingestion.api_providers."
+            "professional_travel_api_provider.DataEntryService",
+            return_value=mock_service,
         ):
             await provider._load_data(
                 [
@@ -628,8 +619,5 @@ class TestLoadDataKgCo2eqHandling:
                 ]
             )
 
-        # data_entries STILL written.
+        # data_entries STILL written; emissions are now owned by the async chain.
         mock_service.bulk_create.assert_awaited_once()
-        # Emissions writes are skipped — chain handles them.
-        mock_emission_service.prepare_create.assert_not_awaited()
-        mock_emission_service.bulk_create.assert_not_awaited()

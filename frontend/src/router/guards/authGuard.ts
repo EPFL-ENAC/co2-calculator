@@ -36,17 +36,6 @@ export async function authGuard(to: RouteLocationNormalized) {
     return { name: 'login', ...redirectTo };
   }
 
-  // Role-based authorization
-  if (to.meta.roles && auth.isAuthenticated) {
-    const roles = Array.from(to.meta.roles as string[]);
-    const allowed = roles.some((r) =>
-      auth.user.roles_raw.map((x) => x.role).includes(r),
-    );
-    if (!allowed) {
-      return { name: 'unauthorized', ...redirectTo };
-    }
-  }
-
   // Redirect authenticated users away from login
   if (LOGIN_ROUTES.includes(to.name as string) && auth.isAuthenticated) {
     return { name: 'workspace-setup', ...redirectTo };

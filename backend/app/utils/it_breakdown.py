@@ -78,7 +78,7 @@ IT_EMISSION_TYPES: frozenset[EmissionType] = (
 
 # Maps IT category key -> set of module_type_ids that feed into it
 _IT_CATEGORY_MODULE_IDS: dict[str, set[int]] = {
-    IT_CATEGORY_EQUIPMENT: {ModuleTypeEnum.equipment_electric_consumption.value},
+    IT_CATEGORY_EQUIPMENT: {ModuleTypeEnum.equipment.value},
     IT_CATEGORY_PURCHASES: {ModuleTypeEnum.purchase.value},
     IT_CATEGORY_CLOUD_AI: {ModuleTypeEnum.external_cloud_and_ai.value},
     IT_CATEGORY_RESEARCH: {ModuleTypeEnum.research_facilities.value},

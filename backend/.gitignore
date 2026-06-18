@@ -70,3 +70,4 @@ dmypy.json
 .ruff_cache/
 
 files_storage/
+coverage.xml

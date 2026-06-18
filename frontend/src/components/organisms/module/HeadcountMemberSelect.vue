@@ -43,11 +43,12 @@ import { ref, onMounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import { useAuthStore } from 'src/stores/auth';
+import { useModuleStore } from 'src/stores/modules';
 import {
   getHeadcountMembers,
   type HeadcountMemberDropdownItem,
 } from 'src/api/modules';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 
 const { t: $t } = useI18n();
 
@@ -72,6 +73,7 @@ interface SelectOption {
 const loading = ref(false);
 const members = ref<HeadcountMemberDropdownItem[]>([]);
 const authStore = useAuthStore();
+const moduleStore = useModuleStore();
 const canEditHeadcount = computed(() =>
   authStore.hasUserModulePermission(MODULES.Headcount, PermissionAction.EDIT),
 );
@@ -91,7 +93,11 @@ async function fetchMembers() {
   if (!props.unitId || !props.year) return;
   loading.value = true;
   try {
-    members.value = await getHeadcountMembers(props.unitId, props.year);
+    members.value = await getHeadcountMembers(
+      props.unitId,
+      props.year,
+      moduleStore.carbonProjectType,
+    );
     options.value = buildOptions(members.value);
     if (!canEditHeadcount.value && options.value.length > 0) {
       emit('update:modelValue', options.value[0].value);

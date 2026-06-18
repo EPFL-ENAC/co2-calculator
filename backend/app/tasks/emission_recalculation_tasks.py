@@ -337,8 +337,35 @@ async def emission_recalc_handler(
         f"running workflow for det={data_entry_type.name}/year={job.year}"
     )
     svc = EmissionRecalculationWorkflow(data_session)
+
+    job_id = job.id
+
+    async def _progress(done: int, total: int) -> None:
+        # Committed on job_session immediately so SSE subscribers see
+        # live progress while the workflow keeps computing on
+        # data_session (the two sessions are independent by design).
+        await job_repo.update_ingestion_job(
+            job_id=job_id,
+            status_message=f"Recalculating emissions... {done}/{total}",
+            metadata={},
+        )
+        await job_session.commit()
+
+    # Unit-specific ingests pin their module scope at chain time so a
+    # 20-row upload doesn't recompute the whole (det, year) slice.
+    config = (job.meta or {}).get("config") or {}
+    raw_scope = config.get("carbon_report_module_ids")
+    module_scope: Optional[list[int]] = None
+    if isinstance(raw_scope, list):
+        module_scope = [int(i) for i in raw_scope if isinstance(i, int)]
+
     try:
-        stats = await svc.recalculate_for_data_entry_type(data_entry_type, job.year)
+        stats = await svc.recalculate_for_data_entry_type(
+            data_entry_type,
+            job.year,
+            progress_callback=_progress,
+            carbon_report_module_ids=module_scope,
+        )
     except Exception:
         # Stamp the coalescing flag BEFORE re-raising so surviving
         # siblings can still discover themselves as "last" and fire
@@ -483,19 +510,30 @@ async def module_emission_recalc_handler(
     total_errors = 0
     total_recalculated = 0
 
+    module_job_id = job.id
     for i, det_id in enumerate(data_entry_type_ids, start=1):
         data_entry_type = DataEntryTypeEnum(det_id)
         await job_repo.update_ingestion_job(
-            job_id=job.id,
+            job_id=module_job_id,
             status_message=f"Recalculating {data_entry_type.name} ({i}/{n})...",
             metadata={},
         )
         await job_session.commit()
 
+        async def _progress(done: int, total: int, _det=data_entry_type, _i=i) -> None:
+            await job_repo.update_ingestion_job(
+                job_id=module_job_id,
+                status_message=(
+                    f"Recalculating {_det.name} ({_i}/{n}): {done}/{total}..."
+                ),
+                metadata={},
+            )
+            await job_session.commit()
+
         try:
             async with data_session.begin_nested():
                 stats = await svc.recalculate_for_data_entry_type(
-                    data_entry_type, job.year
+                    data_entry_type, job.year, progress_callback=_progress
                 )
             per_type_stats[det_id] = stats
             total_errors += stats["errors"]

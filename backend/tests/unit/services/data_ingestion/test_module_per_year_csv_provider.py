@@ -7,6 +7,7 @@ import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
+from app.services.data_ingestion import base_csv_provider as base_csv_provider_module
 from app.services.data_ingestion import csv_providers as csv_providers_module
 from app.services.data_ingestion.csv_providers.module_per_year import (
     ModulePerYearCSVProvider,
@@ -56,7 +57,7 @@ def test_extract_kind_subkind_values_fallback_fields():
 @pytest.mark.asyncio
 async def test_setup_handlers_and_factors_multiple_types(monkeypatch):
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
 
@@ -69,7 +70,7 @@ async def test_setup_handlers_and_factors_multiple_types(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={"k": []}),
     )
@@ -240,14 +241,12 @@ async def test_resolve_handler_and_validate_missing_factor_no_config():
 
 @pytest.mark.asyncio
 async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
-    """ModuleTypeEnum.equipment_electric_consumption + empty factors_map
+    """ModuleTypeEnum.equipment + empty factors_map
     raises at setup — the per-row loop is never entered."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
-    provider.job = SimpleNamespace(
-        module_type_id=ModuleTypeEnum.equipment_electric_consumption.value
-    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.equipment.value)
 
     handler = MagicMock()
     handler.create_dto.model_fields = {}
@@ -259,7 +258,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),  # the bug shape
     )
@@ -268,7 +267,7 @@ async def test_equipment_with_empty_factors_fails_fast_at_setup(monkeypatch):
         await provider._setup_handlers_and_factors()
 
     msg = str(exc.value)
-    assert "equipment_electric_consumption" in msg
+    assert "equipment" in msg
     assert "factors" in msg.lower()
     assert "infers" in msg.lower()
 
@@ -278,7 +277,7 @@ async def test_purchase_with_empty_factors_fails_fast_at_setup(monkeypatch):
     """ModuleTypeEnum.purchase shares the factor-inferred-DET shape;
     same guard fires."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.purchase.value)
 
@@ -292,7 +291,7 @@ async def test_purchase_with_empty_factors_fails_fast_at_setup(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),
     )
@@ -309,7 +308,7 @@ async def test_non_factor_inferred_module_tolerates_empty_factors(monkeypatch):
     carry the DET in a category column that maps to ``DataEntryTypeEnum``
     names directly, so empty factors is a legitimate state."""
     provider = ModulePerYearCSVProvider(
-        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+        {"file_path": "tmp/test.csv", "year": 2025}, data_session=MagicMock()
     )
     provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
 
@@ -323,10 +322,167 @@ async def test_non_factor_inferred_module_tolerates_empty_factors(monkeypatch):
         MagicMock(return_value=handler),
     )
     monkeypatch.setattr(
-        csv_providers_module.module_per_year,
+        base_csv_provider_module,
         "load_factors_map",
         AsyncMock(return_value={}),
     )
 
     setup = await provider._setup_handlers_and_factors()  # no raise
     assert setup["factors_map"] == {}
+
+
+@pytest.mark.asyncio
+async def test_setup_raises_when_year_missing(monkeypatch):
+    """Regression: MODULE_PER_YEAR setup must fail loudly without ``year``.
+
+    Factor lookups key on ``{type}:{year}:{kind}:{subkind}``; a missing
+    year silently misses every factor. MODULE_UNIT_SPECIFIC already had
+    this guard — converged into the shared loader."""
+    provider = ModulePerYearCSVProvider(
+        {"file_path": "tmp/test.csv"},  # year deliberately omitted
+        data_session=MagicMock(),
+    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.headcount.value)
+
+    with pytest.raises(ValueError, match="year is required"):
+        await provider._setup_handlers_and_factors()
+
+
+def test_get_factors_maps_by_type_splits_by_type_prefix():
+    """The merged factors_map is split into per-type maps keyed by the
+    ``{type_value}:`` prefix, preserving every entry under its type."""
+    member = DataEntryTypeEnum.member
+    scientific = DataEntryTypeEnum.scientific
+    setup_result = {
+        "factors_map": {
+            f"{member.value}:2026:kind_a:": "f1",
+            f"{member.value}:2026:kind_b:sub": "f2",
+            f"{scientific.value}:2026:hood:": "f3",
+        }
+    }
+
+    result = ModulePerYearCSVProvider._get_factors_maps_by_type(
+        setup_result, [member, scientific]
+    )
+
+    assert result[member] == {
+        f"{member.value}:2026:kind_a:": "f1",
+        f"{member.value}:2026:kind_b:sub": "f2",
+    }
+    assert result[scientific] == {f"{scientific.value}:2026:hood:": "f3"}
+
+
+def test_get_factors_maps_by_type_is_memoised():
+    """Regression (#1415): the per-type split scanned the full factors_map
+    once per type *for every row*, turning a 9.5k-row upload into minutes of
+    pure CPU. It depends only on the (year-scoped) factors_map and valid
+    entry types — both invariant for the file — so it must be built once and
+    cached on setup_result, not rebuilt per row."""
+    member = DataEntryTypeEnum.member
+    setup_result = {"factors_map": {f"{member.value}:2026:k:": "f1"}}
+
+    first = ModulePerYearCSVProvider._get_factors_maps_by_type(setup_result, [member])
+    second = ModulePerYearCSVProvider._get_factors_maps_by_type(setup_result, [member])
+
+    assert setup_result["factors_maps_by_type"] is first
+    assert second is first  # same object reused — no per-row rebuild
+
+
+@pytest.mark.asyncio
+async def test_resolve_configured_type_accepts_string_id():
+    """Regression: job config may carry data_entry_type_id as a string
+    (JSON payload). MODULE_UNIT_SPECIFIC cast through int(); MODULE_PER_YEAR
+    did not — converged in the shared resolver."""
+    provider = ModulePerYearCSVProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": str(DataEntryTypeEnum.member.value),
+        },
+        data_session=MagicMock(),
+    )
+
+    handler = SimpleNamespace(
+        require_factor_to_match=False,
+        kind_field="kind",
+        subkind_field=None,
+        category_field=None,
+    )
+    setup_result = {"handlers": [handler], "factors_map": {}}
+    stats = _build_stats()
+
+    (
+        data_entry_type,
+        resolved_handler,
+        error_msg,
+    ) = await provider._resolve_handler_and_validate(
+        filtered_row={},
+        factor=None,
+        stats=stats,
+        row_idx=1,
+        max_row_errors=5,
+        setup_result=setup_result,
+    )
+
+    assert data_entry_type == DataEntryTypeEnum.member
+    assert resolved_handler == handler
+    assert error_msg is None
+
+
+@pytest.mark.asyncio
+async def test_type_inference_is_memoised_per_kind(monkeypatch):
+    """The per-row kind→type inference scans the full factors_map; the measured
+    cost of a 9.5k-row purchase upload was ~33s spent entirely here. Its result
+    is a pure function of (kind, subkind), which repeat across rows, so it must
+    be memoised on setup_result: the same kind is inferred once, not per row."""
+    provider = ModulePerYearCSVProvider(
+        {"file_path": "tmp/test.csv"}, data_session=MagicMock()
+    )
+    provider.job = SimpleNamespace(module_type_id=ModuleTypeEnum.purchase.value)
+
+    # Force the inference branch (no configured type, no category column) and
+    # stub the registry handler lookup so the test isolates memoisation.
+    monkeypatch.setattr(
+        provider,
+        "_resolve_type_from_config_or_category",
+        MagicMock(return_value=(None, None)),
+    )
+    monkeypatch.setattr(
+        csv_providers_module.module_per_year.BaseModuleHandler,
+        "get_by_type",
+        MagicMock(return_value=SimpleNamespace()),
+    )
+    spy = MagicMock(return_value=DataEntryTypeEnum.scientific)
+    monkeypatch.setattr(
+        csv_providers_module.module_per_year,
+        "lookup_data_entry_type_by_kind",
+        spy,
+    )
+
+    handler = SimpleNamespace(
+        kind_field="kind", subkind_field=None, category_field=None
+    )
+    setup_result = {"handlers": [handler], "factors_map": {}}
+    stats = _build_stats()
+
+    async def _resolve(kind):
+        return await provider._resolve_handler_and_validate(
+            filtered_row={"kind": kind},
+            factor=None,
+            stats=stats,
+            row_idx=1,
+            max_row_errors=5,
+            setup_result=setup_result,
+        )
+
+    type_a, _, _ = await _resolve("hood")
+    type_a2, _, _ = await _resolve("hood")  # same kind → cache hit
+    await _resolve("bench")  # new kind → one more scan
+
+    # One scan per distinct kind, not per row.
+    assert spy.call_count == 2
+    assert setup_result["type_by_kind_cache"] == {
+        ("hood", None): DataEntryTypeEnum.scientific,
+        ("bench", None): DataEntryTypeEnum.scientific,
+    }
+    # Caching does not change the inferred type.
+    assert type_a == type_a2 == DataEntryTypeEnum.scientific

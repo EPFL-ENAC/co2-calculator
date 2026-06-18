@@ -2,11 +2,11 @@ import { api } from 'src/api/http';
 
 /**
  * Response type for module totals endpoint
- * Keys are module names (e.g., "equipment-electric-consumption", "professional-travel")
+ * Keys are module names (e.g., "equipment", "professional-travel")
  */
 export interface ModuleTotalsResponse {
   total: number;
-  'equipment-electric-consumption': number;
+  equipment: number;
   'professional-travel': number;
   [key: string]: number; // Allow other module names as keys
 }
@@ -16,7 +16,7 @@ export interface ModuleTotalsResponse {
  *
  * @param unitId - Unit ID
  * @param year - Year for the data
- * @returns Dictionary with `total` tCO₂eq and breakdown by module, including `equipment-electric-consumption` and `professional-travel`
+ * @returns Dictionary with `total` tCO₂eq and breakdown by module, including `equipment` and `professional-travel`
  */
 export async function getModuleTotals(
   unitId: number,
@@ -72,16 +72,21 @@ export interface HeadcountMemberDropdownItem {
  *
  * @param unitId - Unit ID
  * @param year - Reporting year
+ * @param carbonProjectType - 0 = Calculator, 1 = Simulator Explore. Scopes the
+ *   lookup to the matching carbon report so the simulator reads its own members.
  * @returns Ordered list of members with institutional_id and name
  */
 export async function getHeadcountMembers(
   unitId: number,
   year: number | string,
+  carbonProjectType = 0,
 ): Promise<HeadcountMemberDropdownItem[]> {
   const unitEncoded = encodeURIComponent(unitId);
   const yearEncoded = encodeURIComponent(String(year));
   return api
-    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {})
+    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {
+      searchParams: { carbon_project_type: carbonProjectType },
+    })
     .json<HeadcountMemberDropdownItem[]>();
 }
 

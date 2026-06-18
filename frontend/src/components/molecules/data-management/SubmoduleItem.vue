@@ -7,6 +7,7 @@ import {
   TargetType,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
 import type { PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
@@ -16,10 +17,11 @@ import ComputedFactorDialog from 'src/components/molecules/data-management/Compu
 
 interface Props {
   submodule: SubmoduleConfig;
-  selectedYear: number;
 }
 
 const props = defineProps<Props>();
+
+const yearConfigStore = useYearConfigStore();
 
 const {
   isSubmoduleEnabled,
@@ -35,14 +37,9 @@ const {
   computedFactorRunning,
   anyComputedFactorRunning,
   confirmComputedFactorSync,
-} = useSubmoduleConfig({
-  module: '',
-  selectedYear: props.selectedYear,
-});
+} = useSubmoduleConfig();
 
-const { getRecalcStatus } = useRecalculation({
-  selectedYear: props.selectedYear,
-});
+const { getRecalcStatus } = useRecalculation();
 
 const backofficeStore = useBackofficeDataManagement();
 
@@ -193,53 +190,63 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
           {{ $t('data_management_submodule_inputs_deactivation_description') }}
         </div>
         <q-checkbox
-          :model-value="isSubmoduleInputsDeactivated(submodule)"
+          :model-value="
+            submodule.forceInputsDeactivated ||
+            isSubmoduleInputsDeactivated(submodule)
+          "
           color="accent"
+          :disable="!!submodule.forceInputsDeactivated"
           :label="$t('data_management_submodule_inputs_deactivation_label')"
           @update:model-value="
-            (val: boolean) => updateSubmoduleInputsDeactivated(submodule, val)
+            (val: boolean) =>
+              !submodule.forceInputsDeactivated &&
+              updateSubmoduleInputsDeactivated(submodule, val)
           "
         />
       </q-card>
-      <q-separator class="q-my-xs" />
-      <q-card
-        flat
-        class="col q-px-lg q-pt-lg q-pb-md"
-        :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
-      >
-        <div class="row items-center q-mb-xs">
-          <q-icon
-            name="legend_toggle"
-            color="accent"
-            size="xs"
-            class="q-mr-sm"
-          />
-          <div class="text-body2 text-weight-medium">
-            {{ $t('data_management_threshold_title') }}
+      <template v-if="!submodule.noThreshold">
+        <q-separator class="q-my-xs" />
+        <q-card
+          flat
+          class="col q-px-lg q-pt-lg q-pb-md"
+          :class="{
+            'submodule-item--disabled': isSubmoduleDisabled(submodule),
+          }"
+        >
+          <div class="row items-center q-mb-xs">
+            <q-icon
+              name="legend_toggle"
+              color="accent"
+              size="xs"
+              class="q-mr-sm"
+            />
+            <div class="text-body2 text-weight-medium">
+              {{ $t('data_management_threshold_title') }}
+            </div>
           </div>
-        </div>
-        <div class="text-caption text-secondary q-mb-sm">
-          {{ $t('data_management_threshold_description') }}
-        </div>
-        <q-input
-          :model-value="getSubmoduleThreshold(submodule)"
-          type="number"
-          dense
-          outlined
-          size="md"
-          :debounce="600"
-          :suffix="$t('tco2eq')"
-          :placeholder="$t('no_threshold')"
-          style="max-width: 500px"
-          @update:model-value="
-            (val: string | number | null) =>
-              updateSubmoduleThreshold(
-                submodule,
-                val === '' || val === null ? null : Number(val),
-              )
-          "
-        />
-      </q-card>
+          <div class="text-caption text-secondary q-mb-sm">
+            {{ $t('data_management_threshold_description') }}
+          </div>
+          <q-input
+            :model-value="getSubmoduleThreshold(submodule)"
+            type="number"
+            dense
+            outlined
+            size="md"
+            :debounce="600"
+            :suffix="$t('tco2eq')"
+            :placeholder="$t('no_threshold')"
+            style="max-width: 500px"
+            @update:model-value="
+              (val: string | number | null) =>
+                updateSubmoduleThreshold(
+                  submodule,
+                  val === '' || val === null ? null : Number(val),
+                )
+            "
+          />
+        </q-card>
+      </template>
       <q-separator v-if="submoduleShowsImportRow(submodule)" class="q-my-xs" />
     </template>
 
@@ -266,7 +273,13 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @compute-factors="openComputedFactorConfirm"
         @abort="handleAbortPipeline"
       />
-
+      <UploadCardReferences
+        v-if="getImportRow(submodule).hasOtherUpload"
+        :row="getImportRow(submodule)"
+        :year="yearConfigStore.selectedYear"
+        @completed="handleReferenceCompleted"
+        @progressing="handleReferenceProgressing"
+      />
       <UploadCardData
         v-if="getImportRow(submodule).hasData"
         :row="getImportRow(submodule)"
@@ -281,13 +294,6 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @upload="(row) => openDataEntryDialog(row, TargetType.DATA_ENTRIES)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @abort="handleAbortPipeline"
-      />
-      <UploadCardReferences
-        v-if="getImportRow(submodule).hasOtherUpload"
-        :row="getImportRow(submodule)"
-        :year="selectedYear"
-        @completed="handleReferenceCompleted"
-        @progressing="handleReferenceProgressing"
       />
     </div>
 

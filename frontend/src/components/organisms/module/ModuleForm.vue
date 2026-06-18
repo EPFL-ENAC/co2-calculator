@@ -8,19 +8,14 @@
       </div>
 
       <q-icon
-        v-if="hasTooltip"
+        v-if="formTooltipText"
         :name="outlinedInfo"
         size="sm"
         class="cursor-pointer"
-        :aria-label="$t(`${moduleType}-${submoduleType}-form-title-info-label`)"
+        :aria-label="$t('module-info-label')"
       >
-        <q-tooltip
-          v-if="typeof hasTooltip === 'string'"
-          anchor="center right"
-          self="top right"
-          class="u-tooltip"
-        >
-          {{ $t(hasTooltip) }}
+        <q-tooltip anchor="center right" self="top right" class="u-tooltip">
+          {{ formTooltipText }}
         </q-tooltip>
       </q-icon>
     </q-card-section>
@@ -29,7 +24,7 @@
       {{ $t(`${moduleType}-${submoduleType}-form-subtitle`) }}
     </q-card-section>
     <q-card-section class="q-pa-none">
-      <q-form @submit.prevent="onSubmit">
+      <q-form novalidate @submit.prevent="onSubmit">
         <div class="q-mx-lg q-my-xl">
           <div v-if="visibleFields.length === 0" class="text-subtle">
             No form configured
@@ -45,7 +40,7 @@
                 v-if="
                   (inp.disableUntilField && !form[inp.disableUntilField]) ||
                   (inp.optionsId === 'subkind' &&
-                    !loadingSubclasses &&
+                    !isSubkindLoading &&
                     (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
                 "
               >
@@ -139,6 +134,7 @@
                   :error-message="errors.origin || errors.destination || ''"
                   :transport-mode="getTravelMode()"
                   :disable="inp.disable"
+                  :hint="inp.tooltip ? $t(inp.tooltip) : undefined"
                   @update:from="
                     (val) => {
                       form.origin = val;
@@ -170,6 +166,30 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <VirtualSelectField
+                v-else-if="
+                  (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
+                  moduleType === MODULES.Purchase
+                "
+                :model-value="form[inp.id]"
+                :options="getFilteredOptions(inp)"
+                :loading="
+                  inp.optionsId === 'kind' ? loadingClasses : isSubkindLoading
+                "
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                :icon="inp.icon"
+                @update:model-value="(val) => (form[inp.id] = val)"
+              />
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -181,15 +201,9 @@
                 "
                 :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
                 :hint="inp.hint ? $t(inp.hint) : null"
-                :type="inp.type === 'number' ? 'number' : undefined"
+                :inputmode="inp.type === 'number' ? 'decimal' : undefined"
                 :options="getFilteredOptions(inp)"
-                :loading="
-                  inp.optionsId === 'kind'
-                    ? loadingClasses
-                    : inp.optionsId === 'subkind'
-                      ? loadingSubclasses
-                      : false
-                "
+                :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
                 :min="inp.min"
@@ -203,6 +217,7 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
+                @blur="validateField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -274,6 +289,14 @@
             />
           </template>
         </q-card-actions>
+        <div
+          v-if="
+            !rowData && $te(`${moduleType}-${submoduleType}-form-disclaimer`)
+          "
+          class="q-mx-lg q-mb-xl q-mt-sm text-caption text-grey-7"
+        >
+          {{ $t(`${moduleType}-${submoduleType}-form-disclaimer`) }}
+        </div>
       </q-form>
     </q-card-section>
     <NoteDialog
@@ -304,6 +327,7 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
 import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
@@ -340,7 +364,6 @@ const props = withDefaults(
     rowData?: Record<string, FieldValue> | null;
     submoduleType: AllSubmoduleTypes;
     moduleType: Module | string;
-    hasTooltip?: boolean | string;
     hasSubtitle?: boolean;
     hasAddWithNote?: boolean;
     addButtonLabelKey?: string;
@@ -352,7 +375,6 @@ const props = withDefaults(
   {
     fields: null,
     rowData: null,
-    hasTooltip: true,
     hasSubtitle: false,
     hasAddWithNote: true,
     addButtonLabelKey: 'common_add_button',
@@ -361,6 +383,10 @@ const props = withDefaults(
     formDefaults: undefined,
     moduleColor: undefined,
   },
+);
+
+const formTooltipText = computed(() =>
+  $t(`module-${props.moduleType}-submodule-${props.submoduleType}-form`),
 );
 
 const moduleColors = computed(() =>
@@ -452,11 +478,9 @@ const filteredOptionsMap = computed(() => {
       dynamicOpts && dynamicOpts.length > 0
         ? dynamicOpts.map((o: { label: string; value: string }) => ({
             value: o.value,
-            label:
-              inp.optionLabelPrefix &&
-              $te(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                ? $t(`${inp.optionLabelPrefix}${o.value.toLowerCase()}`)
-                : o.label,
+            label: inp.optionLabelPrefix
+              ? $t(o.value.toLowerCase(), o.label)
+              : o.label,
           }))
         : (inp.options?.map((o) => ({
             label: $t(o.label) !== o.label ? $t(o.label) : o.label,
@@ -509,18 +533,27 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
+  const taxoChildMap = new Map(
+    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
+  );
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
-      opt.label = $t(
-        inp.optionLabelKey.replace('{value}', opt.value.toLowerCase()),
+      const key = inp.optionLabelKey.replace(
+        '{value}',
+        opt.value.toLowerCase(),
       );
+      opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
-    const taxoOptNode = taxoNode?.children?.find(
-      (node) => node.name === opt.value,
-    );
-    if (taxoOptNode?.translation_key && $te(taxoOptNode.translation_key)) {
-      opt.label = $t(taxoOptNode.translation_key);
+    const taxoOptNode = taxoChildMap.get(opt.value);
+    const translationKey = taxoOptNode?.translation_key;
+    if (translationKey && $te(translationKey)) {
+      opt.label = $t(translationKey);
+      return;
+    }
+    if ($te(opt.value)) {
+      opt.label = $t(opt.value);
       return;
     }
     if (taxoOptNode) {
@@ -581,7 +614,7 @@ const subkindFieldId = computed(() => {
 //   saved value is preserved.
 const factorValueFieldIds: string[] = [];
 const factorDefaultFieldIds: string[] = [];
-if (props.moduleType === MODULES.EquipmentElectricConsumption) {
+if (props.moduleType === MODULES.Equipment) {
   factorValueFieldIds.push('active_power_w', 'standby_power_w');
   factorDefaultFieldIds.push(
     'active_usage_hours_per_week',
@@ -608,13 +641,22 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     toRef(props, 'year'),
   );
 
-const { dynamicOptions: buildingRoomDynamicOptions } =
+const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
   useBuildingRoomDynamicOptions(
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     toRef(props, 'year'),
   );
+
+const isSubkindLoading = computed(() => {
+  if (
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
+  )
+    return loadingRooms.value;
+  return loadingSubclasses.value;
+});
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;
@@ -929,10 +971,22 @@ function validateField(i: ModuleField) {
     }
   }
   if (effectiveType === 'number' && v !== '' && v !== null && v !== undefined) {
-    const n = Number(v);
-    if (Number.isNaN(n)) errors[i.id] = 'Must be a number';
-    if (i.min !== undefined && n < i.min) errors[i.id] = `Min ${i.min}`;
-    if (i.max !== undefined && n > i.max) errors[i.id] = `Max ${i.max}`;
+    const s = typeof v === 'string' ? v.trim() : String(v);
+    // Canonical dot-decimal only: optional minus, digits, optional single dot + digits
+    const NUMBER_RE = /^-?\d+(\.\d+)?$/;
+
+    if (s.includes(',')) {
+      // Targeted message: FR/CH users instinctively type a comma separator
+      errors[i.id] = $t('validation_use_dot_not_comma');
+    } else if (!NUMBER_RE.test(s)) {
+      errors[i.id] = $t('validation_number_format');
+    } else {
+      const n = Number(s);
+      if (i.min !== undefined && n < i.min)
+        errors[i.id] = $t('validation_must_be_at_least', { min: i.min });
+      else if (i.max !== undefined && n > i.max)
+        errors[i.id] = $t('validation_must_be_at_most', { max: i.max });
+    }
   }
   return !errors[i.id];
 }
@@ -1034,6 +1088,8 @@ function reset() {
       form.destination_name = undefined;
       form.origin_natural_key = undefined;
       form.destination_natural_key = undefined;
+      form.origin_country_code = undefined;
+      form.destination_country_code = undefined;
     } else {
       // Use null for select/headcount-member-select, empty string for text
       form[i.id] =
@@ -1076,6 +1132,7 @@ async function handleFromLocationSelected(location: {
   } else {
     form.origin_name = location.name;
     form.origin_natural_key = location.natural_key ?? undefined;
+    form.origin_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1112,6 +1169,7 @@ async function handleToLocationSelected(location: {
   } else {
     form.destination_name = location.name;
     form.destination_natural_key = location.natural_key ?? undefined;
+    form.destination_country_code = location.country_code ?? undefined;
   }
 
   if (
@@ -1153,6 +1211,10 @@ async function handleSwapLocations() {
     [form.origin_natural_key, form.destination_natural_key] = [
       form.destination_natural_key,
       form.origin_natural_key,
+    ];
+    [form.origin_country_code, form.destination_country_code] = [
+      form.destination_country_code,
+      form.origin_country_code,
     ];
   }
 

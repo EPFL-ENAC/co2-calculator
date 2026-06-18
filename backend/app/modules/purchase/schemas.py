@@ -52,10 +52,12 @@ class PurchaseHandlerCreate(DataEntryCreate):
     supplier: Optional[str] = None
     quantity: Optional[float] = None
     total_spent_amount: float
-    currency: Optional[str] = None
-    purchase_institutional_code: Optional[str] = None
+    currency: Optional[str] = None  # doc say mandatory, but with default -> optional
+    purchase_institutional_code: str
+    purchase_institutional_description: Optional[str] = None
     purchase_additional_code: Optional[str] = None
     note: Optional[str] = None
+    # __kg_co2eq_override__ is used to override the kg_co2eq calculation
 
     @model_validator(mode="before")
     @classmethod
@@ -88,8 +90,8 @@ class PurchaseHandlerCreate(DataEntryCreate):
 
     @field_validator("purchase_institutional_code", mode="after")
     @classmethod
-    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and len(v) < 1:
+    def validate_purchase_institutional_code(cls, v: str) -> str:
+        if len(v) < 1:
             raise ValueError(
                 "Purchase institutional code must be at least 1 character long"
             )
@@ -101,7 +103,17 @@ class PurchaseHandlerCreate(DataEntryCreate):
         if v is None:
             return "chf"
         normalized_v = v.strip().lower()
-        valid_currencies = ["chf", "eur", "usd"]
+        valid_currencies = [
+            "aud",
+            "cad",
+            "chf",
+            "cny",
+            "eur",
+            "gbp",
+            "jpy",
+            "sek",
+            "usd",
+        ]
         if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
@@ -110,7 +122,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
 class PurchaseAdditionalHandlerCreate(DataEntryCreate):
     name: str
     unit: str
-    annual_consumption: Optional[float] = 0
+    annual_consumption: float
     coef_to_kg: float
     note: Optional[str] = None
 
@@ -156,7 +168,17 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         if v is None:
             return v
         normalized_v = v.strip().lower()
-        valid_currencies = ["chf", "eur", "usd"]
+        valid_currencies = [
+            "aud",
+            "cad",
+            "chf",
+            "cny",
+            "eur",
+            "gbp",
+            "jpy",
+            "sek",
+            "usd",
+        ]
         if normalized_v not in valid_currencies:
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
@@ -197,6 +219,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
     response_dto = PurchaseHandlerResponse
 
     kind_field: str = "purchase_institutional_code"
+    # purchase_additional_code is optional on entries but is the primary
+    # factor key when present: it overrides the institutional-code match.
+    kind_field_override: Optional[str] = "purchase_additional_code"
     subkind_field: Optional[str] = ""
     # purchase_institutional_code is not always present, so we can't 100% rely on it
     # for matching entries to factors
@@ -443,17 +468,32 @@ purchase_common_value_fields: list[str] = [
 
 
 class PurchaseCommonFactorCreate(FactorCreate):
-    purchase_institutional_code: str
-    purchase_additional_code: str
     currency: str
-    ef_kg_co2eq_per_currency: float
+    purchase_institutional_code: str
     translation_key: Optional[str] = None
+    purchase_additional_code: Optional[str] = None
+    ef_kg_co2eq_per_currency: float
+    # purchase_category: str  # only for upload Mandatory (checked in csv upload)
+    # purchase_category is the routing column (picks the correct data_entry_type).
+    # It is consumed in the factor CSV provider, not carried on this DTO —
+    # its presence + case-sensitive enum is enforced
+    # there (see base_factor_csv_provider._resolve_data_entry_type).
 
     @field_validator("ef_kg_co2eq_per_currency", mode="after")
     @classmethod
     def validate_ef(cls, v: float) -> float:
         if v < 0:
             raise ValueError("ef_kg_co2eq_per_currency must be non-negative")
+        return v
+
+    @field_validator("purchase_institutional_code", mode="after")
+    @classmethod
+    def validate_institutional_code(cls, v: str) -> str:
+        # Always present on factors: the additional-code-less rows are the
+        # per-institutional-code averages, so a factor without an
+        # institutional code could never be matched.
+        if not v.strip():
+            raise ValueError("purchase_institutional_code must not be empty")
         return v
 
 

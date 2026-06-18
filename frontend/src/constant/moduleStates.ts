@@ -22,7 +22,7 @@ export const MODULE_TYPE_IDS = {
   [MODULES.Headcount]: 1,
   [MODULES.ProfessionalTravel]: 2,
   [MODULES.Buildings]: 3,
-  [MODULES.EquipmentElectricConsumption]: 4,
+  [MODULES.Equipment]: 4,
   [MODULES.Purchase]: 5,
   [MODULES.ResearchFacilities]: 6,
   [MODULES.ExternalCloudAndAI]: 7,
@@ -76,3 +76,35 @@ export const MODULE_STATUS_BADGES: Record<ModuleState, ModuleCardBadge | null> =
 export function getBadgeForStatus(status: ModuleState): ModuleCardBadge | null {
   return MODULE_STATUS_BADGES[status] ?? null;
 }
+
+/**
+ * Visual representation of a module's validation status (icon, color, label),
+ * derived from the backend ModuleStatus source of truth. Shared by the module
+ * sidebar and total-result badge so the three states render consistently.
+ */
+export interface ModuleStatusDisplay {
+  /** Quasar color name for the indicator; empty = no indicator (not started). */
+  color: string;
+  /** Quasar icon name; empty = no icon (not started). */
+  icon: string;
+  /** i18n key for the status label. */
+  label: string;
+}
+
+export const MODULE_STATUS_DISPLAY: Record<ModuleState, ModuleStatusDisplay> = {
+  [MODULE_STATES.Default]: {
+    color: '',
+    icon: '',
+    label: 'module_status_not_started',
+  },
+  [MODULE_STATES.InProgress]: {
+    color: 'warning',
+    icon: 'o_pending',
+    label: 'module_status_in_progress',
+  },
+  [MODULE_STATES.Validated]: {
+    color: 'positive',
+    icon: 'o_check_circle',
+    label: 'module_status_validated',
+  },
+};

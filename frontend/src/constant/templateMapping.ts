@@ -21,12 +21,12 @@ const TEMPLATE_MAP: Record<string, string> = {
     'building_rooms_template.csv',
   [`${MODULES.Buildings}:${SUBMODULE_BUILDINGS_TYPES.EnergyCombustion}`]:
     'building_energycombustions_template.csv',
-  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Scientific}`]:
-    'equipments_scientific_template.csv',
-  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.IT}`]:
-    'equipments_IT_template.csv',
-  [`${MODULES.EquipmentElectricConsumption}:${SUBMODULE_EQUIPMENT_TYPES.Other}`]:
-    'equipments_other_template.csv',
+  [`${MODULES.Equipment}:${SUBMODULE_EQUIPMENT_TYPES.Scientific}`]:
+    'equipment_scientific_template.csv',
+  [`${MODULES.Equipment}:${SUBMODULE_EQUIPMENT_TYPES.IT}`]:
+    'equipment_IT_template.csv',
+  [`${MODULES.Equipment}:${SUBMODULE_EQUIPMENT_TYPES.Other}`]:
+    'equipment_other_template.csv',
 
   [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.BioProductPurchases}`]:
     'purchases_biological_chemical_gaseous_template.csv',
@@ -54,7 +54,7 @@ const TEMPLATE_MAP: Record<string, string> = {
 // Modules whose submodule determines the template — fall back to a default when no submodule matches
 const MODULE_DEFAULTS: Partial<Record<Module, string>> = {
   [MODULES.Purchase]: 'purchases_common_template.csv',
-  [MODULES.EquipmentElectricConsumption]: 'equipments_template.csv',
+  [MODULES.Equipment]: 'equipments_template.csv',
   [MODULES.ProcessEmissions]: 'processemissions_template.csv',
 };
 

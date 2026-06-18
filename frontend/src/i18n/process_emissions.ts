@@ -1,6 +1,14 @@
-import { MODULES, SUBMODULE_PROCESSES_TYPES } from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
+  documentation_editing_rows_process_emissions_topic: {
+    en: 'Process Emissions',
+    fr: 'Émissions de procédés',
+  },
+  documentation_editing_rows_process_emissions_description: {
+    en: 'Find all text related to process emissions within the application.',
+    fr: "Trouvez tous les textes liés aux émissions de procédés dans l'application.",
+  },
   [MODULES.ProcessEmissions]: {
     en: 'Process emissions',
     fr: 'Emissions de procédés',
@@ -12,10 +20,6 @@ export default {
   [`${MODULES.ProcessEmissions}-title-subtext`]: {
     en: 'This module allows to estimate the carbon footprint of greenhouse gases generated during your lab processes (e.g. CO₂ emissions in some SV lab activities, SF₆ emissions when it is used as refrigerant). Emissions generated in the research facilities that you use are excluded, as they are already accounted in the research facilities footprint.',
     fr: 'Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire (par ex. émissions de CO₂ dans certaines activités de laboratoire SV, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène). Les émissions générées dans les infrastructures de recherche que vous utilisez sont exclues, car elles sont déjà prises en compte dans l’empreinte carbone des infrastructures de recherche.',
-  },
-  [`${MODULES.ProcessEmissions}-title-tooltip-title`]: {
-    en: 'The amount of each greenhouse gas emitted should be estimated before entering the value in the calculator (e.g. taking into account that only X% of the SF₆ used is ultimately emitted)',
-    fr: 'La quantité de chaque gaz à effet de serre émise doit être estimée avant de saisir la valeur dans le calculateur (par ex. en prenant en compte que seulement X % du SF₆ utilisé est finalement émis)',
   },
   [`${MODULES.ProcessEmissions}-process_emissions-form-title`]: {
     en: 'Add an emitted gas',
@@ -50,7 +54,12 @@ export default {
     fr: 'N₂O',
   },
   [`${MODULES.ProcessEmissions}.category.refrigerants`]: {
-    en: 'Refrigerants',
+    en: 'Refrigerant',
+    fr: 'Fluide Frigorigène',
+  },
+  // Factor taxonomy / CSV use singular "refrigerant"; same label as plural key above.
+  [`${MODULES.ProcessEmissions}.category.refrigerant`]: {
+    en: 'Refrigerant',
     fr: 'Fluide Frigorigène',
   },
   [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
@@ -68,15 +77,5 @@ export default {
   [`${MODULES.ProcessEmissions}.work_in_progress`]: {
     en: 'work in progress, please validate to confirm your entries',
     fr: "en cours jusqu'à validation de vos entrées",
-  },
-  [`${MODULES.ProcessEmissions}-${SUBMODULE_PROCESSES_TYPES.ProcessEmissions}-table-title-info-tooltip`]:
-    {
-      en: 'Process Emissions Tooltip',
-      fr: 'Process Emissions Tooltip',
-    },
-
-  [`${MODULES.ProcessEmissions}-title-tooltip-subtext`]: {
-    en: 'The amount of each greenhouse gas emitted should be estimated before entering the value in the calculator (e.g. taking into account that only X% of the SF₆ used is ultimately emitted)',
-    fr: 'La quantité de chaque gaz à effet de serre émise doit être estimée avant de saisir la valeur dans le calculateur (par ex. en prenant en compte que seulement X % du SF₆ utilisé est finalement émis)',
   },
 } as const;

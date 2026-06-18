@@ -9,7 +9,7 @@
         :offset="[6, 0]"
         class="sidebar-tooltip"
       >
-        {{ validationShortActionLabel }}
+        {{ sidebarMiniTooltip }}
       </q-tooltip>
       <template v-if="isValidated">
         <span
@@ -23,6 +23,7 @@
         </span>
       </template>
       <q-btn
+        v-if="canValidate"
         :icon="toggleIcon"
         unelevated
         no-caps
@@ -35,25 +36,37 @@
         }"
         @click="toggleValidation"
       />
+      <q-btn
+        v-else-if="showContactHead && isValidated"
+        icon="o_mail"
+        color="info"
+        unelevated
+        no-caps
+        size="xs"
+        class="mtr-sidebar__mini-btn"
+        type="a"
+        :href="`mailto:${headOfUnitEmail}`"
+      />
     </div>
 
     <div class="mtr-sidebar__body">
       <!-- header: status badge -->
       <div class="mtr-sidebar__header">
-        <span
-          class="mtr-sidebar__badge"
-          :class="{
-            'mtr-sidebar__badge--validated': isValidated,
-            'mtr-sidebar__badge--progress': !isValidated,
-          }"
-        >
-          <q-icon :name="statusIcon" size="xs" />
-          {{ statusLabel }}
+        <span class="mtr-sidebar__badge" :class="badgeClass">
+          <q-icon
+            v-if="statusDisplay.icon"
+            :name="statusDisplay.icon"
+            size="xs"
+          />
+          {{ $t(statusDisplay.label) }}
         </span>
       </div>
 
       <!-- value area — fixed height, stable layout -->
-      <div class="mtr-sidebar__value-area">
+      <div
+        v-if="canValidate || showContactHead"
+        class="mtr-sidebar__value-area"
+      >
         <template v-if="isValidated">
           <div
             class="mtr-sidebar__value"
@@ -65,15 +78,19 @@
             {{ $t('module_total_result_title_unit', { type }) }}
           </span>
         </template>
-        <template v-else>
+        <template v-else-if="canValidate">
           <span class="mtr-sidebar__placeholder">
             {{ $t('module_total_result_placeholder') }}
           </span>
+        </template>
+        <template v-else>
+          <div class="mtr-sidebar__value mtr-sidebar__value--empty">—</div>
         </template>
       </div>
 
       <!-- action button -->
       <q-btn
+        v-if="canValidate"
         :icon="toggleIcon"
         :label="validationShortActionLabel"
         unelevated
@@ -87,6 +104,22 @@
         }"
         @click="toggleValidation"
       />
+      <q-btn
+        v-else-if="showContactHead && isValidated"
+        icon="o_mail"
+        :label="$t('common_request_edit')"
+        color="info"
+        unelevated
+        no-caps
+        class="mtr-sidebar__btn text-weight-medium full-width"
+        size="md"
+        type="a"
+        :href="`mailto:${headOfUnitEmail}`"
+      >
+        <q-tooltip anchor="center right" self="center left" :offset="[6, 0]">
+          {{ $t('common_ask_head_of_unit') }}
+        </q-tooltip>
+      </q-btn>
     </div>
   </div>
 
@@ -119,13 +152,16 @@
             {{ $t('module_total_result_title_unit', { type: type }) }}
           </p>
         </template>
-        <template v-else>
+        <template v-else-if="canValidate">
           <div class="text-caption text-secondary">
             {{ $t('module_total_result_placeholder') }}
           </div>
         </template>
+        <template v-else>
+          <h1 class="text-body1 text-weight-bold text-grey-5 q-mb-none">—</h1>
+        </template>
       </div>
-      <div class="module-total-result__button">
+      <div v-if="canValidate" class="module-total-result__button">
         <q-btn
           :outline="isValidated"
           :label="validationLabel"
@@ -137,6 +173,26 @@
           @click="toggleValidation"
         />
       </div>
+      <div
+        v-else-if="showContactHead && isValidated"
+        class="module-total-result__button"
+      >
+        <q-btn
+          icon="o_mail"
+          :label="$t('common_request_edit')"
+          color="info"
+          unelevated
+          no-caps
+          size="md"
+          class="text-weight-medium"
+          type="a"
+          :href="`mailto:${headOfUnitEmail}`"
+        >
+          <q-tooltip anchor="center right" self="center left" :offset="[6, 0]">
+            {{ $t('common_ask_head_of_unit') }}
+          </q-tooltip>
+        </q-btn>
+      </div>
     </q-card-section>
   </q-card>
 </template>
@@ -145,9 +201,14 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTimelineStore } from 'src/stores/modules';
+import { useAuthStore } from 'src/stores/auth';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { Module } from 'src/constant/modules';
 import { ModuleConfig } from 'src/constant/moduleConfig';
-import { MODULE_STATES } from 'src/constant/moduleStates';
+import {
+  MODULE_STATES,
+  MODULE_STATUS_DISPLAY,
+} from 'src/constant/moduleStates';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 
 const props = defineProps<{
@@ -159,25 +220,47 @@ const props = defineProps<{
 
 const { t } = useI18n();
 const timelineStore = useTimelineStore();
+const authStore = useAuthStore();
+const workspaceStore = useWorkspaceStore();
 const moduleColors = computed(() => getModuleIconColors(props.type));
 
+// Validating a module's status is a unit-level action: hide the button from
+// standard (own-scope) users, who never hold the `module.status` permission.
+const canValidate = computed(() => authStore.hasUserCanValidateModuleStatus());
+
+const moduleState = computed(() => timelineStore.itemStates[props.type]);
+
 const isValidated = computed(
-  () => timelineStore.itemStates[props.type] === MODULE_STATES.Validated,
+  () => moduleState.value === MODULE_STATES.Validated,
+);
+
+const headOfUnitEmail = computed(
+  () => workspaceStore.selectedUnit?.principal_user_email ?? null,
+);
+
+// Non-validators (standard users) get a "request edit" affordance in place of
+// the hidden validate button, but only once the module is validated — before
+// that there is nothing to request an edit for.
+const showContactHead = computed(
+  () => !canValidate.value && !!headOfUnitEmail.value,
 );
 
 const toggleIcon = computed(() =>
   isValidated.value ? 'o_remove_circle' : 'o_check_circle',
 );
 
-const statusIcon = computed(() =>
-  isValidated.value ? 'o_check_circle' : 'o_pending',
-);
+// Three-state badge: validated / in progress / not started. Not started has no
+// icon, so the template guards on `statusDisplay.icon` before rendering one.
+const statusDisplay = computed(() => MODULE_STATUS_DISPLAY[moduleState.value]);
 
-const statusLabel = computed(() =>
-  isValidated.value
-    ? t('module_status_validated')
-    : t('module_status_in_progress'),
-);
+const badgeClass = computed(() => ({
+  'mtr-sidebar__badge--validated':
+    moduleState.value === MODULE_STATES.Validated,
+  'mtr-sidebar__badge--progress':
+    moduleState.value === MODULE_STATES.InProgress,
+  'mtr-sidebar__badge--not-started':
+    moduleState.value === MODULE_STATES.Default,
+}));
 
 const validationShortActionLabel = computed(() => {
   const action = isValidated.value
@@ -185,6 +268,12 @@ const validationShortActionLabel = computed(() => {
     : t('common_validate_short');
   return `${action} ${t(props.type)}`;
 });
+
+const sidebarMiniTooltip = computed(() =>
+  canValidate.value
+    ? validationShortActionLabel.value
+    : t('common_ask_head_of_unit'),
+);
 
 const validationLabel = computed(() =>
   isValidated.value ? t('common_unvalidate') : t('common_validate'),
@@ -322,6 +411,12 @@ function toggleValidation() {
       );
       color: var(--q-warning);
     }
+
+    // Not started: neutral, no icon — distinct from the in-progress badge.
+    &--not-started {
+      background-color: rgba(0, 0, 0, 0.06);
+      color: tokens.$mtr-color-muted;
+    }
   }
 
   // Fixed-height area so layout doesn't jump between states
@@ -347,6 +442,11 @@ function toggleValidation() {
     font-weight: tokens.$mtr-sidebar-value-font-weight;
     line-height: tokens.$text-line-height-none;
     letter-spacing: tokens.$mtr-sidebar-value-letter-spacing;
+
+    // Empty state (e.g. standard users before validation): a muted dash.
+    &--empty {
+      color: tokens.$mtr-color-muted;
+    }
   }
 
   &__unit {

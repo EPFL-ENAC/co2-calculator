@@ -22,7 +22,7 @@ const extract = (lang: Lang) => {
     const content = mod.default || mod;
 
     Object.keys(content).forEach((key) => {
-      if (content[key] && content[key][lang]) {
+      if (content[key] != null && content[key][lang] != null) {
         messages[key] = content[key][lang];
       }
     });

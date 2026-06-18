@@ -1,2 +1,2 @@
-name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_institutional_description,purchase_additional_code,note
-Fragment Analyzer HS NGS Fragment Kit,Chemie Brunschwig AG,1,157.00,CHF,12352300,Composés inorganiques,NA21
+name,supplier,quantity,total_spent_amount,currency,purchase_institutional_code,purchase_additional_code,purchase_institutional_description,note
+"Lav'oeil Hexafluorine®, 500 ml, bouteill",Tinovamed GmbH,1.0,179.0,chf,B,NB34,,

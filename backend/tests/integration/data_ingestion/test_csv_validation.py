@@ -26,14 +26,14 @@ class TestCSVValidationErrors:
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
         # Empty CSV (headers only)
-        csv_text = "unit_institutional_id,name,position_category\n"
+        csv_text = "unit_institutional_id,name,function\n"
 
         # Should fail with specific error message
         with pytest.raises(ValueError, match="CSV file is empty"):
             await provider._validate_csv_headers(
                 csv_text,
-                expected_columns={"unit_institutional_id", "name", "position_category"},
-                required_columns={"unit_institutional_id", "name", "position_category"},
+                expected_columns={"unit_institutional_id", "name", "sius_code"},
+                required_columns={"unit_institutional_id", "name", "sius_code"},
             )
 
     @pytest.mark.asyncio
@@ -48,15 +48,15 @@ class TestCSVValidationErrors:
         mock_session = AsyncMock()
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
-        # CSV missing required column (position_category)
+        # CSV missing required column (function)
         csv_text = "unit_institutional_id,name\nUNIT001,John Doe\n"
 
         # Should fail with specific error message
         with pytest.raises(ValueError, match="missing required columns"):
             await provider._validate_csv_headers(
                 csv_text,
-                expected_columns={"unit_institutional_id", "name", "position_category"},
-                required_columns={"unit_institutional_id", "name", "position_category"},
+                expected_columns={"unit_institutional_id", "name", "sius_code"},
+                required_columns={"unit_institutional_id", "name", "sius_code"},
             )
 
 
@@ -75,9 +75,11 @@ class TestModulePerYearBehavior:
         mock_session = AsyncMock()
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
-        # Mock bulk_delete_by_source to verify it's called with correct source
+        # Mock the set-based delete to verify it's called with correct source
         mock_data_entry_service = AsyncMock()
-        mock_data_entry_service.bulk_delete_by_source = AsyncMock()
+        mock_data_entry_service.repo.bulk_delete_by_source_year = AsyncMock(
+            return_value=0
+        )
 
         unit_to_module_map = {"UNIT001": 1, "UNIT002": 2}
 
@@ -104,14 +106,14 @@ class TestModulePerYearBehavior:
             mock_data_entry_service,
         )
 
-        # Verify bulk_delete_by_source was called with CSV_MODULE_PER_YEAR source
-        calls = mock_data_entry_service.bulk_delete_by_source.call_args_list
-        assert len(calls) > 0
-
-        # Check that source parameter is always CSV_MODULE_PER_YEAR
-        for call in calls:
-            kwargs = call.kwargs
-            assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+        # Verify the single set-based delete targets CSV_MODULE_PER_YEAR
+        # for the job's year — human (USER_MANUAL) and unit-specific
+        # sources are untouched by construction of the source filter.
+        calls = mock_data_entry_service.repo.bulk_delete_by_source_year.call_args_list
+        assert len(calls) == 1
+        kwargs = calls[0].kwargs
+        assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+        assert kwargs["year"] == 2025
 
 
 class TestModuleUnitSpecificBehavior:
@@ -163,9 +165,11 @@ class TestHumanDataProtection:
         mock_session = AsyncMock()
         provider = ModulePerYearCSVProvider(config, data_session=mock_session)
 
-        # Mock bulk_delete_by_source to capture calls
+        # Mock the set-based delete to capture calls
         mock_data_entry_service = AsyncMock()
-        mock_data_entry_service.bulk_delete_by_source = AsyncMock()
+        mock_data_entry_service.repo.bulk_delete_by_source_year = AsyncMock(
+            return_value=0
+        )
 
         unit_to_module_map = {"UNIT001": 1}
 
@@ -192,22 +196,14 @@ class TestHumanDataProtection:
             mock_data_entry_service,
         )
 
-        # Verify calls were made with correct source filter
-        calls = mock_data_entry_service.bulk_delete_by_source.call_args_list
-        assert len(calls) > 0, "Expected deletion calls to be made"
-
-        # Critical check: ALL calls must use CSV_MODULE_PER_YEAR source
-        # This is what protects human entries (USER_MANUAL source)
-        for call in calls:
-            kwargs = call.kwargs
-            assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value, (
-                f"Expected CSV_MODULE_PER_YEAR source, got {kwargs['source']}"
-            )
-
-        # Verify NO calls were made with USER_MANUAL source
-        user_manual_calls = [
-            call
-            for call in calls
-            if call.kwargs.get("source") == DataEntrySourceEnum.USER_MANUAL.value
-        ]
-        assert len(user_manual_calls) == 0, "Should never delete USER_MANUAL entries"
+        # Verify the call uses the CSV_MODULE_PER_YEAR source filter —
+        # this is what protects human entries (USER_MANUAL source) and
+        # unit-specific uploads (CSV_MODULE_UNIT_SPECIFIC source).
+        calls = mock_data_entry_service.repo.bulk_delete_by_source_year.call_args_list
+        assert len(calls) == 1, "Expected exactly one set-based deletion call"
+        kwargs = calls[0].kwargs
+        assert kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value, (
+            f"Expected CSV_MODULE_PER_YEAR source, got {kwargs['source']}"
+        )
+        assert kwargs["source"] != DataEntrySourceEnum.USER_MANUAL.value
+        assert kwargs["source"] != DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value

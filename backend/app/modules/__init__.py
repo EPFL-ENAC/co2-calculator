@@ -4,7 +4,7 @@ from app.modules.buildings.schemas import (
     BuildingRoomHandlerCreate,
     EnergyCombustionHandlerCreate,
 )
-from app.modules.equipment_electric_consumption.schemas import EquipmentHandlerCreate
+from app.modules.equipment.schemas import EquipmentHandlerCreate
 from app.modules.external_cloud_and_ai.schemas import (
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,

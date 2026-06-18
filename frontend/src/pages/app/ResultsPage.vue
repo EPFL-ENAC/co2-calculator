@@ -29,7 +29,6 @@ import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
-import ResultsFilterPill from 'src/components/layout/ResultsFilterPill.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
 
@@ -431,7 +430,6 @@ const getUncertainty = (
 
 <template>
   <q-page>
-    <ResultsFilterPill />
     <div class="page-grid">
       <q-card flat bordered class="q-pa-xl">
         <div class="flex justify-between items-center">
@@ -496,7 +494,7 @@ const getUncertainty = (
                 :bordered="false"
               >
                 <template v-if="hasCo2PerKmKg" #tooltip>{{
-                  $t('results_total_unit_carbon_footprint_tooltip', {
+                  $t('results-stats-total-unit-carbon-footprint-title', {
                     value: $nOrDash(co2PerKmKg, {
                       options: {
                         minimumFractionDigits: 1,
@@ -745,10 +743,13 @@ const getUncertainty = (
                           :bordered="false"
                         >
                           <template v-if="hasCo2PerKmKg" #tooltip>{{
-                            $t('results_total_unit_carbon_footprint_tooltip', {
-                              value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
-                              unit: $t('results_kg_co2eq_per_km'),
-                            })
+                            $t(
+                              'results-stats-total-unit-carbon-footprint-title',
+                              {
+                                value: $nOrDash(co2PerKmKg, FORMAT_CO2_PER_KM),
+                                unit: $t('results_kg_co2eq_per_km'),
+                              },
+                            )
                           }}</template>
                         </BigNumber>
                         <q-separator vertical />

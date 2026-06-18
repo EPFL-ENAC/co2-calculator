@@ -1,13 +1,18 @@
+import asyncio
 import csv
 import io
+import time
 import urllib.parse
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TypedDict
 
-from sqlmodel import col
+from sqlmodel import col, select
 
+from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
     DataEntry,
     DataEntrySourceEnum,
@@ -21,13 +26,18 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.data_ingestion import DataIngestionRepository
 from app.repositories.unit_repo import UnitRepository
 from app.schemas.carbon_report import CarbonReportCreate
-from app.schemas.data_entry import DATA_ENTRY_META_FIELDS, ModuleHandler
-from app.schemas.user import UserRead
-from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.schemas.data_entry import (
+    DATA_ENTRY_META_FIELDS,
+    BaseModuleHandler,
+    ModuleHandler,
+)
+from app.seed.seed_helper import load_factors_map
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
@@ -35,13 +45,24 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
+from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
 logger = get_logger(__name__)
 
-# Batch size for bulk inserts
-BATCH_SIZE = 1000
+# Minimum wall-clock seconds between two progress writes for the same job.
+# Progress is checked per-row (cheap monotonic read) but the DB write + log
+# line only fire this often, so a long CPU phase shows motion without
+# hammering the session.
+PROGRESS_REPORT_INTERVAL_S = 2.0
+
+
+def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
+    """Return True when every required column is empty or absent in the raw row."""
+    if not required_columns:
+        return False
+    return all(not (row.get(col) or "").strip() for col in required_columns)
 
 
 def _validate_file_path(file_path: str) -> None:
@@ -167,8 +188,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._missing_unit_codes: set[str] = set()
         # Track which missing units we've already warned about (deduplication)
         self._missing_units_logged: set[str] = set()
+        # module_id → unit_id, filled by _resolve_carbon_report_modules;
+        # used to stamp the denormalized DataEntry.unit_id at row build.
+        self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
         self._year_cache: Dict[int, int] = {}
+        # Progress reporting: current phase label + throttle/rate bookkeeping.
+        self._phase = ""
+        self._phase_started_at = 0.0
+        self._last_report_at = 0.0
+        # Per-segment wall-time accumulator for the row-loop profile (diagnostic;
+        # answers "where do the N seconds go" — DB-heavy segments stand out).
+        self._seg: Dict[str, float] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -192,8 +223,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
     def files_store(self) -> Any:
         """Lazy initialization of files store"""
         if self._files_store is None:
-            from app.api.v1.files import make_files_store
-
             self._files_store = make_files_store()
         return self._files_store
 
@@ -326,7 +355,133 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         pass
 
-    @abstractmethod
+    async def _load_handlers_and_factors(
+        self, entry_types: List[DataEntryTypeEnum]
+    ) -> tuple[List[Any], Dict[str, Any]]:
+        """
+        Load deduplicated handlers and the merged factors map for the
+        given data entry types.
+
+        Year is required: factor lookups during row processing key on
+        ``{type}:{year}:{kind}:{subkind}``, so a missing year would
+        silently miss every factor and import rows with
+        primary_factor_id=None.
+        """
+        if not self.year:
+            raise ValueError(
+                f"year is required for {self.entity_type.name} entity type"
+            )
+
+        # Deduplicate handlers by class to avoid multiple identical
+        # instances (e.g., EquipmentModuleHandler registered for
+        # it/scientific/other)
+        handlers: List[Any] = []
+        seen_handler_classes: set[type[Any]] = set()
+        for entry_type in entry_types:
+            handler = BaseModuleHandler.get_by_type(entry_type)
+            handler_class: type[Any] = type(handler)
+            if handler_class not in seen_handler_classes:
+                handlers.append(handler)
+                seen_handler_classes.add(handler_class)
+
+        factors_map: Dict[str, Any] = {}
+        for entry_type in entry_types:
+            type_factors = await load_factors_map(
+                self.data_session, entry_type, self.year
+            )
+            factors_map.update(type_factors)
+            # Yield between factor-type merges: building a large factors_map
+            # (tens of thousands of factors) is a CPU burst that would
+            # otherwise block the event loop during setup.
+            await asyncio.sleep(0)
+
+        return handlers, factors_map
+
+    def _assemble_setup_result(
+        self,
+        *,
+        handlers: List[Any],
+        factors_map: Dict[str, Any],
+        module_label: str,
+        required_columns: set[str],
+    ) -> Dict[str, Any]:
+        """
+        Build the setup dict returned by ``_setup_handlers_and_factors``.
+
+        Runs the require-factor guard, derives expected columns, and
+        builds the factor_id -> factor map for O(1) lookup during row
+        processing (avoids an O(n) scan of factors_map per row).
+        """
+        _guard_factors_required(
+            factors_map=factors_map,
+            handlers=handlers,
+            module_label=module_label,
+            year=self.year,
+        )
+
+        expected_columns = _get_expected_columns_from_handlers(handlers)
+
+        factor_id_to_factor: Dict[int, Any] = {}
+        for factor in factors_map.values():
+            factor_id = getattr(factor, "id", None)
+            if factor_id is not None:
+                factor_id_to_factor[factor_id] = factor
+
+        logger.info(
+            f"Setup complete for {self.entity_type.name}: "
+            f"handlers={len(handlers)}, "
+            f"factors={len(factors_map)}, "
+            f"factor_id_to_factor={len(factor_id_to_factor)}, "
+            f"expected_columns={len(expected_columns)}, "
+            f"required_columns={len(required_columns)}"
+        )
+
+        return {
+            "handlers": handlers,
+            "factors_map": factors_map,
+            "factor_id_to_factor": factor_id_to_factor,
+            "expected_columns": expected_columns,
+            "required_columns": required_columns,
+        }
+
+    def _resolve_type_from_config_or_category(
+        self,
+        filtered_row: Dict[str, str],
+        handlers: List[Any],
+        row_idx: int,
+        stats: StatsDict,
+        max_row_errors: int,
+    ) -> tuple[DataEntryTypeEnum | None, "ModuleHandler | None"]:
+        """
+        Shared Priority 1/2 of data_entry_type resolution.
+
+        Priority 1: configured ``data_entry_type_id`` from job config
+        (cast through int so string ids from JSON config work).
+        Priority 2: the single handler's category column (e.g.
+        ``equipment_category``) mapping directly to a DataEntryTypeEnum
+        name.
+
+        Returns (data_entry_type, handler); either may be None — callers
+        decide whether that is an error (MODULE_UNIT_SPECIFIC) or the
+        cue for factor-based inference (MODULE_PER_YEAR).
+        """
+        configured_data_entry_type_id = self.config.get("data_entry_type_id")
+
+        if configured_data_entry_type_id is not None:
+            data_entry_type = DataEntryTypeEnum(int(configured_data_entry_type_id))
+            return data_entry_type, handlers[0] if handlers else None
+
+        handler = handlers[0] if len(handlers) == 1 else None
+        if handler is None:
+            return None, None
+
+        resolved_type: DataEntryTypeEnum | None = (
+            self._resolve_data_entry_type_from_category(
+                filtered_row, handler, row_idx, stats, max_row_errors
+            )
+        )
+        return resolved_type, handler
+
     def _extract_kind_subkind_values(
         self,
         filtered_row: Dict[str, str],
@@ -335,12 +490,36 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         Extract kind and subkind values from filtered row.
 
-        Subclasses implement entity-specific extraction logic
-        (e.g., single handler vs. multiple handlers).
+        Tries each handler's kind_field/subkind_field first, then falls
+        back to common field names. Works for single- and multi-handler
+        providers alike.
 
         Returns: (kind_value, subkind_value)
         """
-        pass
+        # Try to find kind/subkind using each handler's fields
+        for handler in handlers:
+            if handler.kind_field and handler.kind_field in filtered_row:
+                kind_value = filtered_row.get(handler.kind_field, "")
+                subkind_value = (
+                    filtered_row.get(handler.subkind_field)
+                    if handler.subkind_field
+                    else None
+                )
+                return kind_value, subkind_value
+
+        # Fallback: try common field names
+        for handler in handlers:
+            subkind_value = None
+            if handler.subkind_field and handler.subkind_field in filtered_row:
+                subkind_value = filtered_row.get(handler.subkind_field)
+
+            for kind_field_name in ("kind", "Kind", "KIND"):
+                if kind_field_name in filtered_row:
+                    kind_value = filtered_row.get(kind_field_name, "")
+                    return kind_value, subkind_value
+
+        # Last resort: return empty if nothing found
+        return "", None
 
     @abstractmethod
     async def _resolve_handler_and_validate(
@@ -388,6 +567,37 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not module_type_id:
             raise ValueError("module_type_id is required for MODULE_PER_YEAR")
 
+        # Bulk-resolve the existing map in ONE join over
+        # units ⨝ carbon_reports(year) ⨝ carbon_report_modules(module_type)
+        # instead of 2 queries per unit.  ~2.5k units → one round-trip;
+        # the per-unit path below only runs for units that still need a
+        # carbon_report created for this year.
+        map_stmt = (
+            select(Unit.institutional_id, CarbonReportModule.id, Unit.id)
+            .join(CarbonReport, col(CarbonReport.unit_id) == col(Unit.id))
+            .join(
+                CarbonReportModule,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .where(
+                col(CarbonReport.year) == self.year,
+                col(CarbonReportModule.module_type_id) == module_type_id,
+            )
+        )
+        full_map: Dict[str, int] = {}
+        for institutional_id, module_id, unit_db_id in (
+            await self.data_session.execute(map_stmt)
+        ).all():
+            if institutional_id is None:
+                continue
+            full_map[institutional_id] = module_id
+            self._module_to_unit_id[module_id] = unit_db_id
+        logger.info(
+            f"Bulk-resolved {len(full_map)} existing "
+            f"carbon_report_modules for year={self.year}, "
+            f"module_type_id={module_type_id}"
+        )
+
         # Extract unique unit institutional_ids from CSV
         # (column is named 'unit_institutional_id' to be explicit)
         csv_reader = csv.DictReader(io.StringIO(csv_text, newline=""))
@@ -403,87 +613,86 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
-        logger.info(
-            f"Found {len(unit_codes)} unique unit institutional_ids in CSV: "
-            f"{sorted(unit_codes)}"
-        )
+        logger.info(f"Found {len(unit_codes)} unique unit institutional_ids in CSV")
+        logger.debug("Unique unit institutional_ids: %s", sorted(unit_codes))
 
-        # Validate unit institutional_ids exist to avoid FK violations
-        unit_repo = UnitRepository(self.data_session)
-        existing_units = await unit_repo.get_by_institutional_ids(list(unit_codes))
-        existing_codes = {unit.institutional_id for unit in existing_units}
-        missing_codes = sorted(unit_codes - existing_codes)
-        if missing_codes:
-            # Attempt to fetch and upsert missing units from provider
-            logger.info(
-                f"Found {len(missing_codes)} missing units in database, "
-                f"attempting to fetch from provider"
-            )
+        # Scope the map to the CSV's units.  The bulk join above covers
+        # EVERY unit with a report for this (year, module_type) — using
+        # it unfiltered would widen downstream consumers, most
+        # dangerously ``_delete_existing_entries_for_module_per_year``,
+        # which would then wipe CSV-uploaded entries of units this file
+        # doesn't even mention (and drag the DELETE across the whole
+        # year's modules).
+        code_to_module_map: Dict[str, int] = {
+            code: full_map[code] for code in unit_codes if code in full_map
+        }
 
-        # Build mapping of institutional_id to unit.id for DB operations
-        # Only include units that exist (skip missing ones)
-        unit_code_to_id = {unit.institutional_id: unit.id for unit in existing_units}
-
-        # Resolve carbon_report_module_id for each institutional_id
-        # Skip units that are missing
-        carbon_report_service = CarbonReportService(self.data_session)
-        code_to_module_map: Dict[str, int] = {}
+        # Only units NOT already in the bulk map need per-unit work:
+        # either their carbon_report for this year doesn't exist yet
+        # (create it — auto-creates all modules), or the unit itself is
+        # unknown (surfaced loudly below; its rows will be skipped).
+        unresolved_codes = sorted(unit_codes - set(code_to_module_map))
         reports_created = 0
-        reports_reused = 0
-
-        for unit_institutional_id in unit_codes:
-            # Skip missing units - they will be handled during row processing
-            if unit_institutional_id in self._missing_unit_codes:
-                continue
-
-            # Get the database ID for this institutional_id
-            unit_id = unit_code_to_id.get(unit_institutional_id)
-            if not unit_id:
-                logger.warning(
-                    f"Unit with institutional_id={unit_institutional_id} not found"
-                )
-                # TODO: fix accred?
-                continue
-
-            # Check if carbon report exists
-            carbon_report = await carbon_report_service.get_by_unit_and_year(
-                unit_id, self.year
-            )
-
-            if not carbon_report:
-                # Create new carbon report (auto-creates all 7 modules)
-                logger.info(
-                    "Creating carbon_report for "
-                    f"institutional_id={unit_institutional_id} "
-                    f"(unit_id={unit_id}), year={self.year}"
-                )
-                carbon_report = await carbon_report_service.create(
-                    CarbonReportCreate(unit_id=unit_id, year=self.year)
-                )
-                reports_created += 1
-            else:
-                reports_reused += 1
-
-            # Get the carbon_report_module_id for this module_type
-            module_service = carbon_report_service.module_service
-            carbon_report_module = await module_service.get_module(
-                carbon_report.id, module_type_id
-            )
-
-            if not carbon_report_module:
-                raise ValueError(
-                    f"No carbon_report_module found for "
-                    f"carbon_report_id={carbon_report.id}, "
-                    f"module_type_id={module_type_id}"
+        if unresolved_codes:
+            unit_repo = UnitRepository(self.data_session)
+            existing_units = await unit_repo.get_by_institutional_ids(unresolved_codes)
+            unit_code_to_id = {
+                unit.institutional_id: unit.id for unit in existing_units
+            }
+            unknown_codes = sorted(set(unresolved_codes) - set(unit_code_to_id))
+            if unknown_codes:
+                # Not silently absorbed into per-row warnings: one loud
+                # summary so a CSV referencing units missing from the
+                # units table is diagnosable from a single log line.
+                logger.error(
+                    f"{len(unknown_codes)} unit_institutional_ids from the "
+                    f"CSV are not in the units table — every row for them "
+                    f"will be skipped: {unknown_codes[:50]}"
                 )
 
-            # Map institutional_id (from CSV) to carbon_report_module_id
-            code_to_module_map[unit_institutional_id] = carbon_report_module.id
+            carbon_report_service = CarbonReportService(self.data_session)
+            for unit_institutional_id in unresolved_codes:
+                if unit_institutional_id in self._missing_unit_codes:
+                    continue
+                unit_id = unit_code_to_id.get(unit_institutional_id)
+                if not unit_id:
+                    continue  # already reported in unknown_codes above
+
+                # Not in the joined map, so the report may be missing —
+                # but check first: the report can exist with the module
+                # row absent, and create() would raise on a duplicate.
+                carbon_report = await carbon_report_service.get_by_unit_and_year(
+                    unit_id, self.year
+                )
+                if not carbon_report:
+                    logger.info(
+                        "Creating carbon_report for "
+                        f"institutional_id={unit_institutional_id} "
+                        f"(unit_id={unit_id}), year={self.year}"
+                    )
+                    carbon_report = await carbon_report_service.create(
+                        CarbonReportCreate(unit_id=unit_id, year=self.year)
+                    )
+                    reports_created += 1
+
+                carbon_report_module = (
+                    await carbon_report_service.module_service.get_module(
+                        carbon_report.id, module_type_id
+                    )
+                )
+                if not carbon_report_module:
+                    raise ValueError(
+                        f"No carbon_report_module found for "
+                        f"carbon_report_id={carbon_report.id}, "
+                        f"module_type_id={module_type_id}"
+                    )
+                code_to_module_map[unit_institutional_id] = carbon_report_module.id
+                self._module_to_unit_id[carbon_report_module.id] = unit_id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
-            f"created {reports_created} new reports, "
-            f"reused {reports_reused} existing reports"
+            f"{len(code_to_module_map)} mapped "
+            f"({reports_created} new reports created)"
         )
 
         return code_to_module_map
@@ -537,49 +746,126 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             data_entry_service: DataEntryService instance to use
         """
 
-        user_read = UserRead.model_validate(self.user) if self.user else None
+        if not (self.job and self.job.module_type_id):
+            logger.info("No job module_type_id — skipping pre-import deletion")
+            return
 
-        deleted_count = 0
-        # Get all unique data_entry_types that will be processed
-        # We'll delete all CSV_MODULE_PER_YEAR entries for affected modules
-        for unit_id, module_id in unit_to_module_map.items():
-            # Delete entries for all data_entry_types that could be in this module
-            # We need to get the valid types for this module
-            if self.job and self.job.module_type_id:
-                from app.models.module_type import (
-                    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
-                    ModuleTypeEnum,
-                )
+        module_type = ModuleTypeEnum(self.job.module_type_id)
+        # If the job targets a specific data_entry_type_id, only delete
+        # entries for that type. Deleting all types for the module would
+        # wipe sibling submodules (e.g. uploading research_facilities
+        # data would erase mice_and_fish_animal_facilities entries).
+        if self.job.data_entry_type_id is not None:
+            valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
+        else:
+            valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
-                module_type = ModuleTypeEnum(self.job.module_type_id)
+        if self.year is None:
+            raise ValueError("year is required for MODULE_PER_YEAR deletion")
 
-                # If the job targets a specific data_entry_type_id, only delete
-                # entries for that type. Deleting all types for the module would
-                # wipe sibling submodules (e.g. uploading research_facilities
-                # data would erase mice_and_fish_animal_facilities entries).
-                if self.job.data_entry_type_id is not None:
-                    valid_entry_types = [DataEntryTypeEnum(self.job.data_entry_type_id)]
-                else:
-                    valid_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-                        module_type, []
-                    )
+        # Full-year replace: per-year CSVs are complete exports, so ONE
+        # indexed DELETE on the denormalized ``data_entries.year`` column
+        # replaces every prior row of (year, types, source) — no module
+        # resolution, no audit trail (the bulk path skips audit on insert
+        # too; the job row is the operator-facing record).
+        deleted_rows = await data_entry_service.repo.bulk_delete_by_source_year(
+            year=self.year,
+            data_entry_type_ids=[t.value for t in valid_entry_types],
+            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+        )
 
-                for data_entry_type in valid_entry_types:
-                    try:
-                        await data_entry_service.bulk_delete_by_source(
-                            carbon_report_module_id=module_id,
-                            data_entry_type_id=data_entry_type,
-                            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
-                            user=user_read,
-                        )
-                        deleted_count += 1
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to delete entries for module {module_id}, "
-                            f"type {data_entry_type}: {e}"
-                        )
+        logger.info(
+            f"Deleted {deleted_rows} data entries from previous CSV uploads "
+            f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
+        )
 
-        logger.info(f"Deleted {deleted_count} entry sets from previous CSV uploads")
+    def _enter_phase(self, phase: str) -> None:
+        """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
+        self._phase = phase
+        self._phase_started_at = time.monotonic()
+
+    @contextmanager
+    def _timed(self, key: str):
+        """Accumulate wall time spent in a row-loop segment under ``key``.
+
+        Cheap (one perf_counter read each side); records on exit even when the
+        wrapped block returns/raises, so per-row early-exits still count.
+        """
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self._seg[key] = self._seg.get(key, 0.0) + (time.perf_counter() - start)
+
+    def _log_row_loop_profile(self, parse_elapsed: float, rows: int) -> None:
+        """One-line breakdown of where the row-loop wall time went.
+
+        ``row`` is the total in ``_process_row``; ``loop_overhead`` is the rest
+        of the loop (CSV parse, blank-row skips, progress reports). ``row_other``
+        is per-row work outside the four timed sub-calls (filter/key/build).
+        """
+        seg = self._seg
+        row_t = seg.get("row", 0.0)
+        inner = ("resolve", "validate", "enrich", "populate")
+        per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
+        logger.info(
+            "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
+            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "loop_overhead=%.1fs",
+            rows,
+            parse_elapsed,
+            per_row_ms,
+            row_t,
+            seg.get("resolve", 0.0),
+            seg.get("validate", 0.0),
+            seg.get("enrich", 0.0),
+            seg.get("populate", 0.0),
+            row_t - sum(seg.get(k, 0.0) for k in inner),
+            parse_elapsed - row_t,
+        )
+
+    @staticmethod
+    def _format_progress(
+        phase: str, processed: int | None, total: int | None, elapsed: float
+    ) -> str:
+        """Human-readable progress line with throughput + rough ETA."""
+        if not processed or not total:
+            return phase
+        rate = processed / max(elapsed, 1e-3)
+        eta = (total - processed) / rate if rate > 0 else 0.0
+        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
+
+    async def _report(
+        self,
+        phase: str,
+        *,
+        processed: int | None = None,
+        total: int | None = None,
+        stats: "StatsDict | None" = None,
+        force: bool = False,
+    ) -> None:
+        """Throttled progress write to the job row + an INFO log line.
+
+        Safe to call per-row: only the monotonic clock is read unless a
+        write is due (every ``PROGRESS_REPORT_INTERVAL_S``) or ``force``.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_report_at < PROGRESS_REPORT_INTERVAL_S:
+            return
+        self._last_report_at = now
+
+        msg = self._format_progress(
+            phase, processed, total, now - self._phase_started_at
+        )
+        meta: Dict[str, Any] = dict(stats) if stats else {}
+        meta["progress"] = {"phase": phase, "processed": processed, "total": total}
+        logger.info(msg)
+        await self._update_job(
+            status_message=msg,
+            state=IngestionState.RUNNING,
+            result=None,
+            extra_metadata=meta,
+        )
 
     async def process_csv_in_batches(self) -> Dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
@@ -610,9 +896,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self.entity_type == EntityType.MODULE_PER_YEAR
                 and not self.carbon_report_module_id
             ):
-                logger.info(
-                    "Resolving carbon_report_module_ids for MODULE_PER_YEAR import"
-                )
+                self._enter_phase("Resolving modules")
+                await self._report("Resolving modules", force=True)
                 unit_to_module_map = await self._resolve_carbon_report_modules(
                     setup_result["csv_text"]
                 )
@@ -621,14 +906,25 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 await self.data_session.flush()  # Flush report/module creation
 
                 # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
-                logger.info(
-                    "Deleting existing CSV_MODULE_PER_YEAR entries before re-import"
-                )
+                self._enter_phase("Deleting previous entries")
+                await self._report("Deleting previous entries", force=True)
                 await self._delete_existing_entries_for_module_per_year(
                     unit_to_module_map, stats, data_entry_service
                 )
 
             # Process CSV rows
+            copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
+            # Rough row count for progress/ETA (header line excluded); the CSV
+            # text is already in memory, so counting newlines is cheap.
+            total_rows = max(setup_result["csv_text"].count("\n") - 1, 0)
+            self._enter_phase("Parsing rows")
+            await self._report(
+                "Parsing rows", processed=0, total=total_rows, stats=stats, force=True
+            )
+            # Row-loop profile baseline (diagnostic).
+            self._seg = {}
+            parse_start = time.perf_counter()
+            row_idx = 0
             batch: List[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
@@ -640,8 +936,35 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             for row_idx, row in enumerate(csv_reader, start=1):
+                # Row processing is mostly CPU (parse/validate, cached
+                # lookups) — with 50k-row COPY batches nothing else
+                # would run on the event loop for the whole file.
+                # Yield every 100 rows so /healthz & /ready stay under the
+                # liveness/readiness probe timeout even on a CPU-tight pod;
+                # a 1000-row stretch could exceed 2s and trigger a restart.
+                if row_idx % 100 == 0:
+                    await asyncio.sleep(0)
+                    # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
+                    # long parse/validate phase shows live throughput + ETA
+                    # instead of going silent for tens of seconds.
+                    await self._report(
+                        "Parsing rows",
+                        processed=row_idx,
+                        total=total_rows,
+                        stats=stats,
+                    )
+                # if empty row, skip
+                if not row:
+                    continue
+                # Skip completely blank rows
+                if not any(
+                    value is not None and str(value).strip() for value in row.values()
+                ):
+                    continue
+
                 # Process single row, returns
                 # (data_entry, error_msg, factor, kg_co2eq_override)
+                _row_t0 = time.perf_counter()
                 (
                     data_entry,
                     error_msg,
@@ -654,6 +977,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     stats,
                     max_row_errors,
                     unit_to_module_map,
+                )
+                self._seg["row"] = self._seg.get("row", 0.0) + (
+                    time.perf_counter() - _row_t0
                 )
 
                 if error_msg:
@@ -701,8 +1027,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     stats["rows_without_factors"] += 1
                 stats["rows_processed"] += 1
 
-                # Process batch when it reaches BATCH_SIZE
-                if len(batch) >= BATCH_SIZE:
+                # Flush when the COPY batch is full
+                if len(batch) >= copy_batch_size:
                     await self._process_batch(
                         batch,
                         data_entry_service,
@@ -726,7 +1052,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             extra_metadata=dict(stats),
                         )
 
+            # Diagnostic: where did the row-loop time go (DB-heavy segments
+            # stand out vs CPU)? One line, real data/DB/handlers.
+            self._log_row_loop_profile(time.perf_counter() - parse_start, row_idx)
+
             # Finalize: process remaining batch, move file, update job
+            self._enter_phase("Inserting")
+            await self._report(
+                "Inserting", processed=stats["rows_processed"], force=True
+            )
             return await self._finalize_and_commit(
                 batch,
                 data_entry_service,
@@ -851,6 +1185,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         try:
             handlers = setup_result["handlers"]
             expected_columns = setup_result["expected_columns"]
+            required_columns = setup_result.get("required_columns", set())
+
+            # Template scaffolding rows keep required columns empty; skip them
+            # before stripping blanks into filtered_row.
+            if required_columns and _is_blank_data_row(row, required_columns):
+                stats["rows_skipped"] += 1
+                return None, None, None, None
 
             # Extract kg_co2eq override from the raw row (carried out-of-band).
             # Bypasses expected_columns intentionally: not every handler lists
@@ -881,13 +1222,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             # Resolve handler and data_entry_type first (needed for factor lookup)
-            (
-                data_entry_type,
-                handler,
-                error_msg,
-            ) = await self._resolve_handler_and_validate(
-                filtered_row, None, stats, row_idx, max_row_errors, setup_result
-            )
+            with self._timed("resolve"):
+                (
+                    data_entry_type,
+                    handler,
+                    error_msg,
+                ) = await self._resolve_handler_and_validate(
+                    filtered_row, None, stats, row_idx, max_row_errors, setup_result
+                )
 
             if error_msg:
                 return None, error_msg, None, None
@@ -904,10 +1246,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
                 )
-                # Defense in depth: setup-time guards in the entity-specific
-                # providers (_setup_handlers_and_factors for
-                # MODULE_UNIT_SPECIFIC, _resolve_module_per_year_modules for
-                # MODULE_PER_YEAR) raise before any row reaches this method,
+                # Defense in depth: the setup-time guard in
+                # _load_handlers_and_factors raises before any row
+                # reaches this method,
                 # so reaching this branch with a falsy year would mean a
                 # future caller bypassed setup. Use the same `not self.year`
                 # check the setup-time guard uses so both layers reject the
@@ -993,7 +1334,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             payload["primary_factor_id"] = primary_factor_id
 
             try:
-                validated = handler.validate_create(payload)
+                with self._timed("validate"):
+                    validated = handler.validate_create(payload)
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -1006,42 +1348,24 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # it to resolve origin_name/destination_name → *_natural_key via
             # a Location lookup so the recalc-time pre_compute can compute
             # distance. Returning a non-None error_msg skips the row.
-            data, enrich_error = await handler.enrich_csv_row(data, self.data_session)
+            with self._timed("enrich"):
+                data, enrich_error = await handler.enrich_csv_row(
+                    data, self.data_session
+                )
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-            # Note: primary_factor_id is already in payload and
-            # will be in validated.data
-            # No need to set it again
+            with self._timed("populate"):
+                handler_service = ModuleHandlerService(self.data_session)
+                if primary_factor_id and "factor_id_to_factor" in setup_result:
+                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
+                    if factor is not None:
+                        data = await handler_service.populate_defaults(
+                            handler, data, factor
+                        )
 
-            # Populate missing data fields from factor values
-            # (e.g., equipment usage hours, default quantities)
-            # Use O(1) lookup with factor_id_to_factor instead of O(n) loop
-            if primary_factor_id and "factor_id_to_factor" in setup_result:
-                factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-
-                # Populate defaults from factor if handler defines factor_value_fields
-                if (
-                    factor
-                    and hasattr(handler, "factor_value_fields")
-                    and handler.factor_value_fields
-                ):
-                    for field_name in handler.factor_value_fields:
-                        if field_name not in data or data[field_name] in (None, "", 0):
-                            default_value = factor.values.get(field_name)
-                            if default_value is not None:
-                                data[field_name] = default_value
-                                # Throttle logging: only first 5 rows or every 1000 rows
-                                if row_idx <= 5 or row_idx % 1000 == 0:
-                                    logger.debug(
-                                        f"Row {row_idx}: Populated "
-                                        f"{field_name}={default_value} from factor"
-                                    )
-
-            # B-H1 — under ``BULK_PATH_PURE_ASYNC`` the inline path skips
-            # ``prepare_create``, so the parallel ``kg_co2eq_override`` list
-            # is built and discarded.  Persist the override on the data
+            # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
             # the async recalc path (``upsert_by_data_entry`` →
             # ``prepare_create``) still honors it.  The parallel list is
@@ -1053,6 +1377,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
                 data=data,
+                # Denormalized scope columns — back the per-year
+                # full-replace delete without module resolution.
+                year=self.year,
+                unit_id=self._module_to_unit_id.get(carbon_report_module_id),
             )
 
             return data_entry, None, None, kg_co2eq_override
@@ -1101,7 +1429,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         Finalize: process remaining batch, move file to processed/, update job.
         """
-        # Process final batch (remaining rows < BATCH_SIZE)
+        # Process final batch (remaining rows below the COPY batch size)
         if batch:
             await self._process_batch(
                 batch,
@@ -1200,10 +1528,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             and entry.carbon_report_module_id not in self._year_cache
         }
         if module_ids:
-            from sqlmodel import select
-
-            from app.models.carbon_report import CarbonReport, CarbonReportModule
-
             stmt = (
                 select(CarbonReportModule, CarbonReport)
                 .join(
@@ -1221,157 +1545,26 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Determine source based on entity_type
         source = self._get_source_from_entity_type()
 
-        # 1. Bulk create data entries with source tracking
-        data_entries_response = await data_entry_service.bulk_create(
+        # 1. Bulk insert data entries via COPY (no ids needed here — the
+        # chained emission_recalc re-reads entries from the DB).
+        inserted = await data_entry_service.bulk_copy(
             batch,
-            UserRead.model_validate(user) if user else None,
             job_id=self.job_id,
             source=source.value if source else None,
             created_by_id=self.job_id,
         )
-
-        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` the runner-driven
-        # ``emission_recalc`` chain (fired by ``csv_ingest_handler`` /
-        # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
-        # writes for the bulk path.  Skipping steps 2-3 here doesn't lose
-        # data: the chain reads the freshly-committed data_entries and
-        # writes emissions against the latest factors.  Inline writes
-        # would race the chain's writes for the same primary key.
-        #
-        # When the flag is False (emergency rollback) we keep the legacy
-        # inline write so the chain's emissions become a redundant
-        # overwrite rather than a missing one.
-        #
-        # Seed runs (``is_seed_run=True``) bypass the gate: their
-        # ``_update_job`` is a no-op, so the runner-driven chain never
-        # fires.  Without the inline writes the seeded module ends up
-        # with empty ``data_entry_emissions`` and zero stats.
-        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
-            self, "is_seed_run", False
-        ):
-            return
-
-        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
-        overrides_by_id: dict[int, float] = {
-            resp.id: ov
-            for resp, ov in zip(data_entries_response, batch_kg_co2eq_overrides)
-            if ov is not None and resp.id is not None
-        }
-
-        # 2. Prepare emissions for all created data entries
-        emissions_to_create = []
-        for data_entry_response in data_entries_response:
-            try:
-                emission_objs = await emission_service.prepare_create(
-                    data_entry_response,
-                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
-                )
-                if emission_objs is not None:
-                    emissions_to_create.extend(emission_objs)
-            except Exception as emission_error:
-                logger.warning(
-                    f"Failed to prepare emission for "
-                    f"data_entry_id={data_entry_response.id}: "
-                    f"{str(emission_error)}"
-                )
-
-        # 3. Bulk create emissions
-        if emissions_to_create:
-            await emission_service.bulk_create(emissions_to_create)
-            logger.info(f"Created {len(emissions_to_create)} emissions for batch")
+        logger.debug(f"COPY-inserted {inserted} data entries")
+        await self.data_session.commit()
+        return None
 
     async def _recompute_module_stats(self) -> None:
         """
-        Recompute stats for all affected carbon report modules and parent reports.
-
-        For MODULE_PER_YEAR: recomputes stats for each module in unit_to_module_map,
-        then recomputes stats for each affected carbon report.
-        For MODULE_UNIT_SPECIFIC: recomputes stats for self.carbon_report_module_id,
-        then recomputes stats for the parent carbon report.
-
-        Plan 310-D — when ``BULK_PATH_PURE_ASYNC`` is set, the runner-driven
+        Plan 310-D —  the runner-driven
         ``aggregation`` handler (chained by ``emission_recalc`` after the
         data ingest's recalc finishes) owns ``carbon_reports.stats`` writes
-        for the bulk path.  Skipping inline here avoids racing the chain's
-        eventual write for the same module row; the dashboard's stale-stats
-        UX surfaces the gap until the chain completes.
-
-        Seed runs (``is_seed_run=True``) bypass the gate: their
-        ``_update_job`` is a no-op so the chain never fires.  Without the
-        inline recompute the seeded module's stats stay at zero.
+        for the bulk path.
         """
-        if get_settings().BULK_PATH_PURE_ASYNC and not getattr(
-            self, "is_seed_run", False
-        ):
-            logger.debug(
-                "BULK_PATH_PURE_ASYNC=True — skipping inline _recompute_module_stats; "
-                "aggregation handler will own the stats writes"
-            )
-            return
-
-        from app.services.carbon_report_service import CarbonReportService
-
-        crm_service = CarbonReportModuleService(self.data_session)
-        cr_service = CarbonReportService(self.data_session)
-        module_ids_to_recompute: set[int] = set()
-        carbon_report_ids_to_recompute: set[int] = set()
-
-        # Collect module IDs and carbon report IDs based on entity type
-        if self.entity_type == EntityType.MODULE_PER_YEAR:
-            # Resolve carbon_report_module_ids if not already done
-            if (
-                not hasattr(self, "_unit_to_module_map")
-                or self._unit_to_module_map is None
-            ):
-                logger.warning(
-                    "unit_to_module_map not available for stats recomputation"
-                )
-                return
-            module_ids_to_recompute = set(self._unit_to_module_map.values())
-            # Extract unique carbon_report_ids from modules
-            # Need to fetch modules to get their carbon_report_id
-            for module_id in module_ids_to_recompute:
-                module = await crm_service.repo.get(module_id)
-                if module:
-                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
-        elif self.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
-            if self.carbon_report_module_id:
-                module_ids_to_recompute.add(self.carbon_report_module_id)
-                # Get the carbon_report_id from the module
-                module = await crm_service.repo.get(self.carbon_report_module_id)
-                if module:
-                    carbon_report_ids_to_recompute.add(module.carbon_report_id)
-            else:
-                logger.warning(
-                    "carbon_report_module_id not set for MODULE_UNIT_SPECIFIC"
-                )
-                return
-
-        # Recompute stats for each module
-        for module_id in module_ids_to_recompute:
-            try:
-                await crm_service.recompute_stats(module_id)
-                logger.info(f"Recomputed stats for carbon_report_module_id={module_id}")
-            except Exception as stats_error:
-                logger.error(
-                    "Failed to recompute stats for carbon_report_module_id=%s: %s",
-                    module_id,
-                    stats_error,
-                    exc_info=True,
-                )
-
-        # Recompute stats for each affected carbon report
-        for carbon_report_id in carbon_report_ids_to_recompute:
-            try:
-                await cr_service.recompute_report_stats(carbon_report_id)
-                logger.info(f"Recomputed stats for carbon_report_id={carbon_report_id}")
-            except Exception as stats_error:
-                logger.error(
-                    "Failed to recompute stats for carbon_report_id=%s: %s",
-                    carbon_report_id,
-                    stats_error,
-                    exc_info=True,
-                )
+        return
 
     def _get_source_from_entity_type(self) -> DataEntrySourceEnum | None:
         """

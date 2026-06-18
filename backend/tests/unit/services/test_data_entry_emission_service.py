@@ -665,7 +665,7 @@ class TestDelegationMethods:
 
 # from app.models.data_entry import DataEntryTypeEnum
 # from app.models.factor import Factor
-# from app.modules.equipment_electric_consumption.emissions import (
+# from app.modules.equipment.emissions import (
 #     compute_scientific_it_other,
 # )
 # from app.modules.external_cloud_and_ai.emissions import (
@@ -1655,3 +1655,67 @@ class TestPrepareCreateRollup:
         assert rollup.scope is None
         assert rollup.meta.get("is_rollup") is True
         assert rollup.kg_co2eq == pytest.approx(sum(r.kg_co2eq for r in leaf_rows))
+
+
+# ---------------------------------------------------------------------------
+# _fetch_factors — Strategy B query cache (recalc N+1 fix)
+# ---------------------------------------------------------------------------
+
+
+class TestFetchFactorsStrategyBCache:
+    """Strategy B hits the DB per computation; a slice-scoped query cache
+    collapses the per-entry N+1 that dominated headcount recalc."""
+
+    def _comp(self):
+        from app.models.data_entry_emission import (
+            EmissionComputation,
+            EmissionType,
+            FactorQuery,
+        )
+
+        return EmissionComputation(
+            emission_type=EmissionType.food,
+            factor_query=FactorQuery(
+                data_entry_type=DataEntryTypeEnum.member,
+                kind="food",
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_queries_db_once(self):
+        service = _make_service()
+        comp = self._comp()
+        fake_factor = MagicMock()
+        get_by_classification = AsyncMock(return_value=fake_factor)
+        with patch(
+            "app.services.data_entry_emission_service.FactorService"
+        ) as mock_fs_cls:
+            mock_fs_cls.return_value = MagicMock(
+                get_by_classification=get_by_classification
+            )
+            cache: dict = {}
+            r1 = await service._fetch_factors(comp, 2026, factor_query_cache=cache)
+            r2 = await service._fetch_factors(comp, 2026, factor_query_cache=cache)
+
+        assert r1 == [fake_factor]
+        assert r2 == r1
+        # Two identical Strategy-B lookups → one DB query.
+        get_by_classification.assert_awaited_once()
+        assert len(cache) == 1
+
+    @pytest.mark.asyncio
+    async def test_no_cache_queries_each_call(self):
+        service = _make_service()
+        comp = self._comp()
+        get_by_classification = AsyncMock(return_value=MagicMock())
+        with patch(
+            "app.services.data_entry_emission_service.FactorService"
+        ) as mock_fs_cls:
+            mock_fs_cls.return_value = MagicMock(
+                get_by_classification=get_by_classification
+            )
+            await service._fetch_factors(comp, 2026)
+            await service._fetch_factors(comp, 2026)
+
+        # Without the opt-in cache, behaviour is unchanged: one query per call.
+        assert get_by_classification.await_count == 2

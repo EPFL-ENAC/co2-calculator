@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, inject, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
 import {
   TargetType,
@@ -11,7 +11,7 @@ import type {
   SyncJobResponse,
 } from 'src/stores/backofficeDataManagement';
 import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
-import type { PipelineProgress } from 'src/stores/pipelineStream';
+import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 
 interface Props {
   title: string;
@@ -122,13 +122,47 @@ const TARGET_TO_KINDS: Record<number, ReadonlyArray<string>> = {
   [TargetType.REFERENCE_DATA]: ['reference_ingest'],
 };
 
+// Dets actually present in the live pipeline (provided by ModuleConfig
+// as ``livePipelineJobsById``).  A single-submodule upload recalcs only
+// its own det, so its sibling submodule cards must NOT show the
+// emissions/aggregation phase.  Module-wide uploads fan out a recalc
+// per det, so every det lands here and all cards light up — both
+// correct.  Empty when no pipeline is active or this card renders
+// outside ModuleConfig (fixtures), which disables det-scoping below.
+const livePipelineJobsById = inject<
+  ComputedRef<ReadonlyMap<number, PipelineJob>>
+>(
+  'livePipelineJobsById',
+  computed(() => new Map()),
+);
+
+const pipelineDataEntryTypeIds = computed<Set<number>>(() => {
+  const ids = new Set<number>();
+  for (const job of livePipelineJobsById.value.values()) {
+    if (job.data_entry_type_id != null) ids.add(job.data_entry_type_id);
+  }
+  return ids;
+});
+
 const pipelineAppliesToCard = computed<boolean>(() => {
   const p = props.pipelineProgress;
   if (!p) return false;
   if (props.targetType === undefined) return false;
   const allowedKinds = TARGET_TO_KINDS[props.targetType];
   if (!allowedKinds || !p.kind) return false;
-  return allowedKinds.includes(p.kind);
+  if (!allowedKinds.includes(p.kind)) return false;
+  // Det-scoping: when this card maps to a specific submodule det and
+  // the pipeline declares which dets it touches, only show the phase
+  // if this card's det is among them.  A module-level card (no det)
+  // or an empty det set (module-wide ingest before recalc fan-out, or
+  // older payloads without the field) falls through to "show" —
+  // preserving prior behavior.
+  const det = props.row?.dataEntryTypeId;
+  const detSet = pipelineDataEntryTypeIds.value;
+  if (det != null && detSet.size > 0) {
+    return detSet.has(det);
+  }
+  return true;
 });
 
 const pipelinePhaseLabelKey = computed<string | null>(() => {

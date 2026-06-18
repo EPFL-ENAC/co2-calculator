@@ -6,6 +6,7 @@ import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useTimelineStore } from 'src/stores/modules';
 import { MODULE_STATES } from 'src/constant/moduleStates';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { useAuthStore } from 'src/stores/auth';
 
 const props = defineProps<{
   currentModule: Module;
@@ -14,9 +15,13 @@ const props = defineProps<{
 const $route = useRoute();
 const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
+const authStore = useAuthStore();
 
 const visibleModulesList = computed(() =>
-  MODULES_LIST.filter((m) => yearConfigStore.isModuleVisible(m)),
+  MODULES_LIST.filter(
+    (m) =>
+      yearConfigStore.isModuleVisible(m) && authStore.canUserAccessModule(m),
+  ),
 );
 
 const currentIndex = computed(() => {
@@ -79,8 +84,12 @@ const resultsRoute = computed(() => {
   };
 });
 
-// Validate current module when navigating away
+const canValidateCurrentModule = computed(() =>
+  authStore.hasUserCanValidateModuleStatus(),
+);
+
 function validateCurrentModule() {
+  if (!canValidateCurrentModule.value) return;
   timelineStore.setState(props.currentModule, MODULE_STATES.Validated);
 }
 </script>

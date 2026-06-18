@@ -21,10 +21,10 @@ const form = ref(null);
 const role = ref(ROLES.StandardUser);
 
 const roleOptions = computed(() => [
-  { value: ROLES.StandardUser, label: 'User Standard' },
-  { value: ROLES.PrincipalUser, label: 'Unit Manager' },
-  { value: ROLES.BackOfficeMetier, label: 'Backoffice Administrator' },
-  { value: ROLES.SuperAdmin, label: 'Super Admin' },
+  { value: ROLES.StandardUser, label: t(ROLES.StandardUser) },
+  { value: ROLES.PrincipalUser, label: t(ROLES.PrincipalUser) },
+  { value: ROLES.BackOfficeMetier, label: t(ROLES.BackOfficeMetier) },
+  { value: ROLES.SuperAdmin, label: t(ROLES.SuperAdmin) },
 ]);
 const isTestMode = computed(() => props.mode === 'test');
 

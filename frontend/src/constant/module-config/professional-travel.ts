@@ -147,18 +147,26 @@ const planeFields: ModuleField[] = [
     options: [
       { value: 'first', label: 'First' },
       { value: 'business', label: 'Business' },
-      { value: 'eco', label: 'Eco' },
+      { value: 'economy', label: 'Economy' },
     ],
   },
 ];
 
+const trainLocationTooltip = `${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`;
+
 const trainFields: ModuleField[] = [
   ...buildTravelFields(
-    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+    {
+      id: 'origin_name',
+      labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+      tooltip: trainLocationTooltip,
+    },
     {
       id: 'destination_name',
       labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+      tooltip: trainLocationTooltip,
     },
+    { directionInputTooltip: trainLocationTooltip },
   ),
   {
     id: 'cabin_class',
@@ -184,8 +192,6 @@ export const professionalTravel: ModuleConfig = {
   type: 'professional-travel',
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   hasSubmodules: true,
   formStructure: 'perSubmodule',
   numberFormatOptions: {
@@ -222,7 +228,6 @@ export const professionalTravel: ModuleConfig = {
       hasTablePagination: true,
       hasTableAction: true,
       topVisualization: 'trips-map',
-      hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-plane-button`,
     },
     {
@@ -248,7 +253,6 @@ export const professionalTravel: ModuleConfig = {
       hasTablePagination: true,
       hasTableAction: true,
       topVisualization: 'trips-map',
-      hasFormTooltip: `${MODULES.ProfessionalTravel}-form-tooltip`,
       addButtonLabelKey: `${MODULES.ProfessionalTravel}-add-train-button`,
     },
   ],
@@ -258,11 +262,14 @@ function buildTravelFields(
   origin: {
     id: string;
     labelKey: string;
+    tooltip?: string;
   },
   destination: {
     id: string;
     labelKey: string;
+    tooltip?: string;
   },
+  options?: { directionInputTooltip?: string },
 ): ModuleField[] {
   return [
     {
@@ -277,6 +284,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { table: true },
+      tooltip: options?.directionInputTooltip,
     },
     {
       id: origin.id,
@@ -287,6 +295,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { form: true },
+      tooltip: origin.tooltip,
     },
     {
       id: destination.id,
@@ -297,6 +306,7 @@ function buildTravelFields(
       ratio: '1/1',
       editableInline: false,
       hideIn: { form: true },
+      tooltip: destination.tooltip,
     },
     ...commonTravelFields.slice(3),
   ];

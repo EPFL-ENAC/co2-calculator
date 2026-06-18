@@ -347,6 +347,39 @@ class Settings(BaseSettings):
         default=True,
         description="Whether to run the in-process safety poller",
     )
+    POLLER_INTERVAL_SECONDS: int = Field(
+        default=2,
+        ge=1,
+        description=(
+            "Seconds between safety-poller sweeps.  Each sweep is one "
+            "indexed ``SELECT … FOR UPDATE SKIP LOCKED`` plus the "
+            "stuck-RUNNING recovery query, so a tight cadence is cheap; "
+            "2s keeps orphan-recovery latency near-interactive after a "
+            "pod crash.  Raise on deployments where DB connection budget "
+            "is tighter than recovery latency."
+        ),
+    )
+    POLLER_BATCH_LIMIT: int = Field(
+        default=100,
+        ge=1,
+        description=(
+            "Max NOT_STARTED jobs dispatched per poller sweep.  "
+            "``SKIP LOCKED`` keeps multi-pod sweeps from double-"
+            "dispatching; the limit only bounds how many in-process "
+            "run_job tasks one sweep can fan out at once."
+        ),
+    )
+    INGEST_COPY_BATCH_SIZE: int = Field(
+        default=50_000,
+        ge=1,
+        description=(
+            "Rows per batch when bulk CSV ingest writes ``data_entries`` "
+            "via PostgreSQL ``COPY … FROM STDIN``.  Bounds both the "
+            "in-memory row buffer and the size of each COPY statement; "
+            "50k keeps a 512Mi pod comfortable while amortising per-row "
+            "INSERT overhead away."
+        ),
+    )
 
     # #1236 Phase 3 — pipeline status reconciliation cron.
     RUN_PIPELINE_RECONCILER: bool = Field(
@@ -406,27 +439,6 @@ class Settings(BaseSettings):
             "the workers view so an operator can see at a glance when "
             "two pods are on different revisions — the local+stage "
             "scenario that motivated this telemetry."
-        ),
-    )
-
-    # Plan 310-D — bulk-path pure async cutover
-    BULK_PATH_PURE_ASYNC: bool = Field(
-        default=True,
-        description=(
-            "Plan 310-D: when True (default), bulk-path data-entry "
-            "providers (CSV, API) commit ``data_entries`` only and do "
-            "NOT write ``data_entry_emissions`` or call "
-            "``recompute_stats`` inline; the runner-driven "
-            "``emission_recalc`` → ``aggregation`` chain owns those "
-            "writes.  When False, the providers fall back to the "
-            "legacy inline-write behavior (kept for emergency "
-            "rollback if a chain step regresses in production — note "
-            "that flipping this env var requires an app restart "
-            "because the runtime gate reads it through "
-            "``get_settings()``'s ``lru_cache``).  Path 1 (interactive "
-            "UI edits via ``CarbonReportModuleWorkflow``) is unaffected "
-            "by this flag — its synchronous emission + stats writes "
-            "remain the deliberate UX choice for single-row edits."
         ),
     )
 

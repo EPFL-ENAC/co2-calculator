@@ -4,17 +4,26 @@ Re-runs emission calculations for all DataEntries of a given
 (data_entry_type_id, year) combination using the latest factors.
 """
 
+import asyncio
+import time
+from typing import Awaitable, Callable, Optional
+
 from sqlalchemy.exc import DBAPIError, InvalidRequestError
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
+from app.models.factor import Factor
 from app.repositories.data_entry_repo import DataEntryRepository
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
+
+# Emit a progress log line (and invoke the caller's progress callback)
+# every N computed entries.
+PROGRESS_INTERVAL = 5000
 
 
 class EmissionRecalculationWorkflow:
@@ -31,6 +40,8 @@ class EmissionRecalculationWorkflow:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
+        progress_callback: Optional[Callable[[int, int], Awaitable[None]]] = None,
+        carbon_report_module_ids: Optional[list[int]] = None,
     ) -> dict:
         """Recalculate emissions for every DataEntry of the given type and year.
 
@@ -49,10 +60,17 @@ class EmissionRecalculationWorkflow:
             Dict with keys: recalculated, modules_refreshed, errors, error_details.
         """
         repo = DataEntryRepository(self.session)
-        entries = await repo.list_by_data_entry_type_and_year(data_entry_type_id, year)
+        entries = await repo.list_by_data_entry_type_and_year(
+            data_entry_type_id, year, carbon_report_module_ids
+        )
+        scope_label = (
+            f" (scoped to {len(carbon_report_module_ids)} module(s))"
+            if carbon_report_module_ids
+            else ""
+        )
         logger.info(
             f"Recalc {data_entry_type_id.name}/{year}: "
-            f"{len(entries)} data entries to process"
+            f"{len(entries)} data entries to process{scope_label}"
         )
 
         # Early-exit: nothing to recalculate.  Keeps the recalc task off the
@@ -85,21 +103,25 @@ class EmissionRecalculationWorkflow:
         # which itself does a kind-only fallback when the exact
         # (kind, subkind) row is absent.
         factor_lookup: dict[tuple[str, str | None], int] = {}
-        # Skip the bulk SELECT entirely when the handler has no
-        # ``kind_field`` OR when no entry actually carries that key in
-        # ``entry.data``.  Strategy B handlers (e.g.
-        # professional_travel/plane) declare ``kind_field`` but derive
-        # the value in ``pre_compute`` — every entry would fail the
-        # per-entry refresh gate below, so prefetching factors here
-        # would be a wasted SELECT per recalc slice.
+        # One bulk SELECT for the slice's factors.  Feeds two caches:
+        # ``factor_cache`` (id → Factor) short-circuits Strategy A
+        # lookups inside ``prepare_create`` for every entry, and
+        # ``factor_lookup`` ((kind, subkind) → id) backs the rematch
+        # below (only built when the handler actually rematches).
+        factors = await factor_repo.list_by_data_entry_type(data_entry_type_id, year)
+        factor_cache: dict[int, Factor] = {f.id: f for f in factors if f.id is not None}
+        # Strategy-B (classification-query) factor lookups hit the DB once per
+        # emission per entry — an N+1 that dominated headcount recalc (member:
+        # ~25 queries/entry × thousands of entries). The factor table is held
+        # stable for the slice by the recalc advisory lock, and the same
+        # (kind, subkind, context, year) criteria recur across entries, so a
+        # slice-scoped memo collapses it to one query per distinct criteria.
+        factor_query_cache: dict = {}
         if handler.kind_field is not None and any(
             handler.kind_field in e.data for e in entries
         ):
             kind_field = handler.kind_field
             subkind_field = handler.subkind_field
-            factors = await factor_repo.list_by_data_entry_type(
-                data_entry_type_id, year
-            )
             for factor in factors:
                 if factor.id is None:
                     continue
@@ -116,10 +138,30 @@ class EmissionRecalculationWorkflow:
                 # callers don't depend on ordering when the index is consistent.
                 factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
+        # Plan 310D — per-slice prefetch: handlers that otherwise re-query
+        # slice-constant data per entry (plane reloads airports + the full
+        # plane-factor set on every entry) bulk-load it once here; pre_compute
+        # then reads it from slice_cache in-memory. Empty for handlers that
+        # don't override the hook, so their per-entry path is unchanged.
+        slice_cache = await handler.prefetch_slice(entries, self.session, year=year)
+
         recalculated = 0
         errors = 0
         error_details: list[dict] = []
         affected_module_ids: set[int] = set()
+        # Batched write buffers: per-entry work below is compute-only
+        # (reads); all emission writes happen in ONE set-based replace
+        # after the loop.  Entries that computed to zero emissions stay
+        # in ``processed_entry_ids`` so their stale rows get deleted.
+        processed_entry_ids: list[int] = []
+        prepared_emissions: list = []
+        total_written = 0
+        total_replaced = 0
+        slice_started = time.perf_counter()
+        # Per-segment wall time for a recalc profile line (diagnostic, the
+        # analog of ingestion's row-loop profile): localises where per-entry
+        # time goes so a slow slice is measured, not guessed.
+        seg = {"rematch": 0.0, "validate": 0.0, "prepare": 0.0}
 
         for entry in entries:
             # Plan 310B Part 6 — refresh primary_factor_id against current
@@ -159,43 +201,53 @@ class EmissionRecalculationWorkflow:
             entry_kind_field: str | None = handler.kind_field
             old_data = entry.data
             try:
-                # Per-entry SAVEPOINT: a failed upsert must roll back
-                # ONLY this entry's writes — not poison the shared
-                # session for every remaining entry.  Without this, one
-                # bad row left ``self.session`` in an aborted state and
-                # every subsequent iteration re-raised the same
-                # "transaction is aborted / can't reconnect" error,
-                # spamming the log and failing the whole job (the
-                # comment below used to claim a rollback that never
-                # actually happened).
-                async with self.session.begin_nested():
-                    if entry_kind_field is not None and entry_kind_field in entry.data:
-                        new_factor_id = self._lookup_factor_id(
-                            entry_data=entry.data,
-                            kind_field=entry_kind_field,
-                            subkind_field=handler.subkind_field,
-                            factor_lookup=factor_lookup,
-                        )
-                        if new_factor_id != entry.data.get("primary_factor_id"):
-                            # Tentative swap so DataEntryResponse + upsert
-                            # see the refreshed factor (or ``None`` on a
-                            # drop).  The SAVEPOINT rolls this back on the
-                            # DB side if the upsert fails; the ``except``
-                            # also reverts ``entry.data`` in memory.
-                            entry.data = {
-                                **entry.data,
-                                "primary_factor_id": new_factor_id,
-                            }
+                # Compute-only: ``prepare_create`` does reads (handler
+                # pre_compute, Strategy-B factor queries) but never
+                # writes, so a per-entry failure needs no SAVEPOINT —
+                # there is nothing to roll back; the ``except`` just
+                # reverts the in-memory factor swap and moves on.
+                _t = time.perf_counter()
+                if entry_kind_field is not None and entry_kind_field in entry.data:
+                    new_factor_id = self._lookup_factor_id(
+                        entry_data=entry.data,
+                        kind_field=entry_kind_field,
+                        subkind_field=handler.subkind_field,
+                        factor_lookup=factor_lookup,
+                    )
+                    if new_factor_id != entry.data.get("primary_factor_id"):
+                        # Tentative swap so DataEntryResponse +
+                        # prepare_create see the refreshed factor (or
+                        # ``None`` on a drop); the outer commit persists
+                        # the relink alongside the new emissions.
+                        entry.data = {
+                            **entry.data,
+                            "primary_factor_id": new_factor_id,
+                        }
+                seg["rematch"] += time.perf_counter() - _t
 
-                    entry_response = DataEntryResponse.model_validate(entry)
-                    await emission_svc.upsert_by_data_entry(entry_response)
+                _t = time.perf_counter()
+                entry_response = DataEntryResponse.model_validate(entry)
+                seg["validate"] += time.perf_counter() - _t
+
+                _t = time.perf_counter()
+                emissions = await emission_svc.prepare_create(
+                    entry_response,
+                    year=year,
+                    factor_cache=factor_cache,
+                    factor_query_cache=factor_query_cache,
+                    slice_cache=slice_cache,
+                )
+                seg["prepare"] += time.perf_counter() - _t
+                if entry.id is not None:
+                    processed_entry_ids.append(entry.id)
+                prepared_emissions.extend(emissions)
                 recalculated += 1
                 if entry.carbon_report_module_id is not None:
                     affected_module_ids.add(entry.carbon_report_module_id)
             except Exception as exc:
-                # Revert the in-memory factor swap (the SAVEPOINT already
-                # rolled back the DB side) so the outer commit doesn't
-                # persist a stale link next to an old emissions row.
+                # Revert the in-memory factor swap (no DB writes happened
+                # during compute) so the outer commit doesn't persist a
+                # stale link next to an old emissions row.
                 entry.data = old_data
                 # Session/connection-fatal errors can't be contained by
                 # a SAVEPOINT — the session is unusable for every
@@ -234,6 +286,61 @@ class EmissionRecalculationWorkflow:
                 logger.error(
                     f"Error recalculating emissions for data_entry_id={entry.id}: {exc}"
                 )
+
+            processed = recalculated + errors
+            # With cached factors/year, per-entry compute can be pure
+            # CPU — yield regularly so the event loop (API, SSE,
+            # heartbeats) never starves during a 50k-entry slice.
+            if processed % 1000 == 0:
+                await asyncio.sleep(0)
+            if processed % PROGRESS_INTERVAL == 0:
+                # Flush this chunk's writes (one DELETE + one COPY) so
+                # neither the emission buffer nor a single statement
+                # ever spans more than ~PROGRESS_INTERVAL entries.
+                # Statements only — COMMIT stays with the runner, so a
+                # preempted or failed job persists nothing.
+                total_written += await emission_svc.bulk_replace_for_entries(
+                    processed_entry_ids, prepared_emissions
+                )
+                total_replaced += len(processed_entry_ids)
+                processed_entry_ids = []
+                prepared_emissions = []
+                logger.info(
+                    f"Recalc {data_entry_type_id.name}/{year}: "
+                    f"{processed}/{len(entries)} entries computed "
+                    f"({total_written} emissions written, {errors} errors)"
+                )
+                if progress_callback is not None:
+                    await progress_callback(processed, len(entries))
+
+        # Final chunk (remaining entries below the interval).
+        total_written += await emission_svc.bulk_replace_for_entries(
+            processed_entry_ids, prepared_emissions
+        )
+        total_replaced += len(processed_entry_ids)
+        slice_elapsed = time.perf_counter() - slice_started
+        logger.info(
+            f"Recalc {data_entry_type_id.name}/{year}: replaced emissions for "
+            f"{total_replaced} entries ({total_written} emission rows, "
+            f"{slice_elapsed:.1f}s compute+write)"
+        )
+        # Recalc profile: where the per-entry time went (rematch = in-memory
+        # factor relink, validate = Pydantic, prepare = prepare_create incl. any
+        # handler DB reads). remainder = bulk writes + loop overhead.
+        accounted = seg["rematch"] + seg["validate"] + seg["prepare"]
+        logger.info(
+            "Recalc profile %s/%s: %d entries in %.1fs (%.2f ms/entry) | "
+            "rematch=%.1f validate=%.1f prepare=%.1f remainder=%.1f",
+            data_entry_type_id.name,
+            year,
+            len(entries),
+            slice_elapsed,
+            slice_elapsed / len(entries) * 1000,
+            seg["rematch"],
+            seg["validate"],
+            seg["prepare"],
+            slice_elapsed - accounted,
+        )
 
         # Plan 310-D — stats recompute moves out of this workflow and
         # into the runner-driven ``aggregation`` handler that the

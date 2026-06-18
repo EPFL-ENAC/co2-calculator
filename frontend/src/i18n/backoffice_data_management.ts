@@ -506,11 +506,11 @@ export default {
     fr: 'Émissions de procédés',
   },
   data_management_submodule_scientific_equipment: {
-    en: 'Scientific Equipment',
+    en: 'Scientific equipment',
     fr: 'Équipements scientifiques',
   },
   data_management_submodule_it_equipment: {
-    en: 'IT Equipment',
+    en: 'IT equipment',
     fr: 'Équipements IT',
   },
   data_management_submodule_consumables_accessories: {
@@ -582,28 +582,28 @@ export default {
     fr: 'Échec du téléversement du fichier',
   },
   data_management_compute_factors: {
-    en: 'Compute Factors',
-    fr: 'Calculer les facteurs',
+    en: 'Compute Missing Factors',
+    fr: 'Calculer les facteurs manquants',
   },
   data_management_compute_factors_confirm_title: {
-    en: 'Recompute Factors',
-    fr: 'Recalculer les facteurs',
+    en: 'Compute Missing Factors',
+    fr: 'Calculer les facteurs manquants',
   },
   data_management_compute_factors_confirm_message: {
-    en: 'This will recompute the emission factors from the existing data entries for this submodule. Any previously computed factors will be overwritten. Do you want to proceed?',
-    fr: "Ceci recalculera les facteurs d'émission à partir des données existantes pour ce sous-module. Les facteurs précédemment calculés seront écrasés. Souhaitez-vous continuer ?",
+    en: 'This will compute the emission factors from the existing data entries for this submodule. Only factors with missing values will be updated. Do you want to proceed?',
+    fr: "Ceci calculera les facteurs d'émission à partir des données existantes pour ce sous-module. Uniquement les facteurs avec des valeurs manquantes seront mis à jour. Souhaitez-vous continuer ?",
   },
   data_management_compute_factors_success: {
-    en: 'Factors computed successfully',
-    fr: 'Facteurs calculés avec succès',
+    en: 'Missing factors computed successfully',
+    fr: 'Facteurs manquants calculés avec succès',
   },
   data_management_compute_factors_warning: {
-    en: 'Factors computed with warnings',
-    fr: 'Facteurs calculés avec avertissements',
+    en: 'Missing factors computed with warnings',
+    fr: 'Facteurs manquants calculés avec avertissements',
   },
   data_management_compute_factors_error: {
-    en: 'Factor computation failed',
-    fr: 'Le calcul des facteurs a échoué',
+    en: 'Missing factors computation failed',
+    fr: 'Le calcul des facteurs manquants a échoué',
   },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
@@ -725,25 +725,9 @@ export default {
     en: 'Loading year configuration…',
     fr: "Chargement de la configuration de l'année…",
   },
-  data_management_open_year_disabled_tooltip: {
-    en: 'All mandatory factor and reference uploads must be completed before opening the year for users.',
-    fr: "Tous les téléversements obligatoires de facteurs et de références doivent être complétés avant d'ouvrir l'année pour les utilisateurs.",
-  },
-  data_management_job_in_progress: {
-    en: 'Job in progress…',
-    fr: 'Traitement en cours…',
-  },
   data_management_cancel_job: {
     en: 'Cancel',
     fr: 'Annuler',
-  },
-  data_management_year_already_open: {
-    en: 'Year is already open to users',
-    fr: "L'année est déjà ouverte aux utilisateurs",
-  },
-  data_management_year_opened_success: {
-    en: 'Year {year} opened to users',
-    fr: 'Année {year} ouverte aux utilisateurs avec succès',
   },
   data_management_year_is_open: {
     en: 'Open to users',
@@ -752,5 +736,13 @@ export default {
   data_management_year_is_not_open: {
     en: 'Not yet open',
     fr: 'Pas encore ouverte',
+  },
+  data_management_job_in_progress: {
+    en: 'Job in progress…',
+    fr: 'Traitement en cours…',
+  },
+  data_management_year_opened_success: {
+    en: 'Year {year} opened to users',
+    fr: 'Année {year} ouverte aux utilisateurs avec succès',
   },
 } as const;

@@ -414,7 +414,7 @@ def _get_module_permission_path(module_name: str | None) -> Optional[str]:
 
     Args:
         module_name: Module name (e.g., "professional-travel")
-            (e.g., "professional-travel", "equipment-electric-consumption")
+            (e.g., "professional-travel", "equipment")
 
     Returns:
         Permission path (e.g., "modules.professional_travel") or None
@@ -424,7 +424,7 @@ def _get_module_permission_path(module_name: str | None) -> Optional[str]:
         return None  # No module specified, no permission required
     # Name mapping for modules with legacy permission paths
     module_permission_map = {
-        "equipment_electric_consumption": "modules.equipment",
+        "equipment": "modules.equipment",
         "my_lab": "modules.headcount",  # Headcount module
     }
     normalized_name = module_name.replace("-", "_").lower().strip()

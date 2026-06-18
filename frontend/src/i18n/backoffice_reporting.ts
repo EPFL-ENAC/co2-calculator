@@ -111,10 +111,6 @@ export default {
     en: 'Years completed',
     fr: 'Années complétées',
   },
-  backoffice_reporting_column_principal_user: {
-    en: 'Unit manager',
-    fr: "Responsable de l'unité",
-  },
   backoffice_reporting_column_last_update: {
     en: 'Last update',
     fr: 'Dernière mise à jour',
@@ -268,10 +264,6 @@ export default {
   backoffice_reporting_completion_bar_title: {
     en: 'Calculator Completion Rate',
     fr: 'Taux de complétion du calculateur',
-  },
-  backoffice_reporting_completion_bar_helper: {
-    en: 'Each unit has equal weight, independent of FTE size',
-    fr: 'Chaque unité a le même poids, indépendamment de la taille en EPT',
   },
   backoffice_reporting_completion_bar_scope: {
     en: 'in current selection',

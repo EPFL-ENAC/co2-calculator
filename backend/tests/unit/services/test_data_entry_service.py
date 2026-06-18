@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User, UserProvider
 from app.schemas.data_entry import DataEntryCreate, DataEntryUpdate
@@ -586,3 +587,64 @@ async def test_get_total_per_field(db_session: AsyncSession):
     )
 
     assert result == pytest.approx(5.0, rel=0.01)
+
+
+@pytest.mark.asyncio
+async def test_trips_map_carries_traveler_sciper_without_resolving_name(
+    db_session: AsyncSession,
+):
+    """The service ships each leg's traveler SCIPER as both ``traveler_id`` and
+    (un-resolved) ``traveler_name``. Display-name resolution is the frontend's
+    job — it joins the SCIPER against the headcount-members endpoint — so the
+    service no longer touches the roster.
+    """
+    service = DataEntryService(db_session)
+
+    # Resolve the plane endpoint so the leg isn't dropped for missing coords.
+    gva_key = Location.compute_natural_key(
+        transport_mode=TransportModeEnum.plane,
+        name="Geneva Airport",
+        latitude=46.2381,
+        longitude=6.1090,
+        iata_code="GVA",
+    )
+    db_session.add(
+        Location(
+            transport_mode=TransportModeEnum.plane,
+            name="Geneva Airport",
+            latitude=46.2381,
+            longitude=6.1090,
+            iata_code="GVA",
+            natural_key=gva_key,
+        )
+    )
+
+    travel_module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(travel_module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            carbon_report_module_id=travel_module.id,
+            data_entry_type_id=DataEntryTypeEnum.plane,
+            status=DataEntryStatusEnum.PENDING,
+            data={
+                "origin_iata": "GVA",
+                "destination_iata": "GVA",
+                "user_institutional_id": "alice",
+                "number_of_trips": 1,
+            },
+        )
+    )
+    await db_session.flush()
+
+    resolved = await service.get_professional_travel_trips_map(
+        carbon_report_module_id=travel_module.id,
+    )
+    assert len(resolved.legs) == 1
+    assert resolved.legs[0].traveler_id == "alice"
+    assert resolved.legs[0].traveler_name == "alice"

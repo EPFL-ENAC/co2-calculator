@@ -104,7 +104,7 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
     DataEntryTypeEnum.building: None,  # → _resolve_building_rooms()
     DataEntryTypeEnum.energy_combustion: None,  # → _resolve_combustion()
     DataEntryTypeEnum.building_embodied_energy: [
-        EmissionType.buildings__embodied_energy
+        EmissionType.buildings__construction_and_renovation
     ],  # embodied energy for buildings, scope 3
     # --- Process Emissions — resolved at runtime (emitted_gas key) ------------
     DataEntryTypeEnum.process_emissions: None,  # → _resolve_process_emissions()
@@ -167,7 +167,7 @@ _AI_USE_MAP: dict[str, EmissionType] = {
 _PLANE_CABIN_MAP: dict[str, EmissionType] = {
     "first": EmissionType.professional_travel__plane__first,
     "business": EmissionType.professional_travel__plane__business,
-    "eco": EmissionType.professional_travel__plane__eco,
+    "economy": EmissionType.professional_travel__plane__eco,
 }
 
 _TRAIN_CLASS_MAP: dict[str, EmissionType] = {

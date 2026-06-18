@@ -1,7 +1,4 @@
-import {
-  MODULES,
-  SUBMODULE_PROFESSIONAL_TRAVEL_TYPES,
-} from 'src/constant/modules';
+import { MODULES } from 'src/constant/modules';
 
 export default {
   // Table (Chapter 5)
@@ -42,8 +39,8 @@ export default {
     fr: 'Distance (km)',
   },
   [`${MODULES.ProfessionalTravel}-field-traveler`]: {
-    en: 'Traveler',
-    fr: 'Voyageur',
+    en: 'Name',
+    fr: 'Nom',
   },
   [`${MODULES.ProfessionalTravel}-field-emissions`]: {
     en: 'kg CO₂-eq',
@@ -62,9 +59,13 @@ export default {
     en: 'Add a train trip',
     fr: 'Ajouter un trajet en train',
   },
+  [`${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`]: {
+    en: 'Enter the city or station name in the local language.',
+    fr: 'Saisir la ville ou la gare dans la langue locale.',
+  },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
-    en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose.',
-    fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet.',
+    en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose. The station name must be entered in the station’s local language. ',
+    fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet. Le nom de la station doit être saisi dans la langue locale de celle-ci.',
   },
   [`${MODULES.ProfessionalTravel}-other-form-title`]: {
     en: 'Add a trip',
@@ -128,10 +129,6 @@ export default {
     en: 'Total Travel Carbon Footprint',
     fr: 'Empreinte CO₂ totale déplacements',
   },
-  [`${MODULES.ProfessionalTravel}-title-tooltip-title`]: {
-    en: 'Professional Travel Title Tooltip',
-    fr: 'Professional Travel Title Tooltip',
-  },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {
       en: 'Total carbon footprint from all professional travel including flights, trains, and commuting',
@@ -144,11 +141,11 @@ export default {
     },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte`]: {
     en: 'Travel per FTE',
-    fr: 'Déplacements par ETP',
+    fr: 'Déplacements par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-unit`]: {
     en: 'per FTE',
-    fr: 'par ETP',
+    fr: 'par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-tooltip`]: {
     en: 'Average travel carbon footprint per Full-Time Equivalent employee',
@@ -185,15 +182,15 @@ export default {
   },
   business: {
     en: 'Business',
-    fr: 'Affaires',
+    fr: 'Business',
   },
   eco: {
     en: 'Eco',
-    fr: 'Éco',
+    fr: 'Eco',
   },
   eco_plus: {
     en: 'Eco+',
-    fr: 'Éco+',
+    fr: 'Eco+',
   },
   // Category keys
   train: {
@@ -215,21 +212,6 @@ export default {
   [`${MODULES.ProfessionalTravel}-field-traveler-not-validated`]: {
     en: 'You have not been validated in the headcount. Please contact your unit manager.',
     fr: "Vous n'avez pas été validé dans les effectifs. Veuillez contacter votre responsable d'unité.",
-  },
-  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Plane}-table-title-info-tooltip`]:
-    {
-      en: 'Professional Travel Plane Tooltip',
-      fr: 'Professional Travel Plane Tooltip',
-    },
-  [`${MODULES.ProfessionalTravel}-${SUBMODULE_PROFESSIONAL_TRAVEL_TYPES.Train}-table-title-info-tooltip`]:
-    {
-      en: 'Professional Travel Train Tooltip',
-      fr: 'Professional Travel Train Tooltip',
-    },
-
-  [`${MODULES.ProfessionalTravel}-title-tooltip-subtext`]: {
-    en: 'Professional Travel Title Tooltip',
-    fr: 'Professional Travel Title Tooltip',
   },
 
   // Trip-map widget (issue #282). One Pinia slot feeds three maps —
@@ -263,6 +245,18 @@ export default {
     en: '{count} trip | {count} trips',
     fr: '{count} voyage | {count} voyages',
   },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-mode`]: {
+    en: 'Mode',
+    fr: 'Mode',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-avg`]: {
+    en: 'Avg / trip',
+    fr: 'Moy. / trajet',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-popup-travelers`]: {
+    en: 'Traveler | Travelers',
+    fr: 'Voyageur | Voyageurs',
+  },
   [`${MODULES.ProfessionalTravel}-trips-map-legend-emissions`]: {
     en: 'Emissions',
     fr: 'Émissions',
@@ -270,5 +264,29 @@ export default {
   [`${MODULES.ProfessionalTravel}-trips-map-legend-trips`]: {
     en: 'Trips',
     fr: 'Voyages',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-title`]: {
+    en: 'Unit members',
+    fr: "Membres de l'unité",
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-label`]: {
+    en: '({shown}/{total} shown)',
+    fr: '({shown}/{total} affichés)',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-members-aria`]: {
+    en: 'Filter trips by unit member',
+    fr: "Filtrer les voyages par membre de l'unité",
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-all`]: {
+    en: 'All',
+    fr: 'Tout',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-mode-aria`]: {
+    en: 'Filter trips by mode',
+    fr: 'Filtrer les voyages par mode',
+  },
+  [`${MODULES.ProfessionalTravel}-trips-map-filter-none`]: {
+    en: 'None',
+    fr: 'Aucun',
   },
 } as const;

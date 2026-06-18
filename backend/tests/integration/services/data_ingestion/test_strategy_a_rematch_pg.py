@@ -5,7 +5,7 @@ The JSON-link path is the original Plan 310-D rematch surface (PR #1027):
 ``entry.data['primary_factor_id']`` for handlers whose ``kind_field`` (and
 optional ``subkind_field``) live on ``entry.data``.  Modules covered:
 
-- equipment_electric_consumption (it / scientific / other)
+- equipment (it / scientific / other)
 - purchase (purchase_common / purchase_additional)
 - external_cloud_and_ai (external_cloud / external_ai)
 - process_emissions (process_emission)
@@ -277,7 +277,7 @@ async def _seed_external_ai(s: AsyncSession, module_id: int) -> tuple[int, int]:
             "provider": "openai",
             "usage_type": "chat",
             "fte_count": 1.0,
-            "requests_per_user_per_day": "5-20 times per day",
+            "requests_per_user_per_day": "5_20",
         },
     )
     s.add(entry)
@@ -364,7 +364,7 @@ async def test_equipment_factor_values_change_propagates(
     try:
         async with Sf() as s:
             module_id = await _seed_unit_and_module(
-                s, module_type=ModuleTypeEnum.equipment_electric_consumption
+                s, module_type=ModuleTypeEnum.equipment
             )
             factor_id, entry_id = await _seed_equipment(
                 s, module_id, det, emission_type

@@ -1,6 +1,6 @@
 # Infrastructure Overview
 
-The infrastructure runs on EPFL's Kubernetes platform (ENAC-K8S) with PostgreSQL for persistence and monitoring via Prometheus/Grafana. This overview covers deployment, hosting, and operational procedures.
+The infrastructure runs on **EPFL OpenShift** with a managed PostgreSQL (DBaaS) for persistence and OpenTelemetry-based monitoring (Jaeger for traces, Prometheus/Grafana for metrics). This overview covers deployment, hosting, and operational procedures.
 
 For system architecture and deployment decisions, see:
 
@@ -16,13 +16,15 @@ For system architecture and deployment decisions, see:
 
 ### Platform
 
-- **Kubernetes**: EPFL internal cluster (ENAC-K8S)
-- **Container Runtime**: Docker
-- **Orchestration**: Kubernetes with Helm charts
-- **Load Balancing**: EPFL load balancer (internal only, not publicly accessible)
-- **Storage**: RCP NAS for persistent volumes
-- **Monitoring**: Prometheus, Grafana, OpenTelemetry
-- **Secrets Management**: Infisical
+- **Platform**: EPFL OpenShift (project `svc1751…-co2-calculator-<env>`)
+- **Container Runtime**: CRI-O (OpenShift)
+- **Orchestration**: Helm chart + GitOps
+- **Ingress**: OpenShift Routes (TLS edge); internal only, EPFL VPN required
+- **Database**: managed PostgreSQL (EPFL DBaaS) — not in-cluster
+- **Storage**: EPFL S3 for file blobs; `db-dumps` PVC for backups
+- **Monitoring**: OpenTelemetry → Jaeger + Prometheus/Grafana, Alertmanager (email)
+- **Secrets Management**: Infisical Operator (dev); manual secrets (stage/prod); Azure Key Vault planned (prod)
+- **Image Registry**: Quay (quay-its.epfl.ch)
 - **Deployment**: ArgoCD (GitOps) + GitHub Actions
 
 ### Network Architecture
@@ -32,11 +34,11 @@ Internet
   ↓
 EPFL VPN (required for external access)
   ↓
-EPFL Load Balancer (internal only)
+OpenShift Route (TLS edge)
   ↓
-Kubernetes Ingress Controller
+Services (frontend, backend, docs)
   ↓
-Services (frontend, backend, database)
+Managed PostgreSQL (EPFL DBaaS)
 ```
 
 **Access**: Application is **NOT publicly accessible** outside EPFL network. Users must connect via EPFL VPN or be on EPFL campus network.
@@ -57,11 +59,19 @@ helm/
 └── templates/
     ├── frontend-deployment.yaml
     ├── backend-deployment.yaml
-    ├── postgres-statefulset.yaml
-    ├── ingress.yaml
-    ├── services.yaml
-    ├── configmaps.yaml
-    └── secrets.yaml (managed by Infisical)
+    ├── docs-deployment.yaml
+    ├── {frontend,backend,docs}-service.yaml
+    ├── routes.yaml          # OpenShift Routes (TLS edge)
+    ├── ingress.yaml         # plain-K8s fallback
+    ├── {frontend,backend}-hpa.yaml
+    ├── {frontend,backend}-pdb.yaml
+    ├── migration-job.yaml   # alembic upgrade head (hook)
+    ├── backend-secret.yaml  # only when not using an existing secret
+    └── serviceaccount.yaml
+
+# PostgreSQL is external (DBaaS). The OTEL Collector, Jaeger, monitoring
+# CRs (ServiceMonitor/PrometheusRule/GrafanaDashboard/AlertmanagerConfig)
+# and the db-dump CronJob are deployed from the GitOps repo, not this chart.
 ```
 
 ### Deploying to Environments
@@ -128,82 +138,48 @@ Before deploying to production:
 ```yaml
 # Frontend (Nginx + Vue SPA)
 frontend:
-  replicas: 2
-  resources:
-    requests: { cpu: 100m, memory: 128Mi }
-    limits: { cpu: 500m, memory: 256Mi }
+  replicas: 2          # HPA 2–10
 
-# Backend (FastAPI + Uvicorn)
+# Backend (FastAPI + Uvicorn, in-process jobs)
 backend:
-  replicas: 3
-  resources:
-    requests: { cpu: 200m, memory: 512Mi }
-    limits: { cpu: 1000m, memory: 1Gi }
+  replicas: 2          # HPA 2–10
+
+# Docs (MkDocs static, Nginx)
+docs:
+  replicas: 1
 ```
 
 Background jobs run in-process inside the backend pods (no worker fleet, no Redis broker). See [ADR-010](../architecture-decision-records/010-background-job-processing.md).
 
-### StatefulSet
+### Database (external)
 
-```yaml
-# PostgreSQL
-postgres:
-  replicas: 1
-  storage: 50Gi # RCP NAS persistent volume
-  resources:
-    requests: { cpu: 500m, memory: 1Gi }
-    limits: { cpu: 2000m, memory: 4Gi }
-```
+PostgreSQL is a **managed database (EPFL DBaaS)** — not deployed
+in-cluster, so there is no StatefulSet or database PVC. The application
+reaches it over `DB_URL`. The only PVC in the namespace is `db-dumps`,
+written by the `db-dump` backup CronJob.
 
 ### Services
 
 ```yaml
-# Service definitions
-frontend-service:
-  type: ClusterIP
-  port: 80
-
-backend-service:
-  type: ClusterIP
-  port: 8000
-
-postgres-service:
-  type: ClusterIP
-  port: 5432
+# Service definitions (all ClusterIP)
+frontend-service:  { port: 80,   targetPort: 8080 }
+backend-service:   { port: 8000, targetPort: 8000 }
+docs-service:      { port: 80,   targetPort: 8080 }
 ```
 
-### Ingress
+### Routing (OpenShift Routes)
 
-```yaml
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: co2-calculator-ingress
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-spec:
-  tls:
-    - hosts:
-        - co2calculator.epfl.ch
-      secretName: co2calculator-tls
-  rules:
-    - host: co2calculator.epfl.ch
-      http:
-        paths:
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend-service
-                port: 8000
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend-service
-                port: 80
-```
+On OpenShift, traffic is routed by **Routes** with TLS edge termination
+(the Helm chart also ships a plain-K8s nginx Ingress as a fallback):
+
+| Path    | Service          | Port |
+| ------- | ---------------- | ---- |
+| `/`     | frontend-service | 80   |
+| `/api`  | backend-service  | 8000 |
+| `/docs` | docs-service     | 80   |
+
+Hosts: `co2-calculator-dev.epfl.ch`, `co2-calculator-stage.epfl.ch`,
+`co2-calculator.epfl.ch`.
 
 ---
 
@@ -218,16 +194,17 @@ kind: ConfigMap
 metadata:
   name: backend-config
 data:
-  DATABASE_HOST: postgres-service
-  DATABASE_PORT: "5432"
-  DATABASE_NAME: co2calculator
+  ENVIRONMENT: production
   LOG_LEVEL: INFO
-  CORS_ORIGINS: https://co2calculator.epfl.ch
+  FRONTEND_URL: https://co2-calculator.epfl.ch
+# DB_URL and all credentials live in Secrets, not here.
 ```
 
-### Secrets (Infisical)
+### Secrets
 
-Secrets are managed via Infisical and injected into pods:
+On **dev**, the Infisical Operator generates the Kubernetes Secrets. On
+**stage/prod**, secrets are currently created manually (OpenShift not yet
+wired to Infisical). Either way they are injected into pods as env vars:
 
 ```yaml
 apiVersion: v1
@@ -236,9 +213,9 @@ metadata:
   name: backend-secrets
 type: Opaque
 data:
-  DATABASE_PASSWORD: <base64-encoded>
+  DB_URL: <base64-encoded>
   SECRET_KEY: <base64-encoded>
-  OIDC_CLIENT_SECRET: <base64-encoded>
+  OAUTH_CLIENT_SECRET: <base64-encoded>
 ```
 
 **Management**:
@@ -251,8 +228,8 @@ kubectl get secrets -n co2-calculator-prod
 kubectl describe secret backend-secrets -n co2-calculator-prod
 
 # Rotate secret
-# Update in Infisical → ArgoCD auto-syncs → Restart deployment
-kubectl rollout restart deployment backend -n co2-calculator-prod
+# Dev: update in Infisical → Operator re-syncs. Stage/prod: update the OpenShift secret. Then:
+kubectl rollout restart deployment co2-calculator-backend -n <namespace>
 ```
 
 ---
@@ -261,20 +238,9 @@ kubectl rollout restart deployment backend -n co2-calculator-prod
 
 ### Persistent Volumes
 
-```yaml
-# PostgreSQL persistent volume claim
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-pvc
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: rcp-nas # EPFL RCP NAS storage
-  resources:
-    requests:
-      storage: 50Gi
-```
+The database is external (DBaaS), so the app mounts **no database
+volume**. The only PVC is `db-dumps`, used by the backup CronJob. File
+uploads go to EPFL S3 (or local disk when S3 is unset).
 
 ### Storage Classes
 
@@ -283,9 +249,8 @@ spec:
 
 ### Backup Storage
 
-- **Database backups**: RCP NAS (`/backups/postgres/`)
-- **Application files**: RCP NAS (`/data/uploads/`)
-- **Long-term archives**: EPFL S3-compatible storage (if configured)
+- **Database backups**: `db-dump` CronJob → `db-dumps` PVC
+- **Application files**: EPFL S3 (or local disk when S3 is unset)
 
 ---
 
@@ -294,37 +259,17 @@ spec:
 Client-side JavaScript errors are tracked separately in self-hosted
 GlitchTip — see [Frontend Error Monitoring](../frontend/error-monitoring.md).
 
-### Prometheus Metrics
+### Metrics & Traces
 
-**Backend metrics** (`/metrics` endpoint):
+The backend is OpenTelemetry-instrumented and exports OTLP to the
+in-namespace **OTEL Collector**. From there:
 
-```
-# Request metrics
-http_requests_total{method="GET", endpoint="/api/v1/labs", status="200"}
-http_request_duration_seconds_bucket{le="0.1"}
+- **Traces** → Jaeger (`otel-collector-jaeger`)
+- **Metrics** → scraped from the collector by Prometheus via a
+  `ServiceMonitor` (`otel-collector-metrics-monitor`)
 
-# Application metrics
-db_connections_active
-db_query_duration_seconds
-
-# Resource metrics
-process_cpu_seconds_total
-process_resident_memory_bytes
-```
-
-**Scrape configuration**:
-
-```yaml
-# prometheus-config
-scrape_configs:
-  - job_name: "co2-calculator-backend"
-    kubernetes_sd_configs:
-      - role: pod
-    relabel_configs:
-      - source_labels: [__meta_kubernetes_pod_label_app]
-        regex: backend
-        action: keep
-```
+There is **no backend `/metrics` endpoint**; Prometheus does not scrape
+the app pods directly.
 
 ### Grafana Dashboards
 
@@ -348,24 +293,24 @@ scrape_configs:
 
 ### Alerting
 
-**Critical Alerts** (PagerDuty/email):
+**Critical Alerts** (email):
 
 - Service down (all replicas unhealthy)
 - Database connection failure
 - Disk space > 90%
 - Error rate > 5% for 5 minutes
 
-**Warning Alerts** (Slack/email):
+**Warning Alerts** (email):
 
 - High memory usage (> 80%)
 - Slow response time (> 1s p95)
 - Certificate expiry (< 7 days)
 
-**Configuration**: Alert rules defined in `helm/templates/prometheus-rules.yaml`
+**Configuration**: `PrometheusRule` + `AlertmanagerConfig` (email), deployed via GitOps.
 
 ### Logging
 
-**Log Aggregation**: Logs sent to centralized logging (ELK or similar)
+**Log Aggregation**: structured JSON to stdout (OpenShift logging). Audit records sync to **Elasticsearch** (OPDo); optional Loki push (`LOKI_ENABLED`, off by default).
 
 ```bash
 # View pod logs
@@ -408,7 +353,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend
-  minReplicas: 3
+  minReplicas: 2
   maxReplicas: 10
   metrics:
     - type: Resource
@@ -487,16 +432,13 @@ kubectl run -it --rm debug --image=curlimages/curl --restart=Never -n co2-calcul
 ### Database Operations
 
 ```bash
-# Connect to PostgreSQL
-kubectl exec -it postgres-0 -n co2-calculator-prod -- psql -U postgres -d co2calculator
+# The database is external (DBaaS) — there is no in-cluster postgres pod.
+# Connect using DB_URL from the backend secret (e.g. from a tools pod):
+psql "$DB_URL" -c "SELECT 1;"
 
-# Backup database
-kubectl exec postgres-0 -n co2-calculator-prod -- \
-  pg_dump -U postgres co2calculator > backup_$(date +%Y%m%d).sql
-
-# Restore database
-kubectl exec -i postgres-0 -n co2-calculator-prod -- \
-  psql -U postgres co2calculator < backup.sql
+# Scheduled backups come from the db-dump CronJob (→ db-dumps PVC).
+# Trigger an ad-hoc backup:
+oc create job --from=cronjob/db-dump db-dump-manual -n <namespace>
 ```
 
 ---
@@ -532,15 +474,10 @@ kubectl run -it --rm test --image=curlimages/curl --restart=Never -n co2-calcula
 ### Database Connection Issues
 
 ```bash
-# Check PostgreSQL pod status
-kubectl get pod postgres-0 -n co2-calculator-prod
-
-# Check PostgreSQL logs
-kubectl logs postgres-0 -n co2-calculator-prod
-
-# Test connection from backend pod
-kubectl exec -it backend-xxxxx -n co2-calculator-prod -- \
-  psql postgresql://postgres:password@postgres-service:5432/co2calculator -c "SELECT 1;"
+# The database is external (DBaaS) — no postgres pod to inspect.
+# Test connectivity from a backend pod using its DB_URL:
+kubectl exec -it deploy/co2-calculator-backend -n <namespace> -- \
+  python -c "import os, psycopg; psycopg.connect(os.environ['DB_URL']).close(); print('ok')"
 ```
 
 ### High Resource Usage

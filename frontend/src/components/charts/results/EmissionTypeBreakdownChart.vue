@@ -19,6 +19,7 @@ import {
   AriaComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
+import ChartEmptyState from 'src/components/molecules/ChartEmptyState.vue';
 import TooltipEcharts from './TooltipEcharts.vue';
 import { useEchartsTooltip } from './useEchartsTooltip';
 import { useColorblindStore } from 'src/stores/colorblind';
@@ -49,11 +50,18 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
+  refrigerant: 'process-emissions.category.refrigerants',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
   heating_elec: 'charts-heating-elec-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
+  laboratories: 'charts-laboratories-subcategory',
+  office: 'charts-office-subcategory',
+  archives: 'charts-archives-subcategory',
+  libraries: 'charts-libraries-subcategory',
+  auditoriums: 'charts-auditoriums-subcategory',
+  miscellaneous: 'charts-miscellaneous-subcategory',
   combustion: 'charts-energy-combustion-subcategory',
   natural_gas: 'charts-natural-gas-subcategory',
   heating_oil: 'charts-heating-oil-subcategory',
@@ -221,8 +229,7 @@ const chartData = computed(() => {
         // Use a numeric suffix to guarantee unique, parseable segment keys
         const segKey = `_tcb_${segCounter++}`;
         segmentKeysSet.add(segKey);
-        // Prefer translation_key (i18n key from Factor table) over raw name
-        segmentLabelOverrides.set(segKey, child.translation_key ?? child.name);
+        segmentLabelOverrides.set(segKey, child.name);
         barData[segKey] = child.value / 1000.0; // kg → tonnes
       }
       bars.push(barData);
@@ -502,21 +509,18 @@ defineExpose({ downloadPNG });
 
 <template>
   <div class="q-mb-md">
-    <div class="flex justify-center items-center">
-      <v-chart
-        v-if="chartData.bars.length"
-        ref="chartRef"
-        :key="colorblindStore.enabled ? 'cb' : 'default'"
-        class="chart"
-        autoresize
-        :option="chartOption"
-        :style="{ height: chartHeight + 'px' }"
-        @vue:mounted="onChartReady"
-      />
-      <span v-else class="text-body2 text-secondary">
-        {{ $t('no-chart-data') }}
-      </span>
-    </div>
+    <v-chart
+      v-if="chartData.bars.length"
+      ref="chartRef"
+      :key="colorblindStore.enabled ? 'cb' : 'default'"
+      class="chart"
+      autoresize
+      :option="chartOption"
+      :update-options="{ replaceMerge: ['series'] }"
+      :style="{ height: chartHeight + 'px' }"
+      @vue:mounted="onChartReady"
+    />
+    <chart-empty-state v-else />
     <Teleport to="body">
       <tooltip-echarts
         v-if="tooltip.visible"

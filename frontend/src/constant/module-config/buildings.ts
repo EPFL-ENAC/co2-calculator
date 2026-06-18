@@ -18,6 +18,7 @@ const roomFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_apartment',
     columnSize: 'sm',
+    tooltip: 'module-buildings-submodule-building-table-building_name',
   },
   {
     id: 'room_name',
@@ -32,6 +33,7 @@ const roomFields: ModuleField[] = [
     ratio: '1/3',
     icon: 'o_meeting_room',
     columnSize: 'md',
+    tooltip: 'module-buildings-submodule-building-table-room_name',
   },
   {
     id: 'room_type',
@@ -49,6 +51,7 @@ const roomFields: ModuleField[] = [
     // Do not translate or rename without matching backend seed/data updates.
     // See: https://github.com/EPFL-ENAC/co2-calculator/issues/173
     optionLabelsAreKeys: true,
+    tooltip: 'module-buildings-submodule-building-table-room_type',
     options: [
       { value: 'laboratories', label: 'buildings-room-type-laboratories' },
       { value: 'office', label: 'buildings-room-type-office' },
@@ -69,6 +72,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_straighten',
+    tooltip:
+      'module-buildings-submodule-building-table-room_surface_square_meter',
   },
   {
     id: 'room_allocation_ratio',
@@ -81,7 +86,7 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_image_aspect_ratio',
-    tooltip: `${MODULES.Buildings}.tooltips.ratio`,
+    tooltip: 'module-buildings-submodule-building-table-room_allocation_ratio',
     columnSize: 'md',
   },
   {
@@ -94,7 +99,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_thermostat',
-    tooltip: `${MODULES.Buildings}.tooltips.heating`,
+    tooltip:
+      'module-buildings-submodule-building-table-heating_kwh_per_square_meter',
     maxColumnWidth: 120,
   },
   {
@@ -107,7 +113,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_ac_unit',
-    tooltip: `${MODULES.Buildings}.tooltips.cooling`,
+    tooltip:
+      'module-buildings-submodule-building-table-cooling_kwh_per_square_meter',
     maxColumnWidth: 120,
   },
   {
@@ -120,7 +127,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_air',
-    tooltip: `${MODULES.Buildings}.tooltips.ventilation`,
+    tooltip:
+      'module-buildings-submodule-building-table-ventilation_kwh_per_square_meter',
     maxColumnWidth: 120,
   },
   {
@@ -133,7 +141,8 @@ const roomFields: ModuleField[] = [
     ratio: '1/6',
     disableUntilField: 'room_name',
     icon: 'o_light_mode',
-    tooltip: `${MODULES.Buildings}.tooltips.lighting`,
+    tooltip:
+      'module-buildings-submodule-building-table-lighting_kwh_per_square_meter',
     maxColumnWidth: 120,
   },
   {
@@ -143,6 +152,7 @@ const roomFields: ModuleField[] = [
     readOnly: true,
     hideIn: { form: true },
     sortable: true,
+    tooltip: 'module-buildings-submodule-building-table-kg_co2eq',
   },
 ];
 
@@ -161,13 +171,15 @@ const energyCombustionFields: ModuleField[] = [
     icon: 'o_local_fire_department',
     hideIn: { form: false },
     columnSize: 'lg',
+    tooltip: 'module-buildings-submodule-energy_combustion-table-name',
     optionOrder: [
-      'buildings_combustion_type_natural_gas',
-      'buildings_combustion_type_heating_oil',
-      'buildings_combustion_type_biomethane',
-      'buildings_combustion_type_pellets',
-      'buildings_combustion_type_forest_chips',
-      'buildings_combustion_type_wood_logs',
+      'natural_gas',
+      'heating_oil',
+      'biomethane',
+      'propane',
+      'pellets',
+      'forest_chips',
+      'wood_logs',
     ],
   },
   {
@@ -179,6 +191,7 @@ const energyCombustionFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     hideIn: { form: false },
+    tooltip: 'module-buildings-submodule-energy_combustion-table-unit',
   },
   {
     id: 'quantity',
@@ -191,6 +204,7 @@ const energyCombustionFields: ModuleField[] = [
     step: 0.001,
     ratio: '1/3',
     hideIn: { form: false },
+    tooltip: 'module-buildings-submodule-energy_combustion-table-quantity',
   },
   {
     id: 'kg_co2eq',
@@ -199,6 +213,7 @@ const energyCombustionFields: ModuleField[] = [
     readOnly: true,
     hideIn: { form: true },
     sortable: true,
+    tooltip: 'module-buildings-submodule-energy_combustion-table-kg_co2eq',
   },
 ];
 
@@ -207,8 +222,6 @@ export const buildings: ModuleConfig = {
   type: MODULES.Buildings as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   description:
     'Estimate building-related carbon footprint from energy consumption and combustion',
   hasSubmodules: true,
@@ -224,7 +237,6 @@ export const buildings: ModuleConfig = {
       tableNameKey: `${MODULES.Buildings}.combustion_table_title`,
       moduleFields: energyCombustionFields,
       hasTableAction: true,
-      hasFormTooltip: `${MODULES.Buildings}-energy_combustion-form-title-info-tooltip`,
       addButtonLabelKey: `${MODULES.Buildings}.add_combustion_button`,
     },
     {
@@ -233,7 +245,6 @@ export const buildings: ModuleConfig = {
       tableNameKey: `${MODULES.Buildings}.rooms_table_title`,
       moduleFields: roomFields,
       hasTableAction: true,
-      hasFormTooltip: false,
       notifyInfoOnAddKey: `${MODULES.Buildings}-rooms-form-add-info`,
       addButtonLabelKey: `${MODULES.Buildings}.add_room_button`,
     },

@@ -18,6 +18,7 @@ import { useEchartsTooltip } from 'src/components/charts/results/useEchartsToolt
 
 import { colors } from 'src/constant/charts';
 import { MODULES } from 'src/constant/modules';
+import { getHeadcountChartKeys } from 'src/utils/headcountChart';
 
 use([
   CanvasRenderer,
@@ -63,8 +64,10 @@ const colorMap: Record<string, string> = {
   other: colors.value.mint.darker,
 };
 
+const chartKeys = computed(() => getHeadcountChartKeys(props.stats));
+
 const chartOptions = computed<EChartsOption>(() => {
-  const keys = Object.keys(props.stats ?? {});
+  const keys = chartKeys.value;
 
   return {
     tooltip: {
@@ -109,7 +112,7 @@ const chartOptions = computed<EChartsOption>(() => {
     dataset: {
       dimensions: ['category', 'value'],
       source: keys.map((key) => ({
-        category: te(`headcount_${key}`) ? t(`headcount_${key}`) : key,
+        category: te(key) ? t(key) : key,
         value: Math.round((props.stats?.[key] ?? 0) * 10) / 10,
       })),
     },

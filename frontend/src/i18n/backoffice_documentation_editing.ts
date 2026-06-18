@@ -62,7 +62,7 @@ export default {
   },
   documentation_editing_calculator_developer_documentation_title: {
     en: 'Developer Documentation',
-    fr: 'Documentation développeur',
+    fr: 'Documentation développeur·euse',
   },
   documentation_editing_calculator_developer_documentation_description: {
     en: 'Repository link to the developer documentation of the CO₂ calculator application.',
@@ -125,11 +125,11 @@ export default {
     en: 'Find all text related to buildings within the application.',
     fr: "Trouvez tous les textes liés aux bâtiments dans l'application.",
   },
-  documentation_editing_rows_equipment_electric_consumption_topic: {
-    en: 'Equipment Electric Consumption',
-    fr: 'Consommation Électrique des Équipements',
+  documentation_editing_rows_equipment_topic: {
+    en: 'Equipment',
+    fr: 'Équipements',
   },
-  documentation_editing_rows_equipment_electric_consumption_description: {
+  documentation_editing_rows_equipment_description: {
     en: 'Find all text related to equipment electric consumption within the application.',
     fr: "Trouvez tous les textes liés à la consommation électrique des équipements dans l'application.",
   },

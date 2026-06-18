@@ -123,7 +123,7 @@ function categoryLabel(categoryKey: string): string {
 }
 
 function categoryTooltipKey(categoryKey: string): string {
-  return `results_objectives_unit_category_tooltip_${categoryKey}`;
+  return `results-reduction-${categoryKey}`;
 }
 
 // ── Unit-mode sliders (right panel) ─────────────────────────────────────────

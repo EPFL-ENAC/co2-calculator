@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
 import {
@@ -18,6 +18,7 @@ import type {
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
 
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
@@ -51,6 +52,8 @@ export interface TripLeg {
   destination_name: string;
   kg_co2eq: number;
   number_of_trips: number;
+  traveler_id: string;
+  traveler_name: string;
 }
 
 export interface TripsMapResponse {
@@ -145,7 +148,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     [MODULES.Headcount]: MODULE_STATES.Default,
     [MODULES.ProfessionalTravel]: MODULE_STATES.Default,
     [MODULES.Buildings]: MODULE_STATES.Default,
-    [MODULES.EquipmentElectricConsumption]: MODULE_STATES.Default,
+    [MODULES.Equipment]: MODULE_STATES.Default,
     [MODULES.Purchase]: MODULE_STATES.Default,
     [MODULES.ResearchFacilities]: MODULE_STATES.Default,
     [MODULES.ExternalCloudAndAI]: MODULE_STATES.Default,
@@ -358,14 +361,9 @@ export const useModuleStore = defineStore('modules', () => {
     // submodule title counts are available without fetching full submodule data.
     moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
-  function modulePath(moduleType: Module, unit: number, year: string) {
-    const moduleTypeEncoded = encodeURIComponent(moduleType);
-    const unitEncoded = encodeURIComponent(unit);
-    const yearEncoded = encodeURIComponent(year);
-    // Backend expects /{unit_id}/{year}/{module_id}
-    const path = `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
-    return path;
-  }
+  // Backend expects /{unit_id}/{year}/{module_id}; buildModulePath throws on
+  // unresolved unit/year so we never fire a `modules/undefined/null/...` 422.
+  const modulePath = buildModulePath;
 
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
@@ -397,6 +395,8 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   async function getModuleData(moduleType: Module, unit: number, year: string) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -424,8 +424,12 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
   ) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
+
+    state.data = null;
     try {
       const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
       state.data = (await api
@@ -433,6 +437,10 @@ export const useModuleStore = defineStore('modules', () => {
           searchParams: { carbon_project_type: carbonProjectType.value },
         })
         .json()) as ModuleResponse;
+      if (state.data?.data_entry_types_total_items) {
+        state.moduleTotalsMap[moduleType] =
+          state.data.data_entry_types_total_items;
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -476,6 +484,8 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number;
     year: string;
   }) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loadingSubmodule[submoduleType] = true;
     state.errorSubmodule[submoduleType] = null;
     state.dataSubmodule[submoduleType] = null;
@@ -538,6 +548,28 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
+  /**
+   * Re-fetch every currently-loaded submodule of a module, preserving
+   * each one's pagination/sort/filter state.  Used by ModulePage when
+   * the bulk pipeline's `emissions` phase completes so per-row
+   * kg_co2eq refreshes without the operator re-opening submodules.
+   * Collapsed / never-opened submodules are skipped.
+   */
+  async function refreshLoadedSubmodules(
+    moduleType: Module,
+    unit: number,
+    year: string,
+    submoduleTypes: string[],
+  ): Promise<void> {
+    await Promise.all(
+      submoduleTypes
+        .filter((submoduleType) => state.loadedSubmodules[submoduleType])
+        .map((submoduleType) =>
+          getSubmoduleData({ moduleType, submoduleType, unit, year }),
+        ),
+    );
+  }
+
   async function getSubmoduleTaxonomy(
     moduleType: Module,
     submoduleType: string,
@@ -552,7 +584,7 @@ export const useModuleStore = defineStore('modules', () => {
           `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
         )
         .json()) as TaxonomyNode;
-      state.taxonomySubmodule[submoduleType] = taxonomy;
+      state.taxonomySubmodule[submoduleType] = markRaw(taxonomy);
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -571,6 +603,18 @@ export const useModuleStore = defineStore('modules', () => {
     value: string;
   }
   type FieldValue = string | number | boolean | null | Option;
+  // A create/patch/delete recomputes module stats on the backend, which flips
+  // the module to IN_PROGRESS. Refresh the timeline statuses so the sidebar
+  // status icon updates live instead of staying stale until the next navigation.
+  async function refreshModuleStates() {
+    const timelineStore = useTimelineStore();
+    if (timelineStore.currentCarbonReportId !== null) {
+      await timelineStore.fetchModuleStates(
+        timelineStore.currentCarbonReportId,
+      );
+    }
+  }
+
   async function postItem(
     moduleType: Module,
     unitId: number,
@@ -604,7 +648,7 @@ export const useModuleStore = defineStore('modules', () => {
       });
 
       // Module-specific payload adjustments
-      if (moduleType === MODULES.EquipmentElectricConsumption) {
+      if (moduleType === MODULES.Equipment) {
         // Fallback category if not provided by the form // for equipment
         normalized.category = (normalized.class as string) || 'Uncategorized';
       }
@@ -677,6 +721,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -734,6 +779,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -772,6 +818,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -879,7 +926,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
   ) {
     const TOP_CLASS_MODULES = [
-      MODULES.EquipmentElectricConsumption,
+      MODULES.Equipment,
       MODULES.Purchase,
       MODULES.ResearchFacilities,
     ];
@@ -1069,6 +1116,7 @@ export const useModuleStore = defineStore('modules', () => {
     getModuleTotals,
     getModuleTaxonomy,
     getSubmoduleData,
+    refreshLoadedSubmodules,
     getSubmoduleTaxonomy,
     postItem,
     patchItem,
@@ -1084,6 +1132,7 @@ export const useModuleStore = defineStore('modules', () => {
     getItBreakdown,
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
+    carbonProjectType,
     state,
   };
 });

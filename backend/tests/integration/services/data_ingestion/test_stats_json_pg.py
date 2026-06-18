@@ -36,7 +36,7 @@ Pragmatic coverage (per the unit's spec)
 - 3 modules with hand-computed math:
     * ``headcount`` — multi-root (food + waste + commuting), exercises
       cross-root scope3 totals.
-    * ``equipment_electric_consumption`` — single root, single leaf
+    * ``equipment`` — single root, single leaf
       (Strategy-A flat shape).
     * ``professional_travel`` — single root, multi-level rollup (leaf
       → train/plane → professional_travel) which validates that
@@ -68,6 +68,7 @@ from app.models.module_type import (
     ModuleTypeEnum,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
+from app.services.carbon_report_service import CarbonReportService
 from app.utils.it_breakdown import IT_EMISSION_TYPES
 
 from .conftest import seeded_year_with_units
@@ -179,7 +180,7 @@ _MODULE_SHAPE_PROBES: list[tuple[ModuleTypeEnum, DataEntryTypeEnum, EmissionType
         EmissionType.buildings__combustion__natural_gas,
     ),
     (
-        ModuleTypeEnum.equipment_electric_consumption,
+        ModuleTypeEnum.equipment,
         DataEntryTypeEnum.it,
         EmissionType.equipment__it,
     ),
@@ -277,14 +278,18 @@ async def test_module_stats_shape_pins_top_level_keys(
 async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
     seeded,
 ) -> None:
-    """``research_facilities`` rolls both leaves
-    (``research_facilities__facilities`` + ``research_facilities__animal``)
-    under one root (``EmissionType.research_facilities``); both are scope 3.
+    """``research_facilities`` rolls two leaf-level emissions under one root.
+
+    Seeds ``research_facilities__facilities`` (100.0) and the actual leaf
+    ``research_facilities__animal__mice`` (40.0) — the mice type was added as a
+    child of ``research_facilities__animal`` in the subcategory correction commit,
+    making the bare ``research_facilities__animal`` an intermediate rollup node.
+    The leaf path is the production-correct flow from ``_resolve_animal_facilities``.
 
     Seeding both leaves pins:
-      - ``scope3 == sum of leaves``
+      - ``scope3 == sum of leaves`` (100+40=140)
       - ``scope1`` and ``scope2`` stay 0
-      - ``by_emission_type`` contains both leaves AND the root rollup
+      - ``by_emission_type`` contains the two leaves, the animal rollup, AND root rollup
       - ``entry_count`` matches the number of ``DataEntry`` rows
     """
     seed, Sf = seeded
@@ -305,7 +310,7 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
             s,
             crm_id=crm.id,
             data_entry_type=DataEntryTypeEnum.mice_and_fish_animal_facilities,
-            emission_type=EmissionType.research_facilities__animal,
+            emission_type=EmissionType.research_facilities__animal__mice,
             kg_co2eq=40.0,
         )
         await s.commit()
@@ -334,8 +339,10 @@ async def test_research_facilities_stats_math_two_leaves_one_root_scope3(
 
         by_et = stats["by_emission_type"]
         assert by_et[str(int(EmissionType.research_facilities__facilities))] == 100.0
+        assert by_et[str(int(EmissionType.research_facilities__animal__mice))] == 40.0
+        # Intermediate rollup: mice leaf rolls up to animal (40.0)
         assert by_et[str(int(EmissionType.research_facilities__animal))] == 40.0
-        # Root rollup: both leaves' parent is EmissionType.research_facilities
+        # Root rollup: facilities (100) + mice via animal (40) = 140
         assert by_et[str(int(EmissionType.research_facilities))] == 140.0
 
 
@@ -430,9 +437,7 @@ async def test_equipment_stats_math_single_root_scope2(seeded) -> None:
     """
     seed, Sf = seeded
     unit_id = seed.units[0].id
-    crm = seed.modules_by_unit_and_type[
-        (unit_id, int(ModuleTypeEnum.equipment_electric_consumption))
-    ]
+    crm = seed.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.equipment))]
 
     async with Sf() as s:
         await _seed_emission(
@@ -572,9 +577,7 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
     """
     seed, Sf = seeded
     unit_id = seed.units[0].id
-    eq_crm = seed.modules_by_unit_and_type[
-        (unit_id, int(ModuleTypeEnum.equipment_electric_consumption))
-    ]
+    eq_crm = seed.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.equipment))]
     purchase_crm = seed.modules_by_unit_and_type[
         (unit_id, int(ModuleTypeEnum.purchase))
     ]
@@ -670,16 +673,18 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
         )
 
     # Second inspection: validate process_emissions (largest total at
-    # 100.0); rollup must surface it as the highest category.
+    # 100.0); the report rollup must surface it as the highest category.
+    # recompute_stats now resets a module to IN_PROGRESS (data changed →
+    # validation is stale), so validate first, then drive the report-level
+    # rollup directly to assert highest-category derivation from a validated
+    # module.
     async with Sf() as s:
         fresh_proc = await s.get(CarbonReportModule, proc_crm.id)
         assert fresh_proc is not None
         fresh_proc.status = ModuleStatus.VALIDATED
         s.add(fresh_proc)
-        await s.commit()
-
-        svc = CarbonReportModuleService(s)
-        await svc.recompute_stats(proc_crm.id)
+        await s.flush()
+        await CarbonReportService(s).recompute_report_stats(report.id)
         await s.commit()
 
     async with Sf() as s:
@@ -695,3 +700,89 @@ async def test_report_stats_rollup_sums_modules_and_adds_it_total(seeded) -> Non
             f"{int(ModuleTypeEnum.process_emissions)}; "
             f"got {stats['highest_category_module_id']!r}"
         )
+
+
+# ===========================================================================
+# 4. Status bump — recompute marks a module IN_PROGRESS
+# ===========================================================================
+
+
+@pytest.mark.asyncio
+async def test_recompute_stats_marks_module_in_progress(seeded) -> None:
+    """A single recompute flips the module to IN_PROGRESS, even from a
+    previously VALIDATED state — recomputed numbers make any prior
+    validation stale (the bug: modules with data still read NOT_STARTED).
+    """
+    seed, Sf = seeded
+    unit_id = seed.units[0].id
+    crm = seed.modules_by_unit_and_type[
+        (unit_id, int(ModuleTypeEnum.process_emissions))
+    ]
+
+    async with Sf() as s:
+        await _seed_emission(
+            s,
+            crm_id=crm.id,
+            data_entry_type=DataEntryTypeEnum.process_emissions,
+            emission_type=EmissionType.process_emissions__co2,
+            kg_co2eq=100.0,
+        )
+        # Pre-validate to prove recompute downgrades a stale validation.
+        fresh = await s.get(CarbonReportModule, crm.id)
+        assert fresh is not None
+        fresh.status = ModuleStatus.VALIDATED
+        s.add(fresh)
+        await s.commit()
+
+    async with Sf() as s:
+        await CarbonReportModuleService(s).recompute_stats(crm.id)
+        await s.commit()
+
+    async with Sf() as s:
+        fresh = await s.get(CarbonReportModule, crm.id)
+        assert fresh is not None
+        assert fresh.status == ModuleStatus.IN_PROGRESS, (
+            f"recompute_stats must mark the module IN_PROGRESS; "
+            f"got {ModuleStatus(fresh.status).name}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_recompute_stats_many_marks_all_modules_in_progress(seeded) -> None:
+    """The batch path bumps every refreshed module to IN_PROGRESS in one call."""
+    seed, Sf = seeded
+    unit_id = seed.units[0].id
+    eq_crm = seed.modules_by_unit_and_type[(unit_id, int(ModuleTypeEnum.equipment))]
+    proc_crm = seed.modules_by_unit_and_type[
+        (unit_id, int(ModuleTypeEnum.process_emissions))
+    ]
+
+    async with Sf() as s:
+        await _seed_emission(
+            s,
+            crm_id=eq_crm.id,
+            data_entry_type=DataEntryTypeEnum.it,
+            emission_type=EmissionType.equipment__it,
+            kg_co2eq=60.0,
+        )
+        await _seed_emission(
+            s,
+            crm_id=proc_crm.id,
+            data_entry_type=DataEntryTypeEnum.process_emissions,
+            emission_type=EmissionType.process_emissions__co2,
+            kg_co2eq=100.0,
+        )
+        await s.commit()
+
+    async with Sf() as s:
+        refreshed = await CarbonReportModuleService(s).recompute_stats_many(
+            [eq_crm.id, proc_crm.id]
+        )
+        await s.commit()
+        assert refreshed == 2
+
+    async with Sf() as s:
+        for crm_id in (eq_crm.id, proc_crm.id):
+            fresh = await s.get(CarbonReportModule, crm_id)
+            assert fresh is not None
+            assert fresh.status == ModuleStatus.IN_PROGRESS

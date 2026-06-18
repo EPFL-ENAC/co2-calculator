@@ -272,6 +272,30 @@ class DataEntryService:
 
         return [DataEntryResponse.model_validate(obj) for obj in db_objs]
 
+    async def bulk_copy(
+        self,
+        data_entries: list[DataEntry],
+        *,
+        job_id: str | int | None,
+        source: Optional[int] = None,
+        created_by_id: Optional[int] = None,
+    ) -> int:
+        """COPY-based bulk insert for the bulk ingest path.
+
+        Skips the audit trail (same contract as ``bulk_create`` with a
+        ``job_id``) and returns only a row count — COPY does not populate
+        ids, and the chained ``emission_recalc`` job re-reads entries
+        from the DB anyway.
+        """
+        for entry in data_entries:
+            if source is not None:
+                entry.source = source.value if hasattr(source, "value") else source
+            if created_by_id is not None:
+                entry.created_by_id = created_by_id
+        count = await self.repo.bulk_copy(data_entries)
+        logger.info(f"COPY-inserted {count} data entries (job {sanitize(job_id)})")
+        return count
+
     async def bulk_delete(
         self,
         carbon_report_module_id: int,
@@ -685,11 +709,16 @@ class DataEntryService:
 
         Frontend aggregates per-map (undirected by default), so this is one
         leg per source ``DataEntry``, not a per-route rollup.
+
+        Each leg carries the traveler's SCIPER (``traveler_id``); the frontend
+        resolves it to a display name via the headcount-members endpoint it
+        already calls (``traveler_name`` defaults to the SCIPER until then).
         """
         legs, dropped = await self.repo.get_professional_travel_trip_legs(
             carbon_report_module_id=carbon_report_module_id,
             institutional_id_filter=institutional_id_filter,
         )
+
         return TripsMapResponse(
             legs=[TripLeg(**leg) for leg in legs],
             dropped_count=dropped,

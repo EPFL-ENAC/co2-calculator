@@ -452,7 +452,9 @@ class TestGetResultsReport:
                 "scope2": 200,
                 "scope3": 300,
                 "total": 600,
-                "by_emission_type": {"10000": 50, "50000": 150},
+                # Includes a category root rollup (10000), a sub-type leaf
+                # (50100, professional_travel__train) and its root (50000).
+                "by_emission_type": {"10000": 50, "50000": 150, "50100": 150},
             },
         )
         repo = CarbonReportModuleRepository(db_session)
@@ -461,9 +463,33 @@ class TestGetResultsReport:
         row = results[0]
         assert row["scope1"] == 100
         assert row["total"] == 600
-        # Emission types are flattened with underscored names
-        assert "food" in row
-        assert "professional_travel" in row
+        # Only the top-level category scope totals are exposed, in module order.
+        assert list(row.keys()) == [
+            "year",
+            "unit_institutional_id",
+            "unit_path_name",
+            "scope1",
+            "scope2",
+            "scope3",
+            "total",
+            "process_emissions",
+            "buildings",
+            "equipment",
+            "external",
+            "professional_travel",
+            "purchases",
+            "research_facilities",
+            "commuting",
+            "food",
+            "waste",
+            "buildings__construction_and_renovation",
+        ]
+        assert row["food"] == 50
+        assert row["professional_travel"] == 150
+        # Categories without data default to 0; sub-type leaves are dropped.
+        assert row["buildings"] == 0
+        assert row["buildings__construction_and_renovation"] == 0
+        assert "professional_travel__train" not in row
 
     async def test_empty_stats(self, db_session, make_unit, make_carbon_report):
         unit = await make_unit(db_session, name="LAB-E")

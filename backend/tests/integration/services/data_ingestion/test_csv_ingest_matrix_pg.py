@@ -4,7 +4,7 @@ Covers the CSV ingest path for the five ``MODULE_PER_YEAR`` modules
 that route through the **plain** ``ModulePerYearCSVProvider`` and key
 emissions on ``primary_factor_id``:
 
-* ``equipment_electric_consumption``
+* ``equipment``
 * ``purchase``
 * ``external_cloud_and_ai``
 * ``process_emissions``
@@ -134,8 +134,8 @@ _SPECS: dict[str, _ModuleSpec] = {
         # Row 1: quantity=100.0, ef=1.5 → 150.0 kg.
         expected_kg_first_row=150.0,
     ),
-    "equipment_electric_consumption": _ModuleSpec(
-        module_type=ModuleTypeEnum.equipment_electric_consumption,
+    "equipment": _ModuleSpec(
+        module_type=ModuleTypeEnum.equipment,
         data_entry_type=DataEntryTypeEnum.it,
         csv_module="equipments",
         emission_type=EmissionType.equipment__it,
@@ -284,10 +284,12 @@ async def _drive_csv_ingest(
 
     fake_factory = _make_fake_files_store_factory(csv_bytes)
 
-    # ``files_store`` is lazy-imported via
-    # ``from app.api.v1.files import make_files_store`` inside the
-    # property — patch the symbol at the import location.
-    with patch("app.api.v1.files.make_files_store", side_effect=fake_factory):
+    # ``make_files_store`` is imported at module level in ``base_csv_provider``;
+    # patch the symbol there so the lazy property init picks up the fake.
+    with patch(
+        "app.services.data_ingestion.base_csv_provider.make_files_store",
+        side_effect=fake_factory,
+    ):
         return await dispatch_csv_and_wait(
             session_factory=session_factory,
             file_path=f"uploads/{target_unit_id}/{spec.csv_module}.csv",

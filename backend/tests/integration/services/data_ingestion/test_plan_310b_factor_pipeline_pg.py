@@ -276,7 +276,7 @@ async def test_list_stale_for_year_returns_outdated_factors(pg_dsn):
 async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn):
     """Regression: multi-type FACTORS jobs (``data_entry_type_id`` NULL,
     ``module_type_id`` set — e.g. ``equipments_factors.csv`` covering
-    ``it`` + ``scientific`` under ``equipment_electric_consumption``) must
+    ``it`` + ``scientific`` under ``equipment``) must
     be expanded to the dets they cover when computing the stale-threshold.
 
     Earlier shape: ``list_stale_for_year`` joined ``Factor.det = Job.det``,
@@ -291,7 +291,7 @@ async def test_list_stale_for_year_handles_multi_type_factors_job(pg_dsn):
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    module_id = ModuleTypeEnum.equipment_electric_consumption.value
+    module_id = ModuleTypeEnum.equipment.value
     det_it = DataEntryTypeEnum.it.value
     det_scientific = DataEntryTypeEnum.scientific.value
 

@@ -1,12 +1,53 @@
 import { boot } from 'quasar/wrappers';
 import { Notify } from 'quasar';
 import { HTTPError } from 'ky';
-import type { App } from 'vue';
-import type { Router } from 'vue-router';
+import type { ComponentPublicInstance } from 'vue';
 import { runtimeConfig } from 'src/config/runtime';
+import { i18n } from 'src/boot/i18n';
+import {
+  addBreadcrumb,
+  captureError,
+  initGlitchTip,
+  startNavigationTrace,
+} from 'src/utils/glitchtip';
+
+// Shallow (depth-1) copy of a component's props for the report: nested values
+// collapse to "[Object]" / "[Array]". Avoids circular refs (which would make
+// JSON.stringify throw on the whole event) and giant payloads — matches what
+// @sentry/vue sends.
+function shallowProps(
+  props: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(props ?? {})) {
+    out[key] =
+      value === null || typeof value !== 'object'
+        ? value
+        : Array.isArray(value)
+          ? '[Array]'
+          : '[Object]';
+  }
+  return out;
+}
+
+// The `contexts.vue` panel GlitchTip renders: which component threw, in which
+// lifecycle hook, with which props — the @sentry/vue equivalent.
+function vueErrorContext(
+  instance: ComponentPublicInstance | null,
+  info: string,
+): Record<string, unknown> {
+  const type = instance?.$?.type as
+    | { name?: string; __name?: string }
+    | undefined;
+  return {
+    componentName: type?.name || type?.__name || 'Anonymous Component',
+    lifecycleHook: info,
+    propsData: shallowProps(instance?.$props),
+  };
+}
 
 // Errors that are not actionable (browser quirks, user-driven aborts).
-// Sentry drops events whose message matches any of these.
+// captureError() drops events whose message matches any of these.
 const ignoreErrors: (string | RegExp)[] = [
   // Harmless browser-bug noise from libraries that observe element sizes.
   // See https://github.com/vuejs/vue-cli/issues/7431
@@ -32,65 +73,67 @@ function notifyError(message: string, caption?: string) {
   });
 }
 
-// Sentry init is split out and dynamic-imported so the @sentry/vue chunk
-// (~900 KiB unminified, drags replay+feedback+browser-utils via transitive
-// deps) is NOT in the eager bundle. Without DSN — i.e. dev, CI Lighthouse
-// runs, any unconfigured deploy — the chunk never loads at all. With DSN it
-// loads asynchronously, parallel with app startup, instead of blocking LCP.
-async function initSentry(
-  app: App,
-  router: Router,
-  dsn: string,
-  environment: string,
-  release: string | undefined,
-) {
-  const Sentry = await import('@sentry/vue');
-  Sentry.init({
-    app,
-    dsn,
-    environment,
-    release,
-    ignoreErrors,
-    integrations: [
-      // Auto-instruments vue-router navigations + fetch/XHR as Sentry
-      // transactions. This is what gives GlitchTip "slow route" visibility.
-      Sentry.browserTracingIntegration({ router }),
+// A route's lazy chunk (or its CSS) failed to load. After a deploy, clients
+// holding an old index.html request hashed chunks that no longer exist on the
+// server — the dynamic import rejects. Messages differ per engine, hence the
+// broad match (WebKit: "Importing a module script failed."; Chromium: "Failed
+// to fetch dynamically imported module"; Firefox/Vite variants below).
+function isChunkLoadError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /error loading dynamically imported module/i.test(message) ||
+    /Importing a module script failed/i.test(message) ||
+    /Unable to preload CSS/i.test(message) ||
+    /Loading chunk \S+ failed/i.test(message)
+  );
+}
+
+// Persistent "reload to get the new version" prompt. Guarded so a burst of
+// chunk errors (one per failed prefetch) shows a single toast. We prompt
+// rather than auto-reload to avoid clobbering unsaved work.
+let reloadPromptShown = false;
+function notifyReloadOnce() {
+  if (reloadPromptShown) return;
+  reloadPromptShown = true;
+  Notify.create({
+    color: 'info',
+    message: i18n.global.t('new_version_available'),
+    position: 'top',
+    timeout: 0, // sticky until the user acts
+    actions: [
+      {
+        label: i18n.global.t('reload'),
+        color: 'white',
+        handler: () => window.location.reload(),
+      },
     ],
-    // Same bundle hits dev/stage/prod via runtime DSN, so this rate applies
-    // everywhere. 5% balances signal on rare slow routes against GlitchTip
-    // ingestion cost.
-    tracesSampleRate: 0.05,
-    // Only attach trace headers (sentry-trace, baggage) to our own backend.
-    // Never propagate to third-party endpoints (CDNs, analytics) — they'll
-    // reject CORS preflights and pollute their logs.
-    tracePropagationTargets: ['localhost', /^\/api\//],
   });
 }
 
 export default boot(({ app, router }) => {
   const { sentryDsn, environment, release } = runtimeConfig;
 
-  // Fire-and-forget: don't block app mount on Sentry loading. Worst case is
-  // a sub-second window after first paint where Sentry isn't capturing yet
-  // — acceptable cost for keeping the SDK off the critical path.
+  // Init is a no-op without a DSN (dev, CI Lighthouse, unconfigured deploys),
+  // so the handlers below simply report nowhere in those environments.
   if (sentryDsn) {
-    void initSentry(app, router, sentryDsn, environment, release);
+    initGlitchTip({ dsn: sentryDsn, release, environment, ignoreErrors });
   }
 
   // -------------------------------------------------------------------------
-  // Vue-level uncaught errors.
-  //
-  // Fires for errors thrown inside component lifecycle hooks, watchers,
-  // computeds, etc. @sentry/vue wires its own capture via `attachErrorHandler`
-  // when init runs (which preserves any prior handler). We layer a Notify
-  // toast on top so users see *something* when a render fails instead of a
-  // silent broken UI.
+  // Vue-level uncaught errors: thrown inside component lifecycle hooks,
+  // watchers, computeds, render, etc. We report them and layer a toast so
+  // users see *something* when a render fails instead of a silent broken UI.
   // -------------------------------------------------------------------------
   const previousVueHandler = app.config.errorHandler;
   app.config.errorHandler = (err, instance, info) => {
     if (typeof previousVueHandler === 'function') {
       previousVueHandler(err, instance, info);
     }
+    captureError(err, {
+      mechanism: 'vue',
+      contexts: { vue: vueErrorContext(instance, info) },
+    });
     if (import.meta.env.DEV) {
       console.error('[vue errorHandler]', err, info);
     }
@@ -101,22 +144,41 @@ export default boot(({ app, router }) => {
   };
 
   // -------------------------------------------------------------------------
-  // Browser-level synchronous errors.
-  //
-  // Catches errors thrown outside Vue (third-party libs, setTimeout callbacks,
-  // event handlers attached directly to DOM). Sentry auto-captures these via
-  // its global handler once init runs; we add ResizeObserver suppression and
-  // a user-facing toast unconditionally.
+  // Vue Router errors: failed dynamic-import of a route chunk, errors thrown
+  // in navigation guards/resolvers. These never reach the Vue error handler.
+  // A chunk-load failure is usually a stale client after a deploy, not a code
+  // bug — surface a reload prompt so the user can recover in one click.
+  // -------------------------------------------------------------------------
+  router.onError((err) => {
+    captureError(err, { mechanism: 'vue-router' });
+    if (isChunkLoadError(err)) {
+      notifyReloadOnce();
+    }
+  });
+
+  // Navigation breadcrumbs: the "how did the user get here" trail attached to
+  // any later crash. Also start a fresh trace so errors on the new page group
+  // under one trace_id. No-op until a DSN is configured.
+  router.afterEach((to, from) => {
+    startNavigationTrace();
+    addBreadcrumb(`${from.fullPath} → ${to.fullPath}`, 'navigation');
+  });
+
+  // -------------------------------------------------------------------------
+  // Browser-level synchronous errors: thrown outside Vue (third-party libs,
+  // setTimeout callbacks, DOM event handlers). Suppress ResizeObserver noise
+  // entirely; report and toast everything else.
   // -------------------------------------------------------------------------
   window.addEventListener('error', (event) => {
     if (event.message?.includes('ResizeObserver loop')) {
-      // Browser bug, not a real failure. Stop propagation so neither Sentry
-      // nor the toast layer treats it as one.
+      // Browser bug, not a real failure. Stop propagation so nothing treats it
+      // as one.
       event.stopImmediatePropagation();
       event.stopPropagation();
       event.preventDefault();
       return;
     }
+    captureError(event.error ?? event.message, { mechanism: 'onerror' });
     if (import.meta.env.DEV) {
       console.error('[window error]', event.error ?? event.message);
     }
@@ -127,14 +189,17 @@ export default boot(({ app, router }) => {
   });
 
   // -------------------------------------------------------------------------
-  // Unhandled promise rejections.
-  //
-  // Sentry auto-captures the reason. We skip notifying when the reason is a
-  // ky HTTPError — api/http.ts's afterResponse hook already toasted it, and
+  // Unhandled promise rejections. We still report ky HTTPErrors (an unhandled
+  // one means a caller forgot to await/catch — worth knowing) but skip the
+  // toast: api/http.ts's afterResponse hook already toasted it, and
   // double-toasting is worse than missing one.
   // -------------------------------------------------------------------------
   window.addEventListener('unhandledrejection', (event) => {
     const reason = event.reason;
+    captureError(reason, {
+      mechanism: 'onunhandledrejection',
+      handled: false,
+    });
     if (reason instanceof HTTPError) {
       return;
     }
@@ -148,4 +213,48 @@ export default boot(({ app, router }) => {
           String(reason ?? 'Unhandled rejection'));
     notifyError(message);
   });
+
+  // -------------------------------------------------------------------------
+  // Dev-only manual trigger: `window.__gtTest('<kind>')` from the console to
+  // fire each error path and confirm it reaches GlitchTip. Stripped from prod
+  // builds by the import.meta.env.DEV guard (dead-code eliminated).
+  // -------------------------------------------------------------------------
+  if (import.meta.env.DEV) {
+    const triggers: Record<string, () => void> = {
+      // Real trace (Error captured at the throw site).
+      throw: () =>
+        setTimeout(() => {
+          throw new Error('[__gtTest] thrown error');
+        }, 0),
+      // Real trace (Error captured at the reject site).
+      reject: () => void Promise.reject(new Error('[__gtTest] rejected Error')),
+      // No origin trace exists → reported as a synthetic "NonError".
+      'reject-nonerror': () =>
+        void Promise.reject({ code: 'E_TEST', detail: 'plain object payload' }),
+      // Direct capture, e.g. the path api/http.ts uses for HTTP 5xx.
+      capture: () =>
+        captureError(new Error('[__gtTest] manual capture'), {
+          mechanism: 'manual',
+          extra: { hint: 'this is what the ky 5xx path sends' },
+        }),
+      // Stale-chunk router error → also shows the reload prompt.
+      chunk: () => {
+        captureError(new Error('Importing a module script failed.'), {
+          mechanism: 'vue-router',
+        });
+        notifyReloadOnce();
+      },
+    };
+    (window as unknown as { __gtTest: (kind?: string) => void }).__gtTest = (
+      kind = 'throw',
+    ) => {
+      const run = triggers[kind];
+      if (!run) {
+        console.warn(`[__gtTest] kinds: ${Object.keys(triggers).join(' | ')}`);
+        return;
+      }
+      run();
+      console.log(`[__gtTest] fired "${kind}"`);
+    };
+  }
 });

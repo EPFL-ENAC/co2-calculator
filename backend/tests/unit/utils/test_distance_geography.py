@@ -289,60 +289,87 @@ class TestCalculateTrainDistance:
         assert isinstance(result, int)
 
 
+@pytest.fixture
+def plane_haul_factors() -> list[Factor]:
+    """Plane factors with distance bands matching travel_planes_factors.csv."""
+    return [
+        _make_plane_factor(
+            "short_to_medium_haul",
+            0.174,
+            2.7,
+            min_distance=0,
+            max_distance=2500,
+        ),
+        _make_plane_factor(
+            "medium_to_long_haul",
+            0.108,
+            2.7,
+            min_distance=2500,
+            max_distance=999999,
+        ),
+    ]
+
+
 class TestGetHaulCategory:
     """Tests for get_haul_category function."""
 
-    def test_very_short_haul(self):
-        """Test very short haul category (< 800 km)."""
-        assert get_haul_category(500.0) == "very_short_haul"
-        assert get_haul_category(799.9) == "very_short_haul"
-        assert get_haul_category(0.0) == "very_short_haul"
+    def test_short_to_medium_haul(self, plane_haul_factors):
+        """Test short-to-medium haul category (below upper band bound)."""
+        assert get_haul_category(0.0, plane_haul_factors) == "short_to_medium_haul"
+        assert get_haul_category(500.0, plane_haul_factors) == "short_to_medium_haul"
+        assert get_haul_category(1000.0, plane_haul_factors) == "short_to_medium_haul"
+        assert get_haul_category(2499.9, plane_haul_factors) == "short_to_medium_haul"
 
-    def test_short_haul(self):
-        """Test short haul category (800-1500 km)."""
-        assert get_haul_category(800.0) == "short_haul"
-        assert get_haul_category(1000.0) == "short_haul"
-        assert get_haul_category(1499.9) == "short_haul"
+    def test_medium_to_long_haul(self, plane_haul_factors):
+        """Test medium-to-long haul category (at lower band bound)."""
+        assert get_haul_category(2500.0, plane_haul_factors) == "medium_to_long_haul"
+        assert get_haul_category(5000.0, plane_haul_factors) == "medium_to_long_haul"
+        assert get_haul_category(15000.0, plane_haul_factors) == "medium_to_long_haul"
 
-    def test_medium_haul(self):
-        """Test medium haul category (1500-4000 km)."""
-        assert get_haul_category(1500.0) == "medium_haul"
-        assert get_haul_category(2500.0) == "medium_haul"
-        assert get_haul_category(3999.9) == "medium_haul"
+    def test_no_match_without_distance_bands(self):
+        """Factors without min/max distance cannot resolve a haul category."""
+        factors = [_make_plane_factor("short_to_medium_haul", 0.174, 2.7)]
+        assert get_haul_category(500.0, factors) is None
 
-    def test_long_haul(self):
-        """Test long haul category (> 4000 km)."""
-        assert get_haul_category(4000.0) == "long_haul"
-        assert get_haul_category(10000.0) == "long_haul"
-        assert get_haul_category(15000.0) == "long_haul"
+    def test_uses_uploaded_factor_bounds(self):
+        """Haul bands come from uploaded factor min/max distance values."""
+        factors = [
+            _make_plane_factor(
+                "custom_short",
+                0.1,
+                1.0,
+                min_distance=0,
+                max_distance=1000,
+            ),
+            _make_plane_factor(
+                "custom_long",
+                0.2,
+                1.0,
+                min_distance=1000,
+                max_distance=999999,
+            ),
+        ]
+        assert get_haul_category(500, factors) == "custom_short"
+        assert get_haul_category(1000, factors) == "custom_long"
 
     @pytest.mark.parametrize(
         "distance,category",
         [
-            (0.0, "very_short_haul"),
-            (100, "very_short_haul"),
-            (400.0, "very_short_haul"),
-            (500, "very_short_haul"),
-            (799.9, "very_short_haul"),
-            (800, "short_haul"),
-            (800.0, "short_haul"),
-            (1200, "short_haul"),
-            (1200.0, "short_haul"),
-            (1499.9, "short_haul"),
-            (1500, "medium_haul"),
-            (1500.0, "medium_haul"),
-            (3000, "medium_haul"),
-            (3000.0, "medium_haul"),
-            (3999.9, "medium_haul"),
-            (4000, "long_haul"),
-            (4000.0, "long_haul"),
-            (8000, "long_haul"),
-            (8000.0, "long_haul"),
+            (0.0, "short_to_medium_haul"),
+            (100, "short_to_medium_haul"),
+            (500.0, "short_to_medium_haul"),
+            (1000.0, "short_to_medium_haul"),
+            (2499.9, "short_to_medium_haul"),
+            (2500, "medium_to_long_haul"),
+            (2500.0, "medium_to_long_haul"),
+            (5000, "medium_to_long_haul"),
+            (8000.0, "medium_to_long_haul"),
+            (15000.0, "medium_to_long_haul"),
         ],
     )
-    def test_haul_category_parametrized(self, distance, category):
+    def test_haul_category_parametrized(self, plane_haul_factors, distance, category):
         """Test haul category at boundary values."""
-        assert get_haul_category(distance) == category
+        assert get_haul_category(distance, plane_haul_factors) == category
 
 
 # ---- Tests for _determine_train_countrycode (issue #357) ---- #
@@ -524,17 +551,29 @@ class TestDetermineTrainCountrycode:
 # service tests to direct pure-function tests.
 
 
-def _make_plane_factor(category: str, impact_score: float, rfi_adjustment: float):
+def _make_plane_factor(
+    category: str,
+    impact_score: float,
+    rfi_adjustment: float,
+    *,
+    min_distance: float | None = None,
+    max_distance: float | None = None,
+):
     """Helper to create a plane Factor."""
+    values: dict[str, float] = {
+        "impact_score": impact_score,
+        "rfi_adjustment": rfi_adjustment,
+    }
+    if min_distance is not None:
+        values["min_distance"] = min_distance
+    if max_distance is not None:
+        values["max_distance"] = max_distance
     return Factor(
         id=None,
         emission_type_id=7,
         data_entry_type_id=20,
         classification={"kind": "plane", "category": category},
-        values={
-            "impact_score": impact_score,
-            "rfi_adjustment": rfi_adjustment,
-        },
+        values=values,
     )
 
 
@@ -556,14 +595,24 @@ class TestResolveFlightFactor:
     def plane_factors(self) -> list[Factor]:
         """Plane factors covering all haul categories (from seed data)."""
         return [
-            _make_plane_factor("very_short_haul", 0.174, 2.7),
-            _make_plane_factor("short_haul", 0.134, 2.7),
-            _make_plane_factor("medium_haul", 0.11, 2.7),
-            _make_plane_factor("long_haul", 0.108, 2.7),
+            _make_plane_factor(
+                "short_to_medium_haul",
+                0.174,
+                2.7,
+                min_distance=0,
+                max_distance=2500,
+            ),
+            _make_plane_factor(
+                "medium_to_long_haul",
+                0.108,
+                2.7,
+                min_distance=2500,
+                max_distance=999999,
+            ),
         ]
 
-    def test_very_short_haul_zurich_geneva(self, plane_factors):
-        """ZRH -> GVA (~322 km) should match very_short_haul."""
+    def test_short_to_medium_haul_zurich_geneva(self, plane_factors):
+        """ZRH -> GVA (~322 km) should match short_to_medium_haul."""
         origin = Location(
             transport_mode="plane",
             name="Zurich Airport",
@@ -583,13 +632,13 @@ class TestResolveFlightFactor:
         distance_km, factor = resolve_flight_factor(origin, dest, plane_factors)
 
         assert distance_km > 0
-        assert distance_km < 800
+        assert distance_km < 2500
         assert factor is not None
-        assert factor.classification["category"] == "very_short_haul"
+        assert factor.classification["category"] == "short_to_medium_haul"
         assert factor.values["impact_score"] == 0.174
 
-    def test_long_haul_zurich_new_york(self, plane_factors):
-        """ZRH -> JFK (~6300 km) should match long_haul."""
+    def test_medium_to_long_haul_zurich_new_york(self, plane_factors):
+        """ZRH -> JFK (~6300 km) should match medium_to_long_haul."""
         origin = Location(
             transport_mode="plane",
             name="Zurich Airport",
@@ -608,9 +657,9 @@ class TestResolveFlightFactor:
         )
         distance_km, factor = resolve_flight_factor(origin, dest, plane_factors)
 
-        assert distance_km > 4000
+        assert distance_km >= 2500
         assert factor is not None
-        assert factor.classification["category"] == "long_haul"
+        assert factor.classification["category"] == "medium_to_long_haul"
         assert factor.values["impact_score"] == 0.108
 
     def test_distance_includes_approach_km(self, plane_factors):
@@ -652,8 +701,16 @@ class TestResolveFlightFactor:
             longitude=6.1090,
             country_code="CH",
         )
-        # Only long_haul factor, but distance is very short
-        factors = [_make_plane_factor("long_haul", 0.108, 2.7)]
+        # Only medium_to_long_haul factor, but distance is very short
+        factors = [
+            _make_plane_factor(
+                "medium_to_long_haul",
+                0.108,
+                2.7,
+                min_distance=2500,
+                max_distance=999999,
+            )
+        ]
         distance_km, factor = resolve_flight_factor(origin, dest, factors)
 
         assert distance_km > 0

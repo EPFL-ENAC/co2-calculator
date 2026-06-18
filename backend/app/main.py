@@ -226,7 +226,7 @@ app = FastAPI(
     * **calco2.user.principal** - Unit-level manager with unit-scope access
     * **calco2.backoffice.metier** - Backoffice administrator with reporting and
       data access
-    * **calco2.superadmin** - Super administrator with full system and backoffice access
+    * **calco2.backoffice.admin** - Super administrator with full system and backoffice
     See permission documentation for detailed role-to-permission mapping.
 
     ## 403 Error Responses

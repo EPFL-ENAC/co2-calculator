@@ -130,7 +130,7 @@ async def get_module_stats(
         unit_id=unit_id, year=year, module_type_id=ModuleTypeEnum[module_id]
     )
 
-    if module_id == "equipment-electric-consumption":
+    if module_id == "equipment":
         stats = await DataEntryService(db).get_stats(
             carbon_report_module_id=carbon_report_module.id,
         )
@@ -350,11 +350,8 @@ async def get_it_breakdown(
     )
     top_class_detail: dict[str, list] = {}
 
-    equip_crm_id = crm_by_type.get(ModuleTypeEnum.equipment_electric_consumption.value)
-    if (
-        equip_crm_id is not None
-        and ModuleTypeEnum.equipment_electric_consumption.value not in exclude_set
-    ):
+    equip_crm_id = crm_by_type.get(ModuleTypeEnum.equipment.value)
+    if equip_crm_id is not None and ModuleTypeEnum.equipment.value not in exclude_set:
         top_class_detail["equipment_it"] = await emission_svc.get_top_class_breakdown(
             carbon_report_module_id=equip_crm_id,
             data_entry_types=[DataEntryTypeEnum.it],

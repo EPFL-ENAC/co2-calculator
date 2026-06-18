@@ -290,7 +290,7 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
 
         module = CarbonReportModule(
             carbon_report_id=report.id,
-            module_type_id=ModuleTypeEnum.equipment_electric_consumption.value,
+            module_type_id=ModuleTypeEnum.equipment.value,
         )
         s.add(module)
         await s.commit()
@@ -384,7 +384,7 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
         "year": 2025,
         "file_path": csv_relative,
         "config": {
-            "module_type_id": ModuleTypeEnum.equipment_electric_consumption.value,
+            "module_type_id": ModuleTypeEnum.equipment.value,
             "data_entry_type_id": DataEntryTypeEnum.it.value,
         },
     }

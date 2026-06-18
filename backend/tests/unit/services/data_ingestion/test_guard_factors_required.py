@@ -113,5 +113,5 @@ def test_factor_inferred_modules_set_contains_equipment_and_purchase():
         _FACTOR_INFERRED_MODULES,
     )
 
-    assert ModuleTypeEnum.equipment_electric_consumption in _FACTOR_INFERRED_MODULES
+    assert ModuleTypeEnum.equipment in _FACTOR_INFERRED_MODULES
     assert ModuleTypeEnum.purchase in _FACTOR_INFERRED_MODULES

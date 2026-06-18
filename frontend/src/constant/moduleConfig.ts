@@ -110,8 +110,7 @@ export interface ModuleField {
   readOnlyDisplayField?: string;
   // Whether to translate option labels through i18n
   optionLabelsAreKeys?: boolean;
-  // i18n key prefix for dynamic factor-sourced options (value is lowercased and appended)
-  // e.g. prefix 'cloud-service-type-' + 'stockage' → t('cloud-service-type-stockage')
+  // When set, option values are translated via i18n using the lowercased value as key
   optionLabelPrefix?: string;
 }
 
@@ -126,9 +125,10 @@ export interface Submodule {
   hasTableTopBar?: boolean;
   hasFormSubtitle?: boolean;
   hasTablePagination?: boolean;
-  hasFormTooltip?: boolean | string;
   hasFormAddWithNote?: boolean;
   hasTableAction?: boolean;
+  /** Show note button in the table even when data rows are read-only. */
+  hasTableNote?: boolean;
   addButtonLabelKey?: string;
   tooltipKey?: string;
   notifyInfoOnAddKey?: string;
@@ -162,8 +162,6 @@ export interface ModuleConfig {
   description?: string;
   hasDescription: boolean;
   hasDescriptionSubtext?: boolean;
-  hasTooltip: boolean;
-  hasTooltipSubText?: boolean;
   hasSubmodules: boolean;
   isCollapsible?: boolean;
   uncertainty?: 'high' | 'medium' | 'low';

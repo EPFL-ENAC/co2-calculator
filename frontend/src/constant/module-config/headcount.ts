@@ -17,73 +17,54 @@ export const iconMap: Record<string, string> = {
   // Add more mappings as needed
 };
 
-// EN : Name | Position | Full-Time Equivalent (FTE)
-// FR : Nom | Position | Équivalent plein-temps (EPT)
+// EN : Name | Function | Full-Time Equivalent (FTE)
+// FR : Nom | Fonction | Équivalent plein-temps (EPT)
 const memberFields: ModuleField[] = [
   {
     id: 'name',
     labelKey: 'headcount-member-form-field-name-label',
     type: 'text',
     sortable: true,
-    required: true,
     ratio: '1/4',
     icon: 'o_filter_drama',
     columnSize: 'sm',
   },
   {
-    id: 'position_category',
-    labelKey: 'headcount-member-form-field-position-category-label',
+    id: 'sius_code',
+    labelKey: 'headcount-member-form-field-function-label',
     type: 'select',
     sortable: true,
-    required: true,
-    requiredMessageKey: 'headcount-member-position-category-required',
-    editableInline: true,
     ratio: '1/4',
     icon: 'o_assignment_ind',
     optionLabelsAreKeys: true,
     columnSize: 'sm',
+
     options: [
-      { value: 'professor', label: 'headcount_professor' },
-      {
-        value: 'scientific_collaborator',
-        label: 'headcount_scientific_collaborator',
-      },
-      {
-        value: 'postdoctoral_assistant',
-        label: 'headcount_postdoctoral_assistant',
-      },
-      {
-        value: 'doctoral_assistant',
-        label: 'headcount_doctoral_assistant',
-      },
-      { value: 'trainee', label: 'headcount_trainee' },
-      {
-        value: 'technical_administrative_staff',
-        label: 'headcount_technical_administrative_staff',
-      },
-      { value: 'other', label: 'headcount_other' },
+      { value: '51', label: '51' },
+      { value: '52', label: '52' },
+      { value: '53', label: '53' },
+      { value: '54', label: '54' },
+      { value: '56', label: '56' },
+      { value: '57', label: '57' },
+      { value: '58', label: '58' },
+      { value: '59', label: '59' },
     ],
-    readOnlyWhen: { fieldId: 'position_title', hasValue: true },
-    readOnlyDisplayField: 'position_title',
   },
   {
     id: 'user_institutional_id',
     labelKey: 'headcount-member-form-field-user-institutional-id-label',
     type: 'text',
     sortable: false,
-    required: true,
     ratio: '1/4',
   },
   {
     id: 'fte',
     labelKey: 'headcount-member-form-field-fte-label',
     type: 'number',
-    required: true,
     min: 0,
     max: 1,
     step: 0.1,
-    sortable: true,
-    editableInline: true,
+    sortable: false,
     ratio: '1/4',
     icon: 'o_timer',
   },
@@ -99,13 +80,12 @@ const studentFields: ModuleField[] = [
     id: 'fte',
     labelKey: 'headcount-student_form_field_fte_label',
     type: 'number',
-    required: true,
     min: 0,
     step: 0.1,
     sortable: true,
-    editableInline: true,
     ratio: '12/12',
     icon: iconMap['o_timer'],
+    tooltip: 'module-headcount-submodule-student-table-fte',
   },
 ];
 
@@ -114,8 +94,6 @@ export const headcount: ModuleConfig = {
   type: MODULES.Headcount as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   name: 'Headcount',
   description:
     'Enter and verify team members and Full Time Equivalent (FTE) values for your unit',
@@ -136,11 +114,9 @@ export const headcount: ModuleConfig = {
       type: 'member',
       tableNameKey: 'headcount-member-table-title',
       moduleFields: memberFieldDynamicIcons,
-      hasFormTooltip: false,
       csvTemplateHeaders: [
         'name',
-        'position_title',
-        'position_category',
+        'sius_code',
         'user_institutional_id',
         'fte',
         'note',
@@ -151,7 +127,6 @@ export const headcount: ModuleConfig = {
       type: 'student',
       tableNameKey: 'headcount-student-table-title',
       hasTableTopBar: false,
-      hasFormTooltip: false,
       hasFormSubtitle: true,
       hasFormAddWithNote: false,
       hasTablePagination: false,

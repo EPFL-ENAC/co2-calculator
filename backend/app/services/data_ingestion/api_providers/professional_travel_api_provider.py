@@ -18,7 +18,6 @@ from app.schemas.user import UserRead
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
-    DataEntryEmissionService,
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
@@ -454,7 +453,6 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             return {"inserted": 0}
 
         service = DataEntryService(self.data_session)
-        emission_service = DataEntryEmissionService(self.data_session)
 
         # Create data entries with preserved CO2 values.
         # The raw ``kg_co2eq`` key is stripped from the persisted payload —
@@ -526,7 +524,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
             created_by_id=self.job_id,
         )
 
-        # Plan 310-D — under ``BULK_PATH_PURE_ASYNC`` (default True) the
+        # Plan 310-D — the
         # runner-driven ``emission_recalc`` chain (fired by
         # ``api_ingest_handler`` post-success) owns ``data_entry_emissions``
         # writes for the bulk path.  Skip the inline path here — the
@@ -541,40 +539,7 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         # which ``prepare_create`` reads as a fallback when no function-arg
         # override is passed — so the recalc workflow's
         # ``upsert_by_data_entry`` preserves it across the async hop.
-        if get_settings().BULK_PATH_PURE_ASYNC:
-            await self.data_session.flush()
-            return {"inserted": len(data_entries_response)}
-
-        # Legacy inline-write path (BULK_PATH_PURE_ASYNC=False).
-        overrides_by_id: dict[int, float] = {
-            resp.id: ov
-            for resp, ov in zip(data_entries_response, kg_co2eq_overrides)
-            if ov is not None and resp.id is not None
-        }
-
-        emissions_to_create = []
-        for data_entry_response in data_entries_response:
-            try:
-                emission_objs = await emission_service.prepare_create(
-                    data_entry_response,
-                    kg_co2eq_override=overrides_by_id.get(data_entry_response.id),
-                )
-                if emission_objs is not None:
-                    emissions_to_create.extend(emission_objs)
-            except Exception as emission_error:
-                logger.warning(
-                    f"Failed to prepare emission for "
-                    f"data_entry_id={data_entry_response.id}: "
-                    f"{str(emission_error)}"
-                )
-
-        if emissions_to_create:
-            await emission_service.bulk_create(emissions_to_create)
-            logger.info(f"Created {len(emissions_to_create)} emissions")
-
-        # Flush all changes
         await self.data_session.flush()
-
         return {"inserted": len(data_entries_response)}
 
     def _generate_jwt(self) -> str:
@@ -794,12 +759,16 @@ class ProfessionalTravelApiProvider(DataIngestionProvider):
         return datetime.strptime(date_str, "%Y%m%d")
 
     def _normalize_class(self, class_str: str) -> str:
+        # Canonical cabin_class vocabulary ("economy"/"business"/"first") —
+        # the value resolve_emission_types and factor classification key on.
+        # Must NOT emit "eco": the resolver rejects it (the old wrong value),
+        # so economy flights would resolve to no emission type.
         mapping = {
-            "AIR ECONOMY CLASS": "eco",
+            "AIR ECONOMY CLASS": "economy",
             "AIR BUSINESS CLASS": "business",
             "AIR FIRST CLASS": "first",
         }
-        return mapping.get(class_str, "eco")
+        return mapping.get(class_str, "economy")
 
     async def _resolve_carbon_report_modules(
         self,

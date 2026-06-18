@@ -16,9 +16,7 @@
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
-          :aria-label="
-            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
-          "
+          :aria-label="$t('module-info-label')"
         >
           <q-tooltip
             v-if="hasTableTooltip"
@@ -26,27 +24,13 @@
             self="top right"
             class="u-tooltip"
           >
-            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
           </q-tooltip>
         </q-icon>
       </div>
     </template>
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div
-        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
-        class="q-mx-lg q-mt-lg"
-      >
-        <trips-map
-          :legs="tripsMapLegs"
-          :mode-filter="tripsMapMode"
-          :loading="moduleStore.state.loadingTripsMap"
-          :aria-label="
-            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
-          "
-          :testid="`trips-map-${tripsMapMode}`"
-        />
-      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -87,18 +71,12 @@
             :has-subtitle="submodule.hasFormSubtitle"
             :has-add-with-note="submodule.hasFormAddWithNote"
             :add-button-label-key="submodule.addButtonLabelKey"
-            :has-tooltip="submodule.hasFormTooltip"
             :unit-id="unitId"
             :year="year"
             :form-defaults="formDefaults"
             :module-color="submoduleColor"
             @submit="submitForm"
           />
-        </div>
-        <div v-else-if="showViewOnlyBadge" class="q-mx-lg q-my-md">
-          <q-badge color="warning" class="q-px-md q-py-sm">
-            {{ $t('common_view_only') }}
-          </q-badge>
         </div>
       </template>
     </q-card-section>
@@ -119,9 +97,7 @@
           :name="outlinedInfo"
           size="sm"
           class="cursor-pointer q-mr-sm"
-          :aria-label="
-            $t(`${moduleType}-${submoduleType}-table-title-info-label`)
-          "
+          :aria-label="$t('module-info-label')"
         >
           <q-tooltip
             v-if="hasTableTooltip"
@@ -129,27 +105,13 @@
             self="top right"
             class="u-tooltip"
           >
-            {{ $t(`${moduleType}-${submoduleType}-table-title-info-tooltip`) }}
+            {{ $t(`module-${moduleType}-submodule-${submodule.type}`) }}
           </q-tooltip>
         </q-icon>
       </div>
     </q-card-section>
     <q-separator />
     <q-card-section class="q-pa-none">
-      <div
-        v-if="submodule.topVisualization === 'trips-map' && tripsMapMode"
-        class="q-mx-lg q-mt-lg"
-      >
-        <trips-map
-          :legs="tripsMapLegs"
-          :mode-filter="tripsMapMode"
-          :loading="moduleStore.state.loadingTripsMap"
-          :aria-label="
-            $t(`${MODULES.ProfessionalTravel}-trips-map-title-${tripsMapMode}`)
-          "
-          :testid="`trips-map-${tripsMapMode}`"
-        />
-      </div>
       <div v-if="submodule.moduleFields" class="q-mx-lg q-my-xl">
         <module-table
           :module-fields="submodule.moduleFields"
@@ -176,7 +138,6 @@
           :has-subtitle="submodule.hasFormSubtitle"
           :has-add-with-note="submodule.hasFormAddWithNote"
           :add-button-label-key="submodule.addButtonLabelKey"
-          :has-tooltip="submodule.hasFormTooltip"
           :unit-id="unitId"
           :year="year"
           :form-defaults="formDefaults"
@@ -202,12 +163,11 @@ import {
 } from 'src/constant/moduleConfig';
 import ModuleTable from 'src/components/organisms/module/ModuleTable.vue';
 import ModuleForm from 'src/components/organisms/module/ModuleForm.vue';
-import TripsMap from 'src/components/molecules/TripsMap.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/constant/permissions';
+import { PermissionAction } from 'src/stores/auth';
 import type {
   ModuleResponse,
   Threshold,
@@ -215,11 +175,7 @@ import type {
   EnumSubmoduleType,
   Module,
 } from 'src/constant/modules';
-import {
-  enumSubmodule,
-  MODULES,
-  MODULES_THRESHOLD_TYPES,
-} from 'src/constant/modules';
+import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
@@ -378,7 +334,7 @@ const item = computed(() => {
   }
   return null;
 });
-const { te, t } = useI18n();
+const { t } = useI18n();
 
 const hasModuleForm = computed(() => {
   return (
@@ -392,26 +348,11 @@ const showModuleForm = computed(
   () => hasModuleForm.value && !isFormDisabled.value && canEdit.value,
 );
 
-const showViewOnlyBadge = computed(
-  () => Boolean(props.submodule.moduleFields) && !isFormDisabled.value,
-);
-
-// Map data is fetched once at the module-charts level (ModuleCharts.vue
-// triggers `getProfessionalTravelTripsMap`); the plane/train cards just
-// filter and render. tripsMapMode is non-null only when the submodule
-// opts in via `topVisualization: 'trips-map'` and identifies as plane/train.
-const tripsMapMode = computed<'plane' | 'train' | null>(() => {
-  if (props.submodule.topVisualization !== 'trips-map') return null;
-  if (props.submodule.id === 'plane') return 'plane';
-  if (props.submodule.id === 'train') return 'train';
-  return null;
-});
-const tripsMapLegs = computed(() => moduleStore.state.tripsMap?.legs ?? []);
-
 const hasTableTooltip = computed(() => {
   if (!props.submodule.type) return false;
-  const tooltipKey = `${props.moduleType}-${props.submodule.type}-table-title-info-tooltip`;
-  return te(tooltipKey);
+  return (
+    t(`module-${props.moduleType}-submodule-${props.submodule.type}`) !== ''
+  );
 });
 
 // actions

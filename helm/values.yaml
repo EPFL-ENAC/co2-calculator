@@ -42,6 +42,12 @@ backend:
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
+    # Background job safety poller (orphan-job recovery)
+    RUN_BACKGROUND_POLLER: "true"
+    POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
+    POLLER_BATCH_LIMIT: "100" # Max NOT_STARTED jobs dispatched per sweep
+    STALE_JOB_TIMEOUT_MINUTES: "60" # RUNNING jobs older than this are auto-recovered
+    INGEST_COPY_BATCH_SIZE: "50000" # Rows per COPY batch for bulk CSV data_entries ingest
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
     ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout

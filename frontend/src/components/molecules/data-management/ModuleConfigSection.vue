@@ -4,7 +4,6 @@ import { useI18n } from 'vue-i18n';
 
 interface Props {
   module: string;
-  selectedYear: number;
 }
 
 const props = defineProps<Props>();
@@ -17,7 +16,6 @@ const {
   updateModuleUncertainty,
 } = useModuleConfig({
   module: props.module,
-  selectedYear: props.selectedYear,
 });
 </script>
 

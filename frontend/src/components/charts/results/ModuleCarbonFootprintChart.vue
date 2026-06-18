@@ -516,7 +516,7 @@ const MAIN_CATEGORY_ORDER_IDS = [
   'charts-process-emissions-category',
   'charts-buildings-energy-combustion-category',
   'charts-buildings-room-category',
-  'charts-equipment-electric-consumption-category',
+  'charts-equipment-category',
   'charts-external-cloud-category',
   'charts-professional-travel-category',
   'charts-purchases-category',
@@ -1049,7 +1049,7 @@ const chartOption = computed((): EChartsOption => {
         color: getSubcategoryColor(
           'professional_travel',
           'train',
-          colors.value.babyBlue.dark,
+          colors.value.babyBlue.light,
         ),
       },
       label: { show: false },
@@ -1365,8 +1365,11 @@ const downloadCSV = () => {
     flat
     class="container container--pa-none full-width module-carbon-chart"
   >
-    <q-card-section class="flex justify-between items-center">
+    <q-card-section class="flex justify-between items-center q-pr-lg">
       <div class="flex items-center no-wrap">
+        <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
+          {{ props.title ?? $t('unit_carbon_footprint_title') }}
+        </span>
         <q-icon
           v-if="!isPrintMode"
           name="o_info"
@@ -1413,9 +1416,6 @@ const downloadCSV = () => {
             </div>
           </q-tooltip>
         </q-icon>
-        <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
-          {{ props.title ?? $t('unit_carbon_footprint_title') }}
-        </span>
       </div>
 
       <div v-if="!isPrintMode">
@@ -1438,6 +1438,7 @@ const downloadCSV = () => {
         :class="['chart', { 'chart--print': isPrintMode }]"
         autoresize
         :option="chartOption"
+        :update-options="{ replaceMerge: ['dataset'] }"
         @rendered="recalculateScopeRects"
         @vue:mounted="onChartReady"
       />

@@ -18,20 +18,21 @@ const cloudFields: ModuleField[] = [
     type: 'select',
     required: true,
     align: 'left',
-    // tooltip: 'Class can be edited via the Edit button only',
     inputTypeName: 'QSelect',
     readOnly: false,
     editableInline: true,
     ratio: '1/2',
     icon: 'o_category',
     columnSize: 'md',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_clouds-table-provider',
   },
   {
     id: 'service_type',
     labelKey: `${MODULES.ExternalCloudAndAI}.inputs.service_type`,
     hideIn: { form: false },
     optionsId: 'subkind',
-    optionLabelPrefix: 'external-cloud-service-type-',
+    optionLabelPrefix: 'external-cloud',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
@@ -43,6 +44,8 @@ const cloudFields: ModuleField[] = [
     ratio: '1/2',
     icon: 'o_category',
     columnSize: 'md',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_clouds-table-service_type',
   },
   // {
   //   id: 'region',
@@ -63,6 +66,8 @@ const cloudFields: ModuleField[] = [
     hideIn: { form: false },
     sortable: true,
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_clouds-table-spent_amount',
   },
   {
     id: 'currency',
@@ -74,6 +79,8 @@ const cloudFields: ModuleField[] = [
     hideIn: { form: false },
     sortable: true,
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_clouds-table-currency',
     options: [
       { value: 'eur', label: 'EUR' },
       { value: 'chf', label: 'CHF' },
@@ -87,6 +94,8 @@ const cloudFields: ModuleField[] = [
     hideIn: { form: true },
     sortable: true,
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_clouds-table-kg_co2eq',
   },
 ];
 
@@ -98,12 +107,13 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     hideIn: { table: false },
     editableInline: true,
-
     optionsId: 'kind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
     columnSize: 'md',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_ai-table-provider',
   },
   {
     id: 'usage_type',
@@ -112,12 +122,13 @@ const externalAIFields: ModuleField[] = [
     ratio: '4/12',
     hideIn: { table: false },
     editableInline: true,
-
     optionsId: 'subkind',
     inputTypeName: 'QSelect',
     sortable: true,
     type: 'select',
     columnSize: 'md',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_ai-table-usage_type',
   },
   {
     id: 'fte_count',
@@ -132,6 +143,8 @@ const externalAIFields: ModuleField[] = [
     hideIn: { table: false },
     defaultFrom: 'total_fte',
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_ai-table-fte_count',
   },
   {
     id: 'requests_per_user_per_day',
@@ -145,21 +158,23 @@ const externalAIFields: ModuleField[] = [
     sortable: true,
     hideIn: { table: false },
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_ai-table-requests_per_user_per_day',
     options: [
       {
-        value: '1-5 times per day',
+        value: '1_5',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`,
       },
       {
-        value: '5-20 times per day',
+        value: '5_20',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.5_20`,
       },
       {
-        value: '20-100 times per day',
+        value: '20_100',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.20_100`,
       },
       {
-        value: '>100 times per day',
+        value: 'gt_100',
         label: `${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.gt_100`,
       },
     ],
@@ -172,6 +187,8 @@ const externalAIFields: ModuleField[] = [
     sortable: true,
     ratio: '4/12',
     columnSize: 'sm',
+    tooltip:
+      'module-external-cloud-and-ai-submodule-external_ai-table-kg_co2eq',
   },
 ];
 
@@ -180,8 +197,6 @@ export const externalCloudAndAi: ModuleConfig = {
   type: MODULES.ExternalCloudAndAI as Module,
   hasDescription: true,
   hasDescriptionSubtext: true,
-  hasTooltip: true,
-  hasTooltipSubText: true,
   description: 'Track external cloud services and AI usage',
   hasSubmodules: true,
   formStructure: 'perSubmodule',

@@ -32,6 +32,7 @@ const LABEL_KEY_MAP: Record<string, string> = {
   ch4: 'process-emissions.category.ch4',
   n2o: 'process-emissions.category.n2o',
   refrigerants: 'process-emissions.category.refrigerants',
+  refrigerant: 'process-emissions.category.refrigerants',
   // buildings
   combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
@@ -39,6 +40,12 @@ const LABEL_KEY_MAP: Record<string, string> = {
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
+  laboratories: 'charts-laboratories-subcategory',
+  office: 'charts-office-subcategory',
+  archives: 'charts-archives-subcategory',
+  libraries: 'charts-libraries-subcategory',
+  auditoriums: 'charts-auditoriums-subcategory',
+  miscellaneous: 'charts-miscellaneous-subcategory',
   // equipment
   scientific: 'charts-scientific-subcategory',
   it: 'charts-equipment-it',
