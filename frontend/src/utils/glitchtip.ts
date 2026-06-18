@@ -43,13 +43,34 @@ interface StackFrame {
 
 const OFFLINE_KEY = 'gtq';
 
+// Compact, never-throwing string for a non-Error value (rejected object,
+// number, etc.) so its content survives into the report.
+function describeNonError(raw: unknown): string {
+  try {
+    return typeof raw === 'object' && raw !== null
+      ? JSON.stringify(raw)
+      : String(raw);
+  } catch {
+    // Circular/unserializable — fall back to the type tag, e.g. [object Object].
+    return Object.prototype.toString.call(raw);
+  }
+}
+
 // Normalize anything thrown (Error, string, ErrorEvent.message, rejection
 // reason) into an Error so we always have name/message/stack to report.
 function toError(raw: unknown): Error {
   if (raw instanceof Error) return raw;
   if (typeof raw === 'string') return new Error(raw);
+  // Objects with a string `message` (DOMException, custom error-likes).
   const message = (raw as { message?: unknown } | null)?.message;
-  return new Error(message != null ? String(message) : 'Unknown error');
+  if (typeof message === 'string' && message) return new Error(message);
+  // True non-Error rejection: keep the payload instead of "Unknown error",
+  // and tag it distinctly so GlitchTip groups these apart from real Errors.
+  const err = new Error(
+    `Non-Error rejection: ${describeNonError(raw).slice(0, 200)}`,
+  );
+  err.name = 'NonError';
+  return err;
 }
 
 // Best-effort parse of an Error.stack into Sentry frames. Handles Chrome
@@ -154,6 +175,11 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
     if (sig === lastSig) return;
     lastSig = sig;
 
+    // A real Error carries a stack from its throw/reject site. Anything else
+    // (string, rejected object/number) only gets the stack we synthesize here
+    // at capture time — flag it so the trace reads as synthetic, not real.
+    const synthetic = !(raw instanceof Error);
+
     const id = crypto.randomUUID().replace(/-/g, '');
     const event = {
       event_id: id,
@@ -179,6 +205,7 @@ export function initGlitchTip(opts: GlitchTipOptions): void {
             mechanism: {
               type: ctx?.mechanism ?? 'generic',
               handled: ctx?.handled ?? true,
+              ...(synthetic ? { synthetic: true } : {}),
             },
           },
         ],

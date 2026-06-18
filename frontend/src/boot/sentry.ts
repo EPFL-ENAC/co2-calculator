@@ -171,4 +171,48 @@ export default boot(({ app, router }) => {
           String(reason ?? 'Unhandled rejection'));
     notifyError(message);
   });
+
+  // -------------------------------------------------------------------------
+  // Dev-only manual trigger: `window.__gtTest('<kind>')` from the console to
+  // fire each error path and confirm it reaches GlitchTip. Stripped from prod
+  // builds by the import.meta.env.DEV guard (dead-code eliminated).
+  // -------------------------------------------------------------------------
+  if (import.meta.env.DEV) {
+    const triggers: Record<string, () => void> = {
+      // Real trace (Error captured at the throw site).
+      throw: () =>
+        setTimeout(() => {
+          throw new Error('[__gtTest] thrown error');
+        }, 0),
+      // Real trace (Error captured at the reject site).
+      reject: () => void Promise.reject(new Error('[__gtTest] rejected Error')),
+      // No origin trace exists → reported as a synthetic "NonError".
+      'reject-nonerror': () =>
+        void Promise.reject({ code: 'E_TEST', detail: 'plain object payload' }),
+      // Direct capture, e.g. the path api/http.ts uses for HTTP 5xx.
+      capture: () =>
+        captureError(new Error('[__gtTest] manual capture'), {
+          mechanism: 'manual',
+          extra: { hint: 'this is what the ky 5xx path sends' },
+        }),
+      // Stale-chunk router error → also shows the reload prompt.
+      chunk: () => {
+        captureError(new Error('Importing a module script failed.'), {
+          mechanism: 'vue-router',
+        });
+        notifyReloadOnce();
+      },
+    };
+    (window as unknown as { __gtTest: (kind?: string) => void }).__gtTest = (
+      kind = 'throw',
+    ) => {
+      const run = triggers[kind];
+      if (!run) {
+        console.warn(`[__gtTest] kinds: ${Object.keys(triggers).join(' | ')}`);
+        return;
+      }
+      run();
+      console.log(`[__gtTest] fired "${kind}"`);
+    };
+  }
 });

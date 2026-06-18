@@ -42,6 +42,12 @@ GlitchTip accepts). No-op without a DSN, so dev/CI stay silent.
   GlitchTip derives the `browser` / `os` / `device` tags (+ icons) server-side;
   and auto-records breadcrumbs (`fetch` — skipping its own ingest POSTs —
   `console.error/warn`, `ui.click`; `navigation` from `router.afterEach`).
+- Non-Error rejections (`Promise.reject({...})`, numbers) keep their payload in
+  the title (`NonError: Non-Error rejection: …`) instead of "Unknown error".
+  Real Errors carry their throw/reject-site stack; synthesized stacks (string /
+  non-Error captures) are flagged `mechanism.synthetic = true` — the browser
+  retains no origin trace for a plain-value rejection, so reject with an `Error`
+  to keep one.
 
 **Rewired — `frontend/src/boot/sentry.ts`** (boot slot name kept as `sentry`;
 the `APP_SENTRY_DSN` env name is wired through `runtime.ts`, `quasar.config.js`,
@@ -82,10 +88,12 @@ Prod: `APP_SENTRY_DSN` from the pod env via Helm → `injectEnv.js`.
 - `make type-check` (vue-tsc) and `npm run lint` — both green; no `@sentry`
   imports remain.
 - Manual (`quasar dev`, with the DSN in `.env.local` and the dev server
-  restarted): `setTimeout(() => { throw new Error('x') }, 0)` and
-  `Promise.reject(new Error('y'))` each produce a
-  `POST …/api/<projectId>/envelope/?sentry_key=…` → 200 and a visible GlitchTip
-  event. (A bare `throw` typed at the console REPL does **not** fire
-  `window.onerror` in WebKit — use `setTimeout`.) Exercise each source
-  (component throw, rejection, route error, backend 500); confirm ResizeObserver
-  / `AbortError` / `Failed to fetch` are not sent.
+  restarted): from the console call `window.__gtTest('<kind>')` — kinds:
+  `throw` | `reject` | `reject-nonerror` | `capture` | `chunk` — to fire each
+  path; each produces a `POST …/api/<projectId>/envelope/?sentry_key=…` → 200
+  and a visible GlitchTip event with browser/os tags and a breadcrumb trail.
+  (`__gtTest` is dev-only, stripped from prod. A bare `throw` typed at the
+  console REPL does **not** fire `window.onerror` in WebKit — hence `setTimeout`
+  inside the helper.) Confirm ResizeObserver / `AbortError` / `Failed to fetch`
+  are not sent. HTTP 5xx capture needs a backend endpoint that genuinely 500s,
+  called via the `api` ky instance (4xx is intentionally not reported).
