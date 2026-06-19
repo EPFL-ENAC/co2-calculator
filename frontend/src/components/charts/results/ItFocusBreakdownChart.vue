@@ -19,7 +19,6 @@ import {
 } from 'echarts/components';
 import VChart from 'vue-echarts';
 
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import TooltipEcharts from 'src/components/charts/results/TooltipEcharts.vue';
 import { useEchartsTooltip } from 'src/components/charts/results/useEchartsTooltip';
 import {
@@ -391,16 +390,10 @@ defineExpose({ downloadPNG });
           :key="cat.key"
           class="waffle-legend-item"
         >
-          <ModuleIcon
+          <span
             v-if="cat.isIT"
-            :name="IT_FOCUS_CATEGORY_TO_MODULE[cat.key]"
-            size="sm"
-            color=""
-            :style="{
-              color: isTinyNonZeroPercent(cat.units)
-                ? 'var(--semantic-color-text-muted)'
-                : cat.color,
-            }"
+            class="waffle-swatch"
+            :style="{ backgroundColor: cat.color }"
           />
           <span
             v-else
@@ -474,11 +467,11 @@ defineExpose({ downloadPNG });
 }
 
 .waffle-swatch {
-  width: dec.$spacing-sm;
-  height: dec.$spacing-sm;
-  border-radius: dec.$radius-default-px;
+  width: dec.$spacing-md;
+  height: dec.$spacing-md;
   flex-shrink: 0;
   display: inline-block;
+  margin-right: dec.$spacing-xs;
 }
 
 .waffle-swatch--outlined {
