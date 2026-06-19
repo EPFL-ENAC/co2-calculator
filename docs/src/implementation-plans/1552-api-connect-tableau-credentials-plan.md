@@ -1,26 +1,28 @@
 ---
 status: proposed
 last_updated: 2026-06-19
-title: "API Connect: encrypted Tableau credentials — implementation plan"
-summary: "Tiered TDD plan to store an encrypted shared Tableau connection plus per-module datasource bindings, drive the travel + new headcount API providers from them, and DRY the shared Tableau logic into one base provider."
+title: "API Connect: connectors and encrypted connections — implementation plan"
+summary: "Tiered TDD plan for a modular connector registry, one encrypted connection per connector (entered in the form), per-module connector_luid datasources, the travel + new headcount providers driven from them, and the shared Tableau logic in one base provider."
 ---
 
-# API Connect: encrypted Tableau credentials — Implementation Plan
+# API Connect: connectors and encrypted connections — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the backoffice "API connect" form functional — store one
-shared, encrypted Tableau connection and per-module datasource (LUID)
-bindings, then drive `ProfessionalTravelApiProvider` and a new
-`HeadcountMembersApiProvider` from them via one shared base provider.
+**Goal:** Make the backoffice "API connect" form functional — a hardcoded,
+modular connector registry; one encrypted connection per connector (entered
+in the form); a `connector_luid` datasource per module; and the travel +
+new headcount providers driven from them via one shared base provider.
 
-**Architecture:** A new `external_connections` table holds the shared
-connected-app credentials (`secret_value` Fernet-encrypted); a new
-`external_datasource_bindings` table holds one LUID per module. A
+**Architecture:** `ConnectorType` + a `CONNECTORS` registry name the
+integration types (today only `EPFL_TABLEAU`). A `connector_connections`
+table holds the connection (`secret_value` Fernet-encrypted); a
+`connector_datasources` table holds one `connector_luid` per module. A
 `BaseTableauApiProvider` lifts all shared Tableau plumbing out of the travel
-provider and adds `_ensure_credentials()`, which loads the binding + decrypted
-connection at runtime instead of reading env vars. The factory routes each
-module's API ingestion to the right subclass.
+provider and adds `_ensure_credentials()`, which loads the datasource +
+connection from the DB and reads runtime knobs from settings instead of
+reading credentials from env. The factory routes each module's API ingestion
+to the right subclass.
 
 **Tech Stack:** FastAPI, SQLModel, async SQLAlchemy, Alembic, Pydantic v2,
 `cryptography` (Scrypt + Fernet), pytest; Vue 3 + Quasar 2 frontend.
@@ -34,11 +36,17 @@ See the PRD for context and decisions:
   - `CREDENTIALS_ENCRYPTION_SALT`; if either is unset, encrypt/decrypt raise.
     Never reuse `SECRET_KEY`.
 - **Only `secret_value` is encrypted.** All other connection fields are
-  identifiers or operational knobs, stored plaintext.
+  identifiers, stored plaintext.
 - **Read schemas never expose `secret_value`.** Expose a boolean
-  `has_secret` instead. The frontend secret field is write-only.
-- **No backward compat.** Remove env-var credential reads from the travel
-  provider once the DB path works (project is pre-v1.x — see memory).
+  `has_secret`. The form secret field is write-only; an empty value on update
+  keeps the stored secret.
+- **Runtime knobs stay in env.** `TABLEAU_VERIFY_SSL`,
+  `TABLEAU_REQUEST_TIMEOUT_SECONDS`, `TABLEAU_REST_MIN_API_VERSION`,
+  `TABLEAU_MAX_FIELDS` are read from settings, never stored on the connection.
+- **No backward compat.** Remove env-var credential reads
+  (`TABLEAU_SERVER_URL`, `…SITE_CONTENT_URL`, `…USERNAME`,
+  `…CONNECTED_APP_*`, `…DS_FLIGHTS_LUID`) from the travel provider once the DB
+  path works (project is pre-v1.x — see memory).
 - **No new patterns.** Mirror existing model/repo/service/schema/router
   conventions (`models/user.py`, `repositories/unit_repo.py`,
   `services/data_entry_service.py`, `schemas/user.py`).
@@ -47,8 +55,8 @@ See the PRD for context and decisions:
   `if x is None: raise ...`, never bare `assert`.
 - **Every bug/edge fix ships a regression test.**
 - **Verification per backend task:** `cd backend && uv run pytest <path> -v`
-  then `cd backend && make type-check` and `make lint`. The user runs the
-  full suite — stop at lint/type-check.
+  then `make type-check` and `make lint`. The user runs the full suite —
+  stop at lint/type-check.
 - **Frontend has no JS unit harness** (see memory). Verify with
   `cd frontend && make type-check` and `npm run lint`.
 - **Migrations via `make db-revision`** — never hand-author; prune any
@@ -62,13 +70,13 @@ See the PRD for context and decisions:
 New backend files:
 
 - `backend/app/core/crypto.py` — encrypt/decrypt helpers.
-- `backend/app/models/external_connection.py` — both tables + provider enum.
-- `backend/app/repositories/external_connection_repo.py` — both repos.
-- `backend/app/schemas/external_connection.py` — Read/Create/Update + binding
-  schemas.
-- `backend/app/services/external_connection_service.py` — encryption-aware
-  service.
-- `backend/app/api/v1/external_connections.py` — router.
+- `backend/app/models/connector.py` — `ConnectorType` enum + both tables.
+- `backend/app/services/data_ingestion/connectors.py` — hardcoded
+  `CONNECTORS` registry (`ConnectorSpec`).
+- `backend/app/repositories/connector_repo.py` — both repos.
+- `backend/app/schemas/connector.py` — connection + datasource + spec DTOs.
+- `backend/app/services/connector_service.py` — encryption-aware service.
+- `backend/app/api/v1/connectors.py` — router.
 - `backend/app/services/data_ingestion/api_providers/base_tableau_api_provider.py`
   — shared base provider.
 - `backend/app/services/data_ingestion/api_providers/headcount_members_api_provider.py`
@@ -77,21 +85,22 @@ New backend files:
 
 Modified backend files:
 
-- `backend/app/core/config.py` — new settings.
+- `backend/app/core/config.py` — new credential settings; drop dead Tableau
+  connection env vars (Tier 4), keep the knobs.
 - `backend/pyproject.toml` — add `cryptography`.
 - `backend/app/services/data_ingestion/api_providers/professional_travel_api_provider.py`
   — subclass the base, drop env reads.
 - `backend/app/services/data_ingestion/provider_factory.py` — register
   headcount provider.
-- `backend/app/main.py` (or the router aggregator) — include the new router.
+- The v1 router aggregator — include the new router.
 
 Frontend (Tier 6):
 
-- `frontend/src/stores/externalConnections.ts` (new) — API client + state.
-- `frontend/src/composables/useDataEntryDialog.ts` — wire submit to save
-  connection + binding, then dispatch.
+- `frontend/src/stores/connectors.ts` (new) — API client + state.
+- `frontend/src/composables/useDataEntryDialog.ts` — wire submit to save the
+  connection + datasource, then dispatch.
 - `frontend/src/components/molecules/data-management/DataEntryDialogContent.vue`
-  — add site/username/LUID fields, prefill existing connection.
+  — connector dropdown, the 6-field connection form, the per-module LUID.
 
 ---
 
@@ -116,13 +125,13 @@ cd backend && uv add cryptography
 - [ ] **Step 2: Add settings** after `TABLEAU_MAX_FIELDS` in `config.py`:
 
 ```python
-    # Credential encryption (required to store API connection secrets)
+    # Credential encryption (required to store connection secrets)
     CREDENTIALS_ENCRYPTION_KEY: str = Field(
         default="",
         description=(
             "URL-safe base64 secret (>=32 bytes) used to derive the Fernet "
-            "key that encrypts stored API-connection secrets. Provide via env "
-            "or a secret manager only; never commit."
+            "key that encrypts stored connection secrets. Provide via env or "
+            "a secret manager only; never commit."
         ),
     )
     CREDENTIALS_ENCRYPTION_SALT: str = Field(
@@ -211,7 +220,7 @@ def _derive_fernet_key() -> bytes:
     if not key or not salt:
         raise RuntimeError(
             "CREDENTIALS_ENCRYPTION_KEY and CREDENTIALS_ENCRYPTION_SALT must "
-            "be set to store or read API-connection secrets"
+            "be set to store or read connection secrets"
         )
     kdf = Scrypt(salt=salt.encode(), length=32, n=2**14, r=8, p=1)
     return base64.urlsafe_b64encode(kdf.derive(key.encode()))
@@ -237,25 +246,27 @@ Expected: PASS (2 tests).
 ```bash
 cd backend && make type-check && make lint
 git add backend/app/core/crypto.py backend/tests/core/test_crypto.py
-git commit -m "feat(crypto): Fernet encrypt/decrypt for API-connection secrets"
+git commit -m "feat(crypto): Fernet encrypt/decrypt for connection secrets"
 ```
 
 ---
 
-## Tier 2 — Data layer: models, migration, repos, schemas (PR 2)
+## Tier 2 — Data layer: connector registry, models, migration, repos, schemas (PR 2)
 
-### Task 2.1: Models + provider enum
+### Task 2.1: Connector enum, models, registry
 
 **Files:**
 
-- Create: `backend/app/models/external_connection.py`
+- Create: `backend/app/models/connector.py`
+- Create: `backend/app/services/data_ingestion/connectors.py`
 
 **Interfaces:**
 
-- Produces: `ExternalProviderType` (str enum: `EPFL_TABLEAU`),
-  `ExternalConnection(table=True)`, `ExternalDatasourceBinding(table=True)`.
+- Produces: `ConnectorType` (str enum: `EPFL_TABLEAU`),
+  `ConnectorConnection(table=True)`, `ConnectorDatasource(table=True)`,
+  `ConnectorSpec`, `CONNECTORS`, `list_connectors()`.
 
-- [ ] **Step 1: Write the model** (mirror `models/user.py` conventions)
+- [ ] **Step 1: Write the models** (mirror `models/user.py` conventions)
 
 ```python
 from datetime import datetime, timezone
@@ -267,7 +278,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlmodel import Field, SQLModel
 
 
-class ExternalProviderType(str, Enum):
+class ConnectorType(str, Enum):
     EPFL_TABLEAU = "EPFL_TABLEAU"
 
 
@@ -275,23 +286,19 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class ExternalConnection(SQLModel, table=True):
-    """A shared connection to an external data provider (Tableau).
+class ConnectorConnection(SQLModel, table=True):
+    """One connection per connector (where + who + connected-app creds).
 
-    The connected-app ``secret_value`` is stored encrypted (Fernet token);
-    every other column is an identifier or an operational knob.
+    ``secret_value`` is stored encrypted (Fernet token); every other column
+    is an identifier entered in the form.
     """
 
-    __tablename__ = "external_connections"
+    __tablename__ = "connector_connections"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
-    provider_type: ExternalProviderType = Field(
+    connector: ConnectorType = Field(
         sa_column=Column(
-            SAEnum(
-                ExternalProviderType,
-                name="external_provider_type_enum",
-                native_enum=True,
-            ),
+            SAEnum(ConnectorType, name="connector_type_enum", native_enum=True),
             nullable=False,
             unique=True,
         ),
@@ -303,10 +310,6 @@ class ExternalConnection(SQLModel, table=True):
     client_id: str = Field(nullable=False)
     secret_id: str = Field(nullable=False)
     secret_value_encrypted: str = Field(nullable=False)
-    verify_ssl: bool = Field(default=True, nullable=False)
-    request_timeout_seconds: int = Field(default=300, nullable=False)
-    rest_min_api_version: str = Field(default="2.4", nullable=False)
-    max_fields: int = Field(default=50, nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     created_at: datetime = Field(
         default_factory=_utcnow,
@@ -318,18 +321,18 @@ class ExternalConnection(SQLModel, table=True):
     )
 
 
-class ExternalDatasourceBinding(SQLModel, table=True):
+class ConnectorDatasource(SQLModel, table=True):
     """One datasource (LUID) for one module, owned by a connection."""
 
-    __tablename__ = "external_datasource_bindings"
+    __tablename__ = "connector_datasources"
 
     id: Optional[int] = Field(default=None, primary_key=True, index=True)
     connection_id: int = Field(
-        foreign_key="external_connections.id", nullable=False, index=True
+        foreign_key="connector_connections.id", nullable=False, index=True
     )
     module_type_id: int = Field(nullable=False, index=True)
     data_entry_type_id: Optional[int] = Field(default=None, nullable=True)
-    datasource_luid: str = Field(nullable=False)
+    connector_luid: str = Field(nullable=False)
     label: str = Field(nullable=False)
     is_active: bool = Field(default=True, nullable=False)
     created_at: datetime = Field(
@@ -342,29 +345,64 @@ class ExternalDatasourceBinding(SQLModel, table=True):
     )
 ```
 
-- [ ] **Step 2: Register the models for metadata discovery**
-
-Confirm `app/models/__init__.py` (or the Alembic `env.py` import surface)
-imports the new module so `SQLModel.metadata` sees both tables. Add:
+- [ ] **Step 2: Write the hardcoded registry** (`connectors.py`):
 
 ```python
-from app.models.external_connection import (  # noqa: F401
-    ExternalConnection,
-    ExternalDatasourceBinding,
-    ExternalProviderType,
+from dataclasses import dataclass
+
+from app.models.connector import ConnectorType
+
+
+@dataclass(frozen=True)
+class ConnectorSpec:
+    connector: ConnectorType
+    label: str
+    form_fields: tuple[str, ...]
+
+
+# Modular registry: a new integration is one more entry here plus a provider
+# subclass. The form renders ``form_fields`` for the chosen connector.
+CONNECTORS: dict[ConnectorType, ConnectorSpec] = {
+    ConnectorType.EPFL_TABLEAU: ConnectorSpec(
+        connector=ConnectorType.EPFL_TABLEAU,
+        label="EPFL Tableau",
+        form_fields=(
+            "server_url",
+            "site_content_url",
+            "username",
+            "client_id",
+            "secret_id",
+            "secret_value",
+        ),
+    ),
+}
+
+
+def list_connectors() -> list[ConnectorSpec]:
+    return list(CONNECTORS.values())
+```
+
+- [ ] **Step 3: Register models for metadata discovery.** Add to
+      `app/models/__init__.py` (or the Alembic `env.py` import surface):
+
+```python
+from app.models.connector import (  # noqa: F401
+    ConnectorConnection,
+    ConnectorDatasource,
+    ConnectorType,
 )
 ```
 
-- [ ] **Step 3: Verify import + metadata**
+- [ ] **Step 4: Verify imports**
 
-Run: `cd backend && uv run python -c "from app.models.external_connection import ExternalConnection; print(ExternalConnection.__tablename__)"`
-Expected: `external_connections`.
+Run: `cd backend && uv run python -c "from app.services.data_ingestion.connectors import list_connectors; print([c.connector for c in list_connectors()])"`
+Expected: `[<ConnectorType.EPFL_TABLEAU: 'EPFL_TABLEAU'>]`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add backend/app/models/external_connection.py backend/app/models/__init__.py
-git commit -m "feat(models): external connection + datasource binding tables"
+git add backend/app/models/connector.py backend/app/services/data_ingestion/connectors.py backend/app/models/__init__.py
+git commit -m "feat(models): connector type, connection + datasource tables, registry"
 ```
 
 ### Task 2.2: Alembic migration
@@ -376,21 +414,19 @@ git commit -m "feat(models): external connection + datasource binding tables"
 - [ ] **Step 1: Autogenerate**
 
 ```bash
-cd backend && make db-revision message="external connections and datasource bindings"
+cd backend && make db-revision message="connector connections and datasources"
 ```
 
-- [ ] **Step 2: Review the generated file**
-
-Confirm it creates both tables, the unique constraint on
-`external_connections.provider_type`, the FK and index on
-`external_datasource_bindings.connection_id`, and the
-`external_provider_type_enum` type. Add a partial unique index for one active
-binding per module target:
+- [ ] **Step 2: Review the generated file.** Confirm it creates both tables,
+      the unique constraint on `connector_connections.connector`, the FK + index
+      on `connector_datasources.connection_id`, and the `connector_type_enum`
+      type. Add a partial unique index for one active datasource per module
+      target:
 
 ```python
     op.create_index(
-        "uq_active_binding_per_module",
-        "external_datasource_bindings",
+        "uq_active_datasource_per_module",
+        "connector_datasources",
         ["module_type_id", "data_entry_type_id"],
         unique=True,
         postgresql_where=sa.text("is_active = true"),
@@ -409,49 +445,44 @@ Expected: upgrade to head with no error.
 
 ```bash
 git add backend/alembic/versions/
-git commit -m "feat(db): migration for external connections and bindings"
+git commit -m "feat(db): migration for connector connections and datasources"
 ```
 
 ### Task 2.3: Repositories (TDD)
 
 **Files:**
 
-- Create: `backend/app/repositories/external_connection_repo.py`
-- Test: `backend/tests/repositories/test_external_connection_repo.py`
+- Create: `backend/app/repositories/connector_repo.py`
+- Test: `backend/tests/repositories/test_connector_repo.py`
 
 **Interfaces:**
 
 - Produces:
-  `ExternalConnectionRepository(session)` with
-  `get_by_provider(provider_type) -> Optional[ExternalConnection]`,
-  `get_by_id(id) -> Optional[ExternalConnection]`,
-  `upsert(conn) -> ExternalConnection`.
-- `ExternalDatasourceBindingRepository(session)` with
-  `get_active_for_module(module_type_id, data_entry_type_id) -> Optional[ExternalDatasourceBinding]`,
-  `list_for_connection(connection_id) -> list[ExternalDatasourceBinding]`,
-  `upsert(binding) -> ExternalDatasourceBinding`.
+  `ConnectorConnectionRepository(session)` with
+  `get_by_connector(connector) -> Optional[ConnectorConnection]`,
+  `get_by_id(id) -> Optional[ConnectorConnection]`,
+  `upsert(conn) -> ConnectorConnection`.
+- `ConnectorDatasourceRepository(session)` with
+  `get_active_for_module(module_type_id, data_entry_type_id) -> Optional[ConnectorDatasource]`,
+  `list_for_connection(connection_id) -> list[ConnectorDatasource]`,
+  `upsert(ds) -> ConnectorDatasource`.
 
-- [ ] **Step 1: Write the failing test** (use the existing async DB fixture —
-      copy the fixture import used by `tests/repositories/test_unit_repo.py`):
+- [ ] **Step 1: Write the failing test** (reuse the async DB fixture used by
+      `tests/repositories/test_unit_repo.py`):
 
 ```python
 import pytest
 
-from app.models.external_connection import (
-    ExternalConnection,
-    ExternalProviderType,
-)
-from app.repositories.external_connection_repo import (
-    ExternalConnectionRepository,
-)
+from app.models.connector import ConnectorConnection, ConnectorType
+from app.repositories.connector_repo import ConnectorConnectionRepository
 
 
 @pytest.mark.asyncio
-async def test_get_by_provider_returns_saved_connection(db_session):
-    repo = ExternalConnectionRepository(db_session)
+async def test_get_by_connector_returns_saved_connection(db_session):
+    repo = ConnectorConnectionRepository(db_session)
     saved = await repo.upsert(
-        ExternalConnection(
-            provider_type=ExternalProviderType.EPFL_TABLEAU,
+        ConnectorConnection(
+            connector=ConnectorType.EPFL_TABLEAU,
             label="EPFL Tableau",
             server_url="https://tableau.epfl.ch/",
             site_content_url="co2fp",
@@ -462,7 +493,7 @@ async def test_get_by_provider_returns_saved_connection(db_session):
         )
     )
     await db_session.commit()
-    found = await repo.get_by_provider(ExternalProviderType.EPFL_TABLEAU)
+    found = await repo.get_by_connector(ConnectorType.EPFL_TABLEAU)
     assert found is not None
     assert found.id == saved.id
     assert found.server_url == "https://tableau.epfl.ch/"
@@ -470,7 +501,7 @@ async def test_get_by_provider_returns_saved_connection(db_session):
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd backend && uv run pytest tests/repositories/test_external_connection_repo.py -v`
+Run: `cd backend && uv run pytest tests/repositories/test_connector_repo.py -v`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the repos** (mirror `unit_repo.py`):
@@ -481,102 +512,102 @@ from typing import Optional
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.models.external_connection import (
-    ExternalConnection,
-    ExternalDatasourceBinding,
-    ExternalProviderType,
+from app.models.connector import (
+    ConnectorConnection,
+    ConnectorDatasource,
+    ConnectorType,
 )
 
 
-class ExternalConnectionRepository:
+class ConnectorConnectionRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
-    async def get_by_provider(
-        self, provider_type: ExternalProviderType
-    ) -> Optional[ExternalConnection]:
+    async def get_by_connector(
+        self, connector: ConnectorType
+    ) -> Optional[ConnectorConnection]:
         result = await self.session.exec(
-            select(ExternalConnection).where(
-                col(ExternalConnection.provider_type) == provider_type
+            select(ConnectorConnection).where(
+                col(ConnectorConnection.connector) == connector
             )
         )
         return result.one_or_none()
 
-    async def get_by_id(self, conn_id: int) -> Optional[ExternalConnection]:
+    async def get_by_id(self, conn_id: int) -> Optional[ConnectorConnection]:
         result = await self.session.exec(
-            select(ExternalConnection).where(col(ExternalConnection.id) == conn_id)
+            select(ConnectorConnection).where(
+                col(ConnectorConnection.id) == conn_id
+            )
         )
         return result.one_or_none()
 
-    async def upsert(self, conn: ExternalConnection) -> ExternalConnection:
+    async def upsert(self, conn: ConnectorConnection) -> ConnectorConnection:
         self.session.add(conn)
         await self.session.flush()
         await self.session.refresh(conn)
         return conn
 
 
-class ExternalDatasourceBindingRepository:
+class ConnectorDatasourceRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
     async def get_active_for_module(
         self, module_type_id: int, data_entry_type_id: Optional[int] = None
-    ) -> Optional[ExternalDatasourceBinding]:
-        query = select(ExternalDatasourceBinding).where(
-            col(ExternalDatasourceBinding.module_type_id) == module_type_id,
-            col(ExternalDatasourceBinding.is_active).is_(True),
+    ) -> Optional[ConnectorDatasource]:
+        query = select(ConnectorDatasource).where(
+            col(ConnectorDatasource.module_type_id) == module_type_id,
+            col(ConnectorDatasource.is_active).is_(True),
         )
         if data_entry_type_id is not None:
             query = query.where(
-                col(ExternalDatasourceBinding.data_entry_type_id)
-                == data_entry_type_id
+                col(ConnectorDatasource.data_entry_type_id) == data_entry_type_id
             )
         result = await self.session.exec(query)
         return result.first()
 
     async def list_for_connection(
         self, connection_id: int
-    ) -> list[ExternalDatasourceBinding]:
+    ) -> list[ConnectorDatasource]:
         result = await self.session.exec(
-            select(ExternalDatasourceBinding).where(
-                col(ExternalDatasourceBinding.connection_id) == connection_id
+            select(ConnectorDatasource).where(
+                col(ConnectorDatasource.connection_id) == connection_id
             )
         )
         return list(result.all())
 
-    async def upsert(
-        self, binding: ExternalDatasourceBinding
-    ) -> ExternalDatasourceBinding:
-        self.session.add(binding)
+    async def upsert(self, ds: ConnectorDatasource) -> ConnectorDatasource:
+        self.session.add(ds)
         await self.session.flush()
-        await self.session.refresh(binding)
-        return binding
+        await self.session.refresh(ds)
+        return ds
 ```
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cd backend && uv run pytest tests/repositories/test_external_connection_repo.py -v`
+Run: `cd backend && uv run pytest tests/repositories/test_connector_repo.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Type-check, lint, commit**
 
 ```bash
 cd backend && make type-check && make lint
-git add backend/app/repositories/external_connection_repo.py backend/tests/repositories/test_external_connection_repo.py
-git commit -m "feat(repo): external connection + binding repositories"
+git add backend/app/repositories/connector_repo.py backend/tests/repositories/test_connector_repo.py
+git commit -m "feat(repo): connector connection + datasource repositories"
 ```
 
 ### Task 2.4: Pydantic schemas
 
 **Files:**
 
-- Create: `backend/app/schemas/external_connection.py`
+- Create: `backend/app/schemas/connector.py`
 
 **Interfaces:**
 
-- Produces: `ExternalConnectionCreate`, `ExternalConnectionUpdate`,
-  `ExternalConnectionRead` (no secret; `has_secret: bool`),
-  `DatasourceBindingCreate`, `DatasourceBindingRead`.
+- Produces: `ConnectorSpecRead`, `ConnectorConnectionCreate`,
+  `ConnectorConnectionUpdate` (`secret_value` optional — blank keeps stored),
+  `ConnectorConnectionRead` (no secret; `has_secret: bool`),
+  `ConnectorDatasourceCreate`, `ConnectorDatasourceRead`.
 
 - [ ] **Step 1: Write the schemas** (mirror `schemas/user.py`):
 
@@ -586,41 +617,28 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from app.models.external_connection import ExternalProviderType
+from app.models.connector import ConnectorType
 
 
-class ExternalConnectionCreate(BaseModel):
-    provider_type: ExternalProviderType = ExternalProviderType.EPFL_TABLEAU
+class ConnectorSpecRead(BaseModel):
+    connector: ConnectorType
+    label: str
+    form_fields: list[str]
+
+
+class ConnectorConnectionCreate(BaseModel):
     label: str
     server_url: str
     site_content_url: Optional[str] = None
     username: str
     client_id: str
     secret_id: str
-    secret_value: str  # plaintext in; encrypted by the service
-    verify_ssl: bool = True
-    request_timeout_seconds: int = 300
-    rest_min_api_version: str = "2.4"
-    max_fields: int = 50
+    secret_value: Optional[str] = None  # required on create; blank keeps on update
 
 
-class ExternalConnectionUpdate(BaseModel):
-    label: Optional[str] = None
-    server_url: Optional[str] = None
-    site_content_url: Optional[str] = None
-    username: Optional[str] = None
-    client_id: Optional[str] = None
-    secret_id: Optional[str] = None
-    secret_value: Optional[str] = None  # only re-encrypt when provided
-    verify_ssl: Optional[bool] = None
-    request_timeout_seconds: Optional[int] = None
-    rest_min_api_version: Optional[str] = None
-    max_fields: Optional[int] = None
-
-
-class ExternalConnectionRead(BaseModel):
+class ConnectorConnectionRead(BaseModel):
     id: int
-    provider_type: ExternalProviderType
+    connector: ConnectorType
     label: str
     server_url: str
     site_content_url: Optional[str]
@@ -628,42 +646,38 @@ class ExternalConnectionRead(BaseModel):
     client_id: str
     secret_id: str
     has_secret: bool  # never expose the secret itself
-    verify_ssl: bool
-    request_timeout_seconds: int
-    rest_min_api_version: str
-    max_fields: int
     is_active: bool
     created_at: datetime
     updated_at: datetime
 
 
-class DatasourceBindingCreate(BaseModel):
+class ConnectorDatasourceCreate(BaseModel):
     module_type_id: int
     data_entry_type_id: Optional[int] = None
-    datasource_luid: str
+    connector_luid: str
     label: str
 
 
-class DatasourceBindingRead(BaseModel):
+class ConnectorDatasourceRead(BaseModel):
     id: int
     connection_id: int
     module_type_id: int
     data_entry_type_id: Optional[int]
-    datasource_luid: str
+    connector_luid: str
     label: str
     is_active: bool
 ```
 
 - [ ] **Step 2: Verify import**
 
-Run: `cd backend && uv run python -c "from app.schemas.external_connection import ExternalConnectionRead"`
+Run: `cd backend && uv run python -c "from app.schemas.connector import ConnectorConnectionRead"`
 Expected: no error.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add backend/app/schemas/external_connection.py
-git commit -m "feat(schemas): external connection + binding DTOs (secret write-only)"
+git add backend/app/schemas/connector.py
+git commit -m "feat(schemas): connector connection + datasource DTOs (secret write-only)"
 ```
 
 ---
@@ -674,17 +688,19 @@ git commit -m "feat(schemas): external connection + binding DTOs (secret write-o
 
 **Files:**
 
-- Create: `backend/app/services/external_connection_service.py`
-- Test: `backend/tests/services/test_external_connection_service.py`
+- Create: `backend/app/services/connector_service.py`
+- Test: `backend/tests/services/test_connector_service.py`
 
 **Interfaces:**
 
-- Produces: `ExternalConnectionService(session)` with
-  `save_connection(payload: ExternalConnectionCreate) -> ExternalConnection`
-  (encrypts `secret_value`),
-  `to_read(conn) -> ExternalConnectionRead`,
+- Produces: `ConnectorConnectionService(session)` with
+  `get_by_connector(connector) -> Optional[ConnectorConnection]`,
+  `save_connection(connector, payload) -> ConnectorConnection`
+  (encrypts `secret_value`; blank `secret_value` on an existing row keeps the
+  stored secret),
+  `to_read(conn) -> ConnectorConnectionRead`,
   `get_decrypted_secret(conn) -> str`,
-  `save_binding(connection_id, payload: DatasourceBindingCreate) -> ExternalDatasourceBinding`.
+  `save_datasource(connection_id, payload) -> ConnectorDatasource`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -692,41 +708,50 @@ git commit -m "feat(schemas): external connection + binding DTOs (secret write-o
 import pytest
 
 from app.core import crypto
-from app.schemas.external_connection import ExternalConnectionCreate
-from app.services.external_connection_service import ExternalConnectionService
+from app.models.connector import ConnectorType
+from app.schemas.connector import ConnectorConnectionCreate
+from app.services.connector_service import ConnectorConnectionService
 
 
 @pytest.mark.asyncio
-async def test_save_encrypts_and_read_hides_secret(db_session, monkeypatch):
+async def test_save_encrypts_blank_keeps_and_read_hides_secret(
+    db_session, monkeypatch
+):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
     crypto.get_settings.cache_clear()
 
-    service = ExternalConnectionService(db_session)
-    conn = await service.save_connection(
-        ExternalConnectionCreate(
-            label="EPFL Tableau",
-            server_url="https://tableau.epfl.ch/",
-            site_content_url="co2fp",
-            username="svc-calcco2-epfl-api",
-            client_id="cid",
-            secret_id="sid",
-            secret_value="the-real-secret",
-        )
+    service = ConnectorConnectionService(db_session)
+    base = ConnectorConnectionCreate(
+        label="EPFL Tableau",
+        server_url="https://tableau.epfl.ch/",
+        site_content_url="co2fp",
+        username="svc-calcco2-epfl-api",
+        client_id="cid",
+        secret_id="sid",
+        secret_value="the-real-secret",
     )
+    conn = await service.save_connection(ConnectorType.EPFL_TABLEAU, base)
     await db_session.commit()
-
     assert conn.secret_value_encrypted != "the-real-secret"
     assert service.get_decrypted_secret(conn) == "the-real-secret"
 
-    read = service.to_read(conn)
+    # blank secret on update keeps the stored value
+    base.username = "changed"
+    base.secret_value = None
+    conn2 = await service.save_connection(ConnectorType.EPFL_TABLEAU, base)
+    await db_session.commit()
+    assert conn2.username == "changed"
+    assert service.get_decrypted_secret(conn2) == "the-real-secret"
+
+    read = service.to_read(conn2)
     assert read.has_secret is True
     assert not hasattr(read, "secret_value")
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd backend && uv run pytest tests/services/test_external_connection_service.py -v`
+Run: `cd backend && uv run pytest tests/services/test_connector_service.py -v`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the service**
@@ -737,45 +762,48 @@ from typing import Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.crypto import decrypt_secret, encrypt_secret
-from app.models.external_connection import (
-    ExternalConnection,
-    ExternalDatasourceBinding,
-    ExternalProviderType,
+from app.models.connector import (
+    ConnectorConnection,
+    ConnectorDatasource,
+    ConnectorType,
 )
-from app.repositories.external_connection_repo import (
-    ExternalConnectionRepository,
-    ExternalDatasourceBindingRepository,
+from app.repositories.connector_repo import (
+    ConnectorConnectionRepository,
+    ConnectorDatasourceRepository,
 )
-from app.schemas.external_connection import (
-    DatasourceBindingCreate,
-    ExternalConnectionCreate,
-    ExternalConnectionRead,
+from app.schemas.connector import (
+    ConnectorConnectionCreate,
+    ConnectorConnectionRead,
+    ConnectorDatasourceCreate,
 )
 
 
-class ExternalConnectionService:
+class ConnectorConnectionService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.repo = ExternalConnectionRepository(session)
-        self.bindings = ExternalDatasourceBindingRepository(session)
+        self.repo = ConnectorConnectionRepository(session)
+        self.datasources = ConnectorDatasourceRepository(session)
 
-    async def get_by_provider(
-        self, provider_type: ExternalProviderType
-    ) -> Optional[ExternalConnection]:
-        return await self.repo.get_by_provider(provider_type)
+    async def get_by_connector(
+        self, connector: ConnectorType
+    ) -> Optional[ConnectorConnection]:
+        return await self.repo.get_by_connector(connector)
 
     async def save_connection(
-        self, payload: ExternalConnectionCreate
-    ) -> ExternalConnection:
-        """Create or replace the single connection for a provider type."""
-        existing = await self.repo.get_by_provider(payload.provider_type)
-        target = existing or ExternalConnection(
-            provider_type=payload.provider_type,
-            secret_value_encrypted="",
-            label=payload.label,
-            server_url=payload.server_url,
-            username=payload.username,
-            client_id=payload.client_id,
+        self, connector: ConnectorType, payload: ConnectorConnectionCreate
+    ) -> ConnectorConnection:
+        """Create or replace the single connection for a connector.
+
+        A blank ``secret_value`` on an existing row keeps the stored secret;
+        on a new row it is required.
+        """
+        existing = await self.repo.get_by_connector(connector)
+        if existing is None and not payload.secret_value:
+            raise ValueError("secret_value is required for a new connection")
+        target = existing or ConnectorConnection(
+            connector=connector, secret_value_encrypted="",
+            label=payload.label, server_url=payload.server_url,
+            username=payload.username, client_id=payload.client_id,
             secret_id=payload.secret_id,
         )
         target.label = payload.label
@@ -784,22 +812,19 @@ class ExternalConnectionService:
         target.username = payload.username
         target.client_id = payload.client_id
         target.secret_id = payload.secret_id
-        target.secret_value_encrypted = encrypt_secret(payload.secret_value)
-        target.verify_ssl = payload.verify_ssl
-        target.request_timeout_seconds = payload.request_timeout_seconds
-        target.rest_min_api_version = payload.rest_min_api_version
-        target.max_fields = payload.max_fields
+        if payload.secret_value:
+            target.secret_value_encrypted = encrypt_secret(payload.secret_value)
         return await self.repo.upsert(target)
 
-    def get_decrypted_secret(self, conn: ExternalConnection) -> str:
+    def get_decrypted_secret(self, conn: ConnectorConnection) -> str:
         return decrypt_secret(conn.secret_value_encrypted)
 
-    def to_read(self, conn: ExternalConnection) -> ExternalConnectionRead:
+    def to_read(self, conn: ConnectorConnection) -> ConnectorConnectionRead:
         if conn.id is None:
             raise ValueError("connection must be persisted before read")
-        return ExternalConnectionRead(
+        return ConnectorConnectionRead(
             id=conn.id,
-            provider_type=conn.provider_type,
+            connector=conn.connector,
             label=conn.label,
             server_url=conn.server_url,
             site_content_url=conn.site_content_url,
@@ -807,80 +832,80 @@ class ExternalConnectionService:
             client_id=conn.client_id,
             secret_id=conn.secret_id,
             has_secret=bool(conn.secret_value_encrypted),
-            verify_ssl=conn.verify_ssl,
-            request_timeout_seconds=conn.request_timeout_seconds,
-            rest_min_api_version=conn.rest_min_api_version,
-            max_fields=conn.max_fields,
             is_active=conn.is_active,
             created_at=conn.created_at,
             updated_at=conn.updated_at,
         )
 
-    async def save_binding(
-        self, connection_id: int, payload: DatasourceBindingCreate
-    ) -> ExternalDatasourceBinding:
-        existing = await self.bindings.get_active_for_module(
+    async def save_datasource(
+        self, connection_id: int, payload: ConnectorDatasourceCreate
+    ) -> ConnectorDatasource:
+        existing = await self.datasources.get_active_for_module(
             payload.module_type_id, payload.data_entry_type_id
         )
-        target = existing or ExternalDatasourceBinding(
+        target = existing or ConnectorDatasource(
             connection_id=connection_id,
             module_type_id=payload.module_type_id,
             data_entry_type_id=payload.data_entry_type_id,
-            datasource_luid=payload.datasource_luid,
+            connector_luid=payload.connector_luid,
             label=payload.label,
         )
         target.connection_id = connection_id
-        target.datasource_luid = payload.datasource_luid
+        target.connector_luid = payload.connector_luid
         target.label = payload.label
-        return await self.bindings.upsert(target)
+        return await self.datasources.upsert(target)
 ```
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `cd backend && uv run pytest tests/services/test_external_connection_service.py -v`
+Run: `cd backend && uv run pytest tests/services/test_connector_service.py -v`
 Expected: PASS.
 
 - [ ] **Step 5: Type-check, lint, commit**
 
 ```bash
 cd backend && make type-check && make lint
-git add backend/app/services/external_connection_service.py backend/tests/services/test_external_connection_service.py
-git commit -m "feat(service): encryption-aware external connection service"
+git add backend/app/services/connector_service.py backend/tests/services/test_connector_service.py
+git commit -m "feat(service): encryption-aware connector connection service"
 ```
 
 ### Task 3.2: Router (TDD)
 
 **Files:**
 
-- Create: `backend/app/api/v1/external_connections.py`
-- Modify: the v1 router aggregator (find it next to `api/v1/files.py`; mirror
-  how `files.router` is included).
-- Test: `backend/tests/api/test_external_connections.py`
+- Create: `backend/app/api/v1/connectors.py`
+- Modify: the v1 router aggregator (mirror how `files.router` is included).
+- Test: `backend/tests/api/test_connectors.py`
 
 **Interfaces:**
 
 - Produces these routes (all under the backoffice permission gate already
   used by `/sync/dispatch` — locate that dependency in `api/v1/data_sync.py`
   and reuse it verbatim):
-  - `GET /api/v1/external-connections/{provider_type}` → `ExternalConnectionRead | null`
-  - `PUT /api/v1/external-connections` (body `ExternalConnectionCreate`) → `ExternalConnectionRead`
-  - `POST /api/v1/external-connections/{connection_id}/datasources` (body `DatasourceBindingCreate`) → `DatasourceBindingRead`
-  - `POST /api/v1/external-connections/{provider_type}/test` → `{ "ok": bool, "detail": str }`
+  - `GET /api/v1/connectors` → `list[ConnectorSpecRead]`
+  - `GET /api/v1/connectors/{connector}/connection` → `ConnectorConnectionRead | null`
+  - `PUT /api/v1/connectors/{connector}/connection` (body `ConnectorConnectionCreate`) → `ConnectorConnectionRead`
+  - `POST /api/v1/connectors/{connector}/datasources` (body `ConnectorDatasourceCreate`) → `ConnectorDatasourceRead`
+  - `POST /api/v1/connectors/{connector}/test` → `{ "ok": bool, "detail": str }`
 
-- [ ] **Step 1: Write the failing test** (mirror an existing authed API test;
-      reuse the auth/client fixtures from `tests/api/test_files.py` or similar):
+- [ ] **Step 1: Write the failing test** (reuse the authed client fixtures
+      from `tests/api/test_files.py` or similar):
 
 ```python
 import pytest
 
 
 @pytest.mark.asyncio
-async def test_put_then_get_connection_hides_secret(authed_client, monkeypatch):
+async def test_list_then_put_then_get_hides_secret(authed_client, monkeypatch):
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
     monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
     from app.core import crypto
 
     crypto.get_settings.cache_clear()
+
+    listed = await authed_client.get("/api/v1/connectors")
+    assert listed.status_code == 200
+    assert listed.json()[0]["connector"] == "EPFL_TABLEAU"
 
     body = {
         "label": "EPFL Tableau",
@@ -891,12 +916,14 @@ async def test_put_then_get_connection_hides_secret(authed_client, monkeypatch):
         "secret_id": "sid",
         "secret_value": "the-real-secret",
     }
-    put = await authed_client.put("/api/v1/external-connections", json=body)
+    put = await authed_client.put(
+        "/api/v1/connectors/EPFL_TABLEAU/connection", json=body
+    )
     assert put.status_code == 200
     assert "secret_value" not in put.json()
     assert put.json()["has_secret"] is True
 
-    got = await authed_client.get("/api/v1/external-connections/EPFL_TABLEAU")
+    got = await authed_client.get("/api/v1/connectors/EPFL_TABLEAU/connection")
     assert got.status_code == 200
     assert got.json()["client_id"] == "cid"
     assert "secret_value" not in got.json()
@@ -904,8 +931,8 @@ async def test_put_then_get_connection_hides_secret(authed_client, monkeypatch):
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd backend && uv run pytest tests/api/test_external_connections.py -v`
-Expected: FAIL — 404 (route not registered).
+Run: `cd backend && uv run pytest tests/api/test_connectors.py -v`
+Expected: FAIL — 404 (routes not registered).
 
 - [ ] **Step 3: Implement the router**
 
@@ -914,102 +941,115 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_data_session  # match the existing session dep
-from app.models.external_connection import ExternalProviderType
-from app.schemas.external_connection import (
-    DatasourceBindingCreate,
-    DatasourceBindingRead,
-    ExternalConnectionCreate,
-    ExternalConnectionRead,
+from app.models.connector import ConnectorType
+from app.schemas.connector import (
+    ConnectorConnectionCreate,
+    ConnectorConnectionRead,
+    ConnectorDatasourceCreate,
+    ConnectorDatasourceRead,
+    ConnectorSpecRead,
 )
-from app.services.external_connection_service import ExternalConnectionService
+from app.services.connector_service import ConnectorConnectionService
+from app.services.data_ingestion.connectors import list_connectors
 
 # require_backoffice_data_management: reuse the SAME dependency that gates
 # POST /sync/dispatch (see app/api/v1/data_sync.py). Deny by default.
 from app.api.v1.data_sync import require_backoffice_data_management
 
 router = APIRouter(
-    prefix="/external-connections",
-    tags=["external-connections"],
+    prefix="/connectors",
+    tags=["connectors"],
     dependencies=[Depends(require_backoffice_data_management)],
 )
 
 
-@router.get("/{provider_type}", response_model=ExternalConnectionRead | None)
+@router.get("", response_model=list[ConnectorSpecRead])
+async def get_connectors():
+    return [
+        ConnectorSpecRead(
+            connector=s.connector, label=s.label, form_fields=list(s.form_fields)
+        )
+        for s in list_connectors()
+    ]
+
+
+@router.get(
+    "/{connector}/connection", response_model=ConnectorConnectionRead | None
+)
 async def get_connection(
-    provider_type: ExternalProviderType,
+    connector: ConnectorType,
     db: AsyncSession = Depends(get_data_session),
 ):
-    service = ExternalConnectionService(db)
-    conn = await service.get_by_provider(provider_type)
+    service = ConnectorConnectionService(db)
+    conn = await service.get_by_connector(connector)
     return service.to_read(conn) if conn else None
 
 
-@router.put("", response_model=ExternalConnectionRead)
+@router.put("/{connector}/connection", response_model=ConnectorConnectionRead)
 async def upsert_connection(
-    payload: ExternalConnectionCreate,
+    connector: ConnectorType,
+    payload: ConnectorConnectionCreate,
     db: AsyncSession = Depends(get_data_session),
 ):
-    service = ExternalConnectionService(db)
-    conn = await service.save_connection(payload)
+    service = ConnectorConnectionService(db)
+    conn = await service.save_connection(connector, payload)
     await db.commit()
     return service.to_read(conn)
 
 
 @router.post(
-    "/{connection_id}/datasources", response_model=DatasourceBindingRead
+    "/{connector}/datasources", response_model=ConnectorDatasourceRead
 )
-async def upsert_binding(
-    connection_id: int,
-    payload: DatasourceBindingCreate,
+async def upsert_datasource(
+    connector: ConnectorType,
+    payload: ConnectorDatasourceCreate,
     db: AsyncSession = Depends(get_data_session),
 ):
-    service = ExternalConnectionService(db)
-    if await service.repo.get_by_id(connection_id) is None:
+    service = ConnectorConnectionService(db)
+    conn = await service.get_by_connector(connector)
+    if conn is None or conn.id is None:
         raise HTTPException(status_code=404, detail="connection not found")
-    binding = await service.save_binding(connection_id, payload)
+    ds = await service.save_datasource(conn.id, payload)
     await db.commit()
-    return DatasourceBindingRead.model_validate(binding, from_attributes=True)
+    return ConnectorDatasourceRead.model_validate(ds, from_attributes=True)
 
 
-@router.post("/{provider_type}/test")
+@router.post("/{connector}/test")
 async def test_connection(
-    provider_type: ExternalProviderType,
+    connector: ConnectorType,
     db: AsyncSession = Depends(get_data_session),
 ):
-    # Validate by signing a JWT and calling Tableau auth via the base
-    # provider's connection-test path (Tier 4 exposes a classmethod).
     from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
         BaseTableauApiProvider,
     )
 
-    ok, detail = await BaseTableauApiProvider.test_connection(db, provider_type)
+    ok, detail = await BaseTableauApiProvider.test_connection(db, connector)
     return {"ok": ok, "detail": detail}
 ```
 
-> **Note.** Wire the `/test` route last — it depends on Tier 4's
-> `BaseTableauApiProvider.test_connection`. If implementing Tier 3 before
-> Tier 4, stub `/test` to `{"ok": false, "detail": "not yet wired"}` and a
-> test asserting 200; replace in Tier 4.
+> **Note.** Wire `/test` last — it depends on Tier 4's
+> `BaseTableauApiProvider.test_connection`. If implementing Tier 3 first, stub
+> it to `{"ok": false, "detail": "not yet wired"}` and replace in Tier 4.
 
 - [ ] **Step 4: Register the router** in the v1 aggregator (same place
       `files.router` is included):
 
 ```python
-from app.api.v1 import external_connections
-app.include_router(external_connections.router, prefix="/api/v1")
+from app.api.v1 import connectors
+app.include_router(connectors.router, prefix="/api/v1")
 ```
 
 - [ ] **Step 5: Run to verify it passes**
 
-Run: `cd backend && uv run pytest tests/api/test_external_connections.py -v`
+Run: `cd backend && uv run pytest tests/api/test_connectors.py -v`
 Expected: PASS.
 
 - [ ] **Step 6: Type-check, lint, commit**
 
 ```bash
 cd backend && make type-check && make lint
-git add backend/app/api/v1/external_connections.py backend/tests/api/test_external_connections.py <aggregator>
-git commit -m "feat(api): external-connections CRUD + datasource bindings"
+git add backend/app/api/v1/connectors.py backend/tests/api/test_connectors.py <aggregator>
+git commit -m "feat(api): connectors registry + connection + datasource endpoints"
 ```
 
 ---
@@ -1017,7 +1057,7 @@ git commit -m "feat(api): external-connections CRUD + datasource bindings"
 ## Tier 4 — Base Tableau provider + travel migration (PR 4)
 
 Lift the shared plumbing into a base class and feed the travel provider from
-the DB. Behaviour for travel is unchanged; the source of credentials changes.
+the DB. Travel behaviour is unchanged; the source of credentials changes.
 
 ### Task 4.1: `BaseTableauApiProvider`
 
@@ -1027,27 +1067,27 @@ the DB. Behaviour for travel is unchanged; the source of credentials changes.
 
 **Interfaces:**
 
-- Consumes: `ExternalConnectionService`, `ExternalDatasourceBindingRepository`.
+- Consumes: `ConnectorConnectionService`, `get_settings`.
 - Produces a base class with:
-  - class attrs (override per subclass): `PROVIDER_TYPE: ExternalProviderType`,
+  - class attrs (override per subclass): `CONNECTOR: ConnectorType`,
     `MODULE_TYPE: ModuleTypeEnum`, `DATA_ENTRY_TYPE: DataEntryTypeEnum`,
     `REQUIRED_CAPTIONS: list[str]`.
-  - `async _ensure_credentials() -> None` — loads binding + connection once,
-    sets `self.server_url`, `self.site_content_url`, `self.username`,
+  - `async _ensure_credentials() -> None` — loads datasource + connection
+    once; sets `self.server_url`, `self.site_content_url`, `self.username`,
     `self.client_id`, `self.secret_id`, `self.secret_value`,
-    `self.datasource_luid`, `self.verify_ssl`, `self.timeout`,
-    `self.min_api_version`. Raises `ValueError` with a clear message if no
-    connection/binding exists.
+    `self.datasource_luid`; reads `self.verify_ssl`, `self.timeout`,
+    `self.min_api_version` from settings. Raises `ValueError` with a clear
+    message if no connection/datasource exists.
   - `async validate_connection() -> bool`, `async fetch_data(filters)`
     (generic: ensure creds → read-metadata → validate `REQUIRED_CAPTIONS` →
     query → rows).
   - moved helpers (verbatim from the travel provider): `_generate_jwt`,
     `_signin_with_jwt`, `_create_session`, `_vds_read_metadata`,
     `_extract_field_captions`, `_build_payload`, `_vds_query_datasource`,
-    `_resolve_carbon_report_modules`, `_record_row_error`, `normalize_vds_payload`,
-    `to_bool`.
-  - `@classmethod async test_connection(db, provider_type) -> tuple[bool, str]`.
-  - abstract: `transform_data`, `_build_data_entry(record) -> DataEntry`.
+    `_resolve_carbon_report_modules`, `_record_row_error`,
+    `normalize_vds_payload`, `to_bool`.
+  - `@classmethod async test_connection(db, connector) -> tuple[bool, str]`.
+  - abstract: `transform_data`, `_build_data_entry(record, carbon_report_module_id) -> DataEntry`.
 
 - [ ] **Step 1: Create the base class.** Move, verbatim, these methods from
       `professional_travel_api_provider.py` into the base (cut from the named
@@ -1064,60 +1104,63 @@ the DB. Behaviour for travel is unchanged; the source of credentials changes.
 
 ```python
     async def _ensure_credentials(self) -> None:
-        """Load the connection + per-module binding from the DB once."""
+        """Load the connection + per-module datasource from the DB once."""
         if getattr(self, "_credentials_loaded", False):
             return
-        service = ExternalConnectionService(self.data_session)
-        conn = await service.get_by_provider(self.PROVIDER_TYPE)
+        service = ConnectorConnectionService(self.data_session)
+        conn = await service.get_by_connector(self.CONNECTOR)
         if conn is None:
             raise ValueError(
-                f"No {self.PROVIDER_TYPE.value} connection configured — set "
-                "one in the API connect form before importing."
+                f"No {self.CONNECTOR.value} connection configured — set one in "
+                "the API connect form before importing."
             )
-        binding = await service.bindings.get_active_for_module(
+        ds = await service.datasources.get_active_for_module(
             int(self.MODULE_TYPE), self.config.get("data_entry_type_id")
         )
-        if binding is None:
+        if ds is None:
             raise ValueError(
-                f"No datasource (LUID) bound for module "
-                f"{self.MODULE_TYPE.name} — set one in the API connect form."
+                f"No datasource (LUID) set for module {self.MODULE_TYPE.name} "
+                "— set one in the API connect form."
             )
+        settings = get_settings()
         self.server_url = conn.server_url
         self.site_content_url = conn.site_content_url
         self.username = conn.username
         self.client_id = conn.client_id
         self.secret_id = conn.secret_id
         self.secret_value = service.get_decrypted_secret(conn)
-        self.verify_ssl = conn.verify_ssl
-        self.timeout = conn.request_timeout_seconds
-        self.min_api_version = conn.rest_min_api_version
-        self.datasource_luid = binding.datasource_luid
+        self.verify_ssl = self.to_bool(settings.TABLEAU_VERIFY_SSL)
+        self.timeout = int(settings.TABLEAU_REQUEST_TIMEOUT_SECONDS)
+        self.min_api_version = settings.TABLEAU_REST_MIN_API_VERSION
+        self.datasource_luid = ds.connector_luid
         self.module_type_id = self.config.get("module_type_id")
         self._credentials_loaded = True
 ```
 
 `validate_connection` and `fetch_data` call `await self._ensure_credentials()`
 first, then run the moved logic (same bodies as today, minus the env reads).
+Note: `_signin_with_jwt` reads `self.username` (was `self.settings.TABLEAU_USERNAME`).
 
 - [ ] **Step 2: Add the classmethod connection test**
 
 ```python
     @classmethod
     async def test_connection(
-        cls, db: AsyncSession, provider_type: ExternalProviderType
+        cls, db: AsyncSession, connector: ConnectorType
     ) -> tuple[bool, str]:
-        service = ExternalConnectionService(db)
-        conn = await service.get_by_provider(provider_type)
+        service = ConnectorConnectionService(db)
+        conn = await service.get_by_connector(connector)
         if conn is None:
             return False, "No connection configured"
-        # Build a throwaway instance bound to the connection's fields and
-        # attempt a JWT sign-in (no datasource needed).
-        ...  # see Step 3 test for the asserted contract
+        # Build a throwaway instance bound to the connection fields and try a
+        # JWT sign-in (no datasource needed). See the Step 3 test for the
+        # asserted contract.
+        ...
 ```
 
 - [ ] **Step 3: Write a unit test** that monkeypatches `_signin_with_jwt` to
       return a token and asserts `validate_connection()` is True after a
-      connection row exists; and asserts it raises a clear `ValueError` when no
+      connection + datasource row exist; and asserts a clear `ValueError` when no
       connection is configured. File:
       `backend/tests/services/data_ingestion/test_base_tableau_provider.py`.
 
@@ -1131,7 +1174,7 @@ Expected: PASS.
 ```bash
 cd backend && make type-check && make lint
 git add backend/app/services/data_ingestion/api_providers/base_tableau_api_provider.py backend/tests/services/data_ingestion/test_base_tableau_provider.py
-git commit -m "feat(ingestion): BaseTableauApiProvider with DB-backed credentials"
+git commit -m "feat(ingestion): BaseTableauApiProvider with DB-backed connection"
 ```
 
 ### Task 4.2: Migrate `ProfessionalTravelApiProvider` onto the base
@@ -1142,7 +1185,7 @@ git commit -m "feat(ingestion): BaseTableauApiProvider with DB-backed credential
 
 - [ ] **Step 1: Reduce the class to its module-specific surface.** It now
       subclasses `BaseTableauApiProvider` and keeps only:
-  - class attrs: `PROVIDER_TYPE = ExternalProviderType.EPFL_TABLEAU`,
+  - class attrs: `CONNECTOR = ConnectorType.EPFL_TABLEAU`,
     `MODULE_TYPE = ModuleTypeEnum.professional_travel`,
     `DATA_ENTRY_TYPE = DataEntryTypeEnum.plane`,
     `REQUIRED_CAPTIONS = [...]` (unchanged list).
@@ -1155,25 +1198,29 @@ git commit -m "feat(ingestion): BaseTableauApiProvider with DB-backed credential
 
 Run: `cd backend && uv run pytest tests/ -k "professional_travel or travel_api" -v`
 Expected: PASS (behaviour unchanged). If a test stubbed `get_settings`
-Tableau values, update it to seed an `ExternalConnection` +
-`ExternalDatasourceBinding` instead.
+Tableau values, update it to seed a `ConnectorConnection` +
+`ConnectorDatasource` instead.
 
-- [ ] **Step 3: Remove now-dead env settings** if nothing else references
-      them: drop `TABLEAU_DS_FLIGHTS_LUID`, `TABLEAU_CONNECTED_APP_*`,
-      `TABLEAU_USERNAME`, etc. from `config.py`. Grep first:
+- [ ] **Step 3: Remove now-dead env settings.** Grep first, then drop the
+      connection env vars no longer referenced — `TABLEAU_SERVER_URL`,
+      `TABLEAU_SITE_CONTENT_URL`, `TABLEAU_USERNAME`,
+      `TABLEAU_CONNECTED_APP_CLIENT_ID/SECRET_ID/SECRET_VALUE`,
+      `TABLEAU_DS_FLIGHTS_LUID` — from `config.py`. **Keep** the knobs
+      (`TABLEAU_VERIFY_SSL`, `TABLEAU_REQUEST_TIMEOUT_SECONDS`,
+      `TABLEAU_REST_MIN_API_VERSION`, `TABLEAU_MAX_FIELDS`).
 
 ```bash
 cd backend && rtk grep "TABLEAU_" app/
 ```
 
-Keep only settings still referenced. (No backward compat — see memory.)
+(No backward compat — see memory.)
 
 - [ ] **Step 4: Type-check, lint, commit**
 
 ```bash
 cd backend && make type-check && make lint
 git add backend/app/services/data_ingestion/api_providers/professional_travel_api_provider.py backend/app/core/config.py
-git commit -m "refactor(ingestion): drive travel provider from DB credentials"
+git commit -m "refactor(ingestion): drive travel provider from DB connection"
 ```
 
 ---
@@ -1198,19 +1245,12 @@ git commit -m "refactor(ingestion): drive travel provider from DB credentials"
 > **Captions are datasource-defined.** The exact Tableau `fieldCaption`
 > values for the headcount datasource are unknown until read-metadata is run
 > against its LUID. The transform **target** is fixed (the `member` row).
-> Discover captions with:
->
-> ```bash
-> # after a connection + headcount binding exist
-> curl -s -X POST .../external-connections/EPFL_TABLEAU/test  # sign-in works
-> ```
->
-> then read-metadata via the base provider in a REPL, and fill the
-> `CAPTION_*` constants below from the real metadata.
+> Set the headcount `connector_luid` via the form, run read-metadata through
+> the base provider in a REPL, then fill the `CAPTION_*` constants below from
+> the real metadata.
 
-- [ ] **Step 1: Write the failing transform test** (asserts the mapping
-      target, independent of the exact caption strings — parametrize captions as
-      constants so the test pins the mapping, not the datasource):
+- [ ] **Step 1: Write the failing transform test** (pins the mapping, not the
+      datasource — captions parametrized as constants):
 
 ```python
 import pytest
@@ -1253,12 +1293,8 @@ Expected: FAIL — module not found.
 ```python
 from typing import Any, Dict, List
 
-from app.models.data_entry import (
-    DataEntry,
-    DataEntrySourceEnum,
-    DataEntryTypeEnum,
-)
-from app.models.external_connection import ExternalProviderType
+from app.models.connector import ConnectorType
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
@@ -1266,11 +1302,11 @@ from app.services.data_ingestion.api_providers.base_tableau_api_provider import 
 
 
 class HeadcountMembersApiProvider(BaseTableauApiProvider):
-    PROVIDER_TYPE = ExternalProviderType.EPFL_TABLEAU
+    CONNECTOR = ConnectorType.EPFL_TABLEAU
     MODULE_TYPE = ModuleTypeEnum.headcount
     DATA_ENTRY_TYPE = DataEntryTypeEnum.member
 
-    # Fill these from read-metadata against the headcount LUID.
+    # Fill these from read-metadata against the headcount connector_luid.
     CAPTION_NAME = "Name"
     CAPTION_SCIPER = "SCIPER"
     CAPTION_SIUS = "SIUS"
@@ -1339,8 +1375,8 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
 
     async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:
         # Mirror the travel provider's bulk path, minus the kg_co2eq override
-        # (headcount carries no emission override). Build member DataEntry
-        # rows via _build_data_entry and bulk_create with source
+        # (headcount carries no emission override). Build member DataEntry rows
+        # via _build_data_entry and bulk_create with source
         # EXTERNAL_INTEGRATION. See professional_travel_api_provider._load_data
         # for the bulk_create call shape.
         ...
@@ -1348,9 +1384,9 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
 
 Implement `ingest` by reusing the travel provider's orchestration shape
 (`fetch → transform → _resolve_carbon_report_modules → inject
-  carbon_report_module_id → _load_data`). Extract that orchestration into a
-shared `BaseTableauApiProvider.ingest` if both providers end up identical
-except for `_build_data_entry`; otherwise keep a thin override.
+  carbon_report_module_id → _load_data`). If both providers end up identical
+except for `_build_data_entry`, lift the orchestration into
+`BaseTableauApiProvider.ingest`; else keep a thin override.
 
 - [ ] **Step 4: Register in the factory** — add to `PROVIDERS` in
       `provider_factory.py` after the travel entry (line 94):
@@ -1383,25 +1419,25 @@ git commit -m "feat(ingestion): headcount members Tableau API provider"
 
 ## Tier 6 — Frontend: wire the form (PR 6)
 
-Make the dialog save a connection + binding, then dispatch. No JS unit
-harness — verify with `make type-check` and `npm run lint`, then a manual
-walkthrough.
+Make the dialog pick a connector, save the connection + datasource, then
+dispatch. No JS unit harness — verify with `make type-check` and
+`npm run lint`, then a manual walkthrough.
 
-### Task 6.1: Connections store/client
+### Task 6.1: Connectors store/client
 
 **Files:**
 
-- Create: `frontend/src/stores/externalConnections.ts`
+- Create: `frontend/src/stores/connectors.ts`
 
 - [ ] **Step 1:** Add a Pinia store with typed calls mirroring
       `stores/backofficeDataManagement.ts` axios usage:
-  - `getConnection(providerType)` → `GET /external-connections/{providerType}`
-  - `saveConnection(payload)` → `PUT /external-connections`
-  - `saveBinding(connectionId, payload)` → `POST /external-connections/{id}/datasources`
-  - `testConnection(providerType)` → `POST /external-connections/{providerType}/test`
-    Types should be generated from OpenAPI if the repo uses
-    `openapi-typescript` (see plan `217-openapi-typescript-typegen.md`); else
-    hand-type to match the Read schemas.
+  - `listConnectors()` → `GET /connectors`
+  - `getConnection(connector)` → `GET /connectors/{connector}/connection`
+  - `saveConnection(connector, payload)` → `PUT /connectors/{connector}/connection`
+  - `saveDatasource(connector, payload)` → `POST /connectors/{connector}/datasources`
+  - `testConnection(connector)` → `POST /connectors/{connector}/test`
+    Generate types from OpenAPI if the repo uses `openapi-typescript` (see plan
+    `217-openapi-typescript-typegen.md`); else hand-type to the Read schemas.
 
 - [ ] **Step 2:** `cd frontend && make type-check && npm run lint`
 - [ ] **Step 3:** Commit.
@@ -1413,29 +1449,32 @@ walkthrough.
 - Modify: `frontend/src/components/molecules/data-management/DataEntryDialogContent.vue:151-202`
 - Modify: `frontend/src/composables/useDataEntryDialog.ts:33-148`
 
-- [ ] **Step 1:** Add inputs for `site_content_url`, `username`, and
-      `datasource_luid` (the LUID for this module) alongside the existing four.
-      On open, call `getConnection('EPFL_TABLEAU')`; if present, prefill all
-      non-secret fields and leave `secret_value` blank with a "secret already
-      set — leave blank to keep" hint.
+- [ ] **Step 1:** Replace the API-connect section with:
+  - a connector select (one entry today, from `listConnectors()`);
+  - the connection form fields driven by the connector's `form_fields`:
+    `server_url`, `site_content_url`, `username`, `client_id`, `secret_id`,
+    `secret_value` (secret as a `password` input, write-only);
+  - a `connector_luid` input for this module.
+    On open, call `getConnection(connector)`; if present, prefill non-secret
+    fields and leave `secret_value` blank with a "secret set — leave blank to
+    keep" hint.
 
 - [ ] **Step 2:** Replace `connectAndSync()` so it:
-  1. `await saveConnection({...})` (omit `secret_value` if left blank on edit —
-     requires a backend tweak to allow secret-preserving update; if not in
-     scope, require the secret on every save and note it).
-  2. `await saveBinding(connectionId, { module_type_id, datasource_luid, label })`.
+  1. `await saveConnection(connector, {...})` (omit `secret_value` if left
+     blank on edit — the service keeps the stored secret).
+  2. `await saveDatasource(connector, { module_type_id, connector_luid, label })`.
   3. `await initiateSync('api')` — unchanged dispatch; the provider now loads
-     creds from the DB, so `config` stays as today.
+     the connection + datasource from the DB, so `config` stays as today.
 
 - [ ] **Step 3:** Add the new i18n keys
-      (`data_management_api_site_content_url`, `..._username`, `..._luid`,
-      `..._secret_kept`) to `frontend/src/i18n/backoffice_data_management.ts` and
-      every locale.
+      (`data_management_api_connector`, `..._site_content_url`, `..._username`,
+      `..._luid`, `..._secret_kept`) to
+      `frontend/src/i18n/backoffice_data_management.ts` and every locale.
 
 - [ ] **Step 4:** `cd frontend && make type-check && npm run lint`
-- [ ] **Step 5:** Manual walkthrough: open dialog for plane_travel → save
-      connection + LUID → "API Connect and Sync" → job succeeds via SSE. Repeat
-      for headcount.
+- [ ] **Step 5:** Manual walkthrough: open dialog for plane_travel → pick
+      connector → enter connection + LUID → "API Connect and Sync" → job succeeds
+      via SSE. Repeat for headcount.
 - [ ] **Step 6:** Commit.
 
 ---
@@ -1443,13 +1482,18 @@ walkthrough.
 ## Self-review checklist (run before opening PRs)
 
 - **Spec coverage:** Goal 1 → Tiers 1-2; Goal 2 → Tier 3; Goal 3 → Tier 4;
-  Goal 4 → Tier 5; Goal 5 → Tier 4 base class. Frontend → Tier 6.
-- **Secret never leaves the server in plaintext:** confirm no Read schema or
-  log statement includes `secret_value` / `secret_value_encrypted`.
-- **Fail-closed:** with keys unset, `PUT /external-connections` returns 500
-  and no row is written.
-- **Type consistency:** `MODULE_TYPE` / `DATA_ENTRY_TYPE` / `PROVIDER_TYPE`
-  class attrs match between base and both subclasses; factory key tuple
-  matches the registered `(module_type, method, target, entity)`.
+  Goal 4 → Tier 5; Goal 5 → Tier 4 base class + Tier 2 registry. Frontend →
+  Tier 6.
+- **Secret never leaves the server in plaintext:** no Read schema or log
+  statement includes `secret_value` / `secret_value_encrypted`; blank
+  `secret_value` on update keeps the stored value.
+- **Fail-closed:** with keys unset, `PUT .../connection` returns 500 and no
+  row is written.
+- **Knobs in env:** the provider reads `verify_ssl` / `timeout` /
+  `api_version` / `max_fields` from settings, not from the connection row.
+- **Type consistency:** `CONNECTOR` / `MODULE_TYPE` / `DATA_ENTRY_TYPE` class
+  attrs match between base and both subclasses; factory key tuple matches the
+  registered `(module_type, method, target, entity)`; `connector_luid` is the
+  field name everywhere.
 - **Docs:** update the data-management docs page in the same PR as Tier 6;
   link this plan from the PRD (done).
