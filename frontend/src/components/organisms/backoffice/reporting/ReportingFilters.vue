@@ -9,7 +9,7 @@ const emit = defineEmits<{
     filters: {
       path_affiliation: number[];
       path_lvl4: number[];
-      completion_status: number | string | undefined;
+      overall_status: number | string | undefined;
     },
   ): void;
 }>();
@@ -39,7 +39,7 @@ function handleFiltersChange() {
   emit('update:filters', {
     path_affiliation: selectedAffiliationUnits.value || [],
     path_lvl4: selectedLevel4Units.value || [],
-    completion_status: completion.value ?? undefined,
+    overall_status: completion.value ?? undefined,
   });
 }
 </script>

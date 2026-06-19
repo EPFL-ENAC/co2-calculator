@@ -36,10 +36,13 @@ export interface PipelineListItem {
   is_orphan: boolean;
   progress: PipelineProgress;
   job_type: string | null;
+  entity_type: string | null;
+  unit_institutional_id: string | null;
   module_type_id: number | null;
   module_label: string | null;
   year: number | null;
   status_message: string | null;
+  author: string | null;
   started_at: string | null;
   finished_at: string | null;
   latest_job_id: number;

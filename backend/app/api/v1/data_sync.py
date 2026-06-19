@@ -283,6 +283,29 @@ async def _institutional_id_for_crm(
     return result.scalar_one_or_none()
 
 
+async def _institutional_ids_for_crms(
+    db: AsyncSession,
+    carbon_report_module_ids: list[int],
+) -> dict[int, str]:
+    """Batch resolve carbon_report_module_id → unit.institutional_id.
+
+    One IN-query for the whole page so the pipelines list shows the unit
+    code for unit-specific runs without an N+1 per row."""
+    if not carbon_report_module_ids:
+        return {}
+    stmt = (
+        select(CarbonReportModule.id, Unit.institutional_id)
+        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(
+            CarbonReportModule,
+            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+        )
+        .where(col(CarbonReportModule.id).in_(carbon_report_module_ids))
+    )
+    rows = await db.execute(stmt)
+    return {crm_id: inst for crm_id, inst in rows.all()}
+
+
 async def _institutional_id_for_job(
     job: DataIngestionJob, db: AsyncSession
 ) -> Optional[str]:
@@ -568,6 +591,32 @@ def _project_pipeline_meta(meta: Optional[dict]) -> dict:
     return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
 
 
+def _pipeline_author(meta: Optional[dict]) -> Optional[str]:
+    """Human author for the ops-console "author" column.
+
+    Reads the creator stamped into the root job's ``meta.created_by`` at
+    creation time (``base_provider.create_job``). Prefers the display
+    name, falls back to email. ``None`` for runner-triggered pipelines
+    (recalc/aggregation) and pre-existing jobs created before this field."""
+    created = (meta or {}).get("created_by")
+    if not isinstance(created, dict):
+        return None
+    return created.get("name") or created.get("email")
+
+
+def _crm_id_from_meta(meta: Optional[dict]) -> Optional[int]:
+    """Read the unit's ``carbon_report_module_id`` from a job's meta.
+
+    Unit-specific jobs store it in ``meta.config`` (``entity_id`` on the
+    row is left NULL), so the list endpoint resolves the unit code from
+    here rather than the FK column."""
+    cfg = (meta or {}).get("config")
+    if not isinstance(cfg, dict):
+        return None
+    crm = cfg.get("carbon_report_module_id")
+    return crm if isinstance(crm, int) else None
+
+
 def _module_label(value: Optional[int]) -> Optional[str]:
     """Resolve a module_type_id int to its enum name (#1234) — done
     server-side so the table shows names with no frontend int→label
@@ -675,11 +724,22 @@ class PipelineListItem(BaseModel):
     is_orphan: bool
     progress: PipelineProgressResponse
     job_type: Optional[str] = None
+    # Scope of the run, from the root job's ``entity_type`` (enum NAME):
+    # MODULE_PER_YEAR (backoffice per-year), MODULE_UNIT_SPECIFIC (per-unit
+    # module page), or GLOBAL_PER_YEAR (unit/role sync, recalc).
+    entity_type: Optional[str] = None
+    # Human unit code (``unit.institutional_id``) for MODULE_UNIT_SPECIFIC
+    # runs; ``None`` otherwise. Resolved server-side from the unit's
+    # carbon_report_module_id.
+    unit_institutional_id: Optional[str] = None
     module_type_id: Optional[int] = None
     # #1234 — human label for the related module (server-resolved).
     module_label: Optional[str] = None
     year: Optional[int] = None
     status_message: Optional[str] = None
+    # #1234 — who triggered the pipeline (root job's creator), resolved
+    # server-side from the job meta. ``None`` for runner-triggered runs.
+    author: Optional[str] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     latest_job_id: int
@@ -1609,6 +1669,18 @@ async def list_pipelines(
         offset=offset,
     )
 
+    # Pre-resolve unit codes for unit-specific runs in one query (the
+    # root job carries the carbon_report_module_id in meta; entity_id is
+    # NULL on these rows) so the loop below adds no per-row queries.
+    crm_ids: set[int] = set()
+    for group in groups:
+        jobs = group["jobs"]
+        if jobs and jobs[0].entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            crm = _crm_id_from_meta(jobs[0].meta)
+            if crm is not None:
+                crm_ids.add(crm)
+    inst_by_crm = await _institutional_ids_for_crms(db, list(crm_ids))
+
     items: list[PipelineListItem] = []
     for group in groups:
         jobs = group["jobs"]
@@ -1635,10 +1707,19 @@ async def list_pipelines(
                     **compute_pipeline_progress(jobs, pipeline=group["pipeline"])
                 ),
                 job_type=root.job_type,
+                entity_type=(
+                    root.entity_type.name if root.entity_type is not None else None
+                ),
+                unit_institutional_id=(
+                    inst_by_crm.get(_crm_id_from_meta(root.meta) or -1)
+                    if root.entity_type == EntityType.MODULE_UNIT_SPECIFIC
+                    else None
+                ),
                 module_type_id=root.module_type_id,
                 module_label=_module_label(root.module_type_id),
                 year=root.year,
                 status_message=root.status_message,
+                author=_pipeline_author(root.meta),
                 started_at=min(started) if started else None,
                 finished_at=max(finished) if finished else None,
                 latest_job_id=max(j.id for j in jobs if j.id is not None),

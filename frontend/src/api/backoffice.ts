@@ -48,13 +48,13 @@ export function applyUnitFiltersToParams(
     );
   }
   if (
-    unitFilters.completion_status !== undefined &&
-    unitFilters.completion_status !== null &&
-    unitFilters.completion_status !== ''
+    unitFilters.overall_status !== undefined &&
+    unitFilters.overall_status !== null &&
+    unitFilters.overall_status !== ''
   ) {
     searchParams.append(
-      'completion_status',
-      String(unitFilters.completion_status),
+      'overall_status',
+      String(unitFilters.overall_status),
     );
   }
   if (unitFilters.search) {

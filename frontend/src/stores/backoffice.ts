@@ -47,7 +47,7 @@ export interface UnitFilters {
   path_affiliation?: Array<number | string>;
   path_lvl4?: Array<number | string>;
   years?: string[];
-  completion_status?: number | string;
+  overall_status?: number | string;
   search?: string;
   modules?: Array<{ module: string; state: ModuleState }>;
 }

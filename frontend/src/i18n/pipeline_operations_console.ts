@@ -59,10 +59,12 @@ export default {
   pipeops_col_status: { en: 'Status', fr: 'Statut' },
   pipeops_col_pipeline: { en: 'Pipeline', fr: 'Pipeline' },
   pipeops_col_trigger: { en: 'Trigger', fr: 'Déclencheur' },
+  pipeops_col_type: { en: 'Type', fr: 'Type' },
   pipeops_col_module: { en: 'Module / Year', fr: 'Module / Année' },
   pipeops_col_jobs: { en: 'Jobs', fr: 'Jobs' },
   pipeops_col_duration: { en: 'Duration', fr: 'Durée' },
   pipeops_col_when: { en: 'Started', fr: 'Démarré' },
+  pipeops_col_author: { en: 'Author', fr: 'Auteur' },
   pipeops_col_message: { en: 'Message', fr: 'Message' },
   pipeops_col_actions: { en: 'Actions', fr: 'Actions' },
 
@@ -106,6 +108,11 @@ export default {
   },
 
   pipeops_orphan_tag: { en: '(no pipeline)', fr: '(sans pipeline)' },
+
+  // "Type" column — pipeline scope (entity_type).
+  pipeops_type_per_year: { en: 'Per-year', fr: 'Annuel' },
+  pipeops_type_unit_specific: { en: 'Unit-specific', fr: 'Par unité' },
+  pipeops_type_global: { en: 'Global', fr: 'Global' },
 
   // Workers panel (#1080 sprint-9 observability).
   pipeops_workers_title: { en: 'Workers', fr: 'Workers' },

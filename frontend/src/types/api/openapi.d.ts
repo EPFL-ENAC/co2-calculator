@@ -296,7 +296,7 @@ export interface paths {
          *     sorted in descending order (latest first).
          *
          *     Affiliation-scoped backoffice users see only the years where reports
-         *     exist for units inside their affiliation (#459).
+         *     exist for units inside their scope subtree (#862).
          */
         get: operations["get_available_years_v1_backoffice_years_get"];
         put?: never;
@@ -375,8 +375,8 @@ export interface paths {
          *
          *     Each unit includes its unit_type_label for UI distinction.
          *
-         *     Affiliation-scoped backoffice users (#459) only see units whose
-         *     ``path_name`` contains one of their affiliations.
+         *     Affiliation-scoped backoffice users (#862) only see units within the
+         *     subtree of their scope unit(s).
          */
         get: operations["list_affiliations_v1_backoffice_reporting_affiliations_get"];
         put?: never;
@@ -2813,10 +2813,8 @@ export interface components {
             note?: string | null;
             /** Name */
             name: string;
-            /** Position Title */
-            position_title?: string | null;
-            /** Position Category */
-            position_category?: string | null;
+            /** Sius Code */
+            sius_code?: string | null;
             /** Fte */
             fte?: number | null;
             /** User Institutional Id */
@@ -3165,6 +3163,10 @@ export interface components {
             progress: components["schemas"]["PipelineProgressResponse"];
             /** Job Type */
             job_type?: string | null;
+            /** Entity Type */
+            entity_type?: string | null;
+            /** Unit Institutional Id */
+            unit_institutional_id?: string | null;
             /** Module Type Id */
             module_type_id?: number | null;
             /** Module Label */
@@ -3173,6 +3175,8 @@ export interface components {
             year?: number | null;
             /** Status Message */
             status_message?: string | null;
+            /** Author */
+            author?: string | null;
             /** Started At */
             started_at?: string | null;
             /** Finished At */
@@ -3524,6 +3528,16 @@ export interface components {
              * @default 1
              */
             number_of_trips: number;
+            /**
+             * Traveler Id
+             * @default
+             */
+            traveler_id: string;
+            /**
+             * Traveler Name
+             * @default
+             */
+            traveler_name: string;
         };
         /**
          * TripsMapResponse
@@ -3690,6 +3704,11 @@ export interface components {
              * @description Principal user function/title
              */
             principal_user_function?: string | null;
+            /**
+             * Principal User Email
+             * @description Principal user email
+             */
+            principal_user_email?: string | null;
             /**
              * Affiliations
              * @description List of affiliated units/units
@@ -4266,8 +4285,8 @@ export interface operations {
                 path_affiliation?: string[] | null;
                 /** @description Filter by specific unit names or IDs (Level 4). Returns exact matches only (not descendants). */
                 path_lvl4?: string[] | null;
-                /** @description Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
-                completion_status?: components["schemas"]["ModuleStatus"] | null;
+                /** @description Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
+                overall_status?: components["schemas"]["ModuleStatus"] | null;
                 /** @description Search in unit name, affiliation path, or principal user name */
                 search?: string | null;
                 /** @description Filter by module states, format: 'module_name:state' (e.g., 'headcount:validated') */
@@ -4316,8 +4335,8 @@ export interface operations {
                 path_affiliation?: string[] | null;
                 /** @description Filter by specific unit names or IDs (Level 4). Returns exact matches only (not descendants). */
                 path_lvl4?: string[] | null;
-                /** @description Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
-                completion_status?: components["schemas"]["ModuleStatus"] | null;
+                /** @description Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
+                overall_status?: components["schemas"]["ModuleStatus"] | null;
                 /** @description Search in unit name, affiliation path, or principal user name */
                 search?: string | null;
                 /** @description Filter by module states, format: 'module_name:state' (e.g., 'headcount:validated') */
@@ -4393,8 +4412,8 @@ export interface operations {
                 path_affiliation?: string[] | null;
                 /** @description Filter by specific unit names or IDs (Level 4). Returns exact matches only (not descendants). */
                 path_lvl4?: string[] | null;
-                /** @description Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
-                completion_status?: components["schemas"]["ModuleStatus"] | null;
+                /** @description Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
+                overall_status?: components["schemas"]["ModuleStatus"] | null;
                 /** @description Search in unit name, affiliation path, or principal user name */
                 search?: string | null;
                 /** @description Filter by module states, format: 'module_name:state' (e.g., 'headcount:validated') */
@@ -4439,8 +4458,8 @@ export interface operations {
                 path_affiliation?: string[] | null;
                 /** @description Filter by specific unit names or IDs (Level 4). Returns exact matches only (not descendants). */
                 path_lvl4?: string[] | null;
-                /** @description Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
-                completion_status?: components["schemas"]["ModuleStatus"] | null;
+                /** @description Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
+                overall_status?: components["schemas"]["ModuleStatus"] | null;
                 /** @description Search in unit name, affiliation path, or principal user name */
                 search?: string | null;
                 /** @description Filter by module states, format: 'module_name:state' (e.g., 'headcount:validated') */
@@ -4485,8 +4504,8 @@ export interface operations {
                 path_affiliation?: string[] | null;
                 /** @description Filter by specific unit names or IDs (Level 4). Returns exact matches only (not descendants). */
                 path_lvl4?: string[] | null;
-                /** @description Filter by completion status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
-                completion_status?: components["schemas"]["ModuleStatus"] | null;
+                /** @description Filter by report overall status: NOT_STARTED (0), IN_PROGRESS (1), VALIDATED (2) */
+                overall_status?: components["schemas"]["ModuleStatus"] | null;
                 /** @description Search in unit name, affiliation path, or principal user name */
                 search?: string | null;
                 /** @description Filter by module states, format: 'module_name:state' (e.g., 'headcount:validated') */
