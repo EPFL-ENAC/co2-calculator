@@ -39,7 +39,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Render Chart
-        run: helm template .
+        # Smoke-test both secret paths. Default (external) needs a Secret name;
+        # chart-managed (dev) needs a throwaway SECRET_KEY. Real deploys inject
+        # the real values.
+        run: |
+          helm template . --set backend.existingSecret.name=ci-existing-secret
+          helm template . --set backend.existingSecret.enabled=false --set backend.secrets.SECRET_KEY=ci-render-check
 
       - name: Set Helm chart version based on branch
         run: |
