@@ -1,5 +1,9 @@
 site_name: EPFL Project Technical Docs
 repo_url: https://github.com/epfl-enac/co2-calculator
+# Off the backend's port 8000 (uvicorn) so `mkdocs serve` and `make dev`
+# don't collide — a 127.0.0.1:8000 bind shadows uvicorn's 0.0.0.0:8000 for
+# localhost traffic, serving docs HTML to the frontend's API calls.
+dev_addr: 127.0.0.1:8001
 theme:
   name: material
   language: en

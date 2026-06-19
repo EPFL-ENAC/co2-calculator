@@ -1042,6 +1042,12 @@ class DataIngestionRepository:
         # this, an unsuccessful claim (locked, attempts exhausted, run_after
         # in future, …) would silently strip the previous is_current sibling
         # of its current marker.
+        # MODULE_UNIT_SPECIFIC jobs are excluded from the is_current slot
+        # entirely (see ``mark_job_as_current``): they must neither demote
+        # the module-level per-year sibling (Step 1) nor claim the slot
+        # (Step 2), since the per-year backoffice config reads only
+        # per-year jobs and a unit upload would otherwise blank its card.
+        set_current = job.entity_type != EntityType.MODULE_UNIT_SPECIFIC
         try:
             async with self.session.begin_nested():
                 # Step 1 — clear previous is_current for the same combo,
@@ -1049,15 +1055,18 @@ class DataIngestionRepository:
                 # Demoting a RUNNING sibling would let two pods process
                 # the same combo concurrently — the partial unique index
                 # can't catch it once the demote commits.
-                combo_where = and_(
-                    col(DataIngestionJob.is_current),
-                    col(DataIngestionJob.id) != job_id,
-                    col(DataIngestionJob.state) != IngestionState.RUNNING,
-                    self._build_combo_where(job),
-                )
-                await self.session.execute(
-                    update(DataIngestionJob).where(combo_where).values(is_current=False)
-                )
+                if set_current:
+                    combo_where = and_(
+                        col(DataIngestionJob.is_current),
+                        col(DataIngestionJob.id) != job_id,
+                        col(DataIngestionJob.state) != IngestionState.RUNNING,
+                        self._build_combo_where(job),
+                    )
+                    await self.session.execute(
+                        update(DataIngestionJob)
+                        .where(combo_where)
+                        .values(is_current=False)
+                    )
 
                 # Step 2 — atomic claim
                 result = await self.session.execute(
@@ -1088,7 +1097,7 @@ class DataIngestionRepository:
                             col(DataIngestionJob.started_at), func.now()
                         ),
                         state=IngestionState.RUNNING,
-                        is_current=True,
+                        is_current=set_current,
                         attempts=col(DataIngestionJob.attempts) + 1,
                     )
                     .returning(col(DataIngestionJob.id))
@@ -1314,6 +1323,16 @@ class DataIngestionRepository:
             )
             return
 
+        # MODULE_UNIT_SPECIFIC uploads live on the per-unit module page,
+        # not the per-year backoffice config — and nothing reads their
+        # is_current flag (year-config skips them; recalc-status + factor
+        # staleness look only at per-year / FACTORS / computed jobs).
+        # Returning early keeps a unit upload (success OR error) from
+        # demoting the module-level per-year data job, which otherwise
+        # nulled ``latest_data_job`` and blanked the upload card.
+        if job.entity_type == EntityType.MODULE_UNIT_SPECIFIC:
+            return
+
         if job.target_type is None:
             raise ValueError("target_type cannot be None when marking job as current")
 
@@ -1343,7 +1362,7 @@ class DataIngestionRepository:
                     col(DataIngestionJob.data_entry_type_id).is_(None),
                 )
 
-            logger.info(f"Unsetting is_current for: {where_clause}")
+            logger.debug(f"Unsetting is_current for: {where_clause}")
 
             # Unset previous current job for this combination
             unset_stmt = (

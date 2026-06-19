@@ -1,5 +1,6 @@
 """Data entry repository for database operations."""
 
+import asyncio
 from typing import Any, Dict, Optional
 
 from psycopg.types.json import Json
@@ -106,7 +107,14 @@ class DataEntryRepository:
         On non-PostgreSQL binds (the SQLite test harness) COPY is not part
         of the wire protocol, so the ORM bulk path is used instead.
         """
-        db_objs = [DataEntry.model_validate(entry) for entry in data_entries]
+        # Validate in chunks, yielding between them: a full batch can be
+        # INGEST_COPY_BATCH_SIZE (50k) rows, and one un-yielded model_validate
+        # list-comp blocks the event loop long enough to fail liveness probes.
+        db_objs: list[DataEntry] = []
+        for i, entry in enumerate(data_entries):
+            db_objs.append(DataEntry.model_validate(entry))
+            if (i + 1) % 1000 == 0:
+                await asyncio.sleep(0)
         if not db_objs:
             return 0
         bind = self.session.get_bind()

@@ -64,8 +64,8 @@ export default {
     fr: 'Saisir la ville ou la gare dans la langue locale.',
   },
   [`${MODULES.ProfessionalTravel}-form-tooltip`]: {
-    en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose.',
-    fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet.',
+    en: 'Please enter the details of your trip by train of flight in Switzerland or abroad. Every leg of the journey needs to be entered a new trip (e.g. Lausanne to New York would be 1. a train from Lausanne to Geneva Airport, then 2. a flight from Geneva Airport to Paris-Charles de Gaulle and 3. A flight from Paris-Charles de Gaulle to John F. Kennedy International Airport). The return can be selected by checking the box provided for this purpose. The station name must be entered in the station’s local language. ',
+    fr: 'Veuillez saisir les détails de votre voyage en train ou en avion, en Suisse ou à l’étranger. Chaque étape du trajet doit être saisie comme un nouveau voyage (par ex. : Lausanne–New York correspondrait à 1. un trajet en train de Lausanne à l’aéroport de Genève, puis 2. un vol de l’aéroport de Genève à Paris–Charles-de-Gaulle et 3. un vol de Paris–Charles-de-Gaulle à l’aéroport international John-F.-Kennedy). Le retour peut être sélectionné en cochant la case prévue à cet effet. Le nom de la station doit être saisi dans la langue locale de celle-ci.',
   },
   [`${MODULES.ProfessionalTravel}-other-form-title`]: {
     en: 'Add a trip',
@@ -141,11 +141,11 @@ export default {
     },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte`]: {
     en: 'Travel per FTE',
-    fr: 'Déplacements par ETP',
+    fr: 'Déplacements par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-unit`]: {
     en: 'per FTE',
-    fr: 'par ETP',
+    fr: 'par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-tooltip`]: {
     en: 'Average travel carbon footprint per Full-Time Equivalent employee',

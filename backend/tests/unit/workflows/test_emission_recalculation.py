@@ -18,6 +18,14 @@ def _make_mock_entry(entry_id: int, module_id: int) -> MagicMock:
     return entry
 
 
+def _make_mock_handler() -> MagicMock:
+    """Handler mock whose async ``prefetch_slice`` hook returns an empty
+    slice cache — the workflow awaits it once before looping entries."""
+    handler = MagicMock()
+    handler.prefetch_slice = AsyncMock(return_value={})
+    return handler
+
+
 # ======================================================================
 # recalculate_for_data_entry_type Tests
 # ======================================================================
@@ -49,7 +57,7 @@ async def test_recalculate_all_success():
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -105,7 +113,7 @@ async def test_recalculate_partial_error():
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -181,7 +189,7 @@ async def test_recalculate_aborts_batch_on_connection_invalidated():
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -255,7 +263,7 @@ async def test_recalculate_aborts_batch_on_pending_rollback():
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -366,7 +374,7 @@ async def test_recalculate_rematches_primary_factor_id_when_changed():
         )
         # Strategy A handler: kind_field maps to a key in entry.data so
         # the gate ``handler.kind_field in entry.data`` evaluates True.
-        strategy_a_handler = MagicMock()
+        strategy_a_handler = _make_mock_handler()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_a_handler
@@ -416,7 +424,7 @@ async def test_recalculate_does_not_touch_entry_when_factor_unchanged():
         )
         # Handler with no kind_field (MagicMock attr is not in entry.data
         # so the rematch gate fails) — entry.data stays untouched.
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
 
         await svc.recalculate_for_data_entry_type(DataEntryTypeEnum.plane, 2025)
 
@@ -458,7 +466,7 @@ async def test_recalculate_reports_affected_module_ids_for_chain():
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )
@@ -530,7 +538,7 @@ async def test_recalculate_skips_rematch_for_strategy_b_handlers():
         )
         # Strategy B handler shape: kind_field set, but its value isn't
         # present in entry.data (would be derived via pre_compute).
-        strategy_b_handler = MagicMock()
+        strategy_b_handler = _make_mock_handler()
         strategy_b_handler.kind_field = "kind"  # NOT a key on entry.data
         strategy_b_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_b_handler
@@ -604,7 +612,7 @@ async def test_recalculate_rolls_back_entry_data_on_upsert_failure():
         mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
             return_value=0
         )
-        strategy_a_handler = MagicMock()
+        strategy_a_handler = _make_mock_handler()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_a_handler
@@ -680,7 +688,7 @@ async def test_recalculate_uses_single_factor_bulk_fetch():
         mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
             return_value=0
         )
-        strategy_a_handler = MagicMock()
+        strategy_a_handler = _make_mock_handler()
         strategy_a_handler.kind_field = "equipment_class"
         strategy_a_handler.subkind_field = None
         mock_handler_cls.get_by_type.return_value = strategy_a_handler
@@ -749,7 +757,7 @@ async def test_recalculate_kind_only_fallback_in_dict():
         mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
             return_value=0
         )
-        handler = MagicMock()
+        handler = _make_mock_handler()
         handler.kind_field = "equipment_class"
         handler.subkind_field = "sub_class"
         mock_handler_cls.get_by_type.return_value = handler
@@ -793,7 +801,7 @@ async def test_recalculate_reports_progress_at_interval(monkeypatch):
             "app.workflows.emission_recalculation.BaseModuleHandler"
         ) as mock_handler_cls,
     ):
-        mock_handler_cls.get_by_type.return_value = MagicMock()
+        mock_handler_cls.get_by_type.return_value = _make_mock_handler()
         mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
             return_value=entries
         )

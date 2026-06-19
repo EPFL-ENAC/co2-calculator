@@ -253,6 +253,25 @@ function fmtWhen(s: string | null): string {
   return new Date(s).toLocaleString();
 }
 
+// Scope label for the "Type" column.  Backend sends the entity_type
+// enum NAME; unit-specific runs also carry the unit's institutional_id,
+// appended so an operator sees *which* unit at a glance.
+const ENTITY_TYPE_KEY: Record<string, string> = {
+  MODULE_PER_YEAR: 'pipeops_type_per_year',
+  MODULE_UNIT_SPECIFIC: 'pipeops_type_unit_specific',
+  GLOBAL_PER_YEAR: 'pipeops_type_global',
+};
+
+function typeLabel(p: PipelineListItem): string {
+  if (!p.entity_type) return '—';
+  const key = ENTITY_TYPE_KEY[p.entity_type];
+  const label = key ? t(key) : p.entity_type;
+  if (p.entity_type === 'MODULE_UNIT_SPECIFIC' && p.unit_institutional_id) {
+    return `${label} · ${p.unit_institutional_id}`;
+  }
+  return label;
+}
+
 const counters = computed(() => store.counters);
 
 // Workers section — independent from the pipelines table.  Refreshed
@@ -633,10 +652,12 @@ onUnmounted(() => {
               <th class="text-left" style="width: 36px"></th>
               <th class="text-left">{{ $t('pipeops_col_status') }}</th>
               <th class="text-left">{{ $t('pipeops_col_trigger') }}</th>
+              <th class="text-left">{{ $t('pipeops_col_type') }}</th>
               <th class="text-left">{{ $t('pipeops_col_module') }}</th>
               <th class="text-left">{{ $t('pipeops_col_jobs') }}</th>
               <th class="text-left">{{ $t('pipeops_col_duration') }}</th>
               <th class="text-left">{{ $t('pipeops_col_when') }}</th>
+              <th class="text-left">{{ $t('pipeops_col_author') }}</th>
               <th class="text-left">{{ $t('pipeops_col_message') }}</th>
               <th class="text-right" style="width: 96px">
                 {{ $t('pipeops_col_actions') }}
@@ -645,12 +666,12 @@ onUnmounted(() => {
           </thead>
           <tbody>
             <tr v-if="store.loading && !store.items.length">
-              <td colspan="9" class="text-center text-grey-7">
+              <td colspan="11" class="text-center text-grey-7">
                 {{ $t('pipeops_loading') }}
               </td>
             </tr>
             <tr v-else-if="!store.items.length">
-              <td colspan="9" class="text-center text-grey-7">
+              <td colspan="11" class="text-center text-grey-7">
                 {{ $t('pipeops_empty') }}
               </td>
             </tr>
@@ -685,6 +706,7 @@ onUnmounted(() => {
                     {{ $t('pipeops_orphan_tag') }}
                   </span>
                 </td>
+                <td>{{ typeLabel(p) }}</td>
                 <td>
                   {{ p.module_label ?? p.module_type_id ?? '—' }} /
                   {{ p.year ?? '—' }}
@@ -702,6 +724,7 @@ onUnmounted(() => {
                 </td>
                 <td>{{ fmtDuration(p.started_at, p.finished_at) }}</td>
                 <td>{{ fmtWhen(p.started_at) }}</td>
+                <td>{{ p.author ?? '—' }}</td>
                 <td
                   class="text-grey-8 ellipsis"
                   :class="{ 'cursor-pointer': !!pipelineMessage(p) }"
@@ -757,7 +780,7 @@ onUnmounted(() => {
                 </td>
               </tr>
               <tr v-if="expanded.has(rowKey(p))">
-                <td colspan="9" class="bg-grey-1">
+                <td colspan="11" class="bg-grey-1">
                   <div class="q-pa-sm">
                     <div v-for="j in p.jobs" :key="j.job_id" class="q-py-sm">
                       <!-- Main job row -->

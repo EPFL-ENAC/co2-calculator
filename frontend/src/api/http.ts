@@ -1,6 +1,7 @@
 import ky, { type Options } from 'ky';
 import { Notify } from 'quasar';
 import { i18n } from 'src/boot/i18n';
+import { captureError } from 'src/utils/glitchtip';
 
 declare module 'ky' {
   interface Options {
@@ -358,16 +359,37 @@ export const api = ky.create({
             await handlePermissionError(res, errorResponse);
             return;
           }
+<<<<<<< HEAD
         }
         if (!res.ok) {
           // Capture 5xx in Sentry. 4xx is usually client/business-logic
+=======
+          if (permissionDetails.action) {
+            queryParams.set('action', permissionDetails.action);
+          }
+
+          // Show toast notification before redirecting
+          const toastMessage = permissionDetails.message || 'Access denied';
+          Notify.create({
+            color: 'negative',
+            message: toastMessage,
+            position: 'top',
+            timeout: 3000,
+            actions: [{ icon: 'close', color: 'white' }],
+          });
+
+          // Redirect immediately - toast will remain visible during navigation
+          const queryString = queryParams.toString();
+          const redirectUrl = queryString
+            ? `/unauthorized?${queryString}`
+            : '/unauthorized';
+          location.replace(redirectUrl);
+        } else if (!res.ok) {
+          // Capture 5xx in GlitchTip. 4xx is usually client/business-logic
+>>>>>>> origin/main
           // (validation, "not found", etc.) and not worth exception noise;
           // 5xx means our backend or infra failed and we want to know.
-          //
-          // Dynamic import so the @sentry/vue chunk stays lazy (the boot
-          // file uses dynamic import too — see boot/sentry.ts). On the first
-          // 5xx of a session this incurs one async chunk load; subsequent
-          // captures hit cache. A fast no-op when no DSN is configured.
+          // captureError is a fast no-op when no DSN is configured.
           if (res.status >= 500) {
             let body: string | undefined;
             try {
@@ -375,21 +397,20 @@ export const api = ky.create({
             } catch {
               // Body already consumed elsewhere; not fatal for the report.
             }
-            void import('@sentry/vue').then(({ captureMessage }) => {
-              captureMessage(`HTTP ${res.status} ${req.method} ${req.url}`, {
-                level: 'error',
+            captureError(
+              new Error(`HTTP ${res.status} ${req.method} ${req.url}`),
+              {
                 extra: {
                   status: res.status,
                   statusText: res.statusText,
                   url: req.url,
                   method: req.method,
                   // Truncate to keep events small; full body rarely fits in
-                  // GlitchTip's payload limit and isn't usually needed for
-                  // triage.
+                  // GlitchTip's payload limit and isn't usually needed for triage.
                   body: body?.slice(0, 2000),
                 },
-              });
-            });
+              },
+            );
           }
 
           const skipCodes = (options as ApiOptions).skipErrorCodes ?? [];

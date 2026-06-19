@@ -39,13 +39,42 @@
     <link rel="icon" type="image/ico" href="favicon.ico" />
 
     <!--
+      Preload branded text fonts. They're otherwise discovered late via the
+      CSS @font-face chain (CSS -> @font-face -> fetch), delaying LCP text.
+      crossorigin is required: @font-face fetches use CORS mode even
+      same-origin, so the preload must match or the browser double-fetches.
+    -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/SuisseIntlEPFL-Regular-WebS.woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/SuisseIntlEPFL-Medium-WebS.woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      href="/fonts/SuisseIntlEPFL-Bold-WebS.woff2"
+      crossorigin
+    />
+
+    <!--
       Runtime config. In production this file is overwritten by
       docker/entrypoint.sh on container startup with the per-env values
-      (Sentry DSN, environment, etc.). Loaded synchronously here so
-      window.injectedEnvVariable is populated before the SPA bundle parses
-      and src/boot/sentry.ts runs.
+      (Sentry DSN, environment, etc.). defer (not sync) keeps it off the
+      render-blocking path while still running before the app's module
+      bundle, so window.injectedEnvVariable is populated before
+      src/boot/sentry.ts runs.
     -->
-    <script src="/injectEnv.js"></script>
+    <script src="/injectEnv.js" defer></script>
   </head>
   <body>
     <!-- quasar:entry-point -->

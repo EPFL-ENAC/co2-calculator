@@ -276,46 +276,15 @@ class CarbonReportService:
         await self.module_service.ensure_modules_for_reports(carbon_reports)
 
     async def recompute_report_stats(self, carbon_report_id: int) -> None:
+        """Recompute and persist the aggregated stats JSON for a carbon report.
+
+        Aggregates child ``CarbonReportModule`` stats (scope sums, merged
+        ``by_emission_type``, entry counts) and refreshes the report's
+        ``completion_progress`` / ``overall_status``.  Thin wrapper over the
+        set-based :meth:`recompute_report_stats_many` so the single- and
+        many-report paths share one implementation.
         """
-        Recompute and persist the aggregated stats JSON for a carbon report.
-
-        Aggregates stats from all child CarbonReportModule records:
-        - Sum scope1, scope2, scope3, total across all modules
-        - Merge by_emission_type dicts (grouping by emission_type_id)
-        - Sum entry_count across all modules
-        - Update computed_at timestamp
-
-        Args:
-            carbon_report_id: The carbon report ID to recompute stats for
-        """
-        modules = await self.module_service.list_modules(carbon_report_id)
-
-        if not modules:
-            logger.warning(
-                f"recompute_report_stats: no modules found for report "
-                f"{sanitize(carbon_report_id)}, skipping"
-            )
-            return
-
-        stats = _build_report_stats(modules)
-
-        report = await self.repo.get(carbon_report_id)
-        report_id_sanitized = sanitize(carbon_report_id)
-        if report:
-            report.stats = stats
-            report.last_updated = int(datetime.now(timezone.utc).timestamp())
-            await self.session.flush()
-            await self.recompute_report_progress(carbon_report_id)
-            logger.info(
-                f"Report stats recomputed for carbon_report_id={report_id_sanitized}: "
-                f"total={stats['total']:.2f} kgCO2eq, "
-                f"{len(stats['by_emission_type'])} emission types, "
-                f"{stats['entry_count']} entries"
-            )
-        else:
-            logger.warning(
-                f"recompute_report_stats: report {report_id_sanitized} not found"
-            )
+        await self.recompute_report_stats_many([carbon_report_id])
 
     async def recompute_report_stats_many(self, carbon_report_ids: list[int]) -> None:
         """Batched report rollup for the aggregation job.

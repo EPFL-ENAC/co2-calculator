@@ -28,6 +28,22 @@ from app.utils.it_breakdown import (
 
 logger = get_logger(__name__)
 
+# Top-level emission category roots exposed in the results report CSV/JSON, in
+
+RESULTS_REPORT_CATEGORY_ROOTS: list[EmissionType] = [
+    EmissionType.process_emissions,
+    EmissionType.buildings,
+    EmissionType.equipment,
+    EmissionType.external,
+    EmissionType.professional_travel,
+    EmissionType.purchases,
+    EmissionType.research_facilities,
+    EmissionType.commuting,
+    EmissionType.food,
+    EmissionType.waste,
+    EmissionType.buildings__construction_and_renovation,
+]
+
 
 class CarbonReportModuleRepository:
     """Repository for CarbonReportModule database operations."""
@@ -380,15 +396,13 @@ class CarbonReportModuleRepository:
     def _apply_report_filters(
         stmt: Any,
         hierarchy_unit_ids: Optional[set[int]],
-        completion_status: Optional["ModuleStatus"],
+        overall_status: Optional["ModuleStatus"],
     ) -> Any:
         """Apply hierarchy and completion-status filters to a statement."""
         if hierarchy_unit_ids is not None:
             stmt = stmt.where(col(Unit.id).in_(hierarchy_unit_ids))
-        if completion_status is not None:
-            stmt = stmt.where(
-                col(CarbonReport.overall_status) == int(completion_status)
-            )
+        if overall_status is not None:
+            stmt = stmt.where(col(CarbonReport.overall_status) == int(overall_status))
         return stmt
 
     @staticmethod
@@ -417,7 +431,7 @@ class CarbonReportModuleRepository:
         path_lvl4: Optional[List[str]] = None,
         is_global: bool = True,
         scope_cfs: Optional[set[str]] = None,
-        completion_status: Optional[ModuleStatus] = None,
+        overall_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
         years: Optional[List[int]] = None,
@@ -538,11 +552,11 @@ class CarbonReportModuleRepository:
                 col(Unit.id).in_(hierarchy_unit_ids)
             )
 
-        # Filtered count (adds optional completion_status filter for the table).
+        # Filtered count (adds optional overall_status filter for the table).
         count_statement = base_count_stmt
-        if completion_status is not None:
+        if overall_status is not None:
             count_statement = count_statement.where(
-                col(CarbonReport.overall_status) == int(completion_status)
+                col(CarbonReport.overall_status) == int(overall_status)
             )
 
         total = (await self.session.exec(count_statement)).one()
@@ -627,7 +641,7 @@ class CarbonReportModuleRepository:
             )
 
         units_stmt = self._apply_report_filters(
-            units_stmt, hierarchy_unit_ids, completion_status
+            units_stmt, hierarchy_unit_ids, overall_status
         )
 
         filtered_report_ids_stmt = self._apply_report_filters(
@@ -635,7 +649,7 @@ class CarbonReportModuleRepository:
             .join(Unit, col(CarbonReport.unit_id) == col(Unit.id))
             .where(col(CarbonReport.year).in_(years)),
             hierarchy_unit_ids,
-            completion_status,
+            overall_status,
         )
 
         # Use a subquery instead of materializing the full list of report IDs
@@ -899,7 +913,7 @@ class CarbonReportModuleRepository:
         path_lvl4: Optional[List[str]] = None,
         is_global: bool = True,
         scope_cfs: Optional[set[str]] = None,
-        completion_status: Optional[ModuleStatus] = None,
+        overall_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
         years: Optional[List[int]] = None,
@@ -911,7 +925,7 @@ class CarbonReportModuleRepository:
         Args:
             path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
-            completion_status: Optional filter for report-level completion status.
+            overall_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
             modules: Optional filter for specific module types (ModuleTypeEnum names)
               and statuses (e.g., ["headcount:2", "professional_travel:1"])
@@ -952,9 +966,9 @@ class CarbonReportModuleRepository:
         )
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status is not None:
+        if overall_status is not None:
             statement = statement.where(
-                col(CarbonReport.overall_status) == int(completion_status)
+                col(CarbonReport.overall_status) == int(overall_status)
             )
         if search:
             search_term = f"%{search.strip().lower()}%"
@@ -1030,7 +1044,7 @@ class CarbonReportModuleRepository:
         path_lvl4: Optional[List[str]] = None,
         is_global: bool = True,
         scope_cfs: Optional[set[str]] = None,
-        completion_status: Optional[ModuleStatus] = None,
+        overall_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         modules: Optional[List[str]] = None,
         years: Optional[List[int]] = None,
@@ -1043,7 +1057,7 @@ class CarbonReportModuleRepository:
             data_entry_type: The type of data entry to filter by
             path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
-            completion_status: Optional filter for report-level completion status.
+            overall_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
             modules: Optional filter for specific module types (ModuleTypeEnum names)
               and statuses (e.g., ["headcount:2", "professional_travel:1"])
@@ -1071,15 +1085,64 @@ class CarbonReportModuleRepository:
         if hierarchy_unit_ids is not None and not hierarchy_unit_ids:
             return []
 
+        # Pre-aggregate CO2 by (unit_id, year, module_status) across all modules
+        # so each data-entry row can carry per-status totals for its unit-year.
+        status_co2_cols: List[Any] = [
+            col(CarbonReport.unit_id).label("s_unit_id"),
+            col(CarbonReport.year).label("s_year"),
+            col(CarbonReportModule.status).label("module_status"),
+            func.coalesce(func.sum(col(DataEntryEmission.kg_co2eq)), 0).label(
+                "total_co2"
+            ),
+        ]
+        status_stmt = (
+            select(*status_co2_cols)
+            .select_from(DataEntry)
+            .join(
+                CarbonReportModule,
+                CarbonReportModule.id == DataEntry.carbon_report_module_id,
+            )
+            .join(
+                CarbonReport,
+                CarbonReport.id == CarbonReportModule.carbon_report_id,
+            )
+            .outerjoin(
+                DataEntryEmission,
+                DataEntryEmission.data_entry_id == DataEntry.id,
+            )
+            .group_by(
+                col(CarbonReport.unit_id),
+                col(CarbonReport.year),
+                col(CarbonReportModule.status),
+            )
+        )
+        if years:
+            status_stmt = status_stmt.where(col(CarbonReport.year).in_(years))
+        if hierarchy_unit_ids is not None:
+            status_stmt = status_stmt.where(
+                col(CarbonReport.unit_id).in_(hierarchy_unit_ids)
+            )
+
+        status_rows = (await self.session.exec(status_stmt)).all()
+        status_co2_lookup: dict[tuple, dict[int, float]] = {}
+        for sr in status_rows:
+            key = (sr.s_unit_id, sr.s_year)
+            if key not in status_co2_lookup:
+                status_co2_lookup[key] = {}
+            status_co2_lookup[key][sr.module_status] = float(sr.total_co2)
+
         report: list[dict] = []
 
         columns: List[Any] = [
             col(DataEntry.data_entry_type_id),
             col(CarbonReport.year),
+            col(Unit.id).label("unit_id"),
             col(Unit.institutional_id).label("unit_institutional_id"),
             col(Unit.path_name).label("unit_path_name"),
             col(DataEntry.id).label("data_entry_id"),
             col(DataEntry.data),
+            col(CarbonReportModule.last_updated).label("module_last_updated"),
+            col(User.display_name).label("principal_user_name"),
             func.coalesce(
                 func.sum(col(DataEntryEmission.kg_co2eq)),
                 0,
@@ -1101,21 +1164,28 @@ class CarbonReportModuleRepository:
                 DataEntryEmission,
                 DataEntryEmission.data_entry_id == DataEntry.id,
             )
+            .outerjoin(
+                User,
+                User.institutional_id == Unit.principal_user_institutional_id,
+            )
             .where(DataEntry.data_entry_type_id == data_entry_type.value)
             .group_by(
                 col(CarbonReport.year),
+                col(Unit.id),
                 col(Unit.institutional_id),
                 col(Unit.path_name),
                 col(DataEntry.id),
+                col(CarbonReportModule.last_updated),
+                col(User.display_name),
             )
         )
 
         # Additional filters based on provided parameters
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status is not None:
+        if overall_status is not None:
             statement = statement.where(
-                col(CarbonReport.overall_status) == int(completion_status)
+                col(CarbonReport.overall_status) == int(overall_status)
             )
         if search:
             search_term = f"%{search.strip().lower()}%"
@@ -1166,16 +1236,37 @@ class CarbonReportModuleRepository:
                 # Remove primary_factor_id from data
                 data = row.data.copy() if row.data else {}
                 data.pop("primary_factor_id", None)
+
+                last_update_iso = None
+                if row.module_last_updated is not None:
+                    last_update_iso = datetime.fromtimestamp(
+                        row.module_last_updated, tz=timezone.utc
+                    ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                status_breakdown = status_co2_lookup.get((row.unit_id, row.year), {})
+
                 report.append(
                     {
+                        "unit_id": row.unit_id,
                         "data_entry_type": DataEntryTypeEnum(
                             row.data_entry_type_id
                         ).name,
                         "year": row.year,
                         "unit_institutional_id": row.unit_institutional_id,
                         "unit_path_name": row.unit_path_name,
+                        "principal_user": row.principal_user_name or "",
+                        "last_update": last_update_iso,
                         "data_entry_id": row.data_entry_id,
                         **data,
+                        "validated_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.VALIDATED, 0), 1
+                        ),
+                        "in_progress_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.IN_PROGRESS, 0), 1
+                        ),
+                        "not_started_categories_co2": round(
+                            status_breakdown.get(ModuleStatus.NOT_STARTED, 0), 1
+                        ),
                         "kg_co2eq": row.kg_co2eq,
                     }
                 )
@@ -1188,7 +1279,7 @@ class CarbonReportModuleRepository:
         path_lvl4: Optional[List[str]] = None,
         is_global: bool = True,
         scope_cfs: Optional[set[str]] = None,
-        completion_status: Optional[ModuleStatus] = None,
+        overall_status: Optional[ModuleStatus] = None,
         search: Optional[str] = None,
         years: Optional[List[int]] = None,
     ) -> list[dict]:
@@ -1199,7 +1290,7 @@ class CarbonReportModuleRepository:
         Args:
             path_affiliation: Optional list of affiliation filters (unit names or IDs)
             path_lvl4: Optional list of hierarchy level 4 filters (unit names or IDs)
-            completion_status: Optional filter for report-level completion status.
+            overall_status: Optional filter for report-level completion status.
             search: Optional search term to filter results.
             years: Optional filter for specific years (e.g., [2024, 2025])
         Returns:
@@ -1231,9 +1322,9 @@ class CarbonReportModuleRepository:
         )
         if years:
             statement = statement.where(col(CarbonReport.year).in_(years))
-        if completion_status is not None:
+        if overall_status is not None:
             statement = statement.where(
-                col(CarbonReport.overall_status) == int(completion_status)
+                col(CarbonReport.overall_status) == int(overall_status)
             )
         if search:
             search_term = f"%{search.strip().lower()}%"
@@ -1251,17 +1342,11 @@ class CarbonReportModuleRepository:
             for row in partition:
                 stats = row.stats if isinstance(row.stats, dict) else {}
                 by_emission_type = stats.get("by_emission_type") or {}
-                # Convert emission type keys to names if possible
-                converted_by_emission_type: dict[str, Any] = {}
-                for k, v in by_emission_type.items():
-                    k_str = str(k)
-                    try:
-                        emission_type = EmissionType(int(k_str))
-                        key = emission_type.name.replace("__", "_")
-                    except (ValueError, TypeError):
-                        key = k_str
-                    converted_by_emission_type[key] = v
-                by_emission_type = converted_by_emission_type
+                # Keep only the top-level category scope totals
+                category_totals = {
+                    root.name: by_emission_type.get(str(root.value), 0)
+                    for root in RESULTS_REPORT_CATEGORY_ROOTS
+                }
                 report.append(
                     {
                         "year": row.year,
@@ -1271,8 +1356,7 @@ class CarbonReportModuleRepository:
                         "scope2": stats.get("scope2"),
                         "scope3": stats.get("scope3"),
                         "total": stats.get("total"),
-                        # Flatten by_emission_type into top-level keys
-                        **by_emission_type,
+                        **category_totals,
                     }
                 )
 

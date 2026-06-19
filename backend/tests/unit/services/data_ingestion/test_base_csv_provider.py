@@ -186,6 +186,73 @@ async def test_validate_csv_headers_empty_file():
 
 
 @pytest.mark.asyncio
+async def test_process_csv_with_blank_rows_does_not_raise_value_error():
+    """Regression test: Verifies that intermittent and trailing structural
+    blank rows (like ',,') are skipped by the loop guard and do not cause
+    the batch processor to raise a 'Data entry is None without error message'
+    ValueError.
+    """
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99, "year": 2025}
+
+    # 1. Use an AsyncMock session to satisfy general async database dependencies
+    mock_session = AsyncMock()
+    provider = ConcreteCSVProvider(config, data_session=mock_session)
+
+    # Mock out the batch-saving step completely to avoid database repository
+    # dependencies
+    provider._process_batch = AsyncMock(return_value=2)
+
+    # 2. Mock the async files_store layer
+    mock_files_store = MagicMock()
+    mock_files_store.move_file = AsyncMock(return_value="processing/test.csv")
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+
+    # Provide csv_content as raw bytes (b"...") so .decode() succeeds
+    csv_content = b"head1,head2,head3\nval1,val2,val3\n,,\nvala,valb,valc\n,,\n,,"
+    mock_files_store.get_file = AsyncMock(return_value=(csv_content, "text/csv"))
+
+    # Patch the private backend attribute
+    provider._files_store = mock_files_store
+
+    # 3. Mock handlers and setup results so _process_row works for valid rows
+    handler = MagicMock()
+    handler.validate_create.return_value = SimpleNamespace(
+        data={"head1": "val", "primary_factor_id": 1}
+    )
+    handler.kind_field = "head1"
+    handler.subkind_field = None
+    handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
+
+    async def mock_setup():
+        return {
+            "handlers": [handler],
+            "factors_map": {},
+            "factor_id_to_factor": {},
+            "expected_columns": {"head1", "head2", "head3"},
+            "required_columns": {"head1"},
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.student, handler, None)
+    )
+
+    # 4. Trigger the ingestion processor method
+    try:
+        result = await provider.process_csv_in_batches()
+    except ValueError as e:
+        if "Data entry is None without error message" in str(e):
+            pytest.fail(
+                "Regression caught! Deleting the blank row loop guard causes "
+                "a structural empty row to trigger an absolute process crash."
+            )
+        raise e
+
+    # 5. Assertions: check execution runs without completely failing out
+    assert result is not None
+
+
+@pytest.mark.asyncio
 async def test_validate_csv_headers_only_header():
     """Test that CSV with only header row is rejected."""
     config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}

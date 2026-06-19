@@ -40,7 +40,7 @@
                 v-if="
                   (inp.disableUntilField && !form[inp.disableUntilField]) ||
                   (inp.optionsId === 'subkind' &&
-                    !loadingSubclasses &&
+                    !isSubkindLoading &&
                     (filteredOptionsMap[inp.id]?.length ?? 0) === 0)
                 "
               >
@@ -166,6 +166,30 @@
                   @update:model-value="(val) => (form[inp.id] = val)"
                 />
               </template>
+              <VirtualSelectField
+                v-else-if="
+                  (inp.optionsId === 'kind' || inp.optionsId === 'subkind') &&
+                  moduleType === MODULES.Purchase
+                "
+                :model-value="form[inp.id]"
+                :options="getFilteredOptions(inp)"
+                :loading="
+                  inp.optionsId === 'kind' ? loadingClasses : isSubkindLoading
+                "
+                :label="
+                  $t(`${inp.labelKey || inp.label}`, {
+                    submoduleTitle: $t(`${moduleType}-${submoduleType}`),
+                  })
+                "
+                :placeholder="inp.placeholder ? $t(inp.placeholder) : null"
+                :hint="inp.hint ? $t(inp.hint) : null"
+                :error="!!errors[inp.id]"
+                :error-message="errors[inp.id]"
+                :readonly="isReadOnly(inp)"
+                :disable="inp.disable"
+                :icon="inp.icon"
+                @update:model-value="(val) => (form[inp.id] = val)"
+              />
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
@@ -179,18 +203,11 @@
                 :hint="inp.hint ? $t(inp.hint) : null"
                 :inputmode="inp.type === 'number' ? 'decimal' : undefined"
                 :options="getFilteredOptions(inp)"
-                :loading="
-                  inp.optionsId === 'kind'
-                    ? loadingClasses
-                    : inp.optionsId === 'subkind'
-                      ? loadingSubclasses
-                      : false
-                "
+                :loading="false"
                 :error="!!errors[inp.id]"
                 :error-message="errors[inp.id]"
                 :min="inp.min"
                 :max="inp.max"
-                @blur="validateField(inp)"
                 :step="inp.step"
                 :dense="inp.type !== 'boolean' && inp.type !== 'checkbox'"
                 :outlined="inp.type !== 'boolean' && inp.type !== 'checkbox'"
@@ -200,6 +217,7 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
+                @blur="validateField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -309,6 +327,7 @@ import { useI18n } from 'vue-i18n';
 import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import DirectionInput from 'src/components/atoms/CO2DestinationInput.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import VirtualSelectField from 'src/components/molecules/VirtualSelectField.vue';
 import HeadcountMemberSelect from 'src/components/organisms/module/HeadcountMemberSelect.vue';
 import { calculateDistance } from 'src/api/locations';
 import { useEquipmentClassOptions } from 'src/composables/useEquipmentClassOptions';
@@ -514,6 +533,10 @@ function getFilteredOptions(
   const taxoNode =
     moduleStore.state.taxonomySubmodule[props.submoduleType ?? ''];
   const opts = filteredOptionsMap.value[inp.id] ?? [];
+  // Build O(1) lookup map once per call to avoid O(n²) Array.find() over taxonomy children
+  const taxoChildMap = new Map(
+    taxoNode?.children?.map((c) => [c.name, c]) ?? [],
+  );
   opts.forEach((opt) => {
     if (inp.optionLabelKey) {
       const key = inp.optionLabelKey.replace(
@@ -523,9 +546,7 @@ function getFilteredOptions(
       opt.label = $te(key) ? $t(key) : opt.value;
       return;
     }
-    const taxoOptNode = taxoNode?.children?.find(
-      (node) => node.name === opt.value,
-    );
+    const taxoOptNode = taxoChildMap.get(opt.value);
     const translationKey = taxoOptNode?.translation_key;
     if (translationKey && $te(translationKey)) {
       opt.label = $t(translationKey);
@@ -620,13 +641,22 @@ const { dynamicOptions, loadingClasses, loadingSubclasses } =
     toRef(props, 'year'),
   );
 
-const { dynamicOptions: buildingRoomDynamicOptions } =
+const { dynamicOptions: buildingRoomDynamicOptions, loadingRooms } =
   useBuildingRoomDynamicOptions(
     form,
     toRef(props, 'moduleType'),
     toRef(props, 'submoduleType'),
     toRef(props, 'year'),
   );
+
+const isSubkindLoading = computed(() => {
+  if (
+    props.moduleType === MODULES.Buildings &&
+    props.submoduleType === SUBMODULE_BUILDINGS_TYPES.Building
+  )
+    return loadingRooms.value;
+  return loadingSubclasses.value;
+});
 
 function getTravelMode(): 'plane' | 'train' | undefined {
   if (props.moduleType !== MODULES.ProfessionalTravel) return undefined;

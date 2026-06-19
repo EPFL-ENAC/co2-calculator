@@ -233,6 +233,8 @@ class DataEntryEmissionService:
         *,
         year: int | None = None,
         factor_cache: dict[int, Factor] | None = None,
+        factor_query_cache: dict | None = None,
+        slice_cache: dict | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
 
@@ -308,7 +310,13 @@ class DataEntryEmissionService:
         # data entry is left intact so re-runs remain idempotent.
         ctx: dict = {**data_entry.data}
         ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
-        ctx.update(await handler.pre_compute(data_entry, self.session))
+        # Forward the slice prefetch only when a caller (the recalc workflow)
+        # actually preloaded one — keeps handlers whose pre_compute takes no
+        # slice_cache (the base + non-plane modules) callable as-is.
+        pre_compute_kwargs = {"slice_cache": slice_cache} if slice_cache else {}
+        ctx.update(
+            await handler.pre_compute(data_entry, self.session, **pre_compute_kwargs)
+        )
 
         # Prefer using the lightweight hook that tests commonly patch.
         # This avoids unnecessary DB calls to fetch the report when tests
@@ -347,7 +355,10 @@ class DataEntryEmissionService:
 
             for comp in computations:
                 factors = await self._fetch_factors(
-                    comp, year, factor_cache=factor_cache
+                    comp,
+                    year,
+                    factor_cache=factor_cache,
+                    factor_query_cache=factor_query_cache,
                 )
 
                 if report is not None:
@@ -496,6 +507,7 @@ class DataEntryEmissionService:
         year: Optional[int] = None,
         *,
         factor_cache: dict[int, Factor] | None = None,
+        factor_query_cache: dict | None = None,
     ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
 
@@ -548,6 +560,26 @@ class DataEntryEmissionService:
         # ── Strategy B: classification query ────────────────────────────
         if comp.factor_query is not None:
             q: FactorQuery = comp.factor_query
+
+            # Slice-scoped memo (opt-in via factor_query_cache): Strategy B
+            # hits the DB on every computation, and a recalc slice resolves the
+            # same criteria across thousands of entries while the factor table
+            # is held stable by the recalc lock. One query per distinct
+            # criteria instead of one per emission per entry. Callers that pass
+            # no cache (single-entry paths) are unchanged.
+            cache_key = None
+            if factor_query_cache is not None:
+                cache_key = (
+                    q.data_entry_type,
+                    q.kind,
+                    q.subkind,
+                    q.emission_type,
+                    tuple(sorted(q.context.items())),
+                    tuple(sorted(q.fallbacks.items())),
+                    year,
+                )
+                if cache_key in factor_query_cache:
+                    return factor_query_cache[cache_key]
 
             # Build the classification dict from optional subkind + context
             # e.g. {"subkind": "business", "country_code": "CH"}
@@ -616,6 +648,9 @@ class DataEntryEmissionService:
                         q.data_entry_type, year=year
                     )
                 )
+
+            if factor_query_cache is not None and cache_key is not None:
+                factor_query_cache[cache_key] = result
 
         return result
 

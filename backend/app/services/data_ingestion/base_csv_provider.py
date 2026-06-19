@@ -1,8 +1,10 @@
 import asyncio
 import csv
 import io
+import time
 import urllib.parse
 from abc import ABC, abstractmethod
+from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TypedDict
 
 from sqlmodel import col, select
@@ -48,6 +50,12 @@ from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
 logger = get_logger(__name__)
+
+# Minimum wall-clock seconds between two progress writes for the same job.
+# Progress is checked per-row (cheap monotonic read) but the DB write + log
+# line only fire this often, so a long CPU phase shows motion without
+# hammering the session.
+PROGRESS_REPORT_INTERVAL_S = 2.0
 
 
 def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
@@ -185,6 +193,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
         self._year_cache: Dict[int, int] = {}
+        # Progress reporting: current phase label + throttle/rate bookkeeping.
+        self._phase = ""
+        self._phase_started_at = 0.0
+        self._last_report_at = 0.0
+        # Per-segment wall-time accumulator for the row-loop profile (diagnostic;
+        # answers "where do the N seconds go" — DB-heavy segments stand out).
+        self._seg: Dict[str, float] = {}
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -375,6 +390,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self.data_session, entry_type, self.year
             )
             factors_map.update(type_factors)
+            # Yield between factor-type merges: building a large factors_map
+            # (tens of thousands of factors) is a CPU burst that would
+            # otherwise block the event loop during setup.
+            await asyncio.sleep(0)
 
         return handlers, factors_map
 
@@ -594,10 +613,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "unit_id column is required for MODULE_PER_YEAR imports."
             )
 
-        logger.info(
-            f"Found {len(unit_codes)} unique unit institutional_ids in CSV: "
-            f"{sorted(unit_codes)}"
-        )
+        logger.info(f"Found {len(unit_codes)} unique unit institutional_ids in CSV")
+        logger.debug("Unique unit institutional_ids: %s", sorted(unit_codes))
 
         # Scope the map to the CSV's units.  The bulk join above covers
         # EVERY unit with a report for this (year, module_type) — using
@@ -762,6 +779,94 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
+    def _enter_phase(self, phase: str) -> None:
+        """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
+        self._phase = phase
+        self._phase_started_at = time.monotonic()
+
+    @contextmanager
+    def _timed(self, key: str):
+        """Accumulate wall time spent in a row-loop segment under ``key``.
+
+        Cheap (one perf_counter read each side); records on exit even when the
+        wrapped block returns/raises, so per-row early-exits still count.
+        """
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self._seg[key] = self._seg.get(key, 0.0) + (time.perf_counter() - start)
+
+    def _log_row_loop_profile(self, parse_elapsed: float, rows: int) -> None:
+        """One-line breakdown of where the row-loop wall time went.
+
+        ``row`` is the total in ``_process_row``; ``loop_overhead`` is the rest
+        of the loop (CSV parse, blank-row skips, progress reports). ``row_other``
+        is per-row work outside the four timed sub-calls (filter/key/build).
+        """
+        seg = self._seg
+        row_t = seg.get("row", 0.0)
+        inner = ("resolve", "validate", "enrich", "populate")
+        per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
+        logger.info(
+            "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
+            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "loop_overhead=%.1fs",
+            rows,
+            parse_elapsed,
+            per_row_ms,
+            row_t,
+            seg.get("resolve", 0.0),
+            seg.get("validate", 0.0),
+            seg.get("enrich", 0.0),
+            seg.get("populate", 0.0),
+            row_t - sum(seg.get(k, 0.0) for k in inner),
+            parse_elapsed - row_t,
+        )
+
+    @staticmethod
+    def _format_progress(
+        phase: str, processed: int | None, total: int | None, elapsed: float
+    ) -> str:
+        """Human-readable progress line with throughput + rough ETA."""
+        if not processed or not total:
+            return phase
+        rate = processed / max(elapsed, 1e-3)
+        eta = (total - processed) / rate if rate > 0 else 0.0
+        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
+
+    async def _report(
+        self,
+        phase: str,
+        *,
+        processed: int | None = None,
+        total: int | None = None,
+        stats: "StatsDict | None" = None,
+        force: bool = False,
+    ) -> None:
+        """Throttled progress write to the job row + an INFO log line.
+
+        Safe to call per-row: only the monotonic clock is read unless a
+        write is due (every ``PROGRESS_REPORT_INTERVAL_S``) or ``force``.
+        """
+        now = time.monotonic()
+        if not force and now - self._last_report_at < PROGRESS_REPORT_INTERVAL_S:
+            return
+        self._last_report_at = now
+
+        msg = self._format_progress(
+            phase, processed, total, now - self._phase_started_at
+        )
+        meta: Dict[str, Any] = dict(stats) if stats else {}
+        meta["progress"] = {"phase": phase, "processed": processed, "total": total}
+        logger.info(msg)
+        await self._update_job(
+            status_message=msg,
+            state=IngestionState.RUNNING,
+            result=None,
+            extra_metadata=meta,
+        )
+
     async def process_csv_in_batches(self) -> Dict[str, Any]:
         """Orchestrate CSV processing: setup → process rows → finalize"""
         try:
@@ -791,9 +896,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self.entity_type == EntityType.MODULE_PER_YEAR
                 and not self.carbon_report_module_id
             ):
-                logger.info(
-                    "Resolving carbon_report_module_ids for MODULE_PER_YEAR import"
-                )
+                self._enter_phase("Resolving modules")
+                await self._report("Resolving modules", force=True)
                 unit_to_module_map = await self._resolve_carbon_report_modules(
                     setup_result["csv_text"]
                 )
@@ -802,15 +906,25 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 await self.data_session.flush()  # Flush report/module creation
 
                 # Delete existing entries from previous CSV_MODULE_PER_YEAR uploads
-                logger.info(
-                    "Deleting existing CSV_MODULE_PER_YEAR entries before re-import"
-                )
+                self._enter_phase("Deleting previous entries")
+                await self._report("Deleting previous entries", force=True)
                 await self._delete_existing_entries_for_module_per_year(
                     unit_to_module_map, stats, data_entry_service
                 )
 
             # Process CSV rows
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
+            # Rough row count for progress/ETA (header line excluded); the CSV
+            # text is already in memory, so counting newlines is cheap.
+            total_rows = max(setup_result["csv_text"].count("\n") - 1, 0)
+            self._enter_phase("Parsing rows")
+            await self._report(
+                "Parsing rows", processed=0, total=total_rows, stats=stats, force=True
+            )
+            # Row-loop profile baseline (diagnostic).
+            self._seg = {}
+            parse_start = time.perf_counter()
+            row_idx = 0
             batch: List[DataEntry] = []
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
@@ -825,20 +939,32 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 # Row processing is mostly CPU (parse/validate, cached
                 # lookups) — with 50k-row COPY batches nothing else
                 # would run on the event loop for the whole file.
-                # Yield regularly so the API, SSE and heartbeats stay
-                # responsive, and surface interim progress to the job
-                # row between (now rare) batch flushes.
-                if row_idx % 1000 == 0:
+                # Yield every 100 rows so /healthz & /ready stay under the
+                # liveness/readiness probe timeout even on a CPU-tight pod;
+                # a 1000-row stretch could exceed 2s and trigger a restart.
+                if row_idx % 100 == 0:
                     await asyncio.sleep(0)
-                if row_idx % 5000 == 0:
-                    await self._update_job(
-                        status_message=f"Processing: {stats['rows_processed']}",
-                        state=IngestionState.RUNNING,
-                        result=None,
-                        extra_metadata=dict(stats),
+                    # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
+                    # long parse/validate phase shows live throughput + ETA
+                    # instead of going silent for tens of seconds.
+                    await self._report(
+                        "Parsing rows",
+                        processed=row_idx,
+                        total=total_rows,
+                        stats=stats,
                     )
+                # if empty row, skip
+                if not row:
+                    continue
+                # Skip completely blank rows
+                if not any(
+                    value is not None and str(value).strip() for value in row.values()
+                ):
+                    continue
+
                 # Process single row, returns
                 # (data_entry, error_msg, factor, kg_co2eq_override)
+                _row_t0 = time.perf_counter()
                 (
                     data_entry,
                     error_msg,
@@ -851,6 +977,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     stats,
                     max_row_errors,
                     unit_to_module_map,
+                )
+                self._seg["row"] = self._seg.get("row", 0.0) + (
+                    time.perf_counter() - _row_t0
                 )
 
                 if error_msg:
@@ -923,7 +1052,15 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             extra_metadata=dict(stats),
                         )
 
+            # Diagnostic: where did the row-loop time go (DB-heavy segments
+            # stand out vs CPU)? One line, real data/DB/handlers.
+            self._log_row_loop_profile(time.perf_counter() - parse_start, row_idx)
+
             # Finalize: process remaining batch, move file, update job
+            self._enter_phase("Inserting")
+            await self._report(
+                "Inserting", processed=stats["rows_processed"], force=True
+            )
             return await self._finalize_and_commit(
                 batch,
                 data_entry_service,
@@ -1085,13 +1222,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
             # Resolve handler and data_entry_type first (needed for factor lookup)
-            (
-                data_entry_type,
-                handler,
-                error_msg,
-            ) = await self._resolve_handler_and_validate(
-                filtered_row, None, stats, row_idx, max_row_errors, setup_result
-            )
+            with self._timed("resolve"):
+                (
+                    data_entry_type,
+                    handler,
+                    error_msg,
+                ) = await self._resolve_handler_and_validate(
+                    filtered_row, None, stats, row_idx, max_row_errors, setup_result
+                )
 
             if error_msg:
                 return None, error_msg, None, None
@@ -1196,7 +1334,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             payload["primary_factor_id"] = primary_factor_id
 
             try:
-                validated = handler.validate_create(payload)
+                with self._timed("validate"):
+                    validated = handler.validate_create(payload)
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -1209,18 +1348,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # it to resolve origin_name/destination_name → *_natural_key via
             # a Location lookup so the recalc-time pre_compute can compute
             # distance. Returning a non-None error_msg skips the row.
-            data, enrich_error = await handler.enrich_csv_row(data, self.data_session)
+            with self._timed("enrich"):
+                data, enrich_error = await handler.enrich_csv_row(
+                    data, self.data_session
+                )
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
 
-            handler_service = ModuleHandlerService(self.data_session)
-            if primary_factor_id and "factor_id_to_factor" in setup_result:
-                factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                if factor is not None:
-                    data = await handler_service.populate_defaults(
-                        handler, data, factor
-                    )
+            with self._timed("populate"):
+                handler_service = ModuleHandlerService(self.data_session)
+                if primary_factor_id and "factor_id_to_factor" in setup_result:
+                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
+                    if factor is not None:
+                        data = await handler_service.populate_defaults(
+                            handler, data, factor
+                        )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so

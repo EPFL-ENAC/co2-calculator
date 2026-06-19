@@ -94,12 +94,20 @@ class DataIngestionProvider(ABC):
         job_config["entity_type"] = entity_type.value
         # Merge config into self.config so it's preserved for later use
         self.config.update(job_config)
+        if self.user is None or self.user.provider is None:
+            raise ValueError("User provider is required to create ingestion job")
         meta = {
             "factor_type_id": factor_type_id.value if factor_type_id else None,
             "config": job_config,  # Store entire config in meta for job
+            # Creator identity for the pipeline-console "author" column.
+            # Stored on the job so the list endpoint resolves the author
+            # without a users-table join (the User is guaranteed above).
+            "created_by": {
+                "user_id": self.user.id,
+                "email": self.user.email,
+                "name": self.user.display_name,
+            },
         }
-        if self.user is None or self.user.provider is None:
-            raise ValueError("User provider is required to create ingestion job")
         data = DataIngestionJob(
             module_type_id=module_type_id,
             ingestion_method=ingestion_method,

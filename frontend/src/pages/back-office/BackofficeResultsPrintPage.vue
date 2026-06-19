@@ -6,6 +6,7 @@ import CompletionRateBar from 'src/components/organisms/backoffice/reporting/Com
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
 import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
+import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
 import { useBackofficeResultsPrintData } from 'src/composables/print/useBackofficeResultsPrintData';
 
 const {
@@ -20,6 +21,7 @@ const {
   validatedCategories,
   headcountValidated,
   availableModules,
+  reportingItBreakdown,
   fetchData,
 } = useBackofficeResultsPrintData();
 
@@ -122,6 +124,17 @@ onMounted(async () => {
             :show-validation-placeholder="false"
             :print-mode="true"
             :title="$t('backoffice_reporting_aggregated_results_per_fte_title')"
+          />
+        </section>
+      </ReportPage>
+
+      <ReportPage>
+        <section v-if="reportingItBreakdown" class="q-mt-md">
+          <ItFocusBreakdownChart
+            :data="reportingItBreakdown"
+            :print-mode="true"
+            :compact="true"
+            :title="$t('backoffice_reporting_it_focus_title')"
           />
         </section>
       </ReportPage>

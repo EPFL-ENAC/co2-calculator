@@ -12,7 +12,6 @@ from app.core.logging import get_logger
 from app.models.data_entry_emission import EmissionType, get_all_nodes
 from app.models.factor import Factor
 from app.repositories.carbon_report_repo import CarbonReportRepository
-from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
 from app.repositories.unit_repo import UnitRepository
 from app.services.data_ingestion.factor_update_provider import BaseFactorUpdateProvider
 
@@ -121,18 +120,21 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
                 f"CarbonReport has no database id for unit_id={unit.id}, year={year}"
             )
 
-        # 3. Aggregate all emissions across the entire CarbonReport, broken
+        # 3. Aggregate some emissions across the entire CarbonReport, broken
         #    down by (module_type_id, emission_type_id).  We use all modules so
         #    that process, buildings, equipment, and purchase contributions are
         #    captured regardless of which CarbonReportModule they live in.
-        breakdown = await DataEntryEmissionRepository(session).get_emission_breakdown(
-            carbon_report.id
-        )
-        # breakdown: list of (module_type_id, emission_type_id, kg_co2eq_sum)
+        stats = carbon_report.stats or {}
+        by_emission_type = stats.get("by_emission_type", {})
+        breakdown = [
+            (int(emission_type_id), float(kg_co2eq_sum))
+            for emission_type_id, kg_co2eq_sum in by_emission_type.items()
+        ]
+        # breakdown: list of (emission_type_id, kg_co2eq_sum)
 
         # 4. Aggregate per source using the SOURCE_EMISSION_MAP
         source_totals: Dict[str, float] = {src: 0.0 for src in SOURCE_EMISSION_MAP}
-        for _module_type_id, emission_type_id, kg in breakdown:
+        for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
                 if emission_type_id in valid_ids:
                     source_totals[source] += kg

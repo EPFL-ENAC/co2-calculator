@@ -137,11 +137,11 @@ export default {
   },
   results_carbon_footprint_per_fte: {
     en: 'Carbon footprint per FTE (total of {FTE})',
-    fr: 'Empreinte carbone par ETP (total de {FTE})',
+    fr: 'Empreinte carbone par EPT (total de {FTE})',
   },
   results_carbon_footprint_per_FTE_no_headcount: {
     en: 'My unit carbon footprint per FTE',
-    fr: "Empreinte carbone de l'unité par ETP",
+    fr: "Empreinte carbone de l'unité par EPT",
   },
   results_unit_carbon_footprint: {
     en: 'Comparison to previous year',
@@ -936,7 +936,7 @@ export default {
   },
   'it-focus-per-fte': {
     en: 'IT carbon footprint per FTE',
-    fr: 'Empreinte carbone IT par ETP',
+    fr: 'Empreinte carbone IT par EPT',
   },
   'it-focus-share-of-total': {
     en: 'IT share of total emissions',

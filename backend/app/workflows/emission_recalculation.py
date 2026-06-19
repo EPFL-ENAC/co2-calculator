@@ -110,6 +110,13 @@ class EmissionRecalculationWorkflow:
         # below (only built when the handler actually rematches).
         factors = await factor_repo.list_by_data_entry_type(data_entry_type_id, year)
         factor_cache: dict[int, Factor] = {f.id: f for f in factors if f.id is not None}
+        # Strategy-B (classification-query) factor lookups hit the DB once per
+        # emission per entry — an N+1 that dominated headcount recalc (member:
+        # ~25 queries/entry × thousands of entries). The factor table is held
+        # stable for the slice by the recalc advisory lock, and the same
+        # (kind, subkind, context, year) criteria recur across entries, so a
+        # slice-scoped memo collapses it to one query per distinct criteria.
+        factor_query_cache: dict = {}
         if handler.kind_field is not None and any(
             handler.kind_field in e.data for e in entries
         ):
@@ -131,6 +138,13 @@ class EmissionRecalculationWorkflow:
                 # callers don't depend on ordering when the index is consistent.
                 factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
+        # Plan 310D — per-slice prefetch: handlers that otherwise re-query
+        # slice-constant data per entry (plane reloads airports + the full
+        # plane-factor set on every entry) bulk-load it once here; pre_compute
+        # then reads it from slice_cache in-memory. Empty for handlers that
+        # don't override the hook, so their per-entry path is unchanged.
+        slice_cache = await handler.prefetch_slice(entries, self.session, year=year)
+
         recalculated = 0
         errors = 0
         error_details: list[dict] = []
@@ -144,6 +158,10 @@ class EmissionRecalculationWorkflow:
         total_written = 0
         total_replaced = 0
         slice_started = time.perf_counter()
+        # Per-segment wall time for a recalc profile line (diagnostic, the
+        # analog of ingestion's row-loop profile): localises where per-entry
+        # time goes so a slow slice is measured, not guessed.
+        seg = {"rematch": 0.0, "validate": 0.0, "prepare": 0.0}
 
         for entry in entries:
             # Plan 310B Part 6 — refresh primary_factor_id against current
@@ -188,6 +206,7 @@ class EmissionRecalculationWorkflow:
                 # writes, so a per-entry failure needs no SAVEPOINT —
                 # there is nothing to roll back; the ``except`` just
                 # reverts the in-memory factor swap and moves on.
+                _t = time.perf_counter()
                 if entry_kind_field is not None and entry_kind_field in entry.data:
                     new_factor_id = self._lookup_factor_id(
                         entry_data=entry.data,
@@ -204,11 +223,21 @@ class EmissionRecalculationWorkflow:
                             **entry.data,
                             "primary_factor_id": new_factor_id,
                         }
+                seg["rematch"] += time.perf_counter() - _t
 
+                _t = time.perf_counter()
                 entry_response = DataEntryResponse.model_validate(entry)
+                seg["validate"] += time.perf_counter() - _t
+
+                _t = time.perf_counter()
                 emissions = await emission_svc.prepare_create(
-                    entry_response, year=year, factor_cache=factor_cache
+                    entry_response,
+                    year=year,
+                    factor_cache=factor_cache,
+                    factor_query_cache=factor_query_cache,
+                    slice_cache=slice_cache,
                 )
+                seg["prepare"] += time.perf_counter() - _t
                 if entry.id is not None:
                     processed_entry_ids.append(entry.id)
                 prepared_emissions.extend(emissions)
@@ -289,10 +318,28 @@ class EmissionRecalculationWorkflow:
             processed_entry_ids, prepared_emissions
         )
         total_replaced += len(processed_entry_ids)
+        slice_elapsed = time.perf_counter() - slice_started
         logger.info(
             f"Recalc {data_entry_type_id.name}/{year}: replaced emissions for "
             f"{total_replaced} entries ({total_written} emission rows, "
-            f"{time.perf_counter() - slice_started:.1f}s compute+write)"
+            f"{slice_elapsed:.1f}s compute+write)"
+        )
+        # Recalc profile: where the per-entry time went (rematch = in-memory
+        # factor relink, validate = Pydantic, prepare = prepare_create incl. any
+        # handler DB reads). remainder = bulk writes + loop overhead.
+        accounted = seg["rematch"] + seg["validate"] + seg["prepare"]
+        logger.info(
+            "Recalc profile %s/%s: %d entries in %.1fs (%.2f ms/entry) | "
+            "rematch=%.1f validate=%.1f prepare=%.1f remainder=%.1f",
+            data_entry_type_id.name,
+            year,
+            len(entries),
+            slice_elapsed,
+            slice_elapsed / len(entries) * 1000,
+            seg["rematch"],
+            seg["validate"],
+            seg["prepare"],
+            slice_elapsed - accounted,
         )
 
         # Plan 310-D — stats recompute moves out of this workflow and

@@ -1,6 +1,9 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
-    <div v-if="hasModuleUpload && !isInputDeactivated" class="q-gutter-sm">
+    <div
+      v-if="hasModuleUpload && !isInputDeactivated && canUseCsvTools"
+      class="q-gutter-sm"
+    >
       <q-btn
         outline
         icon="o_view_list"
@@ -787,6 +790,10 @@ const hasModuleUpload = computed(() => {
     props.moduleFields.filter((field) => !field.hideIn?.form).length > 0
   );
 });
+
+const canUseCsvTools = computed(() =>
+  authStore.hasUserCanValidateModuleStatus(),
+);
 
 // Permission check: can user edit this module?
 const canEdit = computed(() => {
@@ -1683,6 +1690,7 @@ onMounted(async () => {
       const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
         props.unitId,
         props.year,
+        moduleStore.carbonProjectType,
       );
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),

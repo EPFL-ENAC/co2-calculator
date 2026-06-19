@@ -95,14 +95,15 @@ class UnitService:
         filters = decision.get("filters", {})
 
         # 4. Build complex query with joins (service-level orchestration)
-        # Define the query without the type hint on the variable yet
+        columns: list[Any] = [
+            Unit,
+            UnitUser.role,
+            col(User.display_name).label("principal_user_name"),
+            col(User.function).label("principal_user_function"),
+            col(User.email).label("principal_user_email"),
+        ]
         query: Any = (
-            select(
-                Unit,
-                UnitUser.role,
-                col(User.display_name).label("principal_user_name"),
-                col(User.function).label("principal_user_function"),
-            )
+            select(*columns)
             .select_from(Unit)
             .join(UnitUser, col(UnitUser.unit_id) == col(Unit.id))
             .outerjoin(
@@ -139,9 +140,16 @@ class UnitService:
                 "principal_user_institutional_id": unit.principal_user_institutional_id,
                 "principal_user_name": principal_user_name,
                 "principal_user_function": principal_user_function,
+                "principal_user_email": principal_user_email,
                 "affiliations": unit.path_name.split(" ") if unit.path_name else [],
             }
-            for unit, role, principal_user_name, principal_user_function in rows
+            for (
+                unit,
+                role,
+                principal_user_name,
+                principal_user_function,
+                principal_user_email,
+            ) in rows
         ]
 
     async def get_by_institutional_id(

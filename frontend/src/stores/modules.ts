@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { computed, reactive, ref } from 'vue';
+import { computed, markRaw, reactive, ref } from 'vue';
 import { MODULES, Module } from 'src/constant/modules';
 import { api } from 'src/api/http';
 import {
@@ -18,6 +18,7 @@ import type {
 } from 'src/constant/modules';
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
 
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
@@ -360,14 +361,9 @@ export const useModuleStore = defineStore('modules', () => {
     // submodule title counts are available without fetching full submodule data.
     moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
-  function modulePath(moduleType: Module, unit: number, year: string) {
-    const moduleTypeEncoded = encodeURIComponent(moduleType);
-    const unitEncoded = encodeURIComponent(unit);
-    const yearEncoded = encodeURIComponent(year);
-    // Backend expects /{unit_id}/{year}/{module_id}
-    const path = `modules/${unitEncoded}/${yearEncoded}/${moduleTypeEncoded}`;
-    return path;
-  }
+  // Backend expects /{unit_id}/{year}/{module_id}; buildModulePath throws on
+  // unresolved unit/year so we never fire a `modules/undefined/null/...` 422.
+  const modulePath = buildModulePath;
 
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
@@ -399,6 +395,8 @@ export const useModuleStore = defineStore('modules', () => {
   }
 
   async function getModuleData(moduleType: Module, unit: number, year: string) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
     state.data = null;
@@ -426,8 +424,12 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
   ) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
     state.error = null;
+
+    state.data = null;
     try {
       const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
       state.data = (await api
@@ -435,6 +437,10 @@ export const useModuleStore = defineStore('modules', () => {
           searchParams: { carbon_project_type: carbonProjectType.value },
         })
         .json()) as ModuleResponse;
+      if (state.data?.data_entry_types_total_items) {
+        state.moduleTotalsMap[moduleType] =
+          state.data.data_entry_types_total_items;
+      }
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -478,6 +484,8 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number;
     year: string;
   }) {
+    // Skip until the workspace has resolved unit/year (avoids the 422).
+    if (!hasValidModuleParams(unit, year)) return;
     state.loadingSubmodule[submoduleType] = true;
     state.errorSubmodule[submoduleType] = null;
     state.dataSubmodule[submoduleType] = null;
@@ -576,7 +584,7 @@ export const useModuleStore = defineStore('modules', () => {
           `taxonomies/module/${encodeURIComponent(moduleType)}/${encodeURIComponent(submoduleType)}?year=${encodeURIComponent(year)}`,
         )
         .json()) as TaxonomyNode;
-      state.taxonomySubmodule[submoduleType] = taxonomy;
+      state.taxonomySubmodule[submoduleType] = markRaw(taxonomy);
     } catch (err: unknown) {
       if (err instanceof Error) {
         state.error = err.message ?? 'Unknown error';
@@ -595,6 +603,18 @@ export const useModuleStore = defineStore('modules', () => {
     value: string;
   }
   type FieldValue = string | number | boolean | null | Option;
+  // A create/patch/delete recomputes module stats on the backend, which flips
+  // the module to IN_PROGRESS. Refresh the timeline statuses so the sidebar
+  // status icon updates live instead of staying stale until the next navigation.
+  async function refreshModuleStates() {
+    const timelineStore = useTimelineStore();
+    if (timelineStore.currentCarbonReportId !== null) {
+      await timelineStore.fetchModuleStates(
+        timelineStore.currentCarbonReportId,
+      );
+    }
+  }
+
   async function postItem(
     moduleType: Module,
     unitId: number,
@@ -701,6 +721,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -758,6 +779,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -796,6 +818,7 @@ export const useModuleStore = defineStore('modules', () => {
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
       await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
       else state.error = 'Unknown error';
@@ -1109,6 +1132,7 @@ export const useModuleStore = defineStore('modules', () => {
     getItBreakdown,
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
+    carbonProjectType,
     state,
   };
 });
