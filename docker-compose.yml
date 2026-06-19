@@ -76,6 +76,7 @@ services:
       dockerfile: Dockerfile
     container_name: co2-backend
     environment:
+      # Local compose only — never True on stage/prod (see app/core/config.py).
       DEBUG: "True"
       HOST: "0.0.0.0"
       PORT: "8000"
