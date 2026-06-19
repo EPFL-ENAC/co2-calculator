@@ -353,6 +353,9 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
     # outside this index) and does not affect the partial unique
     # index's correctness.
     __table_args__ = (
+        # ddl_if gates to Postgres: SQLite drops the partial WHERE, turning
+        # this into an unconditional unique that rejects a unit-specific job
+        # coexisting with its current per-year sibling on the same combo.
         Index(
             "ix_data_ingestion_jobs_is_current_unique",
             "module_type_id",
@@ -362,7 +365,7 @@ class DataIngestionJob(DataIngestionJobBase, table=True):
             "year",
             unique=True,
             postgresql_where=text("is_current = true"),
-        ),
+        ).ddl_if(dialect="postgresql"),
         Index(
             "ix_data_ingestion_jobs_pending",
             "run_after",
