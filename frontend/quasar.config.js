@@ -266,6 +266,7 @@ export default defineConfig(function () {
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-js#framework
     framework: {
+      iconSet: 'svg-material-icons',
       plugins: [
         'Dialog',
         'Loading',
