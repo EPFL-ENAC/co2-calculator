@@ -2,6 +2,7 @@
 
 import base64
 import datetime
+import os
 import urllib.parse
 from typing import List
 
@@ -77,6 +78,72 @@ def make_files_store() -> FilesStore:
 
 files_store = make_files_store()
 file_checker = FileChecker(settings.FILES_MAX_SIZE_MB * 1024 * 1024)
+
+# Upload allowlist. The data-management flows only ingest CSV; the extension
+# is the authoritative gate. Extend explicitly when a new import format ships.
+ALLOWED_UPLOAD_EXTENSIONS = frozenset({".csv"})
+# Browsers label CSV inconsistently (text/csv, the Excel type, or a generic
+# octet-stream / empty), so accept the set they actually send. The extension
+# check above is what truly constrains the upload.
+ALLOWED_UPLOAD_CONTENT_TYPES = frozenset(
+    {
+        "text/csv",
+        "application/csv",
+        "application/vnd.ms-excel",
+        "text/plain",
+        "application/octet-stream",
+        "",
+    }
+)
+# Content types a browser renders as active content when served inline.
+# Serving these from the file store would be stored XSS, so they are always
+# forced to download regardless of the requested inline display.
+DANGEROUS_INLINE_TYPES = frozenset(
+    {
+        "text/html",
+        "application/xhtml+xml",
+        "image/svg+xml",
+        "application/xml",
+        "text/xml",
+        "application/javascript",
+        "text/javascript",
+    }
+)
+
+
+def validate_upload_mimetype(file: UploadFile) -> None:
+    """Reject uploads whose extension or declared content type is not allowed.
+
+    Raises:
+        HTTPException: 415 when the file is not an accepted import format.
+    """
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                f"Unsupported file type '{ext or file.filename or 'unknown'}'. "
+                f"Allowed: {', '.join(sorted(ALLOWED_UPLOAD_EXTENSIONS))}"
+            ),
+        )
+    declared = (file.content_type or "").lower()
+    if declared not in ALLOWED_UPLOAD_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported content type '{declared}'",
+        )
+
+
+def build_attachment_disposition(file_path: str) -> str:
+    """Build a ``Content-Disposition: attachment`` header for ``file_path``.
+
+    Uses an ASCII ``filename`` fallback plus the RFC 5987 ``filename*`` form so
+    the saved name is authoritative across browsers and handles non-ASCII names.
+    """
+    basename = file_path.rsplit("/", 1)[-1] or "download"
+    ascii_basename = basename.encode("ascii", "replace").decode("ascii")
+    quoted = urllib.parse.quote(basename, safe="")
+    return f"attachment; filename=\"{ascii_basename}\"; filename*=UTF-8''{quoted}"
 
 
 @router.get(
@@ -215,40 +282,21 @@ async def get_file(
     try:
         (body, content_type) = await files_store.get_file(file_path)
         if body:
-            if download:
-                # Force a real download with the original filename.
-                # Without ``Content-Disposition: attachment; filename="..."``,
-                # Safari (and to a lesser extent Firefox) ignores the
-                # ``<a download>`` attribute set on the client side
-                # and saves the file by sniffing the URL/Content-Type,
-                # which can strip the extension when the sniff
-                # disagrees with the URL.  User-reported regression
-                # 2026-05-21: ``processed/152/equipments_data.csv``
-                # was being saved as ``equipments_data`` (no .csv).
-                # ``filename*`` encoding via RFC 5987 handles
-                # non-ASCII names; ``filename`` is the ASCII fallback
-                # for older clients.
-                basename = file_path.rsplit("/", 1)[-1] or "download"
-                ascii_basename = basename.encode("ascii", "replace").decode("ascii")
-                quoted = urllib.parse.quote(basename, safe="")
-                disposition = (
-                    f'attachment; filename="{ascii_basename}"; '
-                    f"filename*=UTF-8''{quoted}"
-                )
-                return Response(
-                    content=body,
-                    media_type=content_type or "application/octet-stream",
-                    headers={"Content-Disposition": disposition},
-                )
-            else:
-                # Inline display (images / preview).  Still set
-                # ``Content-Type`` so the browser doesn't sniff a CSV
-                # as ``text/html`` and run script-injection on any
-                # malformed row.
-                return Response(
-                    content=body,
-                    media_type=content_type or "application/octet-stream",
-                )
+            media_type = content_type or "application/octet-stream"
+            # ``nosniff`` stops the browser from second-guessing our
+            # Content-Type (e.g. sniffing a malformed CSV as HTML and
+            # running script injection on a malformed row).
+            headers = {"X-Content-Type-Options": "nosniff"}
+            # Force a real download when explicitly requested OR when the
+            # stored type would execute inline (html/svg/xml/js) — serving
+            # those inline from the file store would be stored XSS. Without
+            # ``Content-Disposition: attachment`` Safari/Firefox also ignore
+            # the client ``<a download>`` and strip the extension (regression
+            # 2026-05-21: ``equipments_data.csv`` saved as ``equipments_data``).
+            base_type = media_type.split(";", 1)[0].strip().lower()
+            if download or base_type in DANGEROUS_INLINE_TYPES:
+                headers["Content-Disposition"] = build_attachment_disposition(file_path)
+            return Response(content=body, media_type=media_type, headers=headers)
         else:
             raise HTTPException(status_code=404, detail="File not found")
     except FileNotFoundError:
@@ -300,6 +348,8 @@ async def upload_temp_files(
         raise HTTPException(
             status_code=400, detail="At least one file must be provided"
         )
+    for file in files:
+        validate_upload_mimetype(file)
     current_time = datetime.datetime.now(datetime.timezone.utc)
     # generate unique name for the files' base folder in S3
     folder_name = str(current_time.timestamp()).replace(".", "")
