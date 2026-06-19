@@ -1,3 +1,4 @@
+import { outlinedCategory, outlinedScience } from '@quasar/extras/material-icons-outlined';
 import { ModuleConfig, ModuleField } from '@/constant/moduleConfig';
 import { SUBMODULE_PROCESSES_TYPES, MODULES } from '@/constant/modules';
 import type { ProcessesSubType, Module } from '@/constant/modules';
@@ -15,7 +16,7 @@ const processEmissionsFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     hideIn: { form: false },
-    icon: 'o_science',
+    icon: outlinedScience,
     columnSize: 'lg',
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-category',
@@ -33,7 +34,7 @@ const processEmissionsFields: ModuleField[] = [
     ratio: '1/3',
     hideIn: { form: false },
     columnSize: 'lg',
-    icon: 'o_category',
+    icon: outlinedCategory,
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-subcategory',
   },
