@@ -1630,3 +1630,107 @@ async def test_update_ingestion_job_status_history_capped(
     # Head was trimmed — first kept entry is "step 10".
     assert history[0]["message"] == "step 10"
     assert history[-1]["message"] == "step 59"
+
+
+# ======================================================================
+# is_current: MODULE_UNIT_SPECIFIC must not touch the per-year slot
+# ======================================================================
+
+
+def _make_unit_specific_data_job(
+    state: IngestionState,
+    result: IngestionResult | None,
+    is_current: bool = False,
+) -> DataIngestionJob:
+    """A unit-specific DATA_ENTRIES CSV job sharing the per-year combo.
+
+    Same (module, det, target, method, year) as the ``_make_job`` rows in
+    these tests, differing only by ``entity_type`` — the exact overlap that
+    used to let a unit upload demote the per-year data job.
+    """
+    return DataIngestionJob(
+        entity_type=EntityType.MODULE_UNIT_SPECIFIC,
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        provider=UserProvider.DEFAULT,
+        state=state,
+        result=result,
+        is_current=is_current,
+        meta={},
+    )
+
+
+@pytest.mark.asyncio
+async def test_mark_current_unit_specific_does_not_demote_per_year(
+    db_session: AsyncSession,
+):
+    """Regression: finalizing a unit-specific upload (even FAILED) must keep
+    the module-level per-year data job ``is_current`` so the backoffice
+    year-config still resolves ``latest_data_job``.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    per_year = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    unit_specific = _make_unit_specific_data_job(
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+    )
+    db_session.add(per_year)
+    db_session.add(unit_specific)
+    await db_session.flush()
+
+    await repo.mark_job_as_current(unit_specific)
+
+    per_year = await _reload_job(db_session, per_year.id)
+    unit_specific = await _reload_job(db_session, unit_specific.id)
+    assert per_year.is_current is True  # not demoted
+    assert unit_specific.is_current is False  # never enters the slot
+
+
+@pytest.mark.asyncio
+async def test_claim_unit_specific_does_not_demote_or_claim_current(
+    db_session: AsyncSession,
+):
+    """Regression: claiming a unit-specific job (RUNNING transition) must not
+    demote the per-year sibling nor mark itself ``is_current``.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    per_year = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    unit_specific = _make_unit_specific_data_job(
+        state=IngestionState.NOT_STARTED,
+        result=None,
+    )
+    db_session.add(per_year)
+    db_session.add(unit_specific)
+    await db_session.flush()
+
+    claimed = await repo.claim_job(unit_specific.id, pod_id="pod-test")
+    assert claimed is True
+
+    per_year = await _reload_job(db_session, per_year.id)
+    unit_specific = await _reload_job(db_session, unit_specific.id)
+    assert per_year.is_current is True  # not demoted by the claim
+    assert unit_specific.is_current is False  # RUNNING but never current
+    assert unit_specific.state == IngestionState.RUNNING

@@ -65,11 +65,11 @@ const selectedCompletionStatus = ref<string | number>('');
 function handleFiltersUpdate(payload: {
   path_affiliation: number[];
   path_lvl4: number[];
-  completion_status: string | number;
+  overall_status: string | number;
 }) {
   selectedPathAffiliation.value = payload.path_affiliation;
   selectedPathLvl4.value = payload.path_lvl4;
-  selectedCompletionStatus.value = payload.completion_status;
+  selectedCompletionStatus.value = payload.overall_status;
   fetchUnits();
 }
 
@@ -124,7 +124,7 @@ const unitFilters = computed<UnitFilters>(() => {
     path_lvl4:
       selectedPathLvl4.value.length > 0 ? selectedPathLvl4.value : undefined,
     years: selectedYears.value,
-    completion_status:
+    overall_status:
       selectedCompletionStatus.value !== ''
         ? selectedCompletionStatus.value
         : undefined,
