@@ -121,6 +121,9 @@ Runtime knobs (`verify_ssl`, `request_timeout_seconds`,
 `rest_min_api_version`, `max_fields`) are **not** columns — the provider
 reads them from settings.
 
+`server_url` is validated against the `CONNECTOR_ALLOWED_HOST_SUFFIXES` env
+allowlist and must use `https://` — see Security requirements.
+
 ## Provider hierarchy
 
 `BaseTableauApiProvider(DataIngestionProvider)` owns the shared plumbing —
@@ -136,13 +139,36 @@ implement `transform_data` plus per-row `_build_data_entry`.
 - `HeadcountMembersApiProvider` — maps to `member` rows
   (`name`, `sius_code`, `user_institutional_id`, `fte`, unit).
 
-## Security considerations
+## Security requirements
 
+An OWASP Top 10:2025 review of this design, highest severity first. Every
+item is a build requirement, not advice.
+
+- **SSRF / JWT exfiltration — allowlist `server_url` (A06, A10).** The
+  provider signs a JWT and POSTs it to `server_url`, which is form-editable,
+  so an attacker could point it at an internal host or an external collector.
+  A new env var `CONNECTOR_ALLOWED_HOST_SUFFIXES` (comma-separated) pins the
+  permitted hosts; `server_url` must be `https://` and its host must match a
+  suffix. Validated on **save** and before **each outbound call** (defense in
+  depth); fails closed when the allowlist is empty. `POST …/test` is
+  rate-limited.
+- **TLS verification stays on (A02, A04).** `TABLEAU_VERIFY_SSL` must be
+  `true` in prod; the provider logs a WARNING when verification is disabled.
+- **Audit connection mutations (A09).** Connection create/update, datasource
+  changes and connection tests are recorded via the existing
+  `AuditDocumentService` (who, when, which connector — never the secret).
+- **Validate keys at boot (A02).** A startup check fails the app in non-dev
+  when `CREDENTIALS_ENCRYPTION_KEY` / `_SALT` or
+  `CONNECTOR_ALLOWED_HOST_SUFFIXES` are unset — not lazily at first save.
 - **Encryption at rest (A04).** `secret_value` is Fernet-encrypted with a
   Scrypt-derived key; plaintext never touches the column or logs.
 - **No secret echo.** Read schemas expose only `has_secret: bool`. The form's
   secret field is write-only and blank on edit; an empty value on update
   keeps the stored secret rather than clearing it.
+- **No PII in logs (A09, privacy).** Headcount rows carry personal data
+  (name, SCIPER, FTE); the headcount provider must not log row contents.
+- **Sanitised errors (A10).** `…/test` and provider errors return a generic
+  message — never a raw exception, stack trace or upstream response body.
 - **Fail-closed (A10).** Encrypt/decrypt raise if the key/salt are unset; a
   connection cannot be saved or used without configured keys.
 - **Deny by default (A01).** Connector, connection and datasource endpoints
@@ -151,9 +177,16 @@ implement `transform_data` plus per-row `_build_data_entry`.
 
 ## Rollout
 
-- Add `CREDENTIALS_ENCRYPTION_KEY` / `CREDENTIALS_ENCRYPTION_SALT` to every
-  environment before deploy; without them the API fails closed. The knob env
-  vars (`TABLEAU_VERIFY_SSL`, …) stay.
+- Add `CREDENTIALS_ENCRYPTION_KEY`, `CREDENTIALS_ENCRYPTION_SALT` and
+  `CONNECTOR_ALLOWED_HOST_SUFFIXES` (e.g. `epfl.ch`) to every environment
+  before deploy; without the keys the API fails closed, and a startup check
+  refuses to boot in non-dev when they are unset. The knob env vars
+  (`TABLEAU_VERIFY_SSL`, …) stay.
+- Update the env surfaces in the same change: `backend/.env.example` and
+  `helm/templates/backend-deployment.yaml`. Add the three new vars (the
+  encryption keys via `existingSecret`, like `FILES_ENCRYPTION_*`) and remove
+  the now-dead connection vars (`TABLEAU_SERVER_URL`, `…SITE_CONTENT_URL`,
+  `…USERNAME`, `…CONNECTED_APP_*`, `…DS_FLIGHTS_LUID`), keeping the four knobs.
 - Add `cryptography` as a direct backend dependency (currently transitive
   via `enacit4r-files`) — supply-chain hygiene (A03).
 - After deploy (the DB is dropped between pre-v1 deploys), an operator opens
@@ -165,6 +198,11 @@ implement `transform_data` plus per-row `_build_data_entry`.
 
 - Should `secret_id` also be encrypted? It is an identifier (`kid`), not a
   secret; left plaintext unless the security review says otherwise.
+- Fernet is AES-128-CBC + HMAC, not AES-256-GCM. Authenticated and adequate
+  here; revisit only if a standard mandates AES-256.
+- Key rotation: changing `CREDENTIALS_ENCRYPTION_KEY` orphans stored secrets.
+  Low impact pre-v1 (DB dropped between deploys); use `MultiFernet` or
+  document re-entry when it matters.
 
 ## Next action
 

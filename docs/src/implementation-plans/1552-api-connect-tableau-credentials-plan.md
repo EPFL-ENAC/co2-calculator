@@ -43,6 +43,19 @@ See the PRD for context and decisions:
 - **Runtime knobs stay in env.** `TABLEAU_VERIFY_SSL`,
   `TABLEAU_REQUEST_TIMEOUT_SECONDS`, `TABLEAU_REST_MIN_API_VERSION`,
   `TABLEAU_MAX_FIELDS` are read from settings, never stored on the connection.
+- **SSRF guard (A06, A10).** `server_url` must be `https://` and its host must
+  match `CONNECTOR_ALLOWED_HOST_SUFFIXES` (comma-separated env; fails closed
+  when empty). Validate on save **and** before each outbound call. Rate-limit
+  `POST …/test`.
+- **TLS verification on (A02, A04).** Warn loudly when `TABLEAU_VERIFY_SSL` is
+  not `true`; prod must keep it on.
+- **Audit, no PII, sanitised errors (A09, A10).** Audit connection/datasource
+  mutations via `AuditDocumentService`; never log secrets or headcount PII
+  (name, SCIPER); error responses are generic, never raw exceptions/bodies.
+- **Validate secrets at boot (A02).** A startup check fails the app in non-dev
+  when the encryption keys or the allowlist are unset.
+- **Env surfaces updated with config.** Any new/removed setting is mirrored in
+  `backend/.env.example` and `helm/templates/backend-deployment.yaml`.
 - **No backward compat.** Remove env-var credential reads
   (`TABLEAU_SERVER_URL`, `…SITE_CONTENT_URL`, `…USERNAME`,
   `…CONNECTED_APP_*`, `…DS_FLIGHTS_LUID`) from the travel provider once the DB
@@ -115,6 +128,8 @@ encrypt/decrypt helpers. Independently testable: round-trip + fail-closed.
 
 - Modify: `backend/pyproject.toml`
 - Modify: `backend/app/core/config.py:165` (after the Tableau block)
+- Modify: `backend/.env.example`
+- Modify: `helm/templates/backend-deployment.yaml`
 
 - [ ] **Step 1: Add the dependency**
 
@@ -141,18 +156,65 @@ cd backend && uv add cryptography
             "Keep stable for the lifetime of the encrypted data."
         ),
     )
+    # SSRF guard: host suffixes a connection server_url may target.
+    CONNECTOR_ALLOWED_HOST_SUFFIXES: str = Field(
+        default="",
+        description=(
+            "Comma-separated host suffixes an API-connection server_url may "
+            "target (e.g. 'epfl.ch'). SSRF guard; empty fails closed."
+        ),
+    )
 ```
 
-- [ ] **Step 3: Verify it imports**
+- [ ] **Step 3: Mirror the new vars in `backend/.env.example`** (near
+      `FILES_ENCRYPTION_*`), with safe dev defaults:
+
+```bash
+CREDENTIALS_ENCRYPTION_KEY=
+CREDENTIALS_ENCRYPTION_SALT=
+CONNECTOR_ALLOWED_HOST_SUFFIXES=epfl.ch
+```
+
+- [ ] **Step 4: Mirror them in `helm/templates/backend-deployment.yaml`** —
+      inject the two encryption keys via `existingSecret` (copy the
+      `FILES_ENCRYPTION_KEY` / `FILES_ENCRYPTION_SALT` block at lines 125-134),
+      and `CONNECTOR_ALLOWED_HOST_SUFFIXES` as a plain value/config key.
+
+- [ ] **Step 5: Add a startup validation** so a misconfigured prod fails at
+      boot, not on first save. In the app lifespan/startup (find where
+      `get_settings()` is first used at startup), add:
+
+```python
+def assert_security_settings(settings) -> None:
+    """Fail closed at boot in non-dev when security settings are missing."""
+    if settings.ENV in ("dev", "local", "test"):
+        return
+    missing = [
+        name
+        for name in (
+            "CREDENTIALS_ENCRYPTION_KEY",
+            "CREDENTIALS_ENCRYPTION_SALT",
+            "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+        )
+        if not getattr(settings, name)
+    ]
+    if missing:
+        raise RuntimeError(f"Missing required security settings: {missing}")
+```
+
+Use whatever env discriminator the settings already expose (adapt the
+`settings.ENV` check to the real field). Call it from the startup hook.
+
+- [ ] **Step 6: Verify it imports**
 
 Run: `cd backend && uv run python -c "from app.core.config import get_settings; get_settings()"`
 Expected: no error.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add backend/pyproject.toml backend/uv.lock backend/app/core/config.py
-git commit -m "feat(config): add credential encryption settings and cryptography dep"
+git add backend/pyproject.toml backend/uv.lock backend/app/core/config.py backend/.env.example helm/templates/backend-deployment.yaml backend/app/main.py
+git commit -m "feat(config): credential encryption + SSRF allowlist settings and boot check"
 ```
 
 ### Task 1.2: Encrypt/decrypt helpers (TDD)
@@ -247,6 +309,109 @@ Expected: PASS (2 tests).
 cd backend && make type-check && make lint
 git add backend/app/core/crypto.py backend/tests/core/test_crypto.py
 git commit -m "feat(crypto): Fernet encrypt/decrypt for connection secrets"
+```
+
+### Task 1.3: SSRF URL allowlist validator (TDD)
+
+**Files:**
+
+- Create: `backend/app/core/url_safety.py`
+- Test: `backend/tests/core/test_url_safety.py`
+
+**Interfaces:**
+
+- Produces: `validate_external_url(url: str) -> str` — returns the URL if it
+  is `https://` and its host matches a configured suffix; raises `ValueError`
+  otherwise. Empty allowlist → raise (fail closed).
+
+- [ ] **Step 1: Write the failing tests**
+
+```python
+import pytest
+from app.core import url_safety
+
+
+def _set(monkeypatch, suffixes):
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", suffixes)
+    url_safety.get_settings.cache_clear()
+
+
+def test_allows_https_matching_suffix(monkeypatch):
+    _set(monkeypatch, "epfl.ch")
+    assert url_safety.validate_external_url("https://tableau.epfl.ch/") == (
+        "https://tableau.epfl.ch/"
+    )
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://tableau.epfl.ch/",        # not https
+        "https://tableau.evil.com/",      # host not allowed
+        "https://evil-epfl.ch/",          # suffix not on a dot boundary
+        "https://169.254.169.254/",       # cloud metadata
+    ],
+)
+def test_rejects_unsafe(monkeypatch, url):
+    _set(monkeypatch, "epfl.ch")
+    with pytest.raises(ValueError):
+        url_safety.validate_external_url(url)
+
+
+def test_fails_closed_when_allowlist_empty(monkeypatch):
+    _set(monkeypatch, "")
+    with pytest.raises(ValueError):
+        url_safety.validate_external_url("https://tableau.epfl.ch/")
+```
+
+- [ ] **Step 2: Run to verify it fails**
+
+Run: `cd backend && uv run pytest tests/core/test_url_safety.py -v`
+Expected: FAIL — `ModuleNotFoundError: app.core.url_safety`.
+
+- [ ] **Step 3: Implement `url_safety.py`**
+
+```python
+from urllib.parse import urlparse
+
+from app.core.config import get_settings
+
+
+def _allowed_suffixes() -> list[str]:
+    raw = get_settings().CONNECTOR_ALLOWED_HOST_SUFFIXES
+    return [s.strip().lower() for s in raw.split(",") if s.strip()]
+
+
+def validate_external_url(url: str) -> str:
+    """Return ``url`` if it is https and its host matches the allowlist.
+
+    SSRF guard for a form-supplied ``server_url``. Fails closed when the
+    allowlist is empty. Suffix match is on a dot boundary so ``evil-epfl.ch``
+    does not match ``epfl.ch``.
+    """
+    suffixes = _allowed_suffixes()
+    if not suffixes:
+        raise ValueError("CONNECTOR_ALLOWED_HOST_SUFFIXES is not configured")
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError("server_url must use https")
+    host = (parsed.hostname or "").lower()
+    if not any(host == s or host.endswith("." + s) for s in suffixes):
+        raise ValueError(f"server_url host {host!r} is not in the allowlist")
+    return url
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `cd backend && uv run pytest tests/core/test_url_safety.py -v`
+Expected: PASS.
+
+- [ ] **Step 5: Type-check, lint, commit**
+
+```bash
+cd backend && make type-check && make lint
+git add backend/app/core/url_safety.py backend/tests/core/test_url_safety.py
+git commit -m "feat(security): https + host-allowlist SSRF guard for server_url"
 ```
 
 ---
@@ -762,6 +927,7 @@ from typing import Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.crypto import decrypt_secret, encrypt_secret
+from app.core.url_safety import validate_external_url
 from app.models.connector import (
     ConnectorConnection,
     ConnectorDatasource,
@@ -797,6 +963,7 @@ class ConnectorConnectionService:
         A blank ``secret_value`` on an existing row keeps the stored secret;
         on a new row it is required.
         """
+        validate_external_url(payload.server_url)  # SSRF guard; raises on bad host
         existing = await self.repo.get_by_connector(connector)
         if existing is None and not payload.secret_value:
             raise ValueError("secret_value is required for a new connection")
@@ -856,17 +1023,50 @@ class ConnectorConnectionService:
         return await self.datasources.upsert(target)
 ```
 
-- [ ] **Step 4: Run to verify it passes**
+- [ ] **Step 4: Add an SSRF-rejection test** to the same file — a
+      non-allowlisted or `http://` `server_url` must raise before any row is
+      written:
+
+```python
+@pytest.mark.asyncio
+async def test_save_rejects_disallowed_server_url(db_session, monkeypatch):
+    monkeypatch.setenv("CREDENTIALS_ENCRYPTION_KEY", "dev-key-material")
+    monkeypatch.setenv("CREDENTIALS_ENCRYPTION_SALT", "dev-salt")
+    monkeypatch.setenv("CONNECTOR_ALLOWED_HOST_SUFFIXES", "epfl.ch")
+    crypto.get_settings.cache_clear()
+    from app.core import url_safety
+
+    url_safety.get_settings.cache_clear()
+
+    service = ConnectorConnectionService(db_session)
+    with pytest.raises(ValueError):
+        await service.save_connection(
+            ConnectorType.EPFL_TABLEAU,
+            ConnectorConnectionCreate(
+                label="x", server_url="https://tableau.evil.com/",
+                username="u", client_id="c", secret_id="s",
+                secret_value="v",
+            ),
+        )
+```
+
+- [ ] **Step 5: Audit connection mutations.** In `upsert_connection` /
+      `upsert_datasource` (the router, Task 3.2) record the change via the
+      existing `AuditDocumentService` (entity `ConnectorConnection` /
+      `ConnectorDatasource`, who + when + connector — **never** the secret),
+      mirroring `create_version(...)` as used in `base_provider.create_job`.
+
+- [ ] **Step 6: Run to verify it passes**
 
 Run: `cd backend && uv run pytest tests/services/test_connector_service.py -v`
 Expected: PASS.
 
-- [ ] **Step 5: Type-check, lint, commit**
+- [ ] **Step 7: Type-check, lint, commit**
 
 ```bash
 cd backend && make type-check && make lint
 git add backend/app/services/connector_service.py backend/tests/services/test_connector_service.py
-git commit -m "feat(service): encryption-aware connector connection service"
+git commit -m "feat(service): encryption-aware connector service with SSRF guard"
 ```
 
 ### Task 3.2: Router (TDD)
@@ -1031,6 +1231,12 @@ async def test_connection(
 > `BaseTableauApiProvider.test_connection`. If implementing Tier 3 first, stub
 > it to `{"ok": false, "detail": "not yet wired"}` and replace in Tier 4.
 
+> **Security (A06, A10).** `POST …/test` triggers an outbound call — rate-limit
+> it with the app's existing limiter (e.g. `slowapi`); if none exists, add a
+> lightweight per-user cap and note it. The `detail` it returns must be a
+> generic string ("authentication failed" / "host unreachable") — never a raw
+> exception, stack trace or Tableau response body.
+
 - [ ] **Step 4: Register the router** in the v1 aggregator (same place
       `files.router` is included):
 
@@ -1129,13 +1335,24 @@ the DB. Travel behaviour is unchanged; the source of credentials changes.
         self.client_id = conn.client_id
         self.secret_id = conn.secret_id
         self.secret_value = service.get_decrypted_secret(conn)
+        # SSRF guard on use too (defense in depth): the stored URL may have
+        # been written before an allowlist tightening.
+        validate_external_url(conn.server_url)
         self.verify_ssl = self.to_bool(settings.TABLEAU_VERIFY_SSL)
+        if not self.verify_ssl:
+            logger.warning(
+                "TLS verification disabled for %s — JWT sent over unverified "
+                "TLS; must be enabled in prod.", self.CONNECTOR.value
+            )
         self.timeout = int(settings.TABLEAU_REQUEST_TIMEOUT_SECONDS)
         self.min_api_version = settings.TABLEAU_REST_MIN_API_VERSION
         self.datasource_luid = ds.connector_luid
         self.module_type_id = self.config.get("module_type_id")
         self._credentials_loaded = True
 ```
+
+Import `validate_external_url` from `app.core.url_safety` and a module
+`logger` at the top of the base provider.
 
 `validate_connection` and `fetch_data` call `await self._ensure_credentials()`
 first, then run the moved logic (same bodies as today, minus the env reads).
@@ -1201,16 +1418,19 @@ Expected: PASS (behaviour unchanged). If a test stubbed `get_settings`
 Tableau values, update it to seed a `ConnectorConnection` +
 `ConnectorDatasource` instead.
 
-- [ ] **Step 3: Remove now-dead env settings.** Grep first, then drop the
-      connection env vars no longer referenced — `TABLEAU_SERVER_URL`,
+- [ ] **Step 3: Remove now-dead env settings everywhere.** Grep first, then
+      drop the connection env vars no longer referenced — `TABLEAU_SERVER_URL`,
       `TABLEAU_SITE_CONTENT_URL`, `TABLEAU_USERNAME`,
       `TABLEAU_CONNECTED_APP_CLIENT_ID/SECRET_ID/SECRET_VALUE`,
-      `TABLEAU_DS_FLIGHTS_LUID` — from `config.py`. **Keep** the knobs
-      (`TABLEAU_VERIFY_SSL`, `TABLEAU_REQUEST_TIMEOUT_SECONDS`,
-      `TABLEAU_REST_MIN_API_VERSION`, `TABLEAU_MAX_FIELDS`).
+      `TABLEAU_DS_FLIGHTS_LUID` — from **all three** surfaces:
+      `backend/app/core/config.py`, `backend/.env.example` (lines ~95-101) and
+      `helm/templates/backend-deployment.yaml` (lines ~196-225). **Keep** the
+      knobs (`TABLEAU_VERIFY_SSL`, `TABLEAU_REQUEST_TIMEOUT_SECONDS`,
+      `TABLEAU_REST_MIN_API_VERSION`, `TABLEAU_MAX_FIELDS`) in all three.
 
 ```bash
 cd backend && rtk grep "TABLEAU_" app/
+rtk grep "TABLEAU_" ../helm ../backend/.env.example
 ```
 
 (No backward compat — see memory.)
@@ -1219,7 +1439,7 @@ cd backend && rtk grep "TABLEAU_" app/
 
 ```bash
 cd backend && make type-check && make lint
-git add backend/app/services/data_ingestion/api_providers/professional_travel_api_provider.py backend/app/core/config.py
+git add backend/app/services/data_ingestion/api_providers/professional_travel_api_provider.py backend/app/core/config.py backend/.env.example helm/templates/backend-deployment.yaml
 git commit -m "refactor(ingestion): drive travel provider from DB connection"
 ```
 
@@ -1248,6 +1468,11 @@ git commit -m "refactor(ingestion): drive travel provider from DB connection"
 > Set the headcount `connector_luid` via the form, run read-metadata through
 > the base provider in a REPL, then fill the `CAPTION_*` constants below from
 > the real metadata.
+
+> **Security (A09, privacy).** Headcount rows are **personal data** (name,
+> SCIPER, FTE). Do **not** log row contents — no `logger.info(record)` or
+> per-row field logs (the travel provider's `logger.info(record.get(...))`
+> pattern is **not** to be copied here). Log counts and unit codes only.
 
 - [ ] **Step 1: Write the failing transform test** (pins the mapping, not the
       datasource — captions parametrized as constants):
@@ -1491,6 +1716,16 @@ dispatch. No JS unit harness — verify with `make type-check` and
   row is written.
 - **Knobs in env:** the provider reads `verify_ssl` / `timeout` /
   `api_version` / `max_fields` from settings, not from the connection row.
+- **SSRF guard (A06, A10):** `server_url` rejected unless `https://` + host in
+  `CONNECTOR_ALLOWED_HOST_SUFFIXES`; validated on save **and** on use; empty
+  allowlist fails closed; `…/test` is rate-limited.
+- **Audit + no PII + sanitised errors (A09, A10):** connection/datasource
+  mutations audited; no secret or headcount PII in logs; `…/test` returns a
+  generic detail.
+- **Boot validation (A02):** non-dev refuses to start when the encryption keys
+  or allowlist are unset.
+- **Env surfaces (A02):** `backend/.env.example` and the helm deployment match
+  `config.py` — new vars added, dead Tableau connection vars removed.
 - **Type consistency:** `CONNECTOR` / `MODULE_TYPE` / `DATA_ENTRY_TYPE` class
   attrs match between base and both subclasses; factory key tuple matches the
   registered `(module_type, method, target, entity)`; `connector_luid` is the
