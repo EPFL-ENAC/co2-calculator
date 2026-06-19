@@ -32,9 +32,9 @@ See the PRD for context and decisions:
 
 ## Global Constraints
 
-- **Encryption key is dedicated and fails closed.** `CREDENTIALS_ENCRYPTION_KEY`
-  - `CREDENTIALS_ENCRYPTION_SALT`; if either is unset, encrypt/decrypt raise.
-    Never reuse `SECRET_KEY`.
+- **Encryption key is dedicated and fails closed.** Set both
+  `CREDENTIALS_ENCRYPTION_KEY` and `CREDENTIALS_ENCRYPTION_SALT`; if either is
+  unset, encrypt/decrypt raise. Never reuse `SECRET_KEY`.
 - **Only `secret_value` is encrypted.** All other connection fields are
   identifiers, stored plaintext.
 - **Read schemas never expose `secret_value`.** Expose a boolean
