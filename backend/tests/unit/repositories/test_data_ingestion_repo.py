@@ -1690,13 +1690,15 @@ async def test_mark_current_unit_specific_does_not_demote_per_year(
     db_session.add(per_year)
     db_session.add(unit_specific)
     await db_session.flush()
+    # Capture PKs and read each reload's attribute inline: _reload_job's
+    # expire_all() expires every instance, so holding a reference across a
+    # second reload would trigger sync IO (MissingGreenlet) on access.
+    per_year_id, unit_specific_id = per_year.id, unit_specific.id
 
     await repo.mark_job_as_current(unit_specific)
 
-    per_year = await _reload_job(db_session, per_year.id)
-    unit_specific = await _reload_job(db_session, unit_specific.id)
-    assert per_year.is_current is True  # not demoted
-    assert unit_specific.is_current is False  # never enters the slot
+    assert (await _reload_job(db_session, per_year_id)).is_current is True
+    assert (await _reload_job(db_session, unit_specific_id)).is_current is False
 
 
 @pytest.mark.asyncio
@@ -1725,12 +1727,15 @@ async def test_claim_unit_specific_does_not_demote_or_claim_current(
     db_session.add(per_year)
     db_session.add(unit_specific)
     await db_session.flush()
+    # claim_job commits (expiring all instances) and each _reload_job
+    # expires the rest; capture PKs first and read per_year inline so no
+    # stale attribute access triggers sync IO (MissingGreenlet).
+    per_year_id, unit_specific_id = per_year.id, unit_specific.id
 
-    claimed = await repo.claim_job(unit_specific.id, pod_id="pod-test")
+    claimed = await repo.claim_job(unit_specific_id, pod_id="pod-test")
     assert claimed is True
 
-    per_year = await _reload_job(db_session, per_year.id)
-    unit_specific = await _reload_job(db_session, unit_specific.id)
-    assert per_year.is_current is True  # not demoted by the claim
+    assert (await _reload_job(db_session, per_year_id)).is_current is True
+    unit_specific = await _reload_job(db_session, unit_specific_id)
     assert unit_specific.is_current is False  # RUNNING but never current
     assert unit_specific.state == IngestionState.RUNNING

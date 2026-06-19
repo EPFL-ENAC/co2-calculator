@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "CO2 Calculator API"
     APP_VERSION: str = "0.1.0"
+    # SECURITY: must stay False on stage/prod. DEBUG drops the session cookie's
+    # Secure flag (main.py) and registers the /login-test auth bypass (auth.py).
+    # One image ships to every env; DEBUG is set per-platform in gitops
+    # (dev=true, stage/prod=false). Never flip this default to True.
     DEBUG: bool = False
     LOCAL_ENVIRONMENT: bool = Field(
         default=False, description="Set to True for local development environment"
