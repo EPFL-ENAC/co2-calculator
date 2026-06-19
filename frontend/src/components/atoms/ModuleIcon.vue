@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue';
+import { computed, type Directive } from 'vue';
 import { icons } from 'src/plugin/module-icon';
 
 const props = withDefaults(
@@ -14,17 +14,23 @@ const props = withDefaults(
   },
 );
 
-const iconRef = ref<HTMLElement>();
 const svgContent = computed(() => icons[props.name] || '');
 
-watchEffect(
-  () => {
-    if (iconRef.value && svgContent.value) {
-      iconRef.value.innerHTML = svgContent.value;
-    }
-  },
-  { flush: 'post' },
-);
+// Render trusted, build-time SVG strings without innerHTML: DOMParser builds an
+// inert document, so parsed <script> nodes never execute when inserted.
+const renderSvg = (el: HTMLElement, svg: string) => {
+  if (!svg) {
+    el.replaceChildren();
+    return;
+  }
+  const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+  el.replaceChildren(document.importNode(doc.documentElement, true));
+};
+
+const vSvg: Directive<HTMLElement, string> = {
+  mounted: (el, binding) => renderSvg(el, binding.value),
+  updated: (el, binding) => renderSvg(el, binding.value),
+};
 
 const iconClass = computed(() => [
   'module-icon',
@@ -34,5 +40,5 @@ const iconClass = computed(() => [
 </script>
 
 <template>
-  <span ref="iconRef" :class="iconClass" />
+  <span v-svg="svgContent" :class="iconClass" />
 </template>
