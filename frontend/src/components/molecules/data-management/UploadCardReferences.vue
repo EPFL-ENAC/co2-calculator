@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, inject, ref, type ComputedRef } from 'vue';
-import { matCancel, matFileUpload, matInfo } from '@quasar/extras/material-icons';
+import {
+  matCancel,
+  matFileUpload,
+  matInfo,
+} from '@quasar/extras/material-icons';
 import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { useUploadCard } from 'src/composables/useUploadCard';
 import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';

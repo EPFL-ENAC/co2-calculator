@@ -24,7 +24,12 @@
       >
         {{ row.label }}
       </span>
-      <q-icon :name="outlinedInfo" size="14px" class="filter-panel__info" @click.stop>
+      <q-icon
+        :name="outlinedInfo"
+        size="14px"
+        class="filter-panel__info"
+        @click.stop
+      >
         <q-tooltip class="text-body2 text-black">{{ row.tooltip }}</q-tooltip>
       </q-icon>
     </div>

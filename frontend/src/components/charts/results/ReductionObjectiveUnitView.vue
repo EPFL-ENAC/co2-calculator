@@ -520,7 +520,12 @@ const chartOption = computed<EChartsOption | null>(() => {
     <div v-if="showUnitEmptyState" class="col-12">
       <q-card flat class="objective-empty-card">
         <q-card-section class="objective-empty-card__content">
-          <q-icon :name="outlinedInfo" size="md" color="accent" class="q-mb-md" />
+          <q-icon
+            :name="outlinedInfo"
+            size="md"
+            color="accent"
+            class="q-mb-md"
+          />
           <div class="text-h6 text-weight-medium text-center q-mb-sm">
             {{ $t('results_objectives_unit_no_validated_title') }}
           </div>

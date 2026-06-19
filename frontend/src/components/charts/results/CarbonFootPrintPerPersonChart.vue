@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue';
-import { outlinedDownload, outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -557,7 +560,12 @@ const downloadCSV = () => {
       <q-card-section class="col validation-placeholder">
         <div class="validation-required-card">
           <div class="validation-required-card__content">
-            <q-icon :name="outlinedInfo" size="md" color="accent" class="q-mb-md" />
+            <q-icon
+              :name="outlinedInfo"
+              size="md"
+              color="accent"
+              class="q-mb-md"
+            />
             <div class="text-h6 text-weight-medium text-center q-mb-sm">
               {{
                 $t('results_validate_module_title', { module: $t('headcount') })

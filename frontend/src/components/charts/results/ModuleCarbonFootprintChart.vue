@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, type PropType, nextTick, ref } from 'vue';
-import { outlinedDownload, outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';

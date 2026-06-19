@@ -63,7 +63,12 @@ const {
   >
     <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
       <div class="row items-center q-mb-xs">
-        <q-icon :name="outlinedHelpCenter" color="accent" size="xs" class="q-mr-sm" />
+        <q-icon
+          :name="outlinedHelpCenter"
+          color="accent"
+          size="xs"
+          class="q-mr-sm"
+        />
         <div class="text-body1 text-weight-medium">
           {{ $t('data_management_uncertainty_title') }}
         </div>

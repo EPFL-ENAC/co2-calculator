@@ -10,7 +10,13 @@
           {{ title }}
         </div>
         <q-space />
-        <q-btn v-close-popup flat size="md" :icon="outlinedClose" color="grey-6" />
+        <q-btn
+          v-close-popup
+          flat
+          size="md"
+          :icon="outlinedClose"
+          color="grey-6"
+        />
       </q-card-section>
 
       <q-separator class="q-mt-sm" />
@@ -55,7 +61,11 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue';
-import { outlinedAddComment, outlinedClose, outlinedEditNote } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedAddComment,
+  outlinedClose,
+  outlinedEditNote,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 
 const { t: $t } = useI18n();

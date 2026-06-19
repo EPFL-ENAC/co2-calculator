@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
-import { matCalculate, matCancel, matInfo } from '@quasar/extras/material-icons';
+import {
+  matCalculate,
+  matCancel,
+  matInfo,
+} from '@quasar/extras/material-icons';
 import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { useUploadCard } from 'src/composables/useUploadCard';
 import {

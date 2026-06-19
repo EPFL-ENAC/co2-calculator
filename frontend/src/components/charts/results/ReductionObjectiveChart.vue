@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { outlinedDownload, outlinedInfo } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import ReductionObjectiveEpflView from 'src/components/charts/results/ReductionObjectiveEpflView.vue';
 import ReductionObjectiveUnitView from 'src/components/charts/results/ReductionObjectiveUnitView.vue';

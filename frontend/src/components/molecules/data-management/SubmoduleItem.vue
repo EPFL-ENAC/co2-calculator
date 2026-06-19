@@ -10,7 +10,11 @@ import {
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
 import type { PipelineProgress } from 'src/stores/pipelineStream';
-import { matEditOff, matLegendToggle, matPowerSettingsNew } from '@quasar/extras/material-icons';
+import {
+  matEditOff,
+  matLegendToggle,
+  matPowerSettingsNew,
+} from '@quasar/extras/material-icons';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
 import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';

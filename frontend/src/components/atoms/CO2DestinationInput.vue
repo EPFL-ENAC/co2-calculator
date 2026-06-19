@@ -156,7 +156,10 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { outlinedInfo, outlinedSwapHoriz } from '@quasar/extras/material-icons-outlined';
+import {
+  outlinedInfo,
+  outlinedSwapHoriz,
+} from '@quasar/extras/material-icons-outlined';
 import { MODULES } from 'src/constant/modules';
 import { useI18n } from 'vue-i18n';
 import { searchLocations } from 'src/api/locations';
