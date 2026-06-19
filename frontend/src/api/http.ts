@@ -111,7 +111,7 @@ export function clearCsrfToken(): void {
 
 async function handleCsrfError(
   req: Request,
-  options: RequestInit,
+  options: Options,
 ): Promise<Response | undefined> {
   try {
     const newToken = await bootstrapCsrfToken();
@@ -121,13 +121,23 @@ async function handleCsrfError(
       return;
     }
 
-    const headers = new Headers(options.headers ?? req.headers);
+    const headers = new Headers(
+      (options.headers as Headers | undefined) ?? req.headers,
+    );
     headers.set(CSRF_HEADER_NAME, newToken);
+
+    // Reconstruct body from ky options to avoid replaying a consumed stream.
+    // When the caller used ky's `json` option the serialised body is in
+    // options.json; fall back to options.body for raw/FormData payloads.
+    const bodyInit: Pick<Options, 'json' | 'body'> =
+      options.json !== undefined
+        ? { json: options.json }
+        : { body: options.body };
 
     try {
       return await apiNoHooks(req.url, {
         method: options.method ?? req.method,
-        body: options.body ?? req.body,
+        ...bodyInit,
         headers,
         credentials: 'include',
         retry: { limit: 0 },
@@ -326,8 +336,7 @@ export const api = ky.create({
             });
             location.replace(loginPageName);
           }
-        }
-        if (res.status === 403) {
+        } else if (res.status === 403) {
           let errorResponse: {
             error?: string;
             detail?: string;
@@ -359,34 +368,8 @@ export const api = ky.create({
             await handlePermissionError(res, errorResponse);
             return;
           }
-<<<<<<< HEAD
-        }
-        if (!res.ok) {
-          // Capture 5xx in Sentry. 4xx is usually client/business-logic
-=======
-          if (permissionDetails.action) {
-            queryParams.set('action', permissionDetails.action);
-          }
-
-          // Show toast notification before redirecting
-          const toastMessage = permissionDetails.message || 'Access denied';
-          Notify.create({
-            color: 'negative',
-            message: toastMessage,
-            position: 'top',
-            timeout: 3000,
-            actions: [{ icon: 'close', color: 'white' }],
-          });
-
-          // Redirect immediately - toast will remain visible during navigation
-          const queryString = queryParams.toString();
-          const redirectUrl = queryString
-            ? `/unauthorized?${queryString}`
-            : '/unauthorized';
-          location.replace(redirectUrl);
         } else if (!res.ok) {
           // Capture 5xx in GlitchTip. 4xx is usually client/business-logic
->>>>>>> origin/main
           // (validation, "not found", etc.) and not worth exception noise;
           // 5xx means our backend or infra failed and we want to know.
           // captureError is a fast no-op when no DSN is configured.

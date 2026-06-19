@@ -682,25 +682,32 @@ if settings.DEBUG:
     oauth_router.add_api_route("/login-test", login_test, methods=["GET"])
 
 
-@oauth_router.get("/csrf")
-async def get_csrf_token(response: Response):
+class CsrfTokenResponse(BaseModel):
+    """Response schema for ``GET /auth/csrf``."""
+
+    csrf_enabled: bool
+    csrf_token: str | None
+
+
+@oauth_router.get("/csrf", response_model=CsrfTokenResponse)
+async def get_csrf_token(response: Response) -> CsrfTokenResponse:
     """Issue CSRF token pair for Double Submit Cookie bootstrap/recovery."""
     # We use the "nosec B105" comment to indicate that returning the CSRF token
     # in the response body is intentional and not a security issue,
     # since it's meant for bootstrapping the token on the client side.
     if not settings.CSRF_ENABLED:
-        return {
-            "csrf_enabled": False,
-            "csrf_token": None,  # nosec B105
-        }
+        return CsrfTokenResponse(
+            csrf_enabled=False,
+            csrf_token=None,  # nosec B105
+        )
 
     csrf_protect = CsrfProtect()
     csrf_token, signed_token = csrf_protect.generate_csrf_tokens()
     csrf_protect.set_csrf_cookie(signed_token, response)
-    return {
-        "csrf_enabled": True,
-        "csrf_token": csrf_token,
-    }
+    return CsrfTokenResponse(
+        csrf_enabled=True,
+        csrf_token=csrf_token,
+    )
 
 
 # ---------------------------------------------------------------------------
