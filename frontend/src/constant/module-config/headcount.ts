@@ -3,19 +3,11 @@ import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { formatFTE } from 'src/utils/number';
 import type { Module } from 'src/constant/modules';
 
-// Define an icon map to convert string keys to SVG icons
 import {
   outlinedFilterDrama,
   outlinedAssignmentInd,
   outlinedTimer,
 } from '@quasar/extras/material-icons-outlined';
-
-export const iconMap: Record<string, string> = {
-  o_filter_drama: outlinedFilterDrama,
-  o_assignment_ind: outlinedAssignmentInd,
-  o_timer: outlinedTimer,
-  // Add more mappings as needed
-};
 
 // EN : Name | Function | Full-Time Equivalent (FTE)
 // FR : Nom | Fonction | Équivalent plein-temps (EPT)
@@ -26,7 +18,7 @@ const memberFields: ModuleField[] = [
     type: 'text',
     sortable: true,
     ratio: '1/4',
-    icon: 'o_filter_drama',
+    icon: outlinedFilterDrama,
     columnSize: 'sm',
   },
   {
@@ -35,7 +27,7 @@ const memberFields: ModuleField[] = [
     type: 'select',
     sortable: true,
     ratio: '1/4',
-    icon: 'o_assignment_ind',
+    icon: outlinedAssignmentInd,
     optionLabelsAreKeys: true,
     columnSize: 'sm',
 
@@ -66,14 +58,9 @@ const memberFields: ModuleField[] = [
     step: 0.1,
     sortable: false,
     ratio: '1/4',
-    icon: 'o_timer',
+    icon: outlinedTimer,
   },
 ];
-
-const memberFieldDynamicIcons = memberFields.map((field) => ({
-  ...field,
-  icon: iconMap[field.icon],
-}));
 
 const studentFields: ModuleField[] = [
   {
@@ -84,7 +71,7 @@ const studentFields: ModuleField[] = [
     step: 0.1,
     sortable: true,
     ratio: '12/12',
-    icon: iconMap['o_timer'],
+    icon: outlinedTimer,
     tooltip: 'module-headcount-submodule-student-table-fte',
   },
 ];
@@ -113,7 +100,7 @@ export const headcount: ModuleConfig = {
       id: 'member',
       type: 'member',
       tableNameKey: 'headcount-member-table-title',
-      moduleFields: memberFieldDynamicIcons,
+      moduleFields: memberFields,
       csvTemplateHeaders: [
         'name',
         'sius_code',

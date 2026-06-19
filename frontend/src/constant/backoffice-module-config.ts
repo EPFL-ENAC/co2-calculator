@@ -1,4 +1,5 @@
 import { MODULES } from 'src/constant/modules';
+import { outlinedFolderShared } from '@quasar/extras/material-icons-outlined';
 
 export type SubmoduleConfig = {
   key: string;
@@ -223,7 +224,7 @@ export const MODULE_COMMON_UPLOADS: Partial<
       key: 'equipment',
       labelKey: `${MODULES.Equipment}-common`,
       moduleTypeId: 4,
-      headerIcon: 'o_folder_shared',
+      headerIcon: outlinedFolderShared,
       descriptionKey: 'data_management_equipment_common_description',
     },
   ],
@@ -232,7 +233,7 @@ export const MODULE_COMMON_UPLOADS: Partial<
       key: 'purchases_common',
       labelKey: `${MODULES.Purchase}-common`,
       moduleTypeId: 5,
-      headerIcon: 'o_folder_shared',
+      headerIcon: outlinedFolderShared,
       descriptionKey: 'data_management_purchase_common_description',
     },
   ],
