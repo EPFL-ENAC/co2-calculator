@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matRefresh } from '@quasar/extras/material-icons';
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import type { RecalculationStatusEntry } from 'src/stores/yearConfig';
 
@@ -38,7 +40,7 @@ function handleConfirm() {
   >
     <q-card style="min-width: 480px">
       <q-card-section class="row items-center q-pb-none">
-        <q-icon name="refresh" color="accent" size="sm" class="q-mr-sm" />
+        <q-icon :name="matRefresh" color="accent" size="sm" class="q-mr-sm" />
         <div class="text-h6">
           {{ $t('data_management_recalculate_emissions_title') }}
         </div>
@@ -46,7 +48,7 @@ function handleConfirm() {
         <q-btn
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           @click="handleClose"
         />

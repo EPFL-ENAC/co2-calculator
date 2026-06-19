@@ -10,6 +10,7 @@ import {
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
 import type { PipelineProgress } from 'src/stores/pipelineStream';
+import { matEditOff, matLegendToggle, matPowerSettingsNew } from '@quasar/extras/material-icons';
 import UploadCardData from 'src/components/molecules/data-management/UploadCardData.vue';
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
 import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';
@@ -152,7 +153,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       <q-card flat class="col q-px-lg q-pt-lg q-pb-md">
         <div class="row items-center q-mb-xs">
           <q-icon
-            name="power_settings_new"
+            :name="matPowerSettingsNew"
             color="accent"
             size="xs"
             class="q-mr-sm"
@@ -181,7 +182,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         :class="{ 'submodule-item--disabled': isSubmoduleDisabled(submodule) }"
       >
         <div class="row items-center q-mb-xs">
-          <q-icon name="edit_off" color="accent" size="xs" class="q-mr-sm" />
+          <q-icon :name="matEditOff" color="accent" size="xs" class="q-mr-sm" />
           <div class="text-body2 text-weight-medium">
             {{ $t('data_management_submodule_inputs_deactivation_title') }}
           </div>
@@ -215,7 +216,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         >
           <div class="row items-center q-mb-xs">
             <q-icon
-              name="legend_toggle"
+              :name="matLegendToggle"
               color="accent"
               size="xs"
               class="q-mr-sm"

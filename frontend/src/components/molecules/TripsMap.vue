@@ -12,7 +12,7 @@
         v-else-if="!visibleLegs.length"
         class="column flex-center full-height text-center q-pa-md text-body2 text-secondary"
       >
-        <q-icon name="map" size="lg" class="text-grey-6 q-mb-sm" />
+        <q-icon :name="matMap" size="lg" class="text-grey-6 q-mb-sm" />
         {{ t(`${MODULES.ProfessionalTravel}-trips-map-empty`) }}
       </div>
       <template v-else>
@@ -74,8 +74,8 @@
               <q-icon
                 :name="
                   isModeSelected('plane')
-                    ? 'check_box'
-                    : 'check_box_outline_blank'
+                    ? matCheckBox
+                    : matCheckBoxOutlineBlank
                 "
                 :color="isModeSelected('plane') ? 'primary' : 'grey-7'"
                 size="15px"
@@ -102,8 +102,8 @@
               <q-icon
                 :name="
                   isModeSelected('train')
-                    ? 'check_box'
-                    : 'check_box_outline_blank'
+                    ? matCheckBox
+                    : matCheckBoxOutlineBlank
                 "
                 :color="isModeSelected('train') ? 'primary' : 'grey-7'"
                 size="15px"
@@ -220,8 +220,8 @@
           <q-icon
             :name="
               isTravelerSelected(tr.id)
-                ? 'check_circle'
-                : 'radio_button_unchecked'
+                ? matCheckCircle
+                : matRadioButtonUnchecked
             "
             :color="isTravelerSelected(tr.id) ? 'primary' : 'grey-5'"
             size="13px"
@@ -238,6 +238,13 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  matCheckBox,
+  matCheckBoxOutlineBlank,
+  matCheckCircle,
+  matMap,
+  matRadioButtonUnchecked,
+} from '@quasar/extras/material-icons';
 import { useI18n } from 'vue-i18n';
 import { MODULES } from 'src/constant/modules';
 import type { TripLeg } from 'src/stores/modules';

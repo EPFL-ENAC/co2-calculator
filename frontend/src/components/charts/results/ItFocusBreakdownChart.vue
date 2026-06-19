@@ -7,6 +7,7 @@ import {
   ref,
   watch,
 } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -349,7 +350,7 @@ defineExpose({ downloadPNG });
           $t('it-focus-breakdown-bar-title')
         }}</span>
         <q-icon
-          name="o_info"
+          :name="outlinedInfo"
           size="14px"
           color="grey-5"
           class="cursor-pointer q-ml-xs"

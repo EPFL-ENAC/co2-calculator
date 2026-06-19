@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matPowerSettingsNew } from '@quasar/extras/material-icons';
+import { outlinedHelpCenter } from '@quasar/extras/material-icons-outlined';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
 
@@ -24,7 +26,7 @@ const {
     <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
       <div class="row items-center q-mb-xs">
         <q-icon
-          name="power_settings_new"
+          :name="matPowerSettingsNew"
           color="accent"
           size="xs"
           class="q-mr-sm"
@@ -61,7 +63,7 @@ const {
   >
     <q-card flat class="col q-px-lg q-pt-xl q-pb-md border-right">
       <div class="row items-center q-mb-xs">
-        <q-icon name="o_help_center" color="accent" size="xs" class="q-mr-sm" />
+        <q-icon :name="outlinedHelpCenter" color="accent" size="xs" class="q-mr-sm" />
         <div class="text-body1 text-weight-medium">
           {{ $t('data_management_uncertainty_title') }}
         </div>

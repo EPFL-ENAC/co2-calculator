@@ -17,6 +17,7 @@
  */
 
 import { computed, ref } from 'vue';
+import { matCircle, matContentCopy } from '@quasar/extras/material-icons';
 import { copyToClipboard, Notify, type QTooltip } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
@@ -121,7 +122,7 @@ function formatRelative(iso: string | null): string | null {
           flat
           dense
           size="xs"
-          icon="content_copy"
+          :icon="matContentCopy"
           color="white"
           @click.stop.prevent="copyPipelineId"
         >
@@ -143,7 +144,7 @@ function formatRelative(iso: string | null): string | null {
           class="row items-start q-gutter-xs"
         >
           <q-icon
-            name="circle"
+            :name="matCircle"
             size="xs"
             :color="jobColor(job.state, job.result)"
             class="q-mt-xs"
