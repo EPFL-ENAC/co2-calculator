@@ -52,10 +52,7 @@ export function applyUnitFiltersToParams(
     unitFilters.overall_status !== null &&
     unitFilters.overall_status !== ''
   ) {
-    searchParams.append(
-      'overall_status',
-      String(unitFilters.overall_status),
-    );
+    searchParams.append('overall_status', String(unitFilters.overall_status));
   }
   if (unitFilters.search) {
     searchParams.append('search', unitFilters.search);
