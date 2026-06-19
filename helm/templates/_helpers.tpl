@@ -59,8 +59,8 @@ app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
 {{- define "co2-calculator.backendSecretName" -}}
-{{- if and .Values.backend.existingSecret.enabled .Values.backend.existingSecret.name -}}
-{{- .Values.backend.existingSecret.name -}}
+{{- if .Values.backend.existingSecret.enabled -}}
+{{- required "backend.existingSecret.enabled=true but backend.existingSecret.name is empty. Set it to your pre-existing Secret's name, or set backend.existingSecret.enabled=false to use a chart-managed secret." .Values.backend.existingSecret.name -}}
 {{- else -}}
 {{ include "co2-calculator.fullname" . }}-backend
 {{- end -}}

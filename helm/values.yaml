@@ -129,8 +129,11 @@ backend:
   tolerations: []
   affinity: {}
   existingSecret:
-    enabled: false
-    name: "" # Name of the existing secret containing backend secrets
+    # Default: reference a pre-existing Secret (production path).
+    # For local/dev chart-managed secrets, set enabled=false and provide
+    # backend.secrets.SECRET_KEY.
+    enabled: true
+    name: "" # REQUIRED when enabled=true: name of the pre-existing Secret
     keys:
       secretKeyKey: SECRET_KEY # Key in the existing secret for SECRET_KEY
       oauthClientIdKey: OAUTH_CLIENT_ID # Key in the existing secret for OAuth client ID
