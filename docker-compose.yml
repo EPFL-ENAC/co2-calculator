@@ -23,8 +23,8 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "80:80"
-      - "8080:8833"
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:8080:8833"
     expose:
       - "80"
       - "8833"
@@ -41,7 +41,7 @@ services:
     environment:
       POSTGRES_HOST_AUTH_METHOD: "trust"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     labels:
       - "traefik.enable=false"
     volumes:
@@ -65,7 +65,7 @@ services:
     volumes:
       - pgadmin_data:/var/lib/pgadmin
     ports:
-      - "5050:80"
+      - "127.0.0.1:5050:80"
     depends_on:
       - postgres
 
@@ -119,7 +119,7 @@ services:
       dockerfile: Dockerfile
     container_name: co2-frontend
     ports:
-      - "3000:8080"
+      - "127.0.0.1:3000:8080"
     # Match the k8s pod's securityContext (readOnlyRootFilesystem: true plus
     # the three emptyDir mounts in helm/templates/frontend-deployment.yaml).
     # Catches read-only-fs regressions locally before they ship to a cluster
@@ -153,8 +153,8 @@ services:
     labels:
       - "traefik.enable=false"
     ports:
-      - "9464:9464"   # Prometheus — host access
-      - "4317:4317"   # gRPC OTLP — add if you need host access too
+      - "127.0.0.1:9464:9464"   # Prometheus — host access
+      - "127.0.0.1:4317:4317"   # gRPC OTLP — add if you need host access too
     expose:
       - "4317"        # gRPC OTLP — makes it reachable by other containers
       - "4318"        # HTTP OTLP
