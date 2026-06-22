@@ -1,7 +1,7 @@
 """Tests for FactorRepository."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -211,3 +211,105 @@ async def test_get_factors_with_fallback(repo):
 
     assert result == [factor]
     assert repo.session.exec.await_count == 2
+
+
+# ======================================================================
+# get_by_classification — kind_field_override guard
+# ======================================================================
+
+
+def _override_handler() -> MagicMock:
+    """A handler mock that declares kind_field_override (purchase-style)."""
+    h = MagicMock()
+    h.kind_field = "purchase_institutional_code"
+    h.subkind_field = ""
+    h.kind_field_override = "purchase_additional_code"
+    return h
+
+
+@pytest.mark.asyncio
+async def test_get_by_classification_override_handler_no_subkind(repo):
+    """Handler with kind_field_override, no subkind supplied → single exec
+    call that targets only 'average' rows (override key absent)."""
+    factor = SimpleNamespace(id=42)
+    result_mock = MagicMock()
+    result_mock.one_or_none.return_value = factor
+    repo.session.exec = AsyncMock(return_value=result_mock)
+
+    with patch("app.repositories.factor_repo.BaseModuleHandler") as mock_cls:
+        mock_cls.get_by_type.return_value = _override_handler()
+        result = await repo.get_by_classification(
+            DataEntryTypeEnum.consumable_accessories,
+            kind="FOOD",
+            year=2025,
+        )
+
+    assert result is factor
+    assert repo.session.exec.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_get_by_classification_override_handler_subkind_miss_fallback(repo):
+    """Handler with kind_field_override, subkind supplied but first query
+    misses → falls back to kind-only query; both queries should include
+    the override-null guard."""
+    factor = SimpleNamespace(id=43)
+    result_miss = MagicMock()
+    result_miss.one_or_none.return_value = None
+    result_hit = MagicMock()
+    result_hit.one_or_none.return_value = factor
+    repo.session.exec = AsyncMock(side_effect=[result_miss, result_hit])
+
+    with patch("app.repositories.factor_repo.BaseModuleHandler") as mock_cls:
+        mock_cls.get_by_type.return_value = _override_handler()
+        result = await repo.get_by_classification(
+            DataEntryTypeEnum.consumable_accessories,
+            kind="FOOD",
+            subkind="sub1",
+            year=2025,
+        )
+
+    assert result is factor
+    assert repo.session.exec.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_get_by_classification_override_handler_sql_includes_override_null(repo):
+    """The WHERE clause for an override-handler query must include an IS NULL
+    condition on the override field.
+
+    This prevents MultipleResultsFound when several factors share the same
+    kind value but carry different override codes — without this guard,
+    one_or_none() raises on the second (or more) matching rows.
+    """
+    from sqlalchemy.dialects.postgresql import dialect as pg_dialect
+
+    captured: list = []
+
+    async def capturing_exec(stmt):
+        captured.append(stmt)
+        mock_result = MagicMock()
+        mock_result.one_or_none.return_value = None
+        return mock_result
+
+    repo.session.exec = capturing_exec
+
+    with patch("app.repositories.factor_repo.BaseModuleHandler") as mock_cls:
+        mock_cls.get_by_type.return_value = _override_handler()
+        await repo.get_by_classification(
+            DataEntryTypeEnum.consumable_accessories,
+            kind="FOOD",
+            year=2025,
+        )
+
+    assert len(captured) == 1
+    sql = str(
+        captured[0].compile(
+            dialect=pg_dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    # The compiled SQL must contain the override field null guard so that only
+    # "average" rows (those without purchase_additional_code) are eligible.
+    assert "purchase_additional_code" in sql
+    assert "IS NULL" in sql.upper()
