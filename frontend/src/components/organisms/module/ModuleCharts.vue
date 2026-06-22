@@ -178,6 +178,8 @@ import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTr
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
 import { useModuleStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { useAuthStore } from 'src/stores/auth';
+import { PermissionAction } from 'src/utils/permission';
 import { usePrintMode } from 'src/composables/print/usePrintMode';
 import {
   buildModuleTreemapData,
@@ -308,6 +310,7 @@ const TOP_CLASS_MODULES: Module[] = [
 
 const moduleStore = useModuleStore();
 const workspaceStore = useWorkspaceStore();
+const authStore = useAuthStore();
 
 const supportsTopClassBreakdown = computed(() =>
   TOP_CLASS_MODULES.includes(props.type),
@@ -316,6 +319,10 @@ const supportsTopClassBreakdown = computed(() =>
 function fetchTopClassBreakdownIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
+
+  if (!authStore.hasUserModulePermission(props.type, PermissionAction.VIEW)) {
+    return;
+  }
   if (unitId && year && supportsTopClassBreakdown.value) {
     void moduleStore.getTopClassBreakdown(unitId, String(year), props.type);
   }
