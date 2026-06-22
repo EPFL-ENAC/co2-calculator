@@ -118,20 +118,6 @@ const logoRoute = computed(() => {
         :to="{ name: 'back-office' }"
       />
       <q-btn
-        v-if="isInBackOfficeRoute"
-        icon="o_article"
-        color="grey-4"
-        text-color="primary"
-        :label="$t('backoffice_documentation_button_label')"
-        unelevated
-        no-caps
-        outline
-        size="sm"
-        class="text-weight-medium q-ml-xl"
-        href="https://epfl-enac.github.io/co2-calculator-back-office-doc/"
-        target="_blank"
-      />
-      <q-btn
         v-if="hasBackOfficeAccess && isInBackOfficeRoute"
         color="grey-4"
         text-color="primary"
