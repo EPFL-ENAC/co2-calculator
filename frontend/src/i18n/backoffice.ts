@@ -53,4 +53,8 @@ export default {
     en: 'Back to Calculator',
     fr: 'Retour au calculateur',
   },
+  backoffice_documentation_button_label: {
+    en: 'Backoffice guide',
+    fr: 'Guide back-office',
+  },
 } as const;

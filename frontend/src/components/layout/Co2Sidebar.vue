@@ -61,5 +61,29 @@ function isItemDisabled(item: NavItem): boolean {
         </q-tooltip>
       </q-item>
     </q-list>
+    <div class="co2-sidebar-docs-wrapper">
+      <q-separator />
+      <q-item
+        class="co2-sidebar-item"
+        tag="a"
+        :href="$t('header_backoffice_documentation_link')"
+        target="_blank"
+        clickable
+      >
+        <q-icon name="o_article" size="sm" />
+        <q-item-label v-show="!collapsed" class="text-body2">{{
+          $t('backoffice_documentation_button_label')
+        }}</q-item-label>
+      </q-item>
+    </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.co2-sidebar-docs-wrapper {
+  margin-top: auto;
+  flex-shrink: 0;
+}
+</style>
