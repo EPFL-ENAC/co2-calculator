@@ -103,11 +103,17 @@ class EmissionRecalculationWorkflow:
         # which itself does a kind-only fallback when the exact
         # (kind, subkind) row is absent.
         factor_lookup: dict[tuple[str, str | None], int] = {}
+        # override-key-first lookup structures (populated only for handlers with
+        # kind_field_override, mirroring _resolve_with_kind_override):
+        # override_lookup: override_code → [(factor_id, kind_value)]
+        # kind_lookup:     kind_value    → [(factor_id, override_code | None)]
+        override_lookup: dict[str, list[tuple[int, str]]] = {}
+        kind_lookup: dict[str, list[tuple[int, str | None]]] = {}
         # One bulk SELECT for the slice's factors.  Feeds two caches:
         # ``factor_cache`` (id → Factor) short-circuits Strategy A
-        # lookups inside ``prepare_create`` for every entry, and
-        # ``factor_lookup`` ((kind, subkind) → id) backs the rematch
-        # below (only built when the handler actually rematches).
+        # lookups inside ``prepare_create`` for every entry, and the
+        # rematch lookup dicts back the per-entry factor relink below
+        # (only built when the handler actually rematches).
         factors = await factor_repo.list_by_data_entry_type(data_entry_type_id, year)
         factor_cache: dict[int, Factor] = {f.id: f for f in factors if f.id is not None}
         # Strategy-B (classification-query) factor lookups hit the DB once per
@@ -121,22 +127,42 @@ class EmissionRecalculationWorkflow:
             handler.kind_field in e.data for e in entries
         ):
             kind_field = handler.kind_field
-            subkind_field = handler.subkind_field
-            for factor in factors:
-                if factor.id is None:
-                    continue
-                classification = factor.classification or {}
-                kind_value = classification.get(kind_field)
-                if kind_value is None or kind_value == "":
-                    continue
-                subkind_value: str | None = None
-                if subkind_field:
-                    raw = classification.get(subkind_field)
-                    subkind_value = raw if raw else None
-                # First writer wins on duplicate keys; ``get_by_classification``
-                # uses ``one_or_none`` which raises on duplicates anyway, so
-                # callers don't depend on ordering when the index is consistent.
-                factor_lookup.setdefault((kind_value, subkind_value), factor.id)
+            if handler.kind_field_override is not None:
+                # Override-key-first path: mirrors _resolve_with_kind_override.
+                # Lookup-key matches that method: override_field value is the
+                # primary key; kind_field is the fallback, restricted to factors
+                # that carry no override code (those are the implicit averages).
+                override_field = handler.kind_field_override
+                for factor in factors:
+                    if factor.id is None:
+                        continue
+                    classification = factor.classification or {}
+                    kind_value = classification.get(kind_field)
+                    if not kind_value:
+                        continue
+                    ov_code: str | None = classification.get(override_field) or None
+                    kind_lookup.setdefault(kind_value, []).append((factor.id, ov_code))
+                    if ov_code:
+                        override_lookup.setdefault(ov_code, []).append(
+                            (factor.id, kind_value)
+                        )
+            else:
+                subkind_field = handler.subkind_field
+                for factor in factors:
+                    if factor.id is None:
+                        continue
+                    classification = factor.classification or {}
+                    kind_value = classification.get(kind_field)
+                    if kind_value is None or kind_value == "":
+                        continue
+                    subkind_value: str | None = None
+                    if subkind_field:
+                        raw = classification.get(subkind_field)
+                        subkind_value = raw if raw else None
+                    # First writer wins on duplicate keys; ``get_by_classification``
+                    # uses ``one_or_none`` which raises on duplicates anyway, so
+                    # callers don't depend on ordering when the index is consistent.
+                    factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
         # Plan 310D — per-slice prefetch: handlers that otherwise re-query
         # slice-constant data per entry (plane reloads airports + the full
@@ -199,6 +225,7 @@ class EmissionRecalculationWorkflow:
             # Also avoids an ``assert`` (bandit B101 — asserts are stripped
             # under ``python -O``).
             entry_kind_field: str | None = handler.kind_field
+            entry_kind_field_override: str | None = handler.kind_field_override
             old_data = entry.data
             try:
                 # Compute-only: ``prepare_create`` does reads (handler
@@ -208,12 +235,21 @@ class EmissionRecalculationWorkflow:
                 # reverts the in-memory factor swap and moves on.
                 _t = time.perf_counter()
                 if entry_kind_field is not None and entry_kind_field in entry.data:
-                    new_factor_id = self._lookup_factor_id(
-                        entry_data=entry.data,
-                        kind_field=entry_kind_field,
-                        subkind_field=handler.subkind_field,
-                        factor_lookup=factor_lookup,
-                    )
+                    if entry_kind_field_override is not None:
+                        new_factor_id = self._lookup_factor_id_with_override(
+                            entry_data=entry.data,
+                            kind_field=entry_kind_field,
+                            override_field=entry_kind_field_override,
+                            override_lookup=override_lookup,
+                            kind_lookup=kind_lookup,
+                        )
+                    else:
+                        new_factor_id = self._lookup_factor_id(
+                            entry_data=entry.data,
+                            kind_field=entry_kind_field,
+                            subkind_field=handler.subkind_field,
+                            factor_lookup=factor_lookup,
+                        )
                     if new_factor_id != entry.data.get("primary_factor_id"):
                         # Tentative swap so DataEntryResponse +
                         # prepare_create see the refreshed factor (or
@@ -401,3 +437,63 @@ class EmissionRecalculationWorkflow:
         if subkind is not None:
             return factor_lookup.get((kind, None))
         return None
+
+    @staticmethod
+    def _lookup_factor_id_with_override(
+        entry_data: dict,
+        kind_field: str,
+        override_field: str,
+        override_lookup: dict[str, list[tuple[int, str]]],
+        kind_lookup: dict[str, list[tuple[int, str | None]]],
+    ) -> int | None:
+        """Resolve ``primary_factor_id`` using the override-key-first rule.
+
+        Mirrors ``ModuleHandlerService._resolve_with_kind_override`` in-memory:
+
+        1. If the entry carries a value for ``override_field``, look it up in
+           ``override_lookup`` (override_code → [(factor_id, kind_value)]).
+           A single match wins; multiple matches are disambiguated by kind.
+        2. Kind-only fallback via ``kind_lookup`` (kind_value →
+           [(factor_id, override_code | None)]): if one row matches, return
+           it; if several rows share the kind, only the "average" rows (those
+           without an override code) may stand in — there must be exactly one.
+
+        Returns ``None`` when the factor is absent from the current slice.
+        Raises ``ValueError`` on ambiguous data (matches the service behaviour
+        so the per-entry error path records the same signal as a live update).
+        """
+        kind = entry_data.get(kind_field)
+        if not kind:
+            return None
+
+        code: str | None = entry_data.get(override_field) or None
+        if code:
+            matches = override_lookup.get(code, [])
+            if len(matches) == 1:
+                return matches[0][0]
+            if len(matches) > 1:
+                same_kind = [fid for fid, kv in matches if kv == kind]
+                if len(same_kind) == 1:
+                    return same_kind[0]
+                raise ValueError(
+                    f"Ambiguous factor data: {len(matches)} factors match "
+                    f"{override_field}={code!r} and {kind_field}={kind!r} "
+                    f"cannot disambiguate"
+                )
+            # code present but no factor carries it → fall through to kind fallback
+
+        kind_matches = kind_lookup.get(kind, [])
+        if not kind_matches:
+            return None
+        if len(kind_matches) == 1:
+            return kind_matches[0][0]
+        # Several rows share this kind: only "average" rows (no override code)
+        # may stand in for all of them.
+        averages = [fid for fid, ov in kind_matches if ov is None]
+        if len(averages) == 1:
+            return averages[0]
+        raise ValueError(
+            f"Ambiguous factor data: {len(kind_matches)} factors match "
+            f"{kind_field}={kind!r} with {len(averages)} average rows "
+            f"(need exactly 1)"
+        )
