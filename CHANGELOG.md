@@ -1,3 +1,9 @@
+## [1.0.6](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.5...v1.0.6) (2026-06-22)
+
+
+### Bug Fixes
+
+* **carbon-report:** prevent NameError for headcount module by initializing total_kg_co2eq ([48407be](https://github.com/EPFL-ENAC/co2-calculator/commit/48407befe90a3e9adc9fb9fae369c5afbfeb7be7))
 ## [1.0.5](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.3...v1.0.5) (2026-06-22)
 
 

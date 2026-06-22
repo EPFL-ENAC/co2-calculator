@@ -287,6 +287,7 @@ async def get_module(
 
     # if headcount compute FTE here
     total_annual_fte = None
+    total_kg_co2eq = None
     if module_id == "headcount":
         total_annual_fte = await DataEntryService(db).get_total_per_field(
             field_name="fte",
