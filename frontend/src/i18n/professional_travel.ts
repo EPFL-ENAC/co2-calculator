@@ -177,8 +177,8 @@ export default {
     fr: '2ème classe',
   },
   first: {
-    en: 'First',
-    fr: 'Première',
+    en: '1st class',
+    fr: '1ère classe',
   },
   business: {
     en: 'Business',
