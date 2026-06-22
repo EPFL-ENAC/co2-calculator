@@ -617,6 +617,12 @@ class FactorRepository:
         handler = BaseModuleHandler.get_by_type(data_entry_type)
         kind_field = handler.kind_field or ""
         subkind_field = handler.subkind_field or ""
+        # When the handler declares kind_field_override (e.g. purchase), several
+        # factors can share the same kind value — they differ only by the override
+        # key (e.g. purchase_additional_code).  Callers of get_by_classification
+        # never supply the override value, so restrict to "average" rows (those
+        # where the override key is absent/NULL) to keep one_or_none() safe.
+        override_field: str | None = handler.kind_field_override
 
         if year is None:
             raise ValueError(
@@ -634,6 +640,10 @@ class FactorRepository:
                 Factor.classification[kind_field].as_string() == kind,
                 Factor.classification[subkind_field].as_string() == subkind,
             ]
+            if override_field:
+                conditions.append(
+                    Factor.classification[override_field].as_string().is_(None)
+                )
             stmt = select(Factor).where(*conditions)
             result = await self.session.exec(stmt)
             factor = result.one_or_none()
@@ -645,6 +655,10 @@ class FactorRepository:
             Factor.classification[kind_field].as_string() == kind,
             Factor.classification[subkind_field].as_string().is_(None),
         ]
+        if override_field:
+            conditions.append(
+                Factor.classification[override_field].as_string().is_(None)
+            )
         stmt = select(Factor).where(*conditions)
         result = await self.session.exec(stmt)
         return result.one_or_none()
