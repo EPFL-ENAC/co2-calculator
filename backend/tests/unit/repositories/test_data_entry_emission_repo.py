@@ -11,6 +11,7 @@ from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
+from app.utils.emission_category import is_additional_breakdown_emission
 
 # ======================================================================
 # CRUD Operation Tests
@@ -323,6 +324,73 @@ async def test_get_stats_empty_result(db_session: AsyncSession):
     result = await repo.get_stats(99999, "emission_type_id", "kg_co2eq")
 
     assert result == {}
+
+
+@pytest.mark.asyncio
+async def test_buildings_banner_total_excludes_embodied_energy(
+    db_session: AsyncSession,
+):
+    """Regression for #1616: the buildings module banner total must exclude
+    embodied energy (an additional-breakdown category), matching the Results
+    module total. get_stats still returns the embodied row; the headline sum
+    filters it out via is_additional_breakdown_emission, exactly like the
+    GET /modules/{unit}/{year}/{module} endpoint does.
+    """
+    repo = DataEntryEmissionRepository(db_session)
+
+    module = CarbonReportModule(
+        carbon_report_id=1,
+        module_type_id=ModuleTypeEnum.buildings.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    # Operational rooms + combustion (counted) vs embodied construction (separate).
+    seed = [
+        (DataEntryTypeEnum.building, EmissionType.buildings__rooms__lighting, 4_000.0),
+        (
+            DataEntryTypeEnum.energy_combustion,
+            EmissionType.buildings__combustion__natural_gas,
+            2_000.0,
+        ),
+        (
+            DataEntryTypeEnum.building_embodied_energy,
+            EmissionType.buildings__construction_and_renovation,
+            35_000.0,
+        ),
+    ]
+    for data_entry_type, emission_type, kg in seed:
+        entry = DataEntry(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=data_entry_type,
+            status=DataEntryStatusEnum.PENDING,
+            data={},
+        )
+        db_session.add(entry)
+        await db_session.flush()
+        db_session.add(
+            DataEntryEmission(
+                data_entry_id=entry.id,
+                emission_type_id=emission_type,
+                kg_co2eq=kg,
+                scope=emission_type.scope,
+            )
+        )
+    await db_session.flush()
+
+    stats = await repo.get_stats(module.id, "emission_type_id", "kg_co2eq")
+
+    # Raw stats still include the embodied row.
+    assert str(EmissionType.buildings__construction_and_renovation.value) in stats
+
+    # Headline total mirrors the banner endpoint: drop additional categories.
+    banner_total = sum(
+        v
+        for k, v in stats.items()
+        if v is not None and not is_additional_breakdown_emission(int(k))
+    )
+    assert banner_total == pytest.approx(6_000.0)  # rooms + combustion, no embodied
 
 
 # ======================================================================

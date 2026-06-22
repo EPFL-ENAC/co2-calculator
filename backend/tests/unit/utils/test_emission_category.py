@@ -9,6 +9,7 @@ from app.utils.emission_category import (
     additional_value_unit,
     build_chart_breakdown,
     build_treemap,
+    is_additional_breakdown_emission,
 )
 
 EXPECTED_MODULE_BREAKDOWN_ORDER = [
@@ -319,3 +320,33 @@ def test_additional_value_unit_infers_from_tree():
     assert additional_value_unit(EmissionType.food__vegetarian) == "kg"
     assert additional_value_unit(EmissionType.professional_travel__plane__eco) == "km"
     assert additional_value_unit(EmissionType.equipment__scientific) is None
+
+
+def test_is_additional_breakdown_emission_flags_embodied_energy():
+    # Embodied energy (construction/renovation) is reported separately and must
+    # be excluded from a module's headline total — see #1616.
+    assert (
+        is_additional_breakdown_emission(
+            EmissionType.buildings__construction_and_renovation.value
+        )
+        is True
+    )
+
+
+def test_is_additional_breakdown_emission_false_for_operational_buildings():
+    # Rooms (operational energy) and combustion belong to the buildings module
+    # headline total, not the additional breakdown.
+    assert (
+        is_additional_breakdown_emission(EmissionType.buildings__rooms__lighting.value)
+        is False
+    )
+    assert (
+        is_additional_breakdown_emission(
+            EmissionType.buildings__combustion__natural_gas.value
+        )
+        is False
+    )
+
+
+def test_is_additional_breakdown_emission_false_for_unknown_id():
+    assert is_additional_breakdown_emission(999999) is False
