@@ -57,6 +57,10 @@ export default {
     en: 'Refrigerant',
     fr: 'Fluide Frigorigène',
   },
+  [`${MODULES.ProcessEmissions}.category.Refrigerant`]: {
+    en: 'Refrigerant',
+    fr: 'Fluide Frigorigène',
+  },
   // Factor taxonomy / CSV use singular "refrigerant"; same label as plural key above.
   [`${MODULES.ProcessEmissions}.category.refrigerant`]: {
     en: 'Refrigerant',
