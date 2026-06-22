@@ -37,7 +37,7 @@ export default {
   },
   workspace_setup_workspace_description: {
     en: 'Choose whether you would like to use the CO₂ calculator or the CO₂ simulator:',
-    fr: "Choisissez si vous souhaitez utiliser le CO₂ calculateur ou le CO₂ simulateur :",
+    fr: 'Choisissez si vous souhaitez utiliser le CO₂ calculateur ou le CO₂ simulateur :',
   },
   workspace_setup_year_description: {
     en: 'Select the year you would like to evaluate',
