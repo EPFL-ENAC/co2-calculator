@@ -1,3 +1,53 @@
+## [1.0.6](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.5...v1.0.6) (2026-06-22)
+
+
+### Bug Fixes
+
+* **carbon-report:** prevent NameError for headcount module by initializing total_kg_co2eq ([48407be](https://github.com/EPFL-ENAC/co2-calculator/commit/48407befe90a3e9adc9fb9fae369c5afbfeb7be7))
+## [1.0.5](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.3...v1.0.5) (2026-06-22)
+
+
+### Bug Fixes
+
+* **backend-tests:** correct integration and unit ingestion logic integration test ([99bdce9](https://github.com/EPFL-ENAC/co2-calculator/commit/99bdce933d93fe4bf2a4a2b3b3f9498cb2663f45))
+* **backoffice-configuration:** correct api changes ([7b84145](https://github.com/EPFL-ENAC/co2-calculator/commit/7b8414579ea8095c3363823b1f28517f5d2b7715))
+* **ci:** publish-chart render handles SECRET_KEY guard ([a024abd](https://github.com/EPFL-ENAC/co2-calculator/commit/a024abd0f3d2009d3cb925798040a078febbc92f))
+* **frontend:** run formatter in frontend code ([b093ef5](https://github.com/EPFL-ENAC/co2-calculator/commit/b093ef517c9229fc8fb209883eec221d3acfeb67))
+* **helm:** enforce SECRET_KEY presence to block empty signing key deploys ([011a1de](https://github.com/EPFL-ENAC/co2-calculator/commit/011a1de31a2fd0db84d9b64c5bed803d5526d8d8))
+* **security-frontend:** don't use innerHTML anymore ([eaeceed](https://github.com/EPFL-ENAC/co2-calculator/commit/eaeceed4749e57a2224057ae386c76e6324b766a))
+* **security:** add comments and unit test to encore DEBUG false by default ([c093a5f](https://github.com/EPFL-ENAC/co2-calculator/commit/c093a5fbc6e5a13e5e2247ee76900b5ec974b14f))
+* **security:** bind published docker-compose ports to 127.0.0.1 ([79ce37b](https://github.com/EPFL-ENAC/co2-calculator/commit/79ce37bd4bb6616f406d4aa9e9676db1c7349aad))
+* **security:** use trufflehog pinned version ([8a6c8af](https://github.com/EPFL-ENAC/co2-calculator/commit/8a6c8af4b30c2413606547257dbd8b953c72acf6))
+
+
+### Features
+
+* **auth:** integrate user permission checks for module breakdown fetching ([c931924](https://github.com/EPFL-ENAC/co2-calculator/commit/c9319241d0f30ed67eaaf0291d8f7f58d98a7321))
+* **carbon-report:** update total calculation to exclude additional breakdown categories ([81f4084](https://github.com/EPFL-ENAC/co2-calculator/commit/81f40844eab7439c1dfb1a2bdc23da5688f8769b))
+* **files:** validate upload MIME and harden download Content-Disposition ([2db3d2d](https://github.com/EPFL-ENAC/co2-calculator/commit/2db3d2d5b03772d6fa702cb7e33a0ad81335de78))
+* **ItFocusBreakdownChart:** remove  ModuleIcon component and update legend styling ([ae700c3](https://github.com/EPFL-ENAC/co2-calculator/commit/ae700c3891cd087b63e44bf19ade156f1e5753f7))
+* **module-table:** remove module upload visibility by adding CSV tools permission check ([78c7bab](https://github.com/EPFL-ENAC/co2-calculator/commit/78c7bab00abf7a22545c4af849071e64bc9eda79))
+## [1.0.4](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.3...v1.0.4) (2026-06-19)
+
+
+### Bug Fixes
+
+* **backend-tests:** correct integration and unit ingestion logic integration test ([99bdce9](https://github.com/EPFL-ENAC/co2-calculator/commit/99bdce933d93fe4bf2a4a2b3b3f9498cb2663f45))
+* **backoffice-configuration:** correct api changes ([7b84145](https://github.com/EPFL-ENAC/co2-calculator/commit/7b8414579ea8095c3363823b1f28517f5d2b7715))
+* **ci:** publish-chart render handles SECRET_KEY guard ([a024abd](https://github.com/EPFL-ENAC/co2-calculator/commit/a024abd0f3d2009d3cb925798040a078febbc92f))
+* **frontend:** run formatter in frontend code ([b093ef5](https://github.com/EPFL-ENAC/co2-calculator/commit/b093ef517c9229fc8fb209883eec221d3acfeb67))
+* **helm:** enforce SECRET_KEY presence to block empty signing key deploys ([011a1de](https://github.com/EPFL-ENAC/co2-calculator/commit/011a1de31a2fd0db84d9b64c5bed803d5526d8d8))
+* **security-frontend:** don't use innerHTML anymore ([eaeceed](https://github.com/EPFL-ENAC/co2-calculator/commit/eaeceed4749e57a2224057ae386c76e6324b766a))
+* **security:** add comments and unit test to encore DEBUG false by default ([c093a5f](https://github.com/EPFL-ENAC/co2-calculator/commit/c093a5fbc6e5a13e5e2247ee76900b5ec974b14f))
+* **security:** bind published docker-compose ports to 127.0.0.1 ([79ce37b](https://github.com/EPFL-ENAC/co2-calculator/commit/79ce37bd4bb6616f406d4aa9e9676db1c7349aad))
+* **security:** use trufflehog pinned version ([8a6c8af](https://github.com/EPFL-ENAC/co2-calculator/commit/8a6c8af4b30c2413606547257dbd8b953c72acf6))
+
+
+### Features
+
+* **files:** validate upload MIME and harden download Content-Disposition ([2db3d2d](https://github.com/EPFL-ENAC/co2-calculator/commit/2db3d2d5b03772d6fa702cb7e33a0ad81335de78))
+* **ItFocusBreakdownChart:** remove  ModuleIcon component and update legend styling ([ae700c3](https://github.com/EPFL-ENAC/co2-calculator/commit/ae700c3891cd087b63e44bf19ade156f1e5753f7))
+* **module-table:** remove module upload visibility by adding CSV tools permission check ([78c7bab](https://github.com/EPFL-ENAC/co2-calculator/commit/78c7bab00abf7a22545c4af849071e64bc9eda79))
 ## [1.0.3](https://github.com/EPFL-ENAC/co2-calculator/compare/v0.11.1...v1.0.3) (2026-06-18)
 
 

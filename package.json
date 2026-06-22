@@ -15,5 +15,5 @@
     "@evilmartians/lefthook": "=1.13.6",
     "prettier": "=3.8.4"
   },
-  "version": "1.0.4"
+  "version": "1.0.6"
 }

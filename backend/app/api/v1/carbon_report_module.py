@@ -48,6 +48,7 @@ from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
+from app.utils.emission_category import is_additional_breakdown_emission
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -286,6 +287,7 @@ async def get_module(
 
     # if headcount compute FTE here
     total_annual_fte = None
+    total_kg_co2eq = None
     if module_id == "headcount":
         total_annual_fte = await DataEntryService(db).get_total_per_field(
             field_name="fte",
@@ -308,12 +310,16 @@ async def get_module(
         module_data.stats = await DataEntryEmissionService(db).get_stats(
             carbon_report_module_id=carbon_report_module_id,
         )
-    # if need other subtotal do it here
-    total_kg_co2eq = (
-        sum(v for v in module_data.stats.values() if v is not None)
-        if module_data.stats
-        else None
-    )
+
+        total_kg_co2eq = (
+            sum(
+                v
+                for k, v in module_data.stats.items()
+                if v is not None and not is_additional_breakdown_emission(int(k))
+            )
+            if module_data.stats
+            else None
+        )
     module_data.totals = ModuleTotals(
         total_kg_co2eq=total_kg_co2eq,
         total_tonnes_co2eq=total_kg_co2eq / 1000.0

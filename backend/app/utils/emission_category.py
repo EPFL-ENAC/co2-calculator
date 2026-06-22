@@ -107,6 +107,17 @@ def _resolve_emission_type(emission_type_id: int) -> EmissionType | None:
         return None
 
 
+def is_additional_breakdown_emission(emission_type_id: int) -> bool:
+    """True when an emission type belongs to an 'additional breakdown' category
+    (embodied_energy, commuting, food, waste). These are reported separately and
+    must be excluded from a module's headline total — matching build_chart_breakdown,
+    which routes them to additional_breakdown instead of module_totals_kg."""
+    emission_type = _resolve_emission_type(emission_type_id)
+    if emission_type is None:
+        return False
+    return emission_type.category in _ADDITIONAL_CATEGORIES
+
+
 def _build_emission_value(
     emission_type: EmissionType,
     kg_co2eq: float,

@@ -818,3 +818,287 @@ async def test_recalculate_reports_progress_at_interval(monkeypatch):
         )
 
     assert progress_calls == [(1, 2), (2, 2)]
+
+
+# ======================================================================
+# _lookup_factor_id_with_override unit tests
+# ======================================================================
+
+# Shorthand for the static method under test.
+_lookup_with_override = EmissionRecalculationWorkflow._lookup_factor_id_with_override
+
+_KIND = "purchase_institutional_code"
+_OVERRIDE = "purchase_additional_code"
+
+
+def test_lookup_with_override_missing_kind_returns_none():
+    """No kind value in entry → None without touching any lookup."""
+    assert _lookup_with_override({}, _KIND, _OVERRIDE, {}, {}) is None
+
+
+def test_lookup_with_override_empty_kind_returns_none():
+    assert _lookup_with_override({_KIND: ""}, _KIND, _OVERRIDE, {}, {}) is None
+
+
+def test_lookup_with_override_code_single_match():
+    """Override code present and matches exactly one factor → return it."""
+    override_lookup = {"FR-001": [(10, "FOOD")]}
+    kind_lookup = {"FOOD": [(10, "FR-001"), (20, None)]}
+    entry = {_KIND: "FOOD", _OVERRIDE: "FR-001"}
+    assert (
+        _lookup_with_override(entry, _KIND, _OVERRIDE, override_lookup, kind_lookup)
+        == 10
+    )
+
+
+def test_lookup_with_override_code_multiple_disambiguated_by_kind():
+    """Same code on two different kinds → entry's kind narrows to one."""
+    override_lookup = {"FR-001": [(10, "FOOD"), (11, "TRAVEL")]}
+    kind_lookup = {"FOOD": [(10, "FR-001")], "TRAVEL": [(11, "FR-001")]}
+    entry = {_KIND: "FOOD", _OVERRIDE: "FR-001"}
+    assert (
+        _lookup_with_override(entry, _KIND, _OVERRIDE, override_lookup, kind_lookup)
+        == 10
+    )
+
+
+def test_lookup_with_override_code_multiple_ambiguous_raises():
+    """Two factors share the same code AND the same kind → ValueError."""
+    override_lookup = {"FR-001": [(10, "FOOD"), (11, "FOOD")]}
+    kind_lookup = {"FOOD": [(10, "FR-001"), (11, "FR-001")]}
+    entry = {_KIND: "FOOD", _OVERRIDE: "FR-001"}
+    with pytest.raises(ValueError, match="Ambiguous"):
+        _lookup_with_override(entry, _KIND, _OVERRIDE, override_lookup, kind_lookup)
+
+
+def test_lookup_with_override_code_miss_falls_back_to_kind_average():
+    """Code set on entry but absent from factors → fall through to kind fallback."""
+    override_lookup: dict = {}  # XX-999 not present
+    kind_lookup = {"FOOD": [(10, "FR-001"), (20, None)]}  # 20 is the average
+    entry = {_KIND: "FOOD", _OVERRIDE: "XX-999"}
+    assert (
+        _lookup_with_override(entry, _KIND, _OVERRIDE, override_lookup, kind_lookup)
+        == 20
+    )
+
+
+def test_lookup_with_override_no_code_single_kind_match():
+    """Entry has no override code; single factor for the kind → return it."""
+    kind_lookup = {"FOOD": [(20, None)]}
+    entry = {_KIND: "FOOD"}
+    assert _lookup_with_override(entry, _KIND, _OVERRIDE, {}, kind_lookup) == 20
+
+
+def test_lookup_with_override_no_code_single_factor_that_carries_code():
+    """Single factor row for the kind even though it has an override code is
+    authoritative — mirrors _resolve_with_kind_override's 'len(factors)==1' rule."""
+    kind_lookup = {"FOOD": [(10, "FR-001")]}
+    entry = {_KIND: "FOOD"}
+    assert _lookup_with_override(entry, _KIND, _OVERRIDE, {}, kind_lookup) == 10
+
+
+def test_lookup_with_override_no_code_kind_average_among_multiple():
+    """Several factors share the kind; entry has no code → average row wins."""
+    kind_lookup = {"FOOD": [(10, "FR-001"), (11, "DE-002"), (20, None)]}
+    entry = {_KIND: "FOOD"}
+    assert _lookup_with_override(entry, _KIND, _OVERRIDE, {}, kind_lookup) == 20
+
+
+def test_lookup_with_override_no_code_kind_miss_returns_none():
+    """Kind not in lookup at all → None (strict drop)."""
+    kind_lookup = {"FOOD": [(20, None)]}
+    entry = {_KIND: "OFFICE_SUPPLY"}
+    assert _lookup_with_override(entry, _KIND, _OVERRIDE, {}, kind_lookup) is None
+
+
+def test_lookup_with_override_no_code_ambiguous_averages_raises():
+    """Multiple average rows (no override code) for the same kind → ValueError."""
+    kind_lookup = {"FOOD": [(20, None), (21, None)]}
+    entry = {_KIND: "FOOD"}
+    with pytest.raises(ValueError, match="Ambiguous"):
+        _lookup_with_override(entry, _KIND, _OVERRIDE, {}, kind_lookup)
+
+
+# ======================================================================
+# recalculate_for_data_entry_type — override-key-first rematch
+# ======================================================================
+
+
+def _make_override_handler() -> MagicMock:
+    """Handler with kind_field_override (purchase-style)."""
+    handler = MagicMock()
+    handler.prefetch_slice = AsyncMock(return_value={})
+    handler.kind_field = "purchase_institutional_code"
+    handler.kind_field_override = "purchase_additional_code"
+    handler.subkind_field = None
+    return handler
+
+
+def _make_factor(factor_id: int, classification: dict) -> MagicMock:
+    f = MagicMock()
+    f.id = factor_id
+    f.classification = classification
+    return f
+
+
+@pytest.mark.asyncio
+async def test_recalculate_override_handler_resolves_by_code():
+    """Override-key-first rematch: entry carries purchase_additional_code → that
+    code wins over the generic average for the same institutional code."""
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entry = _make_mock_entry(1, 10)
+    entry.data = {
+        "primary_factor_id": 0,
+        "purchase_institutional_code": "FOOD",
+        "purchase_additional_code": "FR-001",
+    }
+
+    # Factor 10: code-specific (FR-001 for FOOD)
+    # Factor 20: average for FOOD (no code) — should NOT win here
+    factor_specific = _make_factor(
+        10,
+        {"purchase_institutional_code": "FOOD", "purchase_additional_code": "FR-001"},
+    )
+    factor_average = _make_factor(20, {"purchase_institutional_code": "FOOD"})
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = _make_override_handler()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=[entry]
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[factor_specific, factor_average]
+        )
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
+
+        result = await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.consumable_accessories, 2025
+        )
+
+    assert result["recalculated"] == 1
+    assert entry.data["primary_factor_id"] == 10
+
+
+@pytest.mark.asyncio
+async def test_recalculate_override_handler_falls_back_to_average():
+    """Entry has no purchase_additional_code → average factor for the kind
+    is selected (the row without the override code among multiple rows)."""
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entry = _make_mock_entry(1, 10)
+    entry.data = {
+        "primary_factor_id": 0,
+        "purchase_institutional_code": "FOOD",
+        # no purchase_additional_code
+    }
+
+    factor_specific = _make_factor(
+        10,
+        {"purchase_institutional_code": "FOOD", "purchase_additional_code": "FR-001"},
+    )
+    factor_average = _make_factor(20, {"purchase_institutional_code": "FOOD"})
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = _make_override_handler()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=[entry]
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[factor_specific, factor_average]
+        )
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
+
+        result = await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.consumable_accessories, 2025
+        )
+
+    assert result["recalculated"] == 1
+    assert entry.data["primary_factor_id"] == 20
+
+
+@pytest.mark.asyncio
+async def test_recalculate_override_handler_strict_drop_on_miss():
+    """Entry's institutional code has no matching factor at all →
+    strict-drop: primary_factor_id cleared to None."""
+    mock_session = MagicMock()
+    svc = EmissionRecalculationWorkflow(mock_session)
+
+    entry = _make_mock_entry(1, 10)
+    entry.data = {
+        "primary_factor_id": 99,
+        "purchase_institutional_code": "UNKNOWN",
+    }
+
+    # Only a factor for FOOD — UNKNOWN has nothing in the slice.
+    factor_food = _make_factor(20, {"purchase_institutional_code": "FOOD"})
+
+    with (
+        patch(
+            "app.workflows.emission_recalculation.DataEntryRepository"
+        ) as mock_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.FactorRepository"
+        ) as mock_factor_repo_cls,
+        patch(
+            "app.workflows.emission_recalculation.DataEntryEmissionService"
+        ) as mock_emission_cls,
+        patch("app.workflows.emission_recalculation.DataEntryResponse"),
+        patch(
+            "app.workflows.emission_recalculation.BaseModuleHandler"
+        ) as mock_handler_cls,
+    ):
+        mock_handler_cls.get_by_type.return_value = _make_override_handler()
+        mock_repo_cls.return_value.list_by_data_entry_type_and_year = AsyncMock(
+            return_value=[entry]
+        )
+        mock_factor_repo_cls.return_value.list_by_data_entry_type = AsyncMock(
+            return_value=[factor_food]
+        )
+        mock_emission_cls.return_value.prepare_create = AsyncMock(return_value=[])
+        mock_emission_cls.return_value.bulk_replace_for_entries = AsyncMock(
+            return_value=0
+        )
+
+        result = await svc.recalculate_for_data_entry_type(
+            DataEntryTypeEnum.consumable_accessories, 2025
+        )
+
+    assert result["recalculated"] == 1
+    assert entry.data["primary_factor_id"] is None
