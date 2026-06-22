@@ -114,6 +114,7 @@
               size="md"
               color="accent"
               class="text-weight-medium"
+              @click="downloadReport"
             />
           </q-card>
         </q-card>
@@ -150,6 +151,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
@@ -168,9 +171,25 @@ import { formatTonnesCO2 } from 'src/utils/number';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 
+const router = useRouter();
+const route = useRoute();
+const { locale } = useI18n();
+
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
 const moduleStore = useModuleStore();
+
+function downloadReport() {
+  const url = router.resolve({
+    name: 'simulation-explore-print',
+    params: {
+      language: locale.value.split('-')[0],
+      unit: route.params.unit,
+      year: route.params.year,
+    },
+  }).href;
+  window.open(url, '_blank');
+}
 
 // validateUnitGuard ensures selectedUnit and selectedYear are always set before
 // this route renders. The non-null assertions are safe here; the ready guard
