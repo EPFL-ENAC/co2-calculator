@@ -1,3 +1,20 @@
+## [1.0.7](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.6...v1.0.7) (2026-06-22)
+
+
+### Bug Fixes
+
+* added kind field override logic to emission recalculation [#1480](https://github.com/EPFL-ENAC/co2-calculator/issues/1480) ([879ef92](https://github.com/EPFL-ENAC/co2-calculator/commit/879ef92565244c148d28a89d4bb6d118d663e0f5))
+* handle factor lookup by kind value when kind override field is defined ([57b70a6](https://github.com/EPFL-ENAC/co2-calculator/commit/57b70a6f78d0778aeb85d8a075aa0a7469a0f17e))
+* **i18n:** update class labels for professional travel to use ordinal numbers ([9b9c37d](https://github.com/EPFL-ENAC/co2-calculator/commit/9b9c37d5a1f6cf783aaeb380855c05623f251c14))
+* syntax error ([56764f3](https://github.com/EPFL-ENAC/co2-calculator/commit/56764f32c8d37244f06ee4af79fce3a70ef0ea9e))
+* typo ([003efb3](https://github.com/EPFL-ENAC/co2-calculator/commit/003efb32b599b4afdb4fe208aafcb66226f996dd))
+
+
+### Features
+
+* add backoffice documentation button to Co2Header ([df1065e](https://github.com/EPFL-ENAC/co2-calculator/commit/df1065efb83bfec65df678669e238a4a54e886a7))
+* add documentation link to Co2Sidebar ([a3c35f7](https://github.com/EPFL-ENAC/co2-calculator/commit/a3c35f708ac657b9df8a232cfb9d4057a53699af))
+* **i18n:** add new refrigerant category translations for emissions module ([6a6ec9c](https://github.com/EPFL-ENAC/co2-calculator/commit/6a6ec9c9deb5f4f8b2ec15bbd6aa6f204d643198))
 ## [1.0.6](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.5...v1.0.6) (2026-06-22)
 
 
