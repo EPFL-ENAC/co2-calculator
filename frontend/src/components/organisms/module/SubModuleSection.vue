@@ -50,7 +50,7 @@
       </div>
       <q-separator />
       <div
-        v-if="isInputDeactivated"
+        v-if="isInputDeactivated && !isSimulator"
         class="q-mx-lg q-my-md inputs-deactivated-notice"
       >
         <div class="inputs-deactivated-notice__content">

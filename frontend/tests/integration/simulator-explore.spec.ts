@@ -25,8 +25,13 @@
  *   formatTonnesCO2(0) → "0.0"   (|value| < 1 → 1 decimal)
  *   formatTonnesCO2(5) → "5"     (|value| ≥ 1 → 0 decimals)
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { mockSimulatorBackend, SIMULATOR_URL } from './setup/simulator-mocks';
+
+/** Wait until onMounted finishes and module expansion items render. */
+async function waitForSimulatorExploreReady(page: Page): Promise<void> {
+  await expect(page.locator('.q-expansion-item').first()).toBeVisible();
+}
 
 test.describe('simulation explore — reactive updates after adding entry', () => {
   test.beforeEach(async ({ page }) => {
@@ -47,8 +52,7 @@ test.describe('simulation explore — reactive updates after adding entry', () =
     await mockSimulatorBackend(page);
     await page.goto(SIMULATOR_URL);
 
-    // Wait for simulatorReady (set after selectSimulatorExploreCarbonReport).
-    await expect(page.locator('.q-list')).toBeVisible();
+    await waitForSimulatorExploreReady(page);
 
     // Expand the Headcount module section.
     await page.getByText('Headcount', { exact: true }).first().click();
@@ -82,8 +86,7 @@ test.describe('simulation explore — reactive updates after adding entry', () =
     await mockSimulatorBackend(page);
     await page.goto(SIMULATOR_URL);
 
-    // Wait for the module list and for the BigNumber value to stabilise.
-    await expect(page.locator('.q-list')).toBeVisible();
+    await waitForSimulatorExploreReady(page);
 
     // Initial total is 0 → formatTonnesCO2(0) = "0.0".
     await expect(page.locator('.big-number__value')).toContainText('0.0');
@@ -110,7 +113,7 @@ test.describe('simulation explore — reactive updates after adding entry', () =
     const { requests } = await mockSimulatorBackend(page);
     await page.goto(SIMULATOR_URL);
 
-    await expect(page.locator('.q-list')).toBeVisible();
+    await waitForSimulatorExploreReady(page);
 
     // Expand Professional travel → Plane so the traveler dropdown
     // (HeadcountMemberSelect) mounts and performs its initial fetch.
