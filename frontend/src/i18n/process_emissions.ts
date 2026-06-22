@@ -2,7 +2,7 @@ import { MODULES } from 'src/constant/modules';
 
 export default {
   documentation_editing_rows_process_emissions_topic: {
-    en: 'Process Emissions',
+    en: 'Process emissions',
     fr: 'Émissions de procédés',
   },
   documentation_editing_rows_process_emissions_description: {
@@ -18,16 +18,16 @@ export default {
     fr: 'Entrez les sources d’émissions de procédé de gaz utilisés dans ou issues de réactions chimiques ou physiques dans le laboratoire.',
   },
   [`${MODULES.ProcessEmissions}-title-subtext`]: {
-    en: 'This module allows to estimate the carbon footprint of greenhouse gases generated during your lab processes (e.g. CO₂ emissions in some SV lab activities, SF₆ emissions when it is used as refrigerant). Emissions generated in the research facilities that you use are excluded, as they are already accounted in the research facilities footprint.',
-    fr: 'Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire (par ex. émissions de CO₂ dans certaines activités de laboratoire SV, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène). Les émissions générées dans les infrastructures de recherche que vous utilisez sont exclues, car elles sont déjà prises en compte dans l’empreinte carbone des infrastructures de recherche.',
+    en: 'This module allows to estimate the carbon footprint of greenhouse gases generated during your lab processes (e.g. CO₂ emissions in some lab activities, SF₆ emissions when it is used as refrigerant). Emissions generated in the research facilities that you use are excluded, as they are already accounted in the relavant module. For more information: [processes](https://epfl-enac.github.io/co2-calculator-user-doc/processes/)',
+    fr: "Ce module permet d’estimer l’empreinte carbone des gaz à effet de serre générés lors de vos activités de laboratoire (e.g. émissions de CO₂ dans certaines activités de laboratoire, émissions de SF₆ quand celui-ci est utilisé en tant que fluide frigorigène). Les émissions générées dans les infrastructures de recherche que vous utilisez sont exclues, car elles sont déjà prises en compte dans le module relatif. Pour plus d'information : [procédés](https://epfl-enac.github.io/co2-calculator-user-doc/fr/processes/)",
   },
   [`${MODULES.ProcessEmissions}-process_emissions-form-title`]: {
     en: 'Add an emitted gas',
-    fr: 'Ajouter un gaz émis',
+    fr: 'Ajoutez un gaz émis',
   },
   [`${MODULES.ProcessEmissions}-charts-title`]: {
-    en: 'Process emissions charts',
-    fr: 'Graphiques des émissions de procédés',
+    en: 'Process emission carbon footprint',
+    fr: 'Empreinte carbone emissions de procédés',
   },
   [`${MODULES.ProcessEmissions}-charts-no-data-message`]: {
     en: 'No process emission data available.',
@@ -38,7 +38,7 @@ export default {
     fr: 'Émission de procédé ({count}) | Émissions de procédés ({count})',
   },
   [`${MODULES.ProcessEmissions}.inputs.category`]: {
-    en: 'Emitted Gas',
+    en: 'Emitted gas',
     fr: 'Gaz émis',
   },
   [`${MODULES.ProcessEmissions}.category.co2`]: {
@@ -55,7 +55,7 @@ export default {
   },
   [`${MODULES.ProcessEmissions}.category.refrigerants`]: {
     en: 'Refrigerant',
-    fr: 'Fluide Frigorigène',
+    fr: 'Fluide frigorigène',
   },
   [`${MODULES.ProcessEmissions}.category.Refrigerant`]: {
     en: 'Refrigerant',
@@ -64,7 +64,7 @@ export default {
   // Factor taxonomy / CSV use singular "refrigerant"; same label as plural key above.
   [`${MODULES.ProcessEmissions}.category.refrigerant`]: {
     en: 'Refrigerant',
-    fr: 'Fluide Frigorigène',
+    fr: 'Fluide frigorigène',
   },
   [`${MODULES.ProcessEmissions}.inputs.subcategory`]: {
     en: 'Sub-category',
