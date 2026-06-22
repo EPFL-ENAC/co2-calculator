@@ -447,3 +447,51 @@ def test_module_top_class_group_field_mapping():
 
 def test_module_top_class_label_field_mapping():
     assert ModuleTypeEnum.purchase in crm._MODULE_TOP_CLASS_LABEL_FIELD
+
+
+# ── get_module: headcount 500 regression ─────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_module_headcount_does_not_raise_name_error():
+    """get_module must not raise NameError (→ 500) for headcount.
+
+    Before the fix, total_kg_co2eq was only assigned in the else-branch
+    (non-headcount path) but used unconditionally when building ModuleTotals,
+    causing NameError on the headcount page.
+    """
+    user = _user(roles=[_principal(UNIT_IID)])
+    db = _mock_db(UNIT_IID)
+
+    module_data = MagicMock()
+    module_data.stats = {}
+
+    data_svc = MagicMock()
+    data_svc.get_module_data = AsyncMock(return_value=module_data)
+    data_svc.get_total_per_field = AsyncMock(return_value=10.0)
+    data_svc.get_stats = AsyncMock(return_value={"10208": 5.0})
+
+    unit = MagicMock()
+    unit.institutional_id = UNIT_IID
+
+    with (
+        patch.object(
+            crm,
+            "check_module_permission_for_unit",
+            AsyncMock(return_value=unit),
+        ),
+        patch.object(crm, "get_carbon_report_id", AsyncMock(return_value=99)),
+        patch.object(crm, "DataEntryService", return_value=data_svc),
+    ):
+        result = await crm.get_module(
+            unit_id=1,
+            year=2024,
+            module_id="headcount",
+            preview_limit=20,
+            carbon_project_type=0,
+            db=db,
+            current_user=user,
+        )
+
+    assert result.totals.total_kg_co2eq is None
+    assert result.totals.total_annual_fte == 10.0
