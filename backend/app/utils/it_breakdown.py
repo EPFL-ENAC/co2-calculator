@@ -6,8 +6,9 @@ Aggregates IT-related emissions from four source modules:
 - **Purchases** (``purchases__it_equipment``): IT hardware procurement (Scope 3)
 - **External Cloud & AI** (all ``external__clouds__*`` and ``external__ai__*``):
   cloud computing and AI provider emissions (Scope 3)
-- **Research Facilities** (``research_facilities__*``): IT-related research
-  facility emissions (Scope 3)
+- **Research Facilities** (``research_facilities__facilities``,
+    ``research_facilities__it_facilities``): IT-related research
+     facility emissions (Scope 3); animal facility emissions are excluded
 """
 
 from typing import Any, TypedDict
@@ -65,9 +66,6 @@ _IT_RESEARCH_TYPES: frozenset[EmissionType] = frozenset(
     [
         EmissionType.research_facilities,
         EmissionType.research_facilities__facilities,
-        EmissionType.research_facilities__animal,
-        EmissionType.research_facilities__animal__mice,
-        EmissionType.research_facilities__animal__fish,
         EmissionType.research_facilities__it_facilities,
     ]
 )
