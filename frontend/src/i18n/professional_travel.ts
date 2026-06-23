@@ -3,15 +3,15 @@ import { MODULES } from 'src/constant/modules';
 export default {
   // Table (Chapter 5)
   [`${MODULES.ProfessionalTravel}-table-title`]: {
-    en: 'Trips',
-    fr: 'Voyages',
+    en: 'Professional travel',
+    fr: 'Voyages professionnels ',
   },
   [`${MODULES.ProfessionalTravel}-plane-table-title`]: {
-    en: 'Plane Trip ({count}) | Plane Trips ({count})',
+    en: 'Plane trip ({count}) | Plane trips ({count})',
     fr: 'Avion ({count}) | Avions ({count})',
   },
   [`${MODULES.ProfessionalTravel}-train-table-title`]: {
-    en: 'Train Trip ({count}) | Train Trips ({count})',
+    en: 'Train trip ({count}) | Train trips ({count})',
     fr: 'Train ({count}) | Trains ({count})',
   },
   [`${MODULES.ProfessionalTravel}-field-type`]: {
@@ -49,15 +49,15 @@ export default {
   // Form (Chapter 7)
   [`${MODULES.ProfessionalTravel}-trips-form-title`]: {
     en: 'Add a trip',
-    fr: 'Ajouter un voyage',
+    fr: 'Ajoutez un voyage',
   },
   [`${MODULES.ProfessionalTravel}-plane-form-title`]: {
     en: 'Add a plane trip',
-    fr: 'Ajouter un trajet en avion',
+    fr: 'Ajoutez un trajet en avion',
   },
   [`${MODULES.ProfessionalTravel}-train-form-title`]: {
     en: 'Add a train trip',
-    fr: 'Ajouter un trajet en train',
+    fr: 'Ajoutez un trajet en train',
   },
   [`${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`]: {
     en: 'Enter the city or station name in the local language.',
@@ -69,10 +69,10 @@ export default {
   },
   [`${MODULES.ProfessionalTravel}-other-form-title`]: {
     en: 'Add a trip',
-    fr: 'Ajouter un voyage',
+    fr: 'Ajoutez un voyage',
   },
   [`${MODULES.ProfessionalTravel}-field-return-date`]: {
-    en: 'Return Date',
+    en: 'Return date',
     fr: 'Date de retour',
   },
   [`${MODULES.ProfessionalTravel}-field-round-trip`]: {
@@ -118,16 +118,16 @@ export default {
     fr: 'Voyages professionnels ',
   },
   [`${MODULES.ProfessionalTravel}-description`]: {
-    en: 'Estimate the impact of your professional travel',
-    fr: 'Estimez l’impact de vos voyages professionnels',
+    en: "View and enter your unit's professional travel information.",
+    fr: 'Consultez et renseignez les voyages professionnels de votre unité.',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
-    en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane. Data relating to your air travel is provided to us by the EPFL Travel Agency, and the associated carbon footprint is calculated taking into account several factors such as distance, class booked, flight altitude, number of people on the plane, airline, etc. If you have traveled outside of the agency, please enter the departure city and arrival city in the tab below. The calculation methodology will then be different and will take into account the distance and type of flight (very short-haul, short-haul, medium-haul, or long-haul).",
-    fr: "Ce module permet d'estimer et de visualiser l'impact de vos voyages (ou de votre unité) en train et en avion. Les données relatives à vos voyages en avion nous sont communiquées par l’Agence de voyages EPFL et l’empreinte carbone associée est calculée en considérant plusieurs facteurs tels que la distance, la classe réservée, la hauteur de vol, le nombre de personne dans l’avion, la compagnie aérienne, etc. Si vous avez effectué un voyage hors agence, merci de saisir dans l’onglet ci-dessous, la ville de départ et la ville d’arrivée. La méthodologie de calcul sera alors différente et considérera la distance et le type de vol (très court-courrier, court-courrier, moyen-courrier ou long-courrier).",
+    en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane. Data relating to your air travel is provided to us by the EPFL Travel Agency, and the associated carbon footprint is calculated taking into account several factors such as distance, class booked, flight altitude, number of people on the plane, airline, etc. If you have traveled outside of the agency, please enter the departure city and arrival city in the tab below. The calculation methodology will then be different and will take into account the distance and type of flight (very short-haul, short-haul, medium-haul, or long-haul). For more information: [professional travel](https://epfl-enac.github.io/co2-calculator-user-doc/professional-travel/)",
+    fr: "Ce module permet d'estimer et de visualiser l'impact de vos voyages (ou de votre unité) en train et en avion. Les données relatives à vos voyages en avion nous sont communiquées par l’Agence de voyages EPFL et l’empreinte carbone associée est calculée en considérant plusieurs facteurs tels que la distance, la classe réservée, la hauteur de vol, le nombre de personne dans l’avion, la compagnie aérienne, etc. Si vous avez effectué un voyage hors agence, merci de saisir dans l’onglet ci-dessous, la ville de départ et la ville d’arrivée. La méthodologie de calcul sera alors différente et considérera la distance et le type de vol (très court-courrier, court-courrier, moyen-courrier ou long-courrier). Pour plus d'information : [voyages professionnels](https://epfl-enac.github.io/co2-calculator-user-doc/fr/professional-travel/)",
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint`]: {
-    en: 'Total Travel Carbon Footprint',
-    fr: 'Empreinte CO₂ totale déplacements',
+    en: 'Total travel carbon footprint',
+    fr: 'Empreinte carbone totale déplacements',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint-tooltip`]:
     {
@@ -148,15 +148,15 @@ export default {
     fr: 'par EPT',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-tooltip`]: {
-    en: 'Average travel carbon footprint per Full-Time Equivalent employee',
+    en: 'Average travel carbon footprint per full-time equivalent employee',
     fr: 'Empreinte carbone moyenne des déplacements par équivalent temps plein',
   },
   [`${MODULES.ProfessionalTravel}-results-travel-per-fte-comparison`]: {
-    en: 'at EPFL in average Professional Travel represents {percentage}.',
+    en: 'at EPFL in average professional travel represents {percentage}.',
     fr: "à l'EPFL en moyenne, les déplacements professionnels représentent {percentage}.",
   },
   [`${MODULES.ProfessionalTravel}-results-year-to-year-evolution`]: {
-    en: 'Year-to-year Evolution',
+    en: 'Year-to-year evolution',
     fr: "Évolution d'année en année",
   },
   [`${MODULES.ProfessionalTravel}-results-year-to-year-evolution-tooltip`]: {
@@ -207,7 +207,7 @@ export default {
   },
   [`${MODULES.ProfessionalTravel}-field-traveler-empty-headcount`]: {
     en: 'No headcount members found. Add members in the Headcount module first.',
-    fr: 'Aucun membre du personnel trouvé. Ajoutez des membres dans le module Effectifs.',
+    fr: 'Aucun membre du personnel trouvé. Ajoutez des membres dans le module Personnel.',
   },
   [`${MODULES.ProfessionalTravel}-field-traveler-not-validated`]: {
     en: 'You have not been validated in the headcount. Please contact your unit manager.',
