@@ -6,48 +6,48 @@ export default {
     fr: 'Clouds externes & IA',
   },
   [`${MODULES.ExternalCloudAndAI}-description`]: {
-    en: 'Enter external clouds usage data to estimate the carbon footprint.',
+    en: 'Enter your external clouds usage data to estimate the carbon footprint.',
     fr: "Saisissez vos données relatives à l'utilisation de clouds externes pour estimer leur empreinte carbone.",
   },
   [`${MODULES.ExternalCloudAndAI}-title-subtext`]: {
-    en: 'This module calculates the carbon footprint associated with the use of cloud services, all features combined. Data entry is manual and can be reviewed and added or deleted by the user.\nSome cells may or may not be editable depending on the type of service selected.',
-    fr: "Ce module calcule l'empreinte carbone liée à l'utilisation de clouds externes, toutes fonctionnalités confondues. La saisie des informations est manuelle. Vous pouvez consulter, ajouter ou supprimer des entrées selon vos besoins.\nCertaines cellules seront ou non éditables en fonction du type de service sélectionné.",
+    en: 'This module calculates the carbon footprint associated with the use of external cloud services and AI. Some cells may or may not be editable depending on the type of service selected. For external cloud services, it is necessary to enter the provider name, used type of service (compute or storage), spending and associated currency. For AI services, it is necessary to enter the provider name, type of use (text, code or image generation), number of users and frequency of use. For more information: [external clouds & IA](https://epfl-enac.github.io/co2-calculator-user-doc/building/)',
+    fr: "Ce module calcule l'empreinte carbone liée à l'utilisation de services de clouds externes et d'intelligence artificielle. Certaines cellules seront ou non éditables en fonction du type de service sélectionné. Pour les services de clouds externes, il est nécessaire de saisir le nom du fournisseur, le type de service utilisé (calcul ou stockage), le montant dépensé et la devise associée. Pour les services d'IAs, il faut fournir le nom du fournisseur, le type d'utilisation (génération de texte, de code ou d'image), le nombre d'utilisateurs et la fréquence d'utilisation. Pour plus d'information : [clouds externes et IA](https://epfl-enac.github.io/co2-calculator-user-doc/fr/external-cloud/)",
   },
   // external-cloud-and-ai-external_clouds-form-title
   // Add an external cloud usage / Ajouter une utilisation de cloud externe
   [`${MODULES.ExternalCloudAndAI}-external_clouds-form-title`]: {
-    en: 'Add an external cloud usage',
-    fr: 'Ajouter une utilisation de cloud externe',
+    en: 'Add an external cloud service usage',
+    fr: 'Ajoutez une utilisation de service cloud externe',
   },
 
   // Add an external AI usage / Ajouter une utilisation d’IA externe
   [`${MODULES.ExternalCloudAndAI}-external_ai-form-title`]: {
-    en: 'Add an external AI usage',
-    fr: 'Ajouter une utilisation d’IA externe',
+    en: 'Add an external AI service usage',
+    fr: "Ajoutez une utilisation de service d'IA externe",
   },
 
   // CHARTS external-cloud-and-ai.charts-title
   [`${MODULES.ExternalCloudAndAI}-charts-title`]: {
-    en: 'External cloud Emissions CHARTS',
+    en: 'External cloud emissions CHARTS',
     fr: 'Émissions du cloud externe CHARTS',
   },
   // external-cloud-and-ai.cloud_services_table_title
   [`${MODULES.ExternalCloudAndAI}.cloud_services_table_title`]: {
-    en: 'External cloud ({count}) | External cloud ({count})',
-    fr: 'Cloud externe ({count}) | Clouds externes ({count})',
+    en: 'External cloud service ({count}) | External cloud services ({count})',
+    fr: 'Service de cloud externe ({count}) | Services de clouds externes ({count})',
   },
   [`${MODULES.ExternalCloudAndAI}.cloud-services`]: {
-    en: 'External cloud | External cloud',
-    fr: 'Cloud externe | Clouds externes',
+    en: 'External cloud service | External cloud services',
+    fr: 'Service de cloud externe | Services de clouds externes',
   },
   // external-cloud-and-ai.ai_usage_table_title
   [`${MODULES.ExternalCloudAndAI}.ai_usage_table_title`]: {
-    en: 'External AI ({count}) | External AI ({count})',
-    fr: 'IA externe ({count}) | IA externes ({count})',
+    en: 'External AI service ({count}) | External AI services ({count})',
+    fr: "Service d'IA externe ({count}) | Services d'IAs externes ({count})",
   },
   [`${MODULES.ExternalCloudAndAI}.ai-services`]: {
-    en: 'External AI | External AI',
-    fr: 'IA externe | IA externes',
+    en: 'External AI service | External AI services',
+    fr: "Service d'IA externe | Services d'IAs externes",
   },
   // CLOUD SUBMODULE
   [`${MODULES.ExternalCloudAndAI}.inputs.service_type`]: {
@@ -81,8 +81,8 @@ export default {
     fr: 'Utilisation',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.requests_per_user_per_day`]: {
-    en: 'Frequency (time/day)',
-    fr: 'Fréquence (fois/jour)',
+    en: 'Frequency (number of times per day)',
+    fr: 'Fréquence (nombre de fois par jour)',
   },
   [`${MODULES.ExternalCloudAndAI}.inputs.requests_frequency.1_5`]: {
     en: '1–5 times/day',
