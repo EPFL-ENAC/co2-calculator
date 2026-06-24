@@ -17,10 +17,17 @@ export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 // All three session verbs hit the same path; the interceptor predicates
 // disambiguate by HTTP method (see isRefresh / isSessionCheck below).
 export const API_ME_URL = 'session';
+export const API_CSRF_URL = 'auth/csrf';
 export const API_REFRESH_URL = 'session';
 export const API_LOGOUT_URL = 'session';
 export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
+export const CSRF_HEADER_NAME = 'X-CSRF';
+
+type CsrfBootstrapResponse = {
+  csrf_enabled: boolean;
+  csrf_token: string | null;
+};
 
 const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
 const endsWithSessionExchange = (u: string) =>
@@ -38,6 +45,186 @@ const isSessionCheck = (u: string, m: string) =>
 // handshake — the exchange IS what mints the cookies).
 const isExchange = (u: string, m: string) =>
   endsWithSessionExchange(u) && m.toUpperCase() === 'POST';
+const isCsrfBootstrap = (u: string) => u.endsWith(API_CSRF_URL);
+const CSRF_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+
+let csrfToken: string | null = null;
+let csrfBootstrapPromise: Promise<string | null> | null = null;
+let csrfEnabled: boolean | null = null;
+
+const apiNoHooks = ky.create({
+  prefixUrl: API_BASE_URL,
+  credentials: 'include',
+  retry: { limit: 0 },
+});
+
+async function fetchAndStoreCsrfToken(): Promise<string | null> {
+  if (csrfBootstrapPromise) {
+    return csrfBootstrapPromise;
+  }
+
+  csrfBootstrapPromise = (async () => {
+    const response = await apiNoHooks
+      .get(API_CSRF_URL)
+      .json<CsrfBootstrapResponse>();
+    csrfEnabled = response.csrf_enabled;
+    csrfToken = response.csrf_enabled ? response.csrf_token : null;
+    return csrfToken;
+  })();
+
+  try {
+    return await csrfBootstrapPromise;
+  } finally {
+    csrfBootstrapPromise = null;
+  }
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (csrfEnabled === true && csrfToken) {
+    return csrfToken;
+  }
+
+  if (csrfEnabled === false) {
+    return null;
+  }
+
+  try {
+    return await fetchAndStoreCsrfToken();
+  } catch (error) {
+    console.warn(
+      'CSRF bootstrap failed; processing without a CSRF token.',
+      error,
+    );
+    return null;
+  }
+}
+
+export async function bootstrapCsrfToken(): Promise<string | null> {
+  return fetchAndStoreCsrfToken();
+}
+
+export function clearCsrfToken(): void {
+  csrfToken = null;
+  csrfEnabled = null;
+  csrfBootstrapPromise = null;
+}
+
+async function handleCsrfError(
+  req: Request,
+  options: Options,
+): Promise<Response | undefined> {
+  try {
+    const newToken = await bootstrapCsrfToken();
+
+    if (!newToken) {
+      location.replace(loginPageName);
+      return;
+    }
+
+    const headers = new Headers(
+      (options.headers as Headers | undefined) ?? req.headers,
+    );
+    headers.set(CSRF_HEADER_NAME, newToken);
+
+    // Reconstruct body from ky options to avoid replaying a consumed stream.
+    // When the caller used ky's `json` option the serialised body is in
+    // options.json; fall back to options.body for raw/FormData payloads.
+    const bodyInit: Pick<Options, 'json' | 'body'> =
+      options.json !== undefined
+        ? { json: options.json }
+        : { body: options.body };
+
+    try {
+      return await apiNoHooks(req.url, {
+        method: options.method ?? req.method,
+        ...bodyInit,
+        headers,
+        credentials: 'include',
+        retry: { limit: 0 },
+      });
+    } catch (error) {
+      console.warn('CSRF retry failed:', error);
+      location.replace(loginPageName);
+      return;
+    }
+  } catch {
+    location.replace(loginPageName);
+    return;
+  }
+}
+
+async function handlePermissionError(
+  _res: Response,
+  errorResponse: {
+    error?: string;
+    detail?: string;
+    reason?: string;
+  } | null,
+): Promise<void> {
+  let permissionDetails: {
+    path?: string;
+    action?: string;
+    message?: string;
+  };
+
+  const errorDetail = errorResponse?.detail || 'Permission denied';
+
+  const permissionDeniedMatch = errorDetail.match(/Permission denied:\s*(.+)/i);
+  if (permissionDeniedMatch) {
+    const reasonText = permissionDeniedMatch[1].trim();
+    const pathActionMatch = reasonText.match(
+      /^([a-z0-9_.]+)\.([a-z]+)\s+required$/i,
+    );
+    if (pathActionMatch) {
+      permissionDetails = {
+        path: pathActionMatch[1],
+        action: pathActionMatch[2],
+        message: errorDetail,
+      };
+    } else {
+      permissionDetails = {
+        message: errorDetail,
+      };
+    }
+  } else {
+    permissionDetails = {
+      message: errorDetail,
+    };
+  }
+
+  const queryParams = new URLSearchParams();
+  if (permissionDetails.path) {
+    queryParams.set('permission', permissionDetails.path);
+  }
+  if (permissionDetails.action) {
+    queryParams.set('action', permissionDetails.action);
+  }
+
+  const toastMessage = permissionDetails.message || 'Access denied';
+  Notify.create({
+    color: 'negative',
+    message: toastMessage,
+    position: 'top',
+    timeout: 3000,
+    actions: [{ icon: 'close', color: 'white' }],
+  });
+
+  const queryString = queryParams.toString();
+  const redirectUrl = queryString
+    ? `/unauthorized?${queryString}`
+    : '/unauthorized';
+  location.replace(redirectUrl);
+}
+
+function updateCsrfToken(token: string): void {
+  csrfToken = token;
+  csrfEnabled = true;
+}
+
+export function updateCsrfDisabled(): void {
+  csrfToken = null;
+  csrfEnabled = false;
+}
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -52,6 +239,22 @@ export const api = ky.create({
     methods: ['get', 'put', 'post', 'patch', 'head', 'delete', 'options'],
   },
   hooks: {
+    beforeRequest: [
+      async (request) => {
+        if (isCsrfBootstrap(request.url)) {
+          return;
+        }
+
+        if (!CSRF_METHODS.has(request.method.toUpperCase())) {
+          return;
+        }
+
+        const token = await ensureCsrfToken();
+        if (token) {
+          request.headers.set(CSRF_HEADER_NAME, token);
+        }
+      },
+    ],
     beforeRetry: [
       // For any non-refresh call, try to refresh before retrying.
       // Exception: /session/exchange — it predates the cookies, so a
@@ -66,6 +269,22 @@ export const api = ky.create({
     ],
     afterResponse: [
       async (req, options, res) => {
+        // Extract CSRF token from refresh response
+        if (isRefresh(req.url, req.method) && res.status === 200) {
+          try {
+            const data = (await res.clone().json()) as {
+              csrf_token?: string | null;
+            };
+            if (typeof data.csrf_token === 'string') {
+              updateCsrfToken(data.csrf_token);
+            } else if (data.csrf_token === null) {
+              updateCsrfDisabled();
+            }
+          } catch {
+            // Ignore JSON parse errors
+          }
+        }
+
         if (res.status === 401) {
           if (isRefresh(req.url, req.method)) {
             // If refresh returns 401, let it pass through and be handled by
@@ -118,90 +337,37 @@ export const api = ky.create({
             location.replace(loginPageName);
           }
         } else if (res.status === 403) {
-          // Parse permission error details from response body
-          let permissionDetails: {
-            path?: string;
-            action?: string;
-            message?: string;
-          } = {};
+          let errorResponse: {
+            error?: string;
+            detail?: string;
+            reason?: string;
+          } | null = null;
 
           try {
-            // Clone the response to read the body without consuming it
             const clonedResponse = res.clone();
-            let responseBody: { detail?: string } | null = null;
-
             if (!clonedResponse.bodyUsed) {
               try {
-                responseBody = (await clonedResponse.json()) as {
+                errorResponse = (await clonedResponse.json()) as {
+                  error?: string;
                   detail?: string;
+                  reason?: string;
                 };
               } catch (jsonError) {
-                // Response might not be JSON
                 console.warn(
                   'Failed to parse error response as JSON:',
                   jsonError,
                 );
               }
             }
-
-            // Extract detail from response body
-            const errorDetail = responseBody?.detail || 'Permission denied';
-
-            // Try to parse permission path and action from error message
-            // Pattern: "Permission denied: {path}.{action} required"
-            const permissionDeniedMatch = errorDetail.match(
-              /Permission denied:\s*(.+)/i,
-            );
-            if (permissionDeniedMatch) {
-              const reasonText = permissionDeniedMatch[1].trim();
-              const pathActionMatch = reasonText.match(
-                /^([a-z0-9_.]+)\.([a-z]+)\s+required$/i,
-              );
-              if (pathActionMatch) {
-                permissionDetails = {
-                  path: pathActionMatch[1],
-                  action: pathActionMatch[2],
-                  message: errorDetail,
-                };
-              } else {
-                permissionDetails = {
-                  message: errorDetail,
-                };
-              }
-            } else {
-              permissionDetails = {
-                message: errorDetail,
-              };
-            }
           } catch (parseError) {
-            console.warn('Failed to parse permission error:', parseError);
+            console.warn('Failed to parse error response:', parseError);
           }
-
-          // Build query params for the unauthorized page
-          const queryParams = new URLSearchParams();
-          if (permissionDetails.path) {
-            queryParams.set('permission', permissionDetails.path);
+          if (errorResponse?.error === 'csrf_validation_failed') {
+            return await handleCsrfError(req, options);
+          } else {
+            await handlePermissionError(res, errorResponse);
+            return;
           }
-          if (permissionDetails.action) {
-            queryParams.set('action', permissionDetails.action);
-          }
-
-          // Show toast notification before redirecting
-          const toastMessage = permissionDetails.message || 'Access denied';
-          Notify.create({
-            color: 'negative',
-            message: toastMessage,
-            position: 'top',
-            timeout: 3000,
-            actions: [{ icon: 'close', color: 'white' }],
-          });
-
-          // Redirect immediately - toast will remain visible during navigation
-          const queryString = queryParams.toString();
-          const redirectUrl = queryString
-            ? `/unauthorized?${queryString}`
-            : '/unauthorized';
-          location.replace(redirectUrl);
         } else if (!res.ok) {
           // Capture 5xx in GlitchTip. 4xx is usually client/business-logic
           // (validation, "not found", etc.) and not worth exception noise;

@@ -51,6 +51,15 @@ backend:
     ELASTICSEARCH_TIMEOUT: "30" # Key in the existing secret for Elasticsearch timeout
     ELASTICSEARCH_MAX_RETRIES: "3" # Key in the existing secret for Elasticsearch max retries
     ELASTICSEARCH_RETRY_ON_TIMEOUT: "true" # Key in the existing secret for Elasticsearch retry on timeout
+    CSRF_ENABLED: "true" # Enable CSRF protection for state-changing requests
+    CSRF_HEADER_NAME: "X-CSRF" # Name of the header to look for CSRF token
+    CSRF_PROTECTED_METHODS: "POST,PUT,PATCH,DELETE" # HTTP methods that require CSRF protection
+    CSRF_COOKIE_KEY: "fastapi-csrf-token"
+    CSRF_COOKIE_PATH: "/"
+    CSRF_COOKIE_MAX_AGE: "3600"
+    CSRF_COOKIE_SAMESITE: "strict"
+    CSRF_COOKIE_SECURE: "true"
+    CSRF_COOKIE_HTTPONLY: "false"
 
   secrets:
     # WARNING: These default values are INSECURE and MUST be overridden before production deployment!
@@ -66,6 +75,8 @@ backend:
     OAUTH_CLIENT_SECRET: ""
     OAUTH_ISSUER_URL: ""
     OAUTH_TENANT_ID: ""
+
+    CSRF_SECRET_KEY: ""
 
   podAnnotations: {}
 

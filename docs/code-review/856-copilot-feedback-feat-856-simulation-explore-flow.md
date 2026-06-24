@@ -480,7 +480,7 @@ Suggestion: add a new unique index/constraint that matches the post-migration da
 
 ### File: `backend/app/api/v1/carbon_report_module.py` (Line null) — Copilot
 
-## `_resolve_is_simulator()` treats a request as “simulator” solely based on whether an Explore report exists for (unit*id, year). Once an Explore report is created, this will cause \_all* `/modules/{unit}/{year}/...` traffic (including normal Calculator pages) to read/write the Explore report instead of the Calculator report. Use an explicit server-side signal (e.g., `SIMULATION_MODE.get()` from the middleware, or separate endpoints) to select the simulator report only for simulation requests.
+## `_resolve_is_simulator()` treats a request as "simulator" solely based on whether an Explore report exists for (unit_id, year). Once an Explore report is created, this will cause _all_ `/modules/{unit}/{year}/...` traffic (including normal Calculator pages) to read/write the Explore report instead of the Calculator report. Use an explicit server-side signal (e.g., `SIMULATION_MODE.get()` from the middleware, or separate endpoints) to select the simulator report only for simulation requests.
 
 ### File: `backend/app/api/v1/carbon_report_module.py` (Line 294) — Copilot
 
