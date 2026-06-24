@@ -5,11 +5,11 @@ import { ROLES } from 'src/constant/roles';
 export default {
   [ROLES.StandardUser]: {
     en: 'Standard User',
-    fr: 'Utilisateur Standard',
+    fr: 'Utilisateur·rice Standard',
   },
   [ROLES.PrincipalUser]: {
     en: 'Principal User',
-    fr: 'Utilisateur Principal',
+    fr: 'Utilisateur·rice Principal·e',
   },
   [ROLES.BackOfficeMetier]: {
     en: 'Back-Office Standard',
@@ -25,7 +25,7 @@ export default {
   },
   role_principal_description: {
     en: 'Unit manager with full access to all modules for their unit, and can assign Standard User roles',
-    fr: 'Responsable d’unité avec accès complet à tous les modules de son unité, et pouvant attribuer le rôle Utilisateur Standard',
+    fr: 'Responsable d’unité avec accès complet à tous les modules de son unité, et pouvant attribuer le rôle Utilisateur·rice Standard',
   },
   role_backoffice_description: {
     en: 'Day-to-day back-office operations: reporting, user management, documentation',
