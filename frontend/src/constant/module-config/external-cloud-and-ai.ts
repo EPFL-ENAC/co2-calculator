@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
+import { outlinedCategory } from '@quasar/extras/material-icons-outlined';
 import {
   SUBMODULE_EXTERNAL_CLOUD_TYPES,
   MODULES,
@@ -22,7 +23,7 @@ const cloudFields: ModuleField[] = [
     readOnly: false,
     editableInline: true,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'md',
     tooltip:
       'module-external-cloud-and-ai-submodule-external_clouds-table-provider',
@@ -42,7 +43,7 @@ const cloudFields: ModuleField[] = [
     readOnly: false,
     editableInline: true,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'md',
     tooltip:
       'module-external-cloud-and-ai-submodule-external_clouds-table-service_type',

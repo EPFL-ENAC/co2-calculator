@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { outlinedAutorenew } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import Co2LanguageSelector from 'src/components/atoms/Co2LanguageSelector.vue';
 import { useAuthStore } from 'src/stores/auth';
@@ -144,7 +145,7 @@ const logoRoute = computed(() => {
         </span>
 
         <q-btn
-          icon="o_autorenew"
+          :icon="outlinedAutorenew"
           color="grey-4"
           text-color="primary"
           :label="$t('workspace_change_btn')"

@@ -2,6 +2,10 @@ import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { SUBMODULE_PROCESSES_TYPES, MODULES } from 'src/constant/modules';
 import type { ProcessesSubType, Module } from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
+import {
+  outlinedScience,
+  outlinedCategory,
+} from '@quasar/extras/material-icons-outlined';
 const processEmissionsFields: ModuleField[] = [
   {
     id: 'category',
@@ -16,7 +20,7 @@ const processEmissionsFields: ModuleField[] = [
     align: 'left',
     ratio: '1/3',
     hideIn: { form: false },
-    icon: 'o_science',
+    icon: outlinedScience,
     columnSize: 'lg',
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-category',
@@ -40,7 +44,7 @@ const processEmissionsFields: ModuleField[] = [
         value: 'Refrigerant',
       },
     },
-    icon: 'o_category',
+    icon: outlinedCategory,
     tooltip:
       'module-process-emissions-submodule-process_emissions-table-subcategory',
   },

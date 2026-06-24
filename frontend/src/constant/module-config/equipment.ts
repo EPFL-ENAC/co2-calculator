@@ -1,6 +1,11 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
 import type { Module, EquipmentSubType } from 'src/constant/modules';
+import {
+  outlinedCategory,
+  outlinedDonutLarge,
+  outlinedElectricBolt,
+} from '@quasar/extras/material-icons-outlined';
 
 import {
   MODULES,
@@ -59,7 +64,7 @@ const baseModuleFields: ModuleField[] = [
     readOnly: false,
     editableInline: true,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'lg',
   },
   {
@@ -77,7 +82,7 @@ const baseModuleFields: ModuleField[] = [
     editableInline: true,
     readOnly: false,
     ratio: '1/2',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'lg',
   },
   {
@@ -97,7 +102,7 @@ const baseModuleFields: ModuleField[] = [
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
-    icon: 'o_donut_large',
+    icon: outlinedDonutLarge,
   },
   {
     id: 'standby_usage_hours_per_week',
@@ -116,7 +121,7 @@ const baseModuleFields: ModuleField[] = [
     inputTypeName: 'QInput',
     editableInline: true,
     ratio: '3/12',
-    icon: 'o_donut_large',
+    icon: outlinedDonutLarge,
   },
   {
     id: 'active_power_w',
@@ -131,7 +136,7 @@ const baseModuleFields: ModuleField[] = [
     tooltip: 'module-equipment-submodule-scientific-table-active_power_w',
     readOnly: true,
     ratio: '3/12',
-    icon: 'o_electric_bolt',
+    icon: outlinedElectricBolt,
     hideIn: {
       form: false,
     },
@@ -154,7 +159,7 @@ const baseModuleFields: ModuleField[] = [
     },
     editableInline: false,
     ratio: '3/12',
-    icon: 'o_electric_bolt',
+    icon: outlinedElectricBolt,
     maxColumnWidth: 150,
   },
   {

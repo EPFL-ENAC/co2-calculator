@@ -6,6 +6,8 @@ import type {
 } from 'src/stores/backofficeDataManagement';
 import { TargetType } from 'src/stores/backofficeDataManagement';
 import { watch, toRef } from 'vue';
+import { matCalendarToday, matWarning } from '@quasar/extras/material-icons';
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 
 interface Props {
   modelValue: boolean;
@@ -116,7 +118,7 @@ watch(showDialog, (newVal) => {
           v-close-popup
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           class="text-weight-medium"
         />
@@ -133,7 +135,7 @@ watch(showDialog, (newVal) => {
           class="q-mb-sm"
           inline-action
         >
-          <q-icon name="warning" size="sm" class="q-mr-sm" />
+          <q-icon :name="matWarning" size="sm" class="q-mr-sm" />
           {{ $t('data_management_last_upload_overwrite') }}
         </q-banner>
         <div data-testid="data-entry-file-input">
@@ -167,7 +169,7 @@ watch(showDialog, (newVal) => {
               class="q-mb-sm"
               inline-action
             >
-              <q-icon name="warning" size="sm" class="q-mr-sm" />
+              <q-icon :name="matWarning" size="sm" class="q-mr-sm" />
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
             <div class="q-gutter-sm q-mt-sm">
@@ -219,7 +221,7 @@ watch(showDialog, (newVal) => {
             dense
             outline
             color="black"
-            icon="calendar_today"
+            :icon="matCalendarToday"
             class="full-width text-weight-medium text-capitalize"
             disabled
           />
@@ -247,7 +249,7 @@ watch(showDialog, (newVal) => {
             unelevated
             color="grey-3"
             text-color="dark"
-            icon="calendar_today"
+            :icon="matCalendarToday"
             class="full-width"
             :loading="isCopying"
             :disable="!selectedPreviousJob || isCopying"

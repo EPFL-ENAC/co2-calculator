@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import ReductionObjectiveEpflView from 'src/components/charts/results/ReductionObjectiveEpflView.vue';
 import ReductionObjectiveUnitView from 'src/components/charts/results/ReductionObjectiveUnitView.vue';
@@ -50,7 +54,7 @@ const chartTitle = computed(() =>
         <h2 class="text-h2 text-weight-medium q-mb-none">
           {{ $t('results_objectives_2040_title') }}
         </h2>
-        <q-icon name="o_info" size="sm" class="text-primary">
+        <q-icon :name="outlinedInfo" size="sm" class="text-primary">
           <q-tooltip class="text-body2 text-black" max-width="320px">
             {{ $t('results-reduction-title') }}
           </q-tooltip>
@@ -141,7 +145,7 @@ const chartTitle = computed(() =>
       unelevated
       no-caps
       outline
-      icon="o_download"
+      :icon="outlinedDownload"
       :label="$t('common_download_as_png')"
       size="xs"
       dense

@@ -1,5 +1,6 @@
 import { ModuleConfig, ModuleField } from 'src/constant/moduleConfig';
 import { formatTonnesCO2 } from 'src/utils/number';
+import { outlinedCategory } from '@quasar/extras/material-icons-outlined';
 import {
   SUBMODULE_PURCHASE_TYPES,
   MODULES,
@@ -42,7 +43,7 @@ const purchaseFields: ModuleField[] = [
     readOnly: false,
     editableInline: true,
     ratio: '1/4',
-    icon: 'o_category',
+    icon: outlinedCategory,
     columnSize: 'md',
   },
   {

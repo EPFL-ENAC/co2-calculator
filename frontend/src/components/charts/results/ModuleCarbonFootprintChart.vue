@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, type PropType, nextTick, ref } from 'vue';
+import {
+  outlinedDownload,
+  outlinedInfo,
+} from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -1383,7 +1387,7 @@ const downloadCSV = () => {
         </span>
         <q-icon
           v-if="!isPrintMode"
-          name="o_info"
+          :name="outlinedInfo"
           size="xs"
           color="primary"
           class="cursor-pointer"
@@ -1467,7 +1471,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_png')"
         size="xs"
         dense
@@ -1478,7 +1482,7 @@ const downloadCSV = () => {
         unelevated
         no-caps
         outline
-        icon="o_download"
+        :icon="outlinedDownload"
         :label="$t('common_download_as_csv')"
         size="xs"
         dense

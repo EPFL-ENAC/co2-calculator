@@ -24,7 +24,12 @@
       >
         {{ row.label }}
       </span>
-      <q-icon name="o_info" size="14px" class="filter-panel__info" @click.stop>
+      <q-icon
+        :name="outlinedInfo"
+        size="14px"
+        class="filter-panel__info"
+        @click.stop
+      >
         <q-tooltip class="text-body2 text-black">{{ row.tooltip }}</q-tooltip>
       </q-icon>
     </div>
@@ -61,6 +66,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { useResultsFiltersStore } from 'src/stores/resultsFilters';
 import { CHART_CATEGORY_COLOR_SCHEMES } from 'src/constant/charts';

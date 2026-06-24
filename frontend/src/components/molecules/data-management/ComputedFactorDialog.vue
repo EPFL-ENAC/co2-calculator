@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { matCalculate } from '@quasar/extras/material-icons';
+import { outlinedClose } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 
 interface Props {
@@ -33,7 +35,7 @@ function handleConfirm() {
   >
     <q-card style="min-width: 420px">
       <q-card-section class="row items-center q-pb-none">
-        <q-icon name="calculate" color="accent" size="sm" class="q-mr-sm" />
+        <q-icon :name="matCalculate" color="accent" size="sm" class="q-mr-sm" />
         <div class="text-h6">
           {{ $t('data_management_compute_factors_confirm_title') }}
         </div>
@@ -41,7 +43,7 @@ function handleConfirm() {
         <q-btn
           flat
           size="md"
-          icon="o_close"
+          :icon="outlinedClose"
           color="grey-6"
           @click="handleClose"
         />

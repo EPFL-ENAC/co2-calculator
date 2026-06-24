@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, ref, type ComputedRef } from 'vue';
+import {
+  matCancel,
+  matFileUpload,
+  matInfo,
+} from '@quasar/extras/material-icons';
+import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { useUploadCard } from 'src/composables/useUploadCard';
 import { mergeLivePipelineJob } from 'src/composables/useModuleConfig';
 import { useI18n } from 'vue-i18n';
@@ -367,7 +373,7 @@ function isErrorOrWarning(): boolean {
         <q-btn
           no-caps
           :color="buttonColor()"
-          icon="file_upload"
+          :icon="matFileUpload"
           size="sm"
           :label="buttonLabel()"
           class="text-weight-medium"
@@ -392,7 +398,7 @@ function isErrorOrWarning(): boolean {
         <q-btn
           color="negative"
           outline
-          icon="cancel"
+          :icon="matCancel"
           size="sm"
           :label="$t('data_management_cancel_job')"
           class="text-weight-medium"
@@ -420,7 +426,7 @@ function isErrorOrWarning(): boolean {
         </div>
         <q-btn
           color="positive"
-          icon="o_download"
+          :icon="outlinedDownload"
           size="sm"
           unelevated
           dense
@@ -430,7 +436,7 @@ function isErrorOrWarning(): boolean {
         </q-btn>
         <q-icon
           v-if="isErrorOrWarning()"
-          name="info"
+          :name="matInfo"
           size="sm"
           class="cursor-pointer"
         >

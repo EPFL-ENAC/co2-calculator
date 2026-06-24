@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { matChevronLeft, matChevronRight } from '@quasar/extras/material-icons';
 import { NavItem } from 'src/constant/navigation';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth';
@@ -37,7 +38,7 @@ function isItemDisabled(item: NavItem): boolean {
 <template>
   <div class="co2-sidebar" :class="{ 'co2-sidebar--collapsed': collapsed }">
     <div class="co2-sidebar-toggle" @click="collapsed = !collapsed">
-      <q-icon :name="collapsed ? 'chevron_right' : 'chevron_left'" size="xs" />
+      <q-icon :name="collapsed ? matChevronRight : matChevronLeft" size="xs" />
     </div>
     <q-list class="co2-sidebar-items">
       <q-item

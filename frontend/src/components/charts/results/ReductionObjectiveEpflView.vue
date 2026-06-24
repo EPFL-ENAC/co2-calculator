@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUpdated, ref } from 'vue';
+import { outlinedInfo } from '@quasar/extras/material-icons-outlined';
 import { useI18n } from 'vue-i18n';
 import { use } from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -708,7 +709,7 @@ const chartOption = computed<EChartsOption | null>(() => {
     />
     <q-card v-else flat class="objective-empty-card">
       <q-card-section class="objective-empty-card__content">
-        <q-icon name="o_info" size="md" color="accent" class="q-mb-md" />
+        <q-icon :name="outlinedInfo" size="md" color="accent" class="q-mb-md" />
         <div class="text-h6 text-weight-medium text-center q-mb-sm">
           {{ $t('results_objectives_epfl_no_data_title') }}
         </div>

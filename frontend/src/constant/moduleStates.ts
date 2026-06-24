@@ -1,5 +1,9 @@
 import { MODULES, type Module } from './modules';
 import type { ModuleCardBadge } from './moduleCards';
+import {
+  outlinedPending,
+  outlinedCheckCircle,
+} from '@quasar/extras/material-icons-outlined';
 
 /**
  * Module status values matching backend ModuleStatus enum.
@@ -99,12 +103,12 @@ export const MODULE_STATUS_DISPLAY: Record<ModuleState, ModuleStatusDisplay> = {
   },
   [MODULE_STATES.InProgress]: {
     color: 'warning',
-    icon: 'o_pending',
+    icon: outlinedPending,
     label: 'module_status_in_progress',
   },
   [MODULE_STATES.Validated]: {
     color: 'positive',
-    icon: 'o_check_circle',
+    icon: outlinedCheckCircle,
     label: 'module_status_validated',
   },
 };

@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
+import {
+  matCalculate,
+  matCancel,
+  matInfo,
+} from '@quasar/extras/material-icons';
+import { outlinedDownload } from '@quasar/extras/material-icons-outlined';
 import { useUploadCard } from 'src/composables/useUploadCard';
 import {
   TargetType,
@@ -251,7 +257,7 @@ function handleAbort() {
             v-else
             color="accent"
             outline
-            icon="calculate"
+            :icon="matCalculate"
             size="sm"
             :label="$t('data_management_compute_factors')"
             class="text-weight-medium"
@@ -300,7 +306,7 @@ function handleAbort() {
         <q-btn
           v-if="lastJob?.ingestion_method !== IngestionMethod.API"
           color="positive"
-          icon="o_download"
+          :icon="outlinedDownload"
           size="sm"
           unelevated
           dense
@@ -310,7 +316,7 @@ function handleAbort() {
         </q-btn>
         <q-icon
           v-if="hasErrorOrWarn"
-          name="info"
+          :name="matInfo"
           size="sm"
           class="cursor-pointer"
         >
@@ -362,7 +368,7 @@ function handleAbort() {
       <q-btn
         color="negative"
         outline
-        icon="cancel"
+        :icon="matCancel"
         size="sm"
         :label="$t('data_management_cancel_job')"
         class="text-weight-medium q-ml-sm"
