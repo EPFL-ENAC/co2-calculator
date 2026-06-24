@@ -103,6 +103,10 @@ export default {
     en: "Calculate your unit's carbon footprint",
     fr: "Calculez l'empreinte carbone de votre unité",
   },
+  workspace_setup_calculator_title: {
+    en: 'CO₂ Calculator',
+    fr: 'Calculateur CO₂',
+  },
   workspace_setup_simulator_title: {
     en: 'CO₂ Simulator',
     fr: 'Simulateur CO₂',
