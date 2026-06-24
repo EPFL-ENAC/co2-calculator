@@ -55,6 +55,10 @@ const props = defineProps({
     type: Boolean as PropType<boolean | undefined>,
     default: undefined,
   },
+  bordered: {
+    type: Boolean,
+    default: true,
+  },
 });
 
 const { t, locale } = useI18n();
@@ -1363,7 +1367,14 @@ const downloadCSV = () => {
 <template>
   <q-card
     flat
-    class="container container--pa-none full-width module-carbon-chart"
+    :bordered="props.bordered"
+    :class="[
+      'container',
+      'container--pa-none',
+      'full-width',
+      'module-carbon-chart',
+      { 'module-carbon-chart--borderless': !props.bordered },
+    ]"
   >
     <q-card-section class="flex justify-between items-center q-pr-lg">
       <div class="flex items-center no-wrap">
@@ -1483,6 +1494,10 @@ const downloadCSV = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.module-carbon-chart--borderless {
+  border: none !important;
 }
 
 .module-carbon-chart__body {

@@ -3,7 +3,7 @@
     <q-card flat class="container">
       <q-icon
         name="o_display_settings"
-        color="accent"
+        color="info"
         size="32px"
         class="q-mb-md"
       />
@@ -20,27 +20,17 @@
         height="200px"
         class="full-width"
       />
-      <q-list v-else>
-        <div
-          v-for="(m, mIdx) in modules"
-          :key="m.type"
-          :class="{ 'q-mb-md': mIdx < modules.length - 1 }"
-        >
+      <q-card v-else flat bordered class="q-pa-none">
+        <template v-for="(m, mIdx) in modules" :key="m.type">
+          <q-separator v-if="mIdx > 0" />
           <q-expansion-item
             v-model="expandedModules[m.type]"
-            flat
-            header-class="text-h4 text-weight-medium"
-            class="container container--pa-none"
+            header-class="q-py-md"
           >
             <template #header>
-              <div class="row items-center full-width q-gutter-sm">
-                <ModuleIcon
-                  :name="m.type"
-                  color="accent"
-                  size="md"
-                  :aria-label="$t('module-info-label')"
-                />
-                <div class="col">
+              <div class="flex items-center">
+                <ModuleIconBox :name="m.type" size="sm" class="q-mr-sm" />
+                <div class="text-h5 text-weight-medium">
                   {{ $t(m.type) }}
                 </div>
               </div>
@@ -48,33 +38,31 @@
 
             <q-separator />
 
-            <q-card-section class="q-pa-none q-mt-md">
-              <div class="q-px-lg q-py-sm">
-                <div
-                  v-for="(sub, subIdx) in m.submodules"
-                  :key="`${m.type}-${sub.id}`"
-                  :class="{ 'q-mb-md': subIdx < m.submodules.length - 1 }"
-                >
-                  <SubModuleSection
-                    :submodule="sub"
-                    :module-config="m.config"
-                    :module-type="m.type"
-                    :disable="false"
-                    :is-simulator="true"
-                    :submodule-type="sub.type"
-                    :data="null"
-                    :loading="false"
-                    :error="null"
-                    :unit-id="unitId"
-                    :year="year"
-                    :threshold="m.config.threshold || defaultThreshold"
-                  />
-                </div>
+            <div class="q-px-lg q-py-md">
+              <div
+                v-for="(sub, subIdx) in m.submodules"
+                :key="`${m.type}-${sub.id}`"
+                :class="{ 'q-mb-md': subIdx < m.submodules.length - 1 }"
+              >
+                <SubModuleSection
+                  :submodule="sub"
+                  :module-config="m.config"
+                  :module-type="m.type"
+                  :disable="false"
+                  :is-simulator="true"
+                  :submodule-type="sub.type"
+                  :data="null"
+                  :loading="false"
+                  :error="null"
+                  :unit-id="unitId"
+                  :year="year"
+                  :threshold="m.config.threshold || defaultThreshold"
+                />
               </div>
-            </q-card-section>
+            </div>
           </q-expansion-item>
-        </div>
-      </q-list>
+        </template>
+      </q-card>
       <q-card flat bordered>
         <div class="q-pt-lg q-px-lg">
           <h2 class="text-h3 text-weight-medium">
@@ -85,24 +73,23 @@
         <q-separator class="q-mt-xl" />
 
         <!-- Summary numbers -->
-        <q-card flat class="grid-1-col q-mt-lg q-mb-lg q-px-lg">
+        <div class="grid-1-col q-mt-lg q-mb-lg">
           <BigNumber
             :title="$t('simulation_explore_page_results_total_tonnes_co2eq')"
             :number="`${formatTonnesCO2(totalTonnesCo2eq)}`"
             comparison=""
-            color="accent"
+            color="info"
+            :bordered="false"
           />
-          <template v-if="mountPrimaryCharts">
-            <div class="chart-wrapper">
-              <ModuleCarbonFootprintChart :breakdown-data="filteredBreakdown" />
-            </div>
-          </template>
-          <q-skeleton v-else type="rect" height="360px" class="full-width" />
+          <q-separator />
+          <ModuleCarbonFootprintChart
+            :breakdown-data="filteredBreakdown"
+            :bordered="false"
+          />
 
-          <q-card
-            flat
-            class="container q-pa-xl column items-center justify-center q-gutter-lg"
-          >
+          <q-separator />
+
+          <div class="column items-center justify-center q-pa-xl q-gutter-lg">
             <h3 class="text-h4 text-weight-medium">
               {{ $t('simulation_explore_page_results_download_title') }}
             </h3>
@@ -114,35 +101,34 @@
               size="md"
               color="accent"
               class="text-weight-medium"
+              @click="downloadReport"
             />
-          </q-card>
-        </q-card>
+          </div>
+        </div>
 
         <q-separator />
 
-        <q-card flat class="q-ma-lg">
-          <div
-            class="row no-wrap items-center justify-center q-pa-xl"
-            style="gap: 24px"
-          >
-            <q-icon name="o_calendar_month" color="accent" size="md" />
-            <div class="col">
-              <div class="text-h5 text-weight-medium q-mb-xs">
-                {{ $t('simulation_explore_page_convert_to_plan_title') }}
-              </div>
-              <div class="text-body2 text-secondary">
-                {{ $t('simulation_explore_page_convert_to_plan_description') }}
-              </div>
+        <div
+          class="row no-wrap items-center justify-center q-pa-xl"
+          style="gap: 24px"
+        >
+          <q-icon name="o_calendar_month" color="accent" size="md" />
+          <div class="col">
+            <div class="text-h5 text-weight-medium q-mb-xs">
+              {{ $t('simulation_explore_page_convert_to_plan_title') }}
             </div>
-            <q-btn
-              unelevated
-              no-caps
-              :label="$t('simulation_explore_page_convert_to_plan_button')"
-              color="info"
-              class="text-weight-medium"
-            />
+            <div class="text-body2 text-secondary">
+              {{ $t('simulation_explore_page_convert_to_plan_description') }}
+            </div>
           </div>
-        </q-card>
+          <q-btn
+            unelevated
+            no-caps
+            :label="$t('simulation_explore_page_convert_to_plan_button')"
+            color="info"
+            class="text-weight-medium"
+          />
+        </div>
       </q-card>
     </template>
   </q-page>
@@ -150,8 +136,10 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 
-import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import SubModuleSection from 'src/components/organisms/module/SubModuleSection.vue';
 import { MODULES_CONFIG } from 'src/constant/module-config';
 import type { ModuleConfig } from 'src/constant/moduleConfig';
@@ -168,9 +156,25 @@ import { formatTonnesCO2 } from 'src/utils/number';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ModuleCarbonFootprintChart from 'src/components/charts/results/ModuleCarbonFootprintChart.vue';
 
+const router = useRouter();
+const route = useRoute();
+const { locale } = useI18n();
+
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
 const moduleStore = useModuleStore();
+
+function downloadReport() {
+  const url = router.resolve({
+    name: 'simulation-explore-print',
+    params: {
+      language: locale.value.split('-')[0],
+      unit: route.params.unit,
+      year: route.params.year,
+    },
+  }).href;
+  window.open(url, '_blank');
+}
 
 // validateUnitGuard ensures selectedUnit and selectedYear are always set before
 // this route renders. The non-null assertions are safe here; the ready guard

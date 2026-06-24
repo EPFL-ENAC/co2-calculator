@@ -231,7 +231,7 @@ onMounted(async () => {
             <div class="row items-center q-gutter-sm">
               <q-icon name="o_calculate" size="sm" color="accent" />
               <h3 class="text-h4 text-weight-bold">
-                {{ $t('calculator_title') }}
+                {{ $t('workspace_setup_calculator_title') }}
               </h3>
             </div>
             <p class="text-body2 text-secondary q-mt-sm q-mb-none">

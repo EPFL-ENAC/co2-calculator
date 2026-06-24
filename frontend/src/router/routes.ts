@@ -64,6 +64,23 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // Simulation explore print preview — own layout, no header/sidebar
+  {
+    path: `/:language(${LANGUAGE_PATTERN})/:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})/simulation/explore/print`,
+    component: () => import('layouts/PrintLayout.vue'),
+    children: [
+      {
+        path: '',
+        name: 'simulation-explore-print',
+        component: () => import('pages/app/SimulationExplorePrintPage.vue'),
+        meta: {
+          requiresAuth: true,
+          note: 'Simulation Explore – Print/PDF preview (no chrome)',
+          breadcrumb: false,
+        },
+      },
+    ],
+  },
   // Backoffice reporting print previews — own layout, no header/sidebar
   {
     path: `/:language(${LANGUAGE_PATTERN})/back-office/reporting/print`,
