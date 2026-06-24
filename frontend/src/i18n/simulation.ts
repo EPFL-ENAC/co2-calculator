@@ -91,4 +91,8 @@ export default {
     en: 'Convert to Plan',
     fr: 'Convertir en planification',
   },
+  simulation_explore_print_subtitle: {
+    en: 'Simulation carbon footprint {year}',
+    fr: 'Empreinte carbone de la simulation {year}',
+  },
 };
