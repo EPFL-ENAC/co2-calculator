@@ -280,6 +280,11 @@ class ProfessionalTravelPlaneModuleHandler(ProfessionalTravelBaseModuleHandler):
     kind_field: str = "category"
     subkind_field: str = "cabin_class"
 
+    filter_map = {
+        "origin_iata": DataEntry.data["origin_iata"].as_string(),
+        "destination_iata": DataEntry.data["destination_iata"].as_string(),
+    }
+
     async def prefetch_slice(
         self,
         entries: list[Any],
@@ -465,6 +470,11 @@ class ProfessionalTravelTrainModuleHandler(ProfessionalTravelBaseModuleHandler):
     create_dto = ProfessionalTravelTrainHandlerCreate
     update_dto = ProfessionalTravelTrainHandlerUpdate
     response_dto = ProfessionalTravelTrainHandlerResponse
+
+    filter_map = {
+        "origin_name": DataEntry.data["origin_name"].as_string(),
+        "destination_name": DataEntry.data["destination_name"].as_string(),
+    }
 
     async def enrich_csv_row(
         self,
