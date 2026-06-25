@@ -1056,6 +1056,16 @@ function renderCell(
     optionsId?: string;
   },
 ) {
+  if (col.field === 'origin_name') {
+    const name = row['origin_name'] as string | undefined;
+    const iata = row['origin_iata'] as string | undefined;
+    return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
+  }
+  if (col.field === 'destination_name') {
+    const name = row['destination_name'] as string | undefined;
+    const iata = row['destination_iata'] as string | undefined;
+    return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
+  }
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
