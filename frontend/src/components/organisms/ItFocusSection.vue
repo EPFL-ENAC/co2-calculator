@@ -3,9 +3,6 @@ import { computed, ref } from 'vue';
 
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
-import { IT_FOCUS_CATEGORY_TO_MODULE } from 'src/constant/itFocus';
-import { MODULE_STATES } from 'src/constant/moduleStates';
-import { useTimelineStore } from 'src/stores/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
 import type { ItBreakdownResponse } from 'src/stores/modules';
 
@@ -29,8 +26,6 @@ const props = withDefaults(
   },
 );
 
-const timelineStore = useTimelineStore();
-
 const breakdownChartRef = ref<{ downloadPNG: () => Promise<void> } | null>(
   null,
 );
@@ -42,17 +37,15 @@ const IT_FOCUS_CATEGORY_ORDER = [
   'research_facilities_it',
 ] as const;
 
-function isItCategoryModuleValidated(categoryKey: string): boolean {
-  const mod = IT_FOCUS_CATEGORY_TO_MODULE[categoryKey];
-  if (!mod) return false;
-  return timelineStore.itemStates[mod] === MODULE_STATES.Validated;
-}
+const validatedKeys = computed(
+  () => new Set(props.data?.validated_sources ?? []),
+);
 
 const displayTotalItTonnes = computed(() => {
   if (!props.data) return 0;
   let sum = 0;
   for (const key of IT_FOCUS_CATEGORY_ORDER) {
-    if (isItCategoryModuleValidated(key)) {
+    if (validatedKeys.value.has(key)) {
       const cat = props.data.categories.find((c) => c.category_key === key);
       if (cat) sum += cat.tonnes_co2eq;
     }

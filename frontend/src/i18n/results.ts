@@ -950,6 +950,10 @@ export default {
     en: 'IT share',
     fr: 'Part IT',
   },
+  'it-focus-not-validated': {
+    en: 'not validated',
+    fr: 'non validé',
+  },
   'it-focus-equipment-it': {
     en: 'IT equipment',
     fr: 'Équipements IT',
