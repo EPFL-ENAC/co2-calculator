@@ -1,3 +1,17 @@
+## [1.0.8](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.7...v1.0.8) (2026-06-24)
+
+
+### Bug Fixes
+
+* formatting ([3a8c958](https://github.com/EPFL-ENAC/co2-calculator/commit/3a8c9584af308bacda19dfbc26d50e404ca3f1d4))
+* updated building rooms emissions calculation using energy type and conversion factor ([2e58c5d](https://github.com/EPFL-ENAC/co2-calculator/commit/2e58c5de2caa28b2fed39b453e40618adff17c23))
+
+
+### Features
+
+* add bordered prop to ModuleCarbonFootprintChart and update styles in SimulationExplorePage ([02d79d3](https://github.com/EPFL-ENAC/co2-calculator/commit/02d79d36cd28c3446b2b5f76bebe31da7a5c88d8))
+* add simulation explore print functionality with data handling and UI components ([8efd16c](https://github.com/EPFL-ENAC/co2-calculator/commit/8efd16c73f5d94f85120a2a7f856b702ca76becd))
+* update French translations for user roles and add CO₂ Calculator title in workspace setup ([8f26429](https://github.com/EPFL-ENAC/co2-calculator/commit/8f2642921c5d700599587d3174c016eb7e3bc0f3))
 ## [1.0.7](https://github.com/EPFL-ENAC/co2-calculator/compare/v1.0.6...v1.0.7) (2026-06-22)
 
 
