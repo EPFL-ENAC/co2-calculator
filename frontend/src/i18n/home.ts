@@ -23,35 +23,35 @@ export default {
     en: "Click 'Start' to complete the various modules and receive a full estimate of your unit's CO₂​-equivalent emissions, view your results, and export your data!",
     fr: 'Cliquez sur ""démarrer "" pour remplir les différents modules et obtenir une estimation complète des émissions de CO₂-équivalent de votre unité, consultez vos résultats, et exportez vos données !',
   },
-  home_intro_4: {
+  home_intro_3: {
     en: 'Only the main user has full access to all the features of the calculator but can delegate access to other team members by assigning them the role of main user or standard user via Accred. The majority of the data is uploaded automatically, but some can be entered manually or imported via a CSV file. You can switch to "color-blind" mode by clicking on your first and last name and activating the mode.',
     fr: "Seul le responsable d'unité a un accès complet à toutes les fonctionnalités du CO₂ calculateur mais peut déléguer l'accès à d'autres membres de l'équipe en leur attribuant le rôle d'utilisateur principal via Accred. La majorité des données remontent automatiquement mais certaines peuvent être saisies manuellement ou importées via un fichier CSV. Vous pouvez passer en mode \"color-blind\" en cliquant sur votre prénom et nom et en activant le mode.",
   },
-  home_intro_5_part_1: {
+  home_intro_4_part_1: {
     en: "For more information on the methodology and EPFL's Climate and Sustainability Strategy, see our ",
     fr: "Pour plus d'informations sur la méthodologie et la Stratégie Climat et Durabilité de l'EPFL, consultez notre ",
   },
-  home_intro_5_link_text: {
+  home_intro_4_link_text: {
     en: 'page',
     fr: 'page',
   },
-  home_intro_5_link_url: {
+  home_intro_4_link_url: {
     en: 'https://www.epfl.ch/about/sustainability/strategy/',
     fr: 'https://www.epfl.ch/about/sustainability/fr/strategie/',
   },
-  home_intro_5_part_2: {
+  home_intro_4_part_2: {
     en: '. If you need help, please ',
     fr: ". Si vous avez besoin d'aide, veuillez ",
   },
-  home_intro_5_contact_link_text: {
+  home_intro_4_contact_link_text: {
     en: 'contact us',
     fr: 'nous contacter',
   },
-  home_intro_5_contact_link_url: {
+  home_intro_4_contact_link_url: {
     en: 'mailto:sustainability%40epfl.ch',
     fr: 'mailto:sustainability%40epfl.ch',
   },
-  home_intro_5_part_3: {
+  home_intro_4_part_3: {
     en: '.',
     fr: '.',
   },
