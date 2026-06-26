@@ -55,7 +55,7 @@ const completedModules = 0;
     <q-separator class="q-my-sm" :color="selected ? 'accent' : 'grey-4'" />
     <div class="row items-center justify-between">
       <span class="text-body2 text-weight-medium">{{
-        $t('workspace_setup_unit_affiliation')
+        $t('workspace_unit_affiliation')
       }}</span>
       <span class="text-body2 text-weight-bold">{{
         unit.affiliations.join(' / ')
@@ -64,7 +64,7 @@ const completedModules = 0;
     <div class="q-mt-xl">
       <div class="row items-center justify-between q-mb-xs">
         <span class="text-body2 text-weight-medium">{{
-          $t('workspace_setup_unit_progress', {
+          $t('workspace_unit_progress', {
             year: latestYear || new Date().getFullYear(),
           })
         }}</span>

@@ -1,27 +1,37 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, defineAsyncComponent, h, onMounted, watch } from 'vue';
+import { QSkeleton } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
-import { MODULES_CONFIG } from 'src/constant/module-config';
-import { MODULE_CARDS } from 'src/constant/moduleCards';
-import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
-import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
-import { PermissionAction } from 'src/stores/auth';
-import type { Module } from 'src/constant/modules';
-import { useTimelineStore } from 'src/stores/modules';
-import { useModuleStore } from 'src/stores/modules';
+import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import { formatTonnesCO2 } from 'src/utils/number';
+import { nOrDash } from 'src/utils/number';
+import WorkspaceSelectorBar from 'src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
+import CO2ProjectPlanner from 'src/components/organisms/home/CO2ProjectPlanner.vue';
+import CO2Explorer from 'src/components/organisms/home/CO2Explorer.vue';
 
-const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 const moduleStore = useModuleStore();
+const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
+const { t, te } = useI18n();
 
-const hasModulePermission = authStore.hasUserModulePermission;
+/** A translation key resolves to displayable content (exists and non-empty). */
+const hasText = (key: string) => te(key) && t(key).trim().length > 0;
+
+/** Keeps the ECharts-heavy bundle out of the initial home route chunk. */
+const ChartSkeleton = () =>
+  h(QSkeleton, { type: 'rect', height: '360px', class: 'full-width' });
+
+const ModuleCarbonFootprintChart = defineAsyncComponent({
+  loader: () =>
+    import('src/components/charts/results/ModuleCarbonFootprintChart.vue'),
+  loadingComponent: ChartSkeleton,
+  delay: 0,
+});
 
 const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
@@ -38,6 +48,13 @@ const validatedTotals = computed(() => {
   return moduleStore.state.validatedTotals;
 });
 
+// The headline figure is shown in tonnes CO₂-eq with one decimal.
+const totalTonnesCo2 = computed(() =>
+  nOrDash(validatedTotals.value?.total_tonnes_co2eq, {
+    options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+  }),
+);
+
 const firstEditableModule = computed(() =>
   MODULES_LIST.find(
     (module) =>
@@ -46,257 +63,207 @@ const firstEditableModule = computed(() =>
   ),
 );
 
-const moduleCardTotals = computed(() => {
-  const modules = validatedTotals.value?.modules;
-  return Object.fromEntries(
-    MODULE_CARDS.map(({ module }) => [
-      module,
-      modules?.[getModuleTypeId(module)] ?? null,
-    ]),
-  );
-});
-
-const timelineStore = useTimelineStore();
-
-const moduleCardsWithStatus = computed(() =>
-  MODULE_CARDS.filter(
-    (card) =>
-      yearConfigStore.isModuleVisible(card.module) &&
-      authStore.canUserAccessModule(card.module),
-  ),
+const calculatorUpdates = computed(() =>
+  [1, 2, 3]
+    .map((i) => ({
+      title: `calculator_update_${i}_title`,
+      date: `calculator_update_${i}_date`,
+      body: `calculator_update_${i}_body`,
+    }))
+    // Drop entries with no content; their leading separator goes with them.
+    .filter((update) => hasText(update.date) || hasText(update.body)),
 );
 
-const modulesCounterText = computed(() => t('home_modules_counter'));
-
-type StatusBadgeVariant = 'validated' | 'progress';
-
-function getStatusIcon(moduleLink: Module): string {
-  const state = timelineStore.itemStates[moduleLink];
-  if (state === MODULE_STATES.Validated) return 'o_check_circle';
-  if (state === MODULE_STATES.InProgress) return 'o_pending';
-  return '';
+async function fetchEmissionBreakdown() {
+  const carbonReportId = workspaceStore.selectedCarbonReport?.id;
+  if (!carbonReportId) return;
+  await moduleStore.getEmissionBreakdown(carbonReportId, []);
 }
 
-function getStatusBadgeVariant(moduleLink: Module): StatusBadgeVariant | null {
-  const state = timelineStore.itemStates[moduleLink];
-  if (state === MODULE_STATES.Validated) return 'validated';
-  if (state === MODULE_STATES.InProgress) return 'progress';
-  return null;
-}
+onMounted(fetchEmissionBreakdown);
 
-function getStatusLabelKey(moduleLink: Module): string {
-  const state = timelineStore.itemStates[moduleLink];
-  if (state === MODULE_STATES.Validated) return 'module_status_validated';
-  if (state === MODULE_STATES.InProgress) return 'module_status_in_progress';
-  return '';
-}
+watch(
+  () => workspaceStore.selectedCarbonReport?.id,
+  async () => {
+    moduleStore.invalidateEmissionBreakdown();
+    await fetchEmissionBreakdown();
+  },
+);
 </script>
 
 <template>
-  <q-page class="page-grid">
-    <q-card flat class="container">
-      <h1 class="text-h2 q-mb-md">{{ $t('home_title') }}</h1>
-      <p class="text-body1">
-        {{ $t('home_intro_1_part_1')
-        }}<a
-          :href="$t('home_intro_1_link_url')"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link"
-          >{{ $t('home_intro_1_link_text') }}</a
-        >{{ $t('home_intro_1_part_2') }}
-      </p>
-      <p class="text-body1">{{ $t('home_intro_2') }}</p>
-      <p class="text-body1">{{ $t('home_intro_3') }}</p>
-      <p class="text-body1 q-mb-none">
-        {{ $t('home_intro_4_part_1')
-        }}<a
-          :href="$t('home_intro_4_link_url')"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="link"
-          >{{ $t('home_intro_4_link_text') }}</a
-        >{{ $t('home_intro_4_part_2')
-        }}<a :href="$t('home_intro_4_contact_link_url')" class="link">{{
-          $t('home_intro_4_contact_link_text')
-        }}</a
-        >{{ $t('home_intro_4_part_3') }}
-      </p>
-      <q-btn
-        color="info"
-        :label="$t('home_start_button')"
-        unelevated
-        no-caps
-        size="md"
-        class="text-weight-medium q-mt-xl"
-        :to="{ name: 'module', params: { module: firstEditableModule } }"
-        :disable="!firstEditableModule"
-      />
-    </q-card>
-
-    <div class="grid-2-col">
-      <q-card flat class="container">
-        <h3 class="text-h4 text-weight-medium">
-          {{ $t('home_results_title') }}
-        </h3>
-        <h3 class="text-h5 text-weight-medium text-secondary">
-          {{ $t('home_results_subtitle', { year: currentYear }) }}
-        </h3>
-        <div class="flex justify-between items-end q-mt-xl">
-          <q-btn
-            color="info"
-            :label="$t('home_results_btn')"
-            unelevated
-            no-caps
-            size="md"
-            class="text-weight-medium"
-            :to="{ name: 'results' }"
-          />
-          <div class="column items-end">
-            <p class="text-h1 text-weight-medium q-mb-none">
-              {{ formatTonnesCO2(validatedTotals?.total_tonnes_co2eq) }}
-            </p>
-            <p class="text-secondary text-body2 q-mb-none">
-              {{ $t('tco2eq') }}
-            </p>
-          </div>
-        </div>
-      </q-card>
-      <q-card flat class="container column justify-between">
-        <div class="row items-center justify-between q-mb-xl">
-          <div class="row items-center q-gutter-sm">
-            <q-icon name="o_notifications" color="info" size="md" />
-            <h3 class="text-h4 text-weight-medium">
-              {{ $t('calculator_update_title') }}
-            </h3>
-          </div>
-          <span class="text-body2 text-secondary">
-            {{ $t('calculator_update_last_update') }}
-          </span>
-        </div>
-        <div>
-          <h4 class="text-h5 text-weight-medium q-mb-xs">
-            {{ $t('calculator_update_entry_title') }}
-          </h4>
-          <p class="text-body2 text-secondary q-mb-none">
-            {{ $t('calculator_update_entry_body') }}
-          </p>
-        </div>
-      </q-card>
+  <q-page>
+    <div class="home-workspace-bar">
+      <div class="home-workspace-bar__inner">
+        <WorkspaceSelectorBar />
+      </div>
     </div>
 
-    <div>
-      <div class="text-h5 text-weight-medium q-mb-sm">
-        {{ modulesCounterText }}
-      </div>
-      <div class="grid-3-col">
-        <q-card
-          v-for="moduleCard in moduleCardsWithStatus"
-          :key="moduleCard.module"
-          flat
-          class="container"
-        >
-          <div class="flex justify-between">
-            <div class="q-gutter-sm row items-center">
-              <ModuleIconBox
-                :name="moduleCard.module"
-                size="sm"
-                class="q-mr-xs"
+    <div class="page-grid">
+      <!-- CO₂ Calculator — title/text/actions sit on the page (no card),
+           only the chart + updates panel is bordered. -->
+      <section class="co2-calculator">
+        <div class="row items-start justify-between no-wrap q-mb-md">
+          <div class="row items-center q-gutter-sm">
+            <q-icon name="o_calculate" size="md" color="info" />
+            <h1 class="text-h2 q-mb-none">{{ $t('co2_calculator_title') }}</h1>
+          </div>
+          <q-btn
+            type="a"
+            target="_blank"
+            rel="noopener noreferrer"
+            color="grey-4"
+            text-color="primary"
+            :label="$t('co2_calculator_about')"
+            icon="o_info"
+            unelevated
+            no-caps
+            outline
+            size="sm"
+            class="text-weight-medium"
+          />
+        </div>
+
+        <p class="text-body1 section-intro">
+          {{ $t('home_intro_1_part_1')
+          }}<a
+            :href="$t('home_intro_1_link_url')"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link"
+            >{{ $t('home_intro_1_link_text') }}</a
+          >{{ $t('home_intro_1_part_2') }}
+        </p>
+        <p class="text-body1 section-intro">
+          {{ $t('home_intro_4_part_1')
+          }}<a
+            :href="$t('home_intro_4_link_url')"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="link"
+            >{{ $t('home_intro_4_link_text') }}</a
+          >{{ $t('home_intro_4_part_2')
+          }}<a :href="$t('home_intro_4_contact_link_url')" class="link">{{
+            $t('home_intro_4_contact_link_text')
+          }}</a
+          >{{ $t('home_intro_4_part_3') }}
+        </p>
+
+        <!-- Calculator card: two full-height columns separated by a vertical
+             divider. Left = title · chart · actions/total; right = updates. -->
+        <q-card flat bordered class="q-mt-xl calculator-card">
+          <!-- Left column: title, chart, then actions + total footer -->
+          <div class="calculator-card__main">
+            <div class="calculator-card__header">
+              <h2 class="text-h5 text-weight-medium q-mb-none">
+                {{ $t('co2_calculator_chart_title', { year: currentYear }) }}
+              </h2>
+            </div>
+
+            <q-separator />
+
+            <div class="calculator-card__chart">
+              <ModuleCarbonFootprintChart
+                :breakdown-data="moduleStore.state.emissionBreakdown"
+                :bordered="false"
+                hide-header
+                hide-actions
               />
-              <h3 class="text-h5 text-weight-medium">
-                {{ $t(moduleCard.module) }}
+            </div>
+
+            <q-separator />
+
+            <div class="calculator-card__footer">
+              <div class="row items-center q-gutter-sm">
+                <q-btn
+                  color="info"
+                  :label="$t('co2_calculator_continue')"
+                  icon-right="o_arrow_circle_right"
+                  unelevated
+                  no-caps
+                  size="md"
+                  class="text-weight-medium"
+                  :to="{
+                    name: 'module',
+                    params: { module: firstEditableModule },
+                  }"
+                  :disable="!firstEditableModule"
+                />
+                <q-btn
+                  color="grey-4"
+                  text-color="primary"
+                  :label="$t('home_results_btn')"
+                  icon="o_bar_chart"
+                  unelevated
+                  no-caps
+                  outline
+                  size="md"
+                  class="text-weight-medium"
+                  :to="{ name: 'results' }"
+                />
+              </div>
+              <div class="column items-end">
+                <p class="text-h3 text-weight-medium q-mb-none">
+                  {{ totalTonnesCo2 }}
+                </p>
+                <p class="text-secondary text-caption q-mb-none">
+                  {{ $t('results_units_tonnes') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <q-separator vertical class="calculator-card__divider" />
+
+          <!-- Right column: calculator updates -->
+          <div class="calculator-card__aside">
+            <div class="calculator-card__header calculator-card__header--side">
+              <q-icon name="o_notifications" size="sm" color="info" />
+              <h3 class="text-h5 text-weight-medium q-mb-none">
+                {{ $t('calculator_update_title') }}
               </h3>
             </div>
-            <span
-              v-if="getStatusBadgeVariant(moduleCard.module)"
-              class="home-status-badge"
-              :class="`home-status-badge--${getStatusBadgeVariant(moduleCard.module)}`"
-            >
-              <q-icon :name="getStatusIcon(moduleCard.module)" size="xs" />
-              {{ $t(getStatusLabelKey(moduleCard.module)) }}
-            </span>
-          </div>
-          <p class="text-body2 text-secondary q-mt-md">
-            {{ $t(`${moduleCard.module}-description`) }}
-          </p>
-          <q-separator class="grey-6 q-my-lg" />
-          <div class="flex justify-between items-center">
-            <div class="flex items-center">
-              <q-btn
-                v-if="
-                  hasModulePermission(
-                    moduleCard.module,
-                    PermissionAction.VIEW,
-                  ) &&
-                  !hasModulePermission(moduleCard.module, PermissionAction.EDIT)
-                "
-                icon="o_visibility"
-                :label="$t('home_view_btn')"
-                unelevated
-                no-caps
-                size="sm"
-                class="text-weight-medium btn-secondary q-mr-sm"
-                :to="{ name: 'module', params: { module: moduleCard.module } }"
-              />
 
-              <q-btn
-                icon="o_edit"
-                :label="$t('home_edit_btn')"
-                unelevated
-                no-caps
-                size="sm"
-                class="text-weight-medium btn-secondary"
-                :disable="
-                  !hasModulePermission(
-                    moduleCard.module,
-                    PermissionAction.EDIT,
-                  ) || moduleCard.isDisabled
-                "
-                :to="
-                  hasModulePermission(
-                    moduleCard.module,
-                    PermissionAction.EDIT,
-                  ) && !moduleCard.isDisabled
-                    ? { name: 'module', params: { module: moduleCard.module } }
-                    : undefined
-                "
+            <div class="calculator-card__updates">
+              <template
+                v-for="(update, index) in calculatorUpdates"
+                :key="update.title"
               >
-                <q-tooltip v-if="moduleCard.isDisabled">
-                  {{ $t('module_disabled') }}
-                </q-tooltip>
-              </q-btn>
-            </div>
-            <div
-              v-if="
-                timelineStore.itemStates[moduleCard.module] !==
-                MODULE_STATES.Default
-              "
-              class="row q-gutter-xs text-body1 items-baseline"
-            >
-              <p class="text-weight-medium q-mb-none">
-                {{
-                  MODULES_CONFIG[moduleCard.module].totalFormatter(
-                    moduleCardTotals[moduleCard.module],
-                  )
-                }}
-              </p>
-              <p class="text-body2 text-secondary q-mb-none">
-                {{
-                  $t('module_total_result_title_unit', {
-                    type: moduleCard.module,
-                  })
-                }}
-              </p>
-            </div>
-            <div
-              v-else
-              class="row q-gutter-xs text-body1 text-grey-4 items-baseline"
-            >
-              <p class="text-weight-medium q-mb-none">—</p>
+                <q-separator
+                  v-if="index > 0"
+                  class="calculator-card__update-separator"
+                />
+                <div>
+                  <div class="row items-center justify-between q-mb-xs no-wrap">
+                    <h4 class="text-h6 text-weight-medium q-mb-none">
+                      {{ $t(update.title) }}
+                    </h4>
+                    <span
+                      v-if="hasText(update.date)"
+                      class="text-caption text-secondary q-ml-md"
+                    >
+                      {{ $t(update.date) }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="hasText(update.body)"
+                    class="text-body2 text-secondary q-mb-none"
+                  >
+                    {{ $t(update.body) }}
+                  </p>
+                </div>
+              </template>
             </div>
           </div>
         </q-card>
-      </div>
+      </section>
+    </div>
+
+    <!-- Full-width grey band, breaks out of the centred page-grid. -->
+    <CO2ProjectPlanner />
+
+    <div class="page-grid">
+      <CO2Explorer />
     </div>
   </q-page>
 </template>
@@ -304,31 +271,107 @@ function getStatusLabelKey(moduleLink: Module): string {
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
 
-.home-status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: tokens.$home-status-badge-gap;
-  font-size: tokens.$home-status-badge-font-size;
-  font-weight: tokens.$home-status-badge-font-weight;
-  line-height: 1;
-  padding: tokens.$home-status-badge-padding-y
-    tokens.$home-status-badge-padding-x;
-  border-radius: tokens.$radius-pill;
+// Full-width band pinned under the header; its content is constrained to the
+// same centered container width as the page-grid sections below.
+.home-workspace-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  width: 100%;
+  background-color: tokens.$container-default-bg;
+  border-bottom: tokens.$container-border-weight solid
+    tokens.$container-default-border;
 
-  &--validated {
-    background-color: rgba(
-      var(--q-positive-rgb, 33, 186, 69),
-      tokens.$home-status-badge-bg-opacity-validated
-    );
-    color: var(--q-positive);
+  &__inner {
+    width: 100%;
+    max-width: tokens.$layout-page-width;
+    margin: 0 auto;
+    padding: tokens.$spacing-md tokens.$layout-page-padding-x;
+  }
+}
+
+// Intro/description text under a section title is capped at three-quarters width.
+.section-intro {
+  max-width: 75%;
+}
+
+// Two-column card: left column (title · chart · footer) and right column
+// (updates) stacked on mobile, side-by-side with a full-height divider on wide.
+.calculator-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.calculator-card__main,
+.calculator-card__aside {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+// Section title bar at the top of each column.
+.calculator-card__header {
+  padding: tokens.$spacing-xl;
+}
+
+.calculator-card__header--side {
+  display: flex;
+  align-items: center;
+  gap: tokens.$spacing-sm;
+}
+
+.calculator-card__chart {
+  flex: 1;
+  padding: tokens.$spacing-lg tokens.$spacing-xl;
+}
+
+.calculator-card__updates {
+  padding: tokens.$spacing-xl;
+}
+
+// Thin divider between consecutive update entries (not before the first).
+.calculator-card__update-separator {
+  margin: tokens.$spacing-xl 0;
+}
+
+// Footer lives only inside the left column, beneath the chart.
+.calculator-card__footer {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: tokens.$spacing-lg;
+  padding: tokens.$spacing-xl;
+}
+
+// Vertical divider hidden when columns are stacked.
+.calculator-card__divider {
+  display: none;
+}
+
+@media (min-width: tokens.$breakpoint-desktop-min) {
+  .calculator-card {
+    flex-direction: row;
+    align-items: stretch;
   }
 
-  &--progress {
-    background-color: rgba(
-      var(--q-warning-rgb, 242, 192, 56),
-      tokens.$home-status-badge-bg-opacity-progress
-    );
-    color: var(--q-warning);
+  // Match the 2:1 split between chart and updates columns.
+  .calculator-card__main {
+    flex: 2;
+  }
+
+  .calculator-card__aside {
+    flex: 1;
+  }
+
+  .calculator-card__footer {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .calculator-card__divider {
+    display: block;
+    align-self: stretch;
   }
 }
 </style>

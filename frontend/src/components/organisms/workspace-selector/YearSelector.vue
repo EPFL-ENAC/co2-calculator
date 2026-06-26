@@ -32,7 +32,7 @@ const { t } = useI18n();
 const columns = computed<QTableColumn[]>(() => [
   {
     name: 'year',
-    label: t('workspace_setup_year_table_header_year'),
+    label: t('workspace_year_table_header_year'),
     field: 'year',
     align: 'left',
     sortable: true,

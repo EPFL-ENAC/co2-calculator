@@ -23,4 +23,41 @@ export default {
     en: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
     fr: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam.',
   },
+  // --- Calculator Update list (unified home page) ---
+  calculator_update_1_title: {
+    en: 'Update of Ecoinvent factors',
+    fr: 'Mise à jour des facteurs Ecoinvent',
+  },
+  calculator_update_1_date: {
+    en: '17 march 2026',
+    fr: '17 mars 2026',
+  },
+  calculator_update_1_body: {
+    en: 'The purchases factors have been updated on Monday 12 July because tita titata',
+    fr: 'Les facteurs des achats ont été mis à jour le lundi 12 juillet parce que tita titata',
+  },
+  calculator_update_2_title: {
+    en: 'New Research Facility at EPFL',
+    fr: 'Nouvelle infrastructure de recherche à l’EPFL',
+  },
+  calculator_update_2_date: {
+    en: '13 march 2026',
+    fr: '13 mars 2026',
+  },
+  calculator_update_2_body: {
+    en: 'New platform IT4R has huge impact Co2 and has been added to module Research Facilities and boycotting toblerone for inclusivity reasons',
+    fr: 'La nouvelle plateforme IT4R a un fort impact Co2 et a été ajoutée au module Infrastructures de recherche et boycotte le toblerone pour des raisons d’inclusivité',
+  },
+  calculator_update_3_title: {
+    en: 'Software update',
+    fr: 'Mise à jour logicielle',
+  },
+  calculator_update_3_date: {
+    en: '13 march 2026',
+    fr: '13 mars 2026',
+  },
+  calculator_update_3_body: {
+    en: 'If you experience bugs, do Logout and Login again, our amazing software team has solved it all youp!',
+    fr: 'Si vous rencontrez des bugs, déconnectez-vous et reconnectez-vous, notre superbe équipe logicielle a tout résolu youp !',
+  },
 };

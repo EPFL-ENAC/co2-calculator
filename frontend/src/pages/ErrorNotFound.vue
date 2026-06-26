@@ -51,7 +51,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { HOME_ROUTE_NAME, WORKSPACE_SETUP_ROUTE_NAME } from 'src/router/routes';
+import { HOME_ROUTE_NAME, DEFAULT_ROUTE_NAME } from 'src/router/routes';
 import { i18n } from 'src/boot/i18n';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
@@ -63,7 +63,7 @@ const homeRoute = computed(() => {
   const language = currentLocale.split('-')[0] || 'en';
 
   // Go straight to the workspace home when a unit/year is selected;
-  // otherwise fall back to workspace setup so the required params exist.
+  // otherwise fall back to the landing resolver so the required params exist.
   const params = workspaceStore.selectedParams;
   if (params) {
     return {
@@ -77,7 +77,7 @@ const homeRoute = computed(() => {
   }
 
   return {
-    name: WORKSPACE_SETUP_ROUTE_NAME,
+    name: DEFAULT_ROUTE_NAME,
     params: { language },
   };
 });

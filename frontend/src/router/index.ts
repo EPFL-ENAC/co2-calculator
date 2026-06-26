@@ -51,17 +51,20 @@ export default route(function (/* { store, ssrContext } */) {
   });
 
   /*
- EXPECTED BEHAVIOR workspace-setup IS THE DEFAULT ROUTE
+ EXPECTED BEHAVIOR the parameterless landing (/en) IS THE DEFAULT ROUTE.
+ It renders nothing — its guard resolves a default unit/year and forwards
+ to the unified home page (/en/:unit/:year/home), or to /unauthorized when
+ the account has no units.
   ** LOGGED IN USERS **
-  / -> redirect to /:language(workspace-setup) with current locale
-  /en -> redirect to /en/workspace-setup
-  /en/login -> redirect to /en/workspace-setup
+  / -> redirect to /:language with current locale
+  /en -> resolve default workspace -> /en/:unit/:year/home
+  /en/login -> redirect to /en
   /en/403 -> show 404\
   /404 -> show 404
   /unauthorized -> show 403
 
   // not logged in
-  /en/workspace-setup when not authenticated -> redirect to /en/login
+  /en when not authenticated -> redirect to /en/login
   /en/login -> show login page
   / -> redirect to /:language/login with current locale
   /en -> redirect to /en/login

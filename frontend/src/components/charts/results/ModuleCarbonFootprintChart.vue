@@ -59,6 +59,16 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  /** Hide the internal title bar (title + info tooltip + additional-data toggle). */
+  hideHeader: {
+    type: Boolean,
+    default: false,
+  },
+  /** Hide the download PNG/CSV action footer. */
+  hideActions: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const { t, locale } = useI18n();
@@ -1376,7 +1386,10 @@ const downloadCSV = () => {
       { 'module-carbon-chart--borderless': !props.bordered },
     ]"
   >
-    <q-card-section class="flex justify-between items-center q-pr-lg">
+    <q-card-section
+      v-if="!props.hideHeader"
+      class="flex justify-between items-center q-pr-lg"
+    >
       <div class="flex items-center no-wrap">
         <span class="text-body1 text-weight-medium q-ml-sm q-mb-none">
           {{ props.title ?? $t('unit_carbon_footprint_title') }}
@@ -1461,8 +1474,11 @@ const downloadCSV = () => {
         />
       </Teleport>
     </q-card-section>
-    <q-separator v-if="!isPrintMode" />
-    <q-card-section v-if="!isPrintMode" class="flex justify-start q-gutter-sm">
+    <q-separator v-if="!isPrintMode && !props.hideActions" />
+    <q-card-section
+      v-if="!isPrintMode && !props.hideActions"
+      class="flex justify-start q-gutter-sm"
+    >
       <q-btn
         unelevated
         no-caps

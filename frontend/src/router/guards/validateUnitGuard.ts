@@ -1,5 +1,7 @@
+import type { RouteLocationNormalized } from 'vue-router';
 import { useTimelineStore } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { DEFAULT_ROUTE_NAME } from '../routeNames';
 
 async function validateUnit() {
   const workspaceStore = useWorkspaceStore();
@@ -15,14 +17,24 @@ async function validateUnit() {
     workspaceStore.setYear(workspaceStore.selectedParams?.year || null);
     return true;
   }
-  // If the unit from the route is not valid, redirect to workspace setup
+  // If the unit from the route is not valid, fall back to the landing resolver
   workspaceStore.setUnit(null);
   workspaceStore.setYear(null);
-  // go back to workspcae-setup
   return false;
 }
 
-export default async function validateUnitGuard(to) {
+/**
+ * Shared workspace loader used by both the route `beforeEnter` guard and
+ * `WorkspacePage`'s `onBeforeRouteUpdate`. Validates the `:unit` param against
+ * the user's units, selects (or creates) the carbon report for `:year`, and
+ * loads the module states. Returns `true` on success, or a redirect location
+ * back to the landing resolver when the unit is invalid.
+ *
+ * Keeping this in one place ensures switching unit/year via the home-page
+ * dropdowns — which only mutates route params and therefore does NOT re-run
+ * `beforeEnter` — still refreshes the selected workspace.
+ */
+export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
   // Lighthouse CI bypass: skip unit validation so workspace pages render without a backend.
   if (window.__LIGHTHOUSE_BYPASS__) return true;
 
@@ -50,7 +62,7 @@ export default async function validateUnitGuard(to) {
   // then we can retrieve modules
   if (!response && !carbonReportId) {
     return {
-      name: 'workspace-setup',
+      name: DEFAULT_ROUTE_NAME,
       params: {
         language: to.params.language || 'en',
       },
@@ -61,4 +73,8 @@ export default async function validateUnitGuard(to) {
     };
   }
   return true;
+}
+
+export default async function validateUnitGuard(to: RouteLocationNormalized) {
+  return loadWorkspaceFromRoute(to);
 }
