@@ -66,7 +66,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { WORKSPACE_SETUP_ROUTE_NAME } from 'src/router/routes';
+import { DEFAULT_ROUTE_NAME } from 'src/router/routes';
 import { i18n } from 'src/boot/i18n';
 
 const route = useRoute();
@@ -111,7 +111,7 @@ const homeRoute = computed(() => {
   const currentLocale = i18n.global.locale.value;
   const language = currentLocale.split('-')[0] || 'en';
   return {
-    name: WORKSPACE_SETUP_ROUTE_NAME,
+    name: DEFAULT_ROUTE_NAME,
     params: { language },
   };
 });

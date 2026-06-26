@@ -111,4 +111,204 @@ export default {
     en: 'Please validate module',
     fr: 'Veuillez valider le module',
   },
+  // --- Unified home page (workspace selector + sections) ---
+  workspace_unit_label: {
+    en: 'Unit / Lab',
+    fr: 'Unité / Labo',
+  },
+  workspace_year_label: {
+    en: 'Assessment Year',
+    fr: "Année d'évaluation",
+  },
+  co2_calculator_title: {
+    en: 'CO₂ Calculator',
+    fr: 'Calculateur CO₂',
+  },
+  co2_calculator_about: {
+    en: 'About',
+    fr: 'À propos',
+  },
+  co2_calculator_chart_title: {
+    en: 'My unit CO₂ Assessment {year}',
+    fr: 'Bilan CO₂ de mon unité {year}',
+  },
+  co2_calculator_continue: {
+    en: 'Continue',
+    fr: 'Continuer',
+  },
+  co2_project_planner_title: {
+    en: 'CO₂ Project Planner',
+    fr: 'Planificateur de projet CO₂',
+  },
+  co2_project_planner_description: {
+    en: "Choose your path either to explore and quickly assess the carbon impact of individual items or actions or to plan and forecast emissions for your next project using your unit's previous year's carbon report.",
+    fr: "Choisissez votre approche : explorer et évaluer rapidement l'impact carbone d'éléments ou d'actions, ou planifier et prévoir les émissions de votre prochain projet à partir du rapport carbone de l'année précédente de votre unité.",
+  },
+  co2_project_planner_btn: {
+    en: 'Start a project',
+    fr: 'Démarrer un projet',
+  },
+  co2_explorer_title: {
+    en: 'CO₂ Explorer',
+    fr: 'Explorateur CO₂',
+  },
+  co2_explorer_description: {
+    en: "Choose your path either to explore and quickly assess the carbon impact of individual items or actions or to plan and forecast emissions for your next project using your unit's previous year's carbon report.",
+    fr: "Choisissez votre approche : explorer et évaluer rapidement l'impact carbone d'éléments ou d'actions, ou planifier et prévoir les émissions de votre prochain projet à partir du rapport carbone de l'année précédente de votre unité.",
+  },
+  co2_explorer_btn: {
+    en: 'Start an Exploration',
+    fr: 'Démarrer une exploration',
+  },
+  planner_table_name: {
+    en: 'Name',
+    fr: 'Nom',
+  },
+  planner_table_date: {
+    en: 'Date',
+    fr: 'Date',
+  },
+  planner_table_creator: {
+    en: 'Creator',
+    fr: 'Créateur',
+  },
+  planner_table_action: {
+    en: 'Action',
+    fr: 'Action',
+  },
+  // --- Merged from the former workspace_setup.ts. The workspace selector now
+  // lives inline on the unified home page; these keys back the Unit/Year
+  // dropdowns (LabSelectorItem, YearSelector) and related strings. ---
+  workspace_change_btn: {
+    en: 'Change',
+    fr: 'Changer',
+  },
+  workspace_title: {
+    en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL',
+    fr: 'Bienvenue dans le Calculateur CO₂ des activités de recherche de l’EPFL',
+  },
+  workspace_description: {
+    en: "Assess your unit's carbon footprint, identify areas for improvement, and commit to a concrete reduction plan.\nSelect your unit and the year, and let's get started!",
+    fr: 'Évaluez l’empreinte carbone de votre unité, repérez les leviers d’action et engagez-vous dans une démarche de réduction concrète. \nChoisissez votre unité, l’année, puis obtenez vos résultats !',
+  },
+  workspace_no_units: {
+    en: 'No unit is available for your account. Please contact us if you think this is an error.',
+    fr: "Aucune unité n'est disponible pour votre compte. Veuillez nous contacter si vous pensez qu'il s'agit d'une erreur.",
+  },
+  workspace_unit_title: {
+    en: 'Select your unit',
+    fr: 'Sélectionnez votre unité',
+  },
+  workspace_unit_description: {
+    en: 'Choose the unit you want to assess for its carbon footprint.',
+    fr: "Choisissez l’unité dont vous souhaitez évaluer l'empreinte carbone.",
+  },
+  workspace_unit_counter: {
+    en: 'Your unit | Your units ({count})',
+    fr: 'Votre unité | Vos unités ({count})',
+  },
+  workspace_unit_role: {
+    en: 'Your role:',
+    fr: 'Votre rôle :',
+  },
+  workspace_year_title: {
+    en: 'Assessment years',
+    fr: 'Années d’évaluation',
+  },
+  workspace_workspace_title: {
+    en: 'Select your workspace',
+    fr: 'Sélectionnez votre espace de travail',
+  },
+  workspace_workspace_description: {
+    en: 'Choose whether you would like to use the CO₂ calculator or the CO₂ simulator:',
+    fr: 'Choisissez si vous souhaitez utiliser le CO₂ calculateur ou le CO₂ simulateur :',
+  },
+  workspace_year_description: {
+    en: 'Select the year you would like to evaluate',
+    fr: 'Choisissez l’année que vous souhaitez évaluer',
+  },
+  workspace_year_counter: {
+    en: 'Recorded Years ({count})',
+    fr: 'Années enregistrées ({count})',
+  },
+  workspace_year_table_header_year: {
+    en: 'Year',
+    fr: 'Année',
+  },
+  workspace_year_table_header_progress: {
+    en: 'Progress',
+    fr: 'Progression',
+  },
+  workspace_year_table_header_comparison: {
+    en: 'Comparison',
+    fr: 'Comparaison',
+  },
+  workspace_year_table_header_kgco2: {
+    en: 'kg CO₂-eq',
+    fr: 'kg CO₂-eq',
+  },
+  workspace_unit_error: {
+    en: 'Failed to load units.',
+    fr: 'Échec du chargement des unités.',
+  },
+  workspace_unit_no_units: {
+    en: 'No units available. Please contact your administrator.',
+    fr: 'Aucune unité disponible. Veuillez contacter votre administrateur.',
+  },
+  workspace_confirm_lab: {
+    en: 'Selected unit',
+    fr: 'Unité sélectionné',
+  },
+  workspace_year_error: {
+    en: 'Failed to load years.',
+    fr: 'Échec du chargement des années.',
+  },
+  workspace_confirm_year: {
+    en: 'Selected Year',
+    fr: 'Année sélectionnée',
+  },
+  workspace_confirm_selection: {
+    en: 'Continue to calculator',
+    fr: 'Continuer vers le calculateur',
+  },
+  workspace_restart: {
+    en: 'Start Over',
+    fr: 'Recommencer',
+  },
+  workspace_unit_affiliation: {
+    en: 'Affiliation',
+    fr: 'Affiliation',
+  },
+  workspace_unit_progress: {
+    en: 'Progress from last year',
+    fr: "Progression de l'année dernière",
+  },
+  workspace_calculator_description: {
+    en: "Calculate your unit's carbon footprint",
+    fr: "Calculez l'empreinte carbone de votre unité",
+  },
+  workspace_calculator_title: {
+    en: 'CO₂ Calculator',
+    fr: 'Calculateur CO₂',
+  },
+  workspace_simulator_title: {
+    en: 'CO₂ Simulator',
+    fr: 'Simulateur CO₂',
+  },
+  workspace_simulator_description: {
+    en: 'Simulate the carbon footprint of a specific grant or project; estimate the CO₂ emissions associated with a specific module',
+    fr: "Simulez l'empreinte carbone d'une subvention ou d'un projet spécifique, estimez sur les émissions CO₂ en lien avec un module spécifique",
+  },
+  workspace_calculator_current_progress: {
+    en: "Current year's progress",
+    fr: "Progression de l'année en cours",
+  },
+  workspace_simulator_completed_simulations: {
+    en: 'Completed simulations',
+    fr: 'Simulations complétées',
+  },
+  workspace_continue_simulator: {
+    en: 'Continue to simulator',
+    fr: 'Continuer vers le simulateur',
+  },
 } as const;

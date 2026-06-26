@@ -22,7 +22,7 @@ export {
   LOGIN_TEST_ROUTE_NAME,
   LOGIN_ROUTES,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
+  HOME_LANDING_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
@@ -33,7 +33,6 @@ import {
   LOGIN_ROUTE_NAME,
   LOGIN_TEST_ROUTE_NAME,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
@@ -131,8 +130,22 @@ const routes: RouteRecordRaw[] = [
       {
         path: `:language(${LANGUAGE_PATTERN})`,
         name: 'language',
-        redirect: { name: DEFAULT_ROUTE_NAME },
         children: [
+          {
+            // Parameterless landing (default route). It never renders: its
+            // `beforeEnter` resolves a default unit/year and forwards to the
+            // unified home page (or to /unauthorized when the account has no
+            // units). Replaces the former interactive `workspace-setup` page.
+            path: '',
+            name: DEFAULT_ROUTE_NAME,
+            beforeEnter: redirectToWorkspaceIfSelectedGuard,
+            component: { render: () => null },
+            meta: {
+              requiresAuth: true,
+              note: 'Landing - resolves default workspace, forwards to home',
+              breadcrumb: false,
+            },
+          },
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
@@ -148,17 +161,6 @@ const routes: RouteRecordRaw[] = [
             component: () => import('pages/app/LoginTestPage.vue'),
             meta: {
               note: 'Test User authentication - Login page',
-              breadcrumb: false,
-            },
-          },
-          {
-            path: 'workspace-setup',
-            name: WORKSPACE_SETUP_ROUTE_NAME,
-            beforeEnter: redirectToWorkspaceIfSelectedGuard,
-            component: () => import('pages/app/WorkspaceSetupPage.vue'),
-            meta: {
-              requiresAuth: true,
-              note: 'Workspace configuration - Year and lab selection',
               breadcrumb: false,
             },
           },
@@ -206,12 +208,25 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
+                // The simulator home (Explore/Plan tabs) now lives inline on the
+                // unified home page; this route just redirects there, preserving
+                // the language/unit/year params.
                 path: 'simulation',
                 name: 'simulation',
-                component: () => import('pages/app/SimulationsPage.vue'),
+                redirect: (to) => ({
+                  name: HOME_ROUTE_NAME,
+                  params: to.params,
+                }),
+              },
+              {
+                // Reached from the "Start a project" button on the unified
+                // home page (CO2ProjectPlanner).
+                path: 'simulation/add',
+                name: 'simulation-add',
+                component: () => import('pages/app/AddSimulationPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Selection and management page',
+                  note: 'Simulation - Add a new project simulation',
                   breadcrumb: true,
                 },
               },

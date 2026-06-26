@@ -7,7 +7,7 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { isBackOfficeRoute } from 'src/router/routes';
+import { isBackOfficeRoute, DEFAULT_ROUTE_NAME } from 'src/router/routes';
 import { PermissionAction } from 'src/stores/auth';
 
 const authStore = useAuthStore();
@@ -62,23 +62,24 @@ const breadcrumbLabel = computed(() =>
 );
 
 const logoRoute = computed(() => {
-  const routeName = String(route.name ?? '');
-  const isSimulation =
-    routeName === 'simulation' ||
-    routeName === 'simulation-explore' ||
-    routeName === 'simulation-plan';
-
-  if (isSimulation) {
+  // Inside a workspace (unit + year present) the logo returns to the unified
+  // home page; otherwise it falls back to the landing resolver.
+  if (route.params.unit && route.params.year) {
     return {
-      name: 'simulation',
+      name: 'home',
       params: {
         language: route.params.language || 'en',
+        unit: route.params.unit,
+        year: route.params.year,
       },
     };
   }
 
   return {
-    name: 'workspace-setup',
+    name: DEFAULT_ROUTE_NAME,
+    params: {
+      language: route.params.language || 'en',
+    },
   };
 });
 </script>
@@ -128,14 +129,17 @@ const logoRoute = computed(() => {
         size="sm"
         class="text-weight-medium q-ml-xl"
         :to="{
-          name: 'workspace-setup',
+          name: DEFAULT_ROUTE_NAME,
           params: {
             language: route.params.language || 'en',
           },
         }"
       />
 
-      <template v-if="route.name !== 'workspace-setup'">
+      <!-- The unified home page hosts the Unit/Year dropdowns itself, so the
+           workspace summary + "Change workspace" shortcut are suppressed there
+           and only shown on the module / results / simulation routes. -->
+      <template v-if="route.name !== 'home'">
         <span
           v-if="workspaceDisplay"
           class="text-body2 text-weight-medium q-ml-xl q-mr-sm"
@@ -154,13 +158,11 @@ const logoRoute = computed(() => {
           size="sm"
           class="text-weight-medium q-ml-xl"
           :to="{
-            name: 'workspace-setup',
+            name: 'home',
             params: {
               language: route.params.language || 'en',
-            },
-            query: {
-              unit: null,
-              year: null,
+              unit: route.params.unit,
+              year: route.params.year,
             },
           }"
         />
@@ -206,7 +208,7 @@ const logoRoute = computed(() => {
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             :label="$t('home')"
-            :to="{ name: 'workspace-setup', params: route.params }"
+            :to="{ name: 'home', params: route.params }"
           />
           <q-breadcrumbs-el class="text-capitalize" :label="breadcrumbLabel" />
         </q-breadcrumbs>
