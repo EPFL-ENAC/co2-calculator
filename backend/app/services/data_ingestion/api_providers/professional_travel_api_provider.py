@@ -58,6 +58,24 @@ REQUIRED_CAPTIONS: list[str] = [
     "Number of trips",
 ]
 
+# required captions for headcount
+# REQUIRED_CAPTIONS: list[str] = [
+#     "FTE",
+#     "Headcount",
+#     "OrgID",
+#     "Name",
+#     "SAPPersID",
+#     "PersStatusTxt",
+#     "FONCTION FR",
+#     "FUNCTION EN",
+#     "unit_institutional_txt",
+#     "unit_institutional_id",
+#     "OrgTxt",
+#     "sius_code",
+#     "user_institutional_id",
+#     "ISODate",
+# ]
+
 
 # todo: hard code travel ?
 # from app.crud.data_entries import bulk_insert_data_entries
