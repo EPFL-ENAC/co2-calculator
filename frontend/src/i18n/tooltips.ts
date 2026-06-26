@@ -53,7 +53,7 @@ export default {
   },
   'module-buildings-title': {
     en: 'Emissions from the Buildings module contribute to Scope 1 (on-site energy combustion; for example, a natural gas boiler) and Scope 2 (electricity consumption for heating, cooling, ventilation, and lighting).',
-    fr: 'Les émissions provenant du module Bâtiments contribuent aux scopes 1 (combustion d’énergie sur site; par exemple une chaudière à gaz naturel) et scope 2 ( consommation d’électricité pour le chauffage, le refroidissement, la ventilation et l’éclairage).'
+    fr: 'Les émissions provenant du module Bâtiments contribuent aux scopes 1 (combustion d’énergie sur site; par exemple une chaudière à gaz naturel) et scope 2 ( consommation d’électricité pour le chauffage, le refroidissement, la ventilation et l’éclairage).',
   },
   'module-equipment-title': {
     en: "The emissions from the equipment module contribute to Scope 2 of the laboratory's carbon footprint.",
@@ -65,11 +65,11 @@ export default {
   },
   'module-professional-travel-title': {
     en: 'The emissions from the Professional travel module contribute to Scope 3 of the laboratory’s carbon footprint.',
-    fr: "Les émissions du module Voyages professionels contribue au scope 3 de l'empreinte carbone du laboratoire."
+    fr: "Les émissions du module Voyages professionels contribue au scope 3 de l'empreinte carbone du laboratoire.",
   },
   'module-purchase-title': {
     en: 'The emissions from the Purchases module contribute to Scope 3 of the laboratory’s carbon footprint.',
-    fr: "Les émissions du module Achats contribue au scope 3 de l'empreinte carbone du laboratoire."
+    fr: "Les émissions du module Achats contribue au scope 3 de l'empreinte carbone du laboratoire.",
   },
   'module-research-facilities-title': {
     en: 'The methodology used to calculate the carbon footprint of research facilities is documented in the Documentation pages',
@@ -126,25 +126,25 @@ export default {
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane': {
     en: 'The flights listed in the table are provided by the EPFL Central Travel Agency. If any flights are missing, you can add them manually.',
-    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement."
+    fr: "Les vols affichés dans le tableau proviennent de l'agence de voyage central EPFL. S'il manque des vols, il est possible de les saisir manuellement.",
   },
   'module-professional-travel-submodule-train': {
     en: 'Enter your train trips manually, whether they were taken in Switzerland or abroad. ',
-    fr: "Saisissez manuellement les voyages effectués en train qu'ils soient en Suisse ou à l'étranger."
+    fr: "Saisissez manuellement les voyages effectués en train qu'ils soient en Suisse ou à l'étranger.",
   },
 
   // ── Purchases ──────────────────────────────────────────────────────────────
   'module-purchase-submodule-scientific_equipment': {
     en: 'This table lists purchases that are automatically categorized as scientific equipment based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
-    fr: "Ce tableau regroupe les achats automatiquement catégorisés comme équipements scientifiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).",
+    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme équipements scientifiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).',
   },
   'module-purchase-submodule-it_equipment': {
     en: 'This table lists purchases that are automatically categorized as IT equipment based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse). For this category, EPFL-specific emission factors are used.',
-    fr: "Ce tableau regroupe les achats automatiquement catégorisés comme équipements informatiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse). Pour cette catégorie, les facteurs d'émission spécifiques à l'EPFL sont utilisés."
+    fr: "Ce tableau regroupe les achats automatiquement catégorisés comme équipements informatiques selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse). Pour cette catégorie, les facteurs d'émission spécifiques à l'EPFL sont utilisés.",
   },
   'module-purchase-submodule-consumable_accessories': {
     en: 'This table lists purchases that are automatically categorized as consumables and accessories based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
-    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme consommables et accessoires selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).'
+    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme consommables et accessoires selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).',
   },
   'module-purchase-submodule-biological_chemical_gaseous_product': {
     en: 'This table lists purchases that are automatically categorized as biological, chemical et gaseous products based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
@@ -152,15 +152,15 @@ export default {
   },
   'module-purchase-submodule-services': {
     en: 'This table lists purchases that are automatically categorized as services based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
-    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme services selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).'
+    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme services selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).',
   },
   'module-purchase-submodule-vehicles': {
     en: 'This table lists purchases that are automatically categorized as vehicles based on the UNSPSC classification code selected when the order was placed (e.g., via Catalyse).',
-    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme véhicules selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).'
+    fr: 'Ce tableau regroupe les achats automatiquement catégorisés comme véhicules selon le code de classification UNSPSC choisi  lors de la commande (ex. via Catalyse).',
   },
   'module-purchase-submodule-other_purchases': {
     en: 'This table lists all remaining purchases whose classification codes do not correspond to any of the specific main categories.',
-    fr: 'Ce tableau regroupe tous les achats restants dont les codes de classification ne correspondent à aucune des catégories principales spécifiques.'
+    fr: 'Ce tableau regroupe tous les achats restants dont les codes de classification ne correspondent à aucune des catégories principales spécifiques.',
   },
   'module-purchase-submodule-additional_purchases': {
     en: 'Enter annual consumption values if your unit uses any of the items listed below.',
@@ -174,7 +174,7 @@ export default {
   },
   'module-research-facilities-submodule-mice_and_fish_animal_facilities': {
     en: 'Emissions from the mice and fish facilities are allocated to individual units based on their use of housing units (e.g., cages and aquariums) throughout the year. These emissions are calculated based on the Process emissions, Buildings, Equipment, and Purchases, with the annual number of housing units serving as the allocation key.',
-    fr: "Les émissions des animaleries rongeurs et poissons attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Bâtiments, Équipements et Achats en considérant comme clé de répartition le nombre d’hébergements (cages, aquariums) par année.",
+    fr: 'Les émissions des animaleries rongeurs et poissons attribuées aux unités sont calculées sur la base des émissions des Émissions de procédés, Bâtiments, Équipements et Achats en considérant comme clé de répartition le nombre d’hébergements (cages, aquariums) par année.',
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -188,7 +188,7 @@ export default {
   // ── Headcount ──────────────────────────────────────────────────────────────
   'module-headcount-submodule-member-form': { en: '', fr: '' },
   'module-headcount-submodule-student-form': {
-    en: "Enter the total number of FTE of students who worked in your unit over the year",
+    en: 'Enter the total number of FTE of students who worked in your unit over the year',
     fr: "Saisissez le total des EPT des étudiant·es ayant travaillé dans votre unité sur l'année",
   },
 
@@ -201,7 +201,7 @@ export default {
   // ── Buildings ──────────────────────────────────────────────────────────────
   'module-buildings-submodule-building-form': {
     en: 'Please add any missing premises to the list above. Note that you will need to carry over this change during your next update of Archibus, as this is not done automatically through the CO₂ Calculator.',
-    fr: "Veuillez ajouter les locaux qui manquent dans la liste ci-dessus. Attention, vous devrez répercuter ce changement lors de votre prochaine mise à jour d'Archibus, car celle-ci ne se fait pas automatiquement à travers le Calculateur CO₂."
+    fr: "Veuillez ajouter les locaux qui manquent dans la liste ci-dessus. Attention, vous devrez répercuter ce changement lors de votre prochaine mise à jour d'Archibus, car celle-ci ne se fait pas automatiquement à travers le Calculateur CO₂.",
   },
   'module-buildings-submodule-energy_combustion-form': {
     en: 'Enter the sources of fossil or non-fossil energy combustion if they are not taken into account in the main module.',
@@ -232,11 +232,11 @@ export default {
   // ── Professional Travel ────────────────────────────────────────────────────
   'module-professional-travel-submodule-plane-form': {
     en: 'Each leg of the trip must be entered as a separate trip. For example, for a flight departing from Geneva and arriving in Los Angeles with a layover in Amsterdam: Geneva-Amsterdam, Amsterdam-Los Angeles.',
-    fr: "Chaque étape du trajet doit être saisie comme un déplacement distinct. Par exemple, pour un vol au départ de Genève à destination de Los Angeles avec une escale à Amsterdam : Genève-Amsterdam, Amsterdam-Los-Angeles.",
+    fr: 'Chaque étape du trajet doit être saisie comme un déplacement distinct. Par exemple, pour un vol au départ de Genève à destination de Los Angeles avec une escale à Amsterdam : Genève-Amsterdam, Amsterdam-Los-Angeles.',
   },
   'module-professional-travel-submodule-train-form': {
     en: 'Each leg of the trip must be entered as a separate trip. For example, for a train trip from Lausanne to Mannheim: Lausanne–Bern, Bern–Basel, Basel–Mannheim.',
-    fr: "Chaque étape du trajet doit être saisie comme un déplacement distinct. Par exemple, pour un trajet en train  au départ de Lausanne à destination de Mannheim  : Lausanne-Berne, Berne-Bale, Bale-Mannheim.",
+    fr: 'Chaque étape du trajet doit être saisie comme un déplacement distinct. Par exemple, pour un trajet en train  au départ de Lausanne à destination de Mannheim  : Lausanne-Berne, Berne-Bale, Bale-Mannheim.',
   },
 
   // ── Purchases ──────────────────────────────────────────────────────────────
@@ -250,7 +250,7 @@ export default {
   'module-purchase-submodule-services-form': { en: '', fr: '' },
   'module-purchase-submodule-vehicles-form': {
     en: "Enter any vehicle-related purchases paid with unit's credit card here (e.g. fuel, car rentals, tolls, parking, or vehicle maintenance).",
-    fr: "Veuillez ajouter tous les achats liés aux véhicules réglés avec la carte de crédit de l'unité (ex. le carburant, les locations de voiture, les péages, les frais de stationnement ou l'entretien des véhicules."
+    fr: "Veuillez ajouter tous les achats liés aux véhicules réglés avec la carte de crédit de l'unité (ex. le carburant, les locations de voiture, les péages, les frais de stationnement ou l'entretien des véhicules.",
   },
   'module-purchase-submodule-other_purchases-form': { en: '', fr: '' },
   'module-purchase-submodule-additional_purchases-form': { en: '', fr: '' },
@@ -365,11 +365,11 @@ export default {
   },
   'module-equipment-submodule-scientific-table-active_usage_hours_per_week': {
     en: 'Number of hours per week the equipment is actively in use. Some generic time values have been pre-filled. Please update to make them more specific to your equipment use. Active and standby hours combined cannot exceed 168 h/wk.',
-    fr: "Nombre d’heures par semaine pendant lesquelles l’équipement est activement utilisé. Certaines valeurs génériques ont été préremplies. Veuillez les mettre à jour afin qu’elles correspondent plus précisément à l’utilisation de votre équipement. Le total des heures actives et des heures en veille ne peut pas dépasser 168 h/semaine.",
+    fr: 'Nombre d’heures par semaine pendant lesquelles l’équipement est activement utilisé. Certaines valeurs génériques ont été préremplies. Veuillez les mettre à jour afin qu’elles correspondent plus précisément à l’utilisation de votre équipement. Le total des heures actives et des heures en veille ne peut pas dépasser 168 h/semaine.',
   },
   'module-equipment-submodule-scientific-table-standby_usage_hours_per_week': {
     en: 'Number of hours per week the equipment is in standby use. Some generic time values have been pre-filled. Please update to make them more specific to your equipment use. Active and standby hours combined cannot exceed 168 h/wk.',
-    fr: "Nombre d’heures par semaine pendant lesquelles l’équipement est utilisé en mode standby. Certaines valeurs génériques ont été préremplies. Veuillez les mettre à jour afin qu’elles correspondent plus précisément à l’utilisation de votre équipement. Le total des heures actives et des heures en veille ne peut pas dépasser 168 h/semaine.",
+    fr: 'Nombre d’heures par semaine pendant lesquelles l’équipement est utilisé en mode standby. Certaines valeurs génériques ont été préremplies. Veuillez les mettre à jour afin qu’elles correspondent plus précisément à l’utilisation de votre équipement. Le total des heures actives et des heures en veille ne peut pas dépasser 168 h/semaine.',
   },
   'module-equipment-submodule-scientific-table-active_power_w': {
     en: 'The average active power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
@@ -493,7 +493,7 @@ export default {
   },
   'module-external-cloud-and-ai-charts': {
     en: 'The results are aggregated by service type: external clouds and AI.',
-    fr: "Les résultats sont aggrégés par type de service: clouds externes et IA.",
+    fr: 'Les résultats sont aggrégés par type de service: clouds externes et IA.',
   },
   'module-research-facilities-charts': {
     en: 'If these research activities were performed independently by the unit, the emissions coming from them would be higher. Using shared research facilities helps to reduce overall EPFL emissions.',
