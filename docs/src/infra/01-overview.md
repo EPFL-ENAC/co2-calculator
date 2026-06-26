@@ -138,11 +138,11 @@ Before deploying to production:
 ```yaml
 # Frontend (Nginx + Vue SPA)
 frontend:
-  replicas: 2          # HPA 2–10
+  replicas: 2 # HPA 2–10
 
 # Backend (FastAPI + Uvicorn, in-process jobs)
 backend:
-  replicas: 2          # HPA 2–10
+  replicas: 2 # HPA 2–10
 
 # Docs (MkDocs static, Nginx)
 docs:
@@ -162,9 +162,9 @@ written by the `db-dump` backup CronJob.
 
 ```yaml
 # Service definitions (all ClusterIP)
-frontend-service:  { port: 80,   targetPort: 8080 }
-backend-service:   { port: 8000, targetPort: 8000 }
-docs-service:      { port: 80,   targetPort: 8080 }
+frontend-service: { port: 80, targetPort: 8080 }
+backend-service: { port: 8000, targetPort: 8000 }
+docs-service: { port: 80, targetPort: 8080 }
 ```
 
 ### Routing (OpenShift Routes)

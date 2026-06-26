@@ -182,12 +182,12 @@ flowchart TB
 
 ### Container responsibilities
 
-| Container        | Role                                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| **Frontend**     | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                           |
-| **Backend API**  | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                |
-| **Docs**         | This MkDocs site, served as static files.                                                                        |
-| **PostgreSQL**   | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
+| Container       | Role                                                                                                                                        |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Frontend**    | Static Quasar SPA, calls Backend over REST with HTTP-only auth cookies.                                                                     |
+| **Backend API** | Auth, business logic, persistence, file uploads, data ingestion, background jobs.                                                           |
+| **Docs**        | This MkDocs site, served as static files.                                                                                                   |
+| **PostgreSQL**  | System of record (also holds the background-job queue table); managed EPFL DBaaS, reached directly via SQLAlchemy async — **no PgBouncer**. |
 
 Stack and versions live in [Tech Stack](./08-tech-stack.md). The backend's
 internal subsystems are in the [Subsystem Map](./03-subsystem-map.md).
