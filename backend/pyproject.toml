@@ -6,7 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided
-    "fastapi[standard]==0.136.3",
+    "fastapi[standard]==0.137.2",
     "starlette==1.3.1",
     "uvicorn[standard]==0.49.0",
     "python-multipart==0.0.32",
@@ -18,7 +18,7 @@ dependencies = [
     "passlib[bcrypt]==1.7.4",
     # "python-dotenv==1.0.0",
     "pydantic==2.13.4",
-    "pydantic-settings==2.14.0",
+    "pydantic-settings==2.14.2",
     "email-validator==2.3.0",
     "httpx==0.28.1",
     # "python-dateutil==2.8.2",
@@ -83,17 +83,17 @@ docstring-code-format = true
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4",
+    "pytest>=9.1.0",
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1",
     "pytest-benchmark>=5.1",
     "pytest-mock>=3.15",
     "pytest-elasticsearch>=5.0",
     "mypy>=1.18",
-    "ruff>=0.15.17",
+    "ruff>=0.15.18",
     "httpx>=0.28",
     "mypy>=1.18.2",
-    "locust>=2.44.3",
+    "locust>=2.44.4",
     "pytest-env>=1.6.0",
     "faker>=40.21.0",
     "docker>=7.1.0",
