@@ -385,9 +385,16 @@ podDisruptionBudget:
   minAvailable: 1
   maxUnavailable: ""
 
-networkPolicy:
+networkPolicies:
   enabled: false
-  ingress: []
+  ingressFromRoutes: [] # Define allowed ingress sources (e.g., namespaces, pods) for network policies
+    # Example
+    # - namespaceSelector:
+    #     matchLabels:
+    #       kubernetes.io/metadata.name: openshift-ingress
+    #   podSelector:
+    #     matchLabels:
+    #       ingresscontroller.operator.openshift.io/deployment-ingresscontroller: ingress-private
 
 # -----------------------------------------------------------------------------
 # Documentation deployment
