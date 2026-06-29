@@ -67,7 +67,6 @@ understand why certain choices were made.
 | --- | ------------------- | ---------- | ----------------------------------------------------------------- |
 | 008 | Observability Stack | 📋 Planned | Prometheus + Grafana + OpenTelemetry                              |
 | 009 | Caching Strategy    | 📋 Planned | Caching strategy for emission factors and rate limiting (planned) |
-| 019 | OIDC Integration    | 📋 Planned | MS Entra ID for EPFL SSO                                          |
 
 ## Rejected Alternatives
 
