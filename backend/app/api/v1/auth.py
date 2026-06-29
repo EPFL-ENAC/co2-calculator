@@ -1,28 +1,19 @@
 """Authentication endpoints: RESTful session resource + OAuth namespace.
 
 Trust boundaries (see plan
-``docs/src/implementation-plans/458-security-authentication-integration-hardening.md``
-and ADR-019 ``bff-cookie-exchange``):
+``docs/src/implementation-plans/458-security-authentication-integration-hardening.md``):
 
 1. IdP -> backend: only the ``userinfo`` claims returned by
    ``oauth.co2_oauth_provider.authorize_access_token`` are trusted to bind
    a session to a real identity. Nothing else on the ``/auth/callback``
    request (query params, headers, body) may influence the resolved
    ``institutional_id`` or ``provider``.
-2. backend -> exchange code: after the callback succeeds the backend
-   issues a single-use ``AuthExchangeCode`` (random URL-safe token,
-   60 s TTL) and redirects the browser to ``<FRONTEND_URL>/auth/complete``
-   with the code in the URL **fragment**. The fragment never reaches
-   server logs or ``Referer`` headers.
-3. exchange code -> cookies: ``POST /v1/session/exchange`` is the only
-   endpoint that emits ``auth_token`` / ``refresh_token`` cookies for a
-   real login. It executes on a same-origin POST, sidestepping Safari
-   ITP's tendency to drop Set-Cookie on cross-site redirect tails.
-   Each code is consumed atomically and rate-limited per IP.
-4. backend -> cookie: ``_set_auth_cookies`` emits JWTs signed with
-   ``settings.SECRET_KEY``. These are the only artefacts the client is
-   trusted to return as evidence of identity on subsequent requests.
-5. cookie -> backend: ``decode_jwt`` validates signature, algorithm and
+2. backend -> cookie: ``/auth/callback`` sets ``auth_token`` /
+   ``refresh_token`` cookies directly on the 302 redirect response.
+   Frontend and backend share the same domain (``/api`` prefix), so the
+   browser accepts ``Set-Cookie`` on the redirect without ITP interference.
+   ``_set_auth_cookies`` emits JWTs signed with ``settings.SECRET_KEY``.
+3. cookie -> backend: ``decode_jwt`` validates signature, algorithm and
    ``exp``. Any identity in an ``auth_token`` / ``refresh_token`` cookie
    is trusted only after that check passes AND the JWT ``type`` matches
    the endpoint (access for ``GET /v1/session``, refresh for
@@ -42,13 +33,9 @@ a session from a query-string ``role``. Its only gate is
 ``settings.DEBUG``.
 """
 
-import logging
-import secrets
-import threading
-import time
-from collections import deque
-from datetime import datetime, timedelta, timezone
-from typing import Any, Deque, Dict, Optional
+import traceback
+from datetime import timedelta
+from typing import Any, Optional
 
 from authlib.integrations.base_client.errors import MismatchingStateError
 from authlib.integrations.starlette_client import OAuth
@@ -63,9 +50,6 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel
-from sqlalchemy import update
-from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
@@ -80,7 +64,6 @@ from app.core.security import (
     resolve_user_by_jwt_payload,
 )
 from app.models.audit import AuditChangeTypeEnum
-from app.models.auth_exchange_code import AuthExchangeCode
 from app.models.user import UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
 from app.schemas.user import UserRead
@@ -94,35 +77,9 @@ settings = get_settings()
 
 # Two routers share this module: ``oauth_router`` hosts the
 # browser-driven endpoints (/login, /callback, optional /login-test) and
-# ``session_router`` hosts the RESTful session resource (GET/POST/DELETE
-# /session plus POST /session/exchange).
+# ``session_router`` hosts the RESTful session resource (GET/POST/DELETE /session).
 oauth_router = APIRouter()
 session_router = APIRouter()
-
-# Exchange-code lifetime. 60 s is generous for a SPA bounce; the code is
-# single-use anyway. A leaked code grants at most this window before the
-# session would have been created by the legitimate user.
-EXCHANGE_CODE_TTL_SECONDS: int = 60
-
-# Rate limit for /session/exchange. 10/min per client IP is plenty for
-# the legitimate "redirected back, exchanging now" pattern and slams the
-# door on a brute-force scan of the code space. In-process token bucket
-# (acceptable pre-v1.x); Redis-backed comes with F6.
-_EXCHANGE_RATE_LIMIT_REQUESTS: int = 10
-_EXCHANGE_RATE_LIMIT_WINDOW_SECONDS: int = 60
-_exchange_rate_buckets: Dict[str, Deque[float]] = {}
-_exchange_rate_lock = threading.Lock()
-
-
-def _naive_utcnow() -> datetime:
-    """Naive-UTC clock matching the SQLAlchemy ``DateTime`` column shape.
-
-    The ``auth_exchange_code`` columns are stored as naive UTC (no tz
-    column), so all comparisons happen in the same shape — no offset-aware
-    vs offset-naive ``TypeError`` from mixing the two.
-    """
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
 
 # Configure OAuth with Authlib
 oauth = OAuth()
@@ -288,47 +245,6 @@ async def _log_auth_audit_event(
 
 
 # ---------------------------------------------------------------------------
-# /session/exchange rate limiter (in-process; Redis-backed with F6)
-# ---------------------------------------------------------------------------
-
-
-def _reset_exchange_rate_limiter() -> None:
-    """Test hook: clear the in-process bucket state."""
-    with _exchange_rate_lock:
-        _exchange_rate_buckets.clear()
-
-
-def _enforce_exchange_rate_limit(request: Request) -> None:
-    """Token-bucket gate: at most N requests per peer per window.
-
-    Keyed on ``request.client.host`` — the immediate TCP peer, NOT a
-    client-supplied ``X-Forwarded-For`` header. With
-    ``ProxyHeadersMiddleware(trusted_hosts="*")`` in ``app/main.py``
-    XFF would be honoured from any peer, letting an attacker rotate the
-    header to get unlimited fresh rate-limit buckets. The peer address
-    can't be spoofed: for direct connections it's the attacker's real
-    IP; for proxied deployments it's the reverse proxy's IP, which is
-    fine because the proxy is trusted infra and serves as a per-proxy
-    cap (a single misbehaving proxy can't DoS unrelated peers).
-    """
-    client = request.client
-    ip = client.host if client else "unknown"
-    now = time.monotonic()
-    cutoff = now - _EXCHANGE_RATE_LIMIT_WINDOW_SECONDS
-
-    with _exchange_rate_lock:
-        bucket = _exchange_rate_buckets.setdefault(ip, deque())
-        while bucket and bucket[0] < cutoff:
-            bucket.popleft()
-        if len(bucket) >= _EXCHANGE_RATE_LIMIT_REQUESTS:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many exchange attempts. Please retry shortly.",
-            )
-        bucket.append(now)
-
-
-# ---------------------------------------------------------------------------
 # /auth/login-test (debug only)
 # ---------------------------------------------------------------------------
 
@@ -434,47 +350,17 @@ async def oauth_login(request: Request):
 
     Redirects to Entra ID for authentication.
     """
-    if logger.isEnabledFor(logging.DEBUG):
-        # ``getlist`` keeps duplicates: uvicorn's ProxyHeadersMiddleware drops
-        # X-Forwarded-Proto when the LB sends >1 copy, so the count matters.
-        logger.debug(
-            "Login requested x-forwarded headers",
-            extra={
-                "x_forwarded_proto": request.headers.getlist("x-forwarded-proto"),
-                "x_forwarded_for": request.headers.getlist("x-forwarded-for"),
-            },
-        )
     # ``url_for`` resolves the FastAPI route function name. Keep the name
     # in sync with the @decorator below (``oauth_callback``).
     redirect_uri = request.url_for("oauth_callback")
-    # Behind a TLS terminator the public scheme is https, but the proxy may
-    # send X-Forwarded-Proto in a shape ProxyHeadersMiddleware ignores, leaving
-    # scope["scheme"] as http. COOKIE_SECURE is the deployment's "served over
-    # https" flag (same gate as the cookie Secure attr); force the scheme to
-    # match the real public origin. Local http dev keeps COOKIE_SECURE=false, so
+    # Pods run plain http behind a TLS-terminating LB. COOKIE_SECURE is the
+    # deployment's "served over https" flag — force the scheme to match the
+    # real public origin. Local http dev keeps COOKIE_SECURE=false so
     # http://localhost is left intact (Entra exempts localhost from https).
     if settings.COOKIE_SECURE and redirect_uri.scheme != "https":
         redirect_uri = redirect_uri.replace(scheme="https")
-    logger.info("Initiating OAuth2 login", extra={"redirect_uri": str(redirect_uri)})
+    logger.info("Initiating OAuth2 login")
     return await oauth.co2_oauth_provider.authorize_redirect(request, redirect_uri)
-
-
-async def _create_exchange_code(db: AsyncSession, user_id: int) -> str:
-    """Mint a single-use exchange code bound to ``user_id`` (60 s TTL).
-
-    Extracted so the success path of :func:`oauth_callback` stays under
-    the 40-line / depth-2 budget.
-    """
-    code = secrets.token_urlsafe(48)
-    db.add(
-        AuthExchangeCode(
-            code=code,
-            user_id=user_id,
-            expires_at=_naive_utcnow() + timedelta(seconds=EXCHANGE_CODE_TTL_SECONDS),
-        )
-    )
-    await db.commit()
-    return code
 
 
 @oauth_router.get("/callback", name="oauth_callback")
@@ -482,18 +368,17 @@ async def oauth_callback(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    OAuth2 callback endpoint (BFF leg 1).
+    """OAuth2 callback endpoint.
 
-    Exchanges the OAuth code for ID-token claims, upserts the user,
-    audits the event, then issues a single-use AuthExchangeCode and
-    redirects the browser to ``<FRONTEND_URL>/auth/complete#code=...``.
-    The SPA's POST /v1/session/exchange (BFF leg 2) is what actually
-    sets the auth cookies on a same-origin response — sidestepping
-    Safari ITP's drop of Set-Cookie on cross-site redirect tails.
+    Exchanges the OAuth authorization code for ID-token claims, upserts
+    the user, audits the event, sets auth cookies on the 302 response,
+    and redirects the browser to the app root.
+
+    Frontend and backend share the same domain (``/api`` prefix in
+    production), so ``Set-Cookie`` on a redirect response is accepted by
+    all browsers without ITP interference.
     """
     try:
-        # Exchange authorization code for tokens
         token = await oauth.co2_oauth_provider.authorize_access_token(request)
         logger.info("OAuth2 token received", extra={"token_keys": list(token.keys())})
         user_info = token.get("userinfo")
@@ -504,7 +389,6 @@ async def oauth_callback(
                 detail="Failed to retrieve user information from OAuth2 provider",
             )
 
-        # Extract user data from OAuth2 response
         email = user_info.get("email") or user_info.get("preferred_username")
         if not email:
             raise HTTPException(
@@ -519,7 +403,6 @@ async def oauth_callback(
         if not display_name:
             display_name = email.split("@")[0]
 
-        # Fetch roles using configured role provider
         role_provider = get_role_provider()
         institutional_id = role_provider.get_user_id(user_info)
         try:
@@ -537,15 +420,11 @@ async def oauth_callback(
         logger.info(
             "User info retrieved from OAuth2",
             extra={
-                "email": provider_user.get("email", email),
-                "function": provider_user.get("function", None),
-                "display_name": provider_user.get("display_name", display_name),
                 "has_user_id": bool(institutional_id),
                 "roles_count": len(provider_user.get("roles", [])),
             },
         )
 
-        # Get or create user
         user = await UserService(db).upsert_user(
             id=None,
             email=provider_user.get("email", email),
@@ -581,17 +460,19 @@ async def oauth_callback(
             must_succeed=True,
         )
 
-        code = await _create_exchange_code(db, user.id)
-        logger.info(
-            "Issued exchange code, redirecting to SPA",
-            extra={"user_id": user.id, "redirect_to": "/auth/complete"},
-        )
-        # Fragment, not query — keeps the code out of server logs and
-        # ``Referer`` headers on any third-party assets the SPA loads.
-        return RedirectResponse(
-            url=f"{settings.FRONTEND_URL}/auth/complete#code={code}",
+        redirect = RedirectResponse(
+            url=settings.FRONTEND_URL + "/",
             status_code=status.HTTP_302_FOUND,
         )
+        _set_auth_cookies(
+            response=redirect,
+            sub=user_info.get("sub", str(user.id)),
+            email=user.email,
+            institutional_id=user.institutional_id or str(user.id),
+            provider=str(user.provider.value),
+        )
+        logger.info("Login successful, redirecting to app", extra={"user_id": user.id})
+        return redirect
 
     except MismatchingStateError:
         logger.warning(
@@ -644,8 +525,6 @@ async def oauth_callback(
             entity_id=0,
         )
         if settings.DEBUG:
-            import traceback
-
             tb_lines = traceback.format_exc().splitlines()
             # Return stack trace in response (for dev only)
             raise HTTPException(
@@ -669,98 +548,6 @@ if settings.DEBUG:
 # ---------------------------------------------------------------------------
 # Session router: /v1/session/*
 # ---------------------------------------------------------------------------
-
-
-class ExchangeRequest(BaseModel):
-    """Body schema for ``POST /v1/session/exchange``."""
-
-    code: str
-
-
-async def _consume_exchange_code(db: AsyncSession, code: str) -> AuthExchangeCode:
-    """Atomically validate and mark a code as consumed.
-
-    Uses a single ``UPDATE ... WHERE code = :c AND consumed_at IS NULL
-    AND expires_at > :now`` guarded by ``rowcount``: only one concurrent
-    request can win, so the "single-use" contract holds even when two
-    POSTs race with the same code. 401 on any failure — single shape,
-    no oracle (CWE-209). Caller must commit.
-    """
-    now = _naive_utcnow()
-    result = await db.execute(
-        update(AuthExchangeCode)
-        .where(
-            col(AuthExchangeCode.code) == code,
-            col(AuthExchangeCode.consumed_at).is_(None),
-            col(AuthExchangeCode.expires_at) > now,
-        )
-        .values(consumed_at=now)
-    )
-    # ``rowcount`` is on the CursorResult variant returned for DML
-    # statements; the typed alias is ``Result[Any]`` which doesn't
-    # advertise it. Mirror the project pattern in
-    # ``repositories/data_ingestion.py``.
-    rowcount = getattr(result, "rowcount", 0) or 0
-    if rowcount != 1:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired exchange code",
-        )
-    row: Optional[AuthExchangeCode] = (
-        await db.execute(
-            select(AuthExchangeCode).where(col(AuthExchangeCode.code) == code)
-        )
-    ).scalar_one_or_none()
-    if row is None:
-        # Should not happen — the UPDATE just succeeded — but guard so
-        # mypy is happy and an out-of-band DELETE can't crash us.
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired exchange code",
-        )
-    return row
-
-
-@session_router.post("/exchange")
-async def exchange_session_code(
-    request: Request,
-    response: Response,
-    body: ExchangeRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """BFF cookie-exchange (leg 2).
-
-    The SPA's /auth/complete page POSTs the code it parsed from the URL
-    fragment. We validate atomically, set cookies on the same-origin
-    response, and return ``{id, email}`` so the SPA can hydrate without
-    a follow-up ``GET /session``.
-    """
-    _enforce_exchange_rate_limit(request)
-    row = await _consume_exchange_code(db, body.code)
-    # Commit the consumption mark first so that ANY downstream failure
-    # (deleted user, transport hiccup) cannot let the same code be
-    # replayed — single-use is enforced regardless of what follows.
-    await db.commit()
-
-    user = await UserService(db).get_by_id(row.user_id)
-    if user is None or user.id is None or not user.email:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired exchange code",
-        )
-
-    _set_auth_cookies(
-        response=response,
-        sub=str(user.id),
-        email=user.email,
-        institutional_id=user.institutional_id or str(user.id),
-        provider=str(user.provider.value),
-    )
-    logger.info(
-        "Exchange code consumed; cookies set",
-        extra={"user_id": user.id},
-    )
-    return {"id": user.id, "email": user.email}
 
 
 @session_router.get("", response_model=UserRead, response_model_exclude_none=True)
