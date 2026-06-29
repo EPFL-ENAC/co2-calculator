@@ -109,3 +109,9 @@ and return `{id, email}`; the 11th rapid request per IP returns 429.
 The new model lives at `backend/app/models/auth_exchange_code.py`;
 migration `d90884a395e1` creates the `auth_exchange_code` table. No
 backfill (v0.x drops the DB between deploys).
+
+> **Note (2026-06-29):** The BFF exchange pattern documented above was subsequently
+> superseded by PR #1687 (see [ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md)).
+> The `AuthExchangeCode` table, `POST /v1/session/exchange` endpoint, and
+> `/auth/complete` SPA page were all removed. `GET /v1/auth/callback` now sets
+> cookies directly on the `302` redirect response.
