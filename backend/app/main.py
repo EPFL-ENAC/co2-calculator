@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
 from app.core.config import get_settings
@@ -273,11 +272,6 @@ app.add_middleware(
     same_site="lax",
     https_only=not settings.DEBUG,
 )
-
-# Add Forwarded Headers Middleware to handle X-Forwarded-* headers
-# because of load balancer / reverse proxy in front of the app that
-# handles TLS termination
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)

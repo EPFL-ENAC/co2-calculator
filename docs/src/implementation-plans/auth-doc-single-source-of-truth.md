@@ -1,15 +1,15 @@
 ---
-status: in-progress
-last_updated: 2026-05-28
+status: delivered
+last_updated: 2026-06-29
 title: "Docs: single source of truth for auth flow"
 summary: "Strip duplicated and stale auth narratives from backend and frontend overview docs. The architecture/04-auth-flow.md doc is the canonical source; everything else cross-links."
 ---
 
 ## Problem
 
-Auth content currently spans 11 files in `docs/src/`. The canonical narrative lives at `docs/src/architecture/04-auth-flow.md` (delivered in PR #1313, kept current through PR #1314). Eight other files either repeat parts of the flow or reference endpoints that no longer exist post-PR #1314 (`/auth/me` was replaced by `GET /v1/session`; `auth_token` is set on the same-origin POST `/v1/session/exchange`, not on the OAuth callback redirect).
+Auth content currently spans 11 files in `docs/src/`. The canonical narrative lives at `docs/src/architecture/04-auth-flow.md` (delivered in PR #1313, kept current through PR #1314 and PR #1687). Eight other files either repeat parts of the flow or reference endpoints that no longer exist post-PR #1314 (`/auth/me` was replaced by `GET /v1/session`). Post-PR #1687, the BFF exchange pattern was also removed: `auth_token` is now set on the OAuth callback `302` redirect directly; `POST /v1/session/exchange` and `/auth/complete` no longer exist.
 
-One file (`backend/01-overview.md`) contains an outright factual error: line 180 claims the frontend sends `Authorization: Bearer <token>`. The app uses `httpOnly` session cookies — never Bearer tokens. This contradicts ADR-012 and ADR-019.
+One file (`backend/01-overview.md`) contains an outright factual error: line 180 claims the frontend sends `Authorization: Bearer <token>`. The app uses `httpOnly` session cookies — never Bearer tokens. This contradicts ADR-012.
 
 ## Principle
 
@@ -38,7 +38,7 @@ For each: keep the surrounding sentence, swap the path. If the surrounding sente
   - Lines 79-82 (auth endpoint entries in the API table): replace with a single row pointing to the auth flow doc.
   - Lines 144-145 (`OIDC_DISCOVERY_URL` env-config example): update key name to the current setting (`OAUTH_ISSUER_URL`); see `app/core/config.py`.
   - Lines 172-189 (the "Authentication & Authorization" section): delete the multi-step flow description and the wrong `Bearer <token>` claim. Replace with one paragraph: "The backend authenticates users via OIDC + httpOnly session cookies. See [Auth Flow](../architecture/04-auth-flow.md) for the full request flow, claim contract, and security boundaries." Keep the authorization subsection that explains in-code RBAC (that's backend-specific and not duplicated elsewhere).
-- **`docs/src/frontend/01-overview.md:62-69`** — section already cross-links to `04-auth-flow.md`, but the prose mentioning `auth/me` should be cut. Replace with one or two sentences describing the SPA's role (driving the OAuth login redirect, landing at `/auth/complete`, reading session state from `useAuthStore`), with a link out to the canonical doc.
+- **`docs/src/frontend/01-overview.md:62-69`** — section already cross-links to `04-auth-flow.md`, but the prose mentioning `auth/me` should be cut. Replace with one or two sentences describing the SPA's role (driving the OAuth login redirect, reading session state from `useAuthStore` on return), with a link out to the canonical doc.
 
 ## Out of scope
 

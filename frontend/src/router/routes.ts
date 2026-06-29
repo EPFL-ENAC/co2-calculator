@@ -26,7 +26,6 @@ export {
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
-  AUTH_COMPLETE_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
   ROUTES_WITHOUT_LANGUAGE,
 } from './routeNames';
@@ -38,7 +37,6 @@ import {
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
-  AUTH_COMPLETE_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
 } from './routeNames';
 
@@ -387,23 +385,6 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
-  },
-  // BFF cookie-exchange landing (ADR-019). Backend redirects here with
-  // `#code=<single-use-token>`; component POSTs it to /session/exchange,
-  // strips the fragment, and routes to home. No auth required: the
-  // exchange call IS the act of authenticating.
-  {
-    path: '/auth/complete',
-    name: AUTH_COMPLETE_ROUTE_NAME,
-    component: () => import('pages/app/AuthCompletePage.vue'),
-    meta: {
-      note: 'BFF cookie-exchange landing page (no auth required)',
-      breadcrumb: false,
-      // The page itself POSTs the exchange code in onMounted, then calls
-      // getUser(). Skipping the guard's auto-probe avoids two redundant
-      // 401s (GET /session, then POST /session refresh) on every login.
-      skipAuthCheck: true,
-    },
   },
   // Catch-all: show 404
   {

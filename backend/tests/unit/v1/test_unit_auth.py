@@ -4,7 +4,6 @@ import pytest
 from fastapi import Response, status
 from fastapi.testclient import TestClient
 from starlette.datastructures import URL, Headers
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import app.api.v1.auth as auth_module
 import app.core.config as config
@@ -82,37 +81,6 @@ async def test_login_redirect_keeps_http_for_local_dev(monkeypatch):
     )
     await auth_module.oauth_login(_login_request("http://localhost:8000/callback"))
     assert str(captured["redirect_uri"]) == "http://localhost:8000/callback"
-
-
-@pytest.mark.asyncio
-async def test_proxy_headers_drops_duplicate_forwarded_proto():
-    """Pin the uvicorn behaviour we work around: ProxyHeadersMiddleware ignores
-    X-Forwarded-Proto when more than one copy is present (anti-spoofing guard),
-    so a two-hop LB+ingress chain leaves the scheme as the inner http."""
-    captured = {}
-
-    async def downstream(scope, receive, send):
-        captured["scheme"] = scope["scheme"]
-
-    mw = ProxyHeadersMiddleware(downstream, trusted_hosts="*")
-    scope = {
-        "type": "http",
-        "scheme": "http",
-        "client": ("10.0.0.1", 1234),
-        "headers": [
-            (b"x-forwarded-proto", b"https"),
-            (b"x-forwarded-proto", b"http"),
-        ],
-    }
-
-    async def receive():  # pragma: no cover - unused by the middleware
-        return {"type": "http.request"}
-
-    async def send(message):  # pragma: no cover - unused by the middleware
-        return None
-
-    await mw(scope, receive, send)
-    assert captured["scheme"] == "http"
 
 
 @pytest.mark.asyncio

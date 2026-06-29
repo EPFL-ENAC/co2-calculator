@@ -107,6 +107,7 @@ nav:
       - ADR-016 Two-Path Pipeline: architecture-decision-records/016-pipeline-two-path-principle.md
       - ADR-017 /me Async Role Sync: architecture-decision-records/017-me-endpoint-async-role-sync.md
       - ADR-018 Factor CSV Idempotency: architecture-decision-records/018-factor-csv-delete-before-insert.md
+      - ADR-019 BFF Cookie Exchange (superseded): architecture-decision-records/019-bff-cookie-exchange.md
 
   - Backend:
       - Overview: backend/01-overview.md
@@ -148,7 +149,7 @@ extra:
 extra_css:
   - stylesheets/extra.css
 plugins:
-  # - search
+  - search
   # - with-pdf:
   #     author: "EPFL Dev Team"
   #     cover_subtitle: "Technical Documentation"

@@ -19,25 +19,13 @@ export const API_LOGIN_TEST_URL = '/api/v1/auth/login-test';
 export const API_ME_URL = 'session';
 export const API_REFRESH_URL = 'session';
 export const API_LOGOUT_URL = 'session';
-export const API_EXCHANGE_URL = 'session/exchange';
 export const loginPageName = '/en/login';
 
 const endsWithSession = (u: string) => /\/session(?:\?.*)?$/.test(u);
-const endsWithSessionExchange = (u: string) =>
-  /\/session\/exchange(?:\?.*)?$/.test(u);
 const isRefresh = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'POST';
 const isSessionCheck = (u: string, m: string) =>
   endsWithSession(u) && m.toUpperCase() === 'GET';
-// /session/exchange is the BFF cookie-exchange POST run by AuthCompletePage.
-// 401 from this endpoint means an expired/consumed/unknown exchange code —
-// an EXPECTED failure mode that the page renders as its own failure UI
-// (with a retry button). It MUST NOT trigger the global login redirect
-// (location.replace(loginPageName)), and it MUST NOT trigger the global
-// pre-retry refresh attempt (there's no refresh cookie yet during the BFF
-// handshake — the exchange IS what mints the cookies).
-const isExchange = (u: string, m: string) =>
-  endsWithSessionExchange(u) && m.toUpperCase() === 'POST';
 
 export const api = ky.create({
   prefixUrl: API_BASE_URL,
@@ -53,14 +41,8 @@ export const api = ky.create({
   },
   hooks: {
     beforeRetry: [
-      // For any non-refresh call, try to refresh before retrying.
-      // Exception: /session/exchange — it predates the cookies, so a
-      // refresh attempt here would hit the same 401 wall and bounce.
       async ({ request }) => {
-        if (
-          !isRefresh(request.url, request.method) &&
-          !isExchange(request.url, request.method)
-        )
+        if (!isRefresh(request.url, request.method))
           await api.post(API_REFRESH_URL, { retry: { limit: 0 } });
       },
     ],
@@ -80,43 +62,19 @@ export const api = ky.create({
             // vue Router guard will handle the redirection
             return;
           }
-          if (isExchange(req.url, req.method)) {
-            // BFF cookie-exchange: 401 means expired/consumed/unknown
-            // code. Let the caller (authStore.exchange via
-            // AuthCompletePage) see the error so the page can render
-            // its "exchange failed, retry login" state — bypassing the
-            // global redirect would otherwise loop the user back through
-            // /login and hide the actual failure reason.
-            return;
-          } else {
-            // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
-            // redirects directly to
-            // API_LOGIN_URL (/api/v1/auth/login), which always initiates the Entra OAuth
-            // flow — even when the user was logged in as a test user.
-            //
-            // If the Entra SSO session is still active (e.g. only local cookies were
-            // cleared, not a real Entra logout), the user gets silently re-authenticated
-            // as their Entra identity, overwriting the test session.
-            //
-            // Redirect to the frontend /login page instead, so the user can
-            // explicitly choose test vs Entra login.
-            // may induced infinite redirect loops if the login page itself makes API calls
-            // that return 401, but in practice this should not happen since the login page
-            // should not make authenticated API calls.
-            //
-            // Surface a toast before navigating so the user understands why
-            // they're being kicked out (issue #949: previously a silent
-            // bounce to /login that looked like the form had submitted them
-            // back to the home page).
-            Notify.create({
-              color: 'warning',
-              message: i18n.global.t('session_expired_notice'),
-              position: 'top',
-              timeout: 5000,
-              actions: [{ icon: 'close', color: 'white' }],
-            });
-            location.replace(loginPageName);
-          }
+          // ⚠️ KNOWN ISSUE: On 401 (expired tokens), this hook used to
+          // redirect directly to API_LOGIN_URL (/api/v1/auth/login), which
+          // always initiates the Entra OAuth flow — even when the user was
+          // logged in as a test user. Redirect to the frontend /login page
+          // instead so the user can choose test vs Entra login (issue #949).
+          Notify.create({
+            color: 'warning',
+            message: i18n.global.t('session_expired_notice'),
+            position: 'top',
+            timeout: 5000,
+            actions: [{ icon: 'close', color: 'white' }],
+          });
+          location.replace(loginPageName);
         } else if (res.status === 403) {
           // Parse permission error details from response body
           let permissionDetails: {

@@ -25,13 +25,6 @@ erDiagram
     DATETIME synced_at
     INTEGER version "indexed"
   }
-  auth_exchange_code {
-    VARCHAR code PK
-    DATETIME consumed_at
-    DATETIME created_at
-    DATETIME expires_at
-    INTEGER user_id FK
-  }
   building_rooms {
     VARCHAR building_location "indexed"
     VARCHAR building_name "indexed"
@@ -217,7 +210,6 @@ erDiagram
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
-  users ||--}o auth_exchange_code : "user_id"
   users ||--}o unit_users : "user_id"
 ```
 
