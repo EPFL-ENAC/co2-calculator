@@ -157,6 +157,7 @@ def _sanitize_route_payload(payload: Optional[dict]) -> Optional[dict]:
     redacted_keys = {
         "code",
         "state",
+        "session_state",
         "id_token",
         "access_token",
         "refresh_token",
@@ -466,7 +467,7 @@ async def oauth_callback(
         )
         _set_auth_cookies(
             response=redirect,
-            sub=user_info.get("sub", str(user.id)),
+            sub=user_info.get("sub") or str(user.id),
             email=user.email,
             institutional_id=user.institutional_id or str(user.id),
             provider=str(user.provider.value),
@@ -708,7 +709,7 @@ async def delete_session(
         value="",
         httponly=True,
         max_age=0,
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH,
     )
 
     # Clear refresh token
@@ -717,7 +718,7 @@ async def delete_session(
         value="",
         httponly=True,
         max_age=0,
-        path="/",
+        path=settings.OAUTH_COOKIE_PATH,
     )
 
     logger.info("User logged out")
