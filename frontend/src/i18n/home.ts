@@ -163,8 +163,8 @@ export default {
     fr: 'Vous êtes utilisateur·rice standard',
   },
   co2_calculator_access_standard_body: {
-    en: 'You can see only a subset of modules to protect confidential data. To unlock the full assessment, ask your Head of Unit for principal access via ACCRED.',
-    fr: "Vous ne voyez qu'une partie des modules afin de protéger les données confidentielles. Pour débloquer le bilan complet, demandez un accès principal à votre responsable d'unité via ACCRED.",
+    en: "You can see only a subset of modules to protect confidential data. To unlock the full assessment, request principal access from your unit's principal user.",
+    fr: "Vous ne voyez qu'une partie des modules afin de protéger les données confidentielles. Pour débloquer le bilan complet, demandez un accès principal à l'utilisateur·rice principal·e de votre unité.",
   },
   co2_calculator_access_principal_title: {
     en: "You're a principal user",
@@ -175,12 +175,24 @@ export default {
     fr: "Vous voyez tous les modules. Le cas échéant, le·la responsable d'unité peut déléguer ce rôle à des membres de l'équipe dans ACCRED. Certaines données sont confidentielles manipulez-les avec soin.",
   },
   co2_calculator_access_cta_standard: {
-    en: 'Request full access in ACCRED',
-    fr: "Demander l'accès complet dans ACCRED",
+    en: 'Email the principal user',
+    fr: "Écrire à l'utilisateur·rice principal·e",
   },
   co2_calculator_access_cta_principal: {
     en: 'Manage access in ACCRED',
     fr: 'Gérer les accès dans ACCRED',
+  },
+  co2_calculator_access_no_email: {
+    en: "No contact email is available for your unit's principal user, {name}.",
+    fr: "Aucune adresse e-mail n'est disponible pour l'utilisateur·rice principal·e de votre unité, {name}.",
+  },
+  co2_calculator_access_mail_subject: {
+    en: 'Request for full access to the CO₂ Calculator – {unit}',
+    fr: "Demande d'accès complet au Calculateur CO₂ – {unit}",
+  },
+  co2_calculator_access_mail_body: {
+    en: 'Hello {name},\n\nI would like to request principal access to the CO₂ Calculator for the unit {unit}, so I can view and edit all modules.\n\nThank you!',
+    fr: "Bonjour {name},\n\nJe souhaiterais obtenir un accès principal au Calculateur CO₂ pour l'unité {unit}, afin de pouvoir consulter et modifier tous les modules.\n\nMerci !",
   },
   co2_project_planner_title: {
     en: 'CO₂ Project Planner',
@@ -225,10 +237,6 @@ export default {
   // --- Merged from the former workspace_setup.ts. The workspace selector now
   // lives inline on the unified home page; these keys back the Unit/Year
   // dropdowns (LabSelectorItem, YearSelector) and related strings. ---
-  workspace_change_btn: {
-    en: 'Change',
-    fr: 'Changer',
-  },
   workspace_title: {
     en: 'Welcome to the CO₂ Calculator for Research Activities at EPFL',
     fr: 'Bienvenue dans le Calculateur CO₂ des activités de recherche de l’EPFL',

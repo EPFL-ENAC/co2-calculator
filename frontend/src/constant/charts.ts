@@ -364,6 +364,9 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 }));
 
 /** Category ordering shared across Results charts (Reduction objectives, tooltips, sliders). */
+/** Module-icon name used for the "additional data" category (no real module). */
+export const ADDITIONAL_DATA_ICON = 'addition-datas';
+
 export const RESULTS_CATEGORY_ORDER = [
   'process_emissions',
   'buildings_energy_combustion',

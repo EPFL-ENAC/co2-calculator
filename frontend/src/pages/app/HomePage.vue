@@ -17,7 +17,7 @@ const authStore = useAuthStore();
 const moduleStore = useModuleStore();
 const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
-const { t, te } = useI18n();
+const { t, te, locale, getLocaleMessage } = useI18n();
 
 /** A translation key resolves to displayable content (exists and non-empty). */
 const hasText = (key: string) => te(key) && t(key).trim().length > 0;
@@ -79,43 +79,55 @@ const isPrincipalUser = computed(() =>
   authStore.hasUserCanValidateModuleStatus(),
 );
 
-const roleLabelKey = computed(() =>
-  isPrincipalUser.value
-    ? 'co2_calculator_role_principal'
-    : 'co2_calculator_role_standard',
-);
-
-const accessTitleKey = computed(() =>
-  isPrincipalUser.value
-    ? 'co2_calculator_access_principal_title'
-    : 'co2_calculator_access_standard_title',
-);
-
-const accessBodyKey = computed(() =>
-  isPrincipalUser.value
-    ? 'co2_calculator_access_principal_body'
-    : 'co2_calculator_access_standard_body',
-);
-
-const accessCtaKey = computed(() =>
-  isPrincipalUser.value
-    ? 'co2_calculator_access_cta_principal'
-    : 'co2_calculator_access_cta_standard',
+// Drives the role-scoped i18n keys (co2_calculator_role_*, _access_*_title/_body).
+const userType = computed(() =>
+  isPrincipalUser.value ? 'principal' : 'standard',
 );
 
 // EPFL access-management portal, opened straight on the authorizations tab.
+// Principals delegate roles here; standard users instead email the principal.
 const ACCRED_URL = 'https://accred.epfl.ch?opentab=authorizations';
 
-const calculatorUpdates = computed(() =>
-  [1, 2, 3]
+const principalUserName = computed(
+  () => workspaceStore.selectedUnit?.principal_user_name ?? '',
+);
+
+// Standard users request access by emailing the unit's principal user, with a
+// pre-filled subject/body. Null when no principal email is known for the unit.
+const requestAccessMailto = computed(() => {
+  const email = workspaceStore.selectedUnit?.principal_user_email;
+  if (!email) return null;
+  const unit = workspaceStore.selectedUnit?.name ?? '';
+  const subject = t('co2_calculator_access_mail_subject', { unit });
+  const body = t('co2_calculator_access_mail_body', {
+    name: principalUserName.value,
+    unit,
+  });
+  return `mailto:${email}?subject=${encodeURIComponent(
+    subject,
+  )}&body=${encodeURIComponent(body)}`;
+});
+
+const calculatorUpdates = computed(() => {
+  // Discover update indices from the i18n keys (calculator_update_<n>_*) instead
+  // of hard-coding a count, so adding entries only requires editing the locale file.
+  const indices = [
+    ...new Set(
+      Object.keys(getLocaleMessage(locale.value))
+        .map((key) => key.match(/^calculator_update_(\d+)_/)?.[1])
+        .filter((n): n is string => n != null),
+    ),
+  ].sort((a, b) => Number(a) - Number(b));
+
+  return indices
     .map((i) => ({
       title: `calculator_update_${i}_title`,
       date: `calculator_update_${i}_date`,
       body: `calculator_update_${i}_body`,
     }))
     // Drop entries with no content; their leading separator goes with them.
-    .filter((update) => hasText(update.date) || hasText(update.body)),
-);
+    .filter((update) => hasText(update.date) || hasText(update.body));
+});
 
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
@@ -222,29 +234,49 @@ watch(
                   size="xs"
                   class="q-mr-xs"
                 />
-                {{ $t(roleLabelKey) }}
+                {{ $t(`co2_calculator_role_${userType}`) }}
                 <q-icon name="expand_more" size="xs" class="q-ml-xs" />
-                <q-menu
-                  anchor="bottom right"
-                  self="top right"
-                  :offset="[0, 6]"
-                >
+                <q-menu anchor="bottom right" self="top right" :offset="[0, 6]">
                   <div class="calculator-card__access-popover">
                     <p class="text-subtitle2 text-weight-medium q-mb-xs">
-                      {{ $t(accessTitleKey) }}
+                      {{ $t(`co2_calculator_access_${userType}_title`) }}
                     </p>
-                    <p class="text-body2 text-secondary q-mb-sm">
-                      {{ $t(accessBodyKey) }}
+                    <p class="text-body2 text-secondary q-mb-md">
+                      {{ $t(`co2_calculator_access_${userType}_body`) }}
                     </p>
+
+                    <!-- Principals delegate roles in ACCRED. -->
                     <a
+                      v-if="isPrincipalUser"
                       :href="ACCRED_URL"
                       target="_blank"
                       rel="noopener noreferrer"
                       class="link text-body2 text-weight-medium"
                     >
-                      {{ $t(accessCtaKey) }}
+                      {{ $t('co2_calculator_access_cta_principal') }}
                       <q-icon name="o_arrow_outward" size="xs" />
                     </a>
+
+                    <!-- Standard users email their unit's principal user. -->
+                    <q-btn
+                      v-else-if="requestAccessMailto"
+                      type="a"
+                      :href="requestAccessMailto"
+                      color="info"
+                      icon="o_mail"
+                      :label="$t('co2_calculator_access_cta_standard')"
+                      unelevated
+                      no-caps
+                      size="sm"
+                      class="text-weight-medium"
+                    />
+                    <p v-else class="text-body2 text-secondary q-mb-none">
+                      {{
+                        $t('co2_calculator_access_no_email', {
+                          name: principalUserName,
+                        })
+                      }}
+                    </p>
                   </div>
                 </q-menu>
               </q-btn>

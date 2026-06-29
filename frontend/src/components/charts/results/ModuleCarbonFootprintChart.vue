@@ -11,6 +11,7 @@ import {
   getChartSubcategoryColor,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
+  ADDITIONAL_DATA_ICON,
 } from 'src/constant/charts';
 import type { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
@@ -1535,6 +1536,7 @@ const downloadCSV = () => {
         <div
           v-if="props.moduleIconAxis"
           class="module-icon-axis"
+          :style="{ '--icon-axis-top': `${iconAxisTop + 22}px` }"
           aria-hidden="false"
         >
           <component
@@ -1548,10 +1550,10 @@ const downloadCSV = () => {
                 ? { name: 'module', params: { module: item.module } }
                 : undefined
             "
-            :style="{ left: `${item.x}px`, top: `${iconAxisTop + 22}px` }"
+            :style="{ '--icon-x': `${item.x}px` }"
           >
             <ModuleIconBox
-              :name="item.module ?? 'addition-datas'"
+              :name="item.module ?? ADDITIONAL_DATA_ICON"
               :submodule-type="item.submoduleType"
               size="sm"
             />
@@ -1635,6 +1637,11 @@ const downloadCSV = () => {
 
 .module-icon-axis__item {
   position: absolute;
+  /* Coordinates are computed from the chart pixel geometry: --icon-x is the
+     per-item bar centre, --icon-axis-top is shared (inherited from the axis
+     container). */
+  left: var(--icon-x);
+  top: var(--icon-axis-top);
   display: flex;
   flex-direction: column;
   align-items: center;

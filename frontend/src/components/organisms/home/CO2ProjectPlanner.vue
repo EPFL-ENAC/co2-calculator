@@ -92,7 +92,7 @@ const planRows = [
           no-caps
           size="md"
           class="text-weight-medium"
-          :to="{ name: 'simulation-add' }"
+          :to="{ name: 'project-planner' }"
         />
       </div>
 

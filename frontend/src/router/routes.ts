@@ -1,9 +1,13 @@
-import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import { h } from 'vue';
+import {
+  RouteLocationNormalized,
+  RouteRecordRaw,
+  RouterView,
+} from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
-import { i18n } from 'src/boot/i18n';
+import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
-import validateUnitGuard from './guards/validateUnitGuard';
+import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
 import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from 'src/stores/auth';
@@ -22,7 +26,6 @@ export {
   LOGIN_TEST_ROUTE_NAME,
   LOGIN_ROUTES,
   HOME_ROUTE_NAME,
-  HOME_LANDING_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
@@ -122,10 +125,10 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'root-redirect',
-        redirect: {
+        redirect: (to) => ({
           name: DEFAULT_ROUTE_NAME,
-          params: { language: i18n.global.locale.value.split('-')[0] },
-        },
+          params: { language: resolveLanguage(to) },
+        }),
       },
       {
         path: `:language(${LANGUAGE_PATTERN})`,
@@ -138,7 +141,7 @@ const routes: RouteRecordRaw[] = [
             // units). Replaces the former interactive `workspace-setup` page.
             path: '',
             name: DEFAULT_ROUTE_NAME,
-            beforeEnter: redirectToWorkspaceIfSelectedGuard,
+            beforeEnter: redirectToDefaultRoute,
             component: { render: () => null },
             meta: {
               requiresAuth: true,
@@ -167,8 +170,10 @@ const routes: RouteRecordRaw[] = [
           {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
-            beforeEnter: validateUnitGuard,
-            component: () => import('pages/app/WorkspacePage.vue'),
+            // Pass-through layout: the workspace is loaded by the global
+            // `workspaceGuard`, so this parent only needs to host the child
+            // <router-view>.
+            component: { render: () => h(RouterView) },
             children: [
               {
                 name: 'home-redirect',
@@ -222,11 +227,11 @@ const routes: RouteRecordRaw[] = [
                 // Reached from the "Start a project" button on the unified
                 // home page (CO2ProjectPlanner).
                 path: 'simulation/add',
-                name: 'simulation-add',
+                name: 'project-planner',
                 component: () => import('pages/app/AddSimulationPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulation - Add a new project simulation',
+                  note: 'Project Planner - Add a new project simulation',
                   breadcrumb: true,
                 },
               },
