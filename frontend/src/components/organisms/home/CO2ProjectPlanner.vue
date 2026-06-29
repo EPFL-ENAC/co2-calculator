@@ -42,6 +42,7 @@ const planColumns = computed<QTableColumn[]>(() => [
   },
 ]);
 
+// PLACEHOLDER: TO BE DELETED WHEN PLAN ROWS ARE POPULATED
 const planRows = [
   {
     name: 'Scientific Grant H',
