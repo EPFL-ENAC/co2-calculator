@@ -1,14 +1,24 @@
 ---
-status: accepted
-last_updated: 2026-05-28
-summary: OAuth callback issues a single-use exchange code (URL fragment) and the SPA POSTs it back to /v1/session/exchange to obtain cookies on a same-origin response — sidesteps Safari ITP, which can drop Set-Cookie on the tail of a cross-site redirect chain.
+status: superseded
+last_updated: 2026-06-29
+superseded_by: PR #1687
+summary: Superseded. The BFF exchange step was removed; oauth_callback now sets cookies directly on the 302 redirect response. The Safari ITP issue only reproduced on localhost (port mismatch) and was never a production concern.
 ---
 
 # ADR-019: BFF cookie exchange for OAuth callback
 
-**Status**: Accepted
+**Status**: Superseded by PR #1687 (2026-06-29)
 **Date**: 2026-05-28
 **Deciders**: Development Team
+
+> **This ADR is superseded.** The BFF exchange pattern (`AuthExchangeCode`
+> table, `POST /v1/session/exchange`, `/auth/complete` SPA page) was removed
+> in PR #1687. `GET /v1/auth/callback` now sets `auth_token` /
+> `refresh_token` cookies directly on the `302` response and redirects to
+> `/`. The root cause of the original Safari ITP regression was a localhost
+> port mismatch (frontend on 5173, backend on 8000); in production frontend
+> and backend share the same domain (`/api` prefix), so `Set-Cookie` on the
+> redirect is accepted by all browsers without ITP interference.
 
 ## TL;DR
 

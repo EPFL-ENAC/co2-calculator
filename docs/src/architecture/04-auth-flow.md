@@ -15,10 +15,8 @@ flowchart LR
     SPA -->|1. /v1/auth/login| API[Backend API]
     API -->|2. 302| Entra[Entra ID]
     Entra -->|3. 302 with code| API
-    API -->|4. redirect with one-shot exchange code| SPA
-    SPA -->|5. POST /v1/session/exchange| API
-    API -->|6. Set-Cookie httpOnly JWT| SPA
-    SPA -->|7. cookie on every request| API
+    API -->|4. Set-Cookie + 302 /| SPA
+    SPA -->|5. cookie on every request| API
 ```
 
 ## 2. Trust boundaries
@@ -56,22 +54,17 @@ sequenceDiagram
     Entra-->>API: access_token + userinfo
     API->>API: Fetch roles via RoleProvider
     API->>DB: Upsert user, audit event
-    API->>API: Mint one-shot exchange code (server-side store)
-    API-->>SPA: 302 to FRONTEND/auth/complete#code=<exchange_code>
-    SPA->>SPA: Read code from URL fragment
-    SPA->>API: POST /v1/session/exchange { code }
-    API->>API: Validate + consume exchange code
-    API-->>SPA: 200 { user } + Set-Cookie auth_token + Set-Cookie refresh_token
-    SPA->>SPA: Hydrate auth store
+    API-->>SPA: 302 to FRONTEND/ + Set-Cookie auth_token + Set-Cookie refresh_token
+    SPA->>SPA: Hydrate auth store (GET /v1/session)
     SPA-->>U: Navigate to home
 ```
 
-> **Why the exchange step?** Cross-site `Set-Cookie` on the tail of a
-> redirect from Microsoft is unreliable under Safari ITP and modern
-> third-party-cookie defaults: the cookie can be silently dropped. The
-> SPA-initiated POST to `/v1/session/exchange` is a same-origin request,
-> so the cookie lands. See
-> [ADR-019: BFF cookie exchange](../architecture-decision-records/019-bff-cookie-exchange.md).
+> **Why Set-Cookie on the callback redirect?** Frontend and backend share
+> the same domain in all deployments (`/api` prefix in production,
+> `localhost` on both sides in dev). A cookie set on a same-domain `302`
+> is accepted by all browsers without ITP interference. See
+> [ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md)
+> for the original BFF exchange design that was superseded by this approach.
 
 ## 4. Session lifecycle
 
@@ -79,8 +72,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Anonymous
     Anonymous --> Authenticating: GET /v1/auth/login
-    Authenticating --> Exchanging: /v1/auth/callback issues one-shot code
-    Exchanging --> Authenticated: POST /v1/session/exchange sets cookies
+    Authenticating --> Authenticated: /v1/auth/callback sets cookies + 302 /
     Authenticated --> Authenticated: POST /v1/session (rotates both cookies)
     Authenticated --> Anonymous: DELETE /v1/session (clears cookies)
 ```
@@ -97,7 +89,7 @@ Claims minted by `_set_auth_cookies` in `backend/app/api/v1/auth.py`:
 
 | Claim              | Purpose                                                                              |
 | ------------------ | ------------------------------------------------------------------------------------ |
-| `sub`              | Opaque subject (currently `user.id` as string)                                       |
+| `sub`              | IdP sub claim (Entra object UUID); fallback to `str(user.id)` if IdP omits it        |
 | `institutional_id` | Stable EPFL identifier — the primary trust-boundary key                              |
 | `provider`         | `UserProvider` enum value (`1=DEFAULT`, `2=TEST`, `3=ACCRED`)                        |
 | `type`             | `"access"` or `"refresh"` — see `TOKEN_TYPE_ACCESS` / `TOKEN_TYPE_REFRESH` constants |
@@ -174,11 +166,10 @@ truth: the implementation plan
 
 Additional pinning tests:
 
-- `test_e2e_callback_me_refresh_logout_happy_path` — end-to-end happy path.
+- `test_callback_sets_cookies_and_redirects_to_frontend` — pins the direct cookie-on-callback behaviour (PR #1687).
+- `test_e2e_callback_session_refresh_logout_happy_path` — end-to-end happy path.
 - `test_secure_cookie_is_dropped_over_http_breaking_followup_calls` —
   F2 regression guard; demonstrates the cookie-drop symptom.
-- `TestExchangeFlow::*` — exchange-flow tests, delivered in PR `#<TBD>`
-  (parallel Unit A worktree).
 - `TestDefaultRoleProviderClaimCombinations::*` — claim-combination
   matrix for the role provider.
 - `backend/tests/unit/core/test_security_gates.py::*` — permission gate unit
@@ -186,14 +177,16 @@ Additional pinning tests:
 
 ## 9. Design choices and trade-offs
 
-### Why a BFF exchange code, not direct cookies on callback
+### Why direct cookies on the callback (not a BFF exchange step)
 
-Setting cookies on the tail of a cross-site redirect from Microsoft is
-unreliable: Safari ITP and modern third-party-cookie defaults can drop
-them. A same-origin SPA-to-backend POST is reliable. Trade-off: +1
-round-trip on login and a small server-side exchange-code store (DB-backed
-today). See
-[ADR-019](../architecture-decision-records/019-bff-cookie-exchange.md).
+Frontend and backend share the same domain in all deployments (production:
+`/api` path prefix on the same host; localhost dev: same `localhost` host,
+different ports that are treated as same-site). A `Set-Cookie` header on the
+OAuth-callback `302` is a same-site response; browsers accept it without ITP
+interference. The previous BFF exchange design (ADR-019) was motivated by a
+Safari ITP regression that only reproduced on localhost when the two processes
+ran on different ports — not a production concern. Removing it eliminates one
+DB table, one endpoint, one SPA page, and one round-trip on every login.
 
 ### Why HS256 with a shared secret, not RS256 with a key pair
 
@@ -216,12 +209,12 @@ and the standard `Origin`/`Referer` checks already in place.
   stolen-token mitigation.
 - **`JWTClaimsRegistry` leeway tuning** — currently default `0` seconds;
   30 s is the candidate value to absorb pod-to-pod NTP drift.
-- **BFF exchange-code store** — current DB-backed store is single-pod-safe
-  but slower; a shared, higher-throughput store is a future option if
-  multi-pod scaling warrants it.
 - **Narrow the role-provider boundary** — F11/F12 are delivered, but the
   provider surface deserves its own scope-narrowing pass in a future
   tier (typed schema for IdP role payloads, strict mode for production).
+- **Ingress rate limiting on `/v1/auth/callback`** — no app-level throttle
+  exists on the callback endpoint; a `nginx.ingress.kubernetes.io/limit-rps`
+  annotation on the ingress is the recommended mitigation.
 
 ## Related docs
 
@@ -230,5 +223,5 @@ and the standard `Origin`/`Referer` checks already in place.
 - [Backend permission system](../backend/06-PERMISSION-SYSTEM.md)
 - [ADR-005 Authorization strategy](../architecture-decision-records/005-authorization-strategy.md)
 - [ADR-012 JWT authentication](../architecture-decision-records/012-jwt-authentication-strategy.md)
-- [ADR-019 BFF cookie exchange](../architecture-decision-records/019-bff-cookie-exchange.md)
+- [ADR-019 BFF cookie exchange (superseded)](../architecture-decision-records/019-bff-cookie-exchange.md)
 - [Issue #458 — security: authentication & integration hardening](https://github.com/EPFL-ENAC/co2-calculator/issues/458)
