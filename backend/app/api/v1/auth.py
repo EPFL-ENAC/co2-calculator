@@ -641,14 +641,11 @@ async def refresh_session(
                 detail="User ID missing",
             )
 
-        # Trigger background role sync if needed (non-blocking)
-        # Note: This is fire-and-forget - errors don't affect /session POST response
-        if user.id is not None:
-            background_tasks.add_task(
-                trigger_role_sync_for_user,
-                user_id=user.id,
-                force=False,
-            )
+        background_tasks.add_task(
+            trigger_role_sync_for_user,
+            user_id=user.id,
+            force=False,
+        )
 
         # Set new tokens
         _set_auth_cookies(
@@ -661,23 +658,22 @@ async def refresh_session(
 
         logger.info("Token refreshed successfully", extra={"user_id": user.id})
 
-        if request is not None:
-            await _log_auth_audit_event(
-                db=db,
-                request=request,
-                change_type=AuditChangeTypeEnum.UPDATE,
-                change_reason="Token refreshed",
-                handler_id=user.institutional_id or str(user.id),
-                changed_by=user.id,
-                handled_ids=[user.institutional_id] if user.institutional_id else [],
-                data_snapshot={
-                    "event": "refresh",
-                    "user_id": user.id,
-                    "email": user.email,
-                    "institutional_id": user.institutional_id,
-                },
-                entity_id=user.id or 0,
-            )
+        await _log_auth_audit_event(
+            db=db,
+            request=request,
+            change_type=AuditChangeTypeEnum.UPDATE,
+            change_reason="Token refreshed",
+            handler_id=user.institutional_id or str(user.id),
+            changed_by=user.id,
+            handled_ids=[user.institutional_id] if user.institutional_id else [],
+            data_snapshot={
+                "event": "refresh",
+                "user_id": user.id,
+                "email": user.email,
+                "institutional_id": user.institutional_id,
+            },
+            entity_id=user.id or 0,
+        )
         return {"message": "Token refreshed successfully"}
 
     except HTTPException:

@@ -8,12 +8,6 @@ export async function authGuard(to: RouteLocationNormalized) {
   // protected pages without a backend. All auth checks are skipped.
   if (window.__LIGHTHOUSE_BYPASS__) return true;
 
-  // Routes that handle their own auth bootstrap can opt out of the
-  // auto-getUser() probe via `meta.skipAuthCheck: true`. Placed BEFORE
-  // useAuthStore() so the short-circuit works without Pinia (lets the
-  // guard be unit-tested without a store fixture, too).
-  if (to.meta.skipAuthCheck) return true;
-
   const auth = useAuthStore();
 
   // Load user if needed
