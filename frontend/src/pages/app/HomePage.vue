@@ -73,6 +73,39 @@ const firstEditableModule = computed(() =>
   ),
 );
 
+// Principal (unit-breadth) users can validate module status; standard (own)
+// users cannot. We use the same signal to tailor the empty-state access copy.
+const isPrincipalUser = computed(() =>
+  authStore.hasUserCanValidateModuleStatus(),
+);
+
+const roleLabelKey = computed(() =>
+  isPrincipalUser.value
+    ? 'co2_calculator_role_principal'
+    : 'co2_calculator_role_standard',
+);
+
+const accessTitleKey = computed(() =>
+  isPrincipalUser.value
+    ? 'co2_calculator_access_principal_title'
+    : 'co2_calculator_access_standard_title',
+);
+
+const accessBodyKey = computed(() =>
+  isPrincipalUser.value
+    ? 'co2_calculator_access_principal_body'
+    : 'co2_calculator_access_standard_body',
+);
+
+const accessCtaKey = computed(() =>
+  isPrincipalUser.value
+    ? 'co2_calculator_access_cta_principal'
+    : 'co2_calculator_access_cta_standard',
+);
+
+// EPFL access-management portal, opened straight on the authorizations tab.
+const ACCRED_URL = 'https://accred.epfl.ch?opentab=authorizations';
+
 const calculatorUpdates = computed(() =>
   [1, 2, 3]
     .map((i) => ({
@@ -164,10 +197,57 @@ watch(
         <q-card flat bordered class="q-mt-xl calculator-card">
           <!-- Left column: title, chart, then actions + total footer -->
           <div class="calculator-card__main">
-            <div class="calculator-card__header">
+            <div
+              class="calculator-card__header row items-center justify-between no-wrap"
+            >
               <h2 class="text-h5 text-weight-medium q-mb-none">
                 {{ $t('co2_calculator_chart_title', { year: currentYear }) }}
               </h2>
+
+              <!-- Discreet role badge; opens a popover explaining the access
+                   level and how to request more (ACCRED). Always available,
+                   independent of the empty/populated chart state. -->
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                class="calculator-card__role-chip"
+                :class="{
+                  'calculator-card__role-chip--principal': isPrincipalUser,
+                }"
+              >
+                <q-icon
+                  :name="isPrincipalUser ? 'o_verified_user' : 'o_lock'"
+                  size="xs"
+                  class="q-mr-xs"
+                />
+                {{ $t(roleLabelKey) }}
+                <q-icon name="expand_more" size="xs" class="q-ml-xs" />
+                <q-menu
+                  anchor="bottom right"
+                  self="top right"
+                  :offset="[0, 6]"
+                >
+                  <div class="calculator-card__access-popover">
+                    <p class="text-subtitle2 text-weight-medium q-mb-xs">
+                      {{ $t(accessTitleKey) }}
+                    </p>
+                    <p class="text-body2 text-secondary q-mb-sm">
+                      {{ $t(accessBodyKey) }}
+                    </p>
+                    <a
+                      :href="ACCRED_URL"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="link text-body2 text-weight-medium"
+                    >
+                      {{ $t(accessCtaKey) }}
+                      <q-icon name="o_arrow_outward" size="xs" />
+                    </a>
+                  </div>
+                </q-menu>
+              </q-btn>
             </div>
 
             <q-separator />
@@ -372,6 +452,27 @@ watch(
   text-align: center;
   min-height: 360px;
   height: 100%;
+}
+
+// Discreet role badge in the card header. Neutral pill, color keyed to role,
+// opens the access popover below.
+.calculator-card__role-chip {
+  color: tokens.$color-text;
+  border: 1px solid tokens.$color-text;
+  border-radius: tokens.$radius-pill;
+  padding: 2px tokens.$spacing-sm;
+  flex-shrink: 0;
+
+  &--principal {
+    color: tokens.$color-validated;
+    border-color: tokens.$color-validated;
+  }
+}
+
+// Access details revealed from the role badge.
+.calculator-card__access-popover {
+  max-width: 400px;
+  padding: tokens.$spacing-xl;
 }
 
 .calculator-card__updates {

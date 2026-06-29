@@ -138,7 +138,7 @@ export default {
   },
   co2_calculator_empty_title: {
     en: "Ready to map your unit's footprint",
-    fr: "Prêt à cartographier l'empreinte de votre unité",
+    fr: "Prêt·e à cartographier l'empreinte de votre unité",
   },
   co2_calculator_empty_subtitle: {
     en: 'Begin your {year} assessment and watch your emissions take shape, category by category.',
@@ -147,6 +147,40 @@ export default {
   co2_calculator_empty_btn: {
     en: 'Start',
     fr: 'Commencer',
+  },
+  // Role badge in the calculator card header; opens the access popover.
+  co2_calculator_role_standard: {
+    en: 'Standard user',
+    fr: 'Utilisateur·rice standard',
+  },
+  co2_calculator_role_principal: {
+    en: 'Principal user',
+    fr: 'Utilisateur·rice principal·e',
+  },
+  // Access popover content, role-aware.
+  co2_calculator_access_standard_title: {
+    en: "You're a standard user",
+    fr: 'Vous êtes utilisateur·rice standard',
+  },
+  co2_calculator_access_standard_body: {
+    en: 'You can see only a subset of modules to protect confidential data. To unlock the full assessment, ask your Head of Unit for principal access via ACCRED.',
+    fr: "Vous ne voyez qu'une partie des modules afin de protéger les données confidentielles. Pour débloquer le bilan complet, demandez un accès principal à votre responsable d'unité via ACCRED.",
+  },
+  co2_calculator_access_principal_title: {
+    en: "You're a principal user",
+    fr: 'Vous êtes utilisateur·rice principal·e',
+  },
+  co2_calculator_access_principal_body: {
+    en: 'You can see all modules. If relevant, the Head of Unit can delegate this role to team members in ACCRED. Some data is confidential  please handle it with care.',
+    fr: "Vous voyez tous les modules. Le cas échéant, le·la responsable d'unité peut déléguer ce rôle à des membres de l'équipe dans ACCRED. Certaines données sont confidentielles manipulez-les avec soin.",
+  },
+  co2_calculator_access_cta_standard: {
+    en: 'Request full access in ACCRED',
+    fr: "Demander l'accès complet dans ACCRED",
+  },
+  co2_calculator_access_cta_principal: {
+    en: 'Manage access in ACCRED',
+    fr: 'Gérer les accès dans ACCRED',
   },
   co2_project_planner_title: {
     en: 'CO₂ Project Planner',
