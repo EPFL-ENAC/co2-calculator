@@ -1,20 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useWorkspaceStore } from 'src/stores/workspace';
+import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import type { Unit } from 'src/stores/workspace';
 import { HOME_ROUTE_NAME } from 'src/router/routeNames';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
 const router = useRouter();
 const route = useRoute();
-
-/** Build the `id-slugified-name` unit route param (same format as the guards). */
-function unitSlug(unit: Unit): string {
-  return `${unit.id}-${unit.name.replace(/\s+/g, '-').toLowerCase()}`;
-}
 
 const selectedUnit = computed(() => workspaceStore.selectedUnit);
 
@@ -171,7 +165,9 @@ watch(
         </span>
         <span v-if="affiliationLeaf" class="text-caption">
           <span class="text-secondary">{{ affiliationPrefix }}</span
-          ><span class="text-black text-weight-medium">{{ affiliationLeaf }}</span>
+          ><span class="text-black text-weight-medium">{{
+            affiliationLeaf
+          }}</span>
         </span>
       </div>
     </div>

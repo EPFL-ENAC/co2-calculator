@@ -8,6 +8,7 @@ import {
 
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
+import workspaceGuard from './guards/validateUnitGuard';
 import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
@@ -74,6 +75,7 @@ export default route(function (/* { store, ssrContext } */) {
   Router.beforeEach(defaultLanguageGuard);
   Router.beforeEach(setLanguageCookieGuard);
   Router.beforeEach(authGuard);
+  Router.beforeEach(workspaceGuard);
 
   return Router;
 });

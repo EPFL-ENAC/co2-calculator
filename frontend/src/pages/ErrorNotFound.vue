@@ -52,15 +52,14 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { HOME_ROUTE_NAME, DEFAULT_ROUTE_NAME } from 'src/router/routes';
-import { i18n } from 'src/boot/i18n';
+import { currentLanguage } from 'src/utils/language';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 const { t } = useI18n();
 const workspaceStore = useWorkspaceStore();
 
 const homeRoute = computed(() => {
-  const currentLocale = i18n.global.locale.value;
-  const language = currentLocale.split('-')[0] || 'en';
+  const language = currentLanguage();
 
   // Go straight to the workspace home when a unit/year is selected;
   // otherwise fall back to the landing resolver so the required params exist.

@@ -7,7 +7,9 @@ import { useWorkspaceStore } from 'src/stores/workspace';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { useRouter } from 'vue-router';
 import { useRoute } from 'vue-router';
-import { isBackOfficeRoute, DEFAULT_ROUTE_NAME } from 'src/router/routes';
+import { isBackOfficeRoute } from 'src/router/routes';
+import { DEFAULT_ROUTE_NAME, HOME_ROUTE_NAME } from 'src/router/routeNames';
+import { resolveLanguage } from 'src/utils/language';
 import { PermissionAction } from 'src/stores/auth';
 
 const authStore = useAuthStore();
@@ -62,24 +64,17 @@ const breadcrumbLabel = computed(() =>
 );
 
 const logoRoute = computed(() => {
-  // Inside a workspace (unit + year present) the logo returns to the unified
-  // home page; otherwise it falls back to the landing resolver.
+  // The `home` route's path requires unit + year, so we can only link straight
+  // to it from inside a workspace. Elsewhere (login, landing) there is no
+  // workspace to build a home URL for, so fall back to the landing resolver,
+  // which picks a default and redirects.
   if (route.params.unit && route.params.year) {
-    return {
-      name: 'home',
-      params: {
-        language: route.params.language || 'en',
-        unit: route.params.unit,
-        year: route.params.year,
-      },
-    };
+    return { name: HOME_ROUTE_NAME, params: route.params };
   }
 
   return {
     name: DEFAULT_ROUTE_NAME,
-    params: {
-      language: route.params.language || 'en',
-    },
+    params: { language: resolveLanguage(route) },
   };
 });
 </script>
@@ -104,8 +99,6 @@ const logoRoute = computed(() => {
 
       <q-space />
 
-      <Co2LanguageSelector />
-
       <q-btn
         v-if="hasBackOfficeAccess && !isInBackOfficeRoute"
         color="grey-4"
@@ -115,7 +108,7 @@ const logoRoute = computed(() => {
         no-caps
         outline
         size="sm"
-        class="text-weight-medium q-ml-xl"
+        class="text-weight-medium"
         :to="{ name: 'back-office' }"
       />
       <q-btn
@@ -127,45 +120,27 @@ const logoRoute = computed(() => {
         no-caps
         outline
         size="sm"
-        class="text-weight-medium q-ml-xl"
+        class="text-weight-medium"
         :to="{
           name: DEFAULT_ROUTE_NAME,
           params: {
-            language: route.params.language || 'en',
+            language: resolveLanguage(route),
           },
         }"
       />
 
+      <Co2LanguageSelector class="q-ml-xl" />
+
       <!-- The unified home page hosts the Unit/Year dropdowns itself, so the
            workspace summary + "Change workspace" shortcut are suppressed there
            and only shown on the module / results / simulation routes. -->
-      <template v-if="route.name !== 'home'">
+      <template v-if="route.name !== HOME_ROUTE_NAME">
         <span
           v-if="workspaceDisplay"
           class="text-body2 text-weight-medium q-ml-xl q-mr-sm"
         >
           {{ workspaceDisplay }}
         </span>
-
-        <q-btn
-          icon="o_autorenew"
-          color="grey-4"
-          text-color="primary"
-          :label="$t('workspace_change_btn')"
-          unelevated
-          no-caps
-          outline
-          size="sm"
-          class="text-weight-medium q-ml-xl"
-          :to="{
-            name: 'home',
-            params: {
-              language: route.params.language || 'en',
-              unit: route.params.unit,
-              year: route.params.year,
-            },
-          }"
-        />
       </template>
 
       <q-btn-dropdown
@@ -208,7 +183,7 @@ const logoRoute = computed(() => {
         <q-breadcrumbs class="text-grey-8">
           <q-breadcrumbs-el
             :label="$t('home')"
-            :to="{ name: 'home', params: route.params }"
+            :to="{ name: HOME_ROUTE_NAME, params: route.params }"
           />
           <q-breadcrumbs-el class="text-capitalize" :label="breadcrumbLabel" />
         </q-breadcrumbs>

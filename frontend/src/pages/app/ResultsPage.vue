@@ -31,6 +31,7 @@ import { useYearConfigStore } from 'src/stores/yearConfig';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
+import { resolveLanguage } from 'src/utils/language';
 
 const yearConfigStore = useYearConfigStore();
 
@@ -400,7 +401,7 @@ const downloadPDF = () => {
   const resolved = router.resolve({
     name: 'results-print',
     params: {
-      language: String(route.params.language ?? 'en'),
+      language: resolveLanguage(route),
       unit: workspaceStore.selectedParams?.unit ?? route.params.unit,
       year: String(currentYear.value),
     },

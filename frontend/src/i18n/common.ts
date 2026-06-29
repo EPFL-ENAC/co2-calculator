@@ -37,9 +37,9 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
-  'simulation-add': {
-    en: 'Add Simulation',
-    fr: 'Ajouter une Simulation',
+  'project-planner': {
+    en: 'Project Planner',
+    fr: 'Planificateur de projet',
   },
   'simulation-edit': {
     en: 'Edit Simulation',
