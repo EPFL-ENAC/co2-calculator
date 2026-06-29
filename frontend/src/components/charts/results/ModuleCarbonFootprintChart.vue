@@ -9,8 +9,11 @@ import {
   buildChartDecal,
   colors,
   getChartSubcategoryColor,
+  getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
 } from 'src/constant/charts';
+import type { Module } from 'src/constant/modules';
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useColorblindStore } from 'src/stores/colorblind';
 import {
   TooltipComponent,
@@ -69,6 +72,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  /**
+   * Replace the rotated text x-axis labels with clickable module icon buttons
+   * (one per category, linking to its module page). Home page only.
+   */
+  moduleIconAxis: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const { t, locale } = useI18n();
@@ -114,6 +125,53 @@ const labelToKey = computed<Record<string, string>>(() => {
   return map;
 });
 
+// Categories that share a module but need a distinct icon-box color scale
+// (buildings has two bars). Mirrors SUBMODULE_TO_CATEGORY in useModuleIconColors.
+const CATEGORY_TO_SUBMODULE: Record<string, string> = {
+  buildings_room: 'building',
+  buildings_energy_combustion: 'energy_combustion',
+};
+
+type IconAxisItem = {
+  label: string;
+  module: Module | null;
+  submoduleType?: string;
+  x: number;
+};
+
+// Pixel-positioned module icon buttons under each bar (moduleIconAxis mode).
+const iconAxisItems = ref<IconAxisItem[]>([]);
+// Vertical offset (px from chart top) where the icon row begins — the chart baseline.
+const iconAxisTop = ref(0);
+
+function updateIconAxis(chart: NonNullable<typeof chartRef.value>['chart']) {
+  if (!props.moduleIconAxis) {
+    if (iconAxisItems.value.length) iconAxisItems.value = [];
+    return;
+  }
+  const items = datasetSource.value;
+  if (!items.length) {
+    iconAxisItems.value = [];
+    return;
+  }
+
+  const yZero = chart.convertToPixel({ yAxisIndex: 0 }, 0) as number;
+  if (!Number.isFinite(yZero)) return;
+
+  iconAxisItems.value = items.map((item) => {
+    const label = String(item.category);
+    const categoryKey =
+      labelToKey.value[label] ?? String(item.category_key ?? '');
+    return {
+      label,
+      module: getModuleForCategoryKey(categoryKey),
+      submoduleType: CATEGORY_TO_SUBMODULE[categoryKey],
+      x: chart.convertToPixel({ xAxisIndex: 0 }, label) as number,
+    };
+  });
+  iconAxisTop.value = yZero;
+}
+
 // Memoize the last scope rects to avoid redundant updates
 let lastScopeState: {
   s1Left?: number;
@@ -136,6 +194,7 @@ function recalculateScopeRects() {
 
   requestAnimationFrame(() => {
     updateScopeGraphics(chart);
+    updateIconAxis(chart);
   });
 }
 
@@ -1210,12 +1269,14 @@ const chartOption = computed((): EChartsOption => {
       left: '5%',
       right: '4%',
       top: 80,
-      bottom: '0%',
+      // Reserve room for the icon button row when it replaces the text labels.
+      bottom: props.moduleIconAxis ? 96 : '0%',
       containLabel: true,
     },
     xAxis: {
       type: 'category',
       axisLabel: {
+        show: !props.moduleIconAxis,
         interval: 0,
         rotate: 45,
         fontSize: 9,
@@ -1307,7 +1368,10 @@ const chartOption = computed((): EChartsOption => {
       ],
       source: enrichedDatasetSource.value as Array<Record<string, unknown>>,
     },
-    series: seriesArray as SeriesOption[],
+    series: (props.moduleIconAxis
+      ? // Match the bar width to the icon box (sm = 40px) beneath it.
+        seriesArray.map((s) => ({ ...s, barWidth: 40 }))
+      : seriesArray) as SeriesOption[],
   };
 });
 
@@ -1456,16 +1520,45 @@ const downloadCSV = () => {
     <q-card-section
       class="chart-container flex justify-center items-center module-carbon-chart__body"
     >
-      <v-chart
-        ref="chartRef"
-        :key="colorblindStore.enabled ? 'cb' : 'default'"
-        :class="['chart', { 'chart--print': isPrintMode }]"
-        autoresize
-        :option="chartOption"
-        :update-options="{ replaceMerge: ['dataset'] }"
-        @rendered="recalculateScopeRects"
-        @vue:mounted="onChartReady"
-      />
+      <div class="module-carbon-chart__plot">
+        <v-chart
+          ref="chartRef"
+          :key="colorblindStore.enabled ? 'cb' : 'default'"
+          :class="['chart', { 'chart--print': isPrintMode }]"
+          autoresize
+          :option="chartOption"
+          :update-options="{ replaceMerge: ['dataset'] }"
+          @rendered="recalculateScopeRects"
+          @vue:mounted="onChartReady"
+        />
+        <!-- Clickable module icon buttons aligned under each bar (home page). -->
+        <div
+          v-if="props.moduleIconAxis"
+          class="module-icon-axis"
+          aria-hidden="false"
+        >
+          <component
+            :is="item.module ? 'router-link' : 'div'"
+            v-for="item in iconAxisItems"
+            :key="item.label"
+            class="module-icon-axis__item"
+            :class="{ 'module-icon-axis__item--link': item.module }"
+            :to="
+              item.module
+                ? { name: 'module', params: { module: item.module } }
+                : undefined
+            "
+            :style="{ left: `${item.x}px`, top: `${iconAxisTop + 22}px` }"
+          >
+            <ModuleIconBox
+              :name="item.module ?? 'addition-datas'"
+              :submodule-type="item.submoduleType"
+              size="sm"
+            />
+            <span class="module-icon-axis__label">{{ item.label }}</span>
+          </component>
+        </div>
+      </div>
       <Teleport to="body">
         <tooltip-echarts
           v-if="tooltip.visible"
@@ -1520,9 +1613,58 @@ const downloadCSV = () => {
   flex: 1;
 }
 
+/* Positioning context for the icon-axis overlay; matches the chart canvas box
+   so convertToPixel coordinates align with the absolutely-positioned icons. */
+.module-carbon-chart__plot {
+  position: relative;
+  width: 100%;
+}
+
 .chart {
   width: 100%;
   min-height: 420px;
+}
+
+/* Overlay layer: transparent to pointer events except on the icon buttons,
+   so chart tooltips keep working everywhere else. */
+.module-icon-axis {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.module-icon-axis__item {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 84px;
+  /* Anchor each icon to the bar centre (x is the bar centre pixel). */
+  transform: translateX(-50%);
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+  pointer-events: auto;
+}
+
+.module-icon-axis__item--link {
+  cursor: pointer;
+}
+
+.module-icon-axis__item--link:hover .module-icon-axis__label {
+  text-decoration: underline;
+}
+
+.module-icon-axis__item--link:hover :deep(.module-icon-box) {
+  filter: brightness(0.96);
+}
+
+.module-icon-axis__label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #000;
 }
 
 .chart--print {
