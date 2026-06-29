@@ -136,6 +136,18 @@ export default {
     en: 'Continue',
     fr: 'Continuer',
   },
+  co2_calculator_empty_title: {
+    en: "Ready to map your unit's footprint",
+    fr: "Prêt à cartographier l'empreinte de votre unité",
+  },
+  co2_calculator_empty_subtitle: {
+    en: 'Begin your {year} assessment and watch your emissions take shape, category by category.',
+    fr: 'Commencez votre bilan {year} et regardez vos émissions prendre forme, catégorie par catégorie.',
+  },
+  co2_calculator_empty_btn: {
+    en: 'Start',
+    fr: 'Commencer',
+  },
   co2_project_planner_title: {
     en: 'CO₂ Project Planner',
     fr: 'Planificateur de projet CO₂',

@@ -55,6 +55,16 @@ const totalTonnesCo2 = computed(() =>
   }),
 );
 
+/**
+ * The chart only carries meaning once a module has been validated. Until then
+ * we show the empty "ready to start" state instead of an empty chart.
+ */
+const hasValidatedData = computed(
+  () =>
+    (moduleStore.state.emissionBreakdown?.validated_categories?.length ?? 0) >
+    0,
+);
+
 const firstEditableModule = computed(() =>
   MODULES_LIST.find(
     (module) =>
@@ -164,17 +174,44 @@ watch(
 
             <div class="calculator-card__chart">
               <ModuleCarbonFootprintChart
+                v-if="hasValidatedData"
                 :breakdown-data="moduleStore.state.emissionBreakdown"
                 :bordered="false"
                 hide-header
                 hide-actions
+                module-icon-axis
               />
+              <div v-else class="calculator-card__empty">
+                <q-icon name="o_bar_chart" size="48px" color="info" />
+                <h3 class="text-h5 text-weight-medium q-mt-md q-mb-sm">
+                  {{ $t('co2_calculator_empty_title') }}
+                </h3>
+                <p class="text-body2 text-secondary q-mb-lg">
+                  {{
+                    $t('co2_calculator_empty_subtitle', { year: currentYear })
+                  }}
+                </p>
+                <q-btn
+                  color="info"
+                  :label="$t('co2_calculator_empty_btn')"
+                  icon-right="o_arrow_circle_right"
+                  unelevated
+                  no-caps
+                  size="md"
+                  class="text-weight-medium"
+                  :to="{
+                    name: 'module',
+                    params: { module: firstEditableModule },
+                  }"
+                  :disable="!firstEditableModule"
+                />
+              </div>
             </div>
 
             <q-separator />
 
             <div class="calculator-card__footer">
-              <div class="row items-center q-gutter-sm">
+              <div v-if="hasValidatedData" class="row items-center q-gutter-sm">
                 <q-btn
                   color="info"
                   :label="$t('co2_calculator_continue')"
@@ -202,9 +239,9 @@ watch(
                   :to="{ name: 'results' }"
                 />
               </div>
-              <div class="column items-end">
+              <div class="column items-end calculator-card__total">
                 <p class="text-h3 text-weight-medium q-mb-none">
-                  {{ totalTonnesCo2 }}
+                  {{ hasValidatedData ? totalTonnesCo2 : '-' }}
                 </p>
                 <p class="text-secondary text-caption q-mb-none">
                   {{ $t('results_units_tonnes') }}
@@ -325,6 +362,18 @@ watch(
   padding: tokens.$spacing-lg tokens.$spacing-xl;
 }
 
+// Empty "ready to start" state shown in the chart slot before any module is
+// validated; fills the same vertical space the chart would occupy.
+.calculator-card__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 360px;
+  height: 100%;
+}
+
 .calculator-card__updates {
   padding: tokens.$spacing-xl;
 }
@@ -332,6 +381,12 @@ watch(
 // Thin divider between consecutive update entries (not before the first).
 .calculator-card__update-separator {
   margin: tokens.$spacing-xl 0;
+}
+
+// Total stays pinned to the right even when the action buttons are hidden
+// (empty state), where it would otherwise be the footer's only child.
+.calculator-card__total {
+  margin-left: auto;
 }
 
 // Footer lives only inside the left column, beneath the chart.

@@ -231,6 +231,10 @@ export default {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
   },
+  home_btn: {
+    en: 'Home',
+    fr: 'Accueil',
+  },
   documentation_button_label: {
     en: 'Documentation',
     fr: 'Documentation',
