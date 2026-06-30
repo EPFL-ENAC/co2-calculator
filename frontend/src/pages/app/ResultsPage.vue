@@ -56,6 +56,10 @@ const CarbonFootPrintPerPersonChart = defineAsyncComponent({
   delay: 0,
 });
 
+const CompareYearsDialog = defineAsyncComponent(
+  () => import('src/components/charts/results/CompareYearsDialog.vue'),
+);
+
 const ModuleCharts = defineAsyncComponent({
   loader: () => import('src/components/organisms/module/ModuleCharts.vue'),
   loadingComponent: ChartChunkSkeleton,
@@ -325,7 +329,10 @@ function getModuleCarComparison(module: string): string | undefined {
 
 const viewUncertainties = ref(false);
 const viewAdditionalData = computed(() => !hideAdditionalData.value);
-const compareYears = ref(false);
+const compareYearsOpen = ref(false);
+const compareYearsUnitId = computed(
+  () => workspaceStore.selectedCarbonReport?.unit_id ?? null,
+);
 
 const additionalBreakdown = computed(
   () => moduleStore.state.emissionBreakdown?.additional_breakdown ?? [],
@@ -453,15 +460,6 @@ const getUncertainty = (
               class="text-weight-medium q-mb-md"
               @click="downloadPDF"
             />
-            <div class="flex column">
-              <q-checkbox
-                v-model="compareYears"
-                :label="$t('results_compare_years')"
-                color="info"
-                class="text-weight-medium"
-                size="xs"
-              />
-            </div>
           </div>
         </div>
       </q-card>
@@ -566,6 +564,8 @@ const getUncertainty = (
                 <ModuleCarbonFootprintChart
                   :breakdown-data="moduleStore.state.emissionBreakdown"
                   :view-additional-data="viewAdditionalData"
+                  enable-compare-years
+                  @compare-years="compareYearsOpen = true"
                 />
               </template>
               <q-skeleton
@@ -865,6 +865,11 @@ const getUncertainty = (
         </q-card>
       </div>
     </div>
+
+    <CompareYearsDialog
+      v-model="compareYearsOpen"
+      :unit-id="compareYearsUnitId"
+    />
   </q-page>
 </template>
 

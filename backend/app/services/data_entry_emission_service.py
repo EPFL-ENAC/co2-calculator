@@ -26,7 +26,7 @@ from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     resolve_emission_types,
 )
-from app.utils.emission_category import additional_value_unit
+from app.utils.emission_category import additional_value_unit, build_year_comparison
 from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
@@ -798,6 +798,37 @@ class DataEntryEmissionService:
         return await self.repo.get_emission_breakdown_with_quantity(
             carbon_report_id=carbon_report_id,
         )
+
+    async def get_year_comparison_by_unit(
+        self,
+        unit_id: int,
+    ) -> list[dict]:
+        """Build per-year emission comparison buckets for a unit.
+
+        Returns one entry per year (ascending) shaped for the Compare Years
+        charts::
+
+            [
+                {
+                    "year": 2023,
+                    "total_tonnes_co2eq": 61.7,
+                    "modules": {"equipment": 41.7, "buildings_room": 12.3, ...},
+                    "scopes": {"1": 8.1, "2": 20.4, "3": 33.2},
+                },
+                ...
+            ]
+        """
+        rows = await self.repo.get_emission_breakdown_by_unit(unit_id=unit_id)
+
+        per_year: dict[int, list[tuple[int, float]]] = {}
+        for year, emission_type_id, kg_co2eq in rows:
+            per_year.setdefault(year, []).append((emission_type_id, kg_co2eq))
+
+        result: list[dict] = []
+        for year in sorted(per_year):
+            comparison = build_year_comparison(per_year[year])
+            result.append({"year": year, **comparison})
+        return result
 
     async def get_it_emission_sql_totals(
         self,

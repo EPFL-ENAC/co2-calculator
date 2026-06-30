@@ -59,7 +59,13 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  enableCompareYears: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+const emit = defineEmits<{ (e: 'compareYears'): void }>();
 
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
@@ -1429,13 +1435,24 @@ const downloadCSV = () => {
         </q-icon>
       </div>
 
-      <div v-if="!isPrintMode">
+      <div v-if="!isPrintMode" class="flex items-center q-gutter-sm">
         <q-checkbox
           v-if="props.viewAdditionalData === undefined"
           v-model="toggleAdditionalData"
           :label="$t('results_module_carbon_toggle_additional_data')"
           size="xs"
           color="accent"
+        />
+        <q-btn
+          v-if="props.enableCompareYears"
+          color="black"
+          icon="o_bar_chart"
+          :label="$t('results_compare_years')"
+          outline
+          no-caps
+          size="sm"
+          class="text-weight-medium"
+          @click="emit('compareYears')"
         />
       </div>
     </q-card-section>

@@ -9,6 +9,7 @@ from app.utils.emission_category import (
     additional_value_unit,
     build_chart_breakdown,
     build_treemap,
+    build_year_comparison,
     is_additional_breakdown_emission,
 )
 
@@ -350,3 +351,47 @@ def test_is_additional_breakdown_emission_false_for_operational_buildings():
 
 def test_is_additional_breakdown_emission_false_for_unknown_id():
     assert is_additional_breakdown_emission(999999) is False
+
+
+def test_build_year_comparison_buckets_by_category_and_scope():
+    rows = [
+        # scope 2 / equipment
+        (EmissionType.equipment__scientific.value, 10_000.0),
+        (EmissionType.equipment__it.value, 5_000.0),
+        # scope 1 / buildings_energy_combustion
+        (EmissionType.buildings__combustion__natural_gas.value, 2_000.0),
+        # scope 3 / professional_travel
+        (EmissionType.professional_travel__plane__eco.value, 8_000.0),
+        # scope 3 / commuting (additional category, still counted)
+        (EmissionType.commuting__cycling.value, 1_000.0),
+    ]
+
+    result = build_year_comparison(rows)
+
+    # Values are returned in tonnes.
+    assert result["modules"]["equipment"] == pytest.approx(15.0)
+    assert result["modules"]["buildings_energy_combustion"] == pytest.approx(2.0)
+    assert result["modules"]["professional_travel"] == pytest.approx(8.0)
+    assert result["modules"]["commuting"] == pytest.approx(1.0)
+
+    assert result["scopes"]["1"] == pytest.approx(2.0)
+    assert result["scopes"]["2"] == pytest.approx(15.0)
+    assert result["scopes"]["3"] == pytest.approx(9.0)
+
+    # Module total and scope total both equal the grand total.
+    assert result["total_tonnes_co2eq"] == pytest.approx(26.0)
+    assert sum(result["scopes"].values()) == pytest.approx(26.0)
+
+
+def test_build_year_comparison_ignores_unknown_and_non_positive():
+    rows = [
+        (999999, 5_000.0),  # unknown emission type id
+        (EmissionType.equipment__scientific.value, 0.0),  # non-positive
+        (EmissionType.equipment__scientific.value, -100.0),  # negative
+    ]
+
+    result = build_year_comparison(rows)
+
+    assert result["modules"] == {}
+    assert result["scopes"] == {}
+    assert result["total_tonnes_co2eq"] == pytest.approx(0.0)

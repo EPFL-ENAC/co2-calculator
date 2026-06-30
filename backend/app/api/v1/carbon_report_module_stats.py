@@ -10,6 +10,7 @@ from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
+from app.core.policy import require_unit_access
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
@@ -34,6 +35,36 @@ from app.utils.report_computations import (
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+# Declared before the ``/{carbon_report_id}/...`` dynamic routes so the literal
+# ``unit`` segment is matched first and never captured as a carbon_report_id.
+@router.get("/unit/{unit_id}/multi-year-breakdown")
+async def get_multi_year_breakdown(
+    unit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return per-year emission breakdown (by module and by scope) for a unit.
+
+    Feeds the "Compare Years" pop-up: one entry per year with category totals
+    (``modules``) and scope totals (``scopes``) in tonnes CO2eq. Mirrors the
+    non-validated data of the single-year unit carbon footprint chart so the
+    current-year bar matches what users already see.
+
+    Returns:
+        {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
+                    "modules": {...}, "scopes": {...}}, ...]}
+    """
+    logger.info(f"GET multi-year breakdown: unit_id={sanitize(unit_id)}")
+
+    unit = await db.get(Unit, unit_id)
+    require_unit_access(current_user, unit)
+
+    years = await DataEntryEmissionService(db).get_year_comparison_by_unit(
+        unit_id=unit_id,
+    )
+    return {"years": years}
 
 
 @router.get("/{carbon_report_id}/validated-totals")

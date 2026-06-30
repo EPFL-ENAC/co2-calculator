@@ -294,27 +294,32 @@ class DataEntryEmissionRepository:
 
         return by_primary, by_secondary
 
-    async def get_validated_totals_by_unit(
+    def _build_unit_emission_query(
         self,
         unit_id: int,
         *,
-        validated_only: bool = True,
-    ) -> List[Dict[str, Any]]:
-        """Aggregate validated emission totals by year for a unit.
+        validated_only: bool,
+        group_by_emission_type: bool,
+    ) -> Select[Any]:
+        """Build the shared per-unit leaf-emission aggregation query.
 
-        Joins CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission
-        and sums kg_co2eq across ALL validated modules, grouped by year.
-
-        Returns:
-            [{"year": 2023, "kg_co2eq": 61700.0}, {"year": 2024, "kg_co2eq": 45000.0}]
+        Joins DataEntryEmission → DataEntry → CarbonReportModule → CarbonReport
+        across every carbon report of the unit and sums leaf ``kg_co2eq``,
+        always grouped by year. Optionally restricts to validated modules and/or
+        adds ``emission_type_id`` as a second grouping dimension.
         """
         year_expr = col(CarbonReport.year)
 
-        query: Select[Any] = (
-            select(
-                year_expr.label("year"),
-                func.sum(col(DataEntryEmission.kg_co2eq)).label("kg_co2eq"),
-            )
+        select_cols: list[Any] = [year_expr.label("year")]
+        group_cols: list[Any] = [year_expr]
+        if group_by_emission_type:
+            emission_type_col = col(DataEntryEmission.emission_type_id)
+            select_cols.append(emission_type_col)
+            group_cols.append(emission_type_col)
+        select_cols.append(func.sum(col(DataEntryEmission.kg_co2eq)).label("total"))
+
+        return (
+            select(*select_cols)
             .join(
                 DataEntry,
                 col(DataEntryEmission.data_entry_id) == col(DataEntry.id),
@@ -330,15 +335,35 @@ class DataEntryEmissionRepository:
             .where(
                 CarbonReport.unit_id == unit_id,
                 *(
-                    []
-                    if not validated_only
-                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                    [CarbonReportModule.status == ModuleStatus.VALIDATED]
+                    if validated_only
+                    else []
                 ),
                 col(DataEntryEmission.kg_co2eq).isnot(None),
                 _is_leaf_emission(),
             )
-            .group_by(year_expr)
+            .group_by(*group_cols)
             .order_by(year_expr.asc())
+        )
+
+    async def get_validated_totals_by_unit(
+        self,
+        unit_id: int,
+        *,
+        validated_only: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Aggregate validated emission totals by year for a unit.
+
+        Joins CarbonReport → CarbonReportModule → DataEntry → DataEntryEmission
+        and sums kg_co2eq across ALL validated modules, grouped by year.
+
+        Returns:
+            [{"year": 2023, "kg_co2eq": 61700.0}, {"year": 2024, "kg_co2eq": 45000.0}]
+        """
+        query = self._build_unit_emission_query(
+            unit_id,
+            validated_only=validated_only,
+            group_by_emission_type=False,
         )
 
         result = await self.session.execute(query)
@@ -347,8 +372,41 @@ class DataEntryEmissionRepository:
         return [
             {
                 "year": row.year,
-                "kg_co2eq": row.kg_co2eq or None,
+                "kg_co2eq": row.total or None,
             }
+            for row in rows
+        ]
+
+    async def get_emission_breakdown_by_unit(
+        self,
+        unit_id: int,
+    ) -> List[tuple[int, int, float]]:
+        """Aggregate leaf emissions by year and emission type for a unit.
+
+        Joins DataEntryEmission → DataEntry → CarbonReportModule → CarbonReport
+        across every carbon report of the unit and sums kg_co2eq grouped by
+        (year, emission_type_id). Mirrors the (non-validated) data shown by the
+        single-year unit carbon footprint chart so the multi-year comparison
+        bars match it.
+
+        Returns:
+            [(year, emission_type_id, sum_kg_co2eq), ...]
+        """
+        query = self._build_unit_emission_query(
+            unit_id,
+            validated_only=False,
+            group_by_emission_type=True,
+        )
+
+        result = await self.session.execute(query)
+        rows = result.all()
+
+        return [
+            (
+                int(row.year),
+                int(row.emission_type_id),
+                float(row.total) if row.total is not None else 0.0,
+            )
             for row in rows
         ]
 
