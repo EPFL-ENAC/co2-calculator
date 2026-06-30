@@ -67,7 +67,7 @@
     "esbuild": "=0.28.1",
     "minimatch": "=10.2.4",
     "serialize-javascript": "=7.0.5",
-    "vue-i18n": "=11.4.2",
+    "vue-i18n": "$vue-i18n",
     "js-yaml": "=4.2.0"
   },
   "type": "module",
