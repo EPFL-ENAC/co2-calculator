@@ -22,6 +22,31 @@ export function presentCategories(
   return order.filter((key) => years.some((y) => (y.modules[key] ?? 0) > 0));
 }
 
+/** The per-year dimension a selection is summed over. */
+export type CompareYearsDimension = 'modules' | 'scopes';
+
+/**
+ * Sum tonnes CO2eq over selected years × selected keys for a given dimension
+ * (`modules` = category keys, `scopes` = "1" | "2" | "3").
+ */
+function sumSelected(
+  years: CompareYearsEntry[],
+  selectedYears: number[],
+  selectedKeys: string[],
+  dimension: CompareYearsDimension,
+): number {
+  const yearSet = new Set(selectedYears);
+  let total = 0;
+  for (const entry of years) {
+    if (!yearSet.has(entry.year)) continue;
+    const bucket = dimension === 'scopes' ? entry.scopes : entry.modules;
+    for (const key of selectedKeys) {
+      total += bucket[key] ?? 0;
+    }
+  }
+  return total;
+}
+
 /**
  * Total tonnes CO2eq for the active selection: selected years × selected
  * categories. Deselecting a category lowers the total, matching the stacked bar
@@ -32,46 +57,77 @@ export function computeCompareYearsTotal(
   selectedYears: number[],
   selectedCategories: string[],
 ): number {
-  const yearSet = new Set(selectedYears);
-  let total = 0;
-  for (const entry of years) {
-    if (!yearSet.has(entry.year)) continue;
-    for (const key of selectedCategories) {
-      total += entry.modules[key] ?? 0;
-    }
-  }
-  return total;
+  return sumSelected(years, selectedYears, selectedCategories, 'modules');
 }
 
 export interface CompareYearsObjective {
   targetYear: number;
+  /** Closest available unit year used as the reduction baseline. */
+  referenceYear: number;
   valueTonnes: number;
 }
 
 /**
- * The "objective" bar appended to the by-module chart: the latest reduction
- * goal (last entry in `goals`) applied to the latest selected year's
- * selected-category total — i.e. `baseline × (1 − reduction_percentage)`.
- * Returns `null` when there is no goal, no selected year, or a zero baseline,
- * so the caller simply omits the bar.
+ * The unit's baseline year for a goal: among breakdown years whose selected-key
+ * total (in the given dimension) is positive, the one closest to the goal's
+ * institution `referenceYear`. Ties resolve to the earlier year. Returns `null`
+ * when no year carries a positive baseline for the selection.
  */
-export function computeCompareYearsObjective(
+export function closestAvailableYear(
   years: CompareYearsEntry[],
-  selectedYears: number[],
-  selectedCategories: string[],
+  referenceYear: number,
+  selectedKeys: string[],
+  dimension: CompareYearsDimension = 'modules',
+): number | null {
+  let best: number | null = null;
+  let bestDist = Infinity;
+  for (const entry of years) {
+    if (sumSelected(years, [entry.year], selectedKeys, dimension) <= 0)
+      continue;
+    const dist = Math.abs(entry.year - referenceYear);
+    // Strictly-less keeps the earliest year on ties (years may arrive unsorted).
+    if (
+      dist < bestDist ||
+      (dist === bestDist && best != null && entry.year < best)
+    ) {
+      best = entry.year;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
+/**
+ * One objective bar per reduction goal, sorted ascending by target year. For
+ * each goal the target is the unit's baseline at the year closest to that
+ * goal's institution `reference_year`, reduced by its percentage —
+ * `baseline × (1 − reduction_percentage)`. The baseline is selection-aware
+ * (restricted to `selectedKeys` in the given dimension), so the bars stay
+ * comparable to the visible stacked bars. Goals with no positive baseline year
+ * are skipped.
+ */
+export function computeCompareYearsObjectives(
+  years: CompareYearsEntry[],
+  selectedKeys: string[],
   goals: ReductionObjectiveGoal[],
-): CompareYearsObjective | null {
-  const goal = goals.at(-1);
-  if (!goal || selectedYears.length === 0) return null;
-  const latestYear = Math.max(...selectedYears);
-  const baseline = computeCompareYearsTotal(
-    years,
-    [latestYear],
-    selectedCategories,
-  );
-  if (baseline <= 0) return null;
-  return {
-    targetYear: goal.target_year,
-    valueTonnes: baseline * (1 - goal.reduction_percentage),
-  };
+  dimension: CompareYearsDimension = 'modules',
+): CompareYearsObjective[] {
+  const objectives: CompareYearsObjective[] = [];
+  for (const goal of goals) {
+    const refYear = closestAvailableYear(
+      years,
+      goal.reference_year,
+      selectedKeys,
+      dimension,
+    );
+    if (refYear == null) continue;
+    const baseline = sumSelected(years, [refYear], selectedKeys, dimension);
+    if (baseline <= 0) continue;
+    objectives.push({
+      targetYear: goal.target_year,
+      referenceYear: refYear,
+      valueTonnes: baseline * (1 - goal.reduction_percentage),
+    });
+  }
+  return objectives.sort((a, b) => a.targetYear - b.targetYear);
 }

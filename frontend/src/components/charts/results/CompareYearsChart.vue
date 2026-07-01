@@ -47,10 +47,10 @@ const props = defineProps({
     type: Object as PropType<Record<number, Record<string, number>>>,
     required: true,
   },
-  /** Optional trailing single-value bar with its own category tick. */
-  objective: {
-    type: Object as PropType<CompareYearsObjectiveBar | null>,
-    default: null,
+  /** Optional trailing single-value bars, each with its own category tick. */
+  objectives: {
+    type: Array as PropType<CompareYearsObjectiveBar[]>,
+    default: () => [],
   },
 });
 
@@ -70,7 +70,7 @@ const onChartReady = async () => {
 const colorByName = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
   for (const s of props.series) map[s.label] = s.color;
-  if (props.objective) map[props.objective.label] = props.objective.color;
+  for (const o of props.objectives) map[o.label] = o.color;
   return map;
 });
 
@@ -102,11 +102,12 @@ const chartOption = computed<EChartsOption>(() => {
     props.years.some((y) => (props.dataByYear[y]?.[s.key] ?? 0) > 0),
   );
 
-  const objective = props.objective;
+  const objectives = props.objectives;
 
-  const categories = objective
-    ? [...props.years.map((y) => String(y)), objective.label]
-    : props.years.map((y) => String(y));
+  const categories = [
+    ...props.years.map((y) => String(y)),
+    ...objectives.map((o) => o.label),
+  ];
 
   const stackedSeries = visibleSeries.map((s) => ({
     name: s.label,
@@ -115,27 +116,27 @@ const chartOption = computed<EChartsOption>(() => {
     barMaxWidth: MAX_BAR_WIDTH,
     itemStyle: { color: s.color },
     emphasis: { focus: 'series' as const },
-    // Trailing `null` leaves the objective slot empty for stacked categories.
+    // Trailing `null`s leave the objective slots empty for stacked categories.
     data: [
       ...props.years.map((y) => props.dataByYear[y]?.[s.key] ?? 0),
-      ...(objective ? [null] : []),
+      ...objectives.map(() => null),
     ],
   }));
 
-  // Same stack name as the year bars so every category slot holds a single,
-  // centered bar group (a distinct stack would render them side-by-side).
-  const objectiveSeries = objective
-    ? [
-        {
-          name: objective.label,
-          type: 'bar' as const,
-          stack: 'total',
-          barMaxWidth: MAX_BAR_WIDTH,
-          itemStyle: { color: objective.color },
-          data: [...props.years.map(() => null), objective.value],
-        },
-      ]
-    : [];
+  // One series per objective, sharing the year bars' stack name so each slot
+  // holds a single, centered bar (a distinct stack would render them
+  // side-by-side). Each series is null everywhere except its own trailing slot.
+  const objectiveSeries = objectives.map((o, i) => ({
+    name: o.label,
+    type: 'bar' as const,
+    stack: 'total',
+    barMaxWidth: MAX_BAR_WIDTH,
+    itemStyle: { color: o.color },
+    data: [
+      ...props.years.map(() => null),
+      ...objectives.map((_, j) => (j === i ? o.value : null)),
+    ],
+  }));
 
   return {
     tooltip: {

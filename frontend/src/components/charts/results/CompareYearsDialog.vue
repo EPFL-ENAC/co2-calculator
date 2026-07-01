@@ -14,8 +14,7 @@ import {
   defaultSelectedYears,
   presentCategories,
   computeCompareYearsTotal,
-  computeCompareYearsObjective,
-  type CompareYearsObjective,
+  computeCompareYearsObjectives,
 } from 'src/utils/compareYears';
 import { nOrDash } from 'src/utils/number';
 import CompareYearsChart, {
@@ -212,22 +211,39 @@ function formatTonnes(value: number): string {
   });
 }
 
-// Latest reduction goal applied to the latest selected year's
-// selected-category total. Shared by the KPI band and the chart bar.
-const objective = computed<CompareYearsObjective | null>(() => {
-  const goals =
-    yearConfigStore.config?.config?.reduction_objectives?.goals ?? [];
-  return computeCompareYearsObjective(
-    data.value?.years ?? [],
-    selectedYears.value,
-    selectedCategories.value,
-    goals,
-  );
-});
+const goals = computed(
+  () => yearConfigStore.config?.config?.reduction_objectives?.goals ?? [],
+);
 
-// KPI: how far the latest selected year sits above/below its objective.
+// One objective per reduction goal, each baselined on the unit's year closest
+// to that goal's institution reference_year. Selection-aware: the by-category
+// chart uses the selected categories, the by-scope chart the selected scopes.
+const categoryObjectives = computed(() =>
+  computeCompareYearsObjectives(
+    data.value?.years ?? [],
+    selectedCategories.value,
+    goals.value,
+    'modules',
+  ),
+);
+
+const scopeObjectives = computed(() =>
+  computeCompareYearsObjectives(
+    data.value?.years ?? [],
+    selectedScopes.value,
+    goals.value,
+    'scopes',
+  ),
+);
+
+// The latest reduction goal (highest target year) drives the KPI band.
+const latestObjective = computed(() => categoryObjectives.value.at(-1) ?? null);
+
+// KPI: how far the latest selected year sits from its objective, framed as the
+// reduction still missing to reach the target. Over target → `missing` with a
+// positive magnitude (e.g. "Missing 11 %"); at/below target → already reached.
 const objectiveGap = computed(() => {
-  const obj = objective.value;
+  const obj = latestObjective.value;
   if (!obj || obj.valueTonnes <= 0 || selectedYears.value.length === 0) {
     return null;
   }
@@ -239,22 +255,28 @@ const objectiveGap = computed(() => {
   return {
     targetYear: obj.targetYear,
     objectiveTonnes: obj.valueTonnes,
-    pct: (latestTonnes - obj.valueTonnes) / obj.valueTonnes,
+    missing: latestTonnes > obj.valueTonnes,
+    pctMagnitude: Math.abs(latestTonnes - obj.valueTonnes) / obj.valueTonnes,
   };
 });
 
-const objectiveBar = computed<CompareYearsObjectiveBar | null>(() => {
-  if (!showObjective.value) return null;
-  const obj = objective.value;
-  if (!obj) return null;
-  return {
-    label: t('results_compare_years_objective_tick', {
-      year: obj.targetYear,
-    }),
+function toObjectiveBars(
+  objectives: { targetYear: number; valueTonnes: number }[],
+): CompareYearsObjectiveBar[] {
+  if (!showObjective.value) return [];
+  return objectives.map((obj) => ({
+    label: t('results_compare_years_objective_tick', { year: obj.targetYear }),
     value: obj.valueTonnes,
     color: infoColorHex.value ?? '#1976d2',
-  };
-});
+  }));
+}
+
+const categoryObjectiveBars = computed(() =>
+  toObjectiveBars(categoryObjectives.value),
+);
+const scopeObjectiveBars = computed(() =>
+  toObjectiveBars(scopeObjectives.value),
+);
 </script>
 
 <template>
@@ -311,19 +333,21 @@ const objectiveBar = computed<CompareYearsObjectiveBar | null>(() => {
             <div v-if="objectiveGap" class="compare-years-kpi">
               <div class="compare-years-kpi__label">
                 {{
-                  $t('results_compare_years_gap_label', {
-                    year: objectiveGap.targetYear,
-                  })
+                  $t(
+                    objectiveGap.missing
+                      ? 'results_compare_years_gap_label'
+                      : 'results_compare_years_gap_beaten_label',
+                    { year: objectiveGap.targetYear },
+                  )
                 }}
               </div>
               <div class="compare-years-kpi__gap">
                 <span
                   class="compare-years-kpi__delta"
-                  :class="objectiveGap.pct > 0 ? 'text-negative' : 'text-info'"
+                  :class="objectiveGap.missing ? 'text-negative' : 'text-info'"
                 >
-                  {{ objectiveGap.pct > 0 ? '+' : ''
-                  }}{{
-                    $nOrDash(objectiveGap.pct * 100, {
+                  {{
+                    $nOrDash(objectiveGap.pctMagnitude * 100, {
                       options: { maximumFractionDigits: 0 },
                     })
                   }}%
@@ -378,7 +402,11 @@ const objectiveBar = computed<CompareYearsObjectiveBar | null>(() => {
                 </q-item>
               </template>
               <template #after-options>
-                <q-item v-ripple clickable @click="showObjective = !showObjective">
+                <q-item
+                  v-ripple
+                  clickable
+                  @click="showObjective = !showObjective"
+                >
                   <q-item-section side>
                     <q-checkbox
                       v-model="showObjective"
@@ -474,7 +502,7 @@ const objectiveBar = computed<CompareYearsObjectiveBar | null>(() => {
               :years="sortedSelectedYears"
               :series="moduleSeries"
               :data-by-year="moduleDataByYear"
-              :objective="objectiveBar"
+              :objectives="categoryObjectiveBars"
             />
           </div>
         </q-card-section>
@@ -534,6 +562,7 @@ const objectiveBar = computed<CompareYearsObjectiveBar | null>(() => {
               :years="sortedSelectedYears"
               :series="scopeSeries"
               :data-by-year="scopeDataByYear"
+              :objectives="scopeObjectiveBars"
             />
           </div>
         </q-card-section>

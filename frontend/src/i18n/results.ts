@@ -88,8 +88,12 @@ export default {
     fr: 'Objectif',
   },
   results_compare_years_gap_label: {
-    en: 'Gap to {year} objective',
-    fr: 'Écart à l’objectif {year}',
+    en: 'Missing to reach {year} target',
+    fr: 'Manque pour atteindre l’objectif {year}',
+  },
+  results_compare_years_gap_beaten_label: {
+    en: 'Below {year} target',
+    fr: 'Sous l’objectif {year}',
   },
   results_compare_years_gap_target: {
     en: 'target {value}',
