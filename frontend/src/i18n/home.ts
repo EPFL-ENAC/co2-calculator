@@ -171,8 +171,8 @@ export default {
     fr: 'Vous êtes utilisateur·rice principal·e',
   },
   co2_calculator_access_principal_body: {
-    en: 'You can see all modules. If relevant, the Head of Unit can delegate this role to team members in ACCRED. Some data is confidential  please handle it with care.',
-    fr: "Vous voyez tous les modules. Le cas échéant, le·la responsable d'unité peut déléguer ce rôle à des membres de l'équipe dans ACCRED. Certaines données sont confidentielles manipulez-les avec soin.",
+    en: 'You can see all active modules. If relevant, the Head of Unit can delegate this role to team members in ACCRED. Some data is confidential  please handle it with care.',
+    fr: "Vous voyez tous les modules actifs. Le cas échéant, le·la responsable d'unité peut déléguer ce rôle à des membres de l'équipe dans ACCRED. Certaines données sont confidentielles manipulez-les avec soin.",
   },
   co2_calculator_access_cta_standard: {
     en: 'Email the principal user',
