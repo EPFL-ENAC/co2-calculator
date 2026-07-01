@@ -16,6 +16,9 @@ import {
 import type { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { useColorblindStore } from 'src/stores/colorblind';
+import { useAuthStore } from 'src/stores/auth';
+import { useYearConfigStore } from 'src/stores/yearConfig';
+import { PermissionAction } from 'src/utils/permission';
 import {
   TooltipComponent,
   LegendComponent,
@@ -86,6 +89,8 @@ const props = defineProps({
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
+const authStore = useAuthStore();
+const yearConfigStore = useYearConfigStore();
 
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -138,7 +143,24 @@ type IconAxisItem = {
   module: Module | null;
   submoduleType?: string;
   x: number;
+  // Whether the icon links to its module page. False (greyed-out, non-clickable)
+  // when the user lacks edit access to the module (e.g. a standard user without
+  // own-edit) or when the module is disabled in the back-office.
+  enabled: boolean;
 };
+
+/**
+ * A module icon is an actionable link only when the user may edit that module
+ * AND the module is enabled in the back-office. Otherwise it is shown greyed
+ * out and non-clickable.
+ */
+function isModuleIconEnabled(module: Module | null): boolean {
+  if (!module) return false;
+  return (
+    yearConfigStore.isModuleVisible(module) &&
+    authStore.hasUserModulePermission(module, PermissionAction.EDIT)
+  );
+}
 
 // Pixel-positioned module icon buttons under each bar (moduleIconAxis mode).
 const iconAxisItems = ref<IconAxisItem[]>([]);
@@ -163,11 +185,13 @@ function updateIconAxis(chart: NonNullable<typeof chartRef.value>['chart']) {
     const label = String(item.category);
     const categoryKey =
       labelToKey.value[label] ?? String(item.category_key ?? '');
+    const module = getModuleForCategoryKey(categoryKey);
     return {
       label,
-      module: getModuleForCategoryKey(categoryKey),
+      module,
       submoduleType: CATEGORY_TO_SUBMODULE[categoryKey],
       x: chart.convertToPixel({ xAxisIndex: 0 }, label) as number,
+      enabled: isModuleIconEnabled(module),
     };
   });
   iconAxisTop.value = yZero;
@@ -1540,13 +1564,16 @@ const downloadCSV = () => {
           aria-hidden="false"
         >
           <component
-            :is="item.module ? 'router-link' : 'div'"
+            :is="item.enabled ? 'router-link' : 'div'"
             v-for="item in iconAxisItems"
             :key="item.label"
             class="module-icon-axis__item"
-            :class="{ 'module-icon-axis__item--link': item.module }"
+            :class="{
+              'module-icon-axis__item--link': item.enabled,
+              'module-icon-axis__item--disabled': !item.enabled,
+            }"
             :to="
-              item.module
+              item.enabled
                 ? { name: 'module', params: { module: item.module } }
                 : undefined
             "
@@ -1657,6 +1684,13 @@ const downloadCSV = () => {
 
 .module-icon-axis__item--link {
   cursor: pointer;
+}
+
+/* Non-editable / back-office-disabled module: greyed out and non-clickable. */
+.module-icon-axis__item--disabled {
+  cursor: default;
+  opacity: 0.4;
+  filter: grayscale(1);
 }
 
 .module-icon-axis__item--link:hover .module-icon-axis__label {
