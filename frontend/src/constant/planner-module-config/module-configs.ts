@@ -15,9 +15,9 @@ import { PLANNER_MODULE_CONFIG } from 'src/constant/planner-module-config';
  * adaptations applied by `withPlannerAdaptations`:
  * - no CSV top bar (bulk ingest pipelines are unit/year-scoped and would
  *   bypass the plan's report addressing)
- * - Travel's traveler dropdown offers categories instead of headcount names,
- *   except for own-scoped users, whose traveler is pinned to themselves so
- *   the rows they create stay inside the own-rows read filter.
+ * - Travel's traveler dropdown offers the "Other traveler" options instead of
+ *   headcount names, except for own-scoped users, whose traveler is pinned to
+ *   themselves so the rows they create stay inside the own-rows read filter.
  *
  * Headcount and Purchases are NOT here — they render through
  * PlannerHeadcountRows (fixed SIUS-category grid) and PlannerPurchaseRows
@@ -29,11 +29,15 @@ export interface PlannerSelfTraveler {
   name: string;
 }
 
-function plannerTravelerField(categories: string[]): Partial<ModuleField> {
+function plannerTravelerField(
+  options: Array<{ value: string; labelKey: string }>,
+): Partial<ModuleField> {
   return {
     type: 'select',
-    optionLabelKey: 'planner_traveler_category.{value}',
-    options: categories.map((value) => ({ value, label: value })),
+    options: options.map(({ value, labelKey }) => ({
+      value,
+      label: labelKey,
+    })),
   };
 }
 
@@ -51,18 +55,18 @@ function withPlannerAdaptations(
   self: PlannerSelfTraveler | null,
 ): ModuleConfig {
   const base = MODULES_CONFIG[module] as ModuleConfig;
-  const travelerCategories =
-    PLANNER_MODULE_CONFIG[module]?.travelerCategories ?? null;
+  const travelerOptions =
+    PLANNER_MODULE_CONFIG[module]?.travelerOptions ?? null;
   const submodules: Submodule[] = (base.submodules ?? []).map((sub) => ({
     ...sub,
     hasTableTopBar: false,
     moduleFields: (sub.moduleFields ?? []).map((field) =>
-      travelerCategories && field.type === 'headcount-member-select'
+      travelerOptions && field.type === 'headcount-member-select'
         ? {
             ...field,
             ...(self
               ? selfTravelerField(self)
-              : plannerTravelerField(travelerCategories)),
+              : plannerTravelerField(travelerOptions)),
           }
         : field,
     ),

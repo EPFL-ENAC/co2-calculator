@@ -523,18 +523,6 @@ export default {
     en: 'Centralized purchases ',
     fr: 'Achats centralisés',
   },
-  'planner_traveler_category.internal': {
-    en: 'Internal',
-    fr: 'Interne',
-  },
-  'planner_traveler_category.external_epfl': {
-    en: 'External EPFL',
-    fr: 'Externe EPFL',
-  },
-  'planner_traveler_category.internal_epfl': {
-    en: 'Internal EPFL',
-    fr: 'Interne EPFL',
-  },
   planner_print_title: {
     en: 'Project report',
     fr: 'Rapport de projet',
