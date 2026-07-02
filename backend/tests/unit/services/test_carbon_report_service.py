@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession as SAAsyncSession
@@ -9,7 +11,8 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReportModule
 from app.models.module_type import ALL_MODULE_TYPE_IDS
 from app.schemas.carbon_report import CarbonReportCreate, CarbonReportUpdate
-from app.services.carbon_report_service import CarbonReportService
+from app.services.carbon_report_service import CarbonReportService, _build_report_stats
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -255,3 +258,102 @@ async def test_bulk_upsert_resolves_project_ids_before_repo_call(async_session):
     assert unit1_ids[0] == unit1_ids[1]
     # unit_id=2 has a distinct project
     assert unit1_ids[0] != unit2_ids[0]
+
+
+def test_build_report_stats_includes_by_module():
+    """_build_report_stats embeds a per-module breakdown keyed by
+    module_type_id so consumers can recover the module dimension."""
+    modules = [
+        SimpleNamespace(
+            module_type_id=4,
+            status=ModuleStatus.VALIDATED,
+            stats={
+                "scope1": 0.0,
+                "scope2": 0.0,
+                "scope3": 5.0,
+                "total": 5.0,
+                "by_emission_type": {"40000": 99.0, "10002": 5.0},
+                "by_additional_value": {"10002": 7.0},
+                "entry_count": 1,
+            },
+        ),
+        # No stats yet — must be skipped, not crash.
+        SimpleNamespace(module_type_id=2, status=ModuleStatus.NOT_STARTED, stats=None),
+    ]
+
+    stats = _build_report_stats(modules)
+
+    assert "by_module" in stats
+    assert set(stats["by_module"].keys()) == {"4"}
+    assert stats["by_module"]["4"]["by_emission_type"] == {"40000": 99.0, "10002": 5.0}
+    assert stats["by_module"]["4"]["by_additional_value"] == {"10002": 7.0}
+
+
+@pytest.mark.asyncio
+async def test_get_emission_breakdown_reads_report_stats_by_module(async_session):
+    """get_emission_breakdown reconstructs rows from report stats.by_module,
+    excluding rollup emission types and carrying additional_value."""
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+
+    modules = await service.module_service.list_modules(report.id)
+    module = await async_session.get(CarbonReportModule, modules[0].id)
+    assert module is not None
+    module.stats = {
+        "scope1": 0.0,
+        "scope2": 0.0,
+        "scope3": 5.0,
+        "total": 5.0,
+        # 40000 is a rollup id (EmissionType.headcount) — must be excluded.
+        "by_emission_type": {"40000": 99.0, "10002": 5.0},
+        "by_additional_value": {"10002": 7.0},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    await async_session.flush()
+
+    await service.recompute_report_stats(report.id)
+
+    rows = await DataEntryEmissionService(async_session).get_emission_breakdown(
+        report.id
+    )
+
+    assert (module.module_type_id, 10002, 5.0, 7.0) in rows
+    assert all(emission_type_id != 40000 for _, emission_type_id, _, _ in rows)
+
+
+@pytest.mark.asyncio
+async def test_get_year_comparison_reads_report_stats(async_session):
+    """get_year_comparison_by_unit buckets each year from report
+    stats.by_emission_type, excluding rollups."""
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=7))
+
+    modules = await service.module_service.list_modules(report.id)
+    module = await async_session.get(CarbonReportModule, modules[0].id)
+    assert module is not None
+    module.stats = {
+        "scope1": 0.0,
+        "scope2": 0.0,
+        "scope3": 5.0,
+        "total": 5.0,
+        # 10002 = food__non_vegetarian (scope 3, category food); 40000 rollup.
+        "by_emission_type": {"40000": 99.0, "10002": 5000.0},
+        "by_additional_value": {},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    await async_session.flush()
+
+    await service.recompute_report_stats(report.id)
+
+    result = await DataEntryEmissionService(async_session).get_year_comparison_by_unit(
+        unit_id=7
+    )
+
+    assert len(result) == 1
+    year_bucket = result[0]
+    assert year_bucket["year"] == 2025
+    # 5000 kg -> 5 tonnes under category "food"; rollup 40000 excluded.
+    assert year_bucket["modules"].get("food") == pytest.approx(5.0)
+    assert year_bucket["total_tonnes_co2eq"] == pytest.approx(5.0)

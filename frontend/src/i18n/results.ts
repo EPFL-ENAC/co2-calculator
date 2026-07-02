@@ -55,6 +55,62 @@ export default {
     en: 'Compare years',
     fr: 'Comparer les années',
   },
+  results_compare_years_title: {
+    en: 'Compare years',
+    fr: 'Comparer les années',
+  },
+  results_compare_years_no_data: {
+    en: 'No emission data available to compare.',
+    fr: 'Aucune donnée d’émission disponible pour la comparaison.',
+  },
+  results_compare_years_filter_years: {
+    en: 'Years',
+    fr: 'Années',
+  },
+  results_compare_years_filter_modules: {
+    en: 'Categories',
+    fr: 'Catégories',
+  },
+  results_compare_years_filter_scopes: {
+    en: 'Scopes',
+    fr: 'Scopes',
+  },
+  results_compare_years_selected_count: {
+    en: '{count} selected',
+    fr: '{count} sélectionné(s)',
+  },
+  results_compare_years_total: {
+    en: 'Total',
+    fr: 'Total',
+  },
+  results_compare_years_objective_option: {
+    en: 'Objective',
+    fr: 'Objectif',
+  },
+  results_compare_years_gap_label: {
+    en: 'Missing to reach {year} target',
+    fr: 'Manque pour atteindre l’objectif {year}',
+  },
+  results_compare_years_gap_beaten_label: {
+    en: 'Below {year} target',
+    fr: 'Sous l’objectif {year}',
+  },
+  results_compare_years_gap_target: {
+    en: 'target {value}',
+    fr: 'cible {value}',
+  },
+  results_compare_years_by_module: {
+    en: 'Emissions by category',
+    fr: 'Émissions par catégorie',
+  },
+  results_compare_years_by_scope: {
+    en: 'Emissions by scope',
+    fr: 'Émissions par scope',
+  },
+  results_compare_years_objective_tick: {
+    en: 'objective ({year})',
+    fr: 'objectif ({year})',
+  },
   results_units_kg: {
     en: 'kg CO₂-eq',
     fr: 'kg CO₂-eq',

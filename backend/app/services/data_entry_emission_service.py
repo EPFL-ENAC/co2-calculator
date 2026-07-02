@@ -24,9 +24,10 @@ from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    ROLLUP_EMISSION_TYPE_IDS,
     resolve_emission_types,
 )
-from app.utils.emission_category import additional_value_unit
+from app.utils.emission_category import additional_value_unit, build_year_comparison
 from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
@@ -794,10 +795,72 @@ class DataEntryEmissionService:
             sum_kg_co2eq,
             sum_additional_value,
         ).
+
+        Served from the report's precomputed ``stats["by_module"]``.
         """
-        return await self.repo.get_emission_breakdown_with_quantity(
-            carbon_report_id=carbon_report_id,
-        )
+        stats = await self.repo.get_carbon_report_stats(carbon_report_id)
+        by_module = (stats or {}).get("by_module") or {}
+
+        rows: list[tuple[int, int, float, float | None]] = []
+        for module_type_id_str, module_stats in by_module.items():
+            module_type_id = int(module_type_id_str)
+            by_et = module_stats.get("by_emission_type", {})
+            by_add = module_stats.get("by_additional_value", {})
+            for et_id_str, kg_co2eq in by_et.items():
+                emission_type_id = int(et_id_str)
+                if emission_type_id in ROLLUP_EMISSION_TYPE_IDS:
+                    continue
+                if not kg_co2eq:
+                    continue
+                add_val = by_add.get(et_id_str)
+                rows.append(
+                    (
+                        module_type_id,
+                        emission_type_id,
+                        float(kg_co2eq),
+                        float(add_val) if add_val is not None else None,
+                    )
+                )
+        return rows
+
+    async def get_year_comparison_by_unit(
+        self,
+        unit_id: int,
+    ) -> list[dict]:
+        """Build per-year emission comparison buckets for a unit.
+
+        Returns one entry per year (ascending) shaped for the Compare Years
+        charts::
+
+            [
+                {
+                    "year": 2023,
+                    "total_tonnes_co2eq": 61.7,
+                    "modules": {"equipment": 41.7, "buildings_room": 12.3, ...},
+                    "scopes": {"1": 8.1, "2": 20.4, "3": 33.2},
+                },
+                ...
+            ]
+
+        Served from each report's precomputed ``stats["by_emission_type"]``.
+        """
+        report_stats = await self.repo.get_report_stats_by_unit(unit_id=unit_id)
+
+        per_year: dict[int, list[tuple[int, float]]] = {}
+        for year, stats in report_stats:
+            by_et = (stats or {}).get("by_emission_type") or {}
+            rows = [
+                (int(et_id), kg_co2eq)
+                for et_id, kg_co2eq in by_et.items()
+                if kg_co2eq and int(et_id) not in ROLLUP_EMISSION_TYPE_IDS
+            ]
+            per_year.setdefault(year, []).extend(rows)
+
+        result: list[dict] = []
+        for year in sorted(per_year):
+            comparison = build_year_comparison(per_year[year])
+            result.append({"year": year, **comparison})
+        return result
 
     async def get_it_emission_sql_totals(
         self,

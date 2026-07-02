@@ -354,6 +354,50 @@ def build_chart_breakdown(
     }
 
 
+def build_year_comparison(
+    rows: Sequence[tuple[int, float]],
+) -> dict:
+    """Aggregate one year's leaf emission rows into compare-years buckets.
+
+    Args:
+        rows: ``(emission_type_id, kg_co2eq)`` leaf rows for a single year.
+
+    Returns:
+        ``{"modules": {category_key: tonnes}, "scopes": {"1": t, "2": t,
+        "3": t}, "total_tonnes_co2eq": t}``. ``modules`` is keyed by snake_case
+        ``EmissionCategory`` (including additional categories: commuting, food,
+        waste, embodied_energy) so the stacked-bar segments match the Results
+        category palette. Unknown / scope-less / category-less emission types
+        are ignored, matching ``build_chart_breakdown``.
+    """
+    modules_kg: dict[str, float] = {}
+    scopes_kg: dict[str, float] = {}
+
+    for emission_type_id, kg_co2eq in rows:
+        if kg_co2eq <= 0:
+            continue
+        emission_type = _resolve_emission_type(emission_type_id)
+        if emission_type is None:
+            continue
+        scope = emission_type.scope
+        category = emission_type.category
+        if scope is None or category is None:
+            continue
+        modules_kg[category.value] = modules_kg.get(category.value, 0.0) + kg_co2eq
+        scope_key = str(int(scope))
+        scopes_kg[scope_key] = scopes_kg.get(scope_key, 0.0) + kg_co2eq
+
+    modules = {key: kg / 1000.0 for key, kg in modules_kg.items()}
+    scopes = {key: kg / 1000.0 for key, kg in scopes_kg.items()}
+    total_tonnes = sum(modules.values())
+
+    return {
+        "modules": modules,
+        "scopes": scopes,
+        "total_tonnes_co2eq": total_tonnes,
+    }
+
+
 def build_treemap(rows: list[tuple[str, float]]) -> list[dict]:
     """Build normalized treemap nodes from ``(name, kg_co2eq)`` pairs.
 
