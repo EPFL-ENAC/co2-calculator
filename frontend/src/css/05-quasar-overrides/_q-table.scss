@@ -1,0 +1,16 @@
+@use '../02-tokens' as tokens;
+
+.q-table th,
+.q-table td {
+  padding: tokens.$spacing-xs;
+}
+
+.q-table th:first-child,
+.q-table td:first-child {
+  padding-left: tokens.$spacing-sm;
+}
+
+.q-table th:last-child,
+.q-table td:last-child {
+  padding-right: tokens.$spacing-sm;
+}

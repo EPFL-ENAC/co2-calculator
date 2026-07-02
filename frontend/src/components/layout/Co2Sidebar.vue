@@ -82,6 +82,67 @@ function isItemDisabled(item: NavItem): boolean {
 <style scoped lang="scss">
 @use 'src/css/02-tokens' as tokens;
 
+.co2-sidebar {
+  height: 100%;
+  width: fit-content;
+  background-color: tokens.$sidebar-bg;
+  border-right: tokens.$sidebar-border-width solid tokens.$sidebar-border-color;
+  transition: width tokens.$transition-default;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  .co2-sidebar-items {
+    overflow-y: visible;
+  }
+
+  .co2-sidebar-toggle {
+    padding: tokens.$sidebar-padding-y tokens.$sidebar-padding-left;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    cursor: pointer;
+    background-color: tokens.$color-surface;
+    border-bottom: tokens.$sidebar-border-width solid
+      tokens.$sidebar-border-color;
+
+    &:hover {
+      background-color: tokens.$sidebar-bg-selected;
+    }
+  }
+
+  .co2-sidebar-item {
+    gap: tokens.$sidebar-item-gap;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    cursor: pointer;
+    min-width: 0;
+    overflow: hidden;
+
+    &:hover,
+    &--selected {
+      background-color: tokens.$sidebar-bg-selected;
+    }
+  }
+
+  // Collapsed overrides — must come after base item rules to win on equal specificity
+  &--collapsed {
+    width: tokens.$sidebar-collapsed-width;
+
+    .co2-sidebar-item {
+      justify-content: center;
+      padding: tokens.$sidebar-padding-y 0;
+      gap: 0;
+    }
+
+    .co2-sidebar-toggle {
+      justify-content: center;
+      padding: tokens.$sidebar-padding-y 0;
+    }
+  }
+}
+
 .co2-sidebar-docs-wrapper {
   margin-top: auto;
   flex-shrink: 0;

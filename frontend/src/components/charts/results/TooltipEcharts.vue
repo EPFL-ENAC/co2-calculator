@@ -60,3 +60,89 @@ defineProps<{
   tooltipState: TooltipState;
 }>();
 </script>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.chart-tooltip {
+  background: tokens.$tooltip-background;
+  color: tokens.$tooltip-color;
+  font-size: tokens.$tooltip-fontsize;
+  border-radius: tokens.$tooltip-border-radius;
+  box-shadow: tokens.$tooltip-box-shadow;
+  padding: tokens.$chart-tooltip-padding;
+  min-width: tokens.$chart-tooltip-min-width;
+  max-width: tokens.$chart-tooltip-max-width;
+  width: max-content;
+
+  &__title {
+    margin: 0 0 var(--semantic-spacing-xs);
+    font-size: var(--semantic-font-size-base);
+    font-weight: var(--semantic-font-weight-medium);
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    gap: var(--semantic-spacing-sm);
+    margin-bottom: 2px;
+    font-size: 0.875em;
+
+    &:last-of-type {
+      margin-bottom: 0;
+    }
+
+    &--separator {
+      margin-top: var(--semantic-spacing-xs);
+      padding-top: var(--semantic-spacing-xs);
+      border-top: 1px solid tokens.$chart-tooltip-separator-color;
+      margin-bottom: 0;
+    }
+  }
+
+  &__label {
+    font-size: tokens.$tooltip-fontsize;
+    font-weight: var(--semantic-font-weight-medium);
+    color: tokens.$tooltip-color;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__dot {
+    width: tokens.$chart-tooltip-dot-size;
+    height: tokens.$chart-tooltip-dot-size;
+    border-radius: 50%;
+    background-color: var(--dot-color);
+    flex-shrink: 0;
+  }
+
+  &__value {
+    font-variant-numeric: tabular-nums;
+    font-size: tokens.$tooltip-fontsize;
+    font-weight: var(--semantic-font-weight-medium);
+    color: tokens.$tooltip-color;
+    flex: 0 0 auto;
+    margin-left: var(--semantic-spacing-sm);
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  &__footer {
+    margin: var(--semantic-spacing-xs) 0 0;
+    padding-top: var(--semantic-spacing-xs);
+    border-top: 1px solid tokens.$chart-tooltip-separator-color;
+    font-size: 0.875em;
+    font-weight: var(--semantic-font-weight-medium);
+    color: tokens.$tooltip-color;
+
+    &--muted {
+      color: var(--semantic-color-text-muted);
+    }
+  }
+}
+</style>
