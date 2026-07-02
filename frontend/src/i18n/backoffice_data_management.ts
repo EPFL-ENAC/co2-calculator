@@ -404,6 +404,10 @@ export default {
     en: 'Deactivate input form',
     fr: 'Désactiver le formulaire de saisie',
   },
+  data_management_submodule_csv_deactivation_label: {
+    en: 'Deactivate CSV upload & template',
+    fr: "Désactiver l'import CSV et le modèle",
+  },
   data_management_uncertainty_title: {
     en: 'Uncertainty',
     fr: 'Incertitude',

@@ -37,6 +37,7 @@ export interface SubmoduleConfig {
   enabled: boolean;
   threshold: number | null;
   inputs_deactivated?: boolean;
+  csv_deactivated?: boolean;
   latest_data_job?: SyncJobSummary | null;
   latest_api_data_job?: SyncJobSummary | null;
   latest_factor_job?: SyncJobSummary | null;
@@ -482,6 +483,16 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     return mod?.submodules?.[subKey]?.inputs_deactivated ?? false;
   }
 
+  function isSubmoduleCsvDeactivated(sub: ModuleUploadConfig): boolean {
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return false;
+    const mod = config.value?.config?.modules?.[String(sub.moduleTypeId)];
+    return mod?.submodules?.[subKey]?.csv_deactivated ?? false;
+  }
+
   /** True when reduction objectives goals or CSV files are not fully configured. */
   const isReductionObjectiveIncomplete = computed(() => {
     if (!config.value) return false;
@@ -565,6 +576,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     isModuleEnabled,
     isSubmoduleEnabled,
     isSubmoduleInputsDeactivated,
+    isSubmoduleCsvDeactivated,
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,
