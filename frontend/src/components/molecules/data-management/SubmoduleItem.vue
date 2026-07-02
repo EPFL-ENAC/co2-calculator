@@ -27,11 +27,13 @@ const {
   isSubmoduleEnabled,
   isSubmoduleIncomplete,
   isSubmoduleInputsDeactivated,
+  isSubmoduleCsvDeactivated,
   getImportRow,
   submoduleShowsImportRow,
   downloadLastCsv,
   updateSubmoduleEnabled,
   updateSubmoduleInputsDeactivated,
+  updateSubmoduleCsvDeactivated,
   getSubmoduleThreshold,
   updateSubmoduleThreshold,
   computedFactorRunning,
@@ -201,6 +203,15 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
             (val: boolean) =>
               !submodule.forceInputsDeactivated &&
               updateSubmoduleInputsDeactivated(submodule, val)
+          "
+        />
+        <q-checkbox
+          :model-value="isSubmoduleCsvDeactivated(submodule)"
+          color="accent"
+          class="block q-mt-xs"
+          :label="$t('data_management_submodule_csv_deactivation_label')"
+          @update:model-value="
+            (val: boolean) => updateSubmoduleCsvDeactivated(submodule, val)
           "
         />
       </q-card>

@@ -1,7 +1,12 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
     <div
-      v-if="hasModuleUpload && !isInputDeactivated && canUseCsvTools"
+      v-if="
+        hasModuleUpload &&
+        !isInputDeactivated &&
+        canUseCsvTools &&
+        !isCsvDeactivated
+      "
       class="q-gutter-sm"
     >
       <q-btn
@@ -727,6 +732,13 @@ const isInputDeactivated = computed(() => {
   if (!unifiedConfig) return false;
   const subConfig = unifiedConfig.submodules[props.submoduleType as string];
   return subConfig?.inputs_deactivated ?? false;
+});
+
+const isCsvDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[props.submoduleType as string];
+  return subConfig?.csv_deactivated ?? false;
 });
 
 const moduleColors = computed(() =>
