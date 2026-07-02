@@ -133,4 +133,14 @@ $tokens-box-shadow: rgb(99 99 99 / 40%) 0px 2px 8px 0px !default;
 // Z-Index
 $tokens-z-index-background-base: -2 !default;
 $tokens-z-index-background-overlay: -1 !default;
+$tokens-z-index-sticky: 1 !default;
 $tokens-z-index-top: 99 !default;
+
+// Table
+$tokens-table-max-height: 600px !default;
+
+// Chart Tooltip
+$tokens-chart-tooltip-min-width: 12rem !default;
+$tokens-chart-tooltip-max-width: min(92vw, 48rem) !default;
+$tokens-chart-tooltip-dot-size: 10px !default;
+$tokens-chart-tooltip-separator-color: rgb(0 0 0 / 15%) !default;

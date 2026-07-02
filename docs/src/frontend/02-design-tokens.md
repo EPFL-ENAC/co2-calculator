@@ -1,13 +1,48 @@
+## Where styles live (current structure)
+
+> **This section is authoritative.** The tutorial below explains the design-token
+> architecture in depth; its `05-components/…` file examples are illustrative teaching
+> snippets and no longer describe the real folder layout.
+
+Component styling lives **in the owning Vue component's `<style>` block**, not in a
+central CSS folder. The `frontend/src/css/` tree is:
+
+```
+frontend/src/css/
+├── 00-fonts/            # @font-face
+├── 01-reset/            # normalize
+├── 02-tokens/           # design tokens — the source of truth (options → decisions → components → quasar-bridge)
+├── 03-layout/           # body, grid, container, modal
+├── 04-utils/            # spacing/text helper classes
+├── 05-quasar-overrides/ # global overrides for Quasar's own classes (.q-btn, .q-table, …)
+└── app.scss             # cascade-layer order + imports
+```
+
+There is **no shared component CSS folder**. Rules of thumb:
+
+- Put a class in the `<style>` block of the component that renders it, and
+  `@use 'src/css/02-tokens' as tokens;`.
+- If a class is applied by **several** components, **repeat the rules in each** of those
+  components (they all `@use` the same tokens, so values stay consistent) — don't create a
+  shared partial. Use `scoped` when the class only targets the component's own template;
+  use a plain (non-scoped) `<style>` block when the rules must reach Quasar-rendered
+  internals (e.g. `.co2-table` → `thead/tbody/td`) or global chrome (e.g. `@media print`
+  hiding `.q-header`), since scoped attributes don't reach those elements.
+- Overrides targeting **Quasar's** classes → `05-quasar-overrides/` (imported under the
+  `quasar-overrides` cascade layer). These must stay global — they cannot be scoped.
+- **Never hardcode** colors, spacing, radii, font sizes, z-index, etc. — reference a
+  token from `02-tokens`, and add a decision/component token if a semantic one is missing.
+
 ## The Integration Strategy
 
-### 1. **Your Current Setup Maps Well**
+### 1. **The Setup Maps Well to Design Tokens**
 
-Your ITCSS-like structure already aligns with design token architecture:
+The ITCSS-like structure aligns with design token architecture:
 
-- **02-tokens** (your current layer) → **Option Tokens** (color palettes, spacing scales)
+- **02-tokens** → **Option Tokens** (color palettes, spacing scales) + Decision & Component tokens
 - **03-layout** → Uses **Decision Tokens** (semantic decisions like "surface color", "primary spacing")
 - **04-utils** → Helper classes that might use Decision or Component Tokens
-- **05-components** → **Component Tokens** (button-primary-background, card-padding, etc.)
+- **Vue component `<style>` blocks** → consume Decision/Component tokens
 
 ### 2. **Quasar Integration Strategy**
 
@@ -157,11 +192,8 @@ styles/
 ├── 04-utils/
 │   ├── _spacing.scss
 │   └── _text.scss
-├── 05-components/
-│   ├── _atoms/
-│   ├── _molecules/
-│   └── _organisms/
-└── main.scss
+├── 05-quasar-overrides/    # global Quasar class overrides
+└── app.scss                # (all component styles live in each .vue <style> block)
 ```
 
 ### 6. **CSS Layers Implementation**
@@ -189,10 +221,8 @@ styles/
   @import "04-utils/text";
 }
 
-@layer components {
-  @import "05-components/atoms/button";
-  @import "05-components/molecules/search-bar";
-}
+// The `components` layer is left empty in app.scss — all component styles live in
+// each Vue component's own <style> block (compiled unlayered).
 ```
 
 ### 7. **Practical Workflow**
@@ -914,13 +944,14 @@ $space-base: dec.$spacing-md !default;
 // Your layer has:    @layer components { .q-btn { padding: 12px } }
 // → Your padding wins because "components" layer is higher priority!
 //
-// HOW IT RELATES TO YOUR ITCSS:
-// Your structure:       CSS Layer:
-// 01-reset        →     @layer reset
-// 02-tokens       →     @layer tokens
-// 03-layout       →     @layer layout
-// 04-utils        →     @layer utilities
-// 05-components   →     @layer components
+// HOW IT RELATES TO THE ITCSS STRUCTURE:
+// Structure:              CSS Layer:
+// 01-reset          →     @layer reset
+// 02-tokens         →     @layer tokens
+// 03-layout         →     @layer layout
+// 05-quasar-overrides →   @layer quasar-overrides
+// .vue <style> blocks →   @layer components (conceptually; compiled unlayered)
+// 04-utils          →     @layer utilities
 //
 // WHY quasar-overrides LAYER?
 // → Sometimes you need to modify Quasar components beyond variables
@@ -944,16 +975,14 @@ $space-base: dec.$spacing-md !default;
 }
 
 @layer quasar-overrides {
-  // Additional Quasar customizations beyond variable overrides
-  @import "05-components/quasar-overrides/q-btn-custom";
+  // Global overrides for Quasar's own classes (.q-btn, .q-table, …)
+  @import "05-quasar-overrides/q-btn";
+  @import "05-quasar-overrides/q-table";
 }
 
-@layer components {
-  // Your custom components (Atomic Design structure)
-  @import "05-components/atoms/button";
-  @import "05-components/molecules/card";
-  // ... more components
-}
+// The `components` layer is intentionally empty here — every component's styles
+// live in its own .vue <style> block (compiled unlayered), so there is nothing
+// to @import at this level.
 
 @layer utilities {
   @import "04-utils/spacing";

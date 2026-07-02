@@ -404,3 +404,46 @@ onMounted(async () => {
     </q-card>
   </q-page>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.lab-selector-item {
+  cursor: pointer;
+  transition: none;
+
+  &--selected {
+    border-color: tokens.$container-selected-hover-border;
+    background-color: tokens.$container-selected-hover-bg;
+  }
+}
+
+.progress-segments {
+  display: flex;
+  gap: tokens.$progress-bar-gap;
+  height: tokens.$progress-bar-height;
+
+  .segment {
+    flex: 1;
+    background-color: tokens.$progress-bar-bg;
+
+    &.selected {
+      background-color: tokens.$progress-bar-selected-bg;
+    }
+
+    &:first-child {
+      border-radius: tokens.$progress-bar-segment-radius 0 0
+        tokens.$progress-bar-segment-radius;
+    }
+
+    &:last-child {
+      border-radius: 0 tokens.$progress-bar-segment-radius
+        tokens.$progress-bar-segment-radius 0;
+    }
+
+    &.filled {
+      background-color: tokens.$progress-bar-fill-bg;
+    }
+  }
+}
+</style>

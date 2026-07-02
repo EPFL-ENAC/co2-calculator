@@ -1,4 +1,4 @@
-@use '../../02-tokens' as tokens;
+@use '../02-tokens' as tokens;
 
 .q-tooltip {
   box-shadow: tokens.$tooltip-box-shadow;

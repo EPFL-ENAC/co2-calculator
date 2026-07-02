@@ -98,3 +98,13 @@ const buttonLabel = computed(() => {
     </q-form>
   </q-card>
 </template>
+
+<style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.login-card {
+  box-shadow: tokens.$login-card-box-shadow;
+  min-width: tokens.$layout-pop-up-min-width;
+  padding: tokens.$spacing-page;
+}
+</style>
