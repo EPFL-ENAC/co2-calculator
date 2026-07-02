@@ -8,6 +8,7 @@ import { useAuthStore } from 'src/stores/auth';
 import { useTimelineStore, useModuleStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { nOrDash } from 'src/utils/number';
+import { runtimeConfig } from 'src/config/runtime';
 import WorkspaceSelectorBar from 'src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
 import CO2ProjectPlanner from 'src/components/organisms/home/CO2ProjectPlanner.vue';
 import CO2Explorer from 'src/components/organisms/home/CO2Explorer.vue';
@@ -84,9 +85,12 @@ const userType = computed(() =>
   isPrincipalUser.value ? 'principal' : 'standard',
 );
 
-// EPFL access-management portal, opened straight on the authorizations tab.
-// Principals delegate roles here; standard users instead email the principal.
-const ACCRED_URL = 'https://accred.epfl.ch?opentab=authorizations';
+// Access-management portal (name + URL), configurable per deployment via
+// APP_AUTHORIZATION_PROVIDER_* — see src/config/runtime.ts. Defaults to EPFL's
+// ACCRED. Principals delegate roles here; standard users instead email the
+// principal.
+const authorizationProviderName = runtimeConfig.authorizationProviderName;
+const authorizationProviderUrl = runtimeConfig.authorizationProviderUrl;
 
 const principalUserName = computed(
   () => workspaceStore.selectedUnit?.principal_user_name ?? '',
@@ -119,14 +123,16 @@ const calculatorUpdates = computed(() => {
     ),
   ].sort((a, b) => Number(a) - Number(b));
 
-  return indices
-    .map((i) => ({
-      title: `calculator_update_${i}_title`,
-      date: `calculator_update_${i}_date`,
-      body: `calculator_update_${i}_body`,
-    }))
-    // Drop entries with no content; their leading separator goes with them.
-    .filter((update) => hasText(update.date) || hasText(update.body));
+  return (
+    indices
+      .map((i) => ({
+        title: `calculator_update_${i}_title`,
+        date: `calculator_update_${i}_date`,
+        body: `calculator_update_${i}_body`,
+      }))
+      // Drop entries with no content; their leading separator goes with them.
+      .filter((update) => hasText(update.date) || hasText(update.body))
+  );
 });
 
 async function fetchEmissionBreakdown() {
@@ -217,8 +223,9 @@ watch(
               </h2>
 
               <!-- Discreet role badge; opens a popover explaining the access
-                   level and how to request more (ACCRED). Always available,
-                   independent of the empty/populated chart state. -->
+                   level and how to request more (via the configured
+                   authorization provider). Always available, independent of
+                   the empty/populated chart state. -->
               <q-btn
                 flat
                 dense
@@ -242,18 +249,26 @@ watch(
                       {{ $t(`co2_calculator_access_${userType}_title`) }}
                     </p>
                     <p class="text-body2 text-secondary q-mb-md">
-                      {{ $t(`co2_calculator_access_${userType}_body`) }}
+                      {{
+                        $t(`co2_calculator_access_${userType}_body`, {
+                          provider: authorizationProviderName,
+                        })
+                      }}
                     </p>
 
                     <!-- Principals delegate roles in ACCRED. -->
                     <a
                       v-if="isPrincipalUser"
-                      :href="ACCRED_URL"
+                      :href="authorizationProviderUrl"
                       target="_blank"
                       rel="noopener noreferrer"
                       class="link text-body2 text-weight-medium"
                     >
-                      {{ $t('co2_calculator_access_cta_principal') }}
+                      {{
+                        $t('co2_calculator_access_cta_principal', {
+                          provider: authorizationProviderName,
+                        })
+                      }}
                       <q-icon name="o_arrow_outward" size="xs" />
                     </a>
 

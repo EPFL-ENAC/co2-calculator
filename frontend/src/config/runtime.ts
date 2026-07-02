@@ -42,4 +42,15 @@ export const runtimeConfig = {
     injected.APP_MAP_TILE_STYLE_URL ||
     process.env.APP_MAP_TILE_STYLE_URL ||
     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // Access-management provider used for role delegation (shown in the
+  // calculator's access popover). Defaults to EPFL's ACCRED; override per-pod
+  // to rebrand for another institution without code changes.
+  authorizationProviderName:
+    injected.APP_AUTHORIZATION_PROVIDER_NAME ||
+    process.env.APP_AUTHORIZATION_PROVIDER_NAME ||
+    'ACCRED',
+  authorizationProviderUrl:
+    injected.APP_AUTHORIZATION_PROVIDER_URL ||
+    process.env.APP_AUTHORIZATION_PROVIDER_URL ||
+    'https://accred.epfl.ch?opentab=authorizations',
 } as const;

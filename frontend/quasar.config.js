@@ -127,6 +127,13 @@ export default defineConfig(function () {
         // Default to OSM tile.openstreetmap.org; override per-pod via
         // /injectEnv.js if a paid/internal tile source is provisioned.
         APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
+        // Access-management provider shown in the calculator's access popover
+        // (see src/config/runtime.ts). Defaults to EPFL's ACCRED in code;
+        // override per-pod via /injectEnv.js to rebrand for another institution.
+        APP_AUTHORIZATION_PROVIDER_NAME:
+          process.env.APP_AUTHORIZATION_PROVIDER_NAME || '',
+        APP_AUTHORIZATION_PROVIDER_URL:
+          process.env.APP_AUTHORIZATION_PROVIDER_URL || '',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,
