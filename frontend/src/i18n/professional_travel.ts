@@ -213,6 +213,15 @@ export default {
     en: 'You have not been validated in the headcount. Please contact your unit manager.',
     fr: "Vous n'avez pas été validé dans les effectifs. Veuillez contacter votre responsable d'unité.",
   },
+  // Sentinel travelers not tied to a headcount member (issue #1153)
+  [`${MODULES.ProfessionalTravel}-field-traveler-other-internal`]: {
+    en: 'Other traveler (internal)',
+    fr: 'Autre (interne)',
+  },
+  [`${MODULES.ProfessionalTravel}-field-traveler-other-external`]: {
+    en: 'Other traveler (external)',
+    fr: 'Autre (externe)',
+  },
 
   // Trip-map widget (issue #282). One Pinia slot feeds three maps —
   // the overall map on the carbon-footprint card and the plane/train
