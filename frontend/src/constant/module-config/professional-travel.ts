@@ -3,6 +3,16 @@ import { MODULES, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { formatTonnesCO2 } from 'src/utils/number';
 import type { ProfessionalTravelSubType } from 'src/constant/modules';
 
+// "Other traveler" sentinels + resolver live in a standalone light module so
+// they stay unit-testable (issue #1153); re-exported here for convenience.
+export {
+  TRAVELER_OTHER_INTERNAL,
+  TRAVELER_OTHER_EXTERNAL,
+  TRAVELER_OTHER_INTERNAL_LABEL_KEY,
+  TRAVELER_OTHER_EXTERNAL_LABEL_KEY,
+  resolveTravelerName,
+} from 'src/constant/module-config/traveler-options';
+
 const commonTravelFields: ModuleField[] = [
   {
     id: 'round_trip',
