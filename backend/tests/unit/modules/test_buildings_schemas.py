@@ -1,15 +1,16 @@
-"""Unit tests for BuildingRoomModuleHandler._compute_kwh_emission.
+"""Unit tests for BuildingRoomModuleHandler.
 
-Formula: kwh = surface × kwh_per_m² × ratio
-         result = kwh × ef × conversion_factor
+Two concerns are covered:
 
-conversion_factor rules (only applies when kwh_field == "heating_kwh_per_square_meter"):
-  - emission_type.parent == heating_elec AND energy_type == "electric"
-    → factor_values["conversion_factor"] or 1.0
-  - emission_type.parent == heating_thermal AND energy_type == "thermal"
-    → factor_values["conversion_factor"] or 1.0
-  - otherwise → 0  (avoids double-counting the other heating branch)
-For non-heating fields, conversion_factor is always 1.0.
+* ``_compute_kwh_emission`` — the arithmetic
+  ``kwh = surface × kwh_per_m² × ratio``; ``result = kwh × ef × conversion_factor``.
+  ``conversion_factor`` applies only to ``heating_kwh_per_square_meter`` (default
+  1.0); for every other field it is 1.0. The formula no longer inspects
+  ``energy_type`` — heating-leaf selection happens in ``resolve_computations``.
+
+* ``resolve_computations`` — emits exactly one heating leaf (electric OR thermal)
+  matching the factor's ``energy_type`` carried in ``ctx``; the mismatched heating
+  leaf produces no computation. A missing ``primary_factor_id`` yields nothing.
 """
 
 import pytest
@@ -25,19 +26,19 @@ _HANDLER = BuildingRoomModuleHandler()
 
 _ELEC_LEAF = EmissionType.buildings__rooms__heating_elec__office
 _THERMAL_LEAF = EmissionType.buildings__rooms__heating_thermal__office
-_ELEC_PARENT = EmissionType.buildings__rooms__heating_elec
+_ELEC_ZZ = EmissionType.buildings__rooms__heating_elec
+_THERMAL_ZZ = EmissionType.buildings__rooms__heating_thermal
+_LIGHTING_LEAF = EmissionType.buildings__rooms__lighting__office
 
 
 def _ctx(
     *,
     surface: float | None = 100.0,
     ratio: float | None = 0.5,
-    emission_type: EmissionType = _ELEC_LEAF,
 ) -> dict:
     return {
         "room_surface_square_meter": surface,
         "room_allocation_ratio": ratio,
-        "emission_type": emission_type,
     }
 
 
@@ -45,7 +46,6 @@ def _fv(
     *,
     kwh_per_m2: float | None = 10.0,
     ef: float | None = 0.2,
-    energy_type: str | None = "electric",
     conversion_factor: float | None = 2.0,
     kwh_field: str = "lighting_kwh_per_square_meter",
 ) -> dict:
@@ -53,15 +53,13 @@ def _fv(
         "ef_kg_co2eq_per_kwh": ef,
         kwh_field: kwh_per_m2,
     }
-    if energy_type is not None:
-        values["energy_type"] = energy_type
     if conversion_factor is not None:
         values["conversion_factor"] = conversion_factor
     return values
 
 
 # ---------------------------------------------------------------------------
-# Non-heating kwh fields — conversion_factor is always 1.0
+# _compute_kwh_emission — non-heating fields ignore conversion_factor (1.0)
 # ---------------------------------------------------------------------------
 
 
@@ -102,7 +100,7 @@ def test_non_heating_ratio_defaults_to_one() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Missing required values → None
+# _compute_kwh_emission — missing required values → None
 # ---------------------------------------------------------------------------
 
 
@@ -129,121 +127,96 @@ def test_missing_required_value_returns_none(
 
 
 # ---------------------------------------------------------------------------
-# Heating electric leaf — emission_type.parent == heating_elec
+# _compute_kwh_emission — heating applies conversion_factor (default 1.0)
 # ---------------------------------------------------------------------------
 
 
-def test_heating_elec_with_conversion_factor() -> None:
-    # surface=100, kwh/m2=10, ratio=0.5, ef=0.2, cf=2.0
-    # kwh = 100 * 10 * 0.5 = 500
-    # result = 500 * 0.2 * 2.0 = 200.0
-    ctx = _ctx(emission_type=_ELEC_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="electric",
-        conversion_factor=2.0,
-    )
+def test_heating_applies_conversion_factor() -> None:
+    # kwh = 100 * 10 * 0.5 = 500; result = 500 * 0.2 * 2.0 = 200.0
+    fv = _fv(kwh_field="heating_kwh_per_square_meter", conversion_factor=2.0)
     assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
+        _ctx(), fv, "heating_kwh_per_square_meter"
     ) == pytest.approx(200.0)
 
 
-def test_heating_elec_missing_conversion_factor_defaults_to_one() -> None:
-    # conversion_factor absent → defaults to 1.0
-    ctx = _ctx(emission_type=_ELEC_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="electric",
-        conversion_factor=None,
-    )
-    # kwh = 100 * 10 * 0.5 = 500; result = 500 * 0.2 * 1.0 = 100.0
+def test_heating_missing_conversion_factor_defaults_to_one() -> None:
+    fv = _fv(kwh_field="heating_kwh_per_square_meter", conversion_factor=None)
+    # 500 * 0.2 * 1.0 = 100.0
     assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
+        _ctx(), fv, "heating_kwh_per_square_meter"
     ) == pytest.approx(100.0)
 
 
-def test_heating_elec_conversion_factor_none_defaults_to_one() -> None:
+def test_heating_conversion_factor_none_defaults_to_one() -> None:
     # conversion_factor explicitly None in factor_values → `or 1.0` kicks in
-    ctx = _ctx(emission_type=_ELEC_LEAF)
     fv = {
         "heating_kwh_per_square_meter": 10.0,
         "ef_kg_co2eq_per_kwh": 0.2,
-        "energy_type": "electric",
         "conversion_factor": None,
     }
     assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
-    ) == pytest.approx(100.0)
-
-
-def test_heating_elec_leaf_wrong_energy_type_gives_zero() -> None:
-    # energy_type="thermal" on an elec leaf → neither branch matches → cf=0 → result=0
-    ctx = _ctx(emission_type=_ELEC_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="thermal",
-        conversion_factor=2.0,
-    )
-    assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
-    ) == pytest.approx(0.0)
-
-
-# ---------------------------------------------------------------------------
-# Heating thermal leaf — emission_type.parent == heating_thermal
-# ---------------------------------------------------------------------------
-
-
-def test_heating_thermal_with_conversion_factor() -> None:
-    ctx = _ctx(emission_type=_THERMAL_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="thermal",
-        conversion_factor=3.0,
-    )
-    # kwh = 100 * 10 * 0.5 = 500; result = 500 * 0.2 * 3.0 = 300.0
-    assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
-    ) == pytest.approx(300.0)
-
-
-def test_heating_thermal_leaf_wrong_energy_type_gives_zero() -> None:
-    ctx = _ctx(emission_type=_THERMAL_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="electric",
-        conversion_factor=3.0,
-    )
-    assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
-    ) == pytest.approx(0.0)
-
-
-def test_heating_thermal_missing_conversion_factor_defaults_to_one() -> None:
-    ctx = _ctx(emission_type=_THERMAL_LEAF)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="thermal",
-        conversion_factor=None,
-    )
-    assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
+        _ctx(), fv, "heating_kwh_per_square_meter"
     ) == pytest.approx(100.0)
 
 
 # ---------------------------------------------------------------------------
-# Heating with top-level parent (not a leaf) — parent check fails → cf=0
+# resolve_computations — heating-leaf selection by factor energy_type
 # ---------------------------------------------------------------------------
 
 
-def test_heating_elec_top_level_emission_type_gives_zero() -> None:
-    # _ELEC_PARENT.parent == buildings__rooms, not heating_elec → cf=0
-    ctx = _ctx(emission_type=_ELEC_PARENT)
-    fv = _fv(
-        kwh_field="heating_kwh_per_square_meter",
-        energy_type="electric",
-        conversion_factor=2.0,
+def _rc_ctx(*, energy_type: str | None, factor_id: int | None = 7) -> dict:
+    ctx: dict = {"energy_type": energy_type}
+    if factor_id is not None:
+        ctx["primary_factor_id"] = factor_id
+    return ctx
+
+
+@pytest.mark.parametrize(
+    "leaf,energy_type,should_emit",
+    [
+        pytest.param(_ELEC_LEAF, "electric", True, id="ww-elec-match"),
+        pytest.param(_ELEC_LEAF, "thermal", False, id="ww-elec-mismatch"),
+        pytest.param(_THERMAL_LEAF, "thermal", True, id="ww-thermal-match"),
+        pytest.param(_THERMAL_LEAF, "electric", False, id="ww-thermal-mismatch"),
+        pytest.param(_ELEC_ZZ, "electric", True, id="zz-elec-match"),
+        pytest.param(_THERMAL_ZZ, "thermal", True, id="zz-thermal-match"),
+        pytest.param(_ELEC_LEAF, None, False, id="missing-energy-type"),
+    ],
+)
+def test_resolve_computations_heating_leaf_selection(
+    leaf: EmissionType, energy_type: str | None, should_emit: bool
+) -> None:
+    comps = _HANDLER.resolve_computations(None, leaf, _rc_ctx(energy_type=energy_type))
+    if should_emit:
+        assert len(comps) == 1
+        assert comps[0].emission_type == leaf
+        assert comps[0].factor_id == 7
+    else:
+        assert comps == []
+
+
+def test_resolve_computations_non_heating_always_emits() -> None:
+    # lighting is energy_type-independent — emitted regardless of energy_type.
+    comps = _HANDLER.resolve_computations(
+        None, _LIGHTING_LEAF, _rc_ctx(energy_type="thermal")
     )
-    assert _HANDLER._compute_kwh_emission(
-        ctx, fv, "heating_kwh_per_square_meter"
-    ) == pytest.approx(0.0)
+    assert len(comps) == 1
+    assert comps[0].emission_type == _LIGHTING_LEAF
+
+
+def test_resolve_computations_missing_factor_id_returns_empty() -> None:
+    comps = _HANDLER.resolve_computations(
+        None, _ELEC_LEAF, _rc_ctx(energy_type="electric", factor_id=None)
+    )
+    assert comps == []
+
+
+def test_resolve_computations_emitted_heating_formula_computes() -> None:
+    # The emitted electric-heating computation, fed factor values, yields the
+    # correct kg_co2eq end-to-end (resolve + formula): 500 * 0.2 * 2.0 = 200.0.
+    comps = _HANDLER.resolve_computations(
+        None, _ELEC_LEAF, _rc_ctx(energy_type="electric")
+    )
+    assert len(comps) == 1
+    fv = _fv(kwh_field="heating_kwh_per_square_meter", conversion_factor=2.0)
+    assert comps[0].formula_func(_ctx(), fv) == pytest.approx(200.0)

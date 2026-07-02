@@ -30,6 +30,7 @@ from app.schemas.factor import (
     FactorUpdate,
 )
 from app.services.building_room_service import BuildingRoomService
+from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
 
@@ -138,6 +139,22 @@ class BuildingRoomHandlerUpdate(DataEntryUpdate):
         return v
 
 
+def _heating_family(et: EmissionType) -> str | None:
+    """Return the heating energy family ("electric"/"thermal") of a leaf.
+
+    Works at both the room-type (WW) level — where the leaf's parent is
+    heating_elec/heating_thermal — and the generic (ZZ) fallback level —
+    where the leaf *is* heating_elec/heating_thermal. Returns None for
+    non-heating leaves.
+    """
+    for node in (et, et.parent):
+        if node == EmissionType.buildings__rooms__heating_elec:
+            return "electric"
+        if node == EmissionType.buildings__rooms__heating_thermal:
+            return "thermal"
+    return None
+
+
 class BuildingRoomModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.building
@@ -211,11 +228,30 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
                 room_name,
                 building_name,
             )
+        # The factor's energy_type (electric|thermal) decides which single
+        # heating leaf this room feeds (see resolve_computations). Resolve it
+        # once per entry from the already-linked primary_factor_id.
+        # Optimisation note: the bulk-recalc path holds a ``factor_cache``
+        # (emission_recalculation.py) that could be threaded in to skip this
+        # per-entry fetch.
+        energy_type = await self._resolve_energy_type(data_entry, session)
         return {
             "room_surface_square_meter": room.room_surface_square_meter
             if room
-            else None
+            else None,
+            "energy_type": energy_type,
         }
+
+    @staticmethod
+    async def _resolve_energy_type(data_entry: Any, session: Any) -> str | None:
+        """Read energy_type off the entry's primary factor classification."""
+        factor_id = data_entry.data.get("primary_factor_id")
+        if factor_id is None:
+            return None
+        factor = await FactorService(session).get(int(factor_id))
+        if factor is None:
+            return None
+        return (factor.classification or {}).get("energy_type")
 
     @staticmethod
     def _compute_kwh_emission(
@@ -237,28 +273,10 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         # set a default value of 1.0 if not provided
         ratio_nb = float(ratio) if ratio is not None else 1.0
 
-        # conversion factor only applies to electric or thermal energy types,
-        # default to 1.0 if not provided
+        # conversion_factor applies to heating only (default 1.0). Which heating
+        # leaf this factor feeds is decided upstream in resolve_computations.
         if kwh_field == "heating_kwh_per_square_meter":
-            emission_type: EmissionType = ctx["emission_type"]
-            energy_type = factor_values.get("energy_type")
-            if (
-                emission_type.parent is not None
-                and emission_type.parent == EmissionType.buildings__rooms__heating_elec
-                and energy_type == "electric"
-            ):
-                conversion_factor = factor_values.get("conversion_factor") or 1.0
-            elif (
-                emission_type.parent is not None
-                and emission_type.parent
-                == EmissionType.buildings__rooms__heating_thermal
-                and energy_type == "thermal"
-            ):
-                conversion_factor = factor_values.get("conversion_factor") or 1.0
-            else:
-                # does not apply to this emission type,
-                # set to 0 to avoid double counting
-                conversion_factor = 0
+            conversion_factor = factor_values.get("conversion_factor") or 1.0
         else:
             conversion_factor = 1.0
         kwh = float(surface) * float(kwh_per_m2) * ratio_nb
@@ -271,15 +289,18 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         if factor_id is None:
             return []
 
-        # Add emission type to context for use in formula_func
-        ctx["emission_type"] = emission_type
-
         # Try direct match, then fall back to parent (WW→ZZ)
         kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)
         if not kwh_field and emission_type.parent is not None:
             kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type.parent)
         if not kwh_field:
             return []
+
+        # A room is electric OR thermal — never both. Emit only the heating
+        # leaf matching the factor's energy_type; the other produces no row.
+        if kwh_field == "heating_kwh_per_square_meter":
+            if _heating_family(emission_type) != ctx.get("energy_type"):
+                return []
 
         def _building_formula(ctx: dict, factor_values: dict) -> float | None:
             return self._compute_kwh_emission(ctx, factor_values, kwh_field)
@@ -336,6 +357,11 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 buildings_classification_fields: list[str] = [
     "building_name",
     "room_type",
+    # energy_type is a non-key classification column: it describes whether the
+    # room's heating is electric or thermal but is not part of the lookup key
+    # (building_name + room_type already resolve a single factor). It drives
+    # which heating leaf the factor feeds — see resolve_computations.
+    "energy_type",
 ]
 buildings_value_fields: list[str] = [
     "ef_kg_co2eq_per_kwh",
@@ -343,7 +369,6 @@ buildings_value_fields: list[str] = [
     "cooling_kwh_per_square_meter",
     "ventilation_kwh_per_square_meter",
     "lighting_kwh_per_square_meter",
-    "energy_type",
     "conversion_factor",
 ]
 

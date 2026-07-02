@@ -243,25 +243,18 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
       lighting_kwh_per_m²=5     → 5.0
       cooling_kwh_per_m²=20     → 20.0
       ventilation_kwh_per_m²=10 → 10.0
-      heating_kwh_per_m²=30     → 30.0 (electric → heating_elec leaf)
+      heating_kwh_per_m²=30     → 30.0 (electric → heating_elec leaf ONLY)
 
-    Discovery — buildings__rooms rollup is 95.0 (NOT 65.0)
-    ------------------------------------------------------
-    The rollup assertion at the end of this test sums the four leaves
-    above PLUS an extra 30.0 (heating_thermal), totalling 95.0.  We
-    only seed an electric heating factor; the +30 thermal contribution
-    appears regardless.  Reading the handler reveals
-    ``heating_kwh_per_square_meter`` is fanned out to BOTH the
-    ``heating_elec`` and ``heating_thermal`` leaves with the same
-    ef/ratio, so the rooms rollup double-counts heating energy when
-    only one heating mode actually applies to the room.
-
-    This test PINS the observed contract (rollup = 95.0) — a
-    regression-gate against silent changes to the handler's fan-out
-    logic — but the contract itself looks like a bug worth tracking.
-    Surfaced here so a future reader doesn't conflate "test passes" with
-    "math is correct".  See the rollup assertion comment further down
-    for the per-line breakdown.
+    Heating split — no double-count (regression gate for #1575)
+    -----------------------------------------------------------
+    The factor's ``energy_type`` is "electric", so only the
+    ``heating_elec`` leaf is emitted; ``heating_thermal`` produces no
+    row at all (a room is electric OR thermal, never both).  The rollup
+    is therefore 5+20+10+30 = 65.0 — not 95.0.  Before #1575's fix the
+    handler fanned ``heating_kwh_per_square_meter`` out to BOTH heating
+    leaves, double-counting the 30 and pinning a buggy 95.0; this test
+    now asserts the thermal leaf is absent so that regression can't
+    return.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -340,16 +333,102 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
             f"leaf {et_id}: got {by_leaf[et_id]}, expected {expected_kg}"
         )
 
-    # The rollup row sums the four leaves (lighting+cooling+vent+heat = 65)
-    # — but the persisted rollup carries 95 because ``heating_elec`` and
-    # ``heating_thermal`` both map to ``heating_kwh_per_square_meter``,
-    # so the office "heating" energy contributes twice (electric + thermal
-    # = 30+30) when only the electric factor exists.  Pin the rollup
-    # value (95) exactly so a regression in the heating-leaf emission
-    # (e.g. consolidation into one row) gets caught.
+    # The mismatched heating leaf must NOT exist: energy_type is electric,
+    # so heating_thermal produces no row (regression gate for #1575).
+    assert (
+        EmissionType.buildings__rooms__heating_thermal__office.value not in by_leaf
+    ), (
+        "heating_thermal leaf must be absent for an electric-only factor — "
+        f"got rows={by_leaf}"
+    )
+
+    # The rollup sums the four emitted leaves once each: 5+20+10+30 = 65.
     rollup = by_leaf.get(EmissionType.buildings__rooms.value)
-    assert rollup == pytest.approx(95.0, rel=1e-6), (
-        f"rollup buildings__rooms expected 95.0 (5+20+10+30+30), got {rollup}"
+    assert rollup == pytest.approx(65.0, rel=1e-6), (
+        f"rollup buildings__rooms expected 65.0 (5+20+10+30), got {rollup}"
+    )
+
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_building_room_thermal_factor_emits_only_thermal_leaf(pg_dsn):
+    """Mirror of the electric case for a ``thermal`` factor: only the
+    ``heating_thermal`` leaf is emitted, ``heating_elec`` is absent, and the
+    rollup stays 65.0 (5+20+10+30) — no double-count (regression gate #1575).
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    async with Sf() as s:
+        module_id = await _seed_unit_module(s)
+
+        s.add(
+            BuildingRoom(
+                building_location="ECUBLENS",
+                building_name="BC",
+                room_name="BC-150",
+                room_type="office",
+                room_surface_square_meter=10.0,
+            )
+        )
+        await s.commit()
+
+        factor = Factor(
+            emission_type_id=EmissionType.buildings__rooms.value,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            classification={
+                "building_name": "BC",
+                "room_type": "office",
+                "energy_type": "thermal",
+            },
+            values={
+                "ef_kg_co2eq_per_kwh": 0.1,
+                "heating_kwh_per_square_meter": 30.0,
+                "cooling_kwh_per_square_meter": 20.0,
+                "ventilation_kwh_per_square_meter": 10.0,
+                "lighting_kwh_per_square_meter": 5.0,
+                "conversion_factor": 1.0,
+            },
+            year=2025,
+        )
+        s.add(factor)
+        await s.commit()
+        assert factor.id is not None
+        factor_id = factor.id
+
+        entry = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            carbon_report_module_id=module_id,
+            data={
+                "building_name": "BC",
+                "room_name": "BC-150",
+                "room_type": "office",
+                "room_allocation_ratio": 1.0,
+                "primary_factor_id": factor_id,
+            },
+        )
+        s.add(entry)
+        await s.commit()
+        assert entry.id is not None
+        entry_id = entry.id
+
+    async with Sf() as s:
+        rows = await _initial_compute(s, entry_id)
+
+    by_leaf = {r.emission_type_id: (r.kg_co2eq or 0.0) for r in rows}
+
+    assert by_leaf.get(
+        EmissionType.buildings__rooms__heating_thermal__office.value
+    ) == pytest.approx(30.0, rel=1e-6), f"thermal heating leaf missing: {by_leaf}"
+    assert EmissionType.buildings__rooms__heating_elec__office.value not in by_leaf, (
+        "heating_elec leaf must be absent for a thermal-only factor — "
+        f"got rows={by_leaf}"
+    )
+
+    rollup = by_leaf.get(EmissionType.buildings__rooms.value)
+    assert rollup == pytest.approx(65.0, rel=1e-6), (
+        f"rollup buildings__rooms expected 65.0 (5+20+10+30), got {rollup}"
     )
 
     await engine.dispose()
