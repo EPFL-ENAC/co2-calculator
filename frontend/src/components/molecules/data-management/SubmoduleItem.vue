@@ -191,29 +191,30 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         <div class="text-caption text-secondary q-mb-sm">
           {{ $t('data_management_submodule_inputs_deactivation_description') }}
         </div>
-        <q-checkbox
-          :model-value="
-            submodule.forceInputsDeactivated ||
-            isSubmoduleInputsDeactivated(submodule)
-          "
-          color="accent"
-          :disable="!!submodule.forceInputsDeactivated"
-          :label="$t('data_management_submodule_inputs_deactivation_label')"
-          @update:model-value="
-            (val: boolean) =>
-              !submodule.forceInputsDeactivated &&
-              updateSubmoduleInputsDeactivated(submodule, val)
-          "
-        />
-        <q-checkbox
-          :model-value="isSubmoduleCsvDeactivated(submodule)"
-          color="accent"
-          class="block q-mt-xs"
-          :label="$t('data_management_submodule_csv_deactivation_label')"
-          @update:model-value="
-            (val: boolean) => updateSubmoduleCsvDeactivated(submodule, val)
-          "
-        />
+        <div class="row items-center q-col-gutter-md">
+          <q-checkbox
+            :model-value="
+              submodule.forceInputsDeactivated ||
+              isSubmoduleInputsDeactivated(submodule)
+            "
+            color="accent"
+            :disable="!!submodule.forceInputsDeactivated"
+            :label="$t('data_management_submodule_inputs_deactivation_label')"
+            @update:model-value="
+              (val: boolean) =>
+                !submodule.forceInputsDeactivated &&
+                updateSubmoduleInputsDeactivated(submodule, val)
+            "
+          />
+          <q-checkbox
+            :model-value="isSubmoduleCsvDeactivated(submodule)"
+            color="accent"
+            :label="$t('data_management_submodule_csv_deactivation_label')"
+            @update:model-value="
+              (val: boolean) => updateSubmoduleCsvDeactivated(submodule, val)
+            "
+          />
+        </div>
       </q-card>
       <template v-if="!submodule.noThreshold">
         <q-separator class="q-my-xs" />
