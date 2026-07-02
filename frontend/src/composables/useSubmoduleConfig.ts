@@ -21,6 +21,7 @@ export function useSubmoduleConfig() {
   const {
     isSubmoduleEnabled,
     isSubmoduleInputsDeactivated,
+    isSubmoduleCsvDeactivated,
     getModule,
     getModuleNameFromSubmodule,
   } = yearConfigStore;
@@ -164,6 +165,35 @@ export function useSubmoduleConfig() {
     }
   }
 
+  async function updateSubmoduleCsvDeactivated(
+    sub: SubmoduleConfig,
+    value: boolean,
+  ): Promise<void> {
+    const moduleKey = String(sub.moduleTypeId);
+    const subKey =
+      sub.dataEntryTypeId !== undefined
+        ? String(sub.dataEntryTypeId)
+        : undefined;
+    if (!subKey) return;
+    try {
+      await yearConfigStore.updateConfig(yearConfigStore.selectedYear, {
+        config: {
+          modules: {
+            [moduleKey]: {
+              submodules: { [subKey]: { csv_deactivated: value } },
+            },
+          },
+        },
+      });
+      Notify.create({ type: 'positive', message: $t('year_config_saved') });
+    } catch {
+      Notify.create({
+        type: 'negative',
+        message: $t('year_config_save_error'),
+      });
+    }
+  }
+
   function getSubmoduleThreshold(sub: SubmoduleConfig): number | null {
     const unifiedModule = getUnifiedModuleConfigFromSub(sub);
     return unifiedModule?.submodules[sub.key]?.threshold ?? null;
@@ -282,11 +312,13 @@ export function useSubmoduleConfig() {
     isSubmoduleEnabled,
     isSubmoduleIncomplete,
     isSubmoduleInputsDeactivated,
+    isSubmoduleCsvDeactivated,
     getImportRow,
     submoduleShowsImportRow,
     downloadLastCsv,
     updateSubmoduleEnabled,
     updateSubmoduleInputsDeactivated,
+    updateSubmoduleCsvDeactivated,
     getSubmoduleThreshold,
     updateSubmoduleThreshold,
     computedFactorRunning,
