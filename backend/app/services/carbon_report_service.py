@@ -39,6 +39,10 @@ def _build_report_stats(modules) -> dict:
     scope3_total = 0.0
     by_emission_type: dict[str, float] = {}
     by_additional_value: dict[str, float] = {}
+    # Per-module breakdown so consumers (e.g. the emission-breakdown chart)
+    # can recover the module_type_id dimension without reading every
+    # CarbonReportModule.stats row separately.
+    by_module: dict[str, dict[str, dict[str, float]]] = {}
     total_entry_count = 0
 
     for module in modules:
@@ -63,6 +67,13 @@ def _build_report_stats(modules) -> dict:
                 if add_val:
                     current = by_additional_value.get(et_id_str, 0.0)
                     by_additional_value[et_id_str] = current + float(add_val)
+
+        by_module[str(module.module_type_id)] = {
+            "by_emission_type": module_by_et if isinstance(module_by_et, dict) else {},
+            "by_additional_value": (
+                module_by_add if isinstance(module_by_add, dict) else {}
+            ),
+        }
 
         total_entry_count += module_stats.get("entry_count", 0) or 0
 
@@ -89,6 +100,7 @@ def _build_report_stats(modules) -> dict:
         "it_total_kg": it_total_kg,
         "by_emission_type": by_emission_type,
         "by_additional_value": by_additional_value,
+        "by_module": by_module,
         "computed_at": datetime.now(timezone.utc).isoformat(),
         "entry_count": total_entry_count,
         "highest_category_module_id": highest_category_module_id,
