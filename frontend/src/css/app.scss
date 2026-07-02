@@ -29,30 +29,18 @@
 }
 
 @layer quasar-overrides {
-  @import './05-components/quasar-overrides/q-badge';
-  @import './05-components/quasar-overrides/q-btn-timeline-button';
-  @import './05-components/quasar-overrides/q-btn';
-  @import './05-components/quasar-overrides/q-tooltip';
-  @import './05-components/quasar-overrides/q-dialog';
-  @import './05-components/quasar-overrides/q-table';
-  @import './05-components/quasar-overrides/q-select';
+  @import './05-quasar-overrides/q-badge';
+  @import './05-quasar-overrides/q-btn-timeline-button';
+  @import './05-quasar-overrides/q-btn';
+  @import './05-quasar-overrides/q-tooltip';
+  @import './05-quasar-overrides/q-dialog';
+  @import './05-quasar-overrides/q-table';
+  @import './05-quasar-overrides/q-select';
 }
 
-@layer components {
-  // example component imports
-  @import './05-components/_atoms/icon';
-  @import './05-components/_atoms/link';
-  @import './05-components/chart-tooltip';
-  @import './05-components/_organisms/navigation';
-  @import './05-components/_organisms/login-card';
-  @import './05-components/_organisms/timeline';
-  @import './05-components/_templates/dashboard';
-  @import './05-components/_templates/login-page';
-  @import './05-components/_organisms/lab-selector';
-  @import './05-components/_organisms/table';
-  @import './05-components/_templates/sidebar';
-  @import './05-components/print-page';
-}
+// The `components` layer is intentionally empty: component styles live in each
+// Vue component's own <style> block (compiled unlayered). The layer name is kept
+// in the cascade order above so component styles slot ahead of utilities.
 
 @layer utilities {
   @import './04-utils/spacing';

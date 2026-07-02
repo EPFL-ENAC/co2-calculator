@@ -42,3 +42,51 @@ const iconClass = computed(() => [
 <template>
   <span v-svg="svgContent" :class="iconClass" />
 </template>
+
+<!-- Not scoped: the SVG is injected at runtime via the v-svg directive, so its
+     child nodes never receive Vue's scope attribute. `.module-icon` is only
+     rendered by this component, so global scope is safe here. -->
+<style lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.module-icon {
+  width: tokens.$icon-size-md;
+  height: tokens.$icon-size-md;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  &--sm {
+    width: tokens.$icon-size-sm;
+    height: tokens.$icon-size-sm;
+  }
+
+  &--lg {
+    width: tokens.$icon-size-lg;
+    height: tokens.$icon-size-lg;
+  }
+
+  svg {
+    width: 100%;
+    height: 100%;
+    color: inherit;
+
+    // Override inline styles and classes to use currentcolor
+    path,
+    circle,
+    rect,
+    polygon,
+    ellipse,
+    g,
+    .st0,
+    [class*='st'] {
+      fill: currentcolor;
+    }
+
+    // Override style tag inside SVG
+    style {
+      display: none;
+    }
+  }
+}
+</style>

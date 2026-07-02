@@ -136,6 +136,7 @@ $sidebar-tooltip-arrow-size: 5px !default;
 $sidebar-tooltip-arrow-offset-x: -5px !default;
 
 // Link
+$link-underline-offset: opt.$tokens-spacing-2 !default;
 $link-color: opt.$tokens-colors-canard !default;
 $link-underline-color: opt.$tokens-colors-base-black !default;
 $link-hover-color: opt.$tokens-colors-base-black !default;
