@@ -16,6 +16,11 @@ export interface Unit {
   current_user_role: string;
   visibility?: string;
 }
+
+/** Build the `id-slugified-name` unit route param used by the workspace routes. */
+export function unitSlug(unit: Unit): string {
+  return `${unit.id}-${unit.name.replace(/\s+/g, '-').toLowerCase()}`;
+}
 interface YearResult {
   year: number;
   completed_modules: number;

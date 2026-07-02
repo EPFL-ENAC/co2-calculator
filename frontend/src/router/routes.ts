@@ -1,9 +1,13 @@
-import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import { h } from 'vue';
+import {
+  RouteLocationNormalized,
+  RouteRecordRaw,
+  RouterView,
+} from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
-import { i18n } from 'src/boot/i18n';
+import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
-import validateUnitGuard from './guards/validateUnitGuard';
+import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
 import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from 'src/stores/auth';
@@ -22,7 +26,6 @@ export {
   LOGIN_TEST_ROUTE_NAME,
   LOGIN_ROUTES,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
@@ -33,7 +36,6 @@ import {
   LOGIN_ROUTE_NAME,
   LOGIN_TEST_ROUTE_NAME,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
@@ -123,16 +125,30 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'root-redirect',
-        redirect: {
+        redirect: (to) => ({
           name: DEFAULT_ROUTE_NAME,
-          params: { language: i18n.global.locale.value.split('-')[0] },
-        },
+          params: { language: resolveLanguage(to) },
+        }),
       },
       {
         path: `:language(${LANGUAGE_PATTERN})`,
         name: 'language',
-        redirect: { name: DEFAULT_ROUTE_NAME },
         children: [
+          {
+            // Parameterless landing (default route). It never renders: its
+            // `beforeEnter` resolves a default unit/year and forwards to the
+            // unified home page (or to /unauthorized when the account has no
+            // units). Replaces the former interactive `workspace-setup` page.
+            path: '',
+            name: DEFAULT_ROUTE_NAME,
+            beforeEnter: redirectToDefaultRoute,
+            component: { render: () => null },
+            meta: {
+              requiresAuth: true,
+              note: 'Landing - resolves default workspace, forwards to home',
+              breadcrumb: false,
+            },
+          },
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
@@ -152,21 +168,12 @@ const routes: RouteRecordRaw[] = [
             },
           },
           {
-            path: 'workspace-setup',
-            name: WORKSPACE_SETUP_ROUTE_NAME,
-            beforeEnter: redirectToWorkspaceIfSelectedGuard,
-            component: () => import('pages/app/WorkspaceSetupPage.vue'),
-            meta: {
-              requiresAuth: true,
-              note: 'Workspace configuration - Year and lab selection',
-              breadcrumb: false,
-            },
-          },
-          {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
-            beforeEnter: validateUnitGuard,
-            component: () => import('pages/app/WorkspacePage.vue'),
+            // Pass-through layout: the workspace is loaded by the global
+            // `workspaceGuard`, so this parent only needs to host the child
+            // <router-view>.
+            component: { render: () => h(RouterView) },
             children: [
               {
                 name: 'home-redirect',
@@ -206,12 +213,25 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
+                // The simulator home (Explore/Plan tabs) now lives inline on the
+                // unified home page; this route just redirects there, preserving
+                // the language/unit/year params.
                 path: 'simulation',
                 name: 'simulation',
-                component: () => import('pages/app/SimulationsPage.vue'),
+                redirect: (to) => ({
+                  name: HOME_ROUTE_NAME,
+                  params: to.params,
+                }),
+              },
+              {
+                // Reached from the "Start a project" button on the unified
+                // home page (CO2ProjectPlanner).
+                path: 'simulation/add',
+                name: 'project-planner',
+                component: () => import('pages/app/AddSimulationPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Selection and management page',
+                  note: 'Project Planner - Add a new project simulation',
                   breadcrumb: true,
                 },
               },

@@ -225,6 +225,12 @@ frontend:
     # Environment label attached to every Sentry event. Override per-cluster
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
+    # Access-management provider shown in the calculator's access popover
+    # (role delegation). Defaults in src/config/runtime.ts point at EPFL's
+    # ACCRED; override here (or in the ops repo) to rebrand for another
+    # institution.
+    APP_AUTHORIZATION_PROVIDER_NAME: "ACCRED"
+    APP_AUTHORIZATION_PROVIDER_URL: "https://accred.epfl.ch?opentab=authorizations"
 
   podAnnotations: {}
 
