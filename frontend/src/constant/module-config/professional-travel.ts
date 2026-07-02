@@ -110,82 +110,78 @@ const commonTravelFields: ModuleField[] = [
     readOnly: true,
     disable: true,
   },
-  {
-    id: 'kg_co2eq',
-    labelKey: `${MODULES.ProfessionalTravel}-field-emissions`,
-    type: 'number',
-    unit: 'kg CO₂-eq',
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    readOnly: true,
-    hideIn: {
-      form: true,
-    },
-  },
 ];
 
-const planeFields: ModuleField[] = [
-  ...buildTravelFields(
-    { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
-    {
-      id: 'destination_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
-    },
-  ),
-  {
-    id: 'cabin_class',
-    labelKey: `${MODULES.ProfessionalTravel}-field-class`,
-    type: 'select',
-    required: true,
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    hideIn: {
-      table: true,
-    },
-    options: [
-      { value: 'first', label: 'First' },
-      { value: 'business', label: 'Business' },
-      { value: 'economy', label: 'Economy' },
-    ],
+// Emissions column, kept separate so the class column can be placed just before it.
+const emissionsField: ModuleField = {
+  id: 'kg_co2eq',
+  labelKey: `${MODULES.ProfessionalTravel}-field-emissions`,
+  type: 'number',
+  unit: 'kg CO₂-eq',
+  sortable: true,
+  ratio: '1/1',
+  editableInline: false,
+  readOnly: true,
+  hideIn: {
+    form: true,
   },
-];
+};
+
+const planeCabinClassField: ModuleField = {
+  id: 'cabin_class',
+  labelKey: `${MODULES.ProfessionalTravel}-field-class`,
+  type: 'select',
+  required: true,
+  sortable: true,
+  ratio: '1/1',
+  editableInline: true,
+  options: [
+    { value: 'first', label: 'First' },
+    { value: 'business', label: 'Business' },
+    { value: 'economy', label: 'Economy' },
+  ],
+};
+
+const planeFields: ModuleField[] = buildTravelFields(
+  { id: 'origin_name', labelKey: `${MODULES.ProfessionalTravel}-field-from` },
+  {
+    id: 'destination_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+  },
+  planeCabinClassField,
+);
 
 const trainLocationTooltip = `${MODULES.ProfessionalTravel}-train-location-local-language-tooltip`;
 
-const trainFields: ModuleField[] = [
-  ...buildTravelFields(
-    {
-      id: 'origin_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-from`,
-      tooltip: trainLocationTooltip,
-    },
-    {
-      id: 'destination_name',
-      labelKey: `${MODULES.ProfessionalTravel}-field-to`,
-      tooltip: trainLocationTooltip,
-    },
-    { directionInputTooltip: trainLocationTooltip },
-  ),
+const trainCabinClassField: ModuleField = {
+  id: 'cabin_class',
+  labelKey: `${MODULES.ProfessionalTravel}-field-class`,
+  type: 'select',
+  required: true,
+  sortable: true,
+  ratio: '1/1',
+  editableInline: true,
+  optionLabelsAreKeys: true,
+  options: [
+    { value: 'first', label: 'class_1' },
+    { value: 'second', label: 'class_2' },
+  ],
+};
+
+const trainFields: ModuleField[] = buildTravelFields(
   {
-    id: 'cabin_class',
-    labelKey: `${MODULES.ProfessionalTravel}-field-class`,
-    type: 'select',
-    required: true,
-    sortable: true,
-    ratio: '1/1',
-    editableInline: false,
-    hideIn: {
-      table: true,
-    },
-    optionLabelsAreKeys: true,
-    options: [
-      { value: 'first', label: 'class_1' },
-      { value: 'second', label: 'class_2' },
-    ],
+    id: 'origin_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-from`,
+    tooltip: trainLocationTooltip,
   },
-];
+  {
+    id: 'destination_name',
+    labelKey: `${MODULES.ProfessionalTravel}-field-to`,
+    tooltip: trainLocationTooltip,
+  },
+  trainCabinClassField,
+  { directionInputTooltip: trainLocationTooltip },
+);
 
 export const professionalTravel: ModuleConfig = {
   id: 'module_travel_001',
@@ -269,6 +265,7 @@ function buildTravelFields(
     labelKey: string;
     tooltip?: string;
   },
+  classField: ModuleField,
   options?: { directionInputTooltip?: string },
 ): ModuleField[] {
   return [
@@ -309,5 +306,7 @@ function buildTravelFields(
       tooltip: destination.tooltip,
     },
     ...commonTravelFields.slice(3),
+    classField,
+    emissionsField,
   ];
 }
