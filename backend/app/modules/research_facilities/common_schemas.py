@@ -172,7 +172,7 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_research_facilities_formula,
             )
         ]

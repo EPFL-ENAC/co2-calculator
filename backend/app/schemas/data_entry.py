@@ -359,7 +359,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
             )
         ]
 
