@@ -20,6 +20,7 @@ import {
 } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
 import type { components } from 'src/types/api/openapi';
+import { currentLanguage } from 'src/utils/language';
 import { useWorkspaceStore } from './workspace';
 
 // Re-export the action enum so the auth store is the single entry point
@@ -108,16 +109,21 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
+      // The login routes live under the `:language` segment, so the redirect
+      // must carry a language param. Pass it explicitly rather than relying on
+      // the current route's params — logout can fire from /unauthorized, which
+      // sits outside `:language` and has none to inherit.
+      const language = currentLanguage();
       // Check server-issued is_user_test flag to determine routing.
       if (user.value?.is_user_test) {
         // For test users, just go to home login-test page
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login-test' });
+        router.replace({ name: 'login-test', params: { language } });
       } else {
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login' });
+        router.replace({ name: 'login', params: { language } });
       }
     }
   }

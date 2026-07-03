@@ -17,16 +17,18 @@
             </div>
           </div>
 
-          <!-- Permission Message -->
+          <!-- Highlighted reason message: a known redirect reason (e.g. the
+               account is not assigned to a unit) takes precedence over the
+               generic missing-permission hint. -->
           <div
-            v-if="permissionMessage"
+            v-if="highlightMessage"
             class="q-pa-md rounded-borders bg-orange-1"
             style="max-width: 100%"
           >
             <div class="row items-center q-gutter-x-sm justify-center">
               <q-icon name="o_info" size="sm" color="orange-8" />
               <p class="text-body1 text-weight-medium text-orange-9 q-ma-none">
-                {{ permissionMessage }}
+                {{ highlightMessage }}
               </p>
             </div>
           </div>
@@ -38,7 +40,21 @@
           </div>
 
           <div>
+            <!-- A user with no unit is bounced back to /unauthorized by the
+                 landing guard, so "Home" would loop. Offer Logout instead. -->
             <q-btn
+              v-if="isNoUnit"
+              color="accent"
+              :label="t('logout')"
+              :loading="authStore.loading"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium q-px-xl"
+              @click="onLogout"
+            />
+            <q-btn
+              v-else
               color="accent"
               :to="homeRoute"
               :label="t('home')"
@@ -64,13 +80,17 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { DEFAULT_ROUTE_NAME } from 'src/router/routes';
 import { currentLanguage } from 'src/utils/language';
+import { unauthorizedReasonMessageKey } from 'src/utils/unauthorized';
+import { useAuthStore } from 'src/stores/auth';
 
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n();
+const authStore = useAuthStore();
 
 function formatPermissionName(permissionPath: string): string {
   const parts = permissionPath.split('.');
@@ -107,6 +127,24 @@ const permissionMessage = computed(() => {
   return `You need '${permissionName} ${actionName}' permission to access this page`;
 });
 
+const reason = computed(() =>
+  typeof route.query.reason === 'string' ? route.query.reason : null,
+);
+
+/** Landed here because the account is not assigned to any unit. */
+const isNoUnit = computed(() => reason.value === 'no-unit');
+
+/** Localised message for a known redirect `reason` (e.g. `no-unit`), if any. */
+const reasonMessage = computed(() => {
+  const key = unauthorizedReasonMessageKey(reason.value);
+  return key ? t(key) : null;
+});
+
+/** The single highlighted box: reason message wins over the permission hint. */
+const highlightMessage = computed(
+  () => reasonMessage.value ?? permissionMessage.value,
+);
+
 const homeRoute = computed(() => {
   const language = currentLanguage();
   return {
@@ -114,4 +152,13 @@ const homeRoute = computed(() => {
     params: { language },
   };
 });
+
+/**
+ * A no-unit user can't reach anything useful and "Home" loops back here, so the
+ * only escape is a real logout: `authStore.logout` clears the server session
+ * cookie (localStorage alone won't) and redirects to the login page.
+ */
+async function onLogout() {
+  await authStore.logout(router);
+}
 </script>

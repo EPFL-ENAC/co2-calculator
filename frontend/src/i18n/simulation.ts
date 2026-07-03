@@ -40,7 +40,7 @@ export default {
     fr: 'Explorez les émissions de votre décision et de votre action',
   },
   simulation_explore_btn: {
-    en: 'Start Exploration',
+    en: 'Start exploration',
     fr: 'Démarrer une exploration',
   },
   simulation_plan_title: {

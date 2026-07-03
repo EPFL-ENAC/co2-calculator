@@ -1,7 +1,10 @@
 import type { RouteLocationNormalized } from 'vue-router';
 import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import { HOME_ROUTE_NAME, UNAUTHORIZED_ROUTE_NAME } from '../routeNames';
+import { useAuthStore, PermissionAction } from 'src/stores/auth';
+import { resolveNoUnitRoute } from 'src/utils/unauthorized';
+import { currentLanguage } from 'src/utils/language';
+import { HOME_ROUTE_NAME } from '../routeNames';
 
 /**
  * `workspaceGuard` redirects here with `?unit&year` (both null) when a persisted
@@ -63,11 +66,11 @@ function pickDefaultYear(
  * Unit/Year dropdowns, so this guard's only job is to pick a default workspace
  * and forward to the home page:
  *
- *   1. A persisted selection (returning user) wins.
- *   2. Otherwise the first unit + most recent open year is chosen.
- *
- * When the account has no units there is nothing to show, so we forward to
- * /unauthorized.
+ *   1. No units → forward via {@link resolveNoUnitRoute} (back-office for
+ *      admins, /unauthorized otherwise). Checked first so a stale persisted
+ *      selection can never route a unitless account into a workspace page.
+ *   2. Otherwise a persisted selection (returning user) wins.
+ *   3. Otherwise the first unit + most recent open year is chosen.
  */
 export default async function redirectToDefaultRoute(
   to: RouteLocationNormalized,
@@ -76,14 +79,40 @@ export default async function redirectToDefaultRoute(
 
   if (isForcedReset(to)) {
     workspaceStore.reset();
-  } else {
+  }
+
+  // Resolve the user's units up front. A no-unit account must always be routed
+  // by unit membership, never by a persisted selection: `selectedParams` is
+  // persisted to localStorage, so a stale value from a prior session would
+  // otherwise forward a now-unitless user to a workspace route that 403s.
+  await workspaceStore.getUnits();
+  const unit = workspaceStore.units[0];
+  if (!unit) {
+    // Drop any stale persisted selection so the next entry doesn't loop, then
+    // send users who can reach the back-office config page there, and everyone
+    // else (including back-office users without configuration access) to a "not
+    // assigned to a unit" explanation on /unauthorized. Gate on the exact
+    // permission the target page requires — `backoffice.configuration` edit,
+    // matching the `backoffice-data-management` route meta — so we never
+    // forward to a page `permissionGuard` would bounce to a generic 403. The
+    // landing route is under `:language`, so `to.params.language` is present.
+    workspaceStore.reset();
+    const canAccessBackOfficeConfig = useAuthStore().hasUserAnyScopePermission(
+      'backoffice.configuration',
+      PermissionAction.EDIT,
+    );
+    return resolveNoUnitRoute(
+      canAccessBackOfficeConfig,
+      String(to.params.language ?? currentLanguage()),
+    );
+  }
+
+  // The user has at least one unit: honour a persisted selection (returning
+  // user) before falling back to their first unit + most recent open year.
+  if (!isForcedReset(to)) {
     const persisted = persistedHomeRoute(to);
     if (persisted) return persisted;
   }
-
-  await workspaceStore.getUnits();
-  const unit = workspaceStore.units[0];
-  if (!unit) return { name: UNAUTHORIZED_ROUTE_NAME }; // No units → not authorized.
 
   const { reportYears, startedYears } = await fetchYearData(unit.id);
   const year = pickDefaultYear(reportYears, startedYears);

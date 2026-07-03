@@ -146,7 +146,7 @@ export default {
   },
   co2_calculator_empty_btn: {
     en: 'Start',
-    fr: 'Commencer',
+    fr: 'Démarrer',
   },
   // Role badge in the calculator card header; opens the access popover.
   co2_calculator_role_standard: {
@@ -215,7 +215,7 @@ export default {
     fr: "Choisissez votre approche : explorer et évaluer rapidement l'impact carbone d'éléments ou d'actions, ou planifier et prévoir les émissions de votre prochain projet à partir du rapport carbone de l'année précédente de votre unité.",
   },
   co2_explorer_btn: {
-    en: 'Start an Exploration',
+    en: 'Start an exploration',
     fr: 'Démarrer une exploration',
   },
   planner_table_name: {

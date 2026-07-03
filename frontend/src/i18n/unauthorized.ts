@@ -15,4 +15,8 @@ export default {
     en: 'This module is currently disabled and not available for access.',
     fr: "Ce module est actuellement désactivé et n'est pas accessible.",
   },
+  unauthorized_no_unit_message: {
+    en: 'You are not assigned to a unit. Please contact your administrator to be granted access.',
+    fr: "Vous n'êtes assigné à aucune unité. Veuillez contacter votre administrateur pour obtenir un accès.",
+  },
 } as const;
