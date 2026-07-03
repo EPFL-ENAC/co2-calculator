@@ -30,7 +30,7 @@
     "pinia-plugin-persistedstate": "=4.7.1",
     "quasar": "=2.20.1",
     "unwrapped": "=0.1.25",
-    "vue": "=3.5.38",
+    "vue": "=3.5.39",
     "vue-echarts": "=8.0.1",
     "vue-i18n": "=11.4.6",
     "vue-router": "=4.6.4"
