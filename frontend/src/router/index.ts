@@ -8,7 +8,7 @@ import {
 
 import routes from './routes';
 import { authGuard } from './guards/authGuard';
-import workspaceGuard from './guards/validateUnitGuard';
+import workspaceGuard from './guards/workspaceGuard';
 import {
   defaultLanguageGuard,
   setLanguageCookieGuard,
@@ -52,23 +52,22 @@ export default route(function (/* { store, ssrContext } */) {
   });
 
   /*
- EXPECTED BEHAVIOR the parameterless landing (/en) IS THE DEFAULT ROUTE.
- It renders nothing — its guard resolves a default unit/year and forwards
- to the unified home page (/en/:unit/:year/home), or to /unauthorized when
- the account has no units.
-  ** LOGGED IN USERS **
-  / -> redirect to /:language with current locale
-  /en -> resolve default workspace -> /en/:unit/:year/home
-  /en/login -> redirect to /en
-  /en/403 -> show 404\
-  /404 -> show 404
-  /unauthorized -> show 403
+ EXPECTED BEHAVIOR — the parameterless landing (/en) IS THE DEFAULT ROUTE.
+ It renders nothing: its guard resolves a default unit/year and forwards to
+ the unified home page (/en/:unit/:year/home), or to /unauthorized when the
+ account has no units.
 
-  // not logged in
-  /en when not authenticated -> redirect to /en/login
-  /en/login -> show login page
-  / -> redirect to /:language/login with current locale
-  /en -> redirect to /en/login
+  ** LOGGED IN USERS **
+  /              -> redirect to /:language with current locale
+  /en            -> resolve default workspace -> /en/:unit/:year/home
+  /en/login      -> redirect to /en (already authenticated)
+  /unauthorized  -> show the access-denied page (ErrorUnauthorized.vue)
+  any other path -> catch-all -> show 404 (ErrorNotFound.vue)
+
+  ** NOT LOGGED IN **
+  /              -> redirect to /:language/login with current locale
+  /en            -> redirect to /en/login
+  /en/login      -> show the login page
 */
 
   // Navigation guards

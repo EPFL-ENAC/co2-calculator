@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, h, onMounted, watch } from 'vue';
-import { QSkeleton } from 'quasar';
+import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
@@ -12,6 +11,7 @@ import { runtimeConfig } from 'src/config/runtime';
 import WorkspaceSelectorBar from 'src/components/organisms/workspace-selector/WorkspaceSelectorBar.vue';
 import CO2ProjectPlanner from 'src/components/organisms/home/CO2ProjectPlanner.vue';
 import CO2Explorer from 'src/components/organisms/home/CO2Explorer.vue';
+import ChartSkeleton from 'src/components/charts/ChartSkeleton.vue';
 
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
@@ -23,10 +23,8 @@ const { t, te, locale, getLocaleMessage } = useI18n();
 /** A translation key resolves to displayable content (exists and non-empty). */
 const hasText = (key: string) => te(key) && t(key).trim().length > 0;
 
-/** Keeps the ECharts-heavy bundle out of the initial home route chunk. */
-const ChartSkeleton = () =>
-  h(QSkeleton, { type: 'rect', height: '360px', class: 'full-width' });
-
+// Lazy-loaded so the ECharts-heavy bundle stays out of the initial home route
+// chunk; ChartSkeleton holds the layout while it loads.
 const ModuleCarbonFootprintChart = defineAsyncComponent({
   loader: () =>
     import('src/components/charts/results/ModuleCarbonFootprintChart.vue'),
@@ -86,11 +84,11 @@ const userType = computed(() =>
 );
 
 // Access-management portal (name + URL), configurable per deployment via
-// APP_AUTHORIZATION_PROVIDER_* — see src/config/runtime.ts. Defaults to EPFL's
-// ACCRED. Principals delegate roles here; standard users instead email the
-// principal.
-const authorizationProviderName = runtimeConfig.authorizationProviderName;
-const authorizationProviderUrl = runtimeConfig.authorizationProviderUrl;
+// APP_ACCESS_MANAGEMENT_PROVIDER_* — see src/config/runtime.ts. No default: when
+// unset the popover CTA link is hidden. Principals delegate roles here; standard
+// users instead email the principal.
+const accessManagementProviderName = runtimeConfig.accessManagementProviderName;
+const accessManagementProviderUrl = runtimeConfig.accessManagementProviderUrl;
 
 const principalUserName = computed(
   () => workspaceStore.selectedUnit?.principal_user_name ?? '',
@@ -251,22 +249,27 @@ watch(
                     <p class="text-body2 text-secondary q-mb-md">
                       {{
                         $t(`co2_calculator_access_${userType}_body`, {
-                          provider: authorizationProviderName,
+                          provider:
+                            accessManagementProviderName ||
+                            $t('co2_calculator_access_provider_generic'),
                         })
                       }}
                     </p>
 
-                    <!-- Principals delegate roles in ACCRED. -->
+                    <!-- Principals delegate roles in the access-management
+                         portal; hidden when no portal URL is configured. -->
                     <a
-                      v-if="isPrincipalUser"
-                      :href="authorizationProviderUrl"
+                      v-if="isPrincipalUser && accessManagementProviderUrl"
+                      :href="accessManagementProviderUrl"
                       target="_blank"
                       rel="noopener noreferrer"
                       class="link text-body2 text-weight-medium"
                     >
                       {{
                         $t('co2_calculator_access_cta_principal', {
-                          provider: authorizationProviderName,
+                          provider:
+                            accessManagementProviderName ||
+                            $t('co2_calculator_access_provider_generic'),
                         })
                       }}
                       <q-icon name="o_arrow_outward" size="xs" />

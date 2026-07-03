@@ -205,11 +205,21 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
 
   /** Fetch the list of year-configuration rows (global, not unit-scoped). */
   async function fetchConfiguredYears(): Promise<YearConfigurationListItem[]> {
-    const rows = (await api
-      .get('year-configuration/')
-      .json()) as YearConfigurationListItem[];
-    configuredYears.value = rows;
-    return rows;
+    try {
+      const rows = (await api
+        .get('year-configuration/')
+        .json()) as YearConfigurationListItem[];
+      configuredYears.value = rows;
+      return rows;
+    } catch (error) {
+      // Match the other store loaders (getUnits, fetchCarbonReportsForUnit):
+      // the global http hook already toasts the user, so we degrade to an empty
+      // list (startedYears resolves to nothing) instead of rejecting into
+      // callers' Promise.all.
+      console.error('Error fetching configured years:', error);
+      configuredYears.value = [];
+      return [];
+    }
   }
 
   // Methods

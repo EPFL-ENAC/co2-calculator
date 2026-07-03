@@ -19,4 +19,8 @@ export default {
     en: 'You are not assigned to a unit. Please contact your administrator to be granted access.',
     fr: "Vous n'êtes assigné à aucune unité. Veuillez contacter votre administrateur pour obtenir un accès.",
   },
+  unauthorized_no_open_year_message: {
+    en: 'No reporting year is currently open. Please contact your administrator.',
+    fr: "Aucune année de reporting n'est actuellement ouverte. Veuillez contacter votre administrateur.",
+  },
 } as const;

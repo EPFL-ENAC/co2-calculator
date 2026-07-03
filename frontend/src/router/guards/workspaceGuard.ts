@@ -85,8 +85,6 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
  * Registered as a `beforeEach` (not a per-route `beforeEnter`) so it also fires
  * on param-only navigation — switching unit/year via the home-page dropdowns
  * only mutates route params and would otherwise never re-run a `beforeEnter`.
- * This replaces the former `WorkspacePage` layout component, whose `onMounted`
- * + `onBeforeRouteUpdate` existed solely to run this logic.
  */
 export default async function workspaceGuard(
   to: RouteLocationNormalized,

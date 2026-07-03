@@ -17,7 +17,6 @@ export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_ROUTE_NAME = 'workspace-dashboard';
 export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
 export const NOT_FOUND_ROUTE_NAME = 'not-found';
-export const AUTH_COMPLETE_ROUTE_NAME = 'auth-complete';
 // Parameterless landing route. It carries no UI of its own — its sole job is to
 // run `redirectToDefaultRoute`, which resolves a default unit/year and forwards
 // to the unified home page (or to /unauthorized when the account has no units).

@@ -34,6 +34,15 @@ export function resolveNoUnitRoute(
 }
 
 /**
+ * Where to send a user when no reporting year is globally open, so there's no
+ * workspace to resolve a default year for. `/unauthorized` is a top-level route
+ * and needs no `language` param.
+ */
+export function resolveNoOpenYearRoute() {
+  return { name: UNAUTHORIZED_ROUTE_NAME, query: { reason: 'no-open-year' } };
+}
+
+/**
  * i18n key for the highlighted message shown on /unauthorized for a known
  * redirect `reason` (from `?reason=` query), or `null` when the reason is
  * absent/unrecognised (the page then falls back to the permission message or
@@ -43,5 +52,6 @@ export function unauthorizedReasonMessageKey(
   reason: string | null,
 ): string | null {
   if (reason === 'no-unit') return 'unauthorized_no_unit_message';
+  if (reason === 'no-open-year') return 'unauthorized_no_open_year_message';
   return null;
 }

@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { HOME_ROUTE_NAME } from 'src/router/routeNames';
+import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -24,9 +25,11 @@ const selectedUnitId = computed({
 });
 
 /**
- * Years that are globally open (`is_started`) AND have a carbon report for the
- * selected unit. Mirrors the intersection used by the old workspace-setup page.
- * The currently selected year is always included so the dropdown reflects the URL.
+ * Dropdown years = the selected unit's carbon reports intersected with the
+ * globally-open years (`startedYears`), so years that have a report but aren't
+ * started yet (visible to admins) are hidden. The currently selected year is
+ * always re-added so the dropdown still reflects the URL even when it was
+ * filtered out. Deduped via the Set and sorted newest-first.
  */
 const yearOptions = computed<number[]>(() => {
   const started = yearConfigStore.startedYears;
@@ -44,21 +47,20 @@ const yearOptions = computed<number[]>(() => {
 const selectedYear = computed({
   get: () => workspaceStore.selectedYear,
   set: (year: number | null) => {
-    if (year != null) void handleYearChange(year);
+    if (year != null) void pushWorkspaceRoute({ year: String(year) });
   },
 });
 
 /**
- * Pick the most recent open year for the freshly-loaded reports of a unit.
- * Falls back to the latest report year, then to last calendar year.
+ * Push a workspace route, keeping every current route param and overriding only
+ * the ones passed in. A year change overrides just `year` (the unit slug is
+ * already in `route.params`); a unit change overrides both `unit` and `year`.
  */
-function defaultYear(): number {
-  const started = yearConfigStore.startedYears;
-  const reportYears = workspaceStore.carbonReports.map((report) => report.year);
-  const openYears = reportYears.filter((year) => started.has(year));
-  if (openYears.length > 0) return Math.max(...openYears);
-  if (reportYears.length > 0) return Math.max(...reportYears);
-  return new Date().getFullYear() - 1;
+function pushWorkspaceRoute(params: Record<string, string>) {
+  return router.push({
+    name: HOME_ROUTE_NAME,
+    params: { ...route.params, ...params },
+  });
 }
 
 async function handleUnitChange(unitId: number) {
@@ -66,33 +68,15 @@ async function handleUnitChange(unitId: number) {
   const unit = workspaceStore.units.find((u) => u.id === unitId);
   if (!unit) return;
   await workspaceStore.fetchCarbonReportsForUnit(unitId);
-  const year = defaultYear();
-  await router.push({
-    name: HOME_ROUTE_NAME,
-    params: { ...route.params, unit: unitSlug(unit), year: String(year) },
-  });
+  const year = pickDefaultYear(yearConfigStore.startedYears);
+  await pushWorkspaceRoute({ unit: unitSlug(unit), year: String(year) });
 }
 
-async function handleYearChange(year: number) {
-  if (year === workspaceStore.selectedYear) return;
-  const unit = selectedUnit.value;
-  if (!unit) return;
-  await router.push({
-    name: HOME_ROUTE_NAME,
-    params: { ...route.params, unit: unitSlug(unit), year: String(year) },
-  });
-}
-
+// Affiliation breadcrumb segments; styling (greyed parents, black leaf) and the
+// `›` separators are handled purely in CSS below.
 const affiliationSegments = computed(
   () => selectedUnit.value?.affiliations ?? [],
 );
-// Parent path (greyed), with trailing separator when there's a leaf after it.
-const affiliationPrefix = computed(() => {
-  const segments = affiliationSegments.value;
-  return segments.length > 1 ? `${segments.slice(0, -1).join(' › ')} › ` : '';
-});
-// Leaf affiliation, shown in black.
-const affiliationLeaf = computed(() => affiliationSegments.value.at(-1) ?? '');
 
 async function loadReports(unitId: number | undefined) {
   if (unitId == null) return;
@@ -100,6 +84,8 @@ async function loadReports(unitId: number | undefined) {
 }
 
 onMounted(async () => {
+  // Each loader handles its own failures internally (and the global http hook
+  // toasts the user), so none of these reject — just kick them off in parallel.
   await Promise.all([
     workspaceStore.units.length === 0
       ? workspaceStore.getUnits()
@@ -163,11 +149,16 @@ watch(
             }}</span></template
           >
         </span>
-        <span v-if="affiliationLeaf" class="text-caption">
-          <span class="text-secondary">{{ affiliationPrefix }}</span
-          ><span class="text-black text-weight-medium">{{
-            affiliationLeaf
-          }}</span>
+        <span
+          v-if="affiliationSegments.length"
+          class="affiliation text-caption"
+        >
+          <span
+            v-for="(segment, index) in affiliationSegments"
+            :key="index"
+            class="affiliation__segment"
+            >{{ segment }}</span
+          >
         </span>
       </div>
     </div>
@@ -175,6 +166,8 @@ watch(
 </template>
 
 <style scoped lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
 .workspace-selector-bar {
   &__field {
     display: flex;
@@ -188,6 +181,23 @@ watch(
 
   &__user {
     min-width: 0;
+  }
+}
+
+// Affiliation breadcrumb: parent segments greyed, leaf black, with a `›`
+// separator injected before every segment after the first.
+.affiliation__segment {
+  color: tokens.$color-text-muted;
+
+  &:last-child {
+    color: tokens.$color-text;
+    font-weight: 500;
+  }
+
+  &:not(:first-child)::before {
+    content: '›';
+    margin: 0 0.25rem;
+    color: tokens.$color-text-muted;
   }
 }
 </style>

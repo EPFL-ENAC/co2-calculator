@@ -182,6 +182,12 @@ export default {
     en: 'Manage access in {provider}',
     fr: 'Gérer les accès dans {provider}',
   },
+  // Generic {provider} fallback when APP_ACCESS_MANAGEMENT_PROVIDER_NAME is
+  // unset, so the popover body reads grammatically without an institution name.
+  co2_calculator_access_provider_generic: {
+    en: 'the access management portal',
+    fr: 'le portail de gestion des accès',
+  },
   co2_calculator_access_no_email: {
     en: "No contact email is available for your unit's principal user, {name}.",
     fr: "Aucune adresse e-mail n'est disponible pour l'utilisateur·rice principal·e de votre unité, {name}.",

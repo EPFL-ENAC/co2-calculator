@@ -1,9 +1,4 @@
-import { h } from 'vue';
-import {
-  RouteLocationNormalized,
-  RouteRecordRaw,
-  RouterView,
-} from 'vue-router';
+import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
 import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
@@ -138,7 +133,7 @@ const routes: RouteRecordRaw[] = [
             // Parameterless landing (default route). It never renders: its
             // `beforeEnter` resolves a default unit/year and forwards to the
             // unified home page (or to /unauthorized when the account has no
-            // units). Replaces the former interactive `workspace-setup` page.
+            // units).
             path: '',
             name: DEFAULT_ROUTE_NAME,
             beforeEnter: redirectToDefaultRoute,
@@ -171,9 +166,9 @@ const routes: RouteRecordRaw[] = [
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
             // Pass-through layout: the workspace is loaded by the global
-            // `workspaceGuard`, so this parent only needs to host the child
+            // `workspaceGuard`, so this parent only hosts the child
             // <router-view>.
-            component: { render: () => h(RouterView) },
+            component: () => import('pages/app/WorkspacePage.vue'),
             children: [
               {
                 name: 'home-redirect',
@@ -211,17 +206,6 @@ const routes: RouteRecordRaw[] = [
                   note: 'Results - Consolidated overview across all modules',
                   breadcrumb: false,
                 },
-              },
-              {
-                // The simulator home (Explore/Plan tabs) now lives inline on the
-                // unified home page; this route just redirects there, preserving
-                // the language/unit/year params.
-                path: 'simulation',
-                name: 'simulation',
-                redirect: (to) => ({
-                  name: HOME_ROUTE_NAME,
-                  params: to.params,
-                }),
               },
               {
                 // Reached from the "Start a project" button on the unified
