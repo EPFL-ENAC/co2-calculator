@@ -1,12 +1,14 @@
 """Purchase factor resolution against real Postgres + real repo semantics.
 
-Mirror of the unit truth-table in
-``tests/unit/services/test_module_handler_service.py``: the unit tests fake
-``FactorService.get_factors``, so they pin the selection rules but not the
-real ``FactorRepository`` JSON matching, the real ``PurchaseModuleHandler``
-wiring, or the shape of the committed factor fixture.  This module seeds
-``tests/fixtures/csv/purchases_common_factors_smoke.csv`` into Postgres and
-resolves through the full stack.
+The selection-rule truth table itself (kind/subkind, override-key-first,
+ambiguous-match) is now pinned against a faked repository in
+``tests/unit/services/test_factor_resolver.py`` — that's the fast,
+authoritative mirror.  What this module keeps that the unit tests can't
+give: resolution through the real ``FactorRepository`` JSON-classification
+query against real Postgres, seeded from the committed
+``tests/fixtures/csv/purchases_common_factors_smoke.csv`` fixture, so a
+regression in the actual JSON matching (not just the in-memory selection
+rule) still gets caught.
 
 The regression that motivated it: an entry with institutional code 23152900
 and no additional code resolved to ``None`` because the rule excluded
@@ -73,19 +75,12 @@ async def session_factory(pg_dsn):
     await engine.dispose()
 
 
-async def _resolve(session: AsyncSession, det: DataEntryTypeEnum, payload: dict):
+async def _resolve(
+    session: AsyncSession, det: DataEntryTypeEnum, payload: dict
+) -> Factor | None:
     handler = BaseModuleHandler.get_by_type(det)
     service = ModuleHandlerService(session)
-    result, _ = await service.resolve_primary_factor_id(
-        handler, payload, det, year=_YEAR
-    )
-    return result
-
-
-async def _factor_ef(session: AsyncSession, factor_id: int) -> float:
-    factor = await session.get(Factor, factor_id)
-    assert factor is not None
-    return factor.values["ef_kg_co2eq_per_currency"]
+    return await service.resolve_factor(handler, payload, det, year=_YEAR)
 
 
 @pytest.mark.asyncio
@@ -100,7 +95,8 @@ async def test_pg_additional_code_wins_over_average_row(session_factory):
                 "purchase_additional_code": "LA05",
             },
         )
-        assert await _factor_ef(session, result["primary_factor_id"]) == 0.41
+        assert result is not None
+        assert result.values["ef_kg_co2eq_per_currency"] == 0.41
 
 
 @pytest.mark.asyncio
@@ -112,7 +108,8 @@ async def test_pg_no_additional_code_picks_average_row(session_factory):
             DataEntryTypeEnum.biological_chemical_gaseous_product,
             {"purchase_institutional_code": "51100000"},
         )
-        assert await _factor_ef(session, result["primary_factor_id"]) == 0.455
+        assert result is not None
+        assert result.values["ef_kg_co2eq_per_currency"] == 0.455
 
 
 @pytest.mark.asyncio
@@ -124,7 +121,8 @@ async def test_pg_single_row_with_code_is_authoritative(session_factory):
             DataEntryTypeEnum.services,
             {"purchase_institutional_code": "91111500"},
         )
-        assert await _factor_ef(session, result["primary_factor_id"]) == 0.21
+        assert result is not None
+        assert result.values["ef_kg_co2eq_per_currency"] == 0.21
 
 
 @pytest.mark.asyncio
@@ -139,7 +137,8 @@ async def test_pg_unknown_additional_code_falls_back(session_factory):
                 "purchase_additional_code": "NOPE",
             },
         )
-        assert await _factor_ef(session, result["primary_factor_id"]) == 0.455
+        assert result is not None
+        assert result.values["ef_kg_co2eq_per_currency"] == 0.455
 
 
 @pytest.mark.asyncio
@@ -150,15 +149,27 @@ async def test_pg_unknown_institutional_code_yields_none(session_factory):
             DataEntryTypeEnum.services,
             {"purchase_institutional_code": "99999999"},
         )
-        assert result["primary_factor_id"] is None
+        assert result is None
 
 
 @pytest.mark.asyncio
-async def test_pg_missing_institutional_code_fails(session_factory):
+async def test_pg_missing_institutional_code_yields_none(session_factory):
+    """No ``purchase_institutional_code`` in the payload → no match.
+
+    Pre-#1661 this raised ``ValueError`` from inside the resolution
+    method itself.  That guard was dead weight in production: the
+    manual-create workflow always runs ``handler.validate_create``
+    (pydantic — ``PurchaseHandlerCreate.purchase_institutional_code``
+    is a required ``str``) before any factor resolution is attempted,
+    and CSV ingestion never calls this resolver at all (it has its own
+    inline, silent-on-miss factors_map lookup). ``FactorResolver`` — the
+    on-demand resolver this method now delegates to — treats a missing
+    kind field as a plain miss, consistent with every other module.
+    """
     async with session_factory() as session:
-        with pytest.raises(ValueError, match="purchase_institutional_code"):
-            await _resolve(
-                session,
-                DataEntryTypeEnum.services,
-                {"purchase_additional_code": "AA66"},
-            )
+        result = await _resolve(
+            session,
+            DataEntryTypeEnum.services,
+            {"purchase_additional_code": "AA66"},
+        )
+        assert result is None
