@@ -183,6 +183,18 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
 
+    @field_validator("purchase_institutional_code", mode="after")
+    @classmethod
+    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
+        # None means "not being updated" (PATCH semantics); a blank/whitespace
+        # value provided on purpose must fail loudly here rather than silently
+        # resolving to no factor further down the pipeline.
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("purchase_institutional_code cannot be empty")
+        return v
+
 
 class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None

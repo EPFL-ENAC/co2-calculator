@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.modules.purchase.schemas import PurchaseCommonFactorCreate
+from app.modules.purchase.schemas import PurchaseCommonFactorCreate, PurchaseHandlerUpdate
 
 
 def _factor_payload(**overrides):
@@ -44,3 +44,49 @@ def test_factor_missing_institutional_code_rejected():
     del payload["purchase_institutional_code"]
     with pytest.raises(ValidationError, match="purchase_institutional_code"):
         PurchaseCommonFactorCreate.model_validate(payload)
+
+
+# ---------------------------------------------------------------------------
+# PurchaseHandlerUpdate.purchase_institutional_code
+#
+# Regression: the old resolver raised loudly on a falsy kind, so a PATCH
+# setting purchase_institutional_code="" surfaced as HTTP 400. The new
+# resolver returns None for a missing kind (correct recalc semantics), which
+# means blank rejection must now happen at the DTO validation layer.
+# ---------------------------------------------------------------------------
+
+
+def _update_payload(**overrides):
+    payload = {
+        "data_entry_type_id": 1,
+        "carbon_report_module_id": 1,
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.parametrize("bad_code", ["", "   "])
+def test_update_blank_institutional_code_rejected(bad_code):
+    with pytest.raises(ValidationError, match="purchase_institutional_code"):
+        PurchaseHandlerUpdate.model_validate(
+            _update_payload(purchase_institutional_code=bad_code)
+        )
+
+
+def test_update_none_institutional_code_accepted():
+    dto = PurchaseHandlerUpdate.model_validate(
+        _update_payload(purchase_institutional_code=None)
+    )
+    assert dto.purchase_institutional_code is None
+
+
+def test_update_missing_institutional_code_accepted():
+    dto = PurchaseHandlerUpdate.model_validate(_update_payload())
+    assert dto.purchase_institutional_code is None
+
+
+def test_update_valid_institutional_code_accepted():
+    dto = PurchaseHandlerUpdate.model_validate(
+        _update_payload(purchase_institutional_code="51100000")
+    )
+    assert dto.purchase_institutional_code == "51100000"
