@@ -256,10 +256,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
     # factor key when present: it overrides the institutional-code match.
     kind_field_override: Optional[str] = "purchase_additional_code"
     subkind_field: Optional[str] = ""
-    # purchase_institutional_code is not always present, so we can't 100% rely on it
-    # for matching entries to factors
-    # it's Optional in create_dto and update_dto, and some entries
-    # may have it missing or null in csv
+    # Required non-empty on create; update rejects present-but-blank/null
+    # (key-absent means "not updating"). CSV omits the key entirely when the
+    # cell is empty, so entries can still lack it — matching stays optional.
     require_factor_to_match = False
 
     sort_map = {

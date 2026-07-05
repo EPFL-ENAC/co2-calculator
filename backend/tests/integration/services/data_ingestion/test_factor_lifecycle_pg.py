@@ -272,6 +272,21 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
             await s.commit()
             assert affected == 1, "fresh factor row should insert"
 
+            # ``upsert_factors`` writes via a COPY/staging path and never
+            # backfills ``id`` onto the passed-in instance — look the
+            # inserted row up to get its actual id for the exact-match
+            # assertion below.
+            inserted_factor: Factor = (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id) == DataEntryTypeEnum.it.value,
+                        col(Factor.year) == 2025,
+                    )
+                )
+            ).scalar_one()
+            assert inserted_factor.id is not None
+            new_factor_id: int = inserted_factor.id
+
         # Trigger the recalc the way ``factor_ingest`` would on success.
         async with Sf() as s:
             wf = EmissionRecalculationWorkflow(s)
@@ -292,9 +307,11 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
     assert "primary_factor_id" not in refreshed_entry.data, (
         "Strategy A rematch must not stamp primary_factor_id onto entry.data (#1661)"
     )
-    assert new_rows and any(r.primary_factor_id is not None for r in new_rows), (
-        "Strategy A rematch must produce an emission row carrying the "
-        f"newly-resolved primary_factor_id; got rows={new_rows}"
+    assert new_rows, f"expected at least one emission row; got {new_rows}"
+    assert all(r.primary_factor_id == new_factor_id for r in new_rows), (
+        "Strategy A rematch must produce emission row(s) carrying exactly the "
+        f"newly-resolved factor id={new_factor_id}; got "
+        f"{[r.primary_factor_id for r in new_rows]}"
     )
     new_total = sum((r.kg_co2eq or 0.0) for r in new_rows)
     assert new_total > 0, (
@@ -430,6 +447,21 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
             await s.commit()
             assert affected == 1
 
+            # ``upsert_factors`` writes via a COPY/staging path and never
+            # backfills ``id`` onto the passed-in instance — look the
+            # inserted row up to get its actual id for the exact-match
+            # assertion below.
+            inserted_factor: Factor = (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id) == DataEntryTypeEnum.plane.value,
+                        col(Factor.year) == 2025,
+                    )
+                )
+            ).scalar_one()
+            assert inserted_factor.id is not None
+            new_factor_id: int = inserted_factor.id
+
         # Trigger the recalc.
         async with Sf() as s:
             wf = EmissionRecalculationWorkflow(s)
@@ -449,6 +481,11 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
     assert new_total > 0, (
         "Strategy B: introducing the matching factor and recalculating must "
         f"produce a non-zero plane emission; got rows={new_rows}"
+    )
+    assert new_rows and all(r.primary_factor_id == new_factor_id for r in new_rows), (
+        "Strategy B rematch must produce emission row(s) carrying exactly the "
+        f"seeded factor id={new_factor_id}; got "
+        f"{[r.primary_factor_id for r in new_rows]}"
     )
 
 
