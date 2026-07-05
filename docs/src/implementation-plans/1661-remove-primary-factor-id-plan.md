@@ -56,7 +56,11 @@ ingest → API/enrichment → dead-code sweep.
   the DB schema does not change in Phase 1 — `primary_factor_id` lives in
   a JSON blob, and Phase 2 only deletes rows).
 - The user runs the full test suites; each task lists the exact commands so
-  they (or CI) can run them. Lint + type-check must pass before every commit.
+  they (or CI) can run them.
+- **Verification batching (user directive 2026-07-05):** per-task work runs
+  ONLY that task's focused test file(s), once. Skip ruff/mypy/full-unit-suite
+  during Tasks 2-6; Task 7 Step 7.3 is the single consolidated
+  lint + type-check + full-suite pass where all accumulated fallout is fixed.
 
 ---
 
@@ -321,7 +325,7 @@ git commit -m "feat(1661): add FactorResolver for on-demand factor resolution"
 - `_get_building_energy_type(factor: Factor | None) -> str | None`
   (signature change: takes the resolved factor, no id/cache deref).
 
-- [ ] **Step 2.1: Write/adjust failing unit tests**
+- [x] **Step 2.1: Write/adjust failing unit tests**
 
 In `test_data_entry_emission_service.py` add:
 - `test_prepare_create_resolves_factor_from_classification`: entry whose
@@ -336,13 +340,13 @@ In `test_data_entry_emission_service.py` add:
   only the electric heating leaf is produced (mirror the existing #1575
   tests, minus the stored id).
 
-- [ ] **Step 2.2: Run, verify failing**
+- [x] **Step 2.2: Run, verify failing**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/test_data_entry_emission_service.py -x -q
 ```
 
-- [ ] **Step 2.3: Implement**
+- [x] **Step 2.3: Implement**
 
 In `prepare_create` (current code `data_entry_emission_service.py:264-322`):
 
@@ -389,13 +393,13 @@ ctx["primary_factor_id"] = primary_factor.id if primary_factor else None
 7. Keep `factor_cache`/`factor_query_cache` parameters as-is
    (`_fetch_factors` still uses them; recalc supplies them in Task 3).
 
-- [ ] **Step 2.4: Tests green**
+- [x] **Step 2.4: Tests green**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/test_data_entry_emission_service.py tests/unit/modules -q
 ```
 
-- [ ] **Step 2.5: Lint + type-check + commit**
+- [x] **Step 2.5: Lint + type-check + commit**
 
 ```bash
 git commit -m "feat(1661): prepare_create resolves primary factor dynamically"
@@ -862,3 +866,4 @@ _Append one line per session: date, task/step reached, surprises._
 
 - 2026-07-05: Plan written. No code started.
 - 2026-07-05: Task 1 complete (FactorResolver + 16 tests, commits 99f1831a, 1c53a1f1; review approved after adding 2 ported test cases).
+- 2026-07-05: Task 2 complete (commit 3a2be338; review approved, 3 minors deferred to final review). Verification batching directive added to Global constraints.
