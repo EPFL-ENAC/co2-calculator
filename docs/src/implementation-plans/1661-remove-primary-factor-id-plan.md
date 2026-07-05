@@ -97,7 +97,7 @@ Semantics are exactly today's in-memory rematch rules
   today's recalc. Phase 2 makes duplicates impossible.
 - `handler.kind_field is None` or kind value absent/empty → `None`.
 
-- [ ] **Step 1.1: Write failing unit tests**
+- [x] **Step 1.1: Write failing unit tests**
 
 Create `backend/tests/unit/services/test_factor_resolver.py`. Model factors
 as real `Factor` objects; stub the repository call by monkeypatching
@@ -182,13 +182,13 @@ async def test_kind_fallback_requires_single_average_row(): ...
 existing recalc lookup test cases; they already cover every branch.
 `EQUIPMENT`: pick the det the existing tests use if different.)
 
-- [ ] **Step 1.2: Run tests, verify they fail with `ModuleNotFoundError`**
+- [x] **Step 1.2: Run tests, verify they fail with `ModuleNotFoundError`**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/test_factor_resolver.py -x -q
 ```
 
-- [ ] **Step 1.3: Implement `backend/app/services/factor_resolver.py`**
+- [x] **Step 1.3: Implement `backend/app/services/factor_resolver.py`**
 
 ```python
 """On-demand factor resolution (plan 1661).
@@ -289,13 +289,13 @@ names). `_resolve_kind_subkind` = body of `_lookup_factor_id`
 `_lookup_factor_id_with_override` (`:442-499`), docstrings updated to drop
 "primary_factor_id" wording. Keep each function ≤40 lines.
 
-- [ ] **Step 1.4: Run the new tests until green**
+- [x] **Step 1.4: Run the new tests until green**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/test_factor_resolver.py -x -q
 ```
 
-- [ ] **Step 1.5: Lint + type-check + commit**
+- [x] **Step 1.5: Lint + type-check + commit**
 
 ```bash
 cd backend && uv run ruff check app tests && uv run mypy app
@@ -861,3 +861,4 @@ async def delete_stale_for_year(self, year: int) -> int:
 _Append one line per session: date, task/step reached, surprises._
 
 - 2026-07-05: Plan written. No code started.
+- 2026-07-05: Task 1 complete (FactorResolver + 16 tests, commits 99f1831a, 1c53a1f1; review approved after adding 2 ported test cases).
