@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 issue: 1661
 last_updated: 2026-07-05
 title: "Remove primary_factor_id from DataEntry.data"
@@ -65,19 +65,26 @@ into `app/services/factor_resolver.py`:
   (`schemas/data_entry.py:356`) keeps reading `ctx` unchanged.
   `_get_building_energy_type` receives the resolved `Factor` instead of
   dereferencing an id (`data_entry_emission_service.py:229`).
-- **Create/update** — `resolve_primary_factor_id` stops stamping the payload
-  (`module_handler_service.py:71`); it returns the `Factor` for
-  `require_factor_to_match` validation and `populate_defaults`, which both
-  need the object anyway. `resolve_primary_factor_if_changed` keeps its
-  side-effects (clear subkind/override on kind change, repopulate defaults)
-  and loses the stamping; rename accordingly.
+- **Create/update** — (as shipped) the create path drops factor resolution
+  entirely: nothing in the create flow consumed the factor, so
+  `CarbonReportModuleWorkflow.create` no longer calls the handler service
+  (emission compute resolves on its own). The update path keeps a renamed
+  `resolve_factor_if_changed` for its side-effects (clear subkind/override
+  on kind change, repopulate defaults) with `resolve_factor` returning
+  `Optional[Factor]` and never stamping. The old override-path guard that
+  raised on a falsy kind moved to the validation layer:
+  `PurchaseHandlerUpdate` rejects a provided-but-blank/null
+  `purchase_institutional_code` (key-absent still means "not updating").
 - **Recalc** — delete the rematch block (`emission_recalculation.py:192-262`);
   resolution at compute time *is* the rematch. The prefetched dicts move into
   the resolver; the strict-drop contract is preserved (no factor match →
   emission recomputes to none → dashboard missing-factor signal).
 - **List enrichment** — primary path (join through the emission FK) is
   unchanged; the JSON fallback (`data_entry_repo.py:788`) resolves through
-  the resolver instead.
+  the resolver instead, gated on the entry carrying a kind value, and
+  tolerates ambiguous factor data per row (log + empty factor columns)
+  instead of failing the whole list — display enrichment only; the
+  compute/update paths keep surfacing ambiguity loudly.
 - **CSV entry ingest** — stops writing `primary_factor_id` into row payloads
   (`base_csv_provider.py:1242-1280`); keeps its "every row must match a
   factor" validation against the same in-memory map.

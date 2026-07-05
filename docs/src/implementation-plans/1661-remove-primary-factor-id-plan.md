@@ -654,7 +654,7 @@ if primary_factor is None and data_entry.year is not None:
    sort/filter maps in the same file (`:160` comment) — the NULL-sort
    comment about CSV rows becomes wrong; reword to reference emission-row
    factor ids.
-4. Regenerate the frontend types:
+4. **DEFERRED — USER ACTION.** Regenerate the frontend types:
 
 ```bash
 make -C frontend gen-api-types
@@ -662,7 +662,9 @@ make -C frontend gen-api-types
 
    Commit the regenerated `openapi.d.ts` (backend must be running for the
    schema fetch — see the target's recipe; start it the way the Makefile
-   expects).
+   expects). Not done during execution: the worktree has no `node_modules`
+   and no live backend on this branch. `openapi.d.ts` still declares
+   `EquipmentHandlerResponse.primary_factor_id` until this runs.
 
 - [x] **Step 6.3: Tests green**
 
@@ -670,7 +672,8 @@ make -C frontend gen-api-types
 cd backend && uv run pytest tests/unit/repositories -x -q
 ```
 
-- [x] **Step 6.4: Frontend type-check** (husky runs vue-tsc on commit; run it
+- [ ] **Step 6.4 (DEFERRED — USER ACTION, do together with 6.2.4): Frontend
+  type-check** (husky runs vue-tsc on commit; run it
   explicitly, `rtk tsc` green is NOT sufficient):
 
 ```bash
@@ -865,6 +868,30 @@ async def delete_stale_for_year(self, year: int) -> int:
 
 ---
 
+## PR notes (callouts for the Phase-1 PR description)
+
+- **Behavior change:** `prepare_create`'s `data_entry.id is None` guard moved
+  to the top — unpersisted entries with corrupt classification now return
+  `[]` (logged) instead of raising; every production caller flushes first.
+- **Behavior change:** PATCH providing a blank or explicit-null
+  `purchase_institutional_code` is rejected with 400 at validation (was: 400
+  from the resolver pre-branch; briefly a silent emission wipe mid-branch,
+  caught in review). Key-absent still means "not updating".
+- **Legacy data:** report exports no longer scrub `primary_factor_id` from
+  entry JSON; pre-branch rows on non-reseeded DBs expose the stale key until
+  the next reseed (v0.x drops the DB, so this self-heals).
+- **Known asymmetry (moot post-reseed):** `PurchaseHandlerCreate` accepts
+  whitespace-only codes while update rejects them; a legacy entry persisted
+  with a null code would 400 on every PATCH until reseeded.
+- **Follow-ups (not this PR):** `_detach` resolver-loaded factors in the
+  list-enrichment fallback (defense-in-depth symmetry); split
+  `recalculate_for_data_entry_type` (~230 lines) via a `_process_entry`
+  helper; `prepare_create` and `resolve_factor_if_changed` still exceed the
+  40-line rule (pre-existing).
+- **Merge blocker (user action):** regenerate + commit
+  `frontend/src/types/api/openapi.d.ts` (`make -C frontend gen-api-types`,
+  then `make -C frontend type-check`).
+
 ## Progress log
 
 _Append one line per session: date, task/step reached, surprises._
@@ -878,3 +905,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 6 complete (commit bff67129; resolver-based enrichment fallback, export scrub gone, DTO field removed). openapi.d.ts regen deferred to user (needs node_modules + live branch backend).
 - 2026-07-06: Task 7 complete (3 commits; consolidated pass green: 1745 unit tests, ruff, mypy). Whitelist formally extended with factor_service FK query + resolver docstring.
 - 2026-07-06: Task 8 complete (4 commits; integration suite green; found+fixed silent-emission-wipe regression on purchase PATCH blank/null code). Phase 1 code complete pending final review + user openapi regen.
+- 2026-07-06: Final whole-branch review (fable): "ready with fixes". Fix wave landed (21a55143 ambiguity-tolerant list fallback + gate; 768ee598 lifecycle assertion tightening + purchase comment). Spec aligned with shipped shape, status→in-progress; plan Task 6 frontend steps marked DEFERRED-USER-ACTION; PR-notes section added.
