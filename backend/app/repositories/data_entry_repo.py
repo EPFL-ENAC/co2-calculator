@@ -788,14 +788,38 @@ class DataEntryRepository:
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
             # No emission row carried a factor — derive it from the entry's
-            # classification (the entry never stores a factor id).
-            if primary_factor is None and data_entry.year is not None:
-                primary_factor = await resolver.resolve(
-                    handler,
-                    data_entry.data,
-                    DataEntryTypeEnum(data_entry.data_entry_type_id),
-                    data_entry.year,
-                )
+            # classification (the entry never stores a factor id). Gated on
+            # the entry actually carrying a kind value, mirroring the compute
+            # path's effective gate (data_entry_emission_service) and
+            # skipping a pointless bulk factor load for Strategy-B entries
+            # (kind derived at compute time, absent from data).
+            if (
+                primary_factor is None
+                and data_entry.year is not None
+                and handler.kind_field is not None
+                and data_entry.data.get(handler.kind_field)
+            ):
+                try:
+                    primary_factor = await resolver.resolve(
+                        handler,
+                        data_entry.data,
+                        DataEntryTypeEnum(data_entry.data_entry_type_id),
+                        data_entry.year,
+                    )
+                except ValueError as exc:
+                    # Ambiguous factor data (e.g. duplicate average rows for
+                    # one kind) must not 500 the whole page — this is
+                    # display enrichment only. Recalc/update paths already
+                    # surface ambiguity loudly; here we render the row with
+                    # empty factor columns instead.
+                    logger.warning(
+                        "Ambiguous factor data resolving primary_factor for "
+                        "data_entry_id=%s data_entry_type=%s year=%s: %s",
+                        data_entry.id,
+                        data_entry.data_entry_type_id,
+                        data_entry.year,
+                        exc,
+                    )
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (

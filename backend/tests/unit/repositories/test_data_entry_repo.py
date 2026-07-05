@@ -1242,9 +1242,7 @@ async def test_get_submodule_data_fallback_uses_factor_resolver(
     fake_factor.values = {"active_power_w": 42.0, "standby_power_w": 3.0}
     fake_factor.classification = {"class": "laptop", "sub_class": "13-inch"}
 
-    with patch(
-        "app.repositories.data_entry_repo.FactorResolver"
-    ) as mock_resolver_cls:
+    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
         mock_resolver_cls.return_value.resolve = AsyncMock(return_value=fake_factor)
 
         response = await repo.get_submodule_data(
@@ -1282,9 +1280,7 @@ async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_f
     fake_factor.values = {"active_power_w": 99.0, "standby_power_w": 9.0}
     fake_factor.classification = {"class": "laptop", "sub_class": "13-inch"}
 
-    with patch(
-        "app.repositories.data_entry_repo.FactorResolver"
-    ) as mock_resolver_cls:
+    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
         mock_resolver_cls.return_value.resolve = AsyncMock(return_value=fake_factor)
 
         response = await repo.get_submodule_data(
@@ -1313,9 +1309,106 @@ async def test_get_submodule_data_year_none_skips_factor_resolver_fallback(
     repo = DataEntryRepository(db_session)
     entry = await _make_equipment_entry(db_session, year=None)
 
-    with patch(
-        "app.repositories.data_entry_repo.FactorResolver"
-    ) as mock_resolver_cls:
+    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
+        mock_resolver_cls.return_value.resolve = AsyncMock()
+
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=entry.carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+
+    mock_resolver_cls.return_value.resolve.assert_not_awaited()
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w is None
+    assert item.standby_power_w is None
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_fallback_tolerates_ambiguous_factor_data(
+    db_session: AsyncSession,
+):
+    """The resolver raising ``ValueError`` (ambiguous factor data, e.g.
+    duplicate average rows for one kind) must not 500 the whole page — this
+    is display enrichment only; the recalc/update paths already surface
+    ambiguity loudly. The offending row renders with an empty
+    ``primary_factor``; other rows on the same page are unaffected."""
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.equipment.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    ambiguous_entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Ambiguous", "equipment_class": "ambiguous", "sub_class": "x"},
+        year=2025,
+    )
+    ok_entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data={"name": "Laptop", "equipment_class": "laptop", "sub_class": "13-inch"},
+        year=2025,
+    )
+    db_session.add(ambiguous_entry)
+    db_session.add(ok_entry)
+    await db_session.commit()
+
+    fake_factor = MagicMock()
+    fake_factor.values = {"active_power_w": 42.0, "standby_power_w": 3.0}
+    fake_factor.classification = {"class": "laptop", "sub_class": "13-inch"}
+
+    async def fake_resolve(handler, data, data_entry_type, year):
+        if data.get("equipment_class") == "ambiguous":
+            raise ValueError("Ambiguous factor data: cannot disambiguate")
+        return fake_factor
+
+    repo = DataEntryRepository(db_session)
+    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
+        mock_resolver_cls.return_value.resolve = AsyncMock(side_effect=fake_resolve)
+
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=module.id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+
+    assert len(response.items) == 2
+    by_name = {item.name: item for item in response.items}
+    assert by_name["Ambiguous"].active_power_w is None
+    assert by_name["Ambiguous"].standby_power_w is None
+    assert by_name["Laptop"].active_power_w == 42.0
+    assert by_name["Laptop"].standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_fallback_skips_resolver_when_kind_value_missing(
+    db_session: AsyncSession,
+):
+    """An entry whose ``kind_field`` is present in the handler but absent
+    (or blank) on the entry's data must not call ``FactorResolver.resolve``
+    at all — this avoids a pointless bulk factor load for Strategy-B-shaped
+    entries, matching the compute path's effective gate."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session, extra_data={"equipment_class": ""})
+
+    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
         mock_resolver_cls.return_value.resolve = AsyncMock()
 
         response = await repo.get_submodule_data(
