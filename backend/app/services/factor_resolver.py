@@ -7,7 +7,7 @@ recalc slice.
 """
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -54,7 +54,7 @@ class FactorResolver:
         data: dict,
         data_entry_type: DataEntryTypeEnum,
         year: int,
-    ) -> Optional[Factor]:
+    ) -> Factor | None:
         if handler.kind_field is None:
             return None
         maps = await self._get_maps(data_entry_type, year)

@@ -304,11 +304,38 @@ async def test_kind_fallback_requires_single_average_row():
 
 
 @pytest.mark.asyncio
+async def test_override_no_code_single_factor_that_carries_code():
+    """Single factor row for the kind even though it has an override code is
+    authoritative — mirrors _resolve_with_kind_override's 'len(factors)==1'
+    rule (the averages-only filter alone would find zero rows and raise)."""
+    factors = [
+        _factor(10, OVERRIDE_DET, 2025, {_KIND: "FOOD", _OVERRIDE: "FR-001"}),
+    ]
+    with _patch_factors(factors):
+        resolver = FactorResolver(session=AsyncMock())
+        got = await resolver.resolve(
+            OVERRIDE_HANDLER, {_KIND: "FOOD"}, OVERRIDE_DET, 2025
+        )
+    assert got is not None and got.id == 10
+
+
+@pytest.mark.asyncio
 async def test_override_missing_kind_returns_none():
     factors = [_factor(20, OVERRIDE_DET, 2025, {_KIND: "FOOD"})]
     with _patch_factors(factors):
         resolver = FactorResolver(session=AsyncMock())
         got = await resolver.resolve(OVERRIDE_HANDLER, {}, OVERRIDE_DET, 2025)
+    assert got is None
+
+
+@pytest.mark.asyncio
+async def test_override_empty_kind_returns_none():
+    factors = [_factor(20, OVERRIDE_DET, 2025, {_KIND: "FOOD"})]
+    with _patch_factors(factors):
+        resolver = FactorResolver(session=AsyncMock())
+        got = await resolver.resolve(
+            OVERRIDE_HANDLER, {_KIND: ""}, OVERRIDE_DET, 2025
+        )
     assert got is None
 
 
