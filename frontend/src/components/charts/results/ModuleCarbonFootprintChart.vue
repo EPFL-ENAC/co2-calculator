@@ -880,11 +880,11 @@ const chartOption = computed((): EChartsOption => {
       type: 'bar' as const,
       stack: 'total',
       animation: true,
-      encode: { x: 'category', y: 'heating_elec' },
+      encode: { x: 'category', y: 'heating_electric' },
       itemStyle: {
         color: getSubcategoryColor(
           'buildings_room',
-          'heating_elec',
+          'heating_electric',
           colors.value.lilac.light,
         ),
       },
@@ -1258,7 +1258,7 @@ const chartOption = computed((): EChartsOption => {
         'lighting',
         'cooling',
         'ventilation',
-        'heating_elec',
+        'heating_electric',
         'heating_thermal',
         'combustion',
         'scientific',

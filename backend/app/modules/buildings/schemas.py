@@ -174,7 +174,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         EmissionType.buildings__rooms__lighting: "lighting_kwh_per_square_meter",
         EmissionType.buildings__rooms__cooling: "cooling_kwh_per_square_meter",
         EmissionType.buildings__rooms__ventilation: "ventilation_kwh_per_square_meter",
-        EmissionType.buildings__rooms__heating_elec: "heating_kwh_per_square_meter",
+        EmissionType.buildings__rooms__heating_electric: "heating_kwh_per_square_meter",
         EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
 
@@ -237,30 +237,16 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         # set a default value of 1.0 if not provided
         ratio_nb = float(ratio) if ratio is not None else 1.0
 
-        # conversion factor only applies to electric or thermal energy types,
-        # default to 1.0 if not provided
+        # Heating carries a conversion_factor (primary energy → final energy);
+        # the correct electric/thermal leaf is already chosen upstream, so it
+        # applies directly. Other energy types have no conversion (default 1.0).
+        # An explicit `is None` check keeps a legitimate 0.0 (e.g. carbon-free
+        # network) from being silently coerced to 1.0.
+        conversion_factor = 1.0
         if kwh_field == "heating_kwh_per_square_meter":
-            emission_type: EmissionType = ctx["emission_type"]
-            energy_type = factor_values.get("energy_type")
-            if (
-                emission_type.parent is not None
-                and emission_type.parent == EmissionType.buildings__rooms__heating_elec
-                and energy_type == "electric"
-            ):
-                conversion_factor = factor_values.get("conversion_factor") or 1.0
-            elif (
-                emission_type.parent is not None
-                and emission_type.parent
-                == EmissionType.buildings__rooms__heating_thermal
-                and energy_type == "thermal"
-            ):
-                conversion_factor = factor_values.get("conversion_factor") or 1.0
-            else:
-                # does not apply to this emission type,
-                # set to 0 to avoid double counting
-                conversion_factor = 0
-        else:
-            conversion_factor = 1.0
+            override = factor_values.get("conversion_factor")
+            if override is not None:
+                conversion_factor = override
         kwh = float(surface) * float(kwh_per_m2) * ratio_nb
         return kwh * float(ef) * float(conversion_factor)
 
@@ -270,9 +256,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         factor_id = ctx.get("primary_factor_id")
         if factor_id is None:
             return []
-
-        # Add emission type to context for use in formula_func
-        ctx["emission_type"] = emission_type
 
         # Try direct match, then fall back to parent (WW→ZZ)
         kwh_field = self._EMISSION_TO_KWH_FIELD.get(emission_type)
@@ -287,7 +270,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_building_formula,
             )
         ]
@@ -336,6 +319,7 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
 buildings_classification_fields: list[str] = [
     "building_name",
     "room_type",
+    "energy_type",
 ]
 buildings_value_fields: list[str] = [
     "ef_kg_co2eq_per_kwh",
@@ -343,7 +327,6 @@ buildings_value_fields: list[str] = [
     "cooling_kwh_per_square_meter",
     "ventilation_kwh_per_square_meter",
     "lighting_kwh_per_square_meter",
-    "energy_type",
     "conversion_factor",
 ]
 
@@ -387,16 +370,9 @@ class _BuildingsFactorValidationMixin:
         valid_energy_types = [
             "electric",
             "thermal",
-            None,
         ]
         # Normalize aliases
-        energy_type_aliases = {
-            "electric": "electric",
-            "elec": "electric",
-            "electricity": "electric",
-            "therm": "thermal",
-        }
-        normalized = energy_type_aliases.get(v.lower() if v else v, v)
+        normalized = v.lower() if v else v
         if not normalized:
             raise ValueError("Energy type is required")
         if normalized not in valid_energy_types:
@@ -522,7 +498,7 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_key="ef_kg_co2eq_per_unit",
                 quantity_key="quantity",
             )

@@ -1268,7 +1268,7 @@ async def _seed_building_with_rollup(
         EmissionType.buildings__rooms__lighting,
         EmissionType.buildings__rooms__cooling,
         EmissionType.buildings__rooms__ventilation,
-        EmissionType.buildings__rooms__heating_elec,
+        EmissionType.buildings__rooms__heating_electric,
         EmissionType.buildings__rooms__heating_thermal,
     ]
     for et in leaf_types:

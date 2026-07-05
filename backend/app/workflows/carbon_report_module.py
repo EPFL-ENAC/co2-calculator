@@ -103,7 +103,7 @@ class CarbonReportModuleWorkflow:
                 )
 
             await DataEntryEmissionService(self.session).upsert_by_data_entry(
-                data_entry_response=item,
+                data_entry_response=item
             )
             await CarbonReportModuleService(self.session).recompute_stats(
                 carbon_report_module.id

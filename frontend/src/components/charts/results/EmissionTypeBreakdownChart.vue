@@ -54,7 +54,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',
-  heating_elec: 'charts-heating-elec-subcategory',
+  heating_electric: 'charts-heating-elec-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
   laboratories: 'charts-laboratories-subcategory',
   office: 'charts-office-subcategory',

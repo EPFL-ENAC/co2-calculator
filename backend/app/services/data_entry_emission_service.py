@@ -23,6 +23,7 @@ from app.repositories.data_entry_emission_repo import (
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import (
+    BUILDING_ENERGY_TYPES,
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     resolve_emission_types,
 )
@@ -226,6 +227,40 @@ class DataEntryEmissionService:
 
         return prev_kg * (percentage / 100.0)
 
+    async def _get_building_energy_type(
+        self,
+        primary_factor_id: int | None,
+        factor_cache: dict[int, Factor] | None,
+    ) -> str | None:
+        """Return the matched building factor's energy_type (electric/thermal).
+
+        The factor row selects which heating leaf a room entry emits. Reads the
+        prefetched cache when a bulk caller provided one, else a single DB get —
+        so both the recalc workflow and single-entry paths resolve it.
+
+        ``None`` means no factor matched (no emission to produce). A present id
+        that resolves to no factor, or a building factor whose ``energy_type`` is
+        missing or not electric/thermal, is corrupt data and fails loudly rather
+        than silently dropping heating.
+        """
+        if primary_factor_id is None:
+            return None
+        factor = factor_cache.get(primary_factor_id) if factor_cache else None
+        if factor is None:
+            factor = await FactorService(self.session).get(primary_factor_id)
+        if factor is None:
+            raise ValueError(
+                f"Building room entry references factor {primary_factor_id}, "
+                "which does not exist."
+            )
+        energy_type = factor.classification.get("energy_type")
+        if energy_type not in BUILDING_ENERGY_TYPES:
+            raise ValueError(
+                f"Building factor {primary_factor_id} has invalid energy_type "
+                f"{energy_type!r}; expected one of {sorted(BUILDING_ENERGY_TYPES)}."
+            )
+        return energy_type
+
     async def prepare_create(
         self,
         data_entry: DataEntry | DataEntryResponse,
@@ -237,8 +272,10 @@ class DataEntryEmissionService:
         slice_cache: dict | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
-
-        Pure orchestrator — zero branching on DataEntryType:
+        TODO: Make this function readable!
+        Orchestrates the pipeline below. Building entries first resolve their
+        matched factor's energy_type (electric/thermal) to select the single
+        heating leaf (#1575); every other type flows through unbranched:
 
         1. ``resolve_emission_types`` → which EmissionType leaves to produce
         2. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
@@ -269,8 +306,19 @@ class DataEntryEmissionService:
             logger.error("DataEntry must have a data_entry_type.")
             return []
 
+        # A building-room entry carries one primary factor whose energy_type
+        # (electric/thermal) selects the single heating leaf to emit. Resolve it
+        # once here and pass it explicitly — ``data_entry.data`` is left untouched
+        # so resolution never depends on a smuggled-in key. None for other types.
+        building_energy_type: str | None = None
+        if data_entry.data_entry_type is DataEntryTypeEnum.building:
+            building_energy_type = await self._get_building_energy_type(
+                data_entry.data.get("primary_factor_id"), factor_cache
+            )
         emission_types = resolve_emission_types(
-            data_entry.data_entry_type, data_entry.data
+            data_entry.data_entry_type,
+            data_entry.data,
+            building_energy_type=building_energy_type,
         )
         if emission_types is None:
             logger.warning(f"Unhandled type: {data_entry.data_entry_type}")

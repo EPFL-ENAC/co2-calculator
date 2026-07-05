@@ -141,13 +141,13 @@ class EmissionType(int, Enum):
     buildings__rooms__ventilation__auditoriums = 6010305
     buildings__rooms__ventilation__miscellaneous = 6010306
 
-    buildings__rooms__heating_elec = 60104
-    buildings__rooms__heating_elec__office = 6010401
-    buildings__rooms__heating_elec__laboratories = 6010402
-    buildings__rooms__heating_elec__archives = 6010403
-    buildings__rooms__heating_elec__libraries = 6010404
-    buildings__rooms__heating_elec__auditoriums = 6010405
-    buildings__rooms__heating_elec__miscellaneous = 6010406
+    buildings__rooms__heating_electric = 60104
+    buildings__rooms__heating_electric__office = 6010401
+    buildings__rooms__heating_electric__laboratories = 6010402
+    buildings__rooms__heating_electric__archives = 6010403
+    buildings__rooms__heating_electric__libraries = 6010404
+    buildings__rooms__heating_electric__auditoriums = 6010405
+    buildings__rooms__heating_electric__miscellaneous = 6010406
 
     buildings__rooms__heating_thermal = 60105
     buildings__rooms__heating_thermal__office = 6010501
@@ -382,26 +382,26 @@ _PARENT_MAP: dict[int, int] = {
     EmissionType.buildings__rooms__ventilation__miscellaneous.value: (
         EmissionType.buildings__rooms__ventilation.value
     ),
-    EmissionType.buildings__rooms__heating_elec.value: (
+    EmissionType.buildings__rooms__heating_electric.value: (
         EmissionType.buildings__rooms.value
     ),
-    EmissionType.buildings__rooms__heating_elec__office.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__office.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
-    EmissionType.buildings__rooms__heating_elec__laboratories.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__laboratories.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
-    EmissionType.buildings__rooms__heating_elec__archives.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__archives.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
-    EmissionType.buildings__rooms__heating_elec__libraries.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__libraries.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
-    EmissionType.buildings__rooms__heating_elec__auditoriums.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__auditoriums.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
-    EmissionType.buildings__rooms__heating_elec__miscellaneous.value: (
-        EmissionType.buildings__rooms__heating_elec.value
+    EmissionType.buildings__rooms__heating_electric__miscellaneous.value: (
+        EmissionType.buildings__rooms__heating_electric.value
     ),
     EmissionType.buildings__rooms__heating_thermal.value: (
         EmissionType.buildings__rooms.value
@@ -661,7 +661,7 @@ _SCOPE_CATEGORY_MAP: dict[int, EmissionMeta] = {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec.value: {
+    EmissionType.buildings__rooms__heating_electric.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
@@ -742,27 +742,27 @@ _SCOPE_CATEGORY_MAP: dict[int, EmissionMeta] = {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__office.value: {
+    EmissionType.buildings__rooms__heating_electric__office.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__laboratories.value: {
+    EmissionType.buildings__rooms__heating_electric__laboratories.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__archives.value: {
+    EmissionType.buildings__rooms__heating_electric__archives.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__libraries.value: {
+    EmissionType.buildings__rooms__heating_electric__libraries.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__auditoriums.value: {
+    EmissionType.buildings__rooms__heating_electric__auditoriums.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },
-    EmissionType.buildings__rooms__heating_elec__miscellaneous.value: {
+    EmissionType.buildings__rooms__heating_electric__miscellaneous.value: {
         "scope": Scope.scope2,
         "category": EmissionCategory.buildings_room,
     },

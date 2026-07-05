@@ -419,7 +419,7 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
-      heating_elec: colors.value.lilac.dark,
+      heating_electric: colors.value.lilac.dark,
       cooling: colors.value.lilac.default,
       ventilation: colors.value.lilac.light,
       lighting: colors.value.lilac.lighter,

@@ -36,7 +36,7 @@ const LABEL_KEY_MAP: Record<string, string> = {
   // buildings
   combustion: 'charts-energy-combustion-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
-  heating_elec: 'charts-heating-elec-subcategory',
+  heating_electric: 'charts-heating-elec-subcategory',
   lighting: 'charts-lighting-subcategory',
   cooling: 'charts-cooling-subcategory',
   ventilation: 'charts-ventilation-subcategory',

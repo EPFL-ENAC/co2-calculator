@@ -10,6 +10,7 @@ from app.models.data_entry_emission import (
     EmissionComputation,
     EmissionType,
 )
+from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.utils.data_entry_emission_type_map import (
@@ -1719,3 +1720,68 @@ class TestFetchFactorsStrategyBCache:
 
         # Without the opt-in cache, behaviour is unchanged: one query per call.
         assert get_by_classification.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# _get_building_energy_type — resolves the heating leaf, fails loud on corruption
+# ---------------------------------------------------------------------------
+
+
+class TestGetBuildingEnergyType:
+    """The matched building factor picks the single heating leaf (#1575).
+
+    A missing/unrecognized energy_type is corrupt data and must raise here,
+    not silently drop heating downstream in _resolve_building_rooms.
+    """
+
+    @staticmethod
+    def _factor(classification: dict) -> Factor:
+        factor = MagicMock(spec=Factor)
+        factor.classification = classification
+        return factor
+
+    @pytest.mark.asyncio
+    async def test_valid_electric_returns_electric(self):
+        service = _make_service()
+        cache = {5: self._factor({"energy_type": "electric"})}
+        assert await service._get_building_energy_type(5, cache) == "electric"
+
+    @pytest.mark.asyncio
+    async def test_valid_thermal_returns_thermal(self):
+        service = _make_service()
+        cache = {5: self._factor({"energy_type": "thermal"})}
+        assert await service._get_building_energy_type(5, cache) == "thermal"
+
+    @pytest.mark.asyncio
+    async def test_none_factor_id_returns_none(self):
+        # No matched factor = no emission to produce; a legitimate skip, not error.
+        service = _make_service()
+        assert await service._get_building_energy_type(None, {}) is None
+
+    @pytest.mark.asyncio
+    async def test_missing_energy_type_key_raises(self):
+        # classification without the key → descriptive ValueError, not bare KeyError.
+        service = _make_service()
+        cache = {5: self._factor({})}
+        with pytest.raises(ValueError, match="5"):
+            await service._get_building_energy_type(5, cache)
+
+    @pytest.mark.asyncio
+    async def test_unrecognized_energy_type_raises(self):
+        # Regression #1575: a present-but-invalid value must fail loud here
+        # rather than resolve to None and silently drop the heating leaf.
+        service = _make_service()
+        cache = {5: self._factor({"energy_type": "electricity"})}
+        with pytest.raises(ValueError, match="electricity"):
+            await service._get_building_energy_type(5, cache)
+
+    @pytest.mark.asyncio
+    async def test_dangling_factor_id_raises(self):
+        # id present but resolves to no factor (dangling FK) = corruption → raise.
+        service = _make_service()
+        with patch(
+            "app.services.data_entry_emission_service.FactorService"
+        ) as mock_fs_cls:
+            mock_fs_cls.return_value = MagicMock(get=AsyncMock(return_value=None))
+            with pytest.raises(ValueError, match="does not exist"):
+                await service._get_building_energy_type(5, {})
