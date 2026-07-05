@@ -418,7 +418,7 @@ git commit -m "feat(1661): prepare_create resolves primary factor dynamically"
 - Consumes: `FactorResolver` (Task 1), `prepare_create(factor_resolver=...)`
   (Task 2).
 
-- [ ] **Step 3.1: Update unit tests first**
+- [x] **Step 3.1: Update unit tests first**
 
 In `test_emission_recalculation.py`: delete the `_lookup_factor_id*` test
 classes (their cases were ported to `test_factor_resolver.py` in Task 1 —
@@ -428,7 +428,7 @@ new factor id **in the emission rows** (`DataEntryEmission.primary_factor_id`),
 and `entry.data` is never mutated (assert `entry.data` unchanged
 before/after the slice).
 
-- [ ] **Step 3.2: Implement**
+- [x] **Step 3.2: Implement**
 
 1. Replace lines `:105-165` (`factor_lookup`/`override_lookup`/`kind_lookup`
    construction) and the `list_by_data_entry_type` + `factor_cache` block with:
@@ -451,13 +451,13 @@ factor_query_cache: dict = {}
    deleted prefetch — check; the strict-drop contract note moves to the
    resolver docstring).
 
-- [ ] **Step 3.3: Tests green**
+- [x] **Step 3.3: Tests green**
 
 ```bash
 cd backend && uv run pytest tests/unit/workflows/test_emission_recalculation.py -x -q
 ```
 
-- [ ] **Step 3.4: Lint + type-check + commit**
+- [x] **Step 3.4: Lint + type-check + commit**
 
 ```bash
 git commit -m "refactor(1661): recalc uses FactorResolver, drop rematch machinery"
@@ -867,3 +867,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-05: Plan written. No code started.
 - 2026-07-05: Task 1 complete (FactorResolver + 16 tests, commits 99f1831a, 1c53a1f1; review approved after adding 2 ported test cases).
 - 2026-07-05: Task 2 complete (commit 3a2be338; review approved, 3 minors deferred to final review). Verification batching directive added to Global constraints.
+- 2026-07-05: Task 3 complete (commit 720fa314; recalc 500→267 lines, rematch machinery gone; review approved).
