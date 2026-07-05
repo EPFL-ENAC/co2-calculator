@@ -563,12 +563,12 @@ git commit -m "refactor(1661): create/update resolve factors without stamping pa
 - Test: `backend/tests/unit/services/data_ingestion/test_base_csv_provider.py`,
   `backend/tests/unit/services/data_ingestion/test_module_unit_specific_csv_provider.py`
 
-- [ ] **Step 5.1: Update unit tests first** — asserts on
+- [x] **Step 5.1: Update unit tests first** — asserts on
   `payload["primary_factor_id"]` / `data["primary_factor_id"]` become
   asserts that the key is **absent** from the built `DataEntry.data`, and
   that `populate_defaults` still fires when the factors_map matches.
 
-- [ ] **Step 5.2: Implement**
+- [x] **Step 5.2: Implement**
 
 1. In the row path (`:1242-1280`): keep the factors_map lookup (it feeds
    `populate_defaults` and the type/`require_factor_to_match` guards) but
@@ -595,13 +595,13 @@ with self._timed("populate"):
 5. `module_per_year.py`: comments only (`:21,28,90`) — the "no matching
    factor" *type-inference* error at `:212-219` is independent and stays.
 
-- [ ] **Step 5.3: Tests green**
+- [x] **Step 5.3: Tests green**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/data_ingestion -x -q
 ```
 
-- [ ] **Step 5.4: Lint + type-check + commit**
+- [x] **Step 5.4: Lint + type-check + commit**
 
 ```bash
 git commit -m "refactor(1661): CSV ingest stops persisting primary_factor_id"
@@ -869,3 +869,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-05: Task 2 complete (commit 3a2be338; review approved, 3 minors deferred to final review). Verification batching directive added to Global constraints.
 - 2026-07-05: Task 3 complete (commit 720fa314; recalc 500→267 lines, rematch machinery gone; review approved).
 - 2026-07-06: Task 4 complete (commit f807097e; ModuleHandlerService delegates to FactorResolver, create path no longer resolves; review approved).
+- 2026-07-06: Task 5 complete (commit db2e8aa0; CSV ingest no longer stamps; latent test bug fixed; review approved).
