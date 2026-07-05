@@ -183,11 +183,32 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_institutional_code(cls, values: Any) -> Any:
+        # Key absent = "not updating" (PATCH semantics). An explicit null would
+        # silently clear the code, resolve no factor, and delete the entry's
+        # emissions. The payload mixin may carry the field top-level and/or
+        # under "data", so guard both shapes.
+        if not isinstance(values, dict):
+            return values
+        payloads = [values]
+        if isinstance(values.get("data"), dict):
+            payloads.append(values["data"])
+        for payload in payloads:
+            if (
+                "purchase_institutional_code" in payload
+                and payload["purchase_institutional_code"] is None
+            ):
+                raise ValueError("purchase_institutional_code cannot be null")
+        return values
+
     @field_validator("purchase_institutional_code", mode="after")
     @classmethod
     def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
-        # None means "not being updated" (PATCH semantics); a blank/whitespace
-        # value provided on purpose must fail loudly here rather than silently
+        # None here can only be the key-absent default (explicit null is
+        # rejected in the before-validator above); a blank/whitespace value
+        # provided on purpose must fail loudly here rather than silently
         # resolving to no factor further down the pipeline.
         if v is None:
             return v

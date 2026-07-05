@@ -49,10 +49,12 @@ def test_factor_missing_institutional_code_rejected():
 # ---------------------------------------------------------------------------
 # PurchaseHandlerUpdate.purchase_institutional_code
 #
-# Regression: the old resolver raised loudly on a falsy kind, so a PATCH
-# setting purchase_institutional_code="" surfaced as HTTP 400. The new
-# resolver returns None for a missing kind (correct recalc semantics), which
-# means blank rejection must now happen at the DTO validation layer.
+# Regression: the old resolver raised loudly on ANY falsy kind ("" or null),
+# so a PATCH clearing purchase_institutional_code surfaced as HTTP 400. The
+# new resolver returns None for a missing kind (correct recalc semantics),
+# which means rejection must now happen at the DTO validation layer.
+# PATCH semantics: key ABSENT = "not updating" (accepted); key PRESENT with
+# blank/whitespace/null = rejected.
 # ---------------------------------------------------------------------------
 
 
@@ -65,22 +67,27 @@ def _update_payload(**overrides):
     return payload
 
 
-@pytest.mark.parametrize("bad_code", ["", "   "])
-def test_update_blank_institutional_code_rejected(bad_code):
+@pytest.mark.parametrize(
+    "bad_code", ["", "   ", None], ids=["empty", "whitespace", "explicit-null"]
+)
+def test_update_falsy_institutional_code_rejected(bad_code):
     with pytest.raises(ValidationError, match="purchase_institutional_code"):
         PurchaseHandlerUpdate.model_validate(
             _update_payload(purchase_institutional_code=bad_code)
         )
 
 
-def test_update_none_institutional_code_accepted():
-    dto = PurchaseHandlerUpdate.model_validate(
-        _update_payload(purchase_institutional_code=None)
-    )
-    assert dto.purchase_institutional_code is None
+def test_update_null_institutional_code_under_data_rejected():
+    # The payload mixin can carry fields nested under "data"; explicit null
+    # must be rejected in that shape too.
+    with pytest.raises(ValidationError, match="purchase_institutional_code"):
+        PurchaseHandlerUpdate.model_validate(
+            _update_payload(data={"purchase_institutional_code": None})
+        )
 
 
 def test_update_missing_institutional_code_accepted():
+    # Key absent from the PATCH means "not updating this field".
     dto = PurchaseHandlerUpdate.model_validate(_update_payload())
     assert dto.purchase_institutional_code is None
 

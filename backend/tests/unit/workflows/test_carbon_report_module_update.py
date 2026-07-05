@@ -116,7 +116,6 @@ async def test_update_blank_purchase_institutional_code_rejected():
         "name": "Widget",
         "total_spent_amount": 100.0,
         "purchase_institutional_code": "51100000",
-        "primary_factor_id": None,
     }
     item_data = {"purchase_institutional_code": ""}
 
