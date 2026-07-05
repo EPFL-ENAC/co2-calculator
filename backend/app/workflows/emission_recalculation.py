@@ -13,11 +13,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.factor import Factor
 from app.repositories.data_entry_repo import DataEntryRepository
-from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
+from app.services.factor_resolver import FactorResolver
 
 logger = get_logger(__name__)
 
@@ -87,35 +86,16 @@ class EmissionRecalculationWorkflow:
             }
 
         emission_svc = DataEntryEmissionService(self.session)
-        factor_repo = FactorRepository(self.session)
         handler = BaseModuleHandler.get_by_type(data_entry_type_id)
 
-        # Plan 310D — batch the rematch.  Pre-load all factors for
-        # (data_entry_type_id, year) once into a dict keyed by
-        # (kind, subkind), turning what was N+1 SQL roundtrips into one
-        # bulk SELECT plus Python lookups.  Skipped when the handler has
-        # no ``kind_field`` because there is nothing to rematch on.
-        #
-        # Lookup-key matches ``ModuleHandlerService.resolve_primary_factor_id``:
-        # both read ``classification[kind_field]`` and (when defined)
-        # ``classification[subkind_field]``, normalising "" → None for
-        # subkind.  Dict misses fall back to the per-entry resolver,
-        # which itself does a kind-only fallback when the exact
-        # (kind, subkind) row is absent.
-        factor_lookup: dict[tuple[str, str | None], int] = {}
-        # override-key-first lookup structures (populated only for handlers with
-        # kind_field_override, mirroring _resolve_with_kind_override):
-        # override_lookup: override_code → [(factor_id, kind_value)]
-        # kind_lookup:     kind_value    → [(factor_id, override_code | None)]
-        override_lookup: dict[str, list[tuple[int, str]]] = {}
-        kind_lookup: dict[str, list[tuple[int, str | None]]] = {}
-        # One bulk SELECT for the slice's factors.  Feeds two caches:
-        # ``factor_cache`` (id → Factor) short-circuits Strategy A
-        # lookups inside ``prepare_create`` for every entry, and the
-        # rematch lookup dicts back the per-entry factor relink below
-        # (only built when the handler actually rematches).
-        factors = await factor_repo.list_by_data_entry_type(data_entry_type_id, year)
-        factor_cache: dict[int, Factor] = {f.id: f for f in factors if f.id is not None}
+        # Plan 1661 — one shared FactorResolver per slice.  It memoizes
+        # the bulk factor SELECT for (data_entry_type_id, year), so
+        # resolving the primary factor for every entry below costs one
+        # query total, not one per entry.  ``prepare_create`` (Task 2)
+        # is the sole caller of ``resolver.resolve``; the recalc loop no
+        # longer rematches or writes ``primary_factor_id`` itself.
+        resolver = FactorResolver(self.session)
+        factor_cache = await resolver.factors_by_id(data_entry_type_id, year)
         # Strategy-B (classification-query) factor lookups hit the DB once per
         # emission per entry — an N+1 that dominated headcount recalc (member:
         # ~25 queries/entry × thousands of entries). The factor table is held
@@ -123,46 +103,6 @@ class EmissionRecalculationWorkflow:
         # (kind, subkind, context, year) criteria recur across entries, so a
         # slice-scoped memo collapses it to one query per distinct criteria.
         factor_query_cache: dict = {}
-        if handler.kind_field is not None and any(
-            handler.kind_field in e.data for e in entries
-        ):
-            kind_field = handler.kind_field
-            if handler.kind_field_override is not None:
-                # Override-key-first path: mirrors _resolve_with_kind_override.
-                # Lookup-key matches that method: override_field value is the
-                # primary key; kind_field is the fallback, restricted to factors
-                # that carry no override code (those are the implicit averages).
-                override_field = handler.kind_field_override
-                for factor in factors:
-                    if factor.id is None:
-                        continue
-                    classification = factor.classification or {}
-                    kind_value = classification.get(kind_field)
-                    if not kind_value:
-                        continue
-                    ov_code: str | None = classification.get(override_field) or None
-                    kind_lookup.setdefault(kind_value, []).append((factor.id, ov_code))
-                    if ov_code:
-                        override_lookup.setdefault(ov_code, []).append(
-                            (factor.id, kind_value)
-                        )
-            else:
-                subkind_field = handler.subkind_field
-                for factor in factors:
-                    if factor.id is None:
-                        continue
-                    classification = factor.classification or {}
-                    kind_value = classification.get(kind_field)
-                    if kind_value is None or kind_value == "":
-                        continue
-                    subkind_value: str | None = None
-                    if subkind_field:
-                        raw = classification.get(subkind_field)
-                        subkind_value = raw if raw else None
-                    # First writer wins on duplicate keys; ``get_by_classification``
-                    # uses ``one_or_none`` which raises on duplicates anyway, so
-                    # callers don't depend on ordering when the index is consistent.
-                    factor_lookup.setdefault((kind_value, subkind_value), factor.id)
 
         # Plan 310D — per-slice prefetch: handlers that otherwise re-query
         # slice-constant data per entry (plane reloads airports + the full
@@ -187,80 +127,15 @@ class EmissionRecalculationWorkflow:
         # Per-segment wall time for a recalc profile line (diagnostic, the
         # analog of ingestion's row-loop profile): localises where per-entry
         # time goes so a slow slice is measured, not guessed.
-        seg = {"rematch": 0.0, "validate": 0.0, "prepare": 0.0}
+        seg = {"validate": 0.0, "prepare": 0.0}
 
         for entry in entries:
-            # Plan 310B Part 6 — refresh primary_factor_id against current
-            # factors before computing.  Strategy A entries (equipment,
-            # purchases, …) need this so a CSV reupload that changes a
-            # factor's classification re-links the entry to the new
-            # factor row instead of dereferencing a stale FK.
-            #
-            # Gate: only run the refresh when the handler exposes a
-            # ``kind_field`` AND that field is actually present in
-            # ``entry.data``.  Strategy B handlers like
-            # professional_travel/plane have ``kind_field`` set but
-            # derive the value in ``pre_compute``, so it's not in
-            # ``entry.data`` — running the lookup with an empty kind
-            # would either clear ``primary_factor_id`` or raise
-            # ``MultipleResultsFound``, neither of which is right for
-            # those handlers.
-            #
-            # Plan 310D — bulk-prefetched ``factor_lookup`` is the
-            # single source of truth for the rematch.  ``_lookup_factor_id``
-            # mirrors the full kind→subkind→kind-only fallback chain
-            # in-memory, so a miss here means "factor truly dropped from
-            # the current CSV" — no DB fallback.  Per the strict-drop
-            # contract, we clear ``primary_factor_id`` and let the
-            # downstream upsert recompute ``kg_co2eq`` as None, which the
-            # dashboard surfaces as a missing-factor signal to operators.
-            #
-            # Bind to a local with an explicit ``Optional[str]`` annotation
-            # so the ``is not None`` check below narrows it to ``str`` at
-            # the ``_lookup_factor_id`` call site.  The name differs from
-            # ``kind_field`` used in the prefetch block above to avoid a
-            # mypy scope-collision (the prefetch binding lives inside an
-            # ``if handler.kind_field is not None`` block, so mypy infers
-            # the narrower ``str`` and then refuses the wider re-bind here).
-            # Also avoids an ``assert`` (bandit B101 — asserts are stripped
-            # under ``python -O``).
-            entry_kind_field: str | None = handler.kind_field
-            entry_kind_field_override: str | None = handler.kind_field_override
-            old_data = entry.data
             try:
                 # Compute-only: ``prepare_create`` does reads (handler
-                # pre_compute, Strategy-B factor queries) but never
-                # writes, so a per-entry failure needs no SAVEPOINT —
-                # there is nothing to roll back; the ``except`` just
-                # reverts the in-memory factor swap and moves on.
-                _t = time.perf_counter()
-                if entry_kind_field is not None and entry_kind_field in entry.data:
-                    if entry_kind_field_override is not None:
-                        new_factor_id = self._lookup_factor_id_with_override(
-                            entry_data=entry.data,
-                            kind_field=entry_kind_field,
-                            override_field=entry_kind_field_override,
-                            override_lookup=override_lookup,
-                            kind_lookup=kind_lookup,
-                        )
-                    else:
-                        new_factor_id = self._lookup_factor_id(
-                            entry_data=entry.data,
-                            kind_field=entry_kind_field,
-                            subkind_field=handler.subkind_field,
-                            factor_lookup=factor_lookup,
-                        )
-                    if new_factor_id != entry.data.get("primary_factor_id"):
-                        # Tentative swap so DataEntryResponse +
-                        # prepare_create see the refreshed factor (or
-                        # ``None`` on a drop); the outer commit persists
-                        # the relink alongside the new emissions.
-                        entry.data = {
-                            **entry.data,
-                            "primary_factor_id": new_factor_id,
-                        }
-                seg["rematch"] += time.perf_counter() - _t
-
+                # pre_compute, ``FactorResolver`` lookups, Strategy-B
+                # factor queries) but never writes ``entry.data`` — a
+                # per-entry failure needs no SAVEPOINT, there is nothing
+                # to roll back.
                 _t = time.perf_counter()
                 entry_response = DataEntryResponse.model_validate(entry)
                 seg["validate"] += time.perf_counter() - _t
@@ -272,6 +147,7 @@ class EmissionRecalculationWorkflow:
                     factor_cache=factor_cache,
                     factor_query_cache=factor_query_cache,
                     slice_cache=slice_cache,
+                    factor_resolver=resolver,
                 )
                 seg["prepare"] += time.perf_counter() - _t
                 if entry.id is not None:
@@ -281,10 +157,6 @@ class EmissionRecalculationWorkflow:
                 if entry.carbon_report_module_id is not None:
                     affected_module_ids.add(entry.carbon_report_module_id)
             except Exception as exc:
-                # Revert the in-memory factor swap (no DB writes happened
-                # during compute) so the outer commit doesn't persist a
-                # stale link next to an old emissions row.
-                entry.data = old_data
                 # Session/connection-fatal errors can't be contained by
                 # a SAVEPOINT — the session is unusable for every
                 # remaining entry.  Two shapes seen on stage:
@@ -360,19 +232,18 @@ class EmissionRecalculationWorkflow:
             f"{total_replaced} entries ({total_written} emission rows, "
             f"{slice_elapsed:.1f}s compute+write)"
         )
-        # Recalc profile: where the per-entry time went (rematch = in-memory
-        # factor relink, validate = Pydantic, prepare = prepare_create incl. any
-        # handler DB reads). remainder = bulk writes + loop overhead.
-        accounted = seg["rematch"] + seg["validate"] + seg["prepare"]
+        # Recalc profile: where the per-entry time went (validate = Pydantic,
+        # prepare = prepare_create incl. FactorResolver + any handler DB
+        # reads). remainder = bulk writes + loop overhead.
+        accounted = seg["validate"] + seg["prepare"]
         logger.info(
             "Recalc profile %s/%s: %d entries in %.1fs (%.2f ms/entry) | "
-            "rematch=%.1f validate=%.1f prepare=%.1f remainder=%.1f",
+            "validate=%.1f prepare=%.1f remainder=%.1f",
             data_entry_type_id.name,
             year,
             len(entries),
             slice_elapsed,
             slice_elapsed / len(entries) * 1000,
-            seg["rematch"],
             seg["validate"],
             seg["prepare"],
             slice_elapsed - accounted,
@@ -393,107 +264,3 @@ class EmissionRecalculationWorkflow:
             "errors": errors,
             "error_details": error_details,
         }
-
-    @staticmethod
-    def _lookup_factor_id(
-        entry_data: dict,
-        kind_field: str,
-        subkind_field: str | None,
-        factor_lookup: dict[tuple[str, str | None], int],
-    ) -> int | None:
-        """Resolve ``primary_factor_id`` from the bulk-prefetched lookup.
-
-        Mirrors the kind→subkind→kind-only fallback chain that
-        ``ModuleHandlerService.resolve_primary_factor_id`` runs in DB,
-        but entirely in-memory:
-
-        1. Exact ``(kind, subkind)`` match.
-        2. Kind-only ``(kind, None)`` fallback — only succeeds if a
-           factor with no subkind was prefetched (subkind=NULL row).
-
-        Returns ``None`` on overall miss.  Per Plan 310-D's strict
-        rematch contract, the caller treats a None as "factor dropped"
-        and clears the entry's ``primary_factor_id`` so the recomputed
-        emission is ``None`` (operator surfaces it as missing-factor
-        rather than silently substituting via a per-entry DB roundtrip).
-
-        Mirrors the key-derivation done in
-        ``ModuleHandlerService.resolve_primary_factor_id``: subkind
-        normalises empty string → None, kind reads as-is.
-        """
-        kind = entry_data.get(kind_field)
-        if kind is None or kind == "":
-            return None
-        subkind: str | None = None
-        if subkind_field:
-            raw = entry_data.get(subkind_field)
-            subkind = raw if raw else None
-        # Exact match first.
-        factor_id = factor_lookup.get((kind, subkind))
-        if factor_id is not None:
-            return factor_id
-        # Kind-only fallback — only worth trying when subkind was set;
-        # otherwise the lookup above already tried (kind, None).
-        if subkind is not None:
-            return factor_lookup.get((kind, None))
-        return None
-
-    @staticmethod
-    def _lookup_factor_id_with_override(
-        entry_data: dict,
-        kind_field: str,
-        override_field: str,
-        override_lookup: dict[str, list[tuple[int, str]]],
-        kind_lookup: dict[str, list[tuple[int, str | None]]],
-    ) -> int | None:
-        """Resolve ``primary_factor_id`` using the override-key-first rule.
-
-        Mirrors ``ModuleHandlerService._resolve_with_kind_override`` in-memory:
-
-        1. If the entry carries a value for ``override_field``, look it up in
-           ``override_lookup`` (override_code → [(factor_id, kind_value)]).
-           A single match wins; multiple matches are disambiguated by kind.
-        2. Kind-only fallback via ``kind_lookup`` (kind_value →
-           [(factor_id, override_code | None)]): if one row matches, return
-           it; if several rows share the kind, only the "average" rows (those
-           without an override code) may stand in — there must be exactly one.
-
-        Returns ``None`` when the factor is absent from the current slice.
-        Raises ``ValueError`` on ambiguous data (matches the service behaviour
-        so the per-entry error path records the same signal as a live update).
-        """
-        kind = entry_data.get(kind_field)
-        if not kind:
-            return None
-
-        code: str | None = entry_data.get(override_field) or None
-        if code:
-            matches = override_lookup.get(code, [])
-            if len(matches) == 1:
-                return matches[0][0]
-            if len(matches) > 1:
-                same_kind = [fid for fid, kv in matches if kv == kind]
-                if len(same_kind) == 1:
-                    return same_kind[0]
-                raise ValueError(
-                    f"Ambiguous factor data: {len(matches)} factors match "
-                    f"{override_field}={code!r} and {kind_field}={kind!r} "
-                    f"cannot disambiguate"
-                )
-            # code present but no factor carries it → fall through to kind fallback
-
-        kind_matches = kind_lookup.get(kind, [])
-        if not kind_matches:
-            return None
-        if len(kind_matches) == 1:
-            return kind_matches[0][0]
-        # Several rows share this kind: only "average" rows (no override code)
-        # may stand in for all of them.
-        averages = [fid for fid, ov in kind_matches if ov is None]
-        if len(averages) == 1:
-            return averages[0]
-        raise ValueError(
-            f"Ambiguous factor data: {len(kind_matches)} factors match "
-            f"{kind_field}={kind!r} with {len(averages)} average rows "
-            f"(need exactly 1)"
-        )
