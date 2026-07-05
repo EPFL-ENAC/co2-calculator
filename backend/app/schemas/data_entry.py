@@ -367,8 +367,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         that must be applied for this emission type.
 
         The default implementation looks for a ``primary_factor_id`` in *ctx*
-        (Strategy A).  Handlers that use classification queries (Strategy B)
-        must override this method.
+        (Strategy A).  This key is injected by
+        ``DataEntryEmissionService.prepare_create`` from ``FactorResolver``
+        results — it is never persisted on the data entry.  Handlers that use
+        classification queries (Strategy B) must override this method.
 
         Args:
             data_entry: The data entry being processed.

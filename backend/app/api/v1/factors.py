@@ -38,11 +38,11 @@ async def list_stale_factors(
 
     Plan 310B Part 3 — operators can detect rows that exist in the DB
     but were not in the most recent CSV upload.  These rows are
-    intentionally not deleted because existing data entries may still
-    reference their ids in the ``DataEntry.data`` JSON payload under
-    ``primary_factor_id`` (this is a JSON value, not a real FK column);
-    this endpoint surfaces them so the UI can warn that linked data
-    entries are using outdated factors.
+    intentionally not deleted because existing ``DataEntryEmission`` rows
+    may still reference their ids via the ``primary_factor_id`` FK (entries
+    no longer store factor ids in ``DataEntry.data``); this endpoint
+    surfaces them so the UI can warn that linked data entries are using
+    outdated factors.
 
     **Required Permission**: ``backoffice.configuration.view``
     """

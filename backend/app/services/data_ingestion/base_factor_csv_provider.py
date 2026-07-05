@@ -171,9 +171,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             factor_service = FactorService(self.data_session)
             factor_repo = FactorRepository(self.data_session)
             # Plan 310B: upsert in place (preserves factor.id so existing
-            # DataEntry.primary_factor_id FKs stay valid).  No bulk delete:
-            # factors absent from the new CSV are kept and surfaced as stale
-            # via last_seen_job_id.
+            # DataEntryEmission.primary_factor_id FKs stay valid).  No bulk
+            # delete: factors absent from the new CSV are kept and surfaced
+            # as stale via last_seen_job_id.
 
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             batch: List[Factor] = []

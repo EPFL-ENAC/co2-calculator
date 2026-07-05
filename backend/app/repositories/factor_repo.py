@@ -148,11 +148,10 @@ class FactorRepository:
         unique index expression — so the input must be split by year-presence
         and one ON CONFLICT inference issued per partition.
 
-        Preserves ``factor.id`` for existing rows so downstream
-        references — including ``primary_factor_id`` values stored in
-        ``DataEntry.data`` (a JSON value, not a real FK column) — stay
-        valid across reuploads.  Stamps ``last_seen_job_id`` so callers
-        can later detect rows not present in the current batch.
+        Preserves ``factor.id`` for existing rows so downstream references —
+        including the ``DataEntryEmission.primary_factor_id`` FK — stay valid
+        across reuploads.  Stamps ``last_seen_job_id`` so callers can later
+        detect rows not present in the current batch.
 
         Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
 
