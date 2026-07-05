@@ -689,7 +689,7 @@ git commit -m "refactor(1661): derive primary_factor in responses, drop stored-i
 
 **Files:** repo-wide grep; expected touchpoints listed below.
 
-- [ ] **Step 7.1: Sweep**
+- [x] **Step 7.1: Sweep**
 
 ```bash
 cd backend && grep -rn "primary_factor_id" app --include="*.py" | grep -v __pycache__
@@ -706,8 +706,13 @@ Legitimate survivors — everything else must be gone or is a bug in Tasks 1-6:
   **rows** (`primary_factor_id=factor.id` / `None`) and the ctx key.
 - Strategy-A `resolve_computations` readers of `ctx["primary_factor_id"]`
   (base + module schemas).
+- `app/services/factor_service.py` — `find_modules_for_recalculation`
+  queries the `DataEntryEmission.primary_factor_id` FK column
+  (controller-verified `:258,:273` during Task 7 review).
+- `app/services/factor_resolver.py` — docstring reference to the removed
+  rematch, historical context only (controller-verified `:34`).
 
-- [ ] **Step 7.2: Docstring/comment fixes**
+- [x] **Step 7.2: Docstring/comment fixes**
 
 - `factor_repo.upsert_factors` docstring (`:151-155`): id preservation is
   still wanted (emission FK churn + Phase-2 stale detection via
@@ -721,13 +726,13 @@ Legitimate survivors — everything else must be gone or is a bug in Tasks 1-6:
   DataEntryEmissionService.prepare_create from FactorResolver".
 - Check `openapi.d.ts:878` comment disappears with regeneration.
 
-- [ ] **Step 7.3: Full unit suite + lint + type-check**
+- [x] **Step 7.3: Full unit suite + lint + type-check**
 
 ```bash
 cd backend && uv run pytest tests/unit -q && uv run ruff check app tests && uv run mypy app
 ```
 
-- [ ] **Step 7.4: Commit**
+- [x] **Step 7.4: Commit**
 
 ```bash
 git commit -m "chore(1661): dead-code sweep after primary_factor_id removal"
@@ -871,3 +876,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 4 complete (commit f807097e; ModuleHandlerService delegates to FactorResolver, create path no longer resolves; review approved).
 - 2026-07-06: Task 5 complete (commit db2e8aa0; CSV ingest no longer stamps; latent test bug fixed; review approved).
 - 2026-07-06: Task 6 complete (commit bff67129; resolver-based enrichment fallback, export scrub gone, DTO field removed). openapi.d.ts regen deferred to user (needs node_modules + live branch backend).
+- 2026-07-06: Task 7 complete (3 commits; consolidated pass green: 1745 unit tests, ruff, mypy). Whitelist formally extended with factor_service FK query + resolver docstring.
