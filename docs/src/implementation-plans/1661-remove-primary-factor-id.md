@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1661
-last_updated: 2026-07-05
+last_updated: 2026-07-06
 title: "Remove primary_factor_id from DataEntry.data"
 summary: "Stop persisting the resolved factor id in the entry JSON; resolve factors on demand through a per-request/per-slice FactorResolver, then flip factor CSV reupload to replace-semantics so stale factor rows are deleted instead of flagged."
 ---

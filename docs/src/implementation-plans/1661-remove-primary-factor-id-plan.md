@@ -1,7 +1,7 @@
 ---
 status: in-progress
 issue: 1661
-last_updated: 2026-07-05
+last_updated: 2026-07-06
 title: "Remove primary_factor_id from DataEntry.data — implementation plan"
 summary: "Task-by-task execution plan for the approved spec 1661-remove-primary-factor-id.md: bottom-up (repo → services → workflows → routes), checkbox-tracked, resumable across sessions."
 ---
@@ -906,3 +906,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 7 complete (3 commits; consolidated pass green: 1745 unit tests, ruff, mypy). Whitelist formally extended with factor_service FK query + resolver docstring.
 - 2026-07-06: Task 8 complete (4 commits; integration suite green; found+fixed silent-emission-wipe regression on purchase PATCH blank/null code). Phase 1 code complete pending final review + user openapi regen.
 - 2026-07-06: Final whole-branch review (fable): "ready with fixes". Fix wave landed (21a55143 ambiguity-tolerant list fallback + gate; 768ee598 lifecycle assertion tightening + purchase comment). Spec aligned with shipped shape, status→in-progress; plan Task 6 frontend steps marked DEFERRED-USER-ACTION; PR-notes section added.
+- 2026-07-06: Final verification pass: all fix-wave commits close cleanly; READY TO MERGE pending user openapi regen. Phase 1 execution complete (Tasks 1-8 + final review).
