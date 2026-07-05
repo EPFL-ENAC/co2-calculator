@@ -496,7 +496,7 @@ class ModuleHandlerService:
     ) -> tuple[dict, Optional[Factor]]: ...  # keeps clearing side-effects only
 ```
 
-- [ ] **Step 4.1: Update unit tests first**
+- [x] **Step 4.1: Update unit tests first**
 
 - Stamping asserts (`payload["primary_factor_id"] == …`) become return-value
   asserts (`factor.id == …`).
@@ -507,7 +507,7 @@ class ModuleHandlerService:
 - `populate_defaults`: drop the id-mismatch-guard case; defaults apply
   whenever a factor is passed.
 
-- [ ] **Step 4.2: Implement `module_handler_service.py`**
+- [x] **Step 4.2: Implement `module_handler_service.py`**
 
 1. Rename `resolve_primary_factor_id` → `resolve_factor`; delete
    `payload["primary_factor_id"] = factor_id` (`:71`) and return only the
@@ -531,7 +531,7 @@ class ModuleHandlerService:
    is returned unmodified except the kind-change clearing side-effects and
    `populate_defaults`.
 
-- [ ] **Step 4.3: Implement `carbon_report_module.py`**
+- [x] **Step 4.3: Implement `carbon_report_module.py`**
 
 1. `create` (`:51-53`): **delete the resolve call entirely** — nothing in
    the create flow consumes the factor (emission compute resolves on its
@@ -540,14 +540,14 @@ class ModuleHandlerService:
 2. `update` (`:179-186`): call `resolve_factor_if_changed` (renamed); it
    still clears subkind/override on kind change and repopulates defaults.
 
-- [ ] **Step 4.4: Tests green**
+- [x] **Step 4.4: Tests green**
 
 ```bash
 cd backend && uv run pytest tests/unit/services/test_module_handler_service.py \
   tests/unit/workflows/test_carbon_report_module_update.py -x -q
 ```
 
-- [ ] **Step 4.5: Lint + type-check + commit**
+- [x] **Step 4.5: Lint + type-check + commit**
 
 ```bash
 git commit -m "refactor(1661): create/update resolve factors without stamping payloads"
@@ -868,3 +868,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-05: Task 1 complete (FactorResolver + 16 tests, commits 99f1831a, 1c53a1f1; review approved after adding 2 ported test cases).
 - 2026-07-05: Task 2 complete (commit 3a2be338; review approved, 3 minors deferred to final review). Verification batching directive added to Global constraints.
 - 2026-07-05: Task 3 complete (commit 720fa314; recalc 500→267 lines, rematch machinery gone; review approved).
+- 2026-07-06: Task 4 complete (commit f807097e; ModuleHandlerService delegates to FactorResolver, create path no longer resolves; review approved).
