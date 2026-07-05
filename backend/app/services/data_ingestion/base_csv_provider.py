@@ -26,6 +26,7 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
+from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
@@ -127,9 +128,9 @@ def _guard_factors_required(
     """Fail-fast when an ingest needs factors but the map is empty.
 
     For modules whose handler declares ``require_factor_to_match=True``
-    (e.g. equipment), every row's emission record needs a matched
-    ``Factor`` to populate ``primary_factor_id``.  When the factors
-    table has nothing for this (module, year) tuple the row-level loop
+    (e.g. equipment), every row needs a matched ``Factor`` to compute
+    its emission.  When the factors table has nothing for this
+    (module, year) tuple the row-level loop
     would record one "no matching factor" error per row — a 50 000-row
     CSV produces 50 000 identical messages and the operator has to
     scroll past them to find out the real issue is that they forgot to
@@ -150,7 +151,7 @@ def _guard_factors_required(
     raise ValueError(
         f"No factors available for module={module_label} {year_str}. "
         "Upload factors for this module/year before ingesting data — "
-        "every row needs a matched Factor for primary_factor_id."
+        "every row needs a matched Factor to compute its emission."
     )
 
 
@@ -364,8 +365,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Year is required: factor lookups during row processing key on
         ``{type}:{year}:{kind}:{subkind}``, so a missing year would
-        silently miss every factor and import rows with
-        primary_factor_id=None.
+        silently miss every factor and import rows with no matched
+        factor.
         """
         if not self.year:
             raise ValueError(
@@ -1239,9 +1240,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
-            # This avoids 100k+ DB queries - factors already loaded in setup phase
-            primary_factor_id: int | None = None
+            # Resolve the matching Factor from the in-memory factors_map (NOT
+            # a DB query!) This avoids 100k+ DB queries - factors already
+            # loaded in setup phase. Feeds populate_defaults below and the
+            # require_factor_to_match guards.
+            matched_factor: Factor | None = None
             if "factors_map" in setup_result and handler.kind_field:
                 kind_value, subkind_value = self._extract_kind_subkind_values(
                     filtered_row, handlers
@@ -1277,7 +1280,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     )
                     factor = setup_result["factors_map"].get(key_kind)
                 if factor:
-                    primary_factor_id = factor.id
+                    matched_factor = factor
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -1325,13 +1328,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Validate payload with handler (primary_factor_id already
-            # set by ModuleHandlerService)
+            # Validate payload with handler
             payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
             payload["status"] = DataEntryStatusEnum.VALIDATED.value
-            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 with self._timed("validate"):
@@ -1357,13 +1358,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 return None, enrich_error, None, None
 
             with self._timed("populate"):
-                handler_service = ModuleHandlerService(self.data_session)
-                if primary_factor_id and "factor_id_to_factor" in setup_result:
-                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                    if factor is not None:
-                        data = await handler_service.populate_defaults(
-                            handler, data, factor
-                        )
+                if matched_factor is not None:
+                    handler_service = ModuleHandlerService(self.data_session)
+                    data = await handler_service.populate_defaults(
+                        handler, data, matched_factor
+                    )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so

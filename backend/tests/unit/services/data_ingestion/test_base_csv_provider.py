@@ -17,6 +17,7 @@ from app.services.data_ingestion.base_csv_provider import (
     _is_blank_data_row,
     _validate_file_path,
 )
+from app.services.module_handler_service import ModuleHandlerService
 
 # ======================================================================
 # File Path Validation Tests - Security Critical
@@ -216,9 +217,7 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
 
     # 3. Mock handlers and setup results so _process_row works for valid rows
     handler = MagicMock()
-    handler.validate_create.return_value = SimpleNamespace(
-        data={"head1": "val", "primary_factor_id": 1}
-    )
+    handler.validate_create.return_value = SimpleNamespace(data={"head1": "val"})
     handler.kind_field = "head1"
     handler.subkind_field = None
     handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
@@ -524,13 +523,16 @@ def _build_stats() -> StatsDict:
 
 @pytest.mark.asyncio
 async def test_process_row_success_with_unit_mapping(monkeypatch):
-    """Test _process_row builds data entry when mapping is present."""
+    """Test _process_row builds data entry when mapping is present, and
+    that a factors_map match still drives ``populate_defaults`` even
+    though the resolved Factor is no longer stamped onto the payload as
+    ``primary_factor_id``."""
     config = {"file_path": "tmp/test.csv", "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
     handler.validate_create.return_value = SimpleNamespace(
-        data={"amount": 10, "label": "x", "primary_factor_id": 77}
+        data={"amount": 10, "label": "x"}
     )
     handler.kind_field = "kind"
     handler.subkind_field = None
@@ -548,18 +550,21 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
 
     provider._extract_kind_subkind_values = extract_kind_subkind
 
-    # Setup factors_map with matching key
+    # Setup factors_map with matching key — production builds
+    # "{type}:{year}:{kind}:{subkind}" (see _process_row's key_full).
+    matching_factor = SimpleNamespace(id=77, values={"active_hours": 10})
     setup_result = {
         "handlers": [handler],
         "factors_map": {
-            f"{DataEntryTypeEnum.student.value}:x:": SimpleNamespace(
-                id=77, values={"active_hours": 10}
-            )
+            f"{DataEntryTypeEnum.student.value}:2025:x:": matching_factor
         },
         "expected_columns": {"unit_institutional_id", "amount", "label"},
     }
     row = {"unit_institutional_id": "U1", "amount": "10", "label": "x"}
     stats = _build_stats()
+
+    populate_defaults_mock = AsyncMock(side_effect=lambda handler, data, factor: data)
+    monkeypatch.setattr(ModuleHandlerService, "populate_defaults", populate_defaults_mock)
 
     (
         data_entry,
@@ -579,7 +584,10 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     assert result_factor is None  # No longer returns factor
     assert data_entry is not None
     assert data_entry.carbon_report_module_id == 123
-    assert data_entry.data.get("primary_factor_id") == 77
+    assert "primary_factor_id" not in data_entry.data
+    populate_defaults_mock.assert_awaited_once_with(
+        handler, data_entry.data, matching_factor
+    )
 
 
 @pytest.mark.asyncio
@@ -732,11 +740,6 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     handler.kind_field = "kind"
     handler.subkind_field = None
 
-    # Mock ModuleHandlerService directly in base_csv_provider module
-    mock_handler_service_instance = MagicMock()
-    mock_handler_service_instance.resolve_primary_factor_id = AsyncMock(
-        return_value={"primary_factor_id": None}
-    )
     setup_result = {
         "handlers": [handler],
         "factors_map": {},
@@ -796,7 +799,6 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
                 "origin_iata": "GVA",
                 "destination_iata": "ZRH",
                 "cabin_class": "first",
-                "primary_factor_id": None,
             }
         )
 
@@ -862,6 +864,11 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     assert len(captured_validation_payload) == 1
     assert "kg_co2eq" not in captured_validation_payload[0]
 
+    # 3b. Ingest no longer stamps primary_factor_id onto the payload —
+    # emission compute resolves the Factor dynamically at recalc time.
+    assert "primary_factor_id" not in captured_validation_payload[0]
+    assert "primary_factor_id" not in data_entry.data
+
     # 4. B-H1 — the override is also persisted under the reserved
     #    ``__kg_co2eq_override__`` carrier so the async recalc path
     #    (``upsert_by_data_entry`` → ``prepare_create``) still honors it
@@ -881,7 +888,6 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
         data={
             "origin_iata": "GVA",
             "destination_iata": "ZRH",
-            "primary_factor_id": None,
         }
     )
     handler.kind_field = "category"
@@ -902,7 +908,7 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
     row = {"origin_iata": "GVA", "destination_iata": "ZRH"}
     stats = _build_stats()
 
-    _data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+    data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
         row,
         row_idx=1,
         setup_result=setup_result,
@@ -913,6 +919,8 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
 
     assert error_msg is None
     assert kg_co2eq_override is None
+    assert data_entry is not None
+    assert "primary_factor_id" not in data_entry.data
 
 
 @pytest.mark.asyncio
@@ -931,7 +939,6 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
         data={
             "origin_iata": "GVA",
             "destination_iata": "ZRH",
-            "primary_factor_id": None,
         }
     )
     handler.kind_field = "category"
@@ -972,6 +979,7 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
     assert error_msg is None
     assert data_entry is not None
     assert kg_co2eq_override is None
+    assert "primary_factor_id" not in data_entry.data
 
     # The parse failure is visible at WARNING level, not debug.
     warnings = [

@@ -73,7 +73,7 @@ async def test_setup_handlers_and_factors_single_type(monkeypatch):
 async def test_setup_handlers_and_factors_raises_when_year_missing():
     """Regression: a CSV upload that arrives without ``year`` in the
     payload must fail loudly at setup time rather than silently importing
-    every row with primary_factor_id=None.
+    every row with no matched factor.
 
     The factor lookup keys on ``{type}:{year}:{kind}:{subkind}``, so a
     missing year produces a ``{type}:0:...`` key that never matches any
