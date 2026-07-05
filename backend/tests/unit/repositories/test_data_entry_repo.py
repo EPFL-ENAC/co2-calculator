@@ -1,6 +1,7 @@
 """Unit tests for DataEntryRepository."""
 
-from unittest.mock import MagicMock
+from typing import Optional
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -10,7 +11,7 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonRep
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
-from app.schemas.data_entry import DataEntryUpdate
+from app.schemas.data_entry import BaseModuleHandler, DataEntryUpdate
 
 # ======================================================================
 # CRUD Operation Tests
@@ -1182,6 +1183,120 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
         assert forbidden_key not in refreshed.data, (
             f"computed key {forbidden_key!r} leaked into DataEntry.data"
         )
+
+
+# ======================================================================
+# Enrichment fallback: FactorResolver replaces the stored-id dereference
+# (plan 1661) — the entry's classification is the source of truth, not a
+# legacy ``data["primary_factor_id"]`` value.
+# ======================================================================
+
+
+async def _make_equipment_entry(
+    db_session: AsyncSession, *, extra_data: Optional[dict] = None
+) -> DataEntry:
+    """Build an equipment entry with no emission rows, so
+    ``get_submodule_data`` always falls through to the resolver."""
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.equipment.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    data = {"name": "Laptop", "equipment_class": "laptop", "sub_class": "13-inch"}
+    if extra_data:
+        data.update(extra_data)
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data=data,
+        year=2025,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+    return entry
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_fallback_uses_factor_resolver(
+    db_session: AsyncSession,
+):
+    """An entry with a classification but no emission rows gets its
+    ``primary_factor`` populated from ``FactorResolver.resolve`` — not from
+    a stored id."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)
+
+    fake_factor = MagicMock()
+    fake_factor.values = {"active_power_w": 42.0, "standby_power_w": 3.0}
+    fake_factor.classification = {"class": "laptop", "sub_class": "13-inch"}
+
+    with patch(
+        "app.repositories.data_entry_repo.FactorResolver"
+    ) as mock_resolver_cls:
+        mock_resolver_cls.return_value.resolve = AsyncMock(return_value=fake_factor)
+
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=entry.carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+
+    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.scientific)
+    mock_resolver_cls.return_value.resolve.assert_awaited_once_with(
+        handler, entry.data, DataEntryTypeEnum.scientific, 2025
+    )
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 42.0
+    assert item.standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_factor(
+    db_session: AsyncSession,
+):
+    """A legacy ``data["primary_factor_id"]`` pointing at a deleted factor
+    must never be dereferenced — the resolver's result wins, and no 500 is
+    raised chasing the stale id."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(
+        db_session, extra_data={"primary_factor_id": 999999}
+    )
+
+    fake_factor = MagicMock()
+    fake_factor.values = {"active_power_w": 99.0, "standby_power_w": 9.0}
+    fake_factor.classification = {"class": "laptop", "sub_class": "13-inch"}
+
+    with patch(
+        "app.repositories.data_entry_repo.FactorResolver"
+    ) as mock_resolver_cls:
+        mock_resolver_cls.return_value.resolve = AsyncMock(return_value=fake_factor)
+
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=entry.carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 99.0
+    assert item.standby_power_w == 9.0
 
 
 # ======================================================================

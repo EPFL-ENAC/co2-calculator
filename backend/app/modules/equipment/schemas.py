@@ -95,7 +95,6 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     sub_class: Optional[str] = None
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
-    primary_factor_id: Optional[int] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
     active_power_w: Optional[int] = None
@@ -157,8 +156,8 @@ class EquipmentModuleHandler(BaseModuleHandler):
     # or the visible column won't match the ordering. equipment_class is shown
     # from DataEntry.data (the factor `class` lookup is a dead key); sub_class is
     # factor-preferred-then-data. Factor-only keys (active/standby_power_w) leave
-    # CSV rows with no matched factor (primary_factor_id NULL) with a NULL sort
-    # key — which is correct, since those rows display NULL for those fields too.
+    # rows with no matched emission-row factor id with a NULL sort key — which
+    # is correct, since those rows display NULL for those fields too.
     sub_class_expr = func.coalesce(
         Factor.classification["sub_class"].as_string(),
         DataEntry.data["sub_class"].as_string(),

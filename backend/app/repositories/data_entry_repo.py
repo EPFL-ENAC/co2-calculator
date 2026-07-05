@@ -29,6 +29,7 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     ModuleHandler,
 )
+from app.services.factor_resolver import FactorResolver
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
@@ -746,6 +747,9 @@ class DataEntryRepository:
         count = len(rows)
 
         items: list[BaseModel] = []
+        # One resolver for the whole page: it memoizes per (data_entry_type,
+        # year), so per-row calls in the fallback below are cheap.
+        resolver = FactorResolver(self.session)
 
         for row in rows:
             # Pre-bind conditionally-unpacked variables so static type checkers
@@ -783,16 +787,15 @@ class DataEntryRepository:
             handler = BaseModuleHandler.get_by_type(
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
-            # If primary_factor is None, try to fetch it
-            # from DataEntry.data["primary_factor_id"]
-            if primary_factor is None:
-                primary_factor_id = data_entry.data.get("primary_factor_id")
-                if primary_factor_id:
-                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
-                    factor_result = await self.session.execute(factor_stmt)
-                    primary_factor = factor_result.scalar_one_or_none()
-                    if primary_factor is not None:
-                        self._detach(primary_factor)
+            # No emission row carried a factor — derive it from the entry's
+            # classification (the entry never stores a factor id).
+            if primary_factor is None and data_entry.year is not None:
+                primary_factor = await resolver.resolve(
+                    handler,
+                    data_entry.data,
+                    DataEntryTypeEnum(data_entry.data_entry_type_id),
+                    data_entry.year,
+                )
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
