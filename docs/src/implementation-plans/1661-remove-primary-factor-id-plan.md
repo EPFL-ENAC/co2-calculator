@@ -742,14 +742,14 @@ git commit -m "chore(1661): dead-code sweep after primary_factor_id removal"
 
 ### Task 8: integration suite pass (Phase-1 gate)
 
-- [ ] **Step 8.1: Run the integration suite** (PostgreSQL-backed; check
+- [x] **Step 8.1: Run the integration suite** (PostgreSQL-backed; check
   `backend/Makefile` for the canonical target — the `*_pg.py` tests need it):
 
 ```bash
 cd backend && uv run pytest tests/integration -q
 ```
 
-- [ ] **Step 8.2: Fix fallout file-by-file.** Expected hot spots (all
+- [x] **Step 8.2: Fix fallout file-by-file.** Expected hot spots (all
   currently reference the stored id or the rematch path):
 
 - `tests/integration/services/data_ingestion/test_strategy_a_rematch_pg.py`
@@ -771,7 +771,7 @@ Rule: assertions about *which factor was used* belong on
 `DataEntryEmission.primary_factor_id`; assertions about *entry payloads*
 must expect the key to be absent.
 
-- [ ] **Step 8.3: Commit (possibly several small commits, one per test area)**
+- [x] **Step 8.3: Commit (possibly several small commits, one per test area)**
 
 ```bash
 git commit -m "test(1661): retarget factor assertions to emission rows"
@@ -877,3 +877,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 5 complete (commit db2e8aa0; CSV ingest no longer stamps; latent test bug fixed; review approved).
 - 2026-07-06: Task 6 complete (commit bff67129; resolver-based enrichment fallback, export scrub gone, DTO field removed). openapi.d.ts regen deferred to user (needs node_modules + live branch backend).
 - 2026-07-06: Task 7 complete (3 commits; consolidated pass green: 1745 unit tests, ruff, mypy). Whitelist formally extended with factor_service FK query + resolver docstring.
+- 2026-07-06: Task 8 complete (4 commits; integration suite green; found+fixed silent-emission-wipe regression on purchase PATCH blank/null code). Phase 1 code complete pending final review + user openapi regen.
