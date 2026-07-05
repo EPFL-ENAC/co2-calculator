@@ -54,9 +54,7 @@ async def test_update_partial_patch_retains_persisted_classification():
         return payload, factor
 
     handler_service = MagicMock()
-    handler_service.resolve_primary_factor_if_changed = AsyncMock(
-        side_effect=_echo_resolve
-    )
+    handler_service.resolve_factor_if_changed = AsyncMock(side_effect=_echo_resolve)
 
     emission_service = MagicMock()
     emission_service.upsert_by_data_entry = AsyncMock()

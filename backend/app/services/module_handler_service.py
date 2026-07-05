@@ -4,7 +4,7 @@ Owns all DB-dependent logic that was previously on BaseModuleHandler,
 breaking the circular dependency between schemas and services.
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -12,6 +12,7 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.taxonomy import TaxonomyNode
+from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
 
 if TYPE_CHECKING:
@@ -24,169 +25,43 @@ class ModuleHandlerService:
     """Orchestrates factor-dependent operations for module handlers."""
 
     def __init__(self, session: AsyncSession):
+        self.session = session
         self.factor_service = FactorService(session)
+        self.factor_resolver = FactorResolver(session)
 
-    async def resolve_primary_factor_id(
+    async def resolve_factor(
         self,
         handler: "ModuleHandler",
         payload: dict,
         data_entry_type_id: DataEntryTypeEnum,
         year: int,
         existing_data: Optional[dict] = None,
-    ) -> tuple[dict, Optional[Factor]]:
-        """Resolve and set primary_factor_id on the payload.
+    ) -> Optional[Factor]:
+        """Resolve the Factor matching the payload's classification fields.
 
-        Looks up the factor by classification using the handler's
-        kind_field and optional subkind_field.
+        Looks up the factor via ``FactorResolver`` using the handler's
+        kind_field / subkind_field (or kind_field_override) rules. The
+        payload itself is never mutated: existing_data is merged into a
+        copy so partial updates still resolve against the full persisted
+        classification.
 
         Args:
             handler: The module handler for this data entry type
-            payload: The data payload to enrich
+            payload: The data payload to resolve against
             data_entry_type_id: The data entry type enum
             year: Carbon-report year. Required — without it the factor lookup
                   spans all years and raises MultipleResultsFound when the same
                   classification exists in more than one year.
             existing_data: Existing data entry data for merging on updates
         """
-        if handler.kind_field is None:
-            return payload, None
-
         data = payload.copy()
         if existing_data:
             for key, value in existing_data.items():
                 if key not in data:
                     data[key] = value
 
-        if getattr(handler, "kind_field_override", None):
-            # Handlers with kind_field_override resolve through the
-            # override-key-first rule instead of the kind/subkind match.
-            factor_id = await self._resolve_with_kind_override(
-                handler, data, data_entry_type_id, year
-            )
-            factor = None
-        else:
-            factor_id, factor = await self._resolve_by_classification(
-                handler, data, data_entry_type_id, year
-            )
-        payload["primary_factor_id"] = factor_id
-        return payload, factor
-
-    async def _resolve_by_classification(
-        self,
-        handler: "ModuleHandler",
-        data: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        year: int,
-    ) -> tuple[Optional[int], Optional[Factor]]:
-        """Resolve a factor id by the classic kind/subkind classification."""
-        kind = data.get(handler.kind_field, "")
-        subkind = data.get(handler.subkind_field, "") if handler.subkind_field else None
-
-        factor = await self.factor_service.get_by_classification(
-            data_entry_type=data_entry_type_id,
-            kind=kind,
-            subkind=subkind if subkind else None,
-            year=year,
-        )
-        return factor.id if factor else None, factor
-
-    async def _resolve_with_kind_override(
-        self,
-        handler: "ModuleHandler",
-        data: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        year: int,
-    ) -> Optional[int]:
-        """Resolve a factor id using the override-key-first rule.
-
-        The kind_field_override value (e.g. purchase_additional_code) is the
-        primary lookup key: a factor carrying it always wins.  Without it
-        (or when it matches nothing), fall back to kind_field — but only
-        among factors that do NOT carry the override key, since those rows
-        are the implicit per-code averages.
-        """
-        override_field = handler.kind_field_override
-        if override_field is None or handler.kind_field is None:
-            raise ValueError("kind_field and kind_field_override must be set")
-
-        kind = data.get(handler.kind_field)
-        if not kind:
-            raise ValueError(
-                f"{handler.kind_field} is required to resolve a factor "
-                f"for {data_entry_type_id}"
-            )
-
-        code = data.get(override_field)
-        if code:
-            factor_id = await self._match_by_override(
-                handler, kind, code, data_entry_type_id, year
-            )
-            if factor_id is not None:
-                return factor_id
-
-        factors = await self.factor_service.get_factors(
-            data_entry_type=data_entry_type_id,
-            year=year,
-            **{handler.kind_field: kind},
-        )
-        if not factors:
-            return None
-        if len(factors) == 1:
-            # A single row for this kind is authoritative even when it
-            # carries an override code (the common case in factor data).
-            return factors[0].id
-        # Several rows share the kind: only the override-code-less row
-        # (the implicit per-kind average) may stand in for all of them.
-        averages = [
-            f for f in factors if not (f.classification or {}).get(override_field)
-        ]
-        if len(averages) != 1:
-            raise ValueError(
-                f"Ambiguous factor data: {len(factors)} factors match "
-                f"{handler.kind_field}={kind!r} with {len(averages)} average "
-                f"rows (need exactly 1) for {data_entry_type_id} in {year}"
-            )
-        return averages[0].id
-
-    async def _match_by_override(
-        self,
-        handler: "ModuleHandler",
-        kind: str,
-        code: str,
-        data_entry_type_id: DataEntryTypeEnum,
-        year: int,
-    ) -> Optional[int]:
-        """Match a factor by the override key alone.
-
-        A single match wins regardless of kind (the override key is the
-        discrete, authoritative classification).  When several factors share
-        the override value, the entry's kind disambiguates; if it can't,
-        the factor data is ambiguous and we never pick silently.
-        """
-        override_field = handler.kind_field_override
-        if override_field is None or handler.kind_field is None:
-            raise ValueError("kind_field and kind_field_override must be set")
-        classification: dict[str, Any] = {override_field: code}
-        factors = await self.factor_service.get_factors(
-            data_entry_type=data_entry_type_id,
-            year=year,
-            **classification,
-        )
-        if not factors:
-            return None
-        if len(factors) == 1:
-            return factors[0].id
-        same_kind = [
-            f
-            for f in factors
-            if (f.classification or {}).get(handler.kind_field) == kind
-        ]
-        if len(same_kind) == 1:
-            return same_kind[0].id
-        raise ValueError(
-            f"Ambiguous factor data: {len(factors)} factors match "
-            f"{override_field}={code!r} and {handler.kind_field}={kind!r} "
-            f"cannot disambiguate for {data_entry_type_id} in {year}"
+        return await self.factor_resolver.resolve(
+            handler, data, data_entry_type_id, year
         )
 
     async def populate_defaults(
@@ -195,25 +70,23 @@ class ModuleHandlerService:
         data: dict,
         factor: Factor,
     ) -> dict:
-        primary_factor_id = data.get("primary_factor_id")
-        if primary_factor_id == factor.id:
-            if (
-                factor
-                and hasattr(handler, "factor_value_fields")
-                and handler.factor_value_fields
-            ):
-                for field_name in handler.factor_value_fields:
-                    if field_name not in data or data[field_name] in (None, "", 0):
-                        default_value = factor.values.get(field_name)
-                        if default_value is not None:
-                            data[field_name] = default_value
-                            logger.debug(
-                                f"{field_name}={default_value} from factor populated"
-                            )
+        if (
+            factor
+            and hasattr(handler, "factor_value_fields")
+            and handler.factor_value_fields
+        ):
+            for field_name in handler.factor_value_fields:
+                if field_name not in data or data[field_name] in (None, "", 0):
+                    default_value = factor.values.get(field_name)
+                    if default_value is not None:
+                        data[field_name] = default_value
+                        logger.debug(
+                            f"{field_name}={default_value} from factor populated"
+                        )
 
         return data
 
-    async def resolve_primary_factor_if_changed(
+    async def resolve_factor_if_changed(
         self,
         handler: "ModuleHandler",
         update_payload: dict,
@@ -222,7 +95,7 @@ class ModuleHandlerService:
         existing_data: dict | None,
         year: int,
     ) -> tuple[dict, Optional[Factor]]:
-        """Resolve primary_factor_id when classification fields change.
+        """Resolve the matching Factor when classification fields change.
 
         Args:
             handler: The module handler for this data entry type
@@ -230,15 +103,15 @@ class ModuleHandlerService:
             data_entry_type: The data entry type enum
             item_data: The incoming item data from the request
             existing_data: The existing data entry data
-            year: Carbon-report year passed through to resolve_primary_factor_id.
+            year: Carbon-report year passed through to resolve_factor.
         """
         handler_kind_field = handler.kind_field or ""
         handler_subkind_field = handler.subkind_field or ""
-        factor = None
         if existing_data is None:
-            return await self.resolve_primary_factor_id(
+            factor = await self.resolve_factor(
                 handler, update_payload, data_entry_type, existing_data=None, year=year
             )
+            return update_payload, factor
 
         kind_changed = (handler_kind_field in item_data) and (
             item_data[handler_kind_field] != existing_data.get(handler_kind_field)
@@ -254,15 +127,15 @@ class ModuleHandlerService:
         if kind_changed:
             if handler_subkind_field:
                 update_payload[handler_subkind_field] = None
-            update_payload["primary_factor_id"] = None
             # The stored override code belonged to the old kind; unless the
             # request supplies a new one, clear it so resolution follows the
             # new kind instead of the stale, more-specific code.
             if override_field and override_field not in item_data:
                 update_payload[override_field] = None
 
+        factor = None
         if kind_changed or subkind_changed or override_changed:
-            update_payload, factor = await self.resolve_primary_factor_id(
+            factor = await self.resolve_factor(
                 handler,
                 update_payload,
                 data_entry_type,

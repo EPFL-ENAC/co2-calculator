@@ -47,10 +47,6 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            create_payload, factor = await handler_service.resolve_primary_factor_id(
-                handler, create_payload, data_entry_type, year=year
-            )
 
             validated_data = handler.validate_create(create_payload)
 
@@ -176,7 +172,7 @@ class CarbonReportModuleWorkflow:
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
             handler_service = ModuleHandlerService(self.session)
-            update_payload, _ = await handler_service.resolve_primary_factor_if_changed(
+            update_payload, _ = await handler_service.resolve_factor_if_changed(
                 handler,
                 update_payload,
                 data_entry_type,
