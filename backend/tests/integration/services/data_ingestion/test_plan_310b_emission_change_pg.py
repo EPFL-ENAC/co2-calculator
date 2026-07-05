@@ -90,7 +90,6 @@ async def test_factor_reupload_recomputes_emission_in_db(pg_dsn):
             data_entry_type_id=DataEntryTypeEnum.it.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "equipment_class": "Laptop",
                 "sub_class": "Standard",
                 "active_usage_hours_per_week": 40.0,

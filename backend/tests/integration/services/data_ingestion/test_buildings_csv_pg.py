@@ -292,7 +292,6 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building.value,
@@ -302,7 +301,6 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
@@ -388,7 +386,6 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.building.value,
@@ -398,7 +395,6 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
@@ -432,8 +428,9 @@ async def test_building_room_without_ref_data_skips_leaf_emissions(pg_dsn):
 @pytest.mark.asyncio
 async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
     """Energy-combustion handler resolves emission via Strategy-A
-    JSON-link path: ``primary_factor_id`` lives on entry.data, the
-    formula is the canonical ``quantity × ef``.
+    JSON-link path: the factor is resolved on demand from entry.data's
+    classification fields (``FactorResolver``, #1661); the formula is
+    the canonical ``quantity × ef``.
 
     Pinned: name='Natural gas', unit='kWh', quantity=1000, ef=0.24
     →  kg_co2eq = 240.0.
@@ -454,7 +451,6 @@ async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
         s.add(factor)
         await s.commit()
         assert factor.id is not None
-        factor_id = factor.id
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.energy_combustion.value,
@@ -463,7 +459,6 @@ async def test_energy_combustion_with_factor_computes_quantity_times_ef(pg_dsn):
                 "name": "Natural gas",
                 "unit": "kWh",
                 "quantity": 1000.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)
