@@ -618,13 +618,13 @@ git commit -m "refactor(1661): CSV ingest stops persisting primary_factor_id"
 - Modify: `frontend/src/types/api/openapi.d.ts` (regenerated)
 - Test: `backend/tests/unit/repositories/test_data_entry_repo.py`
 
-- [ ] **Step 6.1: Update tests first** — enrichment fallback test: entry
+- [x] **Step 6.1: Update tests first** — enrichment fallback test: entry
   with classification but no emission rows gets `primary_factor` populated
   from the resolver (patch `FactorResolver.resolve`); entry with a legacy
   `data["primary_factor_id"]` pointing at a *deleted* factor no longer
   500s/dereferences — the resolver result wins.
 
-- [ ] **Step 6.2: Implement**
+- [x] **Step 6.2: Implement**
 
 1. `data_entry_repo.py:786-795` — replace the id-deref fallback with the
    resolver (one `FactorResolver` instantiated before the row loop; the
@@ -664,20 +664,20 @@ make -C frontend gen-api-types
    schema fetch — see the target's recipe; start it the way the Makefile
    expects).
 
-- [ ] **Step 6.3: Tests green**
+- [x] **Step 6.3: Tests green**
 
 ```bash
 cd backend && uv run pytest tests/unit/repositories -x -q
 ```
 
-- [ ] **Step 6.4: Frontend type-check** (husky runs vue-tsc on commit; run it
+- [x] **Step 6.4: Frontend type-check** (husky runs vue-tsc on commit; run it
   explicitly, `rtk tsc` green is NOT sufficient):
 
 ```bash
 make -C frontend type-check
 ```
 
-- [ ] **Step 6.5: Lint + commit**
+- [x] **Step 6.5: Lint + commit**
 
 ```bash
 git commit -m "refactor(1661): derive primary_factor in responses, drop stored-id fallback"
@@ -870,3 +870,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-05: Task 3 complete (commit 720fa314; recalc 500→267 lines, rematch machinery gone; review approved).
 - 2026-07-06: Task 4 complete (commit f807097e; ModuleHandlerService delegates to FactorResolver, create path no longer resolves; review approved).
 - 2026-07-06: Task 5 complete (commit db2e8aa0; CSV ingest no longer stamps; latent test bug fixed; review approved).
+- 2026-07-06: Task 6 complete (commit bff67129; resolver-based enrichment fallback, export scrub gone, DTO field removed). openapi.d.ts regen deferred to user (needs node_modules + live branch backend).
