@@ -65,8 +65,7 @@ async def test_setup_handlers_and_factors_single_type(monkeypatch):
     assert setup["handlers"] == [handler]
     assert setup["required_columns"] == {"required_col"}
     assert "factors_map" in setup
-    assert "factor_id_to_factor" in setup
-    assert setup["factor_id_to_factor"] == {42: mock_factor}
+    assert setup["factors_map"] == {"k": mock_factor}
 
 
 @pytest.mark.asyncio
@@ -330,118 +329,6 @@ async def test_resolve_from_category_missing_field(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_setup_returns_empty_factor_id_map_with_no_factors(monkeypatch):
-    """Test that factor_id_to_factor is empty dict when no factors loaded."""
-    provider = ModuleUnitSpecificCSVProvider(
-        {
-            "file_path": "tmp/test.csv",
-            "data_entry_type_id": DataEntryTypeEnum.member.value,
-            "year": 2025,
-        },
-        data_session=MagicMock(),
-    )
-
-    handler = MagicMock()
-    handler.create_dto.model_fields = {}
-    # Opt out of the empty-factors guard added in #1236 — this test
-    # asserts the factor_id_to_factor mapping shape, not the
-    # require-factor invariant (covered by test_guard_factors_required).
-    handler.require_factor_to_match = False
-
-    monkeypatch.setattr(
-        base_csv_provider_module.BaseModuleHandler,
-        "get_by_type",
-        MagicMock(return_value=handler),
-    )
-    monkeypatch.setattr(
-        base_csv_provider_module,
-        "load_factors_map",
-        AsyncMock(return_value={}),
-    )
-
-    setup = await provider._setup_handlers_and_factors()
-
-    assert "factor_id_to_factor" in setup
-    assert setup["factor_id_to_factor"] == {}
-
-
-@pytest.mark.asyncio
-async def test_setup_returns_multiple_factors_in_id_map(monkeypatch):
-    """Test factor_id_to_factor correctly maps multiple factors."""
-    provider = ModuleUnitSpecificCSVProvider(
-        {
-            "file_path": "tmp/test.csv",
-            "data_entry_type_id": DataEntryTypeEnum.member.value,
-            "year": 2025,
-        },
-        data_session=MagicMock(),
-    )
-
-    factor1 = MagicMock()
-    factor1.id = 1
-    factor2 = MagicMock()
-    factor2.id = 2
-    factor3 = MagicMock()
-    factor3.id = 3
-
-    handler = MagicMock()
-    handler.create_dto.model_fields = {}
-
-    monkeypatch.setattr(
-        base_csv_provider_module.BaseModuleHandler,
-        "get_by_type",
-        MagicMock(return_value=handler),
-    )
-    monkeypatch.setattr(
-        base_csv_provider_module,
-        "load_factors_map",
-        AsyncMock(return_value={"a": factor1, "b": factor2, "c": factor3}),
-    )
-
-    setup = await provider._setup_handlers_and_factors()
-
-    assert setup["factor_id_to_factor"] == {1: factor1, 2: factor2, 3: factor3}
-
-
-@pytest.mark.asyncio
-async def test_setup_skips_factors_without_id(monkeypatch):
-    """Test that factors lacking an id attribute are skipped gracefully."""
-    provider = ModuleUnitSpecificCSVProvider(
-        {
-            "file_path": "tmp/test.csv",
-            "data_entry_type_id": DataEntryTypeEnum.member.value,
-            "year": 2025,
-        },
-        data_session=MagicMock(),
-    )
-
-    factor_with_id = MagicMock()
-    factor_with_id.id = 10
-    factor_without_id = MagicMock()
-    factor_without_id.id = None  # type: ignore[assignment]
-
-    handler = MagicMock()
-    handler.create_dto.model_fields = {}
-
-    monkeypatch.setattr(
-        base_csv_provider_module.BaseModuleHandler,
-        "get_by_type",
-        MagicMock(return_value=handler),
-    )
-    monkeypatch.setattr(
-        base_csv_provider_module,
-        "load_factors_map",
-        AsyncMock(
-            return_value={"with_id": factor_with_id, "without_id": factor_without_id}
-        ),
-    )
-
-    setup = await provider._setup_handlers_and_factors()
-
-    assert setup["factor_id_to_factor"] == {10: factor_with_id}
-
-
-@pytest.mark.asyncio
 async def test_resolve_handler_with_configured_type_provided():
     """Test that configured data_entry_type_id takes priority over category field."""
     provider = ModuleUnitSpecificCSVProvider(
@@ -462,7 +349,6 @@ async def test_resolve_handler_with_configured_type_provided():
     setup_result = {
         "handlers": [handler],
         "factors_map": {},
-        "factor_id_to_factor": {},
         "required_columns": set(),
     }
     stats = _build_stats()
@@ -504,7 +390,6 @@ async def test_resolve_handler_from_category_field():
     setup_result = {
         "handlers": [handler],
         "factors_map": {"10:test": MagicMock()},
-        "factor_id_to_factor": {},
         "required_columns": {"kind"},
     }
     stats = _build_stats()
@@ -527,8 +412,8 @@ async def test_resolve_handler_from_category_field():
 
 
 @pytest.mark.asyncio
-async def test_all_data_entry_types_return_factor_id_to_factor(monkeypatch):
-    """Every valid DataEntryTypeEnum must return factor_id_to_factor in setup."""
+async def test_all_data_entry_types_return_factors_map(monkeypatch):
+    """Every valid DataEntryTypeEnum must return factors_map in setup."""
     for entry_type in list(DataEntryTypeEnum):
         provider = ModuleUnitSpecificCSVProvider(
             {
@@ -558,9 +443,7 @@ async def test_all_data_entry_types_return_factor_id_to_factor(monkeypatch):
 
         setup = await provider._setup_handlers_and_factors()
 
-        assert "factor_id_to_factor" in setup, (
-            f"missing factor_id_to_factor for {entry_type}"
-        )
-        assert isinstance(setup["factor_id_to_factor"], dict), (
-            f"factor_id_to_factor for {entry_type} should be a dict"
+        assert "factors_map" in setup, f"missing factors_map for {entry_type}"
+        assert isinstance(setup["factors_map"], dict), (
+            f"factors_map for {entry_type} should be a dict"
         )

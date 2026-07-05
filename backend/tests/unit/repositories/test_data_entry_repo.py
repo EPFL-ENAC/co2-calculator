@@ -1193,7 +1193,10 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
 
 
 async def _make_equipment_entry(
-    db_session: AsyncSession, *, extra_data: Optional[dict] = None
+    db_session: AsyncSession,
+    *,
+    extra_data: Optional[dict] = None,
+    year: Optional[int] = 2025,
 ) -> DataEntry:
     """Build an equipment entry with no emission rows, so
     ``get_submodule_data`` always falls through to the resolver."""
@@ -1218,7 +1221,7 @@ async def _make_equipment_entry(
         data_entry_type_id=DataEntryTypeEnum.scientific,
         status=DataEntryStatusEnum.PENDING,
         data=data,
-        year=2025,
+        year=year,
     )
     db_session.add(entry)
     await db_session.commit()
@@ -1297,6 +1300,38 @@ async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_f
     item = response.items[0]
     assert item.active_power_w == 99.0
     assert item.standby_power_w == 9.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_year_none_skips_factor_resolver_fallback(
+    db_session: AsyncSession,
+):
+    """An entry with no emission row and ``year=None`` must not hit the
+    resolver — ``FactorResolver.resolve`` requires a year to look up
+    factors, so the fallback is skipped and ``primary_factor`` stays
+    empty rather than resolving against the wrong (or no) year."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session, year=None)
+
+    with patch(
+        "app.repositories.data_entry_repo.FactorResolver"
+    ) as mock_resolver_cls:
+        mock_resolver_cls.return_value.resolve = AsyncMock()
+
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=entry.carbon_report_module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+
+    mock_resolver_cls.return_value.resolve.assert_not_awaited()
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w is None
+    assert item.standby_power_w is None
 
 
 # ======================================================================

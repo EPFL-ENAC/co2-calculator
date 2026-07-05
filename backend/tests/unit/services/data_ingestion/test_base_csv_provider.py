@@ -226,7 +226,6 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
         return {
             "handlers": [handler],
             "factors_map": {},
-            "factor_id_to_factor": {},
             "expected_columns": {"head1", "head2", "head3"},
             "required_columns": {"head1"},
         }
@@ -564,7 +563,9 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     stats = _build_stats()
 
     populate_defaults_mock = AsyncMock(side_effect=lambda handler, data, factor: data)
-    monkeypatch.setattr(ModuleHandlerService, "populate_defaults", populate_defaults_mock)
+    monkeypatch.setattr(
+        ModuleHandlerService, "populate_defaults", populate_defaults_mock
+    )
 
     (
         data_entry,
