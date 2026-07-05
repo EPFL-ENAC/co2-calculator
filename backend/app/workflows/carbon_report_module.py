@@ -37,7 +37,6 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
         try:
             create_payload = {

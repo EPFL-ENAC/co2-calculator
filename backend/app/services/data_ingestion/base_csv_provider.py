@@ -422,17 +422,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         expected_columns = _get_expected_columns_from_handlers(handlers)
 
-        factor_id_to_factor: Dict[int, Any] = {}
-        for factor in factors_map.values():
-            factor_id = getattr(factor, "id", None)
-            if factor_id is not None:
-                factor_id_to_factor[factor_id] = factor
-
         logger.info(
             f"Setup complete for {self.entity_type.name}: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
-            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}, "
             f"required_columns={len(required_columns)}"
         )
@@ -440,7 +433,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return {
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }
@@ -1126,7 +1118,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         entity_setup = await self._setup_handlers_and_factors()
         handlers = entity_setup["handlers"]
         factors_map = entity_setup["factors_map"]
-        factor_id_to_factor = entity_setup["factor_id_to_factor"]
         expected_columns = entity_setup["expected_columns"]
         required_columns = entity_setup["required_columns"]
 
@@ -1153,7 +1144,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "entity_type": self.entity_type,
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "processing_path": processing_path,
@@ -1242,8 +1232,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
             # Resolve the matching Factor from the in-memory factors_map (NOT
             # a DB query!) This avoids 100k+ DB queries - factors already
-            # loaded in setup phase. Feeds populate_defaults below and the
-            # require_factor_to_match guards.
+            # loaded in setup phase. Feeds populate_defaults below.
             matched_factor: Factor | None = None
             if "factors_map" in setup_result and handler.kind_field:
                 kind_value, subkind_value = self._extract_kind_subkind_values(
