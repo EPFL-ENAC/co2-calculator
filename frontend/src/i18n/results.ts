@@ -405,6 +405,10 @@ export default {
     en: 'Natural Gas',
     fr: 'Gaz naturel',
   },
+  'charts-propane-subcategory': {
+    en: 'Propane',
+    fr: 'Propane',
+  },
   'charts-heating-oil-subcategory': {
     en: 'Heating Oil',
     fr: 'Mazout',

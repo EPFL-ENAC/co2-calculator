@@ -299,6 +299,7 @@ _COMBUSTION_FUEL_MAP: dict[str, EmissionType] = {
     "pellets": EmissionType.buildings__combustion__pellets,
     "forest_chips": EmissionType.buildings__combustion__forest_chips,
     "wood_logs": EmissionType.buildings__combustion__wood_logs,
+    "propane": EmissionType.buildings__combustion__propane,
 }
 
 
