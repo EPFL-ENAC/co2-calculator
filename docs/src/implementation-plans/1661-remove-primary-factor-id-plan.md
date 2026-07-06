@@ -806,15 +806,15 @@ async def delete_stale_for_year(self, year: int) -> int:
     """
 ```
 
-- [ ] **Step 9.1: Failing integration test** — upload factors (job 1),
+- [x] **Step 9.1: Failing integration test** — upload factors (job 1),
   reupload with one row dropped and one reshaped (job 2), call
   `delete_stale_for_year`, assert: dropped + old-shape rows gone, surviving
   ids preserved, emissions referencing deleted rows gone (CASCADE).
-- [ ] **Step 9.2: Implement** — copy `list_stale_for_year`'s
+- [x] **Step 9.2: Implement** — copy `list_stale_for_year`'s
   `latest_per_det`/`threshold` construction, issue a single
   `delete(Factor).where(...)` with the same conditions (wrap in `col()`),
   return `result.rowcount`.
-- [ ] **Step 9.3: Green + commit** `feat(1661): add delete_stale_for_year`
+- [x] **Step 9.3: Green + commit** `feat(1661): add delete_stale_for_year`
 
 ### Task 10: wire deletion + recalc into factor ingest
 
@@ -910,3 +910,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Final whole-branch review (fable): "ready with fixes". Fix wave landed (21a55143 ambiguity-tolerant list fallback + gate; 768ee598 lifecycle assertion tightening + purchase comment). Spec aligned with shipped shape, status→in-progress; plan Task 6 frontend steps marked DEFERRED-USER-ACTION; PR-notes section added.
 - 2026-07-06: Final verification pass: all fix-wave commits close cleanly; READY TO MERGE pending user openapi regen. Phase 1 execution complete (Tasks 1-8 + final review).
 - 2026-07-06: Merge blocker cleared (openapi regen via snapshot, type-check green). Phase 2 execution started.
+- 2026-07-06: Task 9 complete (commit 253fed84; delete_stale_for_year + replace-semantics integration test).
