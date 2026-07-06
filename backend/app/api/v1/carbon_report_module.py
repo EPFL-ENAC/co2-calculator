@@ -1017,7 +1017,6 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
     )
     await EmbodiedEnergyWorkflow(db).post_update(
         carbon_report_module,
@@ -1025,7 +1024,6 @@ async def update(
         current_user=UserRead.model_validate(current_user),
         request_context=request_context,
         background_tasks=background_tasks,
-        year=year,
     )
     return response
 

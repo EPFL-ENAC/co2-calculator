@@ -130,7 +130,6 @@ class ModuleHandler(Protocol[T]):
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
-    factor_value_fields: Optional[list[str]] = None
 
     def to_response(
         self,
@@ -244,7 +243,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Used during CSV seeding to populate mandatory fields with factor
     # defaults (e.g. ["active_usage_hours_per_week",
     # "standby_usage_hours_per_week"] for equipment).
-    factor_value_fields: Optional[list[str]] = None
 
     # -- Registration --
     # The DataEntryTypeEnum this handler serves. For handlers that cover

@@ -68,12 +68,12 @@ recalc.
   `test_data_entry_repo.py` (fallback deleted).
 - [x] 4. Focused verification (changed test files + `tests/unit/repositories`),
   ruff/mypy on touched files; PR stacked on #1719.
-- [ ] 5. Update path stops resolving (user-approved): replace
+- [x] 5. Update path stops resolving (user-approved): replace
   `resolve_factor_if_changed` with a resolver-free
   `clear_dependent_fields_on_kind_change` (subkind + override-code cleared
   on kind change, nothing else); drop the update-path `populate_defaults`
   call (near no-op today: fills only still-empty fields).
-- [ ] 6. Derived hour defaults (user-approved): equipment formula falls
+- [x] 6. Derived hour defaults (user-approved): equipment formula falls
   back to `factor.values` for missing usage hours (enable the sketch at
   equipment/schemas.py:218-221); stop seeding at create/CSV; delete
   `populate_defaults` + `factor_value_fields`. Form pre-fill keeps coming
@@ -84,3 +84,4 @@ recalc.
 
 - 2026-07-06: plan written; branch `feat/1661-sql-factor-resolution`.
 - 2026-07-06: steps 1-4 done (scalar-subquery design; 261 repo unit tests + PG test green).
+- 2026-07-06: steps 5-6 done — update PATCH does zero factor resolution (pure kind-change clearing); populate_defaults/factor_value_fields deleted; equipment hours are live defaults (ctx wins, factor fallback in formula, coalesce in sort_map, effective values in to_response); CSV ingest row path no longer matches factors at all. Unit 1748 + ruff + mypy green; purchase/sql-resolution/matrix/buildings/sort integration files green.

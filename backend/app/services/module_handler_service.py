@@ -4,22 +4,16 @@ Owns all DB-dependent logic that was previously on BaseModuleHandler,
 breaking the circular dependency between schemas and services.
 """
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.factor import Factor
 from app.models.taxonomy import TaxonomyNode
-from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
 
 if TYPE_CHECKING:
     from app.schemas.data_entry import ModuleHandler
-
-logger = get_logger(__name__)
-
 
 class ModuleHandlerService:
     """Orchestrates factor-dependent operations for module handlers."""
@@ -27,129 +21,35 @@ class ModuleHandlerService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.factor_service = FactorService(session)
-        self.factor_resolver = FactorResolver(session)
 
-    async def resolve_factor(
-        self,
-        handler: "ModuleHandler",
-        payload: dict,
-        data_entry_type_id: DataEntryTypeEnum,
-        year: int,
-        existing_data: Optional[dict] = None,
-    ) -> Optional[Factor]:
-        """Resolve the Factor matching the payload's classification fields.
-
-        Looks up the factor via ``FactorResolver`` using the handler's
-        kind_field / subkind_field (or kind_field_override) rules. The
-        payload itself is never mutated: existing_data is merged into a
-        copy so partial updates still resolve against the full persisted
-        classification.
-
-        Args:
-            handler: The module handler for this data entry type
-            payload: The data payload to resolve against
-            data_entry_type_id: The data entry type enum
-            year: Carbon-report year. Required — without it the factor lookup
-                  spans all years and raises MultipleResultsFound when the same
-                  classification exists in more than one year.
-            existing_data: Existing data entry data for merging on updates
-        """
-        data = payload.copy()
-        if existing_data:
-            for key, value in existing_data.items():
-                if key not in data:
-                    data[key] = value
-
-        return await self.factor_resolver.resolve(
-            handler, data, data_entry_type_id, year
-        )
-
-    async def populate_defaults(
-        self,
-        handler: "ModuleHandler",
-        data: dict,
-        factor: Factor,
-    ) -> dict:
-        if (
-            factor
-            and hasattr(handler, "factor_value_fields")
-            and handler.factor_value_fields
-        ):
-            for field_name in handler.factor_value_fields:
-                if field_name not in data or data[field_name] in (None, "", 0):
-                    default_value = factor.values.get(field_name)
-                    if default_value is not None:
-                        data[field_name] = default_value
-                        logger.debug(
-                            f"{field_name}={default_value} from factor populated"
-                        )
-
-        return data
-
-    async def resolve_factor_if_changed(
-        self,
+    @staticmethod
+    def clear_dependent_fields_on_kind_change(
         handler: "ModuleHandler",
         update_payload: dict,
-        data_entry_type: DataEntryTypeEnum,
         item_data: dict,
         existing_data: dict | None,
-        year: int,
-    ) -> tuple[dict, Optional[Factor]]:
-        """Resolve the matching Factor when classification fields change.
+    ) -> dict:
+        """Clear classification fields that depended on the old kind.
 
-        Args:
-            handler: The module handler for this data entry type
-            update_payload: The payload to update
-            data_entry_type: The data entry type enum
-            item_data: The incoming item data from the request
-            existing_data: The existing data entry data
-            year: Carbon-report year passed through to resolve_factor.
+        Pure payload normalization — no factor resolution happens on the
+        update path any more (emission compute resolves on its own; factor
+        defaults are derived at compute/display time). When the kind
+        changes, the stored subkind and override code belonged to the old
+        kind and are cleared unless the request supplies new ones.
         """
-        handler_kind_field = handler.kind_field or ""
-        handler_subkind_field = handler.subkind_field or ""
-        if existing_data is None:
-            factor = await self.resolve_factor(
-                handler, update_payload, data_entry_type, existing_data=None, year=year
-            )
-            return update_payload, factor
+        kind_field = handler.kind_field or ""
+        if existing_data is None or kind_field not in item_data:
+            return update_payload
+        if item_data[kind_field] == existing_data.get(kind_field):
+            return update_payload
 
-        kind_changed = (handler_kind_field in item_data) and (
-            item_data[handler_kind_field] != existing_data.get(handler_kind_field)
-        )
-        subkind_changed = (handler_subkind_field in item_data) and (
-            item_data[handler_subkind_field] != existing_data.get(handler_subkind_field)
-        )
+        subkind_field = handler.subkind_field or ""
+        if subkind_field and subkind_field not in item_data:
+            update_payload[subkind_field] = None
         override_field = getattr(handler, "kind_field_override", None) or ""
-        override_changed = (override_field in item_data) and (
-            item_data[override_field] != existing_data.get(override_field)
-        )
-
-        if kind_changed:
-            if handler_subkind_field:
-                update_payload[handler_subkind_field] = None
-            # The stored override code belonged to the old kind; unless the
-            # request supplies a new one, clear it so resolution follows the
-            # new kind instead of the stale, more-specific code.
-            if override_field and override_field not in item_data:
-                update_payload[override_field] = None
-
-        factor = None
-        if kind_changed or subkind_changed or override_changed:
-            factor = await self.resolve_factor(
-                handler,
-                update_payload,
-                data_entry_type,
-                existing_data=existing_data,
-                year=year,
-            )
-            # kind_changed or subkind_changed for some module handlers we need default
-            # it's done already in the base_csv_provider do the same here
-            if factor is not None:
-                update_payload = await self.populate_defaults(
-                    handler, update_payload, factor
-                )
-
-        return update_payload, factor
+        if override_field and override_field not in item_data:
+            update_payload[override_field] = None
+        return update_payload
 
     async def get_taxonomy(
         self,

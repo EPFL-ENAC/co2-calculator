@@ -26,7 +26,6 @@ from app.models.data_ingestion import (
     IngestionState,
     TargetType,
 )
-from app.models.factor import Factor
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
@@ -46,7 +45,6 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -799,11 +797,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         seg = self._seg
         row_t = seg.get("row", 0.0)
-        inner = ("resolve", "validate", "enrich", "populate")
+        inner = ("resolve", "validate", "enrich")
         per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
         logger.info(
             "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
-            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "[resolve=%.1f validate=%.1f enrich=%.1f row_other=%.1f] "
             "loop_overhead=%.1fs",
             rows,
             parse_elapsed,
@@ -812,7 +810,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             seg.get("resolve", 0.0),
             seg.get("validate", 0.0),
             seg.get("enrich", 0.0),
-            seg.get("populate", 0.0),
             row_t - sum(seg.get(k, 0.0) for k in inner),
             parse_elapsed - row_t,
         )
@@ -1230,47 +1227,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Resolve the matching Factor from the in-memory factors_map (NOT
-            # a DB query!) This avoids 100k+ DB queries - factors already
-            # loaded in setup phase. Feeds populate_defaults below.
-            matched_factor: Factor | None = None
-            if "factors_map" in setup_result and handler.kind_field:
-                kind_value, subkind_value = self._extract_kind_subkind_values(
-                    filtered_row, handlers
-                )
-                # Defense in depth: the setup-time guard in
-                # _load_handlers_and_factors raises before any row
-                # reaches this method,
-                # so reaching this branch with a falsy year would mean a
-                # future caller bypassed setup. Use the same `not self.year`
-                # check the setup-time guard uses so both layers reject the
-                # same set of values (None and 0); a stricter `is None` check
-                # would let `year=0` rebuild the `:0:` silent-miss key.
-                if not self.year:
-                    raise ValueError(
-                        "year must be set (and non-zero) before processing "
-                        "rows; setup-time guard was bypassed"
-                    )
-                year_value = self.year
-                # Build lookup key same way as load_factors_map does
-                key_full = (
-                    f"{data_entry_type.value}:"
-                    f"{year_value}:"
-                    f"{(kind_value or '').lower()}:"
-                    f"{(subkind_value or '').lower()}"
-                )
-                factor = setup_result["factors_map"].get(key_full)
-                # Fallback: try without subkind
-                if not factor and subkind_value:
-                    key_kind = (
-                        f"{data_entry_type.value}:"
-                        f"{year_value}:"
-                        f"{(kind_value or '').lower()}"
-                    )
-                    factor = setup_result["factors_map"].get(key_kind)
-                if factor:
-                    matched_factor = factor
-
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
 
@@ -1345,13 +1301,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
-
-            with self._timed("populate"):
-                if matched_factor is not None:
-                    handler_service = ModuleHandlerService(self.data_session)
-                    data = await handler_service.populate_defaults(
-                        handler, data, matched_factor
-                    )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so

@@ -47,16 +47,8 @@ async def test_update_partial_patch_retains_persisted_classification():
 
     data_entry_service.update = AsyncMock(side_effect=_capture_update)
 
-    # resolve echoes its payload back — the merge under test happens BEFORE this
-    # call, so an echo faithfully exposes what validation will receive.
-    factor = SimpleNamespace(id=1998, values={})
-
-    async def _echo_resolve(handler, payload, *args, **kwargs):
-        return payload, factor
-
-    handler_service = MagicMock()
-    handler_service.resolve_factor_if_changed = AsyncMock(side_effect=_echo_resolve)
-
+    # clear_dependent_fields_on_kind_change is a pure staticmethod — the
+    # real one runs; the merge under test happens before validation.
     emission_service = MagicMock()
     emission_service.upsert_by_data_entry = AsyncMock()
     module_service = MagicMock()
@@ -66,10 +58,6 @@ async def test_update_partial_patch_retains_persisted_classification():
         patch(
             "app.workflows.carbon_report_module.DataEntryService",
             return_value=data_entry_service,
-        ),
-        patch(
-            "app.workflows.carbon_report_module.ModuleHandlerService",
-            return_value=handler_service,
         ),
         patch(
             "app.workflows.carbon_report_module.DataEntryEmissionService",
@@ -88,7 +76,6 @@ async def test_update_partial_patch_retains_persisted_classification():
             current_user=SimpleNamespace(id=5, institutional_id="352707"),
             request_context={},
             background_tasks=MagicMock(),
-            year=2025,
         )
 
     persisted = captured["data"].data
@@ -123,14 +110,8 @@ async def test_update_blank_purchase_institutional_code_rejected():
     data_entry_service.get = AsyncMock(return_value=SimpleNamespace(data=existing_data))
     data_entry_service.update = AsyncMock()
 
-    # resolve echoes its payload back — validation (real, unmocked) is what
-    # must reject the blank code.
-    async def _echo_resolve(handler, payload, *args, **kwargs):
-        return payload, None
-
-    handler_service = MagicMock()
-    handler_service.resolve_factor_if_changed = AsyncMock(side_effect=_echo_resolve)
-
+    # clearing is a pure staticmethod (real); validation (real, unmocked)
+    # is what must reject the blank code.
     emission_service = MagicMock()
     emission_service.upsert_by_data_entry = AsyncMock()
     module_service = MagicMock()
@@ -140,10 +121,6 @@ async def test_update_blank_purchase_institutional_code_rejected():
         patch(
             "app.workflows.carbon_report_module.DataEntryService",
             return_value=data_entry_service,
-        ),
-        patch(
-            "app.workflows.carbon_report_module.ModuleHandlerService",
-            return_value=handler_service,
         ),
         patch(
             "app.workflows.carbon_report_module.DataEntryEmissionService",
@@ -163,7 +140,6 @@ async def test_update_blank_purchase_institutional_code_rejected():
                 current_user=SimpleNamespace(id=5, institutional_id="352707"),
                 request_context={},
                 background_tasks=MagicMock(),
-                year=2025,
             )
 
     assert exc_info.value.status_code == 400

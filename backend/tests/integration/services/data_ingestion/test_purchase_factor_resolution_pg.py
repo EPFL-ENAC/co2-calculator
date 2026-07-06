@@ -28,7 +28,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.schemas.data_entry import BaseModuleHandler
-from app.services.module_handler_service import ModuleHandlerService
+from app.services.factor_resolver import FactorResolver
 
 from .conftest import csv_fixture_path
 
@@ -79,8 +79,7 @@ async def _resolve(
     session: AsyncSession, det: DataEntryTypeEnum, payload: dict
 ) -> Factor | None:
     handler = BaseModuleHandler.get_by_type(det)
-    service = ModuleHandlerService(session)
-    return await service.resolve_factor(handler, payload, det, year=_YEAR)
+    return await FactorResolver(session).resolve(handler, payload, det, _YEAR)
 
 
 @pytest.mark.asyncio

@@ -27,7 +27,6 @@ from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSumma
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
-    ModuleHandler,
 )
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
@@ -500,7 +499,7 @@ class DataEntryRepository:
             conditions.append(or_(f_sub == d_sub, f_sub.is_(None)))
             ordering = [f_sub.isnot(None).desc()]
         return (
-            sa_select(f.id)
+            sa_select(col(f.id))
             .where(*conditions)
             .order_by(*ordering, col(f.id))
             .limit(1)

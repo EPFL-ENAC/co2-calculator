@@ -1,7 +1,7 @@
 """Unit tests for DataEntryRepository."""
 
 from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -13,7 +13,7 @@ from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
-from app.schemas.data_entry import BaseModuleHandler, DataEntryUpdate
+from app.schemas.data_entry import DataEntryUpdate
 
 # ======================================================================
 # CRUD Operation Tests
