@@ -36,18 +36,14 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/{carbon_report_id}/validated-totals")
-async def get_validated_totals(
-    carbon_report_id: int,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """
-    Get validated totals for a carbon report.
+async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dict:
+    """Compute validated totals for a carbon report.
 
     Aggregates emissions (kg → tonnes CO2eq) and FTE across all validated
     modules in the given carbon report. Both are keyed by module_type_id so
     headcount appears with total_fte while other modules show total_tonnes_co2eq.
+    Used by the workspace-home aggregate to merge the validated-only headline
+    total into the emission breakdown.
 
     Returns:
         {
@@ -56,8 +52,6 @@ async def get_validated_totals(
             "total_fte": 25.5
         }
     """
-    logger.info(f"GET validated totals: carbon_report_id={sanitize(carbon_report_id)}")
-
     report_type_row = await db.execute(
         select(CarbonProject.carbon_report_type)
         .join(
@@ -178,22 +172,18 @@ async def get_results_summary(
     )
 
 
-@router.get("/{carbon_report_id}/emission-breakdown")
-async def get_emission_breakdown(
+async def build_emission_breakdown(
+    db: AsyncSession,
     carbon_report_id: int,
-    exclude_modules: list[int] = Query(default_factory=list),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    exclude_modules: list[int] | None = None,
 ) -> dict:
-    """Return chart-ready emission breakdown for a carbon report.
+    """Compute the chart-ready emission breakdown for a carbon report.
 
-    Serves both ModuleCarbonFootprintChart (module_breakdown +
-    additional_breakdown) and CarbonFootPrintPerPersonChart
-    (per_person_breakdown).
+    Extracted from the ``/emission-breakdown`` route so the workspace-home
+    aggregate can reuse the exact same computation without a second HTTP round
+    trip. See ``get_emission_breakdown`` for the response shape.
     """
-    logger.info(
-        f"GET emission breakdown: carbon_report_id={sanitize(carbon_report_id)}"
-    )
+    exclude_modules = exclude_modules or []
 
     emission_rows = await DataEntryEmissionService(db).get_emission_breakdown(
         carbon_report_id=carbon_report_id,
@@ -256,6 +246,14 @@ async def get_emission_breakdown(
         exclude_module_type_ids=set(exclude_modules),
     )
 
+    # Per-module status map (module_type_id -> status). Already queried above for
+    # the validated flags; surfaced here so the workspace-home aggregate can drive
+    # the sidebar timeline without a second `list_modules` round trip.
+    breakdown["module_states"] = [
+        {"module_type_id": mid, "status": status}
+        for mid, status in module_statuses.items()
+    ]
+
     breakdown["embodied_energy_by_building"] = []
     breakdown["embodied_energy_by_category"] = []
 
@@ -283,6 +281,26 @@ async def get_emission_breakdown(
             if kg > 0
         ]
     return breakdown
+
+
+@router.get("/{carbon_report_id}/emission-breakdown")
+async def get_emission_breakdown(
+    carbon_report_id: int,
+    exclude_modules: list[int] = Query(default_factory=list),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return chart-ready emission breakdown for a carbon report.
+
+    Serves both ModuleCarbonFootprintChart (module_breakdown +
+    additional_breakdown) and CarbonFootPrintPerPersonChart
+    (per_person_breakdown).
+    """
+    logger.info(
+        f"GET emission breakdown: carbon_report_id={sanitize(carbon_report_id)}"
+    )
+
+    return await build_emission_breakdown(db, carbon_report_id, exclude_modules)
 
 
 @router.get("/{carbon_report_id}/it-breakdown")

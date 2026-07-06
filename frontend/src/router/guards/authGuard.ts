@@ -1,6 +1,6 @@
 import { useAuthStore } from 'src/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
-import { LOGIN_ROUTES } from '../routeNames';
+import { LOGIN_ROUTES, DEFAULT_ROUTE_NAME } from '../routeNames';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
@@ -10,10 +10,10 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   const auth = useAuthStore();
 
-  // Load user if needed
+  // Load user (+ units + configured years) if needed, in a single bootstrap call.
   if (!auth.hasChecked && !auth.loading) {
     try {
-      await auth.getUser();
+      await auth.bootstrap();
     } catch (e) {
       console.error('Failed to load user:', e);
       // No need to do anything else: the guard logic below will redirect if needed
@@ -28,7 +28,7 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   // Redirect authenticated users away from login
   if (LOGIN_ROUTES.includes(to.name as string) && auth.isAuthenticated) {
-    return { name: 'workspace-setup', ...redirectTo };
+    return { name: DEFAULT_ROUTE_NAME, ...redirectTo };
   }
 
   return true;

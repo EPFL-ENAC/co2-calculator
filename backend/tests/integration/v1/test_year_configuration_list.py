@@ -1,7 +1,7 @@
 """Integration tests for ``GET /api/v1/year-configuration/`` (issue #867 / U2).
 
-The list endpoint feeds the workspace year selector. Backoffice data managers
-see every row; everyone else only sees rows where ``is_started`` is true so
+The list endpoint feeds the workspace year selector. Every caller, including
+backoffice data managers, only sees rows where ``is_started`` is true so
 closed years stay hidden until backoffice opens them.
 """
 
@@ -174,20 +174,17 @@ def test_non_admin_only_sees_started_years(client, monkeypatch, db_with_two_year
     assert data[0]["is_started"] is True
 
 
-def test_admin_sees_all_years(client, monkeypatch, db_with_two_years):
-    """Backoffice data managers see every row regardless of is_started."""
+def test_admin_also_only_sees_started_years(client, monkeypatch, db_with_two_years):
+    """Backoffice data managers must NOT see the closed (is_started=False)
+    year either — the list endpoint always reflects globally-open years."""
     _, factory = db_with_two_years
     _wire(monkeypatch, factory, is_admin=True)
 
     r = client.get(URL)
     assert r.status_code == 200, r.text
     data = r.json()
-    # Sorted descending by year.
-    assert [row["year"] for row in data] == [2025, 2024]
-    assert {row["year"]: row["is_started"] for row in data} == {
-        2024: True,
-        2025: False,
-    }
+    assert [row["year"] for row in data] == [2024]
+    assert data[0]["is_started"] is True
 
 
 def test_response_excludes_heavy_config_blob(client, monkeypatch, db_with_two_years):

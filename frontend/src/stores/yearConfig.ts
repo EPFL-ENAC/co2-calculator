@@ -191,11 +191,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     availableYears.value[availableYears.value.length - 1] ?? thisYear,
   );
 
-  /**
-   * Set of years that are globally open (`is_started`). The list endpoint
-   * already filters these for regular users; admins receive every row, so we
-   * re-filter client-side to keep the meaning identical for both.
-   */
+  /** Set of years that are globally open (`is_started`) — the list endpoint only ever returns these. */
   const startedYears = computed(
     () =>
       new Set(
@@ -205,11 +201,36 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
 
   /** Fetch the list of year-configuration rows (global, not unit-scoped). */
   async function fetchConfiguredYears(): Promise<YearConfigurationListItem[]> {
-    const rows = (await api
-      .get('year-configuration/')
-      .json()) as YearConfigurationListItem[];
+    try {
+      const rows = (await api
+        .get('year-configuration/')
+        .json()) as YearConfigurationListItem[];
+      configuredYears.value = rows;
+      return rows;
+    } catch (error) {
+      // Match the other store loaders (getUnits, fetchCarbonReportsForUnit):
+      // the global http hook already toasts the user, so we degrade to an empty
+      // list (startedYears resolves to nothing) instead of rejecting into
+      // callers' Promise.all.
+      console.error('Error fetching configured years:', error);
+      configuredYears.value = [];
+      return [];
+    }
+  }
+
+  /**
+   * Apply an already-fetched year configuration (e.g. from the workspace-home
+   * aggregate). `null` mirrors a 404 — no config exists yet for the year, so
+   * callers render the "create year" empty-state.
+   */
+  function setConfig(response: YearConfigurationResponse | null) {
+    config.value = response;
+    notFound.value = response === null;
+  }
+
+  /** Apply an already-fetched list of configured years (bootstrap / session). */
+  function setConfiguredYears(rows: YearConfigurationListItem[]) {
     configuredYears.value = rows;
-    return rows;
   }
 
   // Methods
@@ -568,7 +589,9 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     getModuleUncertaintyTag,
     // Methods
     fetchConfig,
+    setConfig,
     fetchConfiguredYears,
+    setConfiguredYears,
     createConfig,
     updateConfig,
     openForUsers,

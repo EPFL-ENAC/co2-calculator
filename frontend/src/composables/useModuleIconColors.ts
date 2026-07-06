@@ -17,7 +17,10 @@ function lerpHex(a: string, b: string, t: number): string {
 
 // Maps submodule type identifiers to their specific chart category.
 // Only needed where a module has multiple submodules with different color scales.
-const SUBMODULE_TO_CATEGORY: Record<string, string> = {
+// Exported so callers needing the inverse (category → submodule, e.g. the
+// icon-axis on ModuleCarbonFootprintChart) derive it instead of hand-maintaining
+// a second map that can silently drift out of sync.
+export const SUBMODULE_TO_CATEGORY: Record<string, string> = {
   building: 'buildings_room',
   energy_combustion: 'buildings_energy_combustion',
 };

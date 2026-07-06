@@ -19,6 +19,7 @@ from app.api.v1 import (
     unit_results,
     units,
     users,
+    workspace_home,
     year_configuration,
 )
 
@@ -58,4 +59,7 @@ api_router.include_router(
     year_configuration.router,
     prefix="/year-configuration",
     tags=["year-configuration"],
+)
+api_router.include_router(
+    workspace_home.router, prefix="/workspace", tags=["workspace"]
 )

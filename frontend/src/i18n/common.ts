@@ -37,9 +37,9 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
-  'simulation-add': {
-    en: 'Add Simulation',
-    fr: 'Ajouter une Simulation',
+  'project-planner': {
+    en: 'Project Planner',
+    fr: 'Planificateur de projet',
   },
   'simulation-edit': {
     en: 'Edit Simulation',
@@ -230,6 +230,10 @@ export default {
   common_export_as_csv: {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
+  },
+  home_btn: {
+    en: 'Home',
+    fr: 'Accueil',
   },
   documentation_button_label: {
     en: 'Documentation',

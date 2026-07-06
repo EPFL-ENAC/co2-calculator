@@ -6,6 +6,8 @@ from typing import List, Optional
 from pydantic import BaseModel, EmailStr, computed_field
 
 from app.models.user import Role, UserBase, UserProvider
+from app.schemas.unit import UnitWithUserRole
+from app.schemas.year_configuration import YearConfigurationListItem
 
 
 class UserRead(UserBase):
@@ -38,6 +40,21 @@ class UserRead(UserBase):
     def permissions(self) -> dict:
         """Calculate permissions dynamically on every GET /v1/session call."""
         return self.calculate_permissions()
+
+
+class SessionRead(BaseModel):
+    """Bootstrap payload for ``GET /v1/session``.
+
+    Bundles everything the frontend needs at app-init in a single call: the
+    current user (unchanged ``UserRead`` shape), the units the user can access,
+    and the globally-configured years for the workspace year selector. This
+    collapses what used to be three separate calls (``/session`` + ``/users/units``
+    + ``/year-configuration/``) into one.
+    """
+
+    user: UserRead
+    units: List[UnitWithUserRole]
+    configured_years: List[YearConfigurationListItem]
 
 
 class UserCreate(BaseModel):

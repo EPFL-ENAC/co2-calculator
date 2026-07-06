@@ -1,5 +1,6 @@
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { Module } from 'src/constant/modules';
+import { resolveLanguage } from 'src/utils/language';
 
 export function moduleEnabledGuard() {
   return async (to) => {
@@ -27,7 +28,7 @@ export function moduleEnabledGuard() {
       // Module is disabled - redirect to unauthorized
       return {
         name: 'unauthorized',
-        params: { language: to.params.language || 'en' },
+        params: { language: resolveLanguage(to) },
       };
     }
 

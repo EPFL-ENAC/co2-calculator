@@ -10,11 +10,15 @@ const props = withDefaults(
   defineProps<{
     name: string;
     size?: 'sm' | 'md' | 'lg';
+    /** Disambiguates modules whose submodules use different color scales (e.g. buildings). */
+    submoduleType?: string;
   }>(),
-  { size: 'md' },
+  { size: 'md', submoduleType: undefined },
 );
 
-const colors = computed(() => getModuleIconColors(props.name));
+const colors = computed(() =>
+  getModuleIconColors(props.name, props.submoduleType),
+);
 </script>
 
 <template>

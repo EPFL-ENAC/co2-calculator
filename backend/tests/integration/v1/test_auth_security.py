@@ -674,6 +674,17 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
         AsyncMock(return_value=user),
     )
     monkeypatch.setattr(auth_module, "_log_auth_audit_event", AsyncMock())
+    # GET /session now bundles units + configured years; stub those sub-queries
+    # (they need the policy engine / DB) so this trust-boundary test stays
+    # focused on the auth flow, not workspace data.
+    monkeypatch.setattr(
+        auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
+    )
+    import app.api.v1.year_configuration as year_config_module
+
+    monkeypatch.setattr(
+        year_config_module, "list_configured_years", AsyncMock(return_value=[])
+    )
 
     async def _override():
         db = MagicMock()
@@ -694,8 +705,8 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
         r_me = client.get(f"{API_PREFIX}/session")
         assert r_me.status_code == 200, r_me.text
         body = r_me.json()
-        assert body["email"] == "e2e@example.org"
-        assert body["institutional_id"] == "E2E-INST"
+        assert body["user"]["email"] == "e2e@example.org"
+        assert body["user"]["institutional_id"] == "E2E-INST"
 
         # 3. POST /session — rotates both cookies.
         r_refresh = client.post(f"{API_PREFIX}/session")

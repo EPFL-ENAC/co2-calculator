@@ -480,6 +480,26 @@ async def create_audit_entry(
     session.add(audit_entry)
 
 
+async def list_configured_years(
+    db: AsyncSession, current_user: User
+) -> list[YearConfigurationListItem]:
+    """List opened year-configuration rows visible to ``current_user``.
+
+    Extracted from the ``GET /`` route so the enriched ``GET /session``
+    (bootstrap) can embed the workspace year selector's rows without a second
+    HTTP round trip. See ``list_year_configurations`` for the filtering rules.
+    """
+    stmt = (
+        select(YearConfiguration)
+        .where(col(YearConfiguration.provider) == current_user.provider)
+        .where(col(YearConfiguration.is_started).is_(True))
+        .order_by(col(YearConfiguration.year).desc())
+    )
+
+    rows = (await db.exec(stmt)).all()
+    return [YearConfigurationListItem.model_validate(r) for r in rows]
+
+
 @router.get(
     "/",
     response_model=list[YearConfigurationListItem],
@@ -489,28 +509,58 @@ async def list_year_configurations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List year configurations available to the caller.
+    """List opened year configurations available to the caller.
 
     Results are always scoped to ``current_user.provider`` — a TEST user
-    never sees ACCRED rows and vice versa. Backoffice data managers
-    additionally bypass the ``is_started`` filter (regular users only
-    see opened years). This is what drives the workspace year selector
-    — closed years stay hidden from regular users until backoffice
-    opens them.
+    never sees ACCRED rows and vice versa. Only ``is_started`` years are
+    returned, for every caller including backoffice data managers, since
+    this is what drives the workspace year selector — closed years stay
+    hidden until backoffice opens them.
 
     Sorted by year descending (latest first).
     """
-    is_admin = await is_permitted(current_user, "backoffice.configuration", "view")
+    return await list_configured_years(db, current_user)
 
+
+async def build_year_configuration_response(
+    db: AsyncSession, year: int, provider
+) -> YearConfigurationResponse | None:
+    """Build the enriched year-configuration response, or ``None`` if absent.
+
+    Extracted from the ``GET /{year}`` route so the workspace-home aggregate can
+    reuse the exact same enrichment (latest sync jobs, incomplete flags,
+    recalculation status) without a second HTTP round trip. Returns ``None`` when
+    no configuration row exists for ``(year, provider)`` — callers decide whether
+    that is a 404 (route) or a ``null`` field (aggregate).
+    """
     stmt = select(YearConfiguration).where(
-        col(YearConfiguration.provider) == current_user.provider
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == provider,
     )
-    if not is_admin:
-        stmt = stmt.where(col(YearConfiguration.is_started).is_(True))
-    stmt = stmt.order_by(col(YearConfiguration.year).desc())
+    result = (await db.exec(stmt)).first()
 
-    rows = (await db.exec(stmt)).all()
-    return [YearConfigurationListItem.model_validate(r) for r in rows]
+    if not result:
+        return None
+
+    repo = DataIngestionRepository(db)
+    latest_jobs = await repo.get_latest_jobs_by_year(year)
+    job_lookup = _build_job_lookup(latest_jobs)
+
+    enriched_config = copy.deepcopy(result.config)
+    _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
+
+    recalc_rows = await repo.get_recalculation_status_by_year(year)
+    recalculation_status = _build_recalculation_status(recalc_rows)
+
+    return YearConfigurationResponse(
+        year=result.year,
+        is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
+        config=enriched_config,
+        recalculation_status=recalculation_status,
+        updated_at=result.updated_at,
+    )
 
 
 @router.get(
@@ -541,37 +591,13 @@ async def get_year_configuration(
     Returns:
         Year configuration enriched with latest sync job per submodule.
     """
-    stmt = select(YearConfiguration).where(
-        col(YearConfiguration.year) == year,
-        col(YearConfiguration.provider) == current_user.provider,
-    )
-    result = (await db.exec(stmt)).first()
-
-    if not result:
+    response = await build_year_configuration_response(db, year, current_user.provider)
+    if response is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No configuration found for year {year}",
         )
-
-    repo = DataIngestionRepository(db)
-    latest_jobs = await repo.get_latest_jobs_by_year(year)
-    job_lookup = _build_job_lookup(latest_jobs)
-
-    enriched_config = copy.deepcopy(result.config)
-    _enrich_config_with_jobs(enriched_config, job_lookup)
-    _enrich_config_with_incomplete_flags(enriched_config)
-
-    recalc_rows = await repo.get_recalculation_status_by_year(year)
-    recalculation_status = _build_recalculation_status(recalc_rows)
-
-    return YearConfigurationResponse(
-        year=result.year,
-        is_started=result.is_started,
-        configuration_completed=result.configuration_completed,
-        config=enriched_config,
-        recalculation_status=recalculation_status,
-        updated_at=result.updated_at,
-    )
+    return response
 
 
 @router.post(
