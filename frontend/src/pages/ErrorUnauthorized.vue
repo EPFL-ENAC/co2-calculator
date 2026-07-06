@@ -40,10 +40,11 @@
           </div>
 
           <div>
-            <!-- A user with no unit is bounced back to /unauthorized by the
-                 landing guard, so "Home" would loop. Offer Logout instead. -->
+            <!-- A user with no unit or no open year is bounced back to
+                 /unauthorized by the landing guard, so "Home" would loop.
+                 Offer Logout instead. -->
             <q-btn
-              v-if="isNoUnit"
+              v-if="isDeadEndReason"
               color="accent"
               :label="t('logout')"
               :loading="authStore.loading"
@@ -131,8 +132,16 @@ const reason = computed(() =>
   typeof route.query.reason === 'string' ? route.query.reason : null,
 );
 
-/** Landed here because the account is not assigned to any unit. */
-const isNoUnit = computed(() => reason.value === 'no-unit');
+/**
+ * Landed here for a reason that loops right back to this same page: no unit
+ * assigned, or no globally-open year. Either way "Home" re-enters
+ * `redirectToDefaultRoute`, which finds the same missing precondition and
+ * bounces the user straight back here — so these need the Logout escape
+ * hatch instead of a "Home" button.
+ */
+const isDeadEndReason = computed(
+  () => reason.value === 'no-unit' || reason.value === 'no-open-year',
+);
 
 /** Localised message for a known redirect `reason` (e.g. `no-unit`), if any. */
 const reasonMessage = computed(() => {
@@ -154,9 +163,10 @@ const homeRoute = computed(() => {
 });
 
 /**
- * A no-unit user can't reach anything useful and "Home" loops back here, so the
- * only escape is a real logout: `authStore.logout` clears the server session
- * cookie (localStorage alone won't) and redirects to the login page.
+ * A no-unit or no-open-year user can't reach anything useful and "Home" loops
+ * back here, so the only escape is a real logout: `authStore.logout` clears
+ * the server session cookie (localStorage alone won't) and redirects to the
+ * login page.
  */
 async function onLogout() {
   await authStore.logout(router);

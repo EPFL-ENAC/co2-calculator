@@ -39,12 +39,9 @@ const currentYear = computed(
 // validated-only total rides inside the emission breakdown hydrated by the
 // workspace guard's single aggregate call — no fetch on mount.
 const totalTonnesCo2 = computed(() =>
-  nOrDash(
-    moduleStore.state.emissionBreakdown?.total_tonnes_validated_co2eq,
-    {
-      options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-    },
-  ),
+  nOrDash(moduleStore.state.emissionBreakdown?.total_tonnes_validated_co2eq, {
+    options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+  }),
 );
 
 /**

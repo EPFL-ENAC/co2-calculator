@@ -1010,6 +1010,15 @@ export const useModuleStore = defineStore('modules', () => {
     // or year change to bust the cache.
     invalidateEmissionBreakdown();
     await getEmissionBreakdown(carbonReportId, []);
+    // The plain /emission-breakdown route this refetches from doesn't carry
+    // `total_tonnes_validated_co2eq` (only the workspace-home aggregate merges
+    // it in) — refetch it here too so Home's headline figure doesn't regress
+    // to a dash after a post-save refresh.
+    await getValidatedTotals(carbonReportId);
+    if (state.emissionBreakdown && state.validatedTotals) {
+      state.emissionBreakdown.total_tonnes_validated_co2eq =
+        state.validatedTotals.total_tonnes_co2eq;
+    }
   }
 
   async function getEmissionBreakdown(

@@ -1,7 +1,7 @@
 """Unit tests for the workspace-home aggregate endpoint.
 
 Focus:
-- get-or-create: a missing carbon report is created (and committed) server-side.
+- a missing carbon report 404s instead of being silently created.
 - the emission breakdown is always returned, augmented with the validated-only
   ``total_tonnes_validated_co2eq`` (semantics delegated to build_validated_totals).
 """
@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
 
 import app.api.v1.workspace_home as wh_module
 
@@ -59,21 +60,22 @@ def _patch_common(monkeypatch, *, existing_report):
 
 
 @pytest.mark.asyncio
-async def test_get_or_create_report_when_missing(monkeypatch):
+async def test_missing_report_returns_404(monkeypatch):
     db = _db()
     report_service = _patch_common(monkeypatch, existing_report=None)
 
-    result = await wh_module.get_workspace_home(
-        unit_id=1, year=2025, db=db, current_user=MagicMock()
-    )
+    with pytest.raises(HTTPException) as exc_info:
+        await wh_module.get_workspace_home(
+            unit_id=1, year=2025, db=db, current_user=MagicMock()
+        )
 
-    report_service.create.assert_awaited_once()
-    db.commit.assert_awaited_once()
-    assert result.carbon_report_id == 42
+    assert exc_info.value.status_code == 404
+    report_service.create.assert_not_awaited()
+    db.commit.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_existing_report_is_not_recreated(monkeypatch):
+async def test_existing_report_is_used(monkeypatch):
     db = _db()
     report_service = _patch_common(monkeypatch, existing_report=_report(7))
 

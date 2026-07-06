@@ -1,6 +1,6 @@
 """Unit tests for carbon_report_module_stats API endpoints.
 
-Focus: get_validated_totals derives validated_only from the DB-stored
+Focus: build_validated_totals derives validated_only from the DB-stored
 CarbonProject.carbon_report_type rather than any client-supplied signal.
 """
 
@@ -18,10 +18,6 @@ def _db():
     return db
 
 
-def _user():
-    return MagicMock()
-
-
 def _mock_db_execute(db: MagicMock, report_type: CarbonReportType | None) -> None:
     """Wire db.execute to return the given report_type from scalar_one_or_none."""
     mock_result = MagicMock()
@@ -30,7 +26,7 @@ def _mock_db_execute(db: MagicMock, report_type: CarbonReportType | None) -> Non
 
 
 async def _call_validated_totals(db, report_type: CarbonReportType | None) -> dict:
-    """Helper: stub services, call get_validated_totals, return call-arg capture."""
+    """Helper: stub services, call build_validated_totals, return call-arg capture."""
     _mock_db_execute(db, report_type)
 
     emission_svc = MagicMock()
@@ -45,7 +41,7 @@ async def _call_validated_totals(db, report_type: CarbonReportType | None) -> di
     stats_module.DataEntryService = lambda _db: fte_svc
     stats_module.compute_validated_totals = lambda *a, **kw: {}
     try:
-        await stats_module.get_validated_totals(1, db, _user())
+        await stats_module.build_validated_totals(db, 1)
     finally:
         stats_module.DataEntryEmissionService = orig_emission
         stats_module.DataEntryService = orig_fte
@@ -54,11 +50,11 @@ async def _call_validated_totals(db, report_type: CarbonReportType | None) -> di
     return {"emission_svc": emission_svc, "fte_svc": fte_svc}
 
 
-# ── get_validated_totals: server-side type check ──────────────────────────────
+# ── build_validated_totals: server-side type check ─────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_get_validated_totals_calculator_uses_validated_only_true():
+async def test_build_validated_totals_calculator_uses_validated_only_true():
     """CALCULATOR report → validated_only=True (server derives from DB, not client)."""
     db = _db()
     svcs = await _call_validated_totals(db, CarbonReportType.CALCULATOR)
@@ -72,7 +68,7 @@ async def test_get_validated_totals_calculator_uses_validated_only_true():
 
 
 @pytest.mark.asyncio
-async def test_get_validated_totals_simulator_explore_uses_validated_only_false():
+async def test_build_validated_totals_simulator_explore_uses_validated_only_false():
     """SIMULATOR_EXPLORE report → validated_only=False."""
     db = _db()
     svcs = await _call_validated_totals(db, CarbonReportType.SIMULATOR_EXPLORE)
@@ -86,7 +82,7 @@ async def test_get_validated_totals_simulator_explore_uses_validated_only_false(
 
 
 @pytest.mark.asyncio
-async def test_get_validated_totals_simulator_plan_uses_validated_only_true():
+async def test_build_validated_totals_simulator_plan_uses_validated_only_true():
     """SIMULATOR_PLAN report → validated_only=True (only EXPLORE relaxes validation)."""
     db = _db()
     svcs = await _call_validated_totals(db, CarbonReportType.SIMULATOR_PLAN)
@@ -97,7 +93,7 @@ async def test_get_validated_totals_simulator_plan_uses_validated_only_true():
 
 
 @pytest.mark.asyncio
-async def test_get_validated_totals_unknown_report_id_uses_validated_only_true():
+async def test_build_validated_totals_unknown_report_id_uses_validated_only_true():
     """
     Unknown carbon_report_id (DB returns None) → validated_only=True (safe default).
     """

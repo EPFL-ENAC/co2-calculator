@@ -39,9 +39,18 @@ router = APIRouter()
 async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dict:
     """Compute validated totals for a carbon report.
 
-    Extracted from the ``/validated-totals`` route so the workspace-home
-    aggregate can reuse the exact same computation without a second HTTP round
-    trip. See ``get_validated_totals`` for the response shape.
+    Aggregates emissions (kg → tonnes CO2eq) and FTE across all validated
+    modules in the given carbon report. Both are keyed by module_type_id so
+    headcount appears with total_fte while other modules show total_tonnes_co2eq.
+    Used by the workspace-home aggregate to merge the validated-only headline
+    total into the emission breakdown.
+
+    Returns:
+        {
+            "modules": {1: 25.5, 2: 15.0, 4: 41.7, 7: 5.0},
+            "total_tonnes_co2eq": 61.7,
+            "total_fte": 25.5
+        }
     """
     report_type_row = await db.execute(
         select(CarbonProject.carbon_report_type)

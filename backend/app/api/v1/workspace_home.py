@@ -25,7 +25,7 @@ without tripping the global 403 → ``/unauthorized`` redirect.
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -39,7 +39,6 @@ from app.core.logging import get_logger
 from app.core.policy import require_unit_access
 from app.models.unit import Unit
 from app.models.user import User
-from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.year_configuration import YearConfigurationResponse
 from app.services.carbon_report_service import CarbonReportService
 
@@ -64,9 +63,9 @@ async def get_workspace_home(
 ) -> WorkspaceHomeResponse:
     """Resolve the full workspace + home dashboard payload in one call.
 
-    Gets (or creates) the carbon report for ``unit_id``/``year``, then bundles
-    the year configuration and the emission breakdown (with the validated-only
-    total merged in; the breakdown also carries the per-module states).
+    Gets the carbon report for ``unit_id``/``year``, then bundles the year
+    configuration and the emission breakdown (with the validated-only total
+    merged in; the breakdown also carries the per-module states).
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
@@ -74,10 +73,9 @@ async def get_workspace_home(
     report_service = CarbonReportService(db)
     report = await report_service.get_by_unit_and_year(unit_id, year)
     if report is None:
-        report = await report_service.create(
-            CarbonReportCreate(unit_id=unit_id, year=year)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Carbon report not found"
         )
-        await db.commit()
 
     year_config = await build_year_configuration_response(
         db, year, current_user.provider

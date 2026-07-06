@@ -15,6 +15,7 @@ import {
 } from 'src/constant/charts';
 import type { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
+import { SUBMODULE_TO_CATEGORY } from 'src/composables/useModuleIconColors';
 import { useColorblindStore } from 'src/stores/colorblind';
 import { useAuthStore } from 'src/stores/auth';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -132,11 +133,14 @@ const labelToKey = computed<Record<string, string>>(() => {
 });
 
 // Categories that share a module but need a distinct icon-box color scale
-// (buildings has two bars). Mirrors SUBMODULE_TO_CATEGORY in useModuleIconColors.
-const CATEGORY_TO_SUBMODULE: Record<string, string> = {
-  buildings_room: 'building',
-  buildings_energy_combustion: 'energy_combustion',
-};
+// (buildings has two bars). Derived from SUBMODULE_TO_CATEGORY (useModuleIconColors)
+// so the two maps can't drift out of sync.
+const CATEGORY_TO_SUBMODULE: Record<string, string> = Object.fromEntries(
+  Object.entries(SUBMODULE_TO_CATEGORY).map(([submodule, category]) => [
+    category,
+    submodule,
+  ]),
+);
 
 type IconAxisItem = {
   label: string;

@@ -9,10 +9,17 @@ import {
 import { currentLanguage } from 'src/utils/language';
 import { HOME_ROUTE_NAME } from '../routeNames';
 
-/** The set of globally-open (`is_started`) years. */
+/**
+ * The set of globally-open (`is_started`) years. Normally hydrated by the auth
+ * bootstrap (`GET /session`), which `authGuard` awaits before this resolver
+ * ever runs; refetch only in the rare case configured years aren't populated
+ * yet.
+ */
 async function fetchStartedYears(): Promise<Set<number>> {
   const yearConfigStore = useYearConfigStore();
-  await yearConfigStore.fetchConfiguredYears();
+  if (yearConfigStore.configuredYears.length === 0) {
+    await yearConfigStore.fetchConfiguredYears();
+  }
   return yearConfigStore.startedYears;
 }
 
@@ -38,7 +45,12 @@ export default async function redirectToDefaultRoute(
 ) {
   const workspaceStore = useWorkspaceStore();
 
-  await workspaceStore.getUnits();
+  // Units are normally hydrated by the auth bootstrap (`GET /session`), which
+  // `authGuard` awaits before this resolver ever runs; refetch only in the
+  // rare case the guard runs before they're available.
+  if (workspaceStore.units.length === 0) {
+    await workspaceStore.getUnits();
+  }
   const unit = workspaceStore.units[0];
   if (!unit) {
     const canAccessBackOfficeConfig = useAuthStore().hasUserAnyScopePermission(

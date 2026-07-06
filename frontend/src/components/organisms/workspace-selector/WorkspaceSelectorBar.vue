@@ -5,6 +5,7 @@ import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { HOME_ROUTE_NAME } from 'src/router/routeNames';
 import { pickDefaultYear } from 'src/router/guards/redirectToDefaultRoute';
+import { resolveNoOpenYearRoute } from 'src/utils/unauthorized';
 
 const workspaceStore = useWorkspaceStore();
 const yearConfigStore = useYearConfigStore();
@@ -66,6 +67,12 @@ async function handleUnitChange(unitId: number) {
   if (unitId === selectedUnit.value?.id) return;
   const unit = workspaceStore.units.find((u) => u.id === unitId);
   if (!unit) return;
+  // `pickDefaultYear` requires a non-empty set — if every globally-open year
+  // closed while this tab stayed open, there's no default year to switch to.
+  if (yearConfigStore.startedYears.size === 0) {
+    await router.push(resolveNoOpenYearRoute());
+    return;
+  }
   const year = pickDefaultYear(yearConfigStore.startedYears);
   await pushWorkspaceRoute({ unit: unitSlug(unit), year: String(year) });
 }

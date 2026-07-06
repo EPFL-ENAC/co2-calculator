@@ -305,13 +305,6 @@ export const useWorkspaceStore = defineStore(
       }
     }
 
-    function reset() {
-      selectedUnit.value = null;
-      selectedYear.value = null;
-      unitResults.value = null;
-      selectedParams.value = null;
-    }
-
     return {
       units,
       selectedUnit,
@@ -334,7 +327,6 @@ export const useWorkspaceStore = defineStore(
       setUnit,
       setYear,
       setSelectedParams,
-      reset,
       // CarbonReport logic
       carbonReportsLoading,
       carbonReportsError,

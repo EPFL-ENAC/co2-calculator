@@ -88,7 +88,11 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
     }
   }
   // then we can retrieve modules
-  if (!response && !carbonReportId) {
+  // Redirect when the unit itself is invalid, OR when it's valid but the
+  // aggregate call failed/returned no report — otherwise navigation would
+  // proceed into Home/Module/Results with the timeline, year-config, and
+  // module stores never hydrated.
+  if (!response || !carbonReportId) {
     return {
       name: DEFAULT_ROUTE_NAME,
       params: {
