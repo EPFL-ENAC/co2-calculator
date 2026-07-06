@@ -860,9 +860,9 @@ async def delete_stale_for_year(self, year: int) -> int:
 
 ### Task 12: close out
 
-- [ ] **Step 12.1:** Full backend suite + lint + type-check green (user runs
+- [x] **Step 12.1:** Full backend suite + lint + type-check green (user runs
   or CI).
-- [ ] **Step 12.2:** Update the spec (`1661-remove-primary-factor-id.md`) if
+- [x] **Step 12.2:** Update the spec (`1661-remove-primary-factor-id.md`) if
   anything shipped differently; set both files' `status:` frontmatter
   (`delivered` when merged).
 - [ ] **Step 12.3:** PRs target `dev` unless told otherwise; Phase 1 and
@@ -913,3 +913,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 9 complete (commit 253fed84; delete_stale_for_year + replace-semantics integration test).
 - 2026-07-06: Task 10 complete (inline; ingest-scoped delete threshold via explicit job id — generic is_current lookup blind mid-pipeline; endpoint e2e + originating-bug regression tests green).
 - 2026-07-06: Task 11 complete (commit 1900f73f, −944 lines): /factors/stale + list_stale_for_year + _latest_factor_job_per_det deleted; delete_stale_for_year collapsed to single ingest-scoped mode (SQL CASE gone); openapi regenerated, frontend type-check green.
+- 2026-07-06: Simplify pass (commit 281f97d3): resolver owns falsy-kind short-circuit (caller gates collapsed), factor_cache parallel plumbing removed, _FactorMaps invariant documented. Skipped: _pick_* merge (generic helper less readable), PATCH double-load threading (KISS), get_by_classification reuse flag (pre-existing code). Task 12: unit 1754 + ruff + mypy green; integration green modulo the documented pre-existing 2F+5E baseline. Spec Phase-2 section aligned with shipped shape.

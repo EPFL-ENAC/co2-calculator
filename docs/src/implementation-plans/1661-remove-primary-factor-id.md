@@ -97,19 +97,27 @@ dead weight ignored by all code paths.
 ## Design — Phase 2: replace-semantics factor ingest
 
 With no entry-side id references, stale factor rows lose their reason to
-exist:
+exist (as shipped):
 
-- After a successful factor upsert, delete rows in the covered
-  `(data_entry_type, year)` scope with `last_seen_job_id < current_job` —
-  the same predicate `list_stale_for_year` computes today
-  (`factor_repo.py:360`).
+- `FactorRepository.delete_stale_for_year(year, *, det_ids,
+  threshold_job_id)` deletes rows in the covered scope whose
+  `last_seen_job_id` is NULL or predates the threshold. The threshold is
+  passed explicitly by the ingest (its own job id) because mid-pipeline
+  neither the running job (`state` not yet FINISHED) nor the superseded one
+  (`is_current` already flipped) is visible to a job-state lookup.
+- The factor CSV provider calls it right after a successful upsert, in the
+  same transaction, before the 310C recalc fan-out dispatches; the deleted
+  count lands in the job's `meta.stats.factors_deleted`.
 - The emission FK is `ondelete="CASCADE"`: affected emission rows vanish and
-  the existing 310C stale-recalc pipeline rebuilds them; ingest enqueues that
-  recalc for the covered scope.
-- Remove `GET /v1/factors/stale`, `list_stale_for_year`, and the linked UI
-  warning: stale rows can no longer exist.
+  the chained recalc rebuilds them.
+- `GET /v1/factors/stale`, `list_stale_for_year`, and
+  `_latest_factor_job_per_det` are removed — stale rows can no longer
+  exist, and with them went the generic sweep mode and its per-det SQL CASE
+  threshold (no UI ever consumed the endpoint).
 - The 2-key/3-key duplicate scenario (building_rooms `energy_type` reshape)
-  becomes impossible; the `MultipleResultsFound` 500 class dies at the root.
+  is pinned impossible by a regression test that first reproduces the
+  `MultipleResultsFound` 500, then shows the sweep killing it
+  (`test_factor_replace_semantics_pg.py`).
 
 Phase 2 ships as its own PR on top of Phase 1.
 
