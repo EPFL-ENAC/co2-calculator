@@ -333,9 +333,7 @@ async def test_override_empty_kind_returns_none():
     factors = [_factor(20, OVERRIDE_DET, 2025, {_KIND: "FOOD"})]
     with _patch_factors(factors):
         resolver = FactorResolver(session=AsyncMock())
-        got = await resolver.resolve(
-            OVERRIDE_HANDLER, {_KIND: ""}, OVERRIDE_DET, 2025
-        )
+        got = await resolver.resolve(OVERRIDE_HANDLER, {_KIND: ""}, OVERRIDE_DET, 2025)
     assert got is None
 
 

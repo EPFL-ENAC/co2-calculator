@@ -199,9 +199,7 @@ async def test_stale_sweep_skipped_unless_full_success(rows_processed, rows_skip
     result = await provider._finalize_and_commit(
         batch=[],
         factor_service=MagicMock(),
-        stats=_sweep_stats(
-            rows_processed=rows_processed, rows_skipped=rows_skipped
-        ),
+        stats=_sweep_stats(rows_processed=rows_processed, rows_skipped=rows_skipped),
         setup_result={"processing_path": "processing/x", "filename": "x.csv"},
         factor_repo=mock_factor_repo,
     )

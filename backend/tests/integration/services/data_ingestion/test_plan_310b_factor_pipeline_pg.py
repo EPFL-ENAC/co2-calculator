@@ -228,4 +228,3 @@ async def test_upsert_factors_jsonb_key_order_resilience(pg_dsn):
         )
 
     await engine.dispose()
-

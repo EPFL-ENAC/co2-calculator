@@ -15,6 +15,7 @@ from app.services.factor_service import FactorService
 if TYPE_CHECKING:
     from app.schemas.data_entry import ModuleHandler
 
+
 class ModuleHandlerService:
     """Orchestrates factor-dependent operations for module handlers."""
 

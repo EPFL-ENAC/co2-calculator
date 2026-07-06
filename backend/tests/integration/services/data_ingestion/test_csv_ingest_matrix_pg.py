@@ -503,9 +503,7 @@ async def test_csv_ingest_standard_module(
         for entry in target_entries:
             entry_emissions = emissions_by_entry.get(entry.id, [])
             assert entry_emissions, f"entry id={entry.id} has no emission rows"
-            assert any(
-                em.primary_factor_id is not None for em in entry_emissions
-            ), (
+            assert any(em.primary_factor_id is not None for em in entry_emissions), (
                 f"entry id={entry.id} has no emission row with a resolved "
                 f"primary_factor_id despite factors_state=pre_loaded"
             )

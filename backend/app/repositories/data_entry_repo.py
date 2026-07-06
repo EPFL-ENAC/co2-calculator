@@ -430,9 +430,7 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(
-        self, statement, filter: Optional[str], filter_map: dict
-    ):
+    def _apply_name_filter(self, statement, filter: Optional[str], filter_map: dict):
         """
         Applies a filter to the given SQLAlchemy statement using the
         caller-prepared (possibly lateral-adapted) filter_map.
@@ -556,9 +554,7 @@ class DataEntryRepository:
             and not is_headcount_entry
             and handler.kind_field is not None
         ):
-            resolved_factor_id = self._resolved_factor_id(
-                handler, data_entry_type_id
-            )
+            resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---

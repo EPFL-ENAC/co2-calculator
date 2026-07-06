@@ -11,7 +11,6 @@ the formula no longer inspects energy_type. For non-heating fields,
 conversion_factor is always 1.0.
 """
 
-
 import pytest
 
 from app.models.data_entry_emission import EmissionType
