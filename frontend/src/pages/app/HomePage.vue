@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { MODULES_LIST } from 'src/constant/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import { useModuleStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { nOrDash } from 'src/utils/number';
 import { runtimeConfig } from 'src/config/runtime';
@@ -16,7 +16,6 @@ import ChartSkeleton from 'src/components/charts/ChartSkeleton.vue';
 const workspaceStore = useWorkspaceStore();
 const authStore = useAuthStore();
 const moduleStore = useModuleStore();
-const timelineStore = useTimelineStore();
 const yearConfigStore = useYearConfigStore();
 const { t, te, locale, getLocaleMessage } = useI18n();
 
@@ -36,22 +35,16 @@ const currentYear = computed(
   () => workspaceStore.selectedYear ?? new Date().getFullYear(),
 );
 
-const validatedTotals = computed(() => {
-  const carbonReportId = timelineStore.currentCarbonReportId;
-  if (
-    carbonReportId &&
-    carbonReportId !== moduleStore.validatedTotalsCarbonReportId
-  ) {
-    moduleStore.getValidatedTotals(carbonReportId);
-  }
-  return moduleStore.state.validatedTotals;
-});
-
-// The headline figure is shown in tonnes CO₂-eq with one decimal.
+// The headline figure is shown in tonnes CO₂-eq with one decimal. The
+// validated-only total rides inside the emission breakdown hydrated by the
+// workspace guard's single aggregate call — no fetch on mount.
 const totalTonnesCo2 = computed(() =>
-  nOrDash(validatedTotals.value?.total_tonnes_co2eq, {
-    options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
-  }),
+  nOrDash(
+    moduleStore.state.emissionBreakdown?.total_tonnes_validated_co2eq,
+    {
+      options: { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+    },
+  ),
 );
 
 /**
@@ -132,22 +125,6 @@ const calculatorUpdates = computed(() => {
       .filter((update) => hasText(update.date) || hasText(update.body))
   );
 });
-
-async function fetchEmissionBreakdown() {
-  const carbonReportId = workspaceStore.selectedCarbonReport?.id;
-  if (!carbonReportId) return;
-  await moduleStore.getEmissionBreakdown(carbonReportId, []);
-}
-
-onMounted(fetchEmissionBreakdown);
-
-watch(
-  () => workspaceStore.selectedCarbonReport?.id,
-  async () => {
-    moduleStore.invalidateEmissionBreakdown();
-    await fetchEmissionBreakdown();
-  },
-);
 </script>
 
 <template>

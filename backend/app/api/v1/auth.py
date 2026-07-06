@@ -53,6 +53,7 @@ from fastapi.responses import RedirectResponse
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_db
+from app.api.v1.year_configuration import list_configured_years
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import (
@@ -66,8 +67,10 @@ from app.core.security import (
 from app.models.audit import AuditChangeTypeEnum
 from app.models.user import UserProvider
 from app.providers.role_provider import RoleProviderNetworkError, get_role_provider
-from app.schemas.user import UserRead
+from app.schemas.unit import UnitWithUserRole
+from app.schemas.user import SessionRead, UserRead
 from app.services.audit_service import AuditDocumentService
+from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 from app.tasks.role_sync_tasks import trigger_role_sync_for_user
 from app.utils.request_context import extract_ip_address, extract_route_payload
@@ -551,18 +554,23 @@ if settings.DEBUG:
 # ---------------------------------------------------------------------------
 
 
-@session_router.get("", response_model=UserRead, response_model_exclude_none=True)
+@session_router.get("", response_model=SessionRead, response_model_exclude_none=True)
 async def get_session(
     auth_token: Optional[str] = Cookie(None),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Return the current session's user (whoami).
+    Return the current session bootstrap payload (whoami + workspace context).
 
     Requires a valid ``auth_token`` cookie. Resolves user by stable
     identity (institutional_id, provider) from JWT. Uses cached DB
     roles — does not sync from the role provider synchronously.
+
+    Beyond the user, the response bundles the units the caller can access and
+    the globally-configured years, so the frontend hydrates its whole auth/
+    workspace context in a single request instead of three.
     """
+
     if not auth_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -581,7 +589,18 @@ async def get_session(
                 detail="User email missing",
             )
 
-        return UserRead.model_validate(user)
+        # get_user_units returns list[dict]; validate into the schema type
+        # explicitly (the /users/units route relies on FastAPI's response_model
+        # coercion, which isn't in play when we build SessionRead ourselves).
+        unit_rows = await UnitService(db).get_user_units(user)
+        units = [UnitWithUserRole.model_validate(row) for row in unit_rows]
+        configured_years = await list_configured_years(db, user)
+
+        return SessionRead(
+            user=UserRead.model_validate(user),
+            units=units,
+            configured_years=configured_years,
+        )
 
     except HTTPException:
         raise

@@ -10,10 +10,10 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   const auth = useAuthStore();
 
-  // Load user if needed
+  // Load user (+ units + configured years) if needed, in a single bootstrap call.
   if (!auth.hasChecked && !auth.loading) {
     try {
-      await auth.getUser();
+      await auth.bootstrap();
     } catch (e) {
       console.error('Failed to load user:', e);
       // No need to do anything else: the guard logic below will redirect if needed

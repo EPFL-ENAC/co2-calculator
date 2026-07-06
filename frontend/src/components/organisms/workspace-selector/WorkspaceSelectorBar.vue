@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -25,19 +25,14 @@ const selectedUnitId = computed({
 });
 
 /**
- * Dropdown years = the selected unit's carbon reports intersected with the
- * globally-open years (`startedYears`), so years that have a report but aren't
- * started yet (visible to admins) are hidden. The currently selected year is
- * always re-added so the dropdown still reflects the URL even when it was
- * filtered out. Deduped via the Set and sorted newest-first.
+ * Dropdown years = the globally-open years (`startedYears`, hydrated from the
+ * session bootstrap). Selecting a year the unit has no report for is fine — the
+ * workspace-home endpoint get-or-creates the report server-side. The currently
+ * selected year is always re-added so the dropdown still reflects the URL even
+ * when it isn't (or no longer is) started. Deduped and sorted newest-first.
  */
 const yearOptions = computed<number[]>(() => {
-  const started = yearConfigStore.startedYears;
-  const years = new Set(
-    workspaceStore.carbonReports
-      .filter((report) => started.has(report.year))
-      .map((report) => report.year),
-  );
+  const years = new Set(yearConfigStore.startedYears);
   if (workspaceStore.selectedYear != null) {
     years.add(workspaceStore.selectedYear);
   }
@@ -63,11 +58,14 @@ function pushWorkspaceRoute(params: Record<string, string>) {
   });
 }
 
+// Both dropdowns are driven entirely by store state hydrated elsewhere: units
+// and started years come from the session bootstrap, and navigating (unit or
+// year change) re-runs the workspace guard's single aggregate call. No fetches
+// are needed here.
 async function handleUnitChange(unitId: number) {
   if (unitId === selectedUnit.value?.id) return;
   const unit = workspaceStore.units.find((u) => u.id === unitId);
   if (!unit) return;
-  await workspaceStore.fetchCarbonReportsForUnit(unitId);
   const year = pickDefaultYear(yearConfigStore.startedYears);
   await pushWorkspaceRoute({ unit: unitSlug(unit), year: String(year) });
 }
@@ -76,29 +74,6 @@ async function handleUnitChange(unitId: number) {
 // `›` separators are handled purely in CSS below.
 const affiliationSegments = computed(
   () => selectedUnit.value?.affiliations ?? [],
-);
-
-async function loadReports(unitId: number | undefined) {
-  if (unitId == null) return;
-  await workspaceStore.fetchCarbonReportsForUnit(unitId);
-}
-
-onMounted(async () => {
-  // Each loader handles its own failures internally (and the global http hook
-  // toasts the user), so none of these reject — just kick them off in parallel.
-  await Promise.all([
-    workspaceStore.units.length === 0
-      ? workspaceStore.getUnits()
-      : Promise.resolve(),
-    yearConfigStore.fetchConfiguredYears(),
-    loadReports(selectedUnit.value?.id),
-  ]);
-});
-
-// Keep the year dropdown options in sync when the unit changes via the URL.
-watch(
-  () => selectedUnit.value?.id,
-  (unitId) => void loadReports(unitId),
 );
 </script>
 

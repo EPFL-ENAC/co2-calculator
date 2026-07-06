@@ -30,7 +30,7 @@ const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
  * `modules` maps module_type_id to its display value
  * (FTE for headcount, tonnes CO₂eq for others).
  */
-interface ValidatedTotalsResponse {
+export interface ValidatedTotalsResponse {
   modules: Record<number, number>;
   total_tonnes_co2eq: number;
   total_fte: number;
@@ -69,12 +69,25 @@ export interface EmissionBreakdownResponse {
   headcount_validated: boolean;
   buildings_validated: boolean;
   total_tonnes_co2eq: number;
+  /**
+   * Validated-only total (headline figure), merged in by the workspace-home
+   * aggregate. Distinct from `total_tonnes_co2eq`, which covers all modules.
+   * Absent when the breakdown comes from the plain /emission-breakdown route.
+   */
+  total_tonnes_validated_co2eq?: number;
   total_fte: number;
   it_summary?: {
     total_tonnes_co2eq: number;
     percentage_of_total: number;
   };
   embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
+  /**
+   * Per-module status map, merged in by the workspace-home aggregate so the
+   * guard can hydrate the sidebar timeline without a separate module-states
+   * fetch. Absent on the plain /emission-breakdown route only when the report
+   * has no modules.
+   */
+  module_states?: { module_type_id: number; status: number }[];
 }
 
 export interface ItBreakdownEmission {
@@ -135,7 +148,7 @@ export interface EmissionBreakdownCategoryRow {
  * ``GET /v1/sync/active-pipelines``) is the single source of truth
  * for "is there an active pipeline for this module/year?".
  */
-interface CarbonReportModuleResponse {
+export interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
@@ -179,6 +192,24 @@ export const useTimelineStore = defineStore('timeline', () => {
    * Fetch module statuses from the API for a given carbon report.
    * This should be called when a carbon report is selected.
    */
+  /**
+   * Apply already-fetched module states (e.g. from the workspace-home
+   * aggregate) without hitting the API. Same effect as a successful
+   * `fetchModuleStates`, so callers that pre-loaded the data skip the round trip.
+   */
+  function setModuleStates(
+    carbonReportId: number,
+    response: CarbonReportModuleResponse[],
+  ) {
+    currentCarbonReportId.value = carbonReportId;
+    for (const mod of response) {
+      const moduleKey = getModuleFromTypeId(mod.module_type_id);
+      if (moduleKey) {
+        itemStates[moduleKey] = mod.status as ModuleState;
+      }
+    }
+  }
+
   async function fetchModuleStates(carbonReportId: number) {
     loading.value = true;
     error.value = null;
@@ -190,12 +221,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         .json()) as CarbonReportModuleResponse[];
 
       // Update itemStates from API response.
-      for (const mod of response) {
-        const moduleKey = getModuleFromTypeId(mod.module_type_id);
-        if (moduleKey) {
-          itemStates[moduleKey] = mod.status as ModuleState;
-        }
-      }
+      setModuleStates(carbonReportId, response);
     } catch (err: unknown) {
       if (err instanceof Error) {
         error.value = err.message ?? 'Failed to fetch module states';
@@ -266,6 +292,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     error,
     currentCarbonReportId,
     fetchModuleStates,
+    setModuleStates,
     setState,
     reset,
     currentState: currentCarbonReportModuleState,
@@ -957,6 +984,23 @@ export const useModuleStore = defineStore('modules', () => {
     emissionBreakdownCacheKey.value = null;
   }
 
+  /**
+   * Apply an already-fetched emission breakdown (e.g. from the workspace-home
+   * aggregate) and prime the cache key so a subsequent `getEmissionBreakdown`
+   * for the same report/exclude-set short-circuits instead of refetching.
+   */
+  function setEmissionBreakdown(
+    carbonReportId: number,
+    data: EmissionBreakdownResponse,
+    excludeModules: number[] = [],
+  ) {
+    state.emissionBreakdown = data;
+    emissionBreakdownCacheKey.value = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+    );
+  }
+
   async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
     const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (!carbonReportId) return;
@@ -1128,6 +1172,7 @@ export const useModuleStore = defineStore('modules', () => {
     invalidateValidatedTotals,
     getEmissionBreakdown,
     invalidateEmissionBreakdown,
+    setEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,
     getItBreakdown,
     prefetchAllModuleCounts,

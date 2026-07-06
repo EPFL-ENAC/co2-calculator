@@ -50,8 +50,25 @@ export interface CarbonReport {
   unit_id: number;
   year: number;
   reference_year?: number | null;
-  carbon_project_id: number;
+  // Optional: nothing in the frontend reads it, and the slim workspace-home
+  // payload no longer ships it (only full CarbonReport fetches do).
+  carbon_project_id?: number;
   stats?: CarbonReportStats | null;
+}
+
+/**
+ * Minimal aggregate payload from `GET /workspace/{unit}/{year}/home`. Collapses
+ * the workspace/stats dependency chain into one response; the workspace guard
+ * distributes each field into the relevant store. Loosely typed here to avoid
+ * coupling the workspace store to the modules/yearConfig store internals — the
+ * guard casts as it hydrates.
+ */
+export interface WorkspaceHomePayload {
+  carbon_report_id: number;
+  year_config: unknown | null;
+  // Includes `module_states` (per-module status), which the guard fans out to
+  // the timeline store.
+  emission_breakdown: Record<string, unknown>;
 }
 
 export const useWorkspaceStore = defineStore(
@@ -70,28 +87,9 @@ export const useWorkspaceStore = defineStore(
     const unitResultsErrors = ref<Error[]>([]);
 
     // --- CarbonReport logic ---
-    const carbonReports = ref<CarbonReport[]>([]); // backend carbon reports objects
     const carbonReportsLoading = ref(false);
     const carbonReportsError = ref<Error | null>(null);
     const selectedCarbonReport = ref<CarbonReport | null>(null);
-    // Fetch all carbon reports for a unit
-    async function fetchCarbonReportsForUnit(unitId: number) {
-      try {
-        carbonReportsLoading.value = true;
-        carbonReportsError.value = null;
-        carbonReports.value = await api
-          .get(`carbon-reports/unit/${unitId}/`)
-          .json();
-      } catch (error) {
-        carbonReportsError.value =
-          error instanceof Error
-            ? error
-            : new Error('Failed to fetch carbon reports for unit');
-        carbonReports.value = [];
-      } finally {
-        carbonReportsLoading.value = false;
-      }
-    }
 
     // Fetch carbon report for a unit of a given year
     // /unit/{unit_id}/year/{year}/
@@ -114,11 +112,6 @@ export const useWorkspaceStore = defineStore(
       }
     }
 
-    // Helper: does carbon report exist for year?
-    function carbonReportForYear(year: number) {
-      return carbonReports.value.find((inv) => inv.year === year) || null;
-    }
-
     // Create carbon report for a unit/year
     async function createCarbonReport(
       unitId: number,
@@ -130,7 +123,6 @@ export const useWorkspaceStore = defineStore(
         const inv: CarbonReport = await api
           .post(`carbon-reports/`, { json: { unit_id: unitId, year } })
           .json();
-        carbonReports.value.push(inv);
         return inv;
       } catch (error) {
         carbonReportsError.value =
@@ -138,6 +130,42 @@ export const useWorkspaceStore = defineStore(
             ? error
             : new Error('Failed to create carbon report');
         throw carbonReportsError.value;
+      } finally {
+        carbonReportsLoading.value = false;
+      }
+    }
+
+    /**
+     * Single workspace/stats call backing the home load. The backend resolves
+     * (or creates) the carbon report for `unitId`/`year` and returns the module
+     * states, year config, and emission breakdown (with the validated-only
+     * total merged in). Hydrates `selectedCarbonReport` here (pages sharing the
+     * guard only ever read `.id` off it); the guard fans the rest out to the
+     * timeline/module/yearConfig stores. Returns `null` on error (the global
+     * http hook already toasts the user).
+     */
+    async function fetchWorkspaceHome(
+      unitId: number,
+      year: number,
+    ): Promise<WorkspaceHomePayload | null> {
+      try {
+        carbonReportsLoading.value = true;
+        carbonReportsError.value = null;
+        const data = (await api
+          .get(`workspace/${unitId}/${year}/home`)
+          .json()) as WorkspaceHomePayload;
+        selectedCarbonReport.value = {
+          id: data.carbon_report_id,
+          unit_id: unitId,
+          year,
+        };
+        return data;
+      } catch (error) {
+        carbonReportsError.value =
+          error instanceof Error
+            ? error
+            : new Error('Failed to load workspace');
+        return null;
       } finally {
         carbonReportsLoading.value = false;
       }
@@ -178,19 +206,6 @@ export const useWorkspaceStore = defineStore(
       return inv;
     }
 
-    // Set selected carbon report by year (create if needed)
-    async function selectWithoutFetchingCarbonReportForYear(
-      unitId: number,
-      year: number,
-    ) {
-      let inv = await carbonReportForYear(year);
-      if (!inv) {
-        inv = await createCarbonReport(unitId, year);
-      }
-      selectedCarbonReport.value = inv;
-      return inv;
-    }
-
     function setUnit(unit: Unit) {
       selectedUnit.value = unit;
     }
@@ -220,6 +235,11 @@ export const useWorkspaceStore = defineStore(
         return null;
       }
       return Math.max(...unitResults.value.years.map((y) => y.year));
+    }
+
+    /** Apply an already-fetched units list (bootstrap / session). */
+    function setUnits(newUnits: Unit[]) {
+      units.value = newUnits || [];
     }
 
     async function getUnits() {
@@ -308,6 +328,7 @@ export const useWorkspaceStore = defineStore(
       currentYearData,
       getLatestYear,
       getUnits,
+      setUnits,
       getUnit,
       getUnitResults,
       setUnit,
@@ -315,15 +336,12 @@ export const useWorkspaceStore = defineStore(
       setSelectedParams,
       reset,
       // CarbonReport logic
-      carbonReports,
       carbonReportsLoading,
       carbonReportsError,
       selectedCarbonReport,
-      fetchCarbonReportsForUnit,
-      carbonReportForYear,
+      fetchWorkspaceHome,
       createCarbonReport,
       selectCarbonReportForYear,
-      selectWithoutFetchingCarbonReportForYear,
       selectSimulatorExploreCarbonReport,
     };
   },

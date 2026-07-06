@@ -1,7 +1,15 @@
 import type { RouteLocationNormalized } from 'vue-router';
-import { useTimelineStore } from 'src/stores/modules';
+import {
+  useTimelineStore,
+  useModuleStore,
+  type CarbonReportModuleResponse,
+  type EmissionBreakdownResponse,
+} from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useYearConfigStore } from 'src/stores/yearConfig';
+import {
+  useYearConfigStore,
+  type YearConfigurationResponse,
+} from 'src/stores/yearConfig';
 import { resolveLanguage } from 'src/utils/language';
 import {
   DEFAULT_ROUTE_NAME,
@@ -45,23 +53,39 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
     unit: to.params.unit as string,
   });
   const workspaceStore = useWorkspaceStore();
-  await workspaceStore.getUnits();
+  // Units are normally hydrated by the auth bootstrap (`GET /session`); refetch
+  // only in the rare case the guard runs before they're available.
+  if (workspaceStore.units.length === 0) {
+    await workspaceStore.getUnits();
+  }
   const response = await validateUnit();
   // if unit is valid retrieve carbon report  !
   let carbonReportId = null;
   if (response) {
-    await workspaceStore.selectCarbonReportForYear(
+    // One aggregate call replaces the old chain (report → module states → year
+    // config → stats). It only re-runs on unit/year change, and pre-priming the
+    // emission-breakdown cache also saves the Results page its own fetch.
+    const data = await workspaceStore.fetchWorkspaceHome(
       workspaceStore.selectedUnit.id,
       workspaceStore.selectedYear,
     );
-    carbonReportId = workspaceStore.selectedCarbonReport?.id;
-    if (carbonReportId) {
-      const timelineStore = useTimelineStore();
-      await timelineStore.fetchModuleStates(carbonReportId);
+    carbonReportId = data?.carbon_report_id ?? null;
+    if (data && carbonReportId) {
+      // Fan the aggregate payload out into the per-concern stores so every
+      // child page (home/module/results) reads it as if fetched individually.
+      const breakdown =
+        data.emission_breakdown as unknown as EmissionBreakdownResponse;
+      // Module states ride inside the breakdown (the backend already computes
+      // the per-module status map there), so we hydrate the timeline from it.
+      useTimelineStore().setModuleStates(
+        carbonReportId,
+        (breakdown.module_states ?? []) as CarbonReportModuleResponse[],
+      );
+      useYearConfigStore().setConfig(
+        data.year_config as YearConfigurationResponse | null,
+      );
+      useModuleStore().setEmissionBreakdown(carbonReportId, breakdown);
     }
-    // Load the year configuration for the now-selected workspace year so every
-    // child page (home/module/results) has it ready.
-    await useYearConfigStore().fetchConfig(workspaceStore.selectedYear);
   }
   // then we can retrieve modules
   if (!response && !carbonReportId) {

@@ -21,7 +21,11 @@ import {
 import { Module } from 'src/constant/modules';
 import type { components } from 'src/types/api/openapi';
 import { currentLanguage } from 'src/utils/language';
-import { useWorkspaceStore } from './workspace';
+import { useWorkspaceStore, type Unit } from './workspace';
+import {
+  useYearConfigStore,
+  type YearConfigurationListItem,
+} from './yearConfig';
 
 // Re-export the action enum so the auth store is the single entry point
 // callers import from (check functions AND the action enum).
@@ -37,7 +41,7 @@ type User = Omit<
   'permissions' | 'roles_raw' | 'institutional_id'
 > & {
   permissions?: FlatUserPermissions;
-  // `roles_raw` is normalized to `[]` at the API boundary in `getUser()`, so
+  // `roles_raw` is normalized to `[]` at the API boundary in `bootstrap()`, so
   // callers can safely `.map()` without an optional guard.
   roles_raw: Array<{
     role: string;
@@ -68,18 +72,34 @@ export const useAuthStore = defineStore('auth', () => {
   const hasChecked = ref(false);
   let inflight: Promise<User | null> | null = null;
 
-  async function getUser(): Promise<User | null> {
+  /** Enriched `GET /session` payload — user + workspace bootstrap context. */
+  interface SessionPayload {
+    user: User;
+    units: Unit[];
+    configured_years: YearConfigurationListItem[];
+  }
+
+  /**
+   * Single app-init call: fetch the enriched session and hydrate the auth,
+   * workspace (units) and year-config (configured years) stores in one go.
+   * Deduped via `inflight` so concurrent guards share the same request.
+   */
+  async function bootstrap(): Promise<User | null> {
     if (inflight) return inflight;
 
     inflight = (async () => {
       try {
         loading.value = true;
-        const raw = await api.get(API_ME_URL).json<User>();
+        const raw = await api.get(API_ME_URL).json<SessionPayload>();
         // Backend serializes roles as `[]` or omits the field under
         // `response_model_exclude_none=True`. Normalize once here so
         // every call site can treat `roles_raw` as a non-optional array.
-        const u: User = { ...raw, roles_raw: raw.roles_raw ?? [] };
+        const u: User = { ...raw.user, roles_raw: raw.user.roles_raw ?? [] };
         user.value = u;
+        // Hydrate the workspace context that used to come from separate
+        // `/users/units` and `/year-configuration/` calls.
+        workspaceStore.setUnits(raw.units ?? []);
+        useYearConfigStore().setConfiguredYears(raw.configured_years ?? []);
         return u;
       } catch {
         user.value = null;
@@ -236,7 +256,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     hasChecked,
     displayName,
-    getUser,
+    bootstrap,
     login,
     login_test,
     logout,

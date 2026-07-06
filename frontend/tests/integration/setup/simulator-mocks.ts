@@ -109,6 +109,9 @@ function buildEmissionBreakdown(totalTonnesCo2eq: number) {
     headcount_validated: false,
     buildings_validated: false,
     total_fte: 0,
+    // Per-module states now ride inside the breakdown (workspaceGuard fans them
+    // out to the timeline store).
+    module_states: [],
   };
 }
 
@@ -291,14 +294,37 @@ export async function mockSimulatorBackend(page: Page): Promise<{
     });
   });
 
-  // Session — authGuard calls getUser() on /session.
+  // Workspace-home aggregate — workspaceGuard calls fetchWorkspaceHome().
+  // Minimal payload: report id + year config + breakdown (with the validated-only
+  // total merged in; the breakdown also carries the per-module states).
+  await page.route(/.*\/api\/v1\/workspace\/10\/2024\/home$/, (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        carbon_report_id: MOCK_CARBON_REPORT.id,
+        year_config: null,
+        emission_breakdown: {
+          ...buildEmissionBreakdown(0),
+          total_tonnes_validated_co2eq: 0,
+        },
+      }),
+    });
+  });
+
+  // Session — authGuard calls bootstrap() on /session, which now returns the
+  // user plus workspace context (units + configured years).
   // Registered LAST = highest priority (first evaluated in LIFO).
   await page.route(/.*\/api\/v1\/session$/, (route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(MOCK_USER),
+        body: JSON.stringify({
+          user: MOCK_USER,
+          units: [MOCK_UNIT],
+          configured_years: [],
+        }),
       });
     }
     return route.continue();
