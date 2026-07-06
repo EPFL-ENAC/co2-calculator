@@ -438,6 +438,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       combustion: colors.value.apricot.darker,
       heating_thermal: colors.value.apricot.dark,
       natural_gas: colors.value.apricot.default,
+      propane: colors.value.apricot.dark,
       heating_oil: colors.value.apricot.light,
       biomethane: colors.value.apricot.default,
       pellets: colors.value.apricot.light,

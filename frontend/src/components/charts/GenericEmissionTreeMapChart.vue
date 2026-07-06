@@ -35,6 +35,13 @@ const LABEL_KEY_MAP: Record<string, string> = {
   refrigerant: 'process-emissions.category.refrigerants',
   // buildings
   combustion: 'charts-energy-combustion-subcategory',
+  natural_gas: 'charts-natural-gas-subcategory',
+  heating_oil: 'charts-heating-oil-subcategory',
+  biomethane: 'charts-biomethane-subcategory',
+  propane: 'charts-propane-subcategory',
+  pellets: 'charts-pellets-subcategory',
+  forest_chips: 'charts-forest-chips-subcategory',
+  wood_logs: 'charts-wood-logs-subcategory',
   heating_thermal: 'charts-heating-thermal-subcategory',
   heating_electric: 'charts-heating-elec-subcategory',
   lighting: 'charts-lighting-subcategory',

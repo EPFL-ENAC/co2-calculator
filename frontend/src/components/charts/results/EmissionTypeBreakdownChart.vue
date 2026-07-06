@@ -64,6 +64,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   miscellaneous: 'charts-miscellaneous-subcategory',
   combustion: 'charts-energy-combustion-subcategory',
   natural_gas: 'charts-natural-gas-subcategory',
+  propane: 'charts-propane-subcategory',
   heating_oil: 'charts-heating-oil-subcategory',
   biomethane: 'charts-biomethane-subcategory',
   pellets: 'charts-pellets-subcategory',
