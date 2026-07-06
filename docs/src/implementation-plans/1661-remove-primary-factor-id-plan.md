@@ -886,11 +886,12 @@ async def delete_stale_for_year(
   from the resolver pre-branch; briefly a silent emission wipe mid-branch,
   caught in review). Key-absent still means "not updating".
 - **Legacy data:** report exports no longer scrub `primary_factor_id` from
-  entry JSON; pre-branch rows on non-reseeded DBs expose the stale key until
-  the next reseed (v0.x drops the DB, so this self-heals).
-- **Known asymmetry (moot post-reseed):** `PurchaseHandlerCreate` accepts
-  whitespace-only codes while update rejects them; a legacy entry persisted
-  with a null code would 400 on every PATCH until reseeded.
+  entry JSON; migration `954eac6c95da` strips the stale keys in place
+  (v1.0: the DB persists across deploys — no more reseed self-healing).
+- **Known asymmetry:** `PurchaseHandlerCreate` accepts whitespace-only
+  codes while update rejects them. Legacy entries persisted with a null
+  code (which would 400 on every PATCH) are cleaned by migration
+  `954eac6c95da`.
 - **Follow-ups (not this PR):** `_detach` resolver-loaded factors in the
   list-enrichment fallback (defense-in-depth symmetry); split
   `recalculate_for_data_entry_type` (~230 lines) via a `_process_entry`

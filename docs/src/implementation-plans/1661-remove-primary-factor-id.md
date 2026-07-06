@@ -91,8 +91,13 @@ into `app/services/factor_resolver.py`:
 - **Cleanup** — remove the export scrub (`carbon_report_module_repo.py:1238`)
   and every remaining read/write of `data["primary_factor_id"]`.
 
-No migration: v0.x reseeds drop the DB; leftover keys in old dev rows are
-dead weight ignored by all code paths.
+Data migration (added at v1.0, when "reseeds drop the DB" stopped being
+true): revision ``954eac6c95da`` strips the dead ``primary_factor_id`` keys
+from ``data_entries.data`` and removes explicit-null
+``purchase_institutional_code`` keys (which the new update validator would
+otherwise reject on every PATCH). Post-deploy operator step: re-upload the
+current factor CSVs per module/year so the replace-semantics sweep deletes
+stale factor generations that accumulated before this shipped.
 
 ## Design — Phase 2: replace-semantics factor ingest
 
