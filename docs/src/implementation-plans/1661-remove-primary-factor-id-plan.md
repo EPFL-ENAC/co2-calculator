@@ -654,7 +654,7 @@ if primary_factor is None and data_entry.year is not None:
    sort/filter maps in the same file (`:160` comment) — the NULL-sort
    comment about CSV rows becomes wrong; reword to reference emission-row
    factor ids.
-4. **DEFERRED — USER ACTION.** Regenerate the frontend types:
+4. **Done 2026-07-06** (see Step 6.4 note). Regenerate the frontend types:
 
 ```bash
 make -C frontend gen-api-types
@@ -672,7 +672,10 @@ make -C frontend gen-api-types
 cd backend && uv run pytest tests/unit/repositories -x -q
 ```
 
-- [ ] **Step 6.4 (DEFERRED — USER ACTION, do together with 6.2.4): Frontend
+- [x] **Step 6.4 (done 2026-07-06: snapshot regenerated from branch app via
+  `app.openapi()`, generator forced onto snapshot because a stale backend was
+  live on :8000; `quasar prepare` + `make -C frontend type-check` exit 0;
+  commit `chore(1661): regenerate openapi types from branch schema`): Frontend
   type-check** (husky runs vue-tsc on commit; run it
   explicitly, `rtk tsc` green is NOT sufficient):
 
@@ -888,9 +891,8 @@ async def delete_stale_for_year(self, year: int) -> int:
   `recalculate_for_data_entry_type` (~230 lines) via a `_process_entry`
   helper; `prepare_create` and `resolve_factor_if_changed` still exceed the
   40-line rule (pre-existing).
-- **Merge blocker (user action):** regenerate + commit
-  `frontend/src/types/api/openapi.d.ts` (`make -C frontend gen-api-types`,
-  then `make -C frontend type-check`).
+- ~~Merge blocker~~ **cleared 2026-07-06**: `openapi.d.ts` + snapshot
+  regenerated from the branch schema and committed; frontend type-check green.
 
 ## Progress log
 
@@ -907,3 +909,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 8 complete (4 commits; integration suite green; found+fixed silent-emission-wipe regression on purchase PATCH blank/null code). Phase 1 code complete pending final review + user openapi regen.
 - 2026-07-06: Final whole-branch review (fable): "ready with fixes". Fix wave landed (21a55143 ambiguity-tolerant list fallback + gate; 768ee598 lifecycle assertion tightening + purchase comment). Spec aligned with shipped shape, status→in-progress; plan Task 6 frontend steps marked DEFERRED-USER-ACTION; PR-notes section added.
 - 2026-07-06: Final verification pass: all fix-wave commits close cleanly; READY TO MERGE pending user openapi regen. Phase 1 execution complete (Tasks 1-8 + final review).
+- 2026-07-06: Merge blocker cleared (openapi regen via snapshot, type-check green). Phase 2 execution started.
