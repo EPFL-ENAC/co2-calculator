@@ -10,6 +10,7 @@ from app.models.data_entry_emission import (
     EmissionComputation,
     EmissionType,
 )
+from app.models.factor import Factor
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.utils.data_entry_emission_type_map import (
@@ -145,7 +146,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     """When kg_co2eq_override is set, the formula path is bypassed and a
     single emission with the override value (and primary_factor_id=None) is
     returned — even when the data dict has no kg_co2eq key."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -171,6 +171,9 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     ):
         mock_handler = MagicMock()
         mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+            return_value=None
+        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -192,7 +195,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
 async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     """A kg_co2eq value sitting in data_entry.data must NOT be picked up as
     an override — the channel is exclusively the kg_co2eq_override param."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -219,6 +221,9 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     ):
         mock_handler = MagicMock()
         mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+            return_value=None
+        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -254,7 +259,6 @@ class TestMetaExtras:
         return DataEntryEmissionService(session)
 
     def _make_factor(self, emission_type_value: int, factor_values: dict):
-        from app.models.factor import Factor
 
         f = MagicMock(spec=Factor)
         f.id = 99
@@ -309,6 +313,9 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -364,6 +371,9 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -417,6 +427,9 @@ class TestMetaExtras:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations.return_value = [
                 __import__(
                     "app.models.data_entry_emission",
@@ -1464,6 +1477,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1526,6 +1542,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1589,6 +1608,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1641,6 +1663,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 

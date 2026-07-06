@@ -323,7 +323,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_purchase_formula,
             )
         ]
@@ -396,7 +396,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_additional_purchase_formula,
             )
         ]

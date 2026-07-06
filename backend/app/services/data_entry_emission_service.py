@@ -237,9 +237,13 @@ class DataEntryEmissionService:
         slice_cache: dict | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
+        TODO: Make this function readable!
+        Orchestrates the pipeline below. ``get_factor_for_resolve_emission_types``
+        lets a module resolve leaves from its matched factor (buildings: the
+        factor's energy_type selects the single heating leaf, #1575); every other
+        type returns ``None`` there and flows through unbranched:
 
-        Pure orchestrator — zero branching on DataEntryType:
-
+        0. ``handler.get_factor_for_resolve_emission_types`` → factor | None
         1. ``resolve_emission_types`` → which EmissionType leaves to produce
         2. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
         3. ``handler.resolve_computations`` → one EmissionComputation per factor
@@ -269,8 +273,20 @@ class DataEntryEmissionService:
             logger.error("DataEntry must have a data_entry_type.")
             return []
 
+        handler = BaseModuleHandler.get_by_type(
+            DataEntryTypeEnum(data_entry.data_entry_type)
+        )
+        # A module may need its matched factor to decide which emission leaves to
+        # emit (buildings: the factor's energy_type selects the single heating
+        # leaf, #1575). Generic hook — ``None`` for modules that resolve from data
+        # alone. Passed explicitly so resolution never reads a smuggled-in key.
+        factor = await handler.get_factor_for_resolve_emission_types(
+            data_entry, self.session, factor_cache=factor_cache
+        )
         emission_types = resolve_emission_types(
-            data_entry.data_entry_type, data_entry.data
+            data_entry.data_entry_type,
+            data_entry.data,
+            factor=factor,
         )
         if emission_types is None:
             logger.warning(f"Unhandled type: {data_entry.data_entry_type}")
@@ -281,10 +297,6 @@ class DataEntryEmissionService:
         if data_entry.id is None:
             logger.error("DataEntry must have an ID before creating emissions.")
             return []
-
-        handler = BaseModuleHandler.get_by_type(
-            DataEntryTypeEnum(data_entry.data_entry_type)
-        )
 
         # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
         # (set by the bulk-path providers) when the caller did not pass an

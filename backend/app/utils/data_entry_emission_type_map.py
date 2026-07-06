@@ -33,6 +33,7 @@
 # Define HeatingEnergyType locally (legacy compatibility)
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
+from app.models.factor import Factor
 
 # =============================================================================
 # DATA_ENTRY_TYPE → EMISSION_TYPE mapping  (1-to-many)
@@ -223,43 +224,72 @@ _VALID_ROOM_TYPES: frozenset[str] = frozenset(
     }
 )
 
-_ENERGY_TYPES: list[str] = [
-    "lighting",
-    "cooling",
-    "ventilation",
-    "heating_elec",
-    "heating_thermal",
-]
+# Energies that always emit a leaf; heating is separate — its single electric/
+# thermal leaf is chosen by the matched factor (see _HEATING_LEAF_BY_ENERGY).
+_NON_HEATING_ENERGIES: tuple[str, ...] = ("lighting", "cooling", "ventilation")
+
+# Heating is sourced from either electricity or a thermal network. The matched
+# factor's ``energy_type`` selects the single correct leaf — emitting both would
+# double-count the same kwh/m² (#1575).
+_HEATING_LEAF_BY_ENERGY: dict[str, str] = {
+    "electric": "heating_electric",
+    "thermal": "heating_thermal",
+}
+
+# Valid building-factor energy types = exactly the heating-leaf keys, so the
+# two can never drift. Used to reject corrupt factors at the source.
+BUILDING_ENERGY_TYPES: frozenset[str] = frozenset(_HEATING_LEAF_BY_ENERGY)
 
 
-def _resolve_building_rooms(
-    data: dict,
-) -> list[EmissionType] | None:
-    """Resolve building data entry to room-type-specific emission types.
+def _heating_leaf_for_factor(factor: Factor | None) -> str | None:
+    """Pick the single heating leaf (electric/thermal) from the matched factor.
 
-    If room_type is set, returns 8-digit WW-level types (one per energy).
-    Otherwise falls back to 6-digit ZZ-level types.
+    ``None`` factor (the entry matched none) means "no heating leaf" — a
+    legitimate skip. A matched factor whose ``energy_type`` is missing or not
+    electric/thermal is corrupt data and fails loudly rather than silently
+    dropping heating (#1575).
     """
-    room_type = (data.get("room_type") or "").lower()
-    if room_type in _VALID_ROOM_TYPES:
-        result = []
-        for energy in _ENERGY_TYPES:
-            name = f"buildings__rooms__{energy}__{room_type}"
-            try:
-                result.append(EmissionType[name])
-            except KeyError:
-                # fallback to parent energy type
-                result.append(EmissionType[f"buildings__rooms__{energy}"])
-        return result
+    if factor is None:
+        return None
+    energy_type = factor.classification.get("energy_type")
+    heating_leaf = _HEATING_LEAF_BY_ENERGY.get((energy_type or "").lower())
+    if heating_leaf is None:
+        raise ValueError(
+            f"Building factor {factor.id} has invalid energy_type "
+            f"{energy_type!r}; expected one of {sorted(BUILDING_ENERGY_TYPES)}."
+        )
+    return heating_leaf
 
-    # No room_type — use generic ZZ-level types
-    return [
-        EmissionType.buildings__rooms__lighting,
-        EmissionType.buildings__rooms__cooling,
-        EmissionType.buildings__rooms__ventilation,
-        EmissionType.buildings__rooms__heating_elec,
-        EmissionType.buildings__rooms__heating_thermal,
-    ]
+
+def _resolve_building_rooms(data: dict, factor: Factor | None) -> list[EmissionType]:
+    """Resolve a building entry to its room emission leaves.
+
+    Non-heating energies always emit; heating emits the single leaf the matched
+    factor's ``energy_type`` selects — ``None`` factor means no heating leaf
+    (#1575). A matched factor with an invalid ``energy_type`` fails loudly in
+    ``_heating_leaf_for_factor``. ``factor`` is passed explicitly, never read
+    from ``data``.
+
+    With a known ``room_type`` each energy resolves to its 8-digit WW leaf,
+    falling back to the 6-digit ZZ parent; without one, the ZZ parents directly.
+    """
+    energies = list(_NON_HEATING_ENERGIES)
+    heating_leaf = _heating_leaf_for_factor(factor)
+    if heating_leaf is not None:
+        energies.append(heating_leaf)
+
+    room_type = (data.get("room_type") or "").lower()
+    suffix = f"__{room_type}" if room_type in _VALID_ROOM_TYPES else ""
+
+    result = []
+    for energy in energies:
+        parent = f"buildings__rooms__{energy}"
+        try:
+            result.append(EmissionType[f"{parent}{suffix}"])
+        except KeyError:
+            # No WW leaf for this room_type → fall back to the ZZ parent.
+            result.append(EmissionType[parent])
+    return result
 
 
 _COMBUSTION_FUEL_MAP: dict[str, EmissionType] = {
@@ -358,10 +388,11 @@ def _resolve_headcount_factor(data: dict) -> list[EmissionType] | None:
         return None
 
 
+# NOTE: building is intentionally absent — it needs the factor's energy_type,
+# so ``resolve_emission_types`` dispatches it explicitly (see below).
 _RUNTIME_RESOLVERS = {
     DataEntryTypeEnum.plane: _resolve_plane,
     DataEntryTypeEnum.train: _resolve_train,
-    DataEntryTypeEnum.building: _resolve_building_rooms,
     DataEntryTypeEnum.energy_combustion: _resolve_combustion,
     DataEntryTypeEnum.additional_purchases: _resolve_additional_purchases,
     DataEntryTypeEnum.external_ai: _resolve_ai,
@@ -431,9 +462,16 @@ def resolve_factor_emission_type(
 def resolve_emission_types(
     data_entry_type: DataEntryTypeEnum,
     data: dict,
+    *,
+    factor: Factor | None = None,
 ) -> list[EmissionType] | None:
     """
     Returns the list of EmissionType leaves for a given DataEntryTypeEnum.
+
+    ``data`` is read-only entry payload. ``factor`` is the matched Factor when a
+    module's leaves depend on it (buildings: its ``energy_type`` picks the single
+    heating leaf); the caller resolves it via the handler hook and passes it
+    explicitly (never smuggled through ``data``). ``None`` for data-only modules.
 
     Returns:
       list[EmissionType]  — one or more emission types; create one row per entry
@@ -454,6 +492,11 @@ def resolve_emission_types(
     static = DATA_ENTRY_TO_EMISSION_TYPES.get(data_entry_type)
     if static is not None:
         return static  # covers both [] and [EmissionType, ...]
+
+    # Building rooms take the matched factor (its energy_type picks the heating
+    # leaf), not just data.
+    if data_entry_type is DataEntryTypeEnum.building:
+        return _resolve_building_rooms(data, factor)
 
     resolver = _RUNTIME_RESOLVERS.get(data_entry_type)
     if resolver:

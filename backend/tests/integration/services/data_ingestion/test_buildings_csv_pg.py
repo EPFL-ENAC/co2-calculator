@@ -13,7 +13,8 @@ Buildings has three data-entry types (``MODULE_TYPE_TO_DATA_ENTRY_TYPES``):
 * ``building`` — rooms.  Handler reads ``BuildingRoom`` via
   ``BuildingRoomService.get_room`` and computes
   ``kg_co2eq = surface × kwh_per_m² × ef × conversion`` per energy leaf
-  (lighting, cooling, ventilation, heating_elec, heating_thermal).
+  (lighting, cooling, ventilation, and one heating leaf — electric or
+  thermal — selected by the factor's energy_type; #1575).
 * ``energy_combustion`` — straight ``quantity × ef`` formula keyed by
   ``(unit, name)`` factor classification.
 * ``building_embodied_energy`` — *derived*: rows are created post-hoc
@@ -243,25 +244,15 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
       lighting_kwh_per_m²=5     → 5.0
       cooling_kwh_per_m²=20     → 20.0
       ventilation_kwh_per_m²=10 → 10.0
-      heating_kwh_per_m²=30     → 30.0 (electric → heating_elec leaf)
+      heating_kwh_per_m²=30     → 30.0 (electric → heating_electric leaf only)
 
-    Discovery — buildings__rooms rollup is 95.0 (NOT 65.0)
-    ------------------------------------------------------
-    The rollup assertion at the end of this test sums the four leaves
-    above PLUS an extra 30.0 (heating_thermal), totalling 95.0.  We
-    only seed an electric heating factor; the +30 thermal contribution
-    appears regardless.  Reading the handler reveals
-    ``heating_kwh_per_square_meter`` is fanned out to BOTH the
-    ``heating_elec`` and ``heating_thermal`` leaves with the same
-    ef/ratio, so the rooms rollup double-counts heating energy when
-    only one heating mode actually applies to the room.
-
-    This test PINS the observed contract (rollup = 95.0) — a
-    regression-gate against silent changes to the handler's fan-out
-    logic — but the contract itself looks like a bug worth tracking.
-    Surfaced here so a future reader doesn't conflate "test passes" with
-    "math is correct".  See the rollup assertion comment further down
-    for the per-line breakdown.
+    Regression #1575 — heating is NOT double-counted
+    ------------------------------------------------
+    The factor's ``energy_type`` is "electric", so heating resolves to a
+    single ``heating_electric`` leaf. The ``heating_thermal`` leaf must be
+    absent, and the rooms rollup is 65.0 (5+20+10+30) — not 95.0, which is
+    what the old both-leaves fan-out produced by counting the same 30.0
+    kwh/m² of heating twice.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -332,7 +323,7 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
         EmissionType.buildings__rooms__lighting__office.value: 5.0,
         EmissionType.buildings__rooms__cooling__office.value: 20.0,
         EmissionType.buildings__rooms__ventilation__office.value: 10.0,
-        EmissionType.buildings__rooms__heating_elec__office.value: 30.0,
+        EmissionType.buildings__rooms__heating_electric__office.value: 30.0,
     }
     for et_id, expected_kg in expected.items():
         assert et_id in by_leaf, f"missing leaf {et_id}: rows={by_leaf}"
@@ -340,16 +331,16 @@ async def test_building_room_with_ref_data_resolves_surface_and_computes_emissio
             f"leaf {et_id}: got {by_leaf[et_id]}, expected {expected_kg}"
         )
 
-    # The rollup row sums the four leaves (lighting+cooling+vent+heat = 65)
-    # — but the persisted rollup carries 95 because ``heating_elec`` and
-    # ``heating_thermal`` both map to ``heating_kwh_per_square_meter``,
-    # so the office "heating" energy contributes twice (electric + thermal
-    # = 30+30) when only the electric factor exists.  Pin the rollup
-    # value (95) exactly so a regression in the heating-leaf emission
-    # (e.g. consolidation into one row) gets caught.
+    # Regression #1575: the electric factor must NOT also produce a thermal
+    # heating leaf — heating is attributed to a single energy source.
+    assert (
+        EmissionType.buildings__rooms__heating_thermal__office.value not in by_leaf
+    ), f"heating_thermal leaf must be absent for an electric factor: {by_leaf}"
+
+    # The rollup sums the four leaves once each: 5+20+10+30 = 65.
     rollup = by_leaf.get(EmissionType.buildings__rooms.value)
-    assert rollup == pytest.approx(95.0, rel=1e-6), (
-        f"rollup buildings__rooms expected 95.0 (5+20+10+30+30), got {rollup}"
+    assert rollup == pytest.approx(65.0, rel=1e-6), (
+        f"rollup buildings__rooms expected 65.0 (5+20+10+30), got {rollup}"
     )
 
     await engine.dispose()
