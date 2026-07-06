@@ -30,6 +30,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 import pytest
+from sqlalchemy.exc import MultipleResultsFound
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -50,6 +51,7 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.repositories.factor_repo import FactorRepository
+from app.services.factor_service import FactorService
 
 # ── Helpers (mirrors test_factor_lifecycle_pg.py) ──────────────────────
 
@@ -475,3 +477,101 @@ async def test_delete_stale_for_year_removes_superseded_rows_and_cascades(
         "emission row referencing the deleted Desktop factor must be "
         "cascade-deleted via primary_factor_id's ondelete=CASCADE"
     )
+
+
+@pytest.mark.asyncio
+async def test_originating_bug_classification_reshape_no_multiple_results(pg_dsn):
+    """#1661's originating bug, as a regression test.
+
+    building_rooms factors were uploaded with a 2-key classification
+    ``{building_name, room_type}``, then re-uploaded with a 3-key shape
+    (``energy_type`` added).  The upsert identity includes
+    ``classification::text``, so both generations survived and
+    ``get_by_classification`` — which filters only on kind/subkind —
+    raised ``MultipleResultsFound`` (HTTP 500 on
+    ``GET /v1/factors/30/classes/{kind}/values``).
+
+    Replace-semantics kills the class: after ``delete_stale_for_year``
+    only the new generation remains and the lookup succeeds.  The
+    pre-deletion ``MultipleResultsFound`` is asserted first to prove the
+    repro is real, not vacuous.
+    """
+    engine = create_async_engine(pg_dsn, future=True)
+    Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    year = 2025
+    two_key = {"building_name": "GC", "room_type": "miscellaneous"}
+    three_key = {**two_key, "energy_type": "electric"}
+
+    try:
+        async with Sf() as s:
+            repo = FactorRepository(s)
+
+            job1 = _seed_factor_job(
+                module_type_id=ModuleTypeEnum.buildings.value,
+                data_entry_type_id=DataEntryTypeEnum.building.value,
+                year=year,
+                is_current=False,
+            )
+            s.add(job1)
+            await s.commit()
+            assert job1.id is not None
+            await repo.upsert_factors(
+                [
+                    Factor(
+                        emission_type_id=EmissionType.buildings__rooms.value,
+                        data_entry_type_id=DataEntryTypeEnum.building.value,
+                        classification=dict(two_key),
+                        values={"kwh_per_m2": 100.0},
+                        year=year,
+                    )
+                ],
+                current_job_id=job1.id,
+            )
+            await s.commit()
+
+            job2 = _seed_factor_job(
+                module_type_id=ModuleTypeEnum.buildings.value,
+                data_entry_type_id=DataEntryTypeEnum.building.value,
+                year=year,
+                is_current=True,
+            )
+            s.add(job2)
+            await s.commit()
+            assert job2.id is not None
+            await repo.upsert_factors(
+                [
+                    Factor(
+                        emission_type_id=EmissionType.buildings__rooms.value,
+                        data_entry_type_id=DataEntryTypeEnum.building.value,
+                        classification=dict(three_key),
+                        values={"kwh_per_m2": 100.0},
+                        year=year,
+                    )
+                ],
+                current_job_id=job2.id,
+            )
+            await s.commit()
+
+            # The repro: both generations match (kind, subkind) → 500 class.
+            with pytest.raises(MultipleResultsFound):
+                await FactorService(s).get_by_classification(
+                    data_entry_type=DataEntryTypeEnum.building,
+                    kind="GC",
+                    subkind="miscellaneous",
+                    year=year,
+                )
+
+            deleted = await repo.delete_stale_for_year(year)
+            await s.commit()
+            assert deleted == 1, f"expected the 2-key generation gone, got {deleted}"
+
+            factor = await FactorService(s).get_by_classification(
+                data_entry_type=DataEntryTypeEnum.building,
+                kind="GC",
+                subkind="miscellaneous",
+                year=year,
+            )
+            assert factor is not None
+            assert factor.classification == three_key
+    finally:
+        await engine.dispose()

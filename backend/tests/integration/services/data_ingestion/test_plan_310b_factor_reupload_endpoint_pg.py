@@ -442,3 +442,129 @@ async def test_factor_reupload_endpoint_recomputes_emission_via_recalc_task(
         "equal, the recalc Task was scheduled but never ran — i.e. the "
         "#310B cancellation bug has been reintroduced."
     )
+
+
+@pytest.mark.asyncio
+async def test_factor_reupload_deletes_superseded_rows(pg_app):
+    """#1661 Phase 2 — replace-semantics: a factor CSV reupload DELETES
+    the rows it supersedes instead of leaving them flagged as stale.
+
+    Upload v1 (Laptop + Desktop) through ``/v1/sync/dispatch``, then v2
+    (Laptop only).  The Desktop row — absent from v2 — must be deleted
+    by the provider's in-transaction sweep; the Laptop row must keep its
+    id (in-place upsert).  The parent job's status message reports the
+    deleted count.
+    """
+    Sf = pg_app["factory"]
+    tmp_path: Path = pg_app["tmp_path"]
+
+    async with Sf() as s:
+        s.add(
+            YearConfiguration(
+                year=2026,
+                is_started=True,
+                configuration_completed=datetime.now(timezone.utc),
+            )
+        )
+        unit = Unit(
+            institutional_code="TEST-1661-DEL",
+            institutional_id="TEST-UNIT-1661-DEL",
+            name="Test Unit 1661 delete",
+            level=1,
+        )
+        s.add(unit)
+        await s.commit()
+        report = CarbonReport(year=2026, unit_id=unit.id)
+        s.add(report)
+        await s.commit()
+        s.add(
+            CarbonReportModule(
+                carbon_report_id=report.id,
+                module_type_id=ModuleTypeEnum.equipment.value,
+            )
+        )
+        await s.commit()
+
+    header = (
+        "equipment_category,equipment_class,sub_class,active_power_w,"
+        "standby_power_w,active_usage_hours_per_week,"
+        "standby_usage_hours_per_week,ef_kg_co2eq_per_kwh\n"
+    )
+    csv_dir = tmp_path / "tmp" / "test_1661_del"
+    csv_dir.mkdir(parents=True, exist_ok=True)
+
+    async def _dispatch(filename: str, rows: str) -> int:
+        (csv_dir / filename).write_text(header + rows)
+        sync_request = {
+            "ingestion_method": IngestionMethod.csv.value,
+            "target_type": TargetType.FACTORS.value,
+            "year": 2026,
+            "file_path": f"tmp/test_1661_del/{filename}",
+            "config": {
+                "module_type_id": ModuleTypeEnum.equipment.value,
+                "data_entry_type_id": DataEntryTypeEnum.it.value,
+            },
+        }
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post("/v1/sync/dispatch", json=sync_request)
+        assert resp.status_code == 200, resp.text
+        job_id = resp.json()["job_id"]
+        parent = await _wait_for_job(Sf, job_id)
+        assert parent.result == IngestionResult.SUCCESS, parent.status_message
+        # Single-type factor uploads always chain one recalc child; wait
+        # for it so no background task outlives the test loop.
+        await _wait_for_child_recalc_job(Sf, job_id)
+        return job_id
+
+    await _dispatch(
+        "v1.csv",
+        "it,Laptop,Standard,100,10,40,128,0.1\nit,Desktop,Standard,150,15,40,128,0.2\n",
+    )
+
+    async def _it_factors() -> dict[str, int]:
+        async with Sf() as s:
+            rows = (
+                (
+                    await s.execute(
+                        select(Factor).where(
+                            col(Factor.data_entry_type_id)
+                            == DataEntryTypeEnum.it.value,
+                            col(Factor.year) == 2026,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        return {
+            (r.classification or {}).get("equipment_class", "?"): r.id
+            for r in rows
+            if r.id is not None
+        }
+
+    after_v1 = await _it_factors()
+    assert set(after_v1) == {"Laptop", "Desktop"}
+    laptop_id_v1 = after_v1["Laptop"]
+
+    v2_job_id = await _dispatch("v2.csv", "it,Laptop,Standard,100,10,40,128,0.3\n")
+
+    after_v2 = await _it_factors()
+    assert set(after_v2) == {"Laptop"}, (
+        "Desktop was absent from the v2 upload and must be DELETED, "
+        f"not kept as stale; got {after_v2}"
+    )
+    assert after_v2["Laptop"] == laptop_id_v1, (
+        "unchanged classification must upsert in place, preserving the id"
+    )
+
+    async with Sf() as s:
+        v2_job = await s.get(DataIngestionJob, v2_job_id)
+        assert v2_job is not None
+        # The runner's finish_job stamps status_message='Success'; the
+        # provider's per-run counters live in meta.stats.
+        stats = (v2_job.meta or {}).get("stats", {})
+        assert stats.get("factors_deleted") == 1, (
+            f"job meta.stats should report the sweep: {v2_job.meta!r}"
+        )

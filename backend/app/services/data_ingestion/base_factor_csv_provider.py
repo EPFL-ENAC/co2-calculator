@@ -34,7 +34,7 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
-    factors_deleted: int  # set by local-seed delete-and-insert path; 0 in upsert path
+    factors_deleted: int  # stale rows superseded by this upload; see _delete_stale_factors
     factors_upserted: int
 
 
@@ -531,6 +531,12 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             upserted = await self._upsert_batch(batch, factor_repo)
             stats["factors_upserted"] += upserted
 
+        result = self._compute_ingestion_result(stats)
+        if result != IngestionResult.ERROR:
+            stats["factors_deleted"] = await self._delete_stale_factors(
+                setup_result, factor_repo
+            )
+
         processing_path = setup_result["processing_path"]
         filename = setup_result["filename"]
         processed_path = f"processed/{self.job_id}/{filename}"
@@ -551,9 +557,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_skipped']} skipped, "
             f"{stats['row_errors_count']} errors, "
-            f"{stats['factors_upserted']} factors upserted"
+            f"{stats['factors_upserted']} factors upserted, "
+            f"{stats['factors_deleted']} factors deleted"
         )
-        result = self._compute_ingestion_result(stats)
 
         metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
         metadata_for_job["stats"] = stats
@@ -569,7 +575,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             f"CSV processing completed: {stats['rows_processed']} rows processed, "
             f"{stats['rows_skipped']} skipped, "
             f"{stats['row_errors_count']} errors, "
-            f"{stats['factors_upserted']} factors upserted"
+            f"{stats['factors_upserted']} factors upserted, "
+            f"{stats['factors_deleted']} factors deleted"
         )
         return {
             "state": IngestionState.FINISHED,
@@ -578,6 +585,36 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "skipped": stats["rows_skipped"],
             "stats": stats,
         }
+
+    async def _delete_stale_factors(
+        self,
+        setup_result: Dict[str, Any],
+        factor_repo: FactorRepository,
+    ) -> int:
+        """Delete factors this job's upsert just superseded.
+
+        Runs in the same transaction as the upsert, before the handler's
+        stale-recalc fan-out (``_chain_recalc_for_stale`` in
+        ``ingestion_tasks.py``) dispatches — so the cascade-deleted
+        emission rows are part of the same commit the fan-out reads
+        from.
+
+        Passes ``threshold_job_id=self.job_id`` explicitly rather than
+        letting ``delete_stale_for_year`` resolve the threshold from
+        ``is_current``/``state=FINISHED``: this job's own ``is_current``
+        flip already landed at its RUNNING transition
+        (``mark_job_as_current``), but ``state`` doesn't reach
+        ``FINISHED`` until the runner's ``finish_job`` call — which
+        happens AFTER the fan-out is dispatched. Waiting for that would
+        make the generic lookup see neither this job nor the superseded
+        one, silently deleting nothing.
+        """
+        covered = self._get_types_to_delete(setup_result["valid_entry_types"])
+        return await factor_repo.delete_stale_for_year(
+            self.year,
+            det_ids=[det.value for det in covered],
+            threshold_job_id=self.job_id,
+        )
 
     @abstractmethod
     async def _setup_handlers_and_context(self) -> Dict[str, Any]:

@@ -408,15 +408,48 @@ class FactorRepository:
         result = await self.session.exec(stmt)
         return list(result.all())
 
-    async def delete_stale_for_year(self, year: int) -> int:
+    async def delete_stale_for_year(
+        self,
+        year: int,
+        *,
+        det_ids: List[int] | None = None,
+        threshold_job_id: int | None = None,
+    ) -> int:
         """Delete factors superseded by the latest FACTORS ingest per det.
 
         Same staleness predicate as ``list_stale_for_year``; returns the
         deleted rowcount. Emission rows referencing deleted factors are
         removed by the FK's ``ondelete=CASCADE`` and rebuilt by the
         enqueued recalc.
+
+        Two modes:
+
+        - Generic sweep (``det_ids``/``threshold_job_id`` omitted): the
+          threshold is resolved from the DB via
+          ``_latest_factor_job_per_det`` — the "which job is
+          is_current+FINISHED right now" view used by out-of-band
+          callers (admin sweep).
+        - Ingest-scoped (both given): the caller is the factor CSV
+          ingest that JUST upserted ``det_ids`` under
+          ``threshold_job_id`` and is calling from within that same
+          transaction, before the job reaches ``state=FINISHED``.
+          ``mark_job_as_current`` flips ``is_current`` at the
+          RUNNING-transition (job start), but the runner's CAS-guarded
+          ``finish_job`` only writes ``state=FINISHED`` AFTER the
+          handler returns and the stale-recalc fan-out has already
+          been dispatched (see ``ingestion_tasks.factor_ingest_handler``
+          / ``app.tasks.runner``). At the point the ingest calls this,
+          the generic lookup would see neither this job (state not yet
+          FINISHED) nor the superseded one (its ``is_current`` already
+          flipped off) — i.e. it would silently delete nothing. The
+          caller already knows unambiguously that ``threshold_job_id``
+          is the newest job for ``det_ids``, so use it directly instead
+          of waiting for the DB to agree.
         """
-        latest_per_det = await self._latest_factor_job_per_det(year)
+        if det_ids is not None and threshold_job_id is not None:
+            latest_per_det = {det: threshold_job_id for det in det_ids}
+        else:
+            latest_per_det = await self._latest_factor_job_per_det(year)
         if not latest_per_det:
             # No is_current FACTORS job for this year → nothing to compare
             # against, so nothing is stale.
