@@ -824,20 +824,20 @@ async def delete_stale_for_year(self, year: int) -> int:
 - Test: extend `test_factor_replace_semantics_pg.py`; rerun
   `test_plan_310b_factor_reupload_endpoint_pg.py`
 
-- [ ] **Step 10.1: Failing test** — end-to-end reupload through the provider:
+- [x] **Step 10.1: Failing test** — end-to-end reupload through the provider:
   stale rows deleted, recalc enqueued (the 310C pipeline —
   `_enqueue_stale_recalculations` in `api/v1/data_sync.py:504` — is already
   triggered by the reupload endpoint; assert ordering: delete happens in the
   same transaction as the upsert, *before* the recalc job runs).
-- [ ] **Step 10.2: Implement** — call `delete_stale_for_year(self.year)`
+- [x] **Step 10.2: Implement** — call `delete_stale_for_year(self.year)`
   right after a successful `upsert_factors` within the provider's
   transaction; log the deleted count into the job's stats/status message.
-- [ ] **Step 10.3: The originating-bug regression test** (spec requirement):
+- [x] **Step 10.3: The originating-bug regression test** (spec requirement):
   building_rooms factors uploaded with 2-key classification, reuploaded with
   3-key (`energy_type` added); assert old generation deleted,
   `GET /v1/factors/30/classes/{kind}/values?sub_class=...&year=...` returns
   200 with the new factor (was: 500 `MultipleResultsFound`).
-- [ ] **Step 10.4: Green + commit** `feat(1661): factor reupload replaces stale rows`
+- [x] **Step 10.4: Green + commit** `feat(1661): factor reupload replaces stale rows`
 
 ### Task 11: remove the stale-factor surface
 
@@ -911,3 +911,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Final verification pass: all fix-wave commits close cleanly; READY TO MERGE pending user openapi regen. Phase 1 execution complete (Tasks 1-8 + final review).
 - 2026-07-06: Merge blocker cleared (openapi regen via snapshot, type-check green). Phase 2 execution started.
 - 2026-07-06: Task 9 complete (commit 253fed84; delete_stale_for_year + replace-semantics integration test).
+- 2026-07-06: Task 10 complete (inline; ingest-scoped delete threshold via explicit job id — generic is_current lookup blind mid-pipeline; endpoint e2e + originating-bug regression tests green).
