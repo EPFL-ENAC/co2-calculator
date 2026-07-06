@@ -72,6 +72,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         self._files_store: Any = None
+        # dets actually written by this job's upserts — the stale sweep is
+        # scoped to exactly these ("you replace what you upload"), so a
+        # partial module CSV can never wipe sibling dets it didn't carry.
+        self._upserted_det_ids: set[int] = set()
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -486,6 +490,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.job_id is None:
             raise ValueError("job_id is required for factor upsert")
         affected = await factor_repo.upsert_factors(batch, current_job_id=self.job_id)
+        self._upserted_det_ids.update(f.data_entry_type_id for f in batch)
         # asyncpg can return rowcount=-1 for executemany ON CONFLICT
         # statements where it can't tally the result reliably.  Fall back
         # to the input batch size for stats so the operator-visible count
@@ -533,10 +538,12 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             stats["factors_upserted"] += upserted
 
         result = self._compute_ingestion_result(stats)
-        if result != IngestionResult.ERROR:
-            stats["factors_deleted"] = await self._delete_stale_factors(
-                setup_result, factor_repo
-            )
+        # Sweep only on full SUCCESS: a partial upload (WARNING) failed to
+        # re-ingest some rows, and deleting the factors those rows would
+        # have refreshed silently destroys data on operator error. The
+        # operator re-uploads a corrected CSV; that SUCCESS run sweeps.
+        if result == IngestionResult.SUCCESS:
+            stats["factors_deleted"] = await self._delete_stale_factors(factor_repo)
 
         processing_path = setup_result["processing_path"]
         filename = setup_result["filename"]
@@ -587,18 +594,16 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "stats": stats,
         }
 
-    async def _delete_stale_factors(
-        self,
-        setup_result: Dict[str, Any],
-        factor_repo: FactorRepository,
-    ) -> int:
+    async def _delete_stale_factors(self, factor_repo: FactorRepository) -> int:
         """Delete factors this job's upsert just superseded.
 
         Runs in the same transaction as the upsert, before the handler's
         stale-recalc fan-out (``_chain_recalc_for_stale`` in
         ``ingestion_tasks.py``) dispatches — so the cascade-deleted
         emission rows are part of the same commit the fan-out reads
-        from.
+        from.  Scope is the dets this job actually upserted, not the
+        module's full coverage — an upload replaces exactly what it
+        carries.
 
         See ``delete_stale_for_year`` for why the threshold is this
         job's id rather than a job-state lookup.
@@ -608,10 +613,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 "_delete_stale_factors requires year and job_id; "
                 "run() assigns both before any row is processed"
             )
-        covered = self._get_types_to_delete(setup_result["valid_entry_types"])
+        if not self._upserted_det_ids:
+            return 0
         return await factor_repo.delete_stale_for_year(
             self.year,
-            det_ids=[det.value for det in covered],
+            det_ids=sorted(self._upserted_det_ids),
             threshold_job_id=self.job_id,
         )
 

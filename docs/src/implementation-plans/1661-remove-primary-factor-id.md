@@ -108,6 +108,12 @@ exist (as shipped):
 - The factor CSV provider calls it right after a successful upsert, in the
   same transaction, before the 310C recalc fan-out dispatches; the deleted
   count lands in the job's `meta.stats.factors_deleted`.
+- **Destructive-semantics guards (explicit decisions):** the sweep runs only
+  on full-SUCCESS uploads — a partial upload (WARNING) must not delete the
+  factors of rows it failed to re-ingest — and is scoped to the dets the
+  job actually upserted, so a partial multi-type module CSV can never wipe
+  sibling dets it didn't carry. Both are pinned by unit tests
+  (`test_module_per_year_factor_csv_provider.py`).
 - The emission FK is `ondelete="CASCADE"`: affected emission rows vanish and
   the chained recalc rebuilds them.
 - `GET /v1/factors/stale`, `list_stale_for_year`, and

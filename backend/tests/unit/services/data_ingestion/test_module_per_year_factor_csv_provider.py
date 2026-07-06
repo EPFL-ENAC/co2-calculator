@@ -129,12 +129,7 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
         batch=batch,
         factor_service=MagicMock(),
         stats=stats,
-        setup_result={
-            "processing_path": "processing/x",
-            "filename": "x.csv",
-            # consumed by the post-upsert stale sweep (_delete_stale_factors)
-            "valid_entry_types": [DataEntryTypeEnum.member],
-        },
+        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
         factor_repo=mock_factor_repo,
     )
 
@@ -142,9 +137,74 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
     args, kwargs = mock_factor_repo.upsert_factors.call_args
     assert kwargs.get("current_job_id") == 42
     assert stats["factors_upserted"] == 3
+    # Full SUCCESS → the stale sweep runs, scoped to exactly the dets this
+    # job upserted ("you replace what you upload").
+    mock_factor_repo.delete_stale_for_year.assert_awaited_once_with(
+        2024,
+        det_ids=[DataEntryTypeEnum.member.value],
+        threshold_job_id=42,
+    )
     assert stats["factors_deleted"] == 0
     # Compare against the enum directly, not its int value — the int is
     # part of the persisted ABI (we just had a Copilot incident over an
     # EntityType renumber), so referring to it by name keeps the test
     # readable AND avoids re-pinning ABI in two places.
+    assert result["state"] == IngestionState.FINISHED
+
+
+def _sweep_provider() -> ModulePerYearFactorCSVProvider:
+    data_session = MagicMock()
+    data_session.flush = AsyncMock()
+    provider = ModulePerYearFactorCSVProvider(
+        {
+            "file_path": "tmp/test.csv",
+            "data_entry_type_id": DataEntryTypeEnum.member.value,
+            "year": 2024,
+            "job_id": 42,
+        },
+        data_session=data_session,
+    )
+    provider._files_store = MagicMock()
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    return provider
+
+
+def _sweep_stats(*, rows_processed: int, rows_skipped: int) -> dict:
+    return {
+        "rows_processed": rows_processed,
+        "rows_skipped": rows_skipped,
+        "batches_processed": 0,
+        "row_errors": [],
+        "row_errors_count": 0,
+        "factors_deleted": 0,
+        "factors_upserted": 0,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("rows_processed", "rows_skipped"),
+    [(3, 2), (0, 5)],  # WARNING (partial), ERROR (nothing processed)
+)
+async def test_stale_sweep_skipped_unless_full_success(rows_processed, rows_skipped):
+    """A partial (WARNING) or failed (ERROR) upload must NOT delete stale
+    factors: the rows that failed to re-ingest would take their factors
+    (and, via FK cascade, their emissions) with them on operator error.
+    Only a 100%-processed upload replaces its scope."""
+    provider = _sweep_provider()
+    mock_factor_repo = MagicMock()
+    mock_factor_repo.upsert_factors = AsyncMock(return_value=0)
+    mock_factor_repo.delete_stale_for_year = AsyncMock(return_value=99)
+
+    result = await provider._finalize_and_commit(
+        batch=[],
+        factor_service=MagicMock(),
+        stats=_sweep_stats(
+            rows_processed=rows_processed, rows_skipped=rows_skipped
+        ),
+        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+        factor_repo=mock_factor_repo,
+    )
+
+    mock_factor_repo.delete_stale_for_year.assert_not_awaited()
     assert result["state"] == IngestionState.FINISHED

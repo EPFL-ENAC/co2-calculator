@@ -797,12 +797,17 @@ git commit -m "test(1661): retarget factor assertions to emission rows"
 **Interfaces:**
 
 ```python
-async def delete_stale_for_year(self, year: int) -> int:
-    """Delete factors superseded by the latest FACTORS ingest per det.
+# As shipped (Tasks 10-12 evolved this): single ingest-scoped mode.
+async def delete_stale_for_year(
+    self, year: int, *, det_ids: List[int], threshold_job_id: int
+) -> int:
+    """Delete factors superseded by the factor CSV upsert just run.
 
-    Same staleness predicate as list_stale_for_year; returns rowcount.
-    Emission rows referencing deleted factors are removed by the FK's
-    ondelete=CASCADE and rebuilt by the enqueued recalc.
+    Rows in (year, det_ids) with last_seen_job_id NULL or < threshold
+    are deleted; the emission FK cascades and the chained recalc
+    rebuilds. Threshold passed explicitly (mid-pipeline job state is
+    not queryable). Swept only on full-SUCCESS uploads, scoped to the
+    dets the job actually upserted.
     """
 ```
 

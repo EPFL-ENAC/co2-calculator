@@ -305,6 +305,10 @@ class FactorRepository:
         one (``is_current`` already flipped off) is visible to a job-state
         lookup — resolving "the latest job" from the DB here would
         silently delete nothing.
+
+        Constraint for future factor writers: any row created outside the
+        CSV upsert (which stamps ``last_seen_job_id``) matches the NULL
+        predicate and is deleted by the next covering upload.
         """
         stmt = delete(Factor).where(
             col(Factor.year) == year,
