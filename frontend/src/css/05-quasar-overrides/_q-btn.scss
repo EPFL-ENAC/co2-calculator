@@ -1,4 +1,4 @@
-@use '../../02-tokens' as tokens;
+@use '../02-tokens' as tokens;
 
 .btn-primary {
   font-size: tokens.$button-size-sm-font-size !important;

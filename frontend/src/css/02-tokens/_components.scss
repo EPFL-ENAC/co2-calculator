@@ -126,6 +126,8 @@ $checkbox-checkmark: opt.$tokens-colors-base-white !default;
 
 // Progress Bars
 $progress-bar-height: opt.$tokens-spacing-4 !default;
+$progress-bar-gap: opt.$tokens-spacing-2 !default;
+$progress-bar-segment-radius: opt.$tokens-border-radius-generic-border-radius-px !default;
 $progress-bar-bg: opt.$tokens-colors-grey-scale-grey-200 !default;
 $progress-bar-selected-bg: opt.$tokens-colors-red-highlight-200 !default;
 $progress-bar-fill-bg: opt.$tokens-colors-red-red-100 !default;
@@ -170,6 +172,15 @@ $table-color-secondary: opt.$tokens-colors-grey-scale-grey-600 !default;
 $table-border-radius: opt.$tokens-border-radius-generic-border-radius !default;
 $table-color-warning: opt.$tokens-colors-status-red !default;
 $table-color-success: opt.$tokens-colors-status-green !default;
+$table-max-height: opt.$tokens-table-max-height !default;
+$table-header-z-index: opt.$tokens-z-index-sticky !default;
+
+// Chart Tooltip
+$chart-tooltip-min-width: opt.$tokens-chart-tooltip-min-width !default;
+$chart-tooltip-max-width: opt.$tokens-chart-tooltip-max-width !default;
+$chart-tooltip-dot-size: opt.$tokens-chart-tooltip-dot-size !default;
+$chart-tooltip-separator-color: opt.$tokens-chart-tooltip-separator-color !default;
+$chart-tooltip-padding: dec.$spacing-sm dec.$spacing-md !default;
 
 // Templates
 $template-width: opt.$tokens-layout-page-width !default;
