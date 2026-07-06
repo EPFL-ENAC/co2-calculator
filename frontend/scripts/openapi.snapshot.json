@@ -3356,64 +3356,6 @@
         }
       }
     },
-    "/v1/factors/stale": {
-      "get": {
-        "tags": [
-          "factors"
-        ],
-        "summary": "List Stale Factors",
-        "description": "Return factors not present in the latest successful FACTORS ingest.\n\nPlan 310B Part 3 \u2014 operators can detect rows that exist in the DB\nbut were not in the most recent CSV upload.  These rows are\nintentionally not deleted because existing ``DataEntryEmission`` rows\nmay still reference their ids via the ``primary_factor_id`` FK (entries\nno longer store factor ids in ``DataEntry.data``); this endpoint\nsurfaces them so the UI can warn that linked data entries are using\noutdated factors.\n\n**Required Permission**: ``backoffice.configuration.view``",
-        "operationId": "list_stale_factors_v1_factors_stale_get",
-        "parameters": [
-          {
-            "name": "year",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "description": "Report year to scope the query",
-              "title": "Year"
-            },
-            "description": "Report year to scope the query"
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StaleFactorResponse"
-                  },
-                  "title": "Response List Stale Factors V1 Factors Stale Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/factors/{data_entry_type}/class-subclass-map": {
       "get": {
         "tags": [
@@ -9530,60 +9472,6 @@
         ],
         "title": "RecalculationStatusEntry",
         "description": "Per-(module_type_id, data_entry_type_id) recalculation status."
-      },
-      "StaleFactorResponse": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "data_entry_type_id": {
-            "type": "integer",
-            "title": "Data Entry Type Id"
-          },
-          "emission_type_id": {
-            "type": "integer",
-            "title": "Emission Type Id"
-          },
-          "year": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Year"
-          },
-          "classification": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Classification"
-          },
-          "last_seen_job_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Seen Job Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "data_entry_type_id",
-          "emission_type_id",
-          "year",
-          "classification",
-          "last_seen_job_id"
-        ],
-        "title": "StaleFactorResponse",
-        "description": "Operator-facing summary of a factor not present in the latest CSV."
       },
       "StaleStatsEntry": {
         "properties": {

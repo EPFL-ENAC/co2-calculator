@@ -811,36 +811,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/factors/stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Stale Factors
-         * @description Return factors not present in the latest successful FACTORS ingest.
-         *
-         *     Plan 310B Part 3 — operators can detect rows that exist in the DB
-         *     but were not in the most recent CSV upload.  These rows are
-         *     intentionally not deleted because existing ``DataEntryEmission`` rows
-         *     may still reference their ids via the ``primary_factor_id`` FK (entries
-         *     no longer store factor ids in ``DataEntry.data``); this endpoint
-         *     surfaces them so the UI can warn that linked data entries are using
-         *     outdated factors.
-         *
-         *     **Required Permission**: ``backoffice.configuration.view``
-         */
-        get: operations["list_stale_factors_v1_factors_stale_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/factors/{data_entry_type}/class-subclass-map": {
         parameters: {
             query?: never;
@@ -3234,26 +3204,6 @@ export interface components {
             last_recalculation_job_result?: components["schemas"]["IngestionResult"] | null;
         };
         /**
-         * StaleFactorResponse
-         * @description Operator-facing summary of a factor not present in the latest CSV.
-         */
-        StaleFactorResponse: {
-            /** Id */
-            id: number;
-            /** Data Entry Type Id */
-            data_entry_type_id: number;
-            /** Emission Type Id */
-            emission_type_id: number;
-            /** Year */
-            year: number | null;
-            /** Classification */
-            classification: {
-                [key: string]: unknown;
-            };
-            /** Last Seen Job Id */
-            last_seen_job_id: number | null;
-        };
-        /**
          * StaleStatsEntry
          * @description One ``(module_type_id, year)`` scope whose aggregation is missing,
          *     failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
@@ -5212,40 +5162,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_stale_factors_v1_factors_stale_get: {
-        parameters: {
-            query: {
-                /** @description Report year to scope the query */
-                year: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StaleFactorResponse"][];
                 };
             };
             /** @description Validation Error */

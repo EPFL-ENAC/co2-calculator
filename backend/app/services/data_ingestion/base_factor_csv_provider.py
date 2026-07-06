@@ -599,15 +599,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         emission rows are part of the same commit the fan-out reads
         from.
 
-        Passes ``threshold_job_id=self.job_id`` explicitly rather than
-        letting ``delete_stale_for_year`` resolve the threshold from
-        ``is_current``/``state=FINISHED``: this job's own ``is_current``
-        flip already landed at its RUNNING transition
-        (``mark_job_as_current``), but ``state`` doesn't reach
-        ``FINISHED`` until the runner's ``finish_job`` call — which
-        happens AFTER the fan-out is dispatched. Waiting for that would
-        make the generic lookup see neither this job nor the superseded
-        one, silently deleting nothing.
+        See ``delete_stale_for_year`` for why the threshold is this
+        job's id rather than a job-state lookup.
         """
         covered = self._get_types_to_delete(setup_result["valid_entry_types"])
         return await factor_repo.delete_stale_for_year(

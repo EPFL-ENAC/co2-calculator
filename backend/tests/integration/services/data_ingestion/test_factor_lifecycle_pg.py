@@ -32,11 +32,12 @@ Pins behaviour for the three factor lifecycle events:
     is exactly designed to dodge.
   * Effect: the dropped factor row is *kept-stale* — same id,
     ``last_seen_job_id`` still points at the OLD job (so
-    ``list_stale_for_year`` flags it for operator action), and dependent
+    the ingest provider's sweep deletes it — see
+    ``test_factor_replace_semantics_pg.py``), and dependent
     ``data_entry_emissions`` are NOT cleared by the next recalc because
     the in-DB factor still resolves the rematch.
   * Stale-cleanup is therefore a deliberate operator action (the
-    ``/factors/stale`` endpoint), not an automatic side-effect of the
+    ingest sweep), not an automatic side-effect of the
     next CSV reupload.
 
 If a future change shifts the behaviour (e.g. a "purge missing factors"
@@ -690,10 +691,6 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
       missing rows" reading of the CSV reupload would clear F; the
       production upsert path explicitly does not, to avoid dangling
       ``DataEntryEmission.primary_factor_id`` FKs.
-    - ``list_stale_for_year(2025)`` flags F (its
-      ``last_seen_job_id < latest_id`` for the (det, year) — exactly
-      the operator-facing signal Plan 310-B's stale endpoint is
-      designed to surface).
     - The entry's emission rows still resolve to F (#1661:
       ``FactorResolver`` resolves on demand from ``entry.data``'s
       classification fields on every recalc — F's classification
@@ -701,11 +698,12 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     - ``data_entry_emissions`` rows are kept and recomputed against F's
       OLD values — they are NOT cleared and NOT NULLed.
 
-    So a CSV reupload that omits a factor is a soft-deprecation: the
-    factor goes stale-but-functional, dependent emissions stay valid
-    against the old EF, and only the operator's explicit cleanup via
-    ``/factors/stale`` (or a manual Factor DELETE) actually removes the
-    row.
+    So a bare repo-level ``upsert_factors`` never deletes: the omitted
+    factor stays functional and dependent emissions stay valid against
+    the old EF.  Deletion is the CSV ingest provider's explicit sweep
+    (``_delete_stale_factors`` → ``delete_stale_for_year``), pinned by
+    ``test_factor_replace_semantics_pg.py`` and the reupload endpoint
+    test — not a side-effect of the upsert itself.
 
     If a future change shifts this — e.g. cascade-delete on missing
     factors, resolution no longer favoring F, eager recomputation of
@@ -858,8 +856,6 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
         persisted_F = (
             await vs.execute(select(Factor).where(col(Factor.id) == factor_F_id))
         ).scalar_one_or_none()
-        stale = await FactorRepository(vs).list_stale_for_year(2025)
-        stale_ids = {f.id for f in stale}
         new_rows = await _emissions_for_entry(vs, entry_id)
 
     # 1. F is NOT deleted — upsert path never deletes rows missing from
@@ -871,16 +867,10 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     assert persisted_F.last_seen_job_id == job_v1_id, (
         "Contract: omitted-from-reupload factor keeps its OLD "
         f"last_seen_job_id (= {job_v1_id}); got {persisted_F.last_seen_job_id}.  "
-        "This is what makes ``list_stale_for_year`` flag it."
+        "This is what the ingest provider's delete sweep keys on."
     )
 
-    # 2. F is surfaced as stale to operators.
-    assert factor_F_id in stale_ids, (
-        f"Contract: F (id={factor_F_id}) must appear in list_stale_for_year(2025) "
-        f"after the reupload omits it; got stale_ids={stale_ids}"
-    )
-
-    # 3. The entry's emission rows still resolve to F (NOT unmatched).
+    # 2. The entry's emission rows still resolve to F (NOT unmatched).
     got_factor_ids = [r.primary_factor_id for r in new_rows]
     assert new_rows and all(r.primary_factor_id == factor_F_id for r in new_rows), (
         "Contract: emission rows must still carry F's id after the reupload "
@@ -889,7 +879,7 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
         f"so recalc keeps resolving to it.  got={got_factor_ids}"
     )
 
-    # 4. Emissions are kept and recomputed against F's OLD values — not
+    # 3. Emissions are kept and recomputed against F's OLD values — not
     #    cleared, not NULLed, not silently halved/doubled.
     assert new_rows != [], (
         "Contract: emissions must NOT be cleared just because F was missing "

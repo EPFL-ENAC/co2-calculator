@@ -445,8 +445,12 @@ async def test_delete_stale_for_year_removes_superseded_rows_and_cascades(
             assert f_2024_stale.id is not None
             stale_2024_id: int = f_2024_stale.id
 
-            # ── Act ──────────────────────────────────────────────────
-            deleted_count = await repo.delete_stale_for_year(2025)
+            # ── Act — the ingest-scoped sweep the provider runs ──────
+            deleted_count = await repo.delete_stale_for_year(
+                2025,
+                det_ids=[DataEntryTypeEnum.it.value],
+                threshold_job_id=job2_id,
+            )
             await s.commit()
     finally:
         await engine.dispose()
@@ -561,7 +565,11 @@ async def test_originating_bug_classification_reshape_no_multiple_results(pg_dsn
                     year=year,
                 )
 
-            deleted = await repo.delete_stale_for_year(year)
+            deleted = await repo.delete_stale_for_year(
+                year,
+                det_ids=[DataEntryTypeEnum.building.value],
+                threshold_job_id=job2.id,
+            )
             await s.commit()
             assert deleted == 1, f"expected the 2-key generation gone, got {deleted}"
 
