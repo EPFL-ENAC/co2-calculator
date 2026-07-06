@@ -546,6 +546,11 @@ class DataEntryRepository:
         # headcount derive their kind at compute time, so their factor display
         # keeps coming from the computed emission rows below.
         resolved_factor_id: Any = None
+        # Filter conditions may reference Factor columns; the count query
+        # must join Factor exactly like the page query or it degenerates to
+        # an implicit cross join (0 or inflated counts). Each branch records
+        # its join chain here.
+        count_factor_joins: list[tuple[Any, Any]] = []
         if (
             not is_travel_entry
             and not is_headcount_entry
@@ -613,6 +618,14 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = building_total_kg_expr
+            count_factor_joins = [
+                (Factor, col(Factor.id) == resolved_factor_id),
+                (
+                    BuildingRoom,
+                    DataEntry.data["room_name"].as_string()
+                    == col(BuildingRoom.room_name),
+                ),
+            ]
         elif is_headcount_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # Headcount entries (member/student) produce multiple leaf emissions
@@ -643,6 +656,15 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = RollupEmission.kg_co2eq
+            count_factor_joins = [
+                (
+                    RollupEmission,
+                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                    & (col(RollupEmission.scope).is_(None)),
+                ),
+                (Factor, col(RollupEmission.primary_factor_id) == col(Factor.id)),
+            ]
         else:
             # --- Aggregation subquery for multi-emission entries ---
             # Exclude rollup rows so future rollup types are never double-counted.
@@ -679,6 +701,14 @@ class DataEntryRepository:
                 else emission_agg.c.primary_factor_id == col(Factor.id)
             )
             statement = statement.join(Factor, factor_on, isouter=True)
+            count_factor_joins = (
+                [(Factor, factor_on)]
+                if resolved_factor_id is not None
+                else [
+                    (emission_agg, col(DataEntry.id) == emission_agg.c.data_entry_id),
+                    (Factor, factor_on),
+                ]
+            )
 
             if is_travel_entry:
                 statement = statement.join(
@@ -768,6 +798,15 @@ class DataEntryRepository:
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
         sort_map["kg_co2eq"] = kg_sort_expr
+        if is_buildings_entry:
+            # Surface lives on the joined building_rooms row (synced from the
+            # buildings source), not in entry data — the class-level map entry
+            # would sort all-NULL. Entry data stays as fallback for rows
+            # carrying an inline value.
+            sort_map["room_surface_square_meter"] = func.coalesce(
+                col(BuildingRoom.room_surface_square_meter),
+                DataEntry.data["room_surface_square_meter"].as_float(),
+            )
         if is_travel_entry:
             sort_map["distance_km"] = func.coalesce(
                 DataEntryEmission.additional_value,
@@ -794,15 +833,14 @@ class DataEntryRepository:
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
-            if resolved_factor_id is not None:
-                # Filter conditions may reference Factor columns — join the
-                # resolved factor so the count sees the same rows as the
-                # page query (replaces the old implicit factors cross-join).
-                count_stmt = count_stmt.select_from(DataEntry).join(
-                    Factor,
-                    col(Factor.id) == resolved_factor_id,
-                    isouter=True,
-                )
+            if count_factor_joins:
+                # Join Factor (and whatever it hangs off) exactly like the
+                # page query so the count sees the same rows — without this
+                # a Factor-referencing filter degenerates into an implicit
+                # cross join (0 or inflated counts).
+                count_stmt = count_stmt.select_from(DataEntry)
+                for target, onclause in count_factor_joins:
+                    count_stmt = count_stmt.join(target, onclause, isouter=True)
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]

@@ -6,6 +6,7 @@ from pydantic import (
     ValidationInfo,
     field_validator,
 )
+from sqlalchemy import func
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -485,7 +486,12 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
     }
 
     filter_map = {
-        "name": Factor.classification["name"].as_string(),
+        # Factor value when matched, entry data otherwise — search must find
+        # the same value the row displays.
+        "name": func.coalesce(
+            Factor.classification["name"].as_string(),
+            DataEntry.data["name"].as_string(),
+        ),
     }
 
     def resolve_computations(
@@ -624,7 +630,10 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
     }
 
     filter_map = {
-        "building_name": Factor.classification["building_name"].as_string(),
+        "building_name": func.coalesce(
+            Factor.classification["building_name"].as_string(),
+            DataEntry.data["building_name"].as_string(),
+        ),
     }
 
     def to_response(

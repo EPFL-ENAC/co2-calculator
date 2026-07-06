@@ -267,6 +267,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         "supplier": DataEntry.data["supplier"].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "total_spent_amount": DataEntry.data["total_spent_amount"].as_float(),
+        "currency": DataEntry.data["currency"].as_string(),
         "purchase_institutional_code": DataEntry.data[
             "purchase_institutional_code"
         ].as_string(),

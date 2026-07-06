@@ -1,6 +1,7 @@
 from typing import Optional
 
 from pydantic import ValidationInfo, field_validator
+from sqlalchemy import func
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -83,15 +84,27 @@ class ProcessEmissionsModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
-        "category": Factor.classification[kind_field].as_string(),
-        "subcategory": Factor.classification[subkind_field].as_string(),
+        "category": func.coalesce(
+            Factor.classification[kind_field].as_string(),
+            DataEntry.data["category"].as_string(),
+        ),
+        "subcategory": func.coalesce(
+            Factor.classification[subkind_field].as_string(),
+            DataEntry.data["subcategory"].as_string(),
+        ),
         "quantity": DataEntry.data["quantity"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "category": Factor.classification[kind_field].as_string(),
-        "subcategory": Factor.classification[subkind_field].as_string(),
+        "category": func.coalesce(
+            Factor.classification[kind_field].as_string(),
+            DataEntry.data["category"].as_string(),
+        ),
+        "subcategory": func.coalesce(
+            Factor.classification[subkind_field].as_string(),
+            DataEntry.data["subcategory"].as_string(),
+        ),
     }
 
     def to_response(
