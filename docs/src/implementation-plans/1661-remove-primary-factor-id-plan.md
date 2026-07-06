@@ -854,9 +854,9 @@ async def delete_stale_for_year(self, year: int) -> int:
 - Test: delete the `/stale` endpoint tests; grep
   `list_stale_for_year|StaleFactorResponse` in `backend/tests`
 
-- [ ] **Step 11.1: Implement + tests green**
-- [ ] **Step 11.2: Frontend type-check** (`make -C frontend type-check`)
-- [ ] **Step 11.3: Commit** `refactor(1661): remove stale-factor endpoint and flagging`
+- [x] **Step 11.1: Implement + tests green**
+- [x] **Step 11.2: Frontend type-check** (`make -C frontend type-check`)
+- [x] **Step 11.3: Commit** `refactor(1661): remove stale-factor endpoint and flagging`
 
 ### Task 12: close out
 
@@ -912,3 +912,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Merge blocker cleared (openapi regen via snapshot, type-check green). Phase 2 execution started.
 - 2026-07-06: Task 9 complete (commit 253fed84; delete_stale_for_year + replace-semantics integration test).
 - 2026-07-06: Task 10 complete (inline; ingest-scoped delete threshold via explicit job id — generic is_current lookup blind mid-pipeline; endpoint e2e + originating-bug regression tests green).
+- 2026-07-06: Task 11 complete (commit 1900f73f, −944 lines): /factors/stale + list_stale_for_year + _latest_factor_job_per_det deleted; delete_stale_for_year collapsed to single ingest-scoped mode (SQL CASE gone); openapi regenerated, frontend type-check green.
