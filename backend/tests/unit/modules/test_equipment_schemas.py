@@ -23,15 +23,19 @@ factor (EquipmentFactorCreate)
     ef_kg_co2eq_per_kwh          ✅ ≥ 0
 """
 
+from types import SimpleNamespace
+
 import pytest
 from pydantic import ValidationError
 
+from app.core.config import get_settings
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionType
 from app.modules.equipment.schemas import (
     EquipmentFactorCreate,
     EquipmentHandlerCreate,
 )
+from app.schemas.data_entry import BaseModuleHandler
 
 _OMIT = object()
 
@@ -187,3 +191,62 @@ def test_equipment_factor_valid(payload: dict) -> None:
 def test_equipment_factor_invalid(payload: dict) -> None:
     with pytest.raises(ValidationError):
         EquipmentFactorCreate.model_validate(payload)
+
+
+# ── live hour defaults (plan 1661-sql-factor-resolution step 6) ─────────
+
+
+def _compute_kg(entry_data: dict, factor_values: dict) -> float | None:
+    """Run the equipment formula the way prepare_create does: ctx wins,
+    factor values are the live default for unset usage hours."""
+    handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum.it)
+    entry = SimpleNamespace(
+        data_entry_type_id=DataEntryTypeEnum.it.value, data=entry_data
+    )
+    ctx = {**entry_data, "primary_factor_id": 1}
+    comps = handler.resolve_computations(entry, EmissionType.equipment__it, ctx)
+    assert len(comps) == 1
+    formula = comps[0].formula_func
+    assert formula is not None
+    return formula(ctx, factor_values)
+
+
+def test_equipment_formula_user_hours_win_over_factor_defaults() -> None:
+    kg = _compute_kg(
+        {"active_usage_hours_per_week": 10, "standby_usage_hours_per_week": 0},
+        {
+            "active_power_w": 100.0,
+            "standby_power_w": 10.0,
+            "ef_kg_co2eq_per_kwh": 1.0,
+            "active_usage_hours_per_week": 40,
+            "standby_usage_hours_per_week": 128,
+        },
+    )
+    settings_weeks = get_settings().WEEKS_PER_YEAR
+    assert kg == pytest.approx((10 * 100.0) * settings_weeks / 1000)
+
+
+def test_equipment_formula_falls_back_to_factor_hours_when_unset() -> None:
+    """Unset usage hours track the factor's current suggestion — nothing is
+    seeded into entry.data at ingest any more."""
+    kg = _compute_kg(
+        {},  # no hours on the entry
+        {
+            "active_power_w": 100.0,
+            "standby_power_w": 10.0,
+            "ef_kg_co2eq_per_kwh": 1.0,
+            "active_usage_hours_per_week": 40,
+            "standby_usage_hours_per_week": 128,
+        },
+    )
+    settings_weeks = get_settings().WEEKS_PER_YEAR
+    expected_weekly_wh = 40 * 100.0 + 128 * 10.0
+    assert kg == pytest.approx(expected_weekly_wh * settings_weeks / 1000)
+
+
+def test_equipment_formula_none_when_no_hours_anywhere() -> None:
+    kg = _compute_kg(
+        {},
+        {"active_power_w": 100.0, "standby_power_w": 10.0, "ef_kg_co2eq_per_kwh": 1.0},
+    )
+    assert kg is None

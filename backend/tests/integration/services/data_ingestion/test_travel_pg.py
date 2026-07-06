@@ -1084,13 +1084,12 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
             institutional_id=f"OVR-INT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-0",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
@@ -1167,13 +1166,12 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
             institutional_id=f"OVR-FLOAT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-1",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",

@@ -1,8 +1,8 @@
 from typing import Any, Optional
 
 from pydantic import ValidationInfo, field_validator, model_validator
-from sqlalchemy import case
 from sqlalchemy.sql.elements import ColumnElement
+from sqlmodel import case, func
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
@@ -212,8 +212,16 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
     }
 
     filter_map = {
-        "service_type": Factor.classification[subkind_field].as_string(),
-        "provider": Factor.classification[kind_field].as_string(),
+        # Factor value when matched, entry data otherwise — search must find
+        # the same value the row displays (see to_response's fallbacks).
+        "service_type": func.coalesce(
+            Factor.classification[subkind_field].as_string(),
+            DataEntry.data["service_type"].as_string(),
+        ),
+        "provider": func.coalesce(
+            Factor.classification[kind_field].as_string(),
+            DataEntry.data["provider"].as_string(),
+        ),
     }
 
     def to_response(
@@ -390,16 +398,28 @@ class ExternalAIModuleHandler(BaseModuleHandler):
     subkind_field: str = "usage_type"
     sort_map = {
         "id": DataEntry.id,
-        "provider": Factor.classification["provider"].as_string(),
-        "usage_type": Factor.classification["usage_type"].as_string(),
+        "provider": func.coalesce(
+            Factor.classification["provider"].as_string(),
+            DataEntry.data["provider"].as_string(),
+        ),
+        "usage_type": func.coalesce(
+            Factor.classification["usage_type"].as_string(),
+            DataEntry.data["usage_type"].as_string(),
+        ),
         "requests_per_user_per_day": _requests_frequency_sort_expr(),
         "fte_count": DataEntry.data["fte_count"].as_float(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
     filter_map = {
-        "provider": Factor.classification["provider"].as_string(),
-        "usage_type": Factor.classification["usage_type"].as_string(),
+        "provider": func.coalesce(
+            Factor.classification["provider"].as_string(),
+            DataEntry.data["provider"].as_string(),
+        ),
+        "usage_type": func.coalesce(
+            Factor.classification["usage_type"].as_string(),
+            DataEntry.data["usage_type"].as_string(),
+        ),
     }
 
     def to_response(

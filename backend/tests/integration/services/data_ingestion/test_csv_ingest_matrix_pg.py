@@ -494,11 +494,18 @@ async def test_csv_ingest_standard_module(
             f"{spec.expected_kg_first_row} (rel=1e-2); "
             f"persisted kg values: {kg_values}"
         )
-        # Pin: every entry has a primary_factor_id (factor was found).
+        # Pin: every entry has an emission row with a resolved factor.
+        # ``DataEntry.data`` no longer stores ``primary_factor_id`` (#1661) —
+        # the FK now lives exclusively on ``DataEntryEmission``.
+        emissions_by_entry: dict[int, list[DataEntryEmission]] = {}
+        for emission in emissions:
+            emissions_by_entry.setdefault(emission.data_entry_id, []).append(emission)
         for entry in target_entries:
-            assert entry.data.get("primary_factor_id") is not None, (
-                f"entry id={entry.id} missing primary_factor_id "
-                f"despite factors_state=pre_loaded"
+            entry_emissions = emissions_by_entry.get(entry.id, [])
+            assert entry_emissions, f"entry id={entry.id} has no emission rows"
+            assert any(em.primary_factor_id is not None for em in entry_emissions), (
+                f"entry id={entry.id} has no emission row with a resolved "
+                f"primary_factor_id despite factors_state=pre_loaded"
             )
 
         # ── 7. Assertion 4 — CRM stats committed (shape-only).

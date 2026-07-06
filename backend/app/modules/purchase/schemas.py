@@ -183,6 +183,39 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_institutional_code(cls, values: Any) -> Any:
+        # Key absent = "not updating" (PATCH semantics). An explicit null would
+        # silently clear the code, resolve no factor, and delete the entry's
+        # emissions. The payload mixin may carry the field top-level and/or
+        # under "data", so guard both shapes.
+        if not isinstance(values, dict):
+            return values
+        payloads = [values]
+        if isinstance(values.get("data"), dict):
+            payloads.append(values["data"])
+        for payload in payloads:
+            if (
+                "purchase_institutional_code" in payload
+                and payload["purchase_institutional_code"] is None
+            ):
+                raise ValueError("purchase_institutional_code cannot be null")
+        return values
+
+    @field_validator("purchase_institutional_code", mode="after")
+    @classmethod
+    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
+        # None here can only be the key-absent default (explicit null is
+        # rejected in the before-validator above); a blank/whitespace value
+        # provided on purpose must fail loudly here rather than silently
+        # resolving to no factor further down the pipeline.
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("purchase_institutional_code cannot be empty")
+        return v
+
 
 class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
@@ -223,10 +256,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
     # factor key when present: it overrides the institutional-code match.
     kind_field_override: Optional[str] = "purchase_additional_code"
     subkind_field: Optional[str] = ""
-    # purchase_institutional_code is not always present, so we can't 100% rely on it
-    # for matching entries to factors
-    # it's Optional in create_dto and update_dto, and some entries
-    # may have it missing or null in csv
+    # Required non-empty on create; update rejects present-but-blank/null
+    # (key-absent means "not updating"). CSV omits the key entirely when the
+    # cell is empty, so entries can still lack it — matching stays optional.
     require_factor_to_match = False
 
     sort_map = {
@@ -235,6 +267,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         "supplier": DataEntry.data["supplier"].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "total_spent_amount": DataEntry.data["total_spent_amount"].as_float(),
+        "currency": DataEntry.data["currency"].as_string(),
         "purchase_institutional_code": DataEntry.data[
             "purchase_institutional_code"
         ].as_string(),

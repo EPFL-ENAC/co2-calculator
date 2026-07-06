@@ -84,8 +84,6 @@ async def _seed_entry(
         "active_usage_hours_per_week": 12,
         "standby_usage_hours_per_week": 150,
     }
-    if factor is not None:
-        data["primary_factor_id"] = factor.id
     entry = DataEntry(
         carbon_report_module_id=module.id,
         data_entry_type_id=DataEntryTypeEnum.scientific,

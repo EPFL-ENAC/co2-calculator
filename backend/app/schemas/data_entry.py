@@ -6,7 +6,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryBase, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionComputation
-from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 logger = get_logger(__name__)
@@ -131,7 +130,6 @@ class ModuleHandler(Protocol[T]):
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
-    factor_value_fields: Optional[list[str]] = None
 
     def to_response(
         self,
@@ -160,13 +158,6 @@ class ModuleHandler(Protocol[T]):
         data_entry: Any,
         session: AsyncSession,
     ) -> dict: ...
-    async def get_factor_for_resolve_emission_types(
-        self,
-        data_entry: Any,
-        session: AsyncSession,
-        *,
-        factor_cache: Optional[dict[int, Factor]] = None,
-    ) -> Optional[Factor]: ...
     async def prefetch_slice(
         self,
         entries: list[Any],
@@ -252,7 +243,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Used during CSV seeding to populate mandatory fields with factor
     # defaults (e.g. ["active_usage_hours_per_week",
     # "standby_usage_hours_per_week"] for equipment).
-    factor_value_fields: Optional[list[str]] = None
 
     # -- Registration --
     # The DataEntryTypeEnum this handler serves. For handlers that cover
@@ -299,24 +289,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
             Dict of additional context keys (empty by default).
         """
         return {}
-
-    async def get_factor_for_resolve_emission_types(
-        self,
-        data_entry: Any,
-        session: AsyncSession,
-        *,
-        factor_cache: Optional[dict[int, Factor]] = None,
-    ) -> Optional[Factor]:
-        """Return the Factor whose classification drives emission-type resolution.
-
-        Default ``None``: most modules pick their emission leaves from the entry
-        data alone. Override when the matched factor decides which leaves to
-        emit — e.g. buildings, where the factor's ``energy_type`` selects the
-        single heating leaf (#1575). Keeping the factor generic here means a
-        future module can resolve its leaves from the factor without threading a
-        new module-specific argument through the service.
-        """
-        return None
 
     async def prefetch_slice(
         self,
@@ -367,8 +339,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         that must be applied for this emission type.
 
         The default implementation looks for a ``primary_factor_id`` in *ctx*
-        (Strategy A).  Handlers that use classification queries (Strategy B)
-        must override this method.
+        (Strategy A).  This key is injected by
+        ``DataEntryEmissionService.prepare_create`` from ``FactorResolver``
+        results — it is never persisted on the data entry.  Handlers that use
+        classification queries (Strategy B) must override this method.
 
         Args:
             data_entry: The data entry being processed.

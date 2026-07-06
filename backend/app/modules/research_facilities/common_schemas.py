@@ -114,10 +114,17 @@ class ResearchFacilitiesCommonModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
+        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
+        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
+        "use": DataEntry.data["use"].as_float(),
+        "use_unit": DataEntry.data["use_unit"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
-    filter_map: dict = {}
+    filter_map: dict = {
+        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
+        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
+    }
 
     def to_response(
         self,

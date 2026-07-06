@@ -1,5 +1,6 @@
 """Unit tests for DataEntryRepository."""
 
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +9,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionType
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
 from app.schemas.data_entry import DataEntryUpdate
@@ -1182,6 +1185,237 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
         assert forbidden_key not in refreshed.data, (
             f"computed key {forbidden_key!r} leaked into DataEntry.data"
         )
+
+
+# ======================================================================
+# Enrichment fallback: FactorResolver replaces the stored-id dereference
+# (plan 1661) — the entry's classification is the source of truth, not a
+# legacy ``data["primary_factor_id"]`` value.
+# ======================================================================
+
+
+async def _make_equipment_entry(
+    db_session: AsyncSession,
+    *,
+    extra_data: Optional[dict] = None,
+    year: Optional[int] = 2025,
+) -> DataEntry:
+    """Build an equipment entry with no emission rows, so
+    ``get_submodule_data`` always falls through to the resolver."""
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.equipment.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    data = {"name": "Laptop", "equipment_class": "laptop", "sub_class": "13-inch"}
+    if extra_data:
+        data.update(extra_data)
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data=data,
+        year=year,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+    return entry
+
+
+async def _make_factor(
+    db_session: AsyncSession,
+    *,
+    classification: dict,
+    values: dict,
+    year: int = 2025,
+) -> Factor:
+    factor = Factor(
+        emission_type_id=EmissionType.equipment__scientific.value,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        classification=classification,
+        values=values,
+        year=year,
+    )
+    db_session.add(factor)
+    await db_session.commit()
+    return factor
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_resolves_factor_from_classification_in_sql(
+    db_session: AsyncSession,
+):
+    """An entry with a classification but NO emission rows gets its factor
+    from the correlated SQL subquery — sort/filter/display all see it."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="active_power_w",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 42.0
+    assert item.standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_factor(
+    db_session: AsyncSession,
+):
+    """A legacy ``data["primary_factor_id"]`` pointing at a deleted factor
+    must never be dereferenced — the classification join wins, and no 500
+    is raised chasing the stale id."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(
+        db_session, extra_data={"primary_factor_id": 999999}
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 99.0, "standby_power_w": 9.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 99.0
+    assert item.standby_power_w == 9.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_year_none_yields_no_factor(
+    db_session: AsyncSession,
+):
+    """An entry with ``year=None`` matches no factor (the join is
+    year-equality-scoped), so factor-backed columns stay empty instead of
+    resolving against the wrong year."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session, year=None)
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w is None
+    assert item.standby_power_w is None
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_subkind_preference_ordering(
+    db_session: AsyncSession,
+):
+    """The SQL join mirrors FactorResolver's chain: an exact
+    ``(kind, subkind)`` row beats the subkind-less fallback row even when
+    the fallback has a lower id; an unknown subkind falls back to the
+    subkind-less row."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)  # sub_class "13-inch"
+    # Lower id: the kind-only fallback row. Higher id: the exact match.
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop"},
+        values={"active_power_w": 1.0, "standby_power_w": 1.0},
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+    unknown_sub = await _make_equipment_entry(
+        db_session, extra_data={"name": "Unknown", "sub_class": "17-inch"}
+    )
+
+    for module_id, expected_power, expected_name in (
+        (entry.carbon_report_module_id, 42.0, "Laptop"),
+        (unknown_sub.carbon_report_module_id, 1.0, "Unknown"),
+    ):
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+        assert len(response.items) == 1
+        item = response.items[0]
+        assert item.name == expected_name
+        assert item.active_power_w == expected_power
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_duplicate_factor_rows_resolve_deterministically(
+    db_session: AsyncSession,
+):
+    """Duplicate factor generations (impossible in prod post-sweep, but
+    seedable) must not 500 the page: the join picks the lowest id
+    deterministically; other rows are unaffected."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)
+    first = await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 777.0, "standby_power_w": 77.0},
+    )
+    assert first.id is not None
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 42.0, "lowest factor id must win deterministically"
 
 
 # ======================================================================

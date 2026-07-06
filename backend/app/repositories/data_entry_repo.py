@@ -27,7 +27,6 @@ from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSumma
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
-    ModuleHandler,
 )
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
@@ -431,12 +430,10 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(
-        self, statement, filter: Optional[str], handler: ModuleHandler
-    ):
+    def _apply_name_filter(self, statement, filter: Optional[str], filter_map: dict):
         """
-        Applies a filter to the given SQLAlchemy statement based on
-        the handler's filter_map if a valid filter is provided.
+        Applies a filter to the given SQLAlchemy statement using the
+        caller-prepared (possibly lateral-adapted) filter_map.
         """
         filter_pattern = ""
         if filter:
@@ -450,15 +447,62 @@ class DataEntryRepository:
 
         if filter:
             filter_pattern = f"%{filter}%"
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
             # Build OR conditions for all filter fields
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
+
+    def _resolved_factor_id(self, handler: Any, data_entry_type_id: int) -> Any:
+        """SQL twin of ``FactorResolver`` for list queries.
+
+        Correlated scalar subquery returning, per entry row, the id of the
+        factor the resolver would pick — deterministic because the reupload
+        sweep keeps a single factor generation per
+        ``(det, year, classification)``.  Joining ``Factor`` on this id
+        makes factor-backed sort/filter/pagination work for every row,
+        including entries whose emissions are not computed yet.
+
+        Chain parity: exact ``(kind, subkind)`` beats the subkind-less row;
+        for override handlers an override-code match beats the code-less
+        average row.  Divergences (display-only, accepted): matching is
+        kind-anchored — a code match under a *different* kind is not
+        considered — and ambiguity resolves to the lowest id instead of
+        raising; compute/update paths keep the loud semantics.
+        """
+        f = aliased(Factor)
+        kind_field: str = handler.kind_field
+        entry_kind = DataEntry.data[kind_field].as_string()
+        conditions = [
+            col(f.data_entry_type_id) == data_entry_type_id,
+            col(f.year) == col(DataEntry.year),
+            f.classification[kind_field].as_string() == entry_kind,
+        ]
+        ordering: list[Any] = []
+        override_field = handler.kind_field_override
+        subkind_field = handler.subkind_field
+        # Preference ordering must not reference outer columns (sqlite
+        # rejects correlated ORDER BY): within the WHERE-filtered candidate
+        # set, carrying a subkind/override code IS the exact match, so
+        # "specific first" reduces to a non-correlated IS NOT NULL sort.
+        if override_field is not None:
+            f_code = f.classification[override_field].as_string()
+            d_code = DataEntry.data[override_field].as_string()
+            conditions.append(or_(f_code == d_code, f_code.is_(None)))
+            ordering = [f_code.isnot(None).desc()]
+        elif subkind_field is not None:
+            f_sub = f.classification[subkind_field].as_string()
+            d_sub = DataEntry.data[subkind_field].as_string()
+            conditions.append(or_(f_sub == d_sub, f_sub.is_(None)))
+            ordering = [f_sub.isnot(None).desc()]
+        return (
+            sa_select(col(f.id))
+            .where(*conditions)
+            .order_by(*ordering, col(f.id))
+            .limit(1)
+            .scalar_subquery()
+        )
 
     def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
         sort_expr = sort_map.get(sort_by)
@@ -493,6 +537,24 @@ class DataEntryRepository:
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
         )
+        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+
+        # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
+        # used for every handler whose kind lives in entry.data. Travel and
+        # headcount derive their kind at compute time, so their factor display
+        # keeps coming from the computed emission rows below.
+        resolved_factor_id: Any = None
+        # Filter conditions may reference Factor columns; the count query
+        # must join Factor exactly like the page query or it degenerates to
+        # an implicit cross join (0 or inflated counts). Each branch records
+        # its join chain here.
+        count_factor_joins: list[tuple[Any, Any]] = []
+        if (
+            not is_travel_entry
+            and not is_headcount_entry
+            and handler.kind_field is not None
+        ):
+            resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -536,7 +598,7 @@ class DataEntryRepository:
                 )
                 .join(
                     Factor,
-                    col(RollupEmission.primary_factor_id) == col(Factor.id),
+                    col(Factor.id) == resolved_factor_id,
                     isouter=True,
                 )
                 .join(
@@ -552,6 +614,14 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = building_total_kg_expr
+            count_factor_joins = [
+                (Factor, col(Factor.id) == resolved_factor_id),
+                (
+                    BuildingRoom,
+                    DataEntry.data["room_name"].as_string()
+                    == col(BuildingRoom.room_name),
+                ),
+            ]
         elif is_headcount_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # Headcount entries (member/student) produce multiple leaf emissions
@@ -582,6 +652,15 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = RollupEmission.kg_co2eq
+            count_factor_joins = [
+                (
+                    RollupEmission,
+                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                    & (col(RollupEmission.scope).is_(None)),
+                ),
+                (Factor, col(RollupEmission.primary_factor_id) == col(Factor.id)),
+            ]
         else:
             # --- Aggregation subquery for multi-emission entries ---
             # Exclude rollup rows so future rollup types are never double-counted.
@@ -607,18 +686,24 @@ class DataEntryRepository:
                     OriginLocation = aliased(Location)
                     DestLocation = aliased(Location)
                     entities.extend([OriginLocation, DestLocation])
-            statement = (
-                sa_select(*entities)
-                .join(
-                    emission_agg,
-                    col(DataEntry.id) == emission_agg.c.data_entry_id,
-                    isouter=True,
-                )
-                .join(
-                    Factor,
-                    emission_agg.c.primary_factor_id == col(Factor.id),
-                    isouter=True,
-                )
+            statement = sa_select(*entities).join(
+                emission_agg,
+                col(DataEntry.id) == emission_agg.c.data_entry_id,
+                isouter=True,
+            )
+            factor_on = (
+                col(Factor.id) == resolved_factor_id
+                if resolved_factor_id is not None
+                else emission_agg.c.primary_factor_id == col(Factor.id)
+            )
+            statement = statement.join(Factor, factor_on, isouter=True)
+            count_factor_joins = (
+                [(Factor, factor_on)]
+                if resolved_factor_id is not None
+                else [
+                    (emission_agg, col(DataEntry.id) == emission_agg.c.data_entry_id),
+                    (Factor, factor_on),
+                ]
             )
 
             if is_travel_entry:
@@ -697,16 +782,27 @@ class DataEntryRepository:
                 == institutional_id_filter
             )
 
-        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
             statement = statement.where(*handler_default)
-        statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
+        filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        statement, filter_pattern = self._apply_name_filter(
+            statement, filter, filter_map
+        )
 
         sort_map = dict(
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
         sort_map["kg_co2eq"] = kg_sort_expr
+        if is_buildings_entry:
+            # Surface lives on the joined building_rooms row (synced from the
+            # buildings source), not in entry data — the class-level map entry
+            # would sort all-NULL. Entry data stays as fallback for rows
+            # carrying an inline value.
+            sort_map["room_surface_square_meter"] = func.coalesce(
+                col(BuildingRoom.room_surface_square_meter),
+                DataEntry.data["room_surface_square_meter"].as_float(),
+            )
         if is_travel_entry:
             sort_map["distance_km"] = func.coalesce(
                 DataEntryEmission.additional_value,
@@ -733,10 +829,21 @@ class DataEntryRepository:
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
-            # Build OR conditions for all filter fields
+            # Only pay for the factor join chain when a filter expression
+            # actually reads it — buildings/purchase/RF filters are pure
+            # entry-data and skip the per-row factor subquery entirely.
+            filter_reads_factor = any(
+                "factors" in str(expr) or "building_rooms" in str(expr)
+                for expr in filter_map.values()
+            )
+            if count_factor_joins and filter_reads_factor:
+                # Join Factor (and whatever it hangs off) exactly like the
+                # page query so the count sees the same rows — without this
+                # a Factor-referencing filter degenerates into an implicit
+                # cross join (0 or inflated counts).
+                count_stmt = count_stmt.select_from(DataEntry)
+                for target, onclause in count_factor_joins:
+                    count_stmt = count_stmt.join(target, onclause, isouter=True)
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
@@ -779,20 +886,6 @@ class DataEntryRepository:
                 self._detach(member_entry, _emission, _origin_loc, _dest_loc)
             elif is_buildings_entry:
                 self._detach(building_room)
-
-            handler = BaseModuleHandler.get_by_type(
-                DataEntryTypeEnum(data_entry.data_entry_type_id)
-            )
-            # If primary_factor is None, try to fetch it
-            # from DataEntry.data["primary_factor_id"]
-            if primary_factor is None:
-                primary_factor_id = data_entry.data.get("primary_factor_id")
-                if primary_factor_id:
-                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
-                    factor_result = await self.session.execute(factor_stmt)
-                    primary_factor = factor_result.scalar_one_or_none()
-                    if primary_factor is not None:
-                        self._detach(primary_factor)
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (

@@ -542,7 +542,6 @@ def test_plane_patch_validate_update_with_slash_date():
         "cabin_class": "economy",
         "departure_date": "2026/01/19",  # slash format stored by the UI
         "number_of_trips": 3,
-        "primary_factor_id": None,
     }
     update_payload = {
         **existing_data,
@@ -572,7 +571,6 @@ def test_train_patch_validate_update_with_slash_date():
         "cabin_class": "second",
         "departure_date": "2026/01/19",  # slash format
         "number_of_trips": 3,
-        "primary_factor_id": None,
     }
     update_payload = {
         **existing_data,
@@ -597,7 +595,6 @@ def test_plane_patch_validate_update_no_departure_date():
         "destination_iata": "JFK",
         "cabin_class": "economy",
         "number_of_trips": 3,
-        "primary_factor_id": None,
     }
     update_payload = {
         **existing_data,
@@ -621,7 +618,6 @@ def test_plane_patch_produces_valid_data_entry_update():
         "cabin_class": "economy",
         "departure_date": "2026/01/19",
         "number_of_trips": 3,
-        "primary_factor_id": None,
     }
     update_payload = {
         **existing_data,
