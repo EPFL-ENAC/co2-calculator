@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from psycopg.types.json import Json
 from sqlalchemy import case, or_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlmodel import col, select
+from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
@@ -407,6 +407,41 @@ class FactorRepository:
         )
         result = await self.session.exec(stmt)
         return list(result.all())
+
+    async def delete_stale_for_year(self, year: int) -> int:
+        """Delete factors superseded by the latest FACTORS ingest per det.
+
+        Same staleness predicate as ``list_stale_for_year``; returns the
+        deleted rowcount. Emission rows referencing deleted factors are
+        removed by the FK's ``ondelete=CASCADE`` and rebuilt by the
+        enqueued recalc.
+        """
+        latest_per_det = await self._latest_factor_job_per_det(year)
+        if not latest_per_det:
+            # No is_current FACTORS job for this year → nothing to compare
+            # against, so nothing is stale.
+            return 0
+
+        threshold = case(
+            *[
+                (col(Factor.data_entry_type_id) == det, latest_id)
+                for det, latest_id in latest_per_det.items()
+            ],
+            else_=None,
+        )
+
+        stmt = delete(Factor).where(
+            col(Factor.year) == year,
+            col(Factor.data_entry_type_id).in_(latest_per_det.keys()),
+            or_(
+                col(Factor.last_seen_job_id).is_(None),
+                col(Factor.last_seen_job_id) < threshold,
+            ),
+        )
+        result = await self.session.execute(stmt)
+        # rowcount is a CursorResult attribute on DML; cast away the
+        # narrower Result[Any] type Pyright infers from session.execute.
+        return getattr(result, "rowcount", 0) or 0
 
     async def update(self, factor_id: int, update_data: Dict) -> Optional[Factor]:
         """Update an existing factor."""
