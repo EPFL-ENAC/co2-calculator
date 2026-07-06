@@ -30,7 +30,6 @@ from app.schemas.factor import (
     FactorUpdate,
 )
 from app.services.building_room_service import BuildingRoomService
-from app.services.factor_service import FactorService
 
 logger = get_logger(__name__)
 
@@ -178,35 +177,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         EmissionType.buildings__rooms__heating_electric: "heating_kwh_per_square_meter",
         EmissionType.buildings__rooms__heating_thermal: "heating_kwh_per_square_meter",
     }
-
-    async def get_factor_for_resolve_emission_types(
-        self,
-        data_entry: Any,
-        session: Any,
-        *,
-        factor_cache: dict[int, Factor] | None = None,
-    ) -> Factor | None:
-        """Return the matched building factor — its energy_type picks the leaves.
-
-        The factor's ``energy_type`` (electric/thermal) selects the single
-        heating leaf a room emits (#1575); ``_resolve_building_rooms`` reads it.
-        ``None`` when the entry references no factor. A referenced-but-missing
-        factor is corrupt data and fails loudly rather than dropping heating.
-        Reads the prefetched cache when a bulk caller supplied one, else a
-        single DB get.
-        """
-        factor_id = data_entry.data.get("primary_factor_id")
-        if factor_id is None:
-            return None
-        factor = factor_cache.get(factor_id) if factor_cache else None
-        if factor is None:
-            factor = await FactorService(session).get(factor_id)
-        if factor is None:
-            raise ValueError(
-                f"Building room entry references factor {factor_id}, "
-                "which does not exist."
-            )
-        return factor
 
     async def pre_compute(self, data_entry: Any, session: Any) -> dict:
         """call RoomService to get room surface by room_name"""

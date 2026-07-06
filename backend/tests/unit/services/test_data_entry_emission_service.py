@@ -172,9 +172,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
         mock_handler = MagicMock()
         mock_handler.kind_field = None
         mock_handler.pre_compute = AsyncMock(return_value={})
-        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-            return_value=None
-        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -223,9 +220,6 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
         mock_handler = MagicMock()
         mock_handler.kind_field = None
         mock_handler.pre_compute = AsyncMock(return_value={})
-        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-            return_value=None
-        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -315,9 +309,6 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -373,9 +364,6 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -430,9 +418,6 @@ class TestMetaExtras:
             mock_handler = MagicMock()
             mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler.resolve_computations.return_value = [
                 __import__(
                     "app.models.data_entry_emission",
@@ -1481,9 +1466,6 @@ class TestPrepareCreateRollup:
             mock_handler = MagicMock()
             mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1547,9 +1529,6 @@ class TestPrepareCreateRollup:
             mock_handler = MagicMock()
             mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1614,9 +1593,6 @@ class TestPrepareCreateRollup:
             mock_handler = MagicMock()
             mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1670,9 +1646,6 @@ class TestPrepareCreateRollup:
             mock_handler = MagicMock()
             mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
-            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
-                return_value=None
-            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
