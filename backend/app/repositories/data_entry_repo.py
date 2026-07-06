@@ -29,7 +29,6 @@ from app.schemas.data_entry import (
     DataEntryUpdate,
     ModuleHandler,
 )
-from app.services.factor_resolver import FactorResolver
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
@@ -433,11 +432,11 @@ class DataEntryRepository:
         return aggregation
 
     def _apply_name_filter(
-        self, statement, filter: Optional[str], handler: ModuleHandler
+        self, statement, filter: Optional[str], filter_map: dict
     ):
         """
-        Applies a filter to the given SQLAlchemy statement based on
-        the handler's filter_map if a valid filter is provided.
+        Applies a filter to the given SQLAlchemy statement using the
+        caller-prepared (possibly lateral-adapted) filter_map.
         """
         filter_pattern = ""
         if filter:
@@ -451,15 +450,62 @@ class DataEntryRepository:
 
         if filter:
             filter_pattern = f"%{filter}%"
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
             # Build OR conditions for all filter fields
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
+
+    def _resolved_factor_id(self, handler: Any, data_entry_type_id: int) -> Any:
+        """SQL twin of ``FactorResolver`` for list queries.
+
+        Correlated scalar subquery returning, per entry row, the id of the
+        factor the resolver would pick — deterministic because the reupload
+        sweep keeps a single factor generation per
+        ``(det, year, classification)``.  Joining ``Factor`` on this id
+        makes factor-backed sort/filter/pagination work for every row,
+        including entries whose emissions are not computed yet.
+
+        Chain parity: exact ``(kind, subkind)`` beats the subkind-less row;
+        for override handlers an override-code match beats the code-less
+        average row.  Divergences (display-only, accepted): matching is
+        kind-anchored — a code match under a *different* kind is not
+        considered — and ambiguity resolves to the lowest id instead of
+        raising; compute/update paths keep the loud semantics.
+        """
+        f = aliased(Factor)
+        kind_field: str = handler.kind_field
+        entry_kind = DataEntry.data[kind_field].as_string()
+        conditions = [
+            col(f.data_entry_type_id) == data_entry_type_id,
+            col(f.year) == col(DataEntry.year),
+            f.classification[kind_field].as_string() == entry_kind,
+        ]
+        ordering: list[Any] = []
+        override_field = handler.kind_field_override
+        subkind_field = handler.subkind_field
+        # Preference ordering must not reference outer columns (sqlite
+        # rejects correlated ORDER BY): within the WHERE-filtered candidate
+        # set, carrying a subkind/override code IS the exact match, so
+        # "specific first" reduces to a non-correlated IS NOT NULL sort.
+        if override_field is not None:
+            f_code = f.classification[override_field].as_string()
+            d_code = DataEntry.data[override_field].as_string()
+            conditions.append(or_(f_code == d_code, f_code.is_(None)))
+            ordering = [f_code.isnot(None).desc()]
+        elif subkind_field is not None:
+            f_sub = f.classification[subkind_field].as_string()
+            d_sub = DataEntry.data[subkind_field].as_string()
+            conditions.append(or_(f_sub == d_sub, f_sub.is_(None)))
+            ordering = [f_sub.isnot(None).desc()]
+        return (
+            sa_select(f.id)
+            .where(*conditions)
+            .order_by(*ordering, col(f.id))
+            .limit(1)
+            .scalar_subquery()
+        )
 
     def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
         sort_expr = sort_map.get(sort_by)
@@ -494,6 +540,21 @@ class DataEntryRepository:
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
         )
+        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+
+        # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
+        # used for every handler whose kind lives in entry.data. Travel and
+        # headcount derive their kind at compute time, so their factor display
+        # keeps coming from the computed emission rows below.
+        resolved_factor_id: Any = None
+        if (
+            not is_travel_entry
+            and not is_headcount_entry
+            and handler.kind_field is not None
+        ):
+            resolved_factor_id = self._resolved_factor_id(
+                handler, data_entry_type_id
+            )
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -537,7 +598,7 @@ class DataEntryRepository:
                 )
                 .join(
                     Factor,
-                    col(RollupEmission.primary_factor_id) == col(Factor.id),
+                    col(Factor.id) == resolved_factor_id,
                     isouter=True,
                 )
                 .join(
@@ -608,19 +669,17 @@ class DataEntryRepository:
                     OriginLocation = aliased(Location)
                     DestLocation = aliased(Location)
                     entities.extend([OriginLocation, DestLocation])
-            statement = (
-                sa_select(*entities)
-                .join(
-                    emission_agg,
-                    col(DataEntry.id) == emission_agg.c.data_entry_id,
-                    isouter=True,
-                )
-                .join(
-                    Factor,
-                    emission_agg.c.primary_factor_id == col(Factor.id),
-                    isouter=True,
-                )
+            statement = sa_select(*entities).join(
+                emission_agg,
+                col(DataEntry.id) == emission_agg.c.data_entry_id,
+                isouter=True,
             )
+            factor_on = (
+                col(Factor.id) == resolved_factor_id
+                if resolved_factor_id is not None
+                else emission_agg.c.primary_factor_id == col(Factor.id)
+            )
+            statement = statement.join(Factor, factor_on, isouter=True)
 
             if is_travel_entry:
                 statement = statement.join(
@@ -698,11 +757,13 @@ class DataEntryRepository:
                 == institutional_id_filter
             )
 
-        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
             statement = statement.where(*handler_default)
-        statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
+        filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        statement, filter_pattern = self._apply_name_filter(
+            statement, filter, filter_map
+        )
 
         sort_map = dict(
             handler.sort_map
@@ -734,10 +795,15 @@ class DataEntryRepository:
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
-            # Build OR conditions for all filter fields
+            if resolved_factor_id is not None:
+                # Filter conditions may reference Factor columns — join the
+                # resolved factor so the count sees the same rows as the
+                # page query (replaces the old implicit factors cross-join).
+                count_stmt = count_stmt.select_from(DataEntry).join(
+                    Factor,
+                    col(Factor.id) == resolved_factor_id,
+                    isouter=True,
+                )
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
@@ -747,9 +813,6 @@ class DataEntryRepository:
         count = len(rows)
 
         items: list[BaseModel] = []
-        # One resolver for the whole page: it memoizes per (data_entry_type,
-        # year), so per-row calls in the fallback below are cheap.
-        resolver = FactorResolver(self.session)
 
         for row in rows:
             # Pre-bind conditionally-unpacked variables so static type checkers
@@ -783,36 +846,6 @@ class DataEntryRepository:
                 self._detach(member_entry, _emission, _origin_loc, _dest_loc)
             elif is_buildings_entry:
                 self._detach(building_room)
-
-            handler = BaseModuleHandler.get_by_type(
-                DataEntryTypeEnum(data_entry.data_entry_type_id)
-            )
-            # No emission row carried a factor — derive it from the entry's
-            # classification (the entry never stores a factor id). The
-            # resolver itself short-circuits missing/empty kind values, so
-            # Strategy-B entries cost nothing here.
-            if primary_factor is None and data_entry.year is not None:
-                try:
-                    primary_factor = await resolver.resolve(
-                        handler,
-                        data_entry.data,
-                        DataEntryTypeEnum(data_entry.data_entry_type_id),
-                        data_entry.year,
-                    )
-                except ValueError as exc:
-                    # Ambiguous factor data (e.g. duplicate average rows for
-                    # one kind) must not 500 the whole page — this is
-                    # display enrichment only. Recalc/update paths already
-                    # surface ambiguity loudly; here we render the row with
-                    # empty factor columns instead.
-                    logger.warning(
-                        "Ambiguous factor data resolving primary_factor for "
-                        "data_entry_id=%s data_entry_type=%s year=%s: %s",
-                        data_entry.id,
-                        data_entry.data_entry_type_id,
-                        data_entry.year,
-                        exc,
-                    )
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
