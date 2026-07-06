@@ -870,7 +870,7 @@ async def delete_stale_for_year(
 - [x] **Step 12.2:** Update the spec (`1661-remove-primary-factor-id.md`) if
   anything shipped differently; set both files' `status:` frontmatter
   (`delivered` when merged).
-- [ ] **Step 12.3:** PRs target `dev` unless told otherwise; Phase 1 and
+- [x] **Step 12.3:** PRs target `dev` unless told otherwise; Phase 1 and
   Phase 2 are separate PRs (`gh pr create --base dev`). No attribution
   trailers in PR bodies.
 
@@ -919,3 +919,4 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Task 10 complete (inline; ingest-scoped delete threshold via explicit job id — generic is_current lookup blind mid-pipeline; endpoint e2e + originating-bug regression tests green).
 - 2026-07-06: Task 11 complete (commit 1900f73f, −944 lines): /factors/stale + list_stale_for_year + _latest_factor_job_per_det deleted; delete_stale_for_year collapsed to single ingest-scoped mode (SQL CASE gone); openapi regenerated, frontend type-check green.
 - 2026-07-06: Simplify pass (commit 281f97d3): resolver owns falsy-kind short-circuit (caller gates collapsed), factor_cache parallel plumbing removed, _FactorMaps invariant documented. Skipped: _pick_* merge (generic helper less readable), PATCH double-load threading (KISS), get_by_classification reuse flag (pre-existing code). Task 12: unit 1754 + ruff + mypy green; integration green modulo the documented pre-existing 2F+5E baseline. Spec Phase-2 section aligned with shipped shape.
+- 2026-07-06: Phase 2 close-out: destructive-semantics guards decided+pinned (SUCCESS-only sweep, upserted-dets scope; commit cb755087); final Phase-2 review verdict READY TO MERGE, no open findings. PR opened stacked on #1714.
