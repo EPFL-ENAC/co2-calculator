@@ -6,6 +6,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryBase, DataEntryTypeEnum
 from app.models.data_entry_emission import EmissionComputation
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 
 logger = get_logger(__name__)
@@ -159,6 +160,13 @@ class ModuleHandler(Protocol[T]):
         data_entry: Any,
         session: AsyncSession,
     ) -> dict: ...
+    async def get_factor_for_resolve_emission_types(
+        self,
+        data_entry: Any,
+        session: AsyncSession,
+        *,
+        factor_cache: Optional[dict[int, Factor]] = None,
+    ) -> Optional[Factor]: ...
     async def prefetch_slice(
         self,
         entries: list[Any],
@@ -291,6 +299,24 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
             Dict of additional context keys (empty by default).
         """
         return {}
+
+    async def get_factor_for_resolve_emission_types(
+        self,
+        data_entry: Any,
+        session: AsyncSession,
+        *,
+        factor_cache: Optional[dict[int, Factor]] = None,
+    ) -> Optional[Factor]:
+        """Return the Factor whose classification drives emission-type resolution.
+
+        Default ``None``: most modules pick their emission leaves from the entry
+        data alone. Override when the matched factor decides which leaves to
+        emit — e.g. buildings, where the factor's ``energy_type`` selects the
+        single heating leaf (#1575). Keeping the factor generic here means a
+        future module can resolve its leaves from the factor without threading a
+        new module-specific argument through the service.
+        """
+        return None
 
     async def prefetch_slice(
         self,

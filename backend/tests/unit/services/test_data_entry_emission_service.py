@@ -146,7 +146,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     """When kg_co2eq_override is set, the formula path is bypassed and a
     single emission with the override value (and primary_factor_id=None) is
     returned — even when the data dict has no kg_co2eq key."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -172,6 +171,9 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     ):
         mock_handler = MagicMock()
         mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+            return_value=None
+        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -193,7 +195,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
 async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     """A kg_co2eq value sitting in data_entry.data must NOT be picked up as
     an override — the channel is exclusively the kg_co2eq_override param."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -220,6 +221,9 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     ):
         mock_handler = MagicMock()
         mock_handler.pre_compute = AsyncMock(return_value={})
+        mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+            return_value=None
+        )
         mock_handler.resolve_computations = MagicMock(
             return_value=[
                 EmissionComputation(
@@ -255,7 +259,6 @@ class TestMetaExtras:
         return DataEntryEmissionService(session)
 
     def _make_factor(self, emission_type_value: int, factor_values: dict):
-        from app.models.factor import Factor
 
         f = MagicMock(spec=Factor)
         f.id = 99
@@ -310,6 +313,9 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -365,6 +371,9 @@ class TestMetaExtras:
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler_cls.return_value = mock_handler
 
             results = await service.prepare_create(de)
@@ -418,6 +427,9 @@ class TestMetaExtras:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations.return_value = [
                 __import__(
                     "app.models.data_entry_emission",
@@ -1465,6 +1477,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1527,6 +1542,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1590,6 +1608,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1642,6 +1663,9 @@ class TestPrepareCreateRollup:
         ):
             mock_handler = MagicMock()
             mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler.get_factor_for_resolve_emission_types = AsyncMock(
+                return_value=None
+            )
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
 
@@ -1720,68 +1744,3 @@ class TestFetchFactorsStrategyBCache:
 
         # Without the opt-in cache, behaviour is unchanged: one query per call.
         assert get_by_classification.await_count == 2
-
-
-# ---------------------------------------------------------------------------
-# _get_building_energy_type — resolves the heating leaf, fails loud on corruption
-# ---------------------------------------------------------------------------
-
-
-class TestGetBuildingEnergyType:
-    """The matched building factor picks the single heating leaf (#1575).
-
-    A missing/unrecognized energy_type is corrupt data and must raise here,
-    not silently drop heating downstream in _resolve_building_rooms.
-    """
-
-    @staticmethod
-    def _factor(classification: dict) -> Factor:
-        factor = MagicMock(spec=Factor)
-        factor.classification = classification
-        return factor
-
-    @pytest.mark.asyncio
-    async def test_valid_electric_returns_electric(self):
-        service = _make_service()
-        cache = {5: self._factor({"energy_type": "electric"})}
-        assert await service._get_building_energy_type(5, cache) == "electric"
-
-    @pytest.mark.asyncio
-    async def test_valid_thermal_returns_thermal(self):
-        service = _make_service()
-        cache = {5: self._factor({"energy_type": "thermal"})}
-        assert await service._get_building_energy_type(5, cache) == "thermal"
-
-    @pytest.mark.asyncio
-    async def test_none_factor_id_returns_none(self):
-        # No matched factor = no emission to produce; a legitimate skip, not error.
-        service = _make_service()
-        assert await service._get_building_energy_type(None, {}) is None
-
-    @pytest.mark.asyncio
-    async def test_missing_energy_type_key_raises(self):
-        # classification without the key → descriptive ValueError, not bare KeyError.
-        service = _make_service()
-        cache = {5: self._factor({})}
-        with pytest.raises(ValueError, match="5"):
-            await service._get_building_energy_type(5, cache)
-
-    @pytest.mark.asyncio
-    async def test_unrecognized_energy_type_raises(self):
-        # Regression #1575: a present-but-invalid value must fail loud here
-        # rather than resolve to None and silently drop the heating leaf.
-        service = _make_service()
-        cache = {5: self._factor({"energy_type": "electricity"})}
-        with pytest.raises(ValueError, match="electricity"):
-            await service._get_building_energy_type(5, cache)
-
-    @pytest.mark.asyncio
-    async def test_dangling_factor_id_raises(self):
-        # id present but resolves to no factor (dangling FK) = corruption → raise.
-        service = _make_service()
-        with patch(
-            "app.services.data_entry_emission_service.FactorService"
-        ) as mock_fs_cls:
-            mock_fs_cls.return_value = MagicMock(get=AsyncMock(return_value=None))
-            with pytest.raises(ValueError, match="does not exist"):
-                await service._get_building_energy_type(5, {})
