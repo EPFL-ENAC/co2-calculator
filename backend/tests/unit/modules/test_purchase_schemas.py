@@ -3,7 +3,10 @@
 import pytest
 from pydantic import ValidationError
 
-from app.modules.purchase.schemas import PurchaseCommonFactorCreate, PurchaseHandlerUpdate
+from app.modules.purchase.schemas import (
+    PurchaseCommonFactorCreate,
+    PurchaseHandlerUpdate,
+)
 
 
 def _factor_payload(**overrides):

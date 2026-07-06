@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
 @dataclass
 class _FactorMaps:
+    # ``by_kind_subkind`` and the ``override_lookup``/``kind_lookup`` pair
+    # are mutually exclusive: ``_build_maps`` fills one or the other based
+    # on the handler's ``kind_field_override``; the unused side stays {}.
     by_id: dict[int, Factor]
     by_kind_subkind: dict[tuple[str, str | None], int]
     override_lookup: dict[str, list[tuple[int, str]]]
@@ -55,7 +58,11 @@ class FactorResolver:
         data_entry_type: DataEntryTypeEnum,
         year: int,
     ) -> Factor | None:
-        if handler.kind_field is None:
+        # Falsy kind (field undeclared, key absent, empty value) resolves to
+        # None BEFORE the bulk load — callers never need their own gate, and
+        # Strategy-B entries (kind derived at compute time, absent from
+        # data) cost nothing here.
+        if handler.kind_field is None or not data.get(handler.kind_field):
             return None
         maps = await self._get_maps(data_entry_type, year)
         if handler.kind_field_override is not None:
@@ -187,11 +194,9 @@ def _resolve_kind_subkind(
        was supplied (otherwise the exact match above already tried it).
 
     Returns ``None`` on overall miss. Subkind normalises empty string to
-    ``None``; kind is read as-is.
+    ``None``. Precondition: ``resolve()`` already guaranteed a truthy kind.
     """
-    kind = data.get(kind_field)
-    if kind is None or kind == "":
-        return None
+    kind = data[kind_field]
     subkind: str | None = None
     if subkind_field:
         raw = data.get(subkind_field)
@@ -223,11 +228,10 @@ def _resolve_with_override(
        without an override code) — there must be exactly one.
 
     Returns ``None`` when no factor in the current set matches. Raises
-    ``ValueError`` on ambiguous data.
+    ``ValueError`` on ambiguous data. Precondition: ``resolve()`` already
+    guaranteed a truthy kind.
     """
-    kind = data.get(kind_field)
-    if not kind:
-        return None
+    kind = data[kind_field]
     code: str | None = data.get(override_field) or None
     if code:
         matches = override_lookup.get(code, [])

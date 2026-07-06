@@ -233,7 +233,6 @@ class DataEntryEmissionService:
         kg_co2eq_override: float | None = None,
         *,
         year: int | None = None,
-        factor_cache: dict[int, Factor] | None = None,
         factor_query_cache: dict | None = None,
         slice_cache: dict | None = None,
         factor_resolver: FactorResolver | None = None,
@@ -320,12 +319,11 @@ class DataEntryEmissionService:
             report = await self._get_report_for_data_entry(data_entry)
 
         # The primary factor is derived state: resolved from the entry's
-        # classification fields, never read from a stored id. Strategy-B
-        # handlers (e.g. plane) set kind_field but the value isn't in
-        # entry.data → resolve returns None, same gate effect as the old
-        # `entry_kind_field in entry.data` check.
+        # classification fields, never read from a stored id. The resolver
+        # itself short-circuits when the handler has no kind field or the
+        # entry carries no kind value (Strategy-B handlers like plane).
         primary_factor: Factor | None = None
-        if year is not None and handler.kind_field is not None:
+        if year is not None:
             primary_factor = await resolver.resolve(
                 handler,
                 data_entry.data,
@@ -390,7 +388,8 @@ class DataEntryEmissionService:
                 factors = await self._fetch_factors(
                     comp,
                     year,
-                    factor_cache=factor_cache,
+                    data_entry_type=DataEntryTypeEnum(data_entry.data_entry_type),
+                    factor_resolver=resolver,
                     factor_query_cache=factor_query_cache,
                 )
 
@@ -539,7 +538,8 @@ class DataEntryEmissionService:
         comp: EmissionComputation,
         year: Optional[int] = None,
         *,
-        factor_cache: dict[int, Factor] | None = None,
+        data_entry_type: DataEntryTypeEnum | None = None,
+        factor_resolver: FactorResolver | None = None,
         factor_query_cache: dict | None = None,
     ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
@@ -572,12 +572,18 @@ class DataEntryEmissionService:
 
         # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
-            # Bulk callers prefetch the slice's factors once; a cache
-            # miss still falls back to the DB so semantics (including
-            # the year-mismatch warning below) are unchanged.
+            # The resolver's memoized (det, year) map is already primed by
+            # the resolve() call that produced comp.factor_id, so this is a
+            # dict hit, not a query. A miss still falls back to the DB so
+            # semantics (including the year-mismatch warning) are unchanged.
             factor = None
-            if factor_cache is not None:
-                factor = factor_cache.get(comp.factor_id)
+            if (
+                factor_resolver is not None
+                and data_entry_type is not None
+                and year is not None
+            ):
+                by_id = await factor_resolver.factors_by_id(data_entry_type, year)
+                factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
             # Filter by year if factor exists and year is specified

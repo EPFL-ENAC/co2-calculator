@@ -788,17 +788,10 @@ class DataEntryRepository:
                 DataEntryTypeEnum(data_entry.data_entry_type_id)
             )
             # No emission row carried a factor — derive it from the entry's
-            # classification (the entry never stores a factor id). Gated on
-            # the entry actually carrying a kind value, mirroring the compute
-            # path's effective gate (data_entry_emission_service) and
-            # skipping a pointless bulk factor load for Strategy-B entries
-            # (kind derived at compute time, absent from data).
-            if (
-                primary_factor is None
-                and data_entry.year is not None
-                and handler.kind_field is not None
-                and data_entry.data.get(handler.kind_field)
-            ):
+            # classification (the entry never stores a factor id). The
+            # resolver itself short-circuits missing/empty kind values, so
+            # Strategy-B entries cost nothing here.
+            if primary_factor is None and data_entry.year is not None:
                 try:
                     primary_factor = await resolver.resolve(
                         handler,

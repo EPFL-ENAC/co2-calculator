@@ -34,7 +34,8 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
-    factors_deleted: int  # stale rows superseded by this upload; see _delete_stale_factors
+    # stale rows superseded by this upload; see _delete_stale_factors
+    factors_deleted: int
     factors_upserted: int
 
 
@@ -602,6 +603,11 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         See ``delete_stale_for_year`` for why the threshold is this
         job's id rather than a job-state lookup.
         """
+        if self.year is None or self.job_id is None:
+            raise ValueError(
+                "_delete_stale_factors requires year and job_id; "
+                "run() assigns both before any row is processed"
+            )
         covered = self._get_types_to_delete(setup_result["valid_entry_types"])
         return await factor_repo.delete_stale_for_year(
             self.year,

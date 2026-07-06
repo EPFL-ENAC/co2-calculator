@@ -349,3 +349,21 @@ async def test_override_kind_miss_returns_none():
             OVERRIDE_HANDLER, {_KIND: "UNKNOWN"}, OVERRIDE_DET, 2025
         )
     assert got is None
+
+
+@pytest.mark.asyncio
+async def test_kind_value_missing_short_circuits_without_bulk_load():
+    """A handler with a kind_field but no kind value on the entry resolves
+    to None BEFORE the bulk factor load — callers need no gate of their
+    own (Strategy-B entries derive the kind at compute time, so it is
+    absent from entry.data on every list/enrichment path)."""
+    repo_mock = AsyncMock()
+    with patch(
+        "app.services.factor_resolver.FactorRepository.list_by_data_entry_type",
+        new=repo_mock,
+    ):
+        resolver = FactorResolver(session=AsyncMock())
+        for data in ({}, {HANDLER.kind_field: ""}, {HANDLER.kind_field: None}):
+            got = await resolver.resolve(HANDLER, data, EQUIPMENT, 2025)
+            assert got is None
+    repo_mock.assert_not_awaited()

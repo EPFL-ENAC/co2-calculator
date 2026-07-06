@@ -1397,36 +1397,6 @@ async def test_get_submodule_data_fallback_tolerates_ambiguous_factor_data(
     assert by_name["Laptop"].standby_power_w == 3.0
 
 
-@pytest.mark.asyncio
-async def test_get_submodule_data_fallback_skips_resolver_when_kind_value_missing(
-    db_session: AsyncSession,
-):
-    """An entry whose ``kind_field`` is present in the handler but absent
-    (or blank) on the entry's data must not call ``FactorResolver.resolve``
-    at all — this avoids a pointless bulk factor load for Strategy-B-shaped
-    entries, matching the compute path's effective gate."""
-    repo = DataEntryRepository(db_session)
-    entry = await _make_equipment_entry(db_session, extra_data={"equipment_class": ""})
-
-    with patch("app.repositories.data_entry_repo.FactorResolver") as mock_resolver_cls:
-        mock_resolver_cls.return_value.resolve = AsyncMock()
-
-        response = await repo.get_submodule_data(
-            carbon_report_module_id=entry.carbon_report_module_id,
-            data_entry_type_id=DataEntryTypeEnum.scientific.value,
-            limit=10,
-            offset=0,
-            sort_by="id",
-            sort_order="asc",
-        )
-
-    mock_resolver_cls.return_value.resolve.assert_not_awaited()
-    assert len(response.items) == 1
-    item = response.items[0]
-    assert item.active_power_w is None
-    assert item.standby_power_w is None
-
-
 # ======================================================================
 # Regression: _detach helper handles all session-state edge cases
 # ======================================================================

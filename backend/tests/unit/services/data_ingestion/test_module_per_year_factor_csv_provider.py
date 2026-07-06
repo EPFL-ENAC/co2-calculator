@@ -104,6 +104,7 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
 
     mock_factor_repo = MagicMock()
     mock_factor_repo.upsert_factors = AsyncMock(return_value=3)
+    mock_factor_repo.delete_stale_for_year = AsyncMock(return_value=0)
 
     batch = [
         Factor(
@@ -128,7 +129,12 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
         batch=batch,
         factor_service=MagicMock(),
         stats=stats,
-        setup_result={"processing_path": "processing/x", "filename": "x.csv"},
+        setup_result={
+            "processing_path": "processing/x",
+            "filename": "x.csv",
+            # consumed by the post-upsert stale sweep (_delete_stale_factors)
+            "valid_entry_types": [DataEntryTypeEnum.member],
+        },
         factor_repo=mock_factor_repo,
     )
 

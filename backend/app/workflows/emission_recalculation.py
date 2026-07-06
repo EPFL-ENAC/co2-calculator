@@ -95,7 +95,10 @@ class EmissionRecalculationWorkflow:
         # is the sole caller of ``resolver.resolve``; the recalc loop no
         # longer rematches or writes ``primary_factor_id`` itself.
         resolver = FactorResolver(self.session)
-        factor_cache = await resolver.factors_by_id(data_entry_type_id, year)
+        # Prime the (det, year) map once so every per-entry resolve below
+        # is a dict hit; prepare_create reads the same memoized map for
+        # its Strategy-A factor fetches.
+        await resolver.factors_by_id(data_entry_type_id, year)
         # Strategy-B (classification-query) factor lookups hit the DB once per
         # emission per entry — an N+1 that dominated headcount recalc (member:
         # ~25 queries/entry × thousands of entries). The factor table is held
@@ -144,7 +147,6 @@ class EmissionRecalculationWorkflow:
                 emissions = await emission_svc.prepare_create(
                     entry_response,
                     year=year,
-                    factor_cache=factor_cache,
                     factor_query_cache=factor_query_cache,
                     slice_cache=slice_cache,
                     factor_resolver=resolver,
