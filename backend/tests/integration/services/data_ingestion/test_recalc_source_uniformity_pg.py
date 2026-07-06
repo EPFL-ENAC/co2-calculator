@@ -261,11 +261,10 @@ async def test_recalc_uniform_across_source_types(pg_dsn) -> None:
                 )
 
                 # 6b. ``data`` was NOT silently re-imported — same dict
-                #     before and after the recompute.  The workflow may
-                #     refresh ``primary_factor_id`` for handlers with
-                #     ``kind_field`` keys IN entry.data, but plane
-                #     derives ``category`` only in pre_compute so the
-                #     refresh gate is closed for this handler.
+                #     before and after the recompute.  Since #1661 the
+                #     recalc workflow never writes to entry.data for any
+                #     handler — ``FactorResolver`` resolves the matching
+                #     factor on demand instead of stamping an id back.
                 assert entry.data == snapshot, (
                     f"recalc must not mutate entry.data — entry_id={entry_id} "
                     f"diff: before={snapshot!r}, after={entry.data!r}.  "

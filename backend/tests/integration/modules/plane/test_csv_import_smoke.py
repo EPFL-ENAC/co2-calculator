@@ -151,7 +151,6 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
                 "cabin_class": raw_row["cabin_class"],
                 "user_institutional_id": raw_row["user_institutional_id"],
                 "number_of_trips": int(raw_row["number_of_trips"]),
-                "primary_factor_id": None,
             }
             # Mirror _process_row: persist the override under the carrier key
             # so the async recalc chain can read it via prepare_create.

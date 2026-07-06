@@ -1233,9 +1233,7 @@ class CarbonReportModuleRepository:
         cursor = await self.session.stream(statement)
         async for partition in cursor.partitions(500):
             for row in partition:
-                # Remove primary_factor_id from data
-                data = row.data.copy() if row.data else {}
-                data.pop("primary_factor_id", None)
+                data = row.data or {}
 
                 last_update_iso = None
                 if row.module_last_updated is not None:

@@ -21,6 +21,7 @@ from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
+from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
 from app.utils.data_entry_emission_type_map import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
@@ -232,23 +233,24 @@ class DataEntryEmissionService:
         kg_co2eq_override: float | None = None,
         *,
         year: int | None = None,
-        factor_cache: dict[int, Factor] | None = None,
         factor_query_cache: dict | None = None,
         slice_cache: dict | None = None,
+        factor_resolver: FactorResolver | None = None,
     ) -> list[DataEntryEmission]:
         """Prepare emission records for any data entry type.
         TODO: Make this function readable!
-        Orchestrates the pipeline below. ``get_factor_for_resolve_emission_types``
-        lets a module resolve leaves from its matched factor (buildings: the
-        factor's energy_type selects the single heating leaf, #1575); every other
-        type returns ``None`` there and flows through unbranched:
+        Orchestrates the pipeline below. The resolver-derived primary factor
+        is handed to ``resolve_emission_types`` so a module can pick its
+        leaves from the matched factor (buildings: the factor's energy_type
+        selects the single heating leaf, #1575); other types ignore it:
 
-        0. ``handler.get_factor_for_resolve_emission_types`` → factor | None
-        1. ``resolve_emission_types`` → which EmissionType leaves to produce
-        2. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
-        3. ``handler.resolve_computations`` → one EmissionComputation per factor
-        4. ``_fetch_factors``          → look up Factor (Strategy A or B)
-        5. ``_apply_formula``         → kg_co2eq = f(ctx, factor.values)
+        1. ``FactorResolver.resolve`` → the primary factor from classification
+        2. ``resolve_emission_types`` → which EmissionType leaves to produce
+           (reads the factor: buildings' energy_type picks the heating leaf)
+        3. ``handler.pre_compute``    → enrich ctx (DB calls, arithmetic)
+        4. ``handler.resolve_computations`` → one EmissionComputation per factor
+        5. ``_fetch_factors``          → look up Factor (Strategy A or B)
+        6. ``_apply_formula``         → kg_co2eq = f(ctx, factor.values)
 
         Args:
             data_entry: Fully hydrated data entry with ``data_entry_type``.
@@ -265,6 +267,11 @@ class DataEntryEmissionService:
                 recalc workflow's ``upsert_by_data_entry`` therefore
                 preserves Tableau's ``OUT_CO2_CORRECTED`` (and CSV-side
                 overrides) across the async path instead of formula-recomputing.
+            factor_resolver: Memoized per-instance resolver (plan 1661) that
+                derives the primary factor from ``data_entry.data``'s
+                classification fields instead of a stored id. Recalc slices
+                pass one shared instance across entries; single-entry callers
+                get a fresh one built here.
 
         Returns:
             Ready-to-insert ``DataEntryEmission`` rows; empty on any failure.
@@ -272,30 +279,67 @@ class DataEntryEmissionService:
         if not data_entry or data_entry.data_entry_type is None:
             logger.error("DataEntry must have a data_entry_type.")
             return []
+        if data_entry.id is None:
+            logger.error("DataEntry must have an ID before creating emissions.")
+            return []
 
+        resolver = factor_resolver or FactorResolver(self.session)
         handler = BaseModuleHandler.get_by_type(
             DataEntryTypeEnum(data_entry.data_entry_type)
         )
-        # A module may need its matched factor to decide which emission leaves to
-        # emit (buildings: the factor's energy_type selects the single heating
-        # leaf, #1575). Generic hook — ``None`` for modules that resolve from data
-        # alone. Passed explicitly so resolution never reads a smuggled-in key.
-        factor = await handler.get_factor_for_resolve_emission_types(
-            data_entry, self.session, factor_cache=factor_cache
-        )
+
+        # Prefer using the lightweight hook that tests commonly patch.
+        # This avoids unnecessary DB calls to fetch the report when tests
+        # replace `_get_year_from_data_entry` with an AsyncMock. Year is
+        # needed below to resolve the primary factor, so this must run
+        # before factor/emission-type resolution.
+        report = None
+        # Bulk callers (the recalc workflow) pass ``year`` directly —
+        # they already know the slice's year, so the per-entry
+        # module→report lookup is skipped entirely.
+        if year is None:
+            year = await self._get_year_from_data_entry(data_entry)
+        if year is None:
+            # Fallback to loading the full report only when year couldn't be
+            # resolved via the helper. This keeps behavior unchanged for
+            # production while making unit tests easier to mock.
+            report = await self._get_report_for_data_entry(data_entry)
+            if report is not None:
+                year = report.year if report.year is not None else report.reference_year
+        if year is None:
+            logger.warning(
+                "Could not determine year for data entry, factors may not match"
+            )
+        # Also load the report when the percentage override is requested, since
+        # _get_percentage_override_kg needs reference_year and unit_id.
+        if (
+            report is None
+            and data_entry.data.get("percentage_of_last_year") is not None
+        ):
+            report = await self._get_report_for_data_entry(data_entry)
+
+        # The primary factor is derived state: resolved from the entry's
+        # classification fields, never read from a stored id. The resolver
+        # itself short-circuits when the handler has no kind field or the
+        # entry carries no kind value (Strategy-B handlers like plane).
+        primary_factor: Factor | None = None
+        if year is not None:
+            primary_factor = await resolver.resolve(
+                handler,
+                data_entry.data,
+                DataEntryTypeEnum(data_entry.data_entry_type),
+                year,
+            )
+
         emission_types = resolve_emission_types(
             data_entry.data_entry_type,
             data_entry.data,
-            factor=factor,
+            factor=primary_factor,
         )
         if emission_types is None:
             logger.warning(f"Unhandled type: {data_entry.data_entry_type}")
             return []
         if not emission_types:
-            return []
-
-        if data_entry.id is None:
-            logger.error("DataEntry must have an ID before creating emissions.")
             return []
 
         # B-H1 — fallback to the persisted ``KG_CO2EQ_OVERRIDE_KEY`` carrier
@@ -322,6 +366,9 @@ class DataEntryEmissionService:
         # data entry is left intact so re-runs remain idempotent.
         ctx: dict = {**data_entry.data}
         ctx.pop(KG_CO2EQ_OVERRIDE_KEY, None)
+        # Legacy rows may still carry a stored primary_factor_id — the
+        # resolver result always wins; the stored value is dead weight.
+        ctx["primary_factor_id"] = primary_factor.id if primary_factor else None
         # Forward the slice prefetch only when a caller (the recalc workflow)
         # actually preloaded one — keeps handlers whose pre_compute takes no
         # slice_cache (the base + non-plane modules) callable as-is.
@@ -329,34 +376,6 @@ class DataEntryEmissionService:
         ctx.update(
             await handler.pre_compute(data_entry, self.session, **pre_compute_kwargs)
         )
-
-        # Prefer using the lightweight hook that tests commonly patch.
-        # This avoids unnecessary DB calls to fetch the report when tests
-        # replace `_get_year_from_data_entry` with an AsyncMock.
-        report = None
-        # Bulk callers (the recalc workflow) pass ``year`` directly —
-        # they already know the slice's year, so the per-entry
-        # module→report lookup is skipped entirely.
-        if year is None:
-            year = await self._get_year_from_data_entry(data_entry)
-        if year is None:
-            # Fallback to loading the full report only when year couldn't be
-            # resolved via the helper. This keeps behavior unchanged for
-            # production while making unit tests easier to mock.
-            report = await self._get_report_for_data_entry(data_entry)
-            if report is not None:
-                year = report.year if report.year is not None else report.reference_year
-        if year is None:
-            logger.warning(
-                "Could not determine year for data entry, factors may not match"
-            )
-        # Also load the report when the percentage override is requested, since
-        # _get_percentage_override_kg needs reference_year and unit_id.
-        if (
-            report is None
-            and data_entry.data.get("percentage_of_last_year") is not None
-        ):
-            report = await self._get_report_for_data_entry(data_entry)
         # Add factor year to context for year-specific formulas
         ctx["_year"] = year
 
@@ -369,7 +388,8 @@ class DataEntryEmissionService:
                 factors = await self._fetch_factors(
                     comp,
                     year,
-                    factor_cache=factor_cache,
+                    data_entry_type=DataEntryTypeEnum(data_entry.data_entry_type),
+                    factor_resolver=resolver,
                     factor_query_cache=factor_query_cache,
                 )
 
@@ -518,7 +538,8 @@ class DataEntryEmissionService:
         comp: EmissionComputation,
         year: Optional[int] = None,
         *,
-        factor_cache: dict[int, Factor] | None = None,
+        data_entry_type: DataEntryTypeEnum | None = None,
+        factor_resolver: FactorResolver | None = None,
         factor_query_cache: dict | None = None,
     ) -> list[Factor]:
         """Fetch factor(s) for an EmissionComputation.
@@ -551,12 +572,18 @@ class DataEntryEmissionService:
 
         # ── Strategy A: direct look-up ──────────────────────────────────
         if comp.factor_id is not None:
-            # Bulk callers prefetch the slice's factors once; a cache
-            # miss still falls back to the DB so semantics (including
-            # the year-mismatch warning below) are unchanged.
+            # The resolver's memoized (det, year) map is already primed by
+            # the resolve() call that produced comp.factor_id, so this is a
+            # dict hit, not a query. A miss still falls back to the DB so
+            # semantics (including the year-mismatch warning) are unchanged.
             factor = None
-            if factor_cache is not None:
-                factor = factor_cache.get(comp.factor_id)
+            if (
+                factor_resolver is not None
+                and data_entry_type is not None
+                and year is not None
+            ):
+                by_id = await factor_resolver.factors_by_id(data_entry_type, year)
+                factor = by_id.get(comp.factor_id)
             if factor is None:
                 factor = await factor_service.get(comp.factor_id)
             # Filter by year if factor exists and year is specified

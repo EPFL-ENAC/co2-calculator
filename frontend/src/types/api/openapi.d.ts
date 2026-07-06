@@ -35,68 +35,19 @@ export interface paths {
         };
         /**
          * Oauth Callback
-         * @description OAuth2 callback endpoint (BFF leg 1).
+         * @description OAuth2 callback endpoint.
          *
-         *     Exchanges the OAuth code for ID-token claims, upserts the user,
-         *     audits the event, then issues a single-use AuthExchangeCode and
-         *     redirects the browser to ``<FRONTEND_URL>/auth/complete#code=...``.
-         *     The SPA's POST /v1/session/exchange (BFF leg 2) is what actually
-         *     sets the auth cookies on a same-origin response — sidestepping
-         *     Safari ITP's drop of Set-Cookie on cross-site redirect tails.
+         *     Exchanges the OAuth authorization code for ID-token claims, upserts
+         *     the user, audits the event, sets auth cookies on the 302 response,
+         *     and redirects the browser to the app root.
+         *
+         *     Frontend and backend share the same domain (``/api`` prefix in
+         *     production), so ``Set-Cookie`` on a redirect response is accepted by
+         *     all browsers without ITP interference.
          */
         get: operations["oauth_callback_v1_auth_callback_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/auth/login-test": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Login Test
-         * @description Test login endpoint for development.
-         *
-         *     Registered on the router only when ``settings.DEBUG`` is true (see
-         *     bottom of this module). In a production build the route does not
-         *     exist — clients see 404 rather than 403, and the handler code is
-         *     unreachable.
-         */
-        get: operations["login_test_v1_auth_login_test_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/session/exchange": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Exchange Session Code
-         * @description BFF cookie-exchange (leg 2).
-         *
-         *     The SPA's /auth/complete page POSTs the code it parsed from the URL
-         *     fragment. We validate atomically, set cookies on the same-origin
-         *     response, and return ``{id, email}`` so the SPA can hydrate without
-         *     a follow-up ``GET /session``.
-         */
-        post: operations["exchange_session_code_v1_session_exchange_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -852,36 +803,6 @@ export interface paths {
          *     Returns 404 if resource does not exist.
          */
         get: operations["get_unit_v1_units__unit_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/factors/stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Stale Factors
-         * @description Return factors not present in the latest successful FACTORS ingest.
-         *
-         *     Plan 310B Part 3 — operators can detect rows that exist in the DB
-         *     but were not in the most recent CSV upload.  These rows are
-         *     intentionally not deleted because existing data entries may still
-         *     reference their ids in the ``DataEntry.data`` JSON payload under
-         *     ``primary_factor_id`` (this is a JSON value, not a real FK column);
-         *     this endpoint surfaces them so the UI can warn that linked data
-         *     entries are using outdated factors.
-         *
-         *     **Required Permission**: ``backoffice.configuration.view``
-         */
-        get: operations["list_stale_factors_v1_factors_stale_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2718,14 +2639,6 @@ export interface components {
          */
         EntityType: 1 | 2 | 3;
         /**
-         * ExchangeRequest
-         * @description Body schema for ``POST /v1/session/exchange``.
-         */
-        ExchangeRequest: {
-            /** Code */
-            code: string;
-        };
-        /**
          * FileMetadata
          * @description Metadata for uploaded files.
          */
@@ -3289,26 +3202,6 @@ export interface components {
             /** Last Recalculation Job Id */
             last_recalculation_job_id?: number | null;
             last_recalculation_job_result?: components["schemas"]["IngestionResult"] | null;
-        };
-        /**
-         * StaleFactorResponse
-         * @description Operator-facing summary of a factor not present in the latest CSV.
-         */
-        StaleFactorResponse: {
-            /** Id */
-            id: number;
-            /** Data Entry Type Id */
-            data_entry_type_id: number;
-            /** Emission Type Id */
-            emission_type_id: number;
-            /** Year */
-            year: number | null;
-            /** Classification */
-            classification: {
-                [key: string]: unknown;
-            };
-            /** Last Seen Job Id */
-            last_seen_job_id: number | null;
         };
         /**
          * StaleStatsEntry
@@ -3962,70 +3855,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
-                };
-            };
-        };
-    };
-    login_test_v1_auth_login_test_get: {
-        parameters: {
-            query?: {
-                role?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    exchange_session_code_v1_session_exchange_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExchangeRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -5333,40 +5162,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnitRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_stale_factors_v1_factors_stale_get: {
-        parameters: {
-            query: {
-                /** @description Report year to scope the query */
-                year: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["StaleFactorResponse"][];
                 };
             };
             /** @description Validation Error */

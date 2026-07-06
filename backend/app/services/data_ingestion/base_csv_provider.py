@@ -45,7 +45,6 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -127,9 +126,9 @@ def _guard_factors_required(
     """Fail-fast when an ingest needs factors but the map is empty.
 
     For modules whose handler declares ``require_factor_to_match=True``
-    (e.g. equipment), every row's emission record needs a matched
-    ``Factor`` to populate ``primary_factor_id``.  When the factors
-    table has nothing for this (module, year) tuple the row-level loop
+    (e.g. equipment), every row needs a matched ``Factor`` to compute
+    its emission.  When the factors table has nothing for this
+    (module, year) tuple the row-level loop
     would record one "no matching factor" error per row — a 50 000-row
     CSV produces 50 000 identical messages and the operator has to
     scroll past them to find out the real issue is that they forgot to
@@ -150,7 +149,7 @@ def _guard_factors_required(
     raise ValueError(
         f"No factors available for module={module_label} {year_str}. "
         "Upload factors for this module/year before ingesting data — "
-        "every row needs a matched Factor for primary_factor_id."
+        "every row needs a matched Factor to compute its emission."
     )
 
 
@@ -364,8 +363,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Year is required: factor lookups during row processing key on
         ``{type}:{year}:{kind}:{subkind}``, so a missing year would
-        silently miss every factor and import rows with
-        primary_factor_id=None.
+        silently miss every factor and import rows with no matched
+        factor.
         """
         if not self.year:
             raise ValueError(
@@ -421,17 +420,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         expected_columns = _get_expected_columns_from_handlers(handlers)
 
-        factor_id_to_factor: Dict[int, Any] = {}
-        for factor in factors_map.values():
-            factor_id = getattr(factor, "id", None)
-            if factor_id is not None:
-                factor_id_to_factor[factor_id] = factor
-
         logger.info(
             f"Setup complete for {self.entity_type.name}: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
-            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}, "
             f"required_columns={len(required_columns)}"
         )
@@ -439,7 +431,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return {
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }
@@ -806,11 +797,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         seg = self._seg
         row_t = seg.get("row", 0.0)
-        inner = ("resolve", "validate", "enrich", "populate")
+        inner = ("resolve", "validate", "enrich")
         per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
         logger.info(
             "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
-            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "[resolve=%.1f validate=%.1f enrich=%.1f row_other=%.1f] "
             "loop_overhead=%.1fs",
             rows,
             parse_elapsed,
@@ -819,7 +810,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             seg.get("resolve", 0.0),
             seg.get("validate", 0.0),
             seg.get("enrich", 0.0),
-            seg.get("populate", 0.0),
             row_t - sum(seg.get(k, 0.0) for k in inner),
             parse_elapsed - row_t,
         )
@@ -1125,7 +1115,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         entity_setup = await self._setup_handlers_and_factors()
         handlers = entity_setup["handlers"]
         factors_map = entity_setup["factors_map"]
-        factor_id_to_factor = entity_setup["factor_id_to_factor"]
         expected_columns = entity_setup["expected_columns"]
         required_columns = entity_setup["required_columns"]
 
@@ -1152,7 +1141,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "entity_type": self.entity_type,
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "processing_path": processing_path,
@@ -1183,7 +1171,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                for MODULE_PER_YEAR imports
         """
         try:
-            handlers = setup_result["handlers"]
             expected_columns = setup_result["expected_columns"]
             required_columns = setup_result.get("required_columns", set())
 
@@ -1216,11 +1203,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 if k in expected_columns and v is not None and v.strip() != ""
             }
 
-            # Extract kind/subkind values (entity-specific extraction)
-            kind_value, subkind_value = self._extract_kind_subkind_values(
-                filtered_row, handlers
-            )
-
             # Resolve handler and data_entry_type first (needed for factor lookup)
             with self._timed("resolve"):
                 (
@@ -1238,46 +1220,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
-
-            # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
-            # This avoids 100k+ DB queries - factors already loaded in setup phase
-            primary_factor_id: int | None = None
-            if "factors_map" in setup_result and handler.kind_field:
-                kind_value, subkind_value = self._extract_kind_subkind_values(
-                    filtered_row, handlers
-                )
-                # Defense in depth: the setup-time guard in
-                # _load_handlers_and_factors raises before any row
-                # reaches this method,
-                # so reaching this branch with a falsy year would mean a
-                # future caller bypassed setup. Use the same `not self.year`
-                # check the setup-time guard uses so both layers reject the
-                # same set of values (None and 0); a stricter `is None` check
-                # would let `year=0` rebuild the `:0:` silent-miss key.
-                if not self.year:
-                    raise ValueError(
-                        "year must be set (and non-zero) before processing "
-                        "rows; setup-time guard was bypassed"
-                    )
-                year_value = self.year
-                # Build lookup key same way as load_factors_map does
-                key_full = (
-                    f"{data_entry_type.value}:"
-                    f"{year_value}:"
-                    f"{(kind_value or '').lower()}:"
-                    f"{(subkind_value or '').lower()}"
-                )
-                factor = setup_result["factors_map"].get(key_full)
-                # Fallback: try without subkind
-                if not factor and subkind_value:
-                    key_kind = (
-                        f"{data_entry_type.value}:"
-                        f"{year_value}:"
-                        f"{(kind_value or '').lower()}"
-                    )
-                    factor = setup_result["factors_map"].get(key_kind)
-                if factor:
-                    primary_factor_id = factor.id
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -1325,13 +1267,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Validate payload with handler (primary_factor_id already
-            # set by ModuleHandlerService)
+            # Validate payload with handler
             payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
             payload["status"] = DataEntryStatusEnum.VALIDATED.value
-            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 with self._timed("validate"):
@@ -1355,15 +1295,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
-
-            with self._timed("populate"):
-                handler_service = ModuleHandlerService(self.data_session)
-                if primary_factor_id and "factor_id_to_factor" in setup_result:
-                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                    if factor is not None:
-                        data = await handler_service.populate_defaults(
-                            handler, data, factor
-                        )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so

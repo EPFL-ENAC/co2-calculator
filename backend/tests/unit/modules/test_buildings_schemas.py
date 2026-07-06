@@ -11,12 +11,10 @@ the formula no longer inspects energy_type. For non-heating fields,
 conversion_factor is always 1.0.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.models.data_entry_emission import EmissionType
-from app.models.factor import Factor
 from app.modules.buildings.schemas import BuildingRoomModuleHandler
 
 _HANDLER = BuildingRoomModuleHandler()
@@ -249,45 +247,3 @@ def test_resolve_computations_unmapped_emission_type_returns_empty() -> None:
     # The rooms rollup parent has no kwh field and its parent isn't mapped either.
     ctx = {**_ctx(), "primary_factor_id": 5}
     assert _HANDLER.resolve_computations(None, EmissionType.buildings__rooms, ctx) == []
-
-
-# ---------------------------------------------------------------------------
-# get_factor_for_resolve_emission_types — the factor selects the heating leaf
-# ---------------------------------------------------------------------------
-
-
-def _entry(data: dict) -> MagicMock:
-    entry = MagicMock()
-    entry.data = data
-    return entry
-
-
-@pytest.mark.asyncio
-async def test_get_factor_reads_from_cache_without_db() -> None:
-    # A prefetched cache hit resolves the factor without touching the DB.
-    factor = MagicMock(spec=Factor)
-    cache = {7: factor}
-    result = await _HANDLER.get_factor_for_resolve_emission_types(
-        _entry({"primary_factor_id": 7}), session=None, factor_cache=cache
-    )
-    assert result is factor
-
-
-@pytest.mark.asyncio
-async def test_get_factor_without_primary_factor_id_returns_none() -> None:
-    # No matched factor = a legitimate skip (no heating leaf), not an error.
-    result = await _HANDLER.get_factor_for_resolve_emission_types(
-        _entry({}), session=None, factor_cache={}
-    )
-    assert result is None
-
-
-@pytest.mark.asyncio
-async def test_get_factor_dangling_id_raises() -> None:
-    # id present but resolves to no factor (dangling FK) = corruption → raise.
-    with patch("app.modules.buildings.schemas.FactorService") as mock_fs_cls:
-        mock_fs_cls.return_value = MagicMock(get=AsyncMock(return_value=None))
-        with pytest.raises(ValueError, match="does not exist"):
-            await _HANDLER.get_factor_for_resolve_emission_types(
-                _entry({"primary_factor_id": 5}), session=MagicMock(), factor_cache=None
-            )

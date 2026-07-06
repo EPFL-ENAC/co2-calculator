@@ -890,7 +890,6 @@ async def test_building_room_factor_values_change_propagates_all_5_emissions(
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)

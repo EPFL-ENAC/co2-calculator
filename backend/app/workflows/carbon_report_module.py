@@ -37,7 +37,6 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -47,10 +46,6 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            create_payload, factor = await handler_service.resolve_primary_factor_id(
-                handler, create_payload, data_entry_type, year=year
-            )
 
             validated_data = handler.validate_create(create_payload)
 
@@ -157,7 +152,6 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
@@ -175,14 +169,14 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            update_payload, _ = await handler_service.resolve_primary_factor_if_changed(
+            # No factor resolution on update: subkind/override code that
+            # belonged to the old kind are cleared, everything else is the
+            # emission compute's job (it resolves on its own).
+            update_payload = ModuleHandlerService.clear_dependent_fields_on_kind_change(
                 handler,
                 update_payload,
-                data_entry_type,
                 item_data,
                 existing_data,
-                year=year,
             )
 
             # For equipment partial PATCH, validate against merged persisted+incoming

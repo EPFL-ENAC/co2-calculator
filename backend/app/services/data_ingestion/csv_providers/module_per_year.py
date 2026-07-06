@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 # Other modules (e.g. ``buildings``, ``professional_travel``,
 # ``headcount``) carry the DET in a category column that maps directly
 # to ``DataEntryTypeEnum`` names, so an empty factors_map is a
-# legitimate state (they ingest rows with ``primary_factor_id=None``).
+# legitimate state (they ingest rows with no matched factor).
 _FACTOR_INFERRED_MODULES: set[ModuleTypeEnum] = {
     ModuleTypeEnum.equipment,
     ModuleTypeEnum.purchase,

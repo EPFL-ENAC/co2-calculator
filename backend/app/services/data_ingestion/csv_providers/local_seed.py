@@ -315,7 +315,6 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             "entity_type": self.entity_type,
             "handlers": entity_setup["handlers"],
             "factors_map": entity_setup["factors_map"],
-            "factor_id_to_factor": entity_setup["factor_id_to_factor"],
             "expected_columns": entity_setup["expected_columns"],
             "required_columns": entity_setup["required_columns"],
             # Dummy value — _finalize_and_commit skips file-store operations
