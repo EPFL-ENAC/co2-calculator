@@ -21,7 +21,7 @@ invalidation apparatus, and that apparatus still leaks:
 - **Recalc must rematch.** Plan 310B Part 6 + 310D built a bulk rematch layer
   in `emission_recalculation.py:93-262` whose only job is refreshing the
   stored id against current factors.
-- **It still breaks.** When a factor's classification *shape* changes (e.g.
+- **It still breaks.** When a factor's classification _shape_ changes (e.g.
   building_rooms gained `energy_type` as a third classification key), the
   upsert cannot match old rows, both generations survive, and
   `get_by_classification` 500s with `MultipleResultsFound` on the first
@@ -76,7 +76,7 @@ into `app/services/factor_resolver.py`:
   `PurchaseHandlerUpdate` rejects a provided-but-blank/null
   `purchase_institutional_code` (key-absent still means "not updating").
 - **Recalc** — delete the rematch block (`emission_recalculation.py:192-262`);
-  resolution at compute time *is* the rematch. The prefetched dicts move into
+  resolution at compute time _is_ the rematch. The prefetched dicts move into
   the resolver; the strict-drop contract is preserved (no factor match →
   emission recomputes to none → dashboard missing-factor signal).
 - **List enrichment** — primary path (join through the emission FK) is
@@ -92,9 +92,9 @@ into `app/services/factor_resolver.py`:
   and every remaining read/write of `data["primary_factor_id"]`.
 
 Data migration (added at v1.0, when "reseeds drop the DB" stopped being
-true): revision ``954eac6c95da`` strips the dead ``primary_factor_id`` keys
-from ``data_entries.data`` and removes explicit-null
-``purchase_institutional_code`` keys (which the new update validator would
+true): revision `954eac6c95da` strips the dead `primary_factor_id` keys
+from `data_entries.data` and removes explicit-null
+`purchase_institutional_code` keys (which the new update validator would
 otherwise reject on every PATCH). Post-deploy operator step: re-upload the
 current factor CSVs per module/year so the replace-semantics sweep deletes
 stale factor generations that accumulated before this shipped.
@@ -105,7 +105,7 @@ With no entry-side id references, stale factor rows lose their reason to
 exist (as shipped):
 
 - `FactorRepository.delete_stale_for_year(year, *, det_ids,
-  threshold_job_id)` deletes rows in the covered scope whose
+threshold_job_id)` deletes rows in the covered scope whose
   `last_seen_job_id` is NULL or predates the threshold. The threshold is
   passed explicitly by the ingest (its own job id) because mid-pipeline
   neither the running job (`state` not yet FINISHED) nor the superseded one

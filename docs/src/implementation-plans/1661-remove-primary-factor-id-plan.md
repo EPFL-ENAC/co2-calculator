@@ -69,6 +69,7 @@ ingest → API/enrichment → dead-code sweep.
 ### Task 1: `FactorResolver` service
 
 **Files:**
+
 - Create: `backend/app/services/factor_resolver.py`
 - Test: `backend/tests/unit/services/test_factor_resolver.py`
 
@@ -282,7 +283,7 @@ Module-level helpers `_build_maps`, `_resolve_kind_subkind`,
 `_resolve_with_override`: **move the bodies verbatim** from
 `emission_recalculation.py` — map building from lines 126-165 (both the
 override and kind/subkind branches, keyed off the handler in `_build_maps`'s
-callers, so `_build_maps(factors)` builds *all* maps unconditionally:
+callers, so `_build_maps(factors)` builds _all_ maps unconditionally:
 `by_id`, `by_kind_subkind` with `setdefault`, `override_lookup`,
 `kind_lookup`; it needs the kind/subkind/override field names — pass them
 in: `_build_maps(factors, kind_field=..., subkind_field=..., override_field=...)`
@@ -312,22 +313,25 @@ git commit -m "feat(1661): add FactorResolver for on-demand factor resolution"
 ### Task 2: emission compute resolves dynamically (`prepare_create`)
 
 **Files:**
+
 - Modify: `backend/app/services/data_entry_emission_service.py:230-322`
 - Test: `backend/tests/unit/services/test_data_entry_emission_service.py`
 
 **Interfaces:**
+
 - Consumes: `FactorResolver.resolve` (Task 1).
 - Produces: `prepare_create(..., factor_resolver: FactorResolver | None = None)`;
   `ctx["primary_factor_id"]` becomes a **computed, never-persisted** ctx key
   (all Strategy-A `resolve_computations` overrides keep reading it
   unchanged: `schemas/data_entry.py:356`, `modules/{purchase,buildings,
-  equipment,process_emissions,external_cloud_and_ai,research_facilities}`).
+equipment,process_emissions,external_cloud_and_ai,research_facilities}`).
 - `_get_building_energy_type(factor: Factor | None) -> str | None`
   (signature change: takes the resolved factor, no id/cache deref).
 
 - [x] **Step 2.1: Write/adjust failing unit tests**
 
 In `test_data_entry_emission_service.py` add:
+
 - `test_prepare_create_resolves_factor_from_classification`: entry whose
   `data` contains kind/subkind but **no** `primary_factor_id`; patched
   resolver returns a factor; assert produced emission rows carry
@@ -353,7 +357,7 @@ In `prepare_create` (current code `data_entry_emission_service.py:264-322`):
 1. Add parameter `factor_resolver: FactorResolver | None = None`; first line
    of body: `resolver = factor_resolver or FactorResolver(self.session)`.
 2. **Reorder**: move the year-determination block (currently `:372-397`)
-   *above* emission-type resolution — factor resolution needs `year`.
+   _above_ emission-type resolution — factor resolution needs `year`.
    Keep the `report` variable handling intact (percentage override below
    still uses it).
 3. Move `handler = BaseModuleHandler.get_by_type(...)` (currently `:333`)
@@ -368,19 +372,17 @@ if year is not None and handler.kind_field is not None:
     )
 ```
 
-   (Strategy-B handlers such as plane have `kind_field` set but the value is
-   not in `entry.data` → `resolve` returns `None`; their overridden
-   `resolve_computations` never reads the ctx key. Same gate effect as the
-   old `entry_kind_field in entry.data` check.)
-5. Replace the `_get_building_energy_type` call (`:313-317`) with
-   `building_energy_type = await self._get_building_energy_type(primary_factor)`
-   and change that method (`:230-262`) to take `factor: Factor | None`:
-   `None → None`; factor present but `classification.get("energy_type")`
-   not in `BUILDING_ENERGY_TYPES` → raise `ValueError` (keep the loud-fail
-   message, reworded without "references factor id"). Delete the
-   `factor_cache`/`FactorService.get` deref — the resolver already returned
-   the row.
-6. In the ctx build (`:359`):
+(Strategy-B handlers such as plane have `kind_field` set but the value is
+not in `entry.data` → `resolve` returns `None`; their overridden
+`resolve_computations` never reads the ctx key. Same gate effect as the
+old `entry_kind_field in entry.data` check.) 5. Replace the `_get_building_energy_type` call (`:313-317`) with
+`building_energy_type = await self._get_building_energy_type(primary_factor)`
+and change that method (`:230-262`) to take `factor: Factor | None`:
+`None → None`; factor present but `classification.get("energy_type")`
+not in `BUILDING_ENERGY_TYPES` → raise `ValueError` (keep the loud-fail
+message, reworded without "references factor id"). Delete the
+`factor_cache`/`FactorService.get` deref — the resolver already returned
+the row. 6. In the ctx build (`:359`):
 
 ```python
 ctx: dict = {**data_entry.data}
@@ -410,11 +412,13 @@ git commit -m "feat(1661): prepare_create resolves primary factor dynamically"
 ### Task 3: recalc workflow drops the rematch machinery
 
 **Files:**
+
 - Modify: `backend/app/workflows/emission_recalculation.py` (delete `:93-165`
   lookup building, `:192-262` rematch block, `:397-500` static helpers)
 - Test: `backend/tests/unit/workflows/test_emission_recalculation.py`
 
 **Interfaces:**
+
 - Consumes: `FactorResolver` (Task 1), `prepare_create(factor_resolver=...)`
   (Task 2).
 
@@ -442,8 +446,8 @@ factor_query_cache: dict = {}
 2. Delete the whole per-entry rematch block (`:192-262`, the
    `entry_kind_field` locals, `entry.data` swap and its comments). The loop
    body becomes: validate → `prepare_create(entry_response, year=year,
-   factor_cache=factor_cache, factor_query_cache=factor_query_cache,
-   slice_cache=slice_cache, factor_resolver=resolver)` → buffer results.
+factor_cache=factor_cache, factor_query_cache=factor_query_cache,
+slice_cache=slice_cache, factor_resolver=resolver)` → buffer results.
    Keep the `seg` profile dict but drop the `"rematch"` key.
 3. Delete `_lookup_factor_id` and `_lookup_factor_id_with_override`
    (`:397-500`) — now dead code (moved to the resolver in Task 1).
@@ -468,6 +472,7 @@ git commit -m "refactor(1661): recalc uses FactorResolver, drop rematch machiner
 ### Task 4: create/update paths stop stamping (`ModuleHandlerService`)
 
 **Files:**
+
 - Modify: `backend/app/services/module_handler_service.py`
 - Modify: `backend/app/workflows/carbon_report_module.py:51-53,179-186`
 - Test: `backend/tests/unit/services/test_module_handler_service.py`,
@@ -514,12 +519,12 @@ class ModuleHandlerService:
    factor. Internally replace `_resolve_by_classification` /
    `_resolve_with_kind_override` / `_match_by_override` (`:74-190`) with a
    single call to `FactorResolver(self.session).resolve(handler, data,
-   data_entry_type_id, year)` — those three methods and the
+data_entry_type_id, year)` — those three methods and the
    `factor_service.get_by_classification` dependency here become **dead
    code; delete them**. (Behavior note, from the spec: for override
    handlers the old code returned `factor=None`; the resolver returns the
    full `Factor`. `populate_defaults` is a no-op for handlers without
-   `factor_value_fields`, so this only *adds* defaults where the module
+   `factor_value_fields`, so this only _adds_ defaults where the module
    declares them — verify with the purchase tests.)
 2. `populate_defaults` (`:192-214`): remove the
    `data.get("primary_factor_id") == factor.id` guard; keep the
@@ -527,7 +532,7 @@ class ModuleHandlerService:
 3. Rename `resolve_primary_factor_if_changed` → `resolve_factor_if_changed`;
    delete `update_payload["primary_factor_id"] = None` (`:257`); the inner
    call becomes `factor = await self.resolve_factor(handler, update_payload,
-   data_entry_type, year=year, existing_data=existing_data)` — the payload
+data_entry_type, year=year, existing_data=existing_data)` — the payload
    is returned unmodified except the kind-change clearing side-effects and
    `populate_defaults`.
 
@@ -558,15 +563,16 @@ git commit -m "refactor(1661): create/update resolve factors without stamping pa
 ### Task 5: CSV entry ingest stops stamping
 
 **Files:**
+
 - Modify: `backend/app/services/data_ingestion/base_csv_provider.py:1242-1280,1328-1334,1359-1366`
   and `_guard_factors_required` docstring (`:120-154`)
 - Test: `backend/tests/unit/services/data_ingestion/test_base_csv_provider.py`,
   `backend/tests/unit/services/data_ingestion/test_module_unit_specific_csv_provider.py`
 
 - [x] **Step 5.1: Update unit tests first** — asserts on
-  `payload["primary_factor_id"]` / `data["primary_factor_id"]` become
-  asserts that the key is **absent** from the built `DataEntry.data`, and
-  that `populate_defaults` still fires when the factors_map matches.
+      `payload["primary_factor_id"]` / `data["primary_factor_id"]` become
+      asserts that the key is **absent** from the built `DataEntry.data`, and
+      that `populate_defaults` still fires when the factors_map matches.
 
 - [x] **Step 5.2: Implement**
 
@@ -587,13 +593,11 @@ with self._timed("populate"):
         )
 ```
 
-   (The `factor_id_to_factor` indirection in `setup_result` becomes unused
-   here — grep `factor_id_to_factor`; if this was its only consumer, delete
-   its construction too.)
-4. `_guard_factors_required` docstring: reword "to populate
-   primary_factor_id" → "to compute its emission".
-5. `module_per_year.py`: comments only (`:21,28,90`) — the "no matching
-   factor" *type-inference* error at `:212-219` is independent and stays.
+(The `factor_id_to_factor` indirection in `setup_result` becomes unused
+here — grep `factor_id_to_factor`; if this was its only consumer, delete
+its construction too.) 4. `_guard_factors_required` docstring: reword "to populate
+primary*factor_id" → "to compute its emission". 5. `module_per_year.py`: comments only (`:21,28,90`) — the "no matching
+factor" \_type-inference* error at `:212-219` is independent and stays.
 
 - [x] **Step 5.3: Tests green**
 
@@ -612,6 +616,7 @@ git commit -m "refactor(1661): CSV ingest stops persisting primary_factor_id"
 ### Task 6: API layer — enrichment fallback, response DTO, export scrub
 
 **Files:**
+
 - Modify: `backend/app/repositories/data_entry_repo.py:786-795`
 - Modify: `backend/app/repositories/carbon_report_module_repo.py:1236-1238`
 - Modify: `backend/app/modules/equipment/schemas.py:98` (delete field)
@@ -619,10 +624,10 @@ git commit -m "refactor(1661): CSV ingest stops persisting primary_factor_id"
 - Test: `backend/tests/unit/repositories/test_data_entry_repo.py`
 
 - [x] **Step 6.1: Update tests first** — enrichment fallback test: entry
-  with classification but no emission rows gets `primary_factor` populated
-  from the resolver (patch `FactorResolver.resolve`); entry with a legacy
-  `data["primary_factor_id"]` pointing at a *deleted* factor no longer
-  500s/dereferences — the resolver result wins.
+      with classification but no emission rows gets `primary_factor` populated
+      from the resolver (patch `FactorResolver.resolve`); entry with a legacy
+      `data["primary_factor_id"]` pointing at a _deleted_ factor no longer
+      500s/dereferences — the resolver result wins.
 
 - [x] **Step 6.2: Implement**
 
@@ -642,29 +647,26 @@ if primary_factor is None and data_entry.year is not None:
     )
 ```
 
-   (`handler` is already in scope at `:783`. Verify `data_entry.year` is the
-   denormalized column added for per-year deletes; if a row predates it,
-   `None` → skip, same as today's missing-id behavior.)
-2. Delete the export scrub in `carbon_report_module_repo.py:1236-1238`
-   (`data.pop("primary_factor_id", None)` and its comment; keep the
-   `.copy()` only if something else mutates — read the surrounding lines,
-   otherwise drop the copy too).
-3. Delete `primary_factor_id: Optional[int] = None` from
-   `EquipmentHandlerResponse` (`modules/equipment/schemas.py:98`). Check the
-   sort/filter maps in the same file (`:160` comment) — the NULL-sort
-   comment about CSV rows becomes wrong; reword to reference emission-row
-   factor ids.
-4. **Done 2026-07-06** (see Step 6.4 note). Regenerate the frontend types:
+(`handler` is already in scope at `:783`. Verify `data_entry.year` is the
+denormalized column added for per-year deletes; if a row predates it,
+`None` → skip, same as today's missing-id behavior.) 2. Delete the export scrub in `carbon_report_module_repo.py:1236-1238`
+(`data.pop("primary_factor_id", None)` and its comment; keep the
+`.copy()` only if something else mutates — read the surrounding lines,
+otherwise drop the copy too). 3. Delete `primary_factor_id: Optional[int] = None` from
+`EquipmentHandlerResponse` (`modules/equipment/schemas.py:98`). Check the
+sort/filter maps in the same file (`:160` comment) — the NULL-sort
+comment about CSV rows becomes wrong; reword to reference emission-row
+factor ids. 4. **Done 2026-07-06** (see Step 6.4 note). Regenerate the frontend types:
 
 ```bash
 make -C frontend gen-api-types
 ```
 
-   Commit the regenerated `openapi.d.ts` (backend must be running for the
-   schema fetch — see the target's recipe; start it the way the Makefile
-   expects). Not done during execution: the worktree has no `node_modules`
-   and no live backend on this branch. `openapi.d.ts` still declares
-   `EquipmentHandlerResponse.primary_factor_id` until this runs.
+Commit the regenerated `openapi.d.ts` (backend must be running for the
+schema fetch — see the target's recipe; start it the way the Makefile
+expects). Not done during execution: the worktree has no `node_modules`
+and no live backend on this branch. `openapi.d.ts` still declares
+`EquipmentHandlerResponse.primary_factor_id` until this runs.
 
 - [x] **Step 6.3: Tests green**
 
@@ -673,11 +675,11 @@ cd backend && uv run pytest tests/unit/repositories -x -q
 ```
 
 - [x] **Step 6.4 (done 2026-07-06: snapshot regenerated from branch app via
-  `app.openapi()`, generator forced onto snapshot because a stale backend was
-  live on :8000; `quasar prepare` + `make -C frontend type-check` exit 0;
-  commit `chore(1661): regenerate openapi types from branch schema`): Frontend
-  type-check** (husky runs vue-tsc on commit; run it
-  explicitly, `rtk tsc` green is NOT sufficient):
+      `app.openapi()`, generator forced onto snapshot because a stale backend was
+      live on :8000; `quasar prepare` + `make -C frontend type-check` exit 0;
+      commit `chore(1661): regenerate openapi types from branch schema`): Frontend
+      type-check** (husky runs vue-tsc on commit; run it
+      explicitly, `rtk tsc` green is NOT sufficient):
 
 ```bash
 make -C frontend type-check
@@ -727,8 +729,8 @@ Legitimate survivors — everything else must be gone or is a bug in Tasks 1-6:
 - `api/v1/factors.py` `/stale` endpoint docstring (`:41-45`): same claim —
   reword to "historical: entries no longer store factor ids" or leave for
   deletion in Phase 2 (note it in the Progress log either way).
-- `schemas/data_entry.py:343-356` docstring: "looks for primary_factor_id
-  in *ctx* (Strategy A)" — still true; add "injected by
+- `schemas/data_entry.py:343-356` docstring: "looks for primary*factor_id
+  in \_ctx* (Strategy A)" — still true; add "injected by
   DataEntryEmissionService.prepare_create from FactorResolver".
 - Check `openapi.d.ts:878` comment disappears with regeneration.
 
@@ -749,14 +751,14 @@ git commit -m "chore(1661): dead-code sweep after primary_factor_id removal"
 ### Task 8: integration suite pass (Phase-1 gate)
 
 - [x] **Step 8.1: Run the integration suite** (PostgreSQL-backed; check
-  `backend/Makefile` for the canonical target — the `*_pg.py` tests need it):
+      `backend/Makefile` for the canonical target — the `*_pg.py` tests need it):
 
 ```bash
 cd backend && uv run pytest tests/integration -q
 ```
 
 - [x] **Step 8.2: Fix fallout file-by-file.** Expected hot spots (all
-  currently reference the stored id or the rematch path):
+      currently reference the stored id or the rematch path):
 
 - `tests/integration/services/data_ingestion/test_strategy_a_rematch_pg.py`
   — retarget: reupload factors → recalc → **emission rows** carry new ids.
@@ -773,8 +775,8 @@ cd backend && uv run pytest tests/integration -q
   `data["primary_factor_id"]` reads with emission-row assertions.
 - `tests/conftest.py` — factories may stamp the key; remove.
 
-Rule: assertions about *which factor was used* belong on
-`DataEntryEmission.primary_factor_id`; assertions about *entry payloads*
+Rule: assertions about _which factor was used_ belong on
+`DataEntryEmission.primary_factor_id`; assertions about _entry payloads_
 must expect the key to be absent.
 
 - [x] **Step 8.3: Commit (possibly several small commits, one per test area)**
@@ -790,6 +792,7 @@ git commit -m "test(1661): retarget factor assertions to emission rows"
 ### Task 9: `delete_stale_for_year` repository method
 
 **Files:**
+
 - Modify: `backend/app/repositories/factor_repo.py` (next to
   `list_stale_for_year:360`)
 - Test: `backend/tests/integration/services/data_ingestion/test_factor_replace_semantics_pg.py` (new)
@@ -812,41 +815,43 @@ async def delete_stale_for_year(
 ```
 
 - [x] **Step 9.1: Failing integration test** — upload factors (job 1),
-  reupload with one row dropped and one reshaped (job 2), call
-  `delete_stale_for_year`, assert: dropped + old-shape rows gone, surviving
-  ids preserved, emissions referencing deleted rows gone (CASCADE).
+      reupload with one row dropped and one reshaped (job 2), call
+      `delete_stale_for_year`, assert: dropped + old-shape rows gone, surviving
+      ids preserved, emissions referencing deleted rows gone (CASCADE).
 - [x] **Step 9.2: Implement** — copy `list_stale_for_year`'s
-  `latest_per_det`/`threshold` construction, issue a single
-  `delete(Factor).where(...)` with the same conditions (wrap in `col()`),
-  return `result.rowcount`.
+      `latest_per_det`/`threshold` construction, issue a single
+      `delete(Factor).where(...)` with the same conditions (wrap in `col()`),
+      return `result.rowcount`.
 - [x] **Step 9.3: Green + commit** `feat(1661): add delete_stale_for_year`
 
 ### Task 10: wire deletion + recalc into factor ingest
 
 **Files:**
+
 - Modify: `backend/app/services/data_ingestion/base_factor_csv_provider.py`
   (post-upsert hook — find the `upsert_factors` call site)
 - Test: extend `test_factor_replace_semantics_pg.py`; rerun
   `test_plan_310b_factor_reupload_endpoint_pg.py`
 
 - [x] **Step 10.1: Failing test** — end-to-end reupload through the provider:
-  stale rows deleted, recalc enqueued (the 310C pipeline —
-  `_enqueue_stale_recalculations` in `api/v1/data_sync.py:504` — is already
-  triggered by the reupload endpoint; assert ordering: delete happens in the
-  same transaction as the upsert, *before* the recalc job runs).
+      stale rows deleted, recalc enqueued (the 310C pipeline —
+      `_enqueue_stale_recalculations` in `api/v1/data_sync.py:504` — is already
+      triggered by the reupload endpoint; assert ordering: delete happens in the
+      same transaction as the upsert, _before_ the recalc job runs).
 - [x] **Step 10.2: Implement** — call `delete_stale_for_year(self.year)`
-  right after a successful `upsert_factors` within the provider's
-  transaction; log the deleted count into the job's stats/status message.
+      right after a successful `upsert_factors` within the provider's
+      transaction; log the deleted count into the job's stats/status message.
 - [x] **Step 10.3: The originating-bug regression test** (spec requirement):
-  building_rooms factors uploaded with 2-key classification, reuploaded with
-  3-key (`energy_type` added); assert old generation deleted,
-  `GET /v1/factors/30/classes/{kind}/values?sub_class=...&year=...` returns
-  200 with the new factor (was: 500 `MultipleResultsFound`).
+      building_rooms factors uploaded with 2-key classification, reuploaded with
+      3-key (`energy_type` added); assert old generation deleted,
+      `GET /v1/factors/30/classes/{kind}/values?sub_class=...&year=...` returns
+      200 with the new factor (was: 500 `MultipleResultsFound`).
 - [x] **Step 10.4: Green + commit** `feat(1661): factor reupload replaces stale rows`
 
 ### Task 11: remove the stale-factor surface
 
 **Files:**
+
 - Modify: `backend/app/api/v1/factors.py` (delete `/stale` route +
   `StaleFactorResponse`, `:18-71`)
 - Modify: `backend/app/repositories/factor_repo.py` (delete
@@ -866,13 +871,13 @@ async def delete_stale_for_year(
 ### Task 12: close out
 
 - [x] **Step 12.1:** Full backend suite + lint + type-check green (user runs
-  or CI).
+      or CI).
 - [x] **Step 12.2:** Update the spec (`1661-remove-primary-factor-id.md`) if
-  anything shipped differently; set both files' `status:` frontmatter
-  (`delivered` when merged).
+      anything shipped differently; set both files' `status:` frontmatter
+      (`delivered` when merged).
 - [x] **Step 12.3:** PRs target `dev` unless told otherwise; Phase 1 and
-  Phase 2 are separate PRs (`gh pr create --base dev`). No attribution
-  trailers in PR bodies.
+      Phase 2 are separate PRs (`gh pr create --base dev`). No attribution
+      trailers in PR bodies.
 
 ---
 
@@ -918,6 +923,6 @@ _Append one line per session: date, task/step reached, surprises._
 - 2026-07-06: Merge blocker cleared (openapi regen via snapshot, type-check green). Phase 2 execution started.
 - 2026-07-06: Task 9 complete (commit 253fed84; delete_stale_for_year + replace-semantics integration test).
 - 2026-07-06: Task 10 complete (inline; ingest-scoped delete threshold via explicit job id — generic is_current lookup blind mid-pipeline; endpoint e2e + originating-bug regression tests green).
-- 2026-07-06: Task 11 complete (commit 1900f73f, −944 lines): /factors/stale + list_stale_for_year + _latest_factor_job_per_det deleted; delete_stale_for_year collapsed to single ingest-scoped mode (SQL CASE gone); openapi regenerated, frontend type-check green.
-- 2026-07-06: Simplify pass (commit 281f97d3): resolver owns falsy-kind short-circuit (caller gates collapsed), factor_cache parallel plumbing removed, _FactorMaps invariant documented. Skipped: _pick_* merge (generic helper less readable), PATCH double-load threading (KISS), get_by_classification reuse flag (pre-existing code). Task 12: unit 1754 + ruff + mypy green; integration green modulo the documented pre-existing 2F+5E baseline. Spec Phase-2 section aligned with shipped shape.
+- 2026-07-06: Task 11 complete (commit 1900f73f, −944 lines): /factors/stale + list_stale_for_year + \_latest_factor_job_per_det deleted; delete_stale_for_year collapsed to single ingest-scoped mode (SQL CASE gone); openapi regenerated, frontend type-check green.
+- 2026-07-06: Simplify pass (commit 281f97d3): resolver owns falsy-kind short-circuit (caller gates collapsed), factor*cache parallel plumbing removed, \_FactorMaps invariant documented. Skipped: \_pick*\* merge (generic helper less readable), PATCH double-load threading (KISS), get_by_classification reuse flag (pre-existing code). Task 12: unit 1754 + ruff + mypy green; integration green modulo the documented pre-existing 2F+5E baseline. Spec Phase-2 section aligned with shipped shape.
 - 2026-07-06: Phase 2 close-out: destructive-semantics guards decided+pinned (SUCCESS-only sweep, upserted-dets scope; commit cb755087); final Phase-2 review verdict READY TO MERGE, no open findings. PR opened stacked on #1714.
