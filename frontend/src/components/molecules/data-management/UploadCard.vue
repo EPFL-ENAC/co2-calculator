@@ -303,6 +303,7 @@ function handleAbort() {
           size="sm"
           unelevated
           dense
+          data-testid="download-last-csv-btn"
           @click="handleDownload"
         >
           <q-tooltip>{{ $t('data_management_download_last_csv') }}</q-tooltip>
