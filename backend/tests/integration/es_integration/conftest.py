@@ -26,7 +26,7 @@ def elasticsearch_container(docker_client):
     env_vars = {
         "discovery.type": "single-node",
         "xpack.security.enabled": "false",
-        "ES_JAVA_OPTS": "-Xms1g -Xmx1g",
+        "ES_JAVA_OPTS": "-Xms512m -Xmx512m",
     }
 
     try:
