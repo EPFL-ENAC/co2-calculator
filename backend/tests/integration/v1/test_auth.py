@@ -29,10 +29,12 @@ async def test_login_redirect_uri_https(client, monkeypatch):
         "authorize_redirect",
         fake_authorize_redirect,
     )
+    # Scheme is forced by COOKIE_SECURE, not by the (spoofable) X-Forwarded-Proto
+    # header — see 28c9b927 / c1b87078.
+    monkeypatch.setattr(auth_module.settings, "COOKIE_SECURE", True)
 
     response = client.get(
         f"{API_PREFIX}/auth/login",
-        headers={"X-Forwarded-Proto": "https"},
         follow_redirects=False,
     )
     assert response.status_code in (302, 307)

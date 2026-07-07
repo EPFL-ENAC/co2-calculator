@@ -680,10 +680,11 @@ def test_e2e_callback_session_refresh_logout_happy_path(client, monkeypatch):
     monkeypatch.setattr(
         auth_module.UnitService, "get_user_units", AsyncMock(return_value=[])
     )
-    import app.api.v1.year_configuration as year_config_module
-
+    # Patch where it's used (auth_module imported the name directly), not
+    # where it's defined — patching year_configuration's attribute wouldn't
+    # affect auth_module's already-bound reference.
     monkeypatch.setattr(
-        year_config_module, "list_configured_years", AsyncMock(return_value=[])
+        auth_module, "list_configured_years", AsyncMock(return_value=[])
     )
 
     async def _override():
