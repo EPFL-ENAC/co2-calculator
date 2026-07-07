@@ -372,12 +372,12 @@ export default {
     fr: 'Nombre d’heures par semaine pendant lesquelles l’équipement est utilisé en mode standby. Certaines valeurs génériques ont été préremplies. Veuillez les mettre à jour afin qu’elles correspondent plus précisément à l’utilisation de votre équipement. Le total des heures actives et des heures en veille ne peut pas dépasser 168 h/semaine.',
   },
   'module-equipment-submodule-scientific-table-active_power_w': {
-    en: 'The average active power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us. Please note that we do not want the maximum power value, which can be very different from the average power.',
-    fr: "La puissance active moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
+    en: 'The average active power is indicated by class. It may not fully represent the power of your equipment, in which case you can request a change via the Comment button  on that row. Please note that we do not want the maximum power value, which can be very different from the average power.',
+    fr: "La puissance active moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas vous pouvez demander une modification via le bouton Commentaire  de la ligne concernée. Attention, nous ne voulons pas avoir la valeur de puissance maximale qui peut être très différente de la puissance moyenne.",
   },
   'module-equipment-submodule-scientific-table-standby_power_w': {
-    en: 'The average standby power is indicated by class. It may not fully represent the power of your equipment, in which case please contact us.',
-    fr: "La puissance standby moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas merci de nous contacter.",
+    en: 'The average standby power is indicated by class. It may not fully represent the power of your equipment, in which case you can request a change via the Comment button on that row.',
+    fr: "La puissance standby moyenne est indiquée par classe. il est possible qu'elle ne soit pas totalement représentative de celle de votre équipement, auquel cas vous pouvez demander une modification via le bouton Commentaire de la ligne concernée.",
   },
   'module-equipment-submodule-scientific-table-kg_co2eq': {
     en: 'The uncertainty of these values may be high and depends on the representativeness of the power, the hours of use, and the use parameters.',

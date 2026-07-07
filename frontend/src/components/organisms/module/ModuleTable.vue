@@ -300,6 +300,24 @@
     @delete="deleteNote"
   />
 
+  <EquipmentPowerFeedbackDialog
+    v-model="powerFeedbackDialogOpen"
+    :note="noteDialogCurrentNote"
+    :mode="noteDialogMode"
+    :equipment-name="powerFeedbackRow.equipmentName"
+    :equipment-class="powerFeedbackRow.equipmentClass"
+    :sub-class="powerFeedbackRow.subClass"
+    :current-active-power-w="powerFeedbackRow.currentActivePowerW"
+    :current-standby-power-w="powerFeedbackRow.currentStandbyPowerW"
+    :unit-name="powerFeedbackUnitName"
+    :year="year"
+    :module-color="moduleColors.bgColorLighter"
+    :module-text-color="moduleColors.buttonTextColor"
+    :module-accent-color="moduleColors.borderColor"
+    @save="saveNote"
+    @delete="deleteNote"
+  />
+
   <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
     <q-card class="column">
       <q-card-section class="flex justify-between items-center">
@@ -380,6 +398,8 @@ import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowerFeedbackDialog.vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -456,9 +476,47 @@ const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
 const noteDialogRowId = ref<number | null>(null);
 
+// The per-row Comment button. For Equipment (issue #266) it opens a 2-tab dialog
+// (Comment + "Demande de modification de puissance") that can email a power-change
+// request to the business admin, who edits the reference Factor manually. Other
+// modules keep the plain NoteDialog. Both share the same note state so saving a
+// comment persists identically.
+const workspaceStore = useWorkspaceStore();
+const isEquipmentModule = computed(
+  () => props.moduleType === MODULES.Equipment,
+);
+const powerFeedbackDialogOpen = ref(false);
+const powerFeedbackRow = ref<{
+  equipmentName: string;
+  equipmentClass: string;
+  subClass: string | null;
+  currentActivePowerW: number | null;
+  currentStandbyPowerW: number | null;
+}>({
+  equipmentName: '',
+  equipmentClass: '',
+  subClass: null,
+  currentActivePowerW: null,
+  currentStandbyPowerW: null,
+});
+const powerFeedbackUnitName = computed(
+  () => workspaceStore.selectedUnit?.name ?? String(props.unitId),
+);
+
 function openNoteDialog(row: ModuleRow) {
   noteDialogRowId.value = getRowId(row);
   noteDialogCurrentNote.value = (row.note as string) ?? '';
+  if (isEquipmentModule.value) {
+    powerFeedbackRow.value = {
+      equipmentName: (row.name as string) ?? '',
+      equipmentClass: (row.equipment_class as string) ?? '',
+      subClass: (row.sub_class as string) ?? null,
+      currentActivePowerW: (row.active_power_w as number) ?? null,
+      currentStandbyPowerW: (row.standby_power_w as number) ?? null,
+    };
+    powerFeedbackDialogOpen.value = true;
+    return;
+  }
   noteDialogOpen.value = true;
 }
 

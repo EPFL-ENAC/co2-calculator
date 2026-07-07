@@ -134,6 +134,11 @@ export default defineConfig(function () {
           process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
         APP_ACCESS_MANAGEMENT_PROVIDER_URL:
           process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
+        // Recipient for the Equipment power-feedback mailto (see
+        // src/config/runtime.ts). Empty string in dev falls back to the default
+        // in runtimeConfig; in production it comes from /injectEnv.js.
+        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
+          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,

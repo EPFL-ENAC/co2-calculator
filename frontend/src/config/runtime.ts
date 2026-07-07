@@ -54,4 +54,11 @@ export const runtimeConfig = {
     injected.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
     process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
     '',
+  // Recipient for the Equipment "power feedback" mailto (issue #266). The address
+  // can depend on the institution, so it is configurable per-pod via
+  // APP_EQUIPMENT_POWER_FEEDBACK_EMAIL on /injectEnv.js rather than hardcoded.
+  equipmentPowerFeedbackEmail:
+    injected.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
+    process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
+    '',
 } as const;
