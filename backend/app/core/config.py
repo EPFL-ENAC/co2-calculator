@@ -44,6 +44,37 @@ class Settings(BaseSettings):
             Example: sqlite+aiosqlite:///./co2_calculator.db
             """,
     )
+    # #1723 — explicit pool sizing (skipped for sqlite, see app/db.py).
+    # Without these SQLAlchemy defaults to pool_size=5/max_overflow=10,
+    # which is the exact "QueuePool limit of size 5 overflow 10 reached"
+    # error a factor CSV upload's emission_recalc fan-out used to hit.
+    DB_POOL_SIZE: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Base number of pooled async DB connections per pod (ignored "
+            "for sqlite). Sized alongside MAX_CONCURRENT_JOBS: each "
+            "running job holds 1-2 connections (runner job_session + "
+            "handler data_session) for its whole runtime."
+        ),
+    )
+    DB_MAX_OVERFLOW: int = Field(
+        default=10,
+        ge=0,
+        description=(
+            "Extra connections allowed beyond DB_POOL_SIZE under burst "
+            "load (ignored for sqlite). DB_POOL_SIZE + DB_MAX_OVERFLOW is "
+            "the hard cap on connections one pod can open."
+        ),
+    )
+    DB_POOL_TIMEOUT: int = Field(
+        default=30,
+        ge=1,
+        description=(
+            "Seconds a request waits for a pooled connection before "
+            "raising QueuePool timeout (ignored for sqlite)."
+        ),
+    )
 
     # Files Storage Configuration
     # S3 if configured, or local filesystem otherwise
@@ -345,6 +376,22 @@ class Settings(BaseSettings):
             "preempt a still-working pod and trigger duplicate processing.  "
             "60 min gives ample headroom for current ingest/recalc loads; "
             "raise if a specific job type is expected to run longer."
+        ),
+    )
+    # #1723 — bounds every run_job dispatch path (poller sweep, chain_job
+    # fan-out, and endpoint-triggered fire_and_forget), not just the
+    # poller. One asyncio.Semaphore in app.tasks.runner, acquired BEFORE
+    # the DB claim: a queued job holds no claim, so an idle replica's
+    # poller can pick it up instead of it sitting stuck behind a busy
+    # pod. Fixes the QueuePool exhaustion a factor CSV upload's
+    # emission_recalc fan-out used to trigger.
+    MAX_CONCURRENT_JOBS: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Max background jobs this pod runs at once, across every "
+            "dispatch path (poller, chain_job, endpoint fire-and-forget). "
+            "At 2-3 replicas this caps fleet-wide running jobs at 8-12."
         ),
     )
     RUN_BACKGROUND_POLLER: bool = Field(

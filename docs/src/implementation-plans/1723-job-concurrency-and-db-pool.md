@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: in-progress
 issue: 1723
 last_updated: 2026-07-07
 title: "Bound background-job concurrency and size the DB pool"
@@ -46,10 +46,16 @@ Direct connections fit comfortably at 2-3 replicas. PgBouncer adds a hop, and it
 
 ## Steps
 
-- [ ] Add `MAX_CONCURRENT_JOBS` setting (default 4); confirm 4 vs 8 at implementation.
-- [ ] Add one `asyncio.Semaphore(MAX_CONCURRENT_JOBS)` in the runner, acquired in `run_job` before the DB claim; exempt the heartbeat task.
-- [ ] Add `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` settings (defaults 10/10/30; confirm 10+10 vs 5+10) and pass them to `create_async_engine` in `backend/app/db.py`, skipped for sqlite.
-- [ ] Document the new pool settings in `env.example` next to the poller block.
-- [ ] Add ops note (README/docs) on skipping PgBouncer, with the `replicas x (pool_size + overflow)` ~= 80% of `max_connections` revisit trigger.
-- [ ] Unit tests: N blocking fake jobs -> at most `MAX_CONCURRENT_JOBS` run concurrently; a queued job stays `NOT_STARTED` (claimable by another pod); heartbeats unaffected; settings passthrough into the engine.
-- [ ] Real repro: re-run the same factor CSV upload — success is no QueuePool timeout and `pg_stat_activity` staying within the per-pod cap during the recalc fan-out.
+- [x] Add `MAX_CONCURRENT_JOBS` setting (default 4; kept the plan's default — see "Implementation notes").
+- [x] Add one `asyncio.Semaphore(MAX_CONCURRENT_JOBS)` in the runner, acquired in `run_job` before the DB claim; exempt the heartbeat task.
+- [x] Add `DB_POOL_SIZE` / `DB_MAX_OVERFLOW` / `DB_POOL_TIMEOUT` settings (defaults 10/10/30 — kept the plan's default) and pass them to `create_async_engine` in `backend/app/db.py`, skipped for sqlite.
+- [x] Document the new pool settings in `backend/.env.example` next to the poller block (repo uses `.env.example`, not `env.example`).
+- [x] Add ops note on skipping PgBouncer, with the `replicas x (pool_size + overflow)` ~= 80% of `max_connections` revisit trigger — landed in [ADR-004](../architecture-decision-records/004-database-selection.md), which already documented pooling/PgBouncer.
+- [x] Unit tests: N blocking fake jobs -> at most `MAX_CONCURRENT_JOBS` run concurrently; a queued job stays `NOT_STARTED` (claimable by another pod); heartbeats unaffected; settings passthrough into the engine. See `backend/tests/unit/tasks/test_runner_concurrency.py` and `backend/tests/unit/test_db_pool_settings.py`.
+- [ ] Real repro: re-run the same factor CSV upload in a live environment — success is no QueuePool timeout and `pg_stat_activity` staying within the per-pod cap during the recalc fan-out. Not run as part of this PR (no live repro environment in this session) — flagged for the owner before merge.
+
+## Implementation notes (as landed)
+
+- **`MAX_CONCURRENT_JOBS=4`, not 8**: kept the plan's conservative default. 8/pod x 2-3 replicas = 16-24 concurrent jobs x ~2 connections each = 32-48 connections just for background work, eating deep into the `DB_POOL_SIZE=10 + DB_MAX_OVERFLOW=10 = 20`/pod budget before HTTP traffic is accounted for. 4/pod keeps the fleet-wide job-connection footprint (8-16 connections) comfortably under headroom; raise later if throughput data justifies it.
+- **`DB_POOL_SIZE=10` / `DB_MAX_OVERFLOW=10`, not 5+10**: the *default* 5+10 is exactly what produced the original bug report, so keeping it unchanged would leave the pool the same size while only adding the job-concurrency bound as the fix. Doubling `pool_size` to 10 gives the explicit-settings change real headroom of its own (20/pod vs the previous 15), matching the plan's fleet math (3 x 20 = 60 vs Postgres default `max_connections=100`).
+- The semaphore is acquired via `async with _get_job_semaphore()` wrapping everything from `claim_job` through `finish_job` (including the heartbeat-task lifecycle) — released only when `run_job` returns. The heartbeat task itself never acquires the semaphore (it's a separate `asyncio.Task`), satisfying the "heartbeat exempt" requirement without extra bookkeeping.
