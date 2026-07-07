@@ -21,6 +21,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.constants import MIN_CONFIGURABLE_YEAR
 from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.core.submodule_mandatoriness import (
@@ -629,6 +630,15 @@ async def create_year_configuration(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can create year configurations",
+        )
+
+    current_year = datetime.now().year
+    if year < MIN_CONFIGURABLE_YEAR or year > current_year:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Year must be between {MIN_CONFIGURABLE_YEAR} and {current_year}"
+            ),
         )
 
     stmt = select(YearConfiguration).where(

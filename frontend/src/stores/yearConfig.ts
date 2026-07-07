@@ -184,7 +184,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
    */
   // TODO: fix the available years dynamically (drive from configuredYears
   // rather than a hardcoded 2023..now range).
-  const MIN_YEAR = 2023;
+  const MIN_YEAR = 2025;
   const availableYears = ref<number[]>([]);
   const thisYear = new Date().getFullYear();
   for (let y = MIN_YEAR; y <= thisYear; y++) availableYears.value.push(y);

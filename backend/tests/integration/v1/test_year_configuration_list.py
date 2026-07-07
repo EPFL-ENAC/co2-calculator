@@ -305,3 +305,50 @@ def test_post_year_as_test_user_does_not_conflict_with_existing_accred_row(
     accred_rows = r.json()
     assert len(accred_rows) == 1
     assert accred_rows[0]["is_started"] is True  # ACCRED untouched
+
+
+@pytest_asyncio.fixture
+async def db_empty():
+    """Empty in-memory DB — no seeded rows, for year-bounds validation."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        yield session, async_session
+
+    await engine.dispose()
+
+
+def test_post_year_below_minimum_rejected(client, monkeypatch, db_empty):
+    """Regression for #1204: POST /year-configuration/2024 is below the
+    MIN_CONFIGURABLE_YEAR floor (2025) and must be rejected with 400,
+    never reaching the existing-config query.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    r = client.post(URL + "2024")
+    assert r.status_code == 400, r.text
+
+
+def test_post_year_at_minimum_succeeds(client, monkeypatch, db_empty):
+    """Regression for #1204: POST /year-configuration/2025, the new floor,
+    still succeeds.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    def _consume_coro(coro, *_args, **_kwargs):
+        coro.close()
+        return None
+
+    monkeypatch.setattr("app.api.v1.year_configuration.fire_and_forget", _consume_coro)
+
+    r = client.post(URL + "2025")
+    assert r.status_code == 201, r.text
+    assert r.json()["year"] == 2025
