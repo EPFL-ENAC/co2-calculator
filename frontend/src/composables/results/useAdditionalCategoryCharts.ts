@@ -7,10 +7,7 @@ import {
 import type { TooltipState } from 'src/types/chartTooltip';
 
 export type AdditionalCategoryKey =
-  | 'commuting'
-  | 'food'
-  | 'waste'
-  | 'embodied_energy';
+  'commuting' | 'food' | 'waste' | 'embodied_energy';
 
 export type DisplayEntry = {
   key: string;

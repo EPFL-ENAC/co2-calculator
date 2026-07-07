@@ -67,8 +67,7 @@ export function useUploadCard() {
 
   function safeFileName(meta: unknown): string | undefined {
     const fp = (meta as Record<string, unknown>)?.file_path as
-      | string
-      | undefined;
+      string | undefined;
     if (!fp) return undefined;
     const parts = fp.split('/');
     return parts.length ? parts[parts.length - 1] : fp;
@@ -114,8 +113,7 @@ export function useUploadCard() {
     const rowsProcessed = (job.meta as Record<string, unknown>)
       ?.rows_processed as number | undefined;
     const timestampStr = (job.meta as Record<string, unknown>)?.timestamp as
-      | string
-      | undefined;
+      string | undefined;
     const timestamp = timestampStr ? new Date(timestampStr) : undefined;
 
     return { fileName, rowsProcessed, timestamp };

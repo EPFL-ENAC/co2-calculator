@@ -1081,8 +1081,7 @@ function renderCell(
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
-      | string
-      | undefined;
+      string | undefined;
     if (user_institutional_id != null) {
       return headcountMembersMap.value.get(user_institutional_id) ?? '-';
     }

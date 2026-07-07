@@ -191,8 +191,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
 
     if (options.row.value.reductionObjectiveTypeId !== undefined) {
       const existingConfig = syncParams.config as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       syncParams.config = {
         ...existingConfig,
         reduction_objective_type_id: options.row.value.reductionObjectiveTypeId,
@@ -201,8 +200,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
 
     if (options.row.value.factorVariant !== undefined) {
       const existingConfig = syncParams.config as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       syncParams.config = {
         ...existingConfig,
         factor_variant: options.row.value.factorVariant,
@@ -215,8 +213,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
 
     if (sourceJobId && providerType === 'copy') {
       const existingConfig = syncParams.config as
-        | Record<string, unknown>
-        | undefined;
+        Record<string, unknown> | undefined;
       syncParams.config = {
         ...(existingConfig || {}),
         source_job_id: sourceJobId,
@@ -240,8 +237,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
       (payload?: JobUpdatePayload) => {
         const result = payload?.result;
         const rowsProcessed = payload?.meta?.rows_processed as
-          | number
-          | undefined;
+          number | undefined;
         const rowsSkipped = payload?.meta?.rows_skipped as number | undefined;
 
         let color: string;

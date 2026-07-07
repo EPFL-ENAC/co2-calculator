@@ -37,8 +37,7 @@ function vueErrorContext(
   info: string,
 ): Record<string, unknown> {
   const type = instance?.$?.type as
-    | { name?: string; __name?: string }
-    | undefined;
+    { name?: string; __name?: string } | undefined;
   return {
     componentName: type?.name || type?.__name || 'Anonymous Component',
     lifecycleHook: info,

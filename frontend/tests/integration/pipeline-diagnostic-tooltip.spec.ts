@@ -65,8 +65,7 @@ async function dispatchPipelineUpdate(
       if (!map) return false;
       const url = `/api/v1/sync/pipelines/${pipelineId}/stream`;
       const pipe = map.get(url) as
-        | { dispatch(eventName: string, payload: unknown): void }
-        | undefined;
+        { dispatch(eventName: string, payload: unknown): void } | undefined;
       if (!pipe) return false;
       pipe.dispatch('pipeline-update', payload);
       return true;
