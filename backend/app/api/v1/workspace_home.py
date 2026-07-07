@@ -11,6 +11,16 @@ consume — nothing more:
   keyed by this id.
 - ``year_config`` — module visibility et al.; ``null`` mirrors the 404 of
   ``GET /year-configuration/{year}`` (frontend renders the "create year" state).
+  Unlike that route, home returns a slim ``{year, config}`` shape (see
+  ``HomeYearConfiguration``) with the *raw* stored config and **no** sync-job /
+  incomplete / recalculation enrichment, and it drops the top-level
+  ``is_started``/``updated_at``/``configuration_completed``/``pipeline_id``/
+  ``recalculation_status`` fields — the workspace pages only read module
+  ``enabled``/``uncertainty_tag`` and submodule ``enabled``/``threshold``/
+  ``inputs_deactivated``/``csv_deactivated`` (+ ``reduction_objectives``). All of
+  that is backoffice-only (data-management page, which refetches the full config),
+  so skipping it here drops two DB queries per load and the per-submodule
+  ``latest_*_job`` payload bloat.
 - ``emission_breakdown`` — chart data, augmented with
   ``total_tonnes_validated_co2eq`` (the validated-only headline figure, distinct
   from the breakdown's all-modules ``total_tonnes_co2eq``). Also carries
@@ -23,10 +33,11 @@ enforced, like ``results-summary``) so limited users can load their home page
 without tripping the global 403 → ``/unauthorized`` redirect.
 """
 
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
@@ -34,23 +45,63 @@ from app.api.v1.carbon_report_module_stats import (
     build_emission_breakdown,
     build_validated_totals,
 )
-from app.api.v1.year_configuration import build_year_configuration_response
 from app.core.logging import get_logger
 from app.core.policy import require_unit_access
 from app.models.unit import Unit
 from app.models.user import User
-from app.schemas.year_configuration import YearConfigurationResponse
+from app.models.year_configuration import YearConfiguration
 from app.services.carbon_report_service import CarbonReportService
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
+class HomeYearConfiguration(BaseModel):
+    """Slim year-config for the home aggregate — only what workspace pages read.
+
+    The workspace pages (home / module / results / sidebar) read module
+    ``enabled``/``uncertainty_tag`` and submodule
+    ``enabled``/``threshold``/``inputs_deactivated``/``csv_deactivated`` (plus
+    ``reduction_objectives``) — all of which live under ``config``. Every other
+    field of the full ``YearConfigurationResponse`` (``is_started``,
+    ``updated_at``, ``configuration_completed``, ``pipeline_id``,
+    ``recalculation_status``) is read only on the backoffice data-management page,
+    which refetches the full config via ``GET /year-configuration/{year}``. So
+    home omits them entirely.
+    """
+
+    year: int
+    config: Dict[str, Any]
+
+
+async def build_home_year_configuration(
+    db: AsyncSession, year: int, provider
+) -> Optional[HomeYearConfiguration]:
+    """Slim year-configuration for the home aggregate — no job/recalc enrichment.
+
+    Returns the raw stored config (or ``None`` if no row exists for
+    ``(year, provider)``). Deliberately does NOT run the sync-job / incomplete /
+    recalculation enrichment that ``build_year_configuration_response`` does for
+    the backoffice data-management page: the workspace pages never read those
+    fields, so skipping them avoids two extra DB queries and a large per-submodule
+    ``latest_*_job`` payload.
+    """
+    stmt = select(YearConfiguration).where(
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == provider,
+    )
+    result = (await db.exec(stmt)).first()
+    if not result:
+        return None
+
+    return HomeYearConfiguration(year=result.year, config=result.config)
+
+
 class WorkspaceHomeResponse(BaseModel):
     """Minimal aggregate payload the frontend fans out across its stores."""
 
     carbon_report_id: int
-    year_config: Optional[YearConfigurationResponse] = None
+    year_config: Optional[HomeYearConfiguration] = None
     emission_breakdown: dict
 
 
@@ -77,9 +128,7 @@ async def get_workspace_home(
             status_code=status.HTTP_404_NOT_FOUND, detail="Carbon report not found"
         )
 
-    year_config = await build_year_configuration_response(
-        db, year, current_user.provider
-    )
+    year_config = await build_home_year_configuration(db, year, current_user.provider)
 
     emission_breakdown = await build_emission_breakdown(db, report.id)
     # The headline needs the validated-only total, which differs from the
