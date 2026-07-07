@@ -556,18 +556,16 @@ export function getChartSubcategoryColor(
 }
 
 // Maps Module enum value → category names present in module_breakdown
-export const MODULE_TO_CATEGORIES = computed(
-  (): Record<string, string[]> => ({
-    [MODULES.Headcount]: ['headcount'],
-    [MODULES.ProcessEmissions]: ['process_emissions'],
-    [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
-    [MODULES.Equipment]: ['equipment'],
-    [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
-    [MODULES.Purchase]: ['purchases'],
-    [MODULES.ProfessionalTravel]: ['professional_travel'],
-    [MODULES.ResearchFacilities]: ['research_facilities'],
-  }),
-);
+export const MODULE_TO_CATEGORIES = computed((): Record<string, string[]> => ({
+  [MODULES.Headcount]: ['headcount'],
+  [MODULES.ProcessEmissions]: ['process_emissions'],
+  [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
+  [MODULES.Equipment]: ['equipment'],
+  [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
+  [MODULES.Purchase]: ['purchases'],
+  [MODULES.ProfessionalTravel]: ['professional_travel'],
+  [MODULES.ResearchFacilities]: ['research_facilities'],
+}));
 
 export function getModuleForCategoryKey(categoryKey: string): Module | null {
   for (const [mod, categories] of Object.entries(MODULE_TO_CATEGORIES.value)) {

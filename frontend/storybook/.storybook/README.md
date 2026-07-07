@@ -150,9 +150,7 @@ export const WithCustomState: Story = {
   decorators: [
     withMockStore((pinia) => {
       const myStore = useMyStore(pinia);
-      myStore.$patch({
-        /* mock state */
-      });
+      myStore.$patch({/* mock state */});
     }),
   ],
   render: () => ({

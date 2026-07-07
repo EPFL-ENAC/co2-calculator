@@ -311,13 +311,11 @@ function buildTooltipState(rawParams: unknown): TooltipState {
         tooltipSortIndex(String(a.seriesName ?? '')) -
         tooltipSortIndex(String(b.seriesName ?? '')),
     )
-    .map(
-      (p): TooltipRow => ({
-        label: categoryLabel(String(p.seriesName)),
-        value: formatTooltipTonnes(extractSeriesValue(p.value)),
-        color: categoryColor(String(p.seriesName)),
-      }),
-    );
+    .map((p): TooltipRow => ({
+      label: categoryLabel(String(p.seriesName)),
+      value: formatTooltipTonnes(extractSeriesValue(p.value)),
+      color: categoryColor(String(p.seriesName)),
+    }));
 
   rows.push(...categoryRows);
 

@@ -36,7 +36,7 @@ def _patch_common(monkeypatch, *, existing_report):
     monkeypatch.setattr(wh_module, "CarbonReportService", lambda _db: report_service)
     monkeypatch.setattr(
         wh_module,
-        "build_year_configuration_response",
+        "build_home_year_configuration",
         AsyncMock(return_value=None),
     )
     monkeypatch.setattr(

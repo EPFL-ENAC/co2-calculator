@@ -51,8 +51,7 @@ export interface ConditionalOptions {
 
 // Support multiple conditional options - first matching condition wins
 export type ConditionalOptionsConfig =
-  | ConditionalOptions
-  | ConditionalOptions[];
+  ConditionalOptions | ConditionalOptions[];
 
 export interface ModuleField {
   id: string;
