@@ -167,7 +167,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
                     "reference type (expected plane=20, train=21, building=30)"
                 )
 
-            processed_path = await self._move_to_processed(processing_path, filename)
+            processed_path = await self._move_to_processed(processing_path)
 
             result = (
                 IngestionResult.SUCCESS
@@ -224,34 +224,12 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         if not self.source_file_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(self.source_file_path)
-        filename = self.source_file_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {self.source_file_path} to {processing_path}")
-        move_result = await self.files_store.move_file(
-            self.source_file_path, processing_path
-        )
-        if not move_result:
-            raise ValueError("Failed to move file to processing path")
+        processing_path = await self._move_to_processing(self.source_file_path)
+        filename = processing_path.split("/")[-1]
 
         file_content, _ = await self.files_store.get_file(processing_path)
         csv_text = file_content.decode("utf-8")
         return csv_text, processing_path, filename
-
-    async def _move_to_processed(self, processing_path: str, filename: str) -> str:
-        """On success only — promote ``processing/<job>/<file>`` to ``processed/``.
-
-        Kept off the failure path so an admin downloading "the last CSV"
-        always reads a file that was actually ingested.
-        """
-        processed_path = f"processed/{self.job_id}/{filename}"
-        moved = await self.files_store.move_file(processing_path, processed_path)
-        if not moved:
-            logger.warning(
-                f"Failed to move {processing_path} to {processed_path} — "
-                "keeping in processing/"
-            )
-            return processing_path
-        return processed_path
 
     @staticmethod
     def _validate_headers(

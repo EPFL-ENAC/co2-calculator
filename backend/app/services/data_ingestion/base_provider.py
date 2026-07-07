@@ -48,6 +48,66 @@ class DataIngestionProvider(ABC):
     async def set_job_id(self, job_id: int):
         self.job_id = job_id
 
+    @property
+    def files_store(self) -> Any:
+        """File storage backend for the move helpers below.
+
+        Not abstract: only the CSV-provider subclasses that call
+        ``_move_to_processing``/``_move_to_processed`` override this (each
+        lazily constructs its own); API-based providers never touch file
+        storage and have no reason to implement it.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not provide a files_store"
+        )
+
+    async def _move_to_processing(self, tmp_path: str) -> str:
+        """Move an uploaded file from ``tmp/`` to ``processing/<job_id>/``.
+
+        Idempotent: if a prior attempt already produced the destination
+        (job crashed/restarted after the move but before FINISHED, then
+        ``sweep_stuck_running_jobs`` reset it to NOT_STARTED for retry),
+        skip the move instead of failing on a tmp source the first
+        attempt already consumed (#1559). A destination that's still
+        missing means the move genuinely needs to happen; any failure
+        there still raises.
+        """
+        filename = tmp_path.split("/")[-1]
+        processing_path = f"processing/{self.job_id}/{filename}"
+        if await self.files_store.file_exists(processing_path):
+            logger.info(
+                f"File already at {processing_path} (prior attempt); "
+                "skipping move"
+            )
+            return processing_path
+        logger.info(f"Moving file from {tmp_path} to {processing_path}")
+        if not await self.files_store.move_file(tmp_path, processing_path):
+            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+        return processing_path
+
+    async def _move_to_processed(self, processing_path: str) -> str:
+        """Move an ingested file from ``processing/`` to ``processed/<job_id>/``.
+
+        Idempotent like ``_move_to_processing``. Unlike that move, a
+        failure here is non-fatal — the data is already committed, only
+        archival bookkeeping is at stake — so it logs and returns the
+        un-moved ``processing_path`` instead of raising.
+        """
+        filename = processing_path.split("/")[-1]
+        processed_path = f"processed/{self.job_id}/{filename}"
+        if await self.files_store.file_exists(processed_path):
+            logger.info(
+                f"File already at {processed_path} (prior attempt); skipping move"
+            )
+            return processed_path
+        logger.info(f"Moving file from {processing_path} to {processed_path}")
+        if not await self.files_store.move_file(processing_path, processed_path):
+            logger.warning(
+                f"Failed to move file from {processing_path} to {processed_path}"
+            )
+            return processing_path
+        return processed_path
+
     @abstractmethod
     async def validate_connection(self) -> bool:
         pass
