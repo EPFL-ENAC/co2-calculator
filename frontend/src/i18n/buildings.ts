@@ -135,10 +135,6 @@ export default {
     en: 'Add',
     fr: 'Ajouter ',
   },
-  [`${MODULES.Buildings}.combustion-form-title`]: {
-    en: 'Add a heating type',
-    fr: 'Ajouter un type de chauffage',
-  },
 
   // Combustion fields
   [`${MODULES.Buildings}.inputs.name`]: {

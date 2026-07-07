@@ -26,11 +26,6 @@ export default {
     fr: "Ajoutez une utilisation de service d'IA externe",
   },
 
-  // CHARTS external-cloud-and-ai.charts-title
-  [`${MODULES.ExternalCloudAndAI}-charts-title`]: {
-    en: 'External cloud emissions CHARTS',
-    fr: 'Émissions du cloud externe CHARTS',
-  },
   // external-cloud-and-ai.cloud_services_table_title
   [`${MODULES.ExternalCloudAndAI}.cloud_services_table_title`]: {
     en: 'External cloud service ({count}) | External cloud services ({count})',

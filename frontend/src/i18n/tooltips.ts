@@ -482,18 +482,39 @@ export default {
   // Each module results section contains a breakdown chart. A (ℹ) icon can
   // appear next to the chart title to give users context about what is
   // included in — or excluded from — the visualisation.
+  // Leave en/fr empty ("") to hide the icon for that module's chart.
+  //
+  // Module order in the app:
+  //   Headcount → Process Emissions → Buildings → Equipment →
+  //   External Cloud & AI → Professional Travel → Purchases → Research Facilities
 
-  'module-equipment-charts': {
-    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  'module-headcount-charts': {
+    en: "The emissions shown here are calculated on the basis of the unit's headcount (FTE) and contribute to Scope 3 of the carbon footprint.",
+    fr: "Les émissions présentées ici sont calculées sur la base de l'effectif de l'unité (EPT) et contribuent au Scope 3 de l'empreinte carbone.",
+  },
+  'module-process-emissions-charts': {
+    en: 'The emissions considered here are the direct process emissions of the unit, broken down by greenhouse gas. They contribute to Scope 1 of the carbon footprint.',
+    fr: "Les émissions considérées ici sont les émissions de procédés directes de l'unité, réparties par gaz à effet de serre. Elles contribuent au Scope 1 de l'empreinte carbone.",
   },
   'module-buildings-charts': {
     en: 'The emissions considered here are those related to the energy used for heating, lighting, ventilation, and cooling in buildings.',
     fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire pour le chauffage, l'éclairage, la ventilation et le froid dans les bâtiments.",
   },
+  'module-equipment-charts': {
+    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
+    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
+  },
   'module-external-cloud-and-ai-charts': {
     en: 'The results are aggregated by service type: external clouds and AI.',
     fr: 'Les résultats sont aggrégés par type de service: clouds externes et IA.',
+  },
+  'module-professional-travel-charts': {
+    en: "The emissions considered here are those related to the unit's professional travel, broken down by mode of transport (plane and train).",
+    fr: "Les émissions considérées ici sont celles liées aux voyages professionnels de l'unité, réparties par mode de transport (avion et train).",
+  },
+  'module-purchase-charts': {
+    en: "The emissions considered here are those related to the unit's purchases, broken down by purchase category.",
+    fr: "Les émissions considérées ici sont celles liées aux achats de l'unité, réparties par catégorie d'achat.",
   },
   'module-research-facilities-charts': {
     en: 'If these research activities were performed independently by the unit, the emissions coming from them would be higher. Using shared research facilities helps to reduce overall EPFL emissions.',

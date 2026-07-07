@@ -356,7 +356,7 @@ function handleAbort() {
               {{ $t('data_management_rows_imported') }}
             </span>
             <span v-if="jobInfo.timestamp">
-              {{ jobInfo.rowsProcessed !== undefined ? '•' : '' }}
+              {{ jobInfo.rowsProcessed !== undefined ? '·' : '' }}
               {{ jobInfo.timestamp.toLocaleDateString() }}
             </span>
           </div>

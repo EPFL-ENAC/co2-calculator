@@ -249,10 +249,6 @@ export default {
     en: 'Show additional estimated categories',
     fr: 'Afficher les catégories supplémentaires',
   },
-  unit_carbon_footprint_scope_tooltip_aria: {
-    en: 'Definitions of GHG scopes 1, 2 and 3 in this chart',
-    fr: 'Définitions des scopes 1, 2 et 3 des GES dans ce graphique',
-  },
   unit_carbon_footprint_scope_prefix: {
     en: '{scope} {n}:',
     fr: '{scope} {n} :',
@@ -620,8 +616,8 @@ export default {
     fr: 'Affaires',
   },
   'charts-eco-class-subcategory': {
-    en: 'Eco',
-    fr: 'Éco',
+    en: 'Economy',
+    fr: 'Économique',
   },
   'charts-clouds-subcategory': {
     en: 'External clouds',
@@ -1096,14 +1092,6 @@ export default {
   'it-focus-waffle-caption': {
     en: 'Each square = 0.1% of the total carbon footprint of the unit',
     fr: "Chaque carré = 0.1% de l'empreinte carbone totale de l'unité",
-  },
-  results_filter_pill_research_facilities_tooltip: {
-    en: 'These emissions are calculated based on research facilities data.',
-    fr: 'Ces émissions sont calculées à partir des données propres aux infrastructure de recherche.',
-  },
-  results_filter_pill_additional_data_tooltip: {
-    en: "These emissions are calculated based on EPFL's general assumptions.",
-    fr: "Ces émissions sont calculées à partir des hypothèses générales de l'EPFL.",
   },
   results_filter_panel_title: {
     en: 'Display filters',
