@@ -111,7 +111,7 @@ class TestCSVUploadBasic:
         test_user: User,
         get_test_client,
     ):
-        """Test that non-CSV files can still be uploaded (validation happens later)."""
+        """Test that non-CSV files are rejected at upload time."""
         client = get_test_client()
 
         txt_path = FIXTURES_DIR / "not_a_csv.txt"
@@ -123,8 +123,7 @@ class TestCSVUploadBasic:
                 headers={"Authorization": f"Bearer {test_user.email}"},
             )
 
-        # File upload succeeds - validation happens during ingestion
-        assert response.status_code == 200
+        assert response.status_code == 415
 
     @pytest.mark.asyncio
     async def test_csv_ingestion_endpoint_exists(
