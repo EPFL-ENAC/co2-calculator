@@ -297,9 +297,15 @@ def test_every_module_reports_complete_once_all_mandatory_uploads_present(
     signal the Configurator reads to enable "Ouvrir l'année pour les
     utilisateurs" (the absence case is covered in slice (a))."""
     _, factory = db_fully_uploaded_year
-    app.dependency_overrides[deps_module.get_current_user] = lambda: type(
-        "U", (), {"id": 1, "provider": UserProvider.DEFAULT, "institutional_id": "1"}
-    )()
+
+    def override_get_current_user():
+        return type(
+            "U",
+            (),
+            {"id": 1, "provider": UserProvider.DEFAULT, "institutional_id": "1"},
+        )()
+
+    app.dependency_overrides[deps_module.get_current_user] = override_get_current_user
 
     async def override_get_db():
         async with factory() as session:
