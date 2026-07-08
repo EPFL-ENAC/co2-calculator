@@ -76,8 +76,7 @@ class DataIngestionProvider(ABC):
         processing_path = f"processing/{self.job_id}/{filename}"
         if await self.files_store.file_exists(processing_path):
             logger.info(
-                f"File already at {processing_path} (prior attempt); "
-                "skipping move"
+                f"File already at {processing_path} (prior attempt); skipping move"
             )
             return processing_path
         logger.info(f"Moving file from {tmp_path} to {processing_path}")
