@@ -50,8 +50,17 @@ identical application code.
 - CI tests run faster using SQLite
 - PostgreSQL backups use pg_dump daily with WAL archiving for 10-year
   retention
-- Connection pooling via SQLAlchemy (20 connections) with optional
-  PgBouncer for high load
+- Connection pooling via SQLAlchemy: explicit `DB_POOL_SIZE`/
+  `DB_MAX_OVERFLOW`/`DB_POOL_TIMEOUT` settings (default 10/10/30s,
+  20 connections max per pod), paired with `MAX_CONCURRENT_JOBS`
+  (default 4/pod) bounding background-job connection usage — see
+  [#1723](../implementation-plans/1723-job-concurrency-and-db-pool.md).
+  No PgBouncer yet: direct connections fit comfortably at 2-3
+  replicas, and PgBouncer's transaction-pooling mode sits badly with
+  long recalc transactions. Revisit when
+  `replicas * (pool_size + overflow)` approaches ~80% of Postgres
+  `max_connections` — roughly 4+ replicas at these defaults, or
+  sooner on a managed-PG tier with a small `max_connections`.
 
 **Negative**:
 
