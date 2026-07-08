@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.api.router import api_router
-from app.core.config import get_settings
+from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import permission_denied_handler
 from app.core.exceptions import (
     InsufficientScopeError,
@@ -328,15 +328,21 @@ async def ready():
         db_status = "error"
         details["db_error"] = str(e)
 
-    # Role provider health check
+    # Role/unit provider health check — runs whenever either provider is
+    # configured to use Accred, since ACCRED_AUTHORIZATION_HEALTHCHECK_URL
+    # covers the shared Accred integration, not one provider specifically.
     role_provider_status = "skipped"
-    if (settings.PROVIDER_PLUGIN == "accred") and settings.ACCRED_API_HEALTH_URL:
+    uses_accred = (
+        settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
+        or settings.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
+    )
+    if uses_accred and settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL:
         try:
             import httpx
 
             async with httpx.AsyncClient(timeout=2) as client:
                 resp = await client.get(
-                    settings.ACCRED_API_HEALTH_URL,
+                    settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL,
                     auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
                 )
                 if resp.status_code == 200:

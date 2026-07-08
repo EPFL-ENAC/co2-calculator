@@ -1,12 +1,27 @@
 """Application configuration using Pydantic settings."""
 
+from enum import Enum
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.models.user import UserProvider
+
+class RoleProviderType(str, Enum):
+    """Backend implementation selection for where app roles come from."""
+
+    JWT = "jwt"
+    ACCRED = "accred"
+    TEST = "test"
+
+
+class UnitProviderType(str, Enum):
+    """Backend implementation selection for where institutional units come from."""
+
+    DATABASE = "database"
+    ACCRED = "accred"
+    TEST = "test"
 
 
 class Settings(BaseSettings):
@@ -194,41 +209,27 @@ class Settings(BaseSettings):
     TABLEAU_REST_MIN_API_VERSION: str = "2.4"
     TABLEAU_MAX_FIELDS: int = 50
 
-    # Role Provider Plugin Configuration
-    PROVIDER_PLUGIN: UserProvider = Field(
-        default=UserProvider.DEFAULT,
+    # Role/Unit provider selection — where do app roles / institutional units
+    # come from. No default: invalid or missing config fails at startup
+    # rather than silently picking a provider.
+    ROLE_PROVIDER_TYPE: RoleProviderType = Field(
         description=(
-            "Role provider plugin to use for fetching user roles. "
-            "Options:"
-            "   'default' (parse from JWT claims)"
-            "   'accred' (EPFL Accred API)."
-            "   'test' (for testing/development)."
-            "The 'default' provider expects roles in JWT claims as flat strings like "
-            "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API"
-            "to fetch authorizations and maps them to roles based on accredunitid."
+            "Where app roles come from: 'jwt' (parse from JWT claims), "
+            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
+        ),
+    )
+    UNIT_PROVIDER_TYPE: UnitProviderType = Field(
+        description=(
+            "Where institutional units come from: 'database' (local DB), "
+            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
         ),
     )
 
-    @field_validator("PROVIDER_PLUGIN", mode="before")
-    @classmethod
-    def provider_plugin_coerce(cls, v):
-        if isinstance(v, UserProvider):
-            return v
-        if isinstance(v, int):
-            return UserProvider(v)
-        if isinstance(v, str):
-            try:
-                return UserProvider[v.upper()]
-            except KeyError:
-                # Try by value
-                for member in UserProvider:
-                    if member.name == v.upper() or str(member.value) == v:
-                        return member
-                raise ValueError(f"Invalid provider: {v}")
-        raise ValueError(f"Invalid provider: {v}")
-
-    # EPFL Accred API Configuration (for 'accred' role provider)
-    ACCRED_API_URL: Optional[str] = Field(
+    # EPFL Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
+    # and/or UNIT_PROVIDER_TYPE is 'accred' (see validate_accred_config).
+    # Shared by both RoleProvider and UnitProvider — Accred is one API
+    # serving both concerns, so the config is not role- or unit-specific.
+    ACCRED_API_BASE_URL: Optional[str] = Field(
         default=None,
         description="EPFL Accred API base URL (e.g., https://api.epfl.ch/v1/accreds)",
     )
@@ -240,10 +241,36 @@ class Settings(BaseSettings):
         default=None,
         description="EPFL Accred API key/password for Basic Auth",
     )
-    ACCRED_API_HEALTH_URL: Optional[str] = Field(
+    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: Optional[str] = Field(
         default=None,
-        description="EPFL Accred API health check URL",
+        description=(
+            "Accred authorization-readiness check URL for /ready — confirms "
+            "backend credentials can reach Accred and read the expected "
+            "authorization data. Not a generic API health URL."
+        ),
     )
+
+    @model_validator(mode="after")
+    def validate_accred_config(self) -> "Settings":
+        """Require Accred credentials whenever a provider selects Accred.
+
+        No fallback: missing config fails Settings construction at startup.
+        """
+        uses_accred = (
+            self.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
+            or self.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
+        )
+        if not uses_accred:
+            return self
+
+        missing = [
+            name
+            for name in ("ACCRED_API_BASE_URL", "ACCRED_API_USERNAME", "ACCRED_API_KEY")
+            if getattr(self, name) is None
+        ]
+        if missing:
+            raise ValueError("Missing required Accred config: " + ", ".join(missing))
+        return self
 
     # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
     OAUTH_CLIENT_ID: Optional[str] = Field(
@@ -508,4 +535,8 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance."""
-    return Settings()
+    # ROLE_PROVIDER_TYPE/UNIT_PROVIDER_TYPE have no default (intentional —
+    # missing config must fail startup) so mypy sees them as required
+    # constructor args; pydantic-settings actually sources them from the
+    # environment/.env file at runtime.
+    return Settings()  # type: ignore[call-arg]

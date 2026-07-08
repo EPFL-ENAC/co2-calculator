@@ -111,16 +111,16 @@ Validation path in `backend/app/core/security.py`:
 
 `backend/app/providers/role_provider.py` defines three providers:
 
-- **`DefaultRoleProvider`** — reads roles from JWT claims. Used in
+- **`JwtClaimsRoleProvider`** — reads roles from JWT claims. Used in
   development and synthetic-data flows.
 - **`AccredRoleProvider`** — fetches from the EPFL Accred API. Production.
 - **`TestRoleProvider`** — synthetic roles for `/auth/login-test`
   (DEBUG-only route).
 
-Selection is driven by `settings.PROVIDER_PLUGIN` through the factory
+Selection is driven by `settings.ROLE_PROVIDER_TYPE` through the factory
 `get_role_provider(provider_type)`. F9 hardened the factory: an unknown
-`PROVIDER_PLUGIN` value now raises `ValueError` instead of silently
-falling back to `DefaultRoleProvider`. F11/F12 hardened claim parsing:
+provider type now raises `ValueError` instead of silently
+falling back to `JwtClaimsRoleProvider`. F11/F12 hardened claim parsing:
 malformed `RoleName` entries and unknown scope types are skipped with a
 warning rather than aborting the login.
 
@@ -161,8 +161,8 @@ truth: the implementation plan
 | F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                |
 | F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                           |
 | F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                  |
-| F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestDefaultRoleProviderClaimCombinations`) |
-| F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestDefaultRoleProviderClaimCombinations`)                                                 |
+| F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestJwtClaimsRoleProviderClaimCombinations`) |
+| F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestJwtClaimsRoleProviderClaimCombinations`)                                                 |
 
 Additional pinning tests:
 
@@ -170,7 +170,7 @@ Additional pinning tests:
 - `test_e2e_callback_session_refresh_logout_happy_path` — end-to-end happy path.
 - `test_secure_cookie_is_dropped_over_http_breaking_followup_calls` —
   F2 regression guard; demonstrates the cookie-drop symptom.
-- `TestDefaultRoleProviderClaimCombinations::*` — claim-combination
+- `TestJwtClaimsRoleProviderClaimCombinations::*` — claim-combination
   matrix for the role provider.
 - `backend/tests/unit/core/test_security_gates.py::*` — permission gate unit
   tests covering `is_permitted` / `check_permission` / `require_permission`.

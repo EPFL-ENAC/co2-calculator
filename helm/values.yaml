@@ -37,11 +37,12 @@ backend:
     ALGORITHM: "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: "480"
     REFRESH_TOKEN_EXPIRE_HOURS: "24"
-    PROVIDER_PLUGIN: "default" # Could be 'default' or 'accred' or 'test'
+    ROLE_PROVIDER_TYPE: "jwt" # Could be 'jwt', 'accred', or 'test'
+    UNIT_PROVIDER_TYPE: "database" # Could be 'database', 'accred', or 'test'
     OAUTH_SCOPE: "openid profile email"
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
-    ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
+    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: "https://url-you-want-to-check"
     MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
     # Background job safety poller (orphan-job recovery)
     RUN_BACKGROUND_POLLER: "true"
@@ -143,7 +144,7 @@ backend:
       oauthTenantIdKey: OAUTH_TENANT_ID # Key in the existing secret for OAuth tenant ID
       accredApiKeyKey: ACCRED_API_KEY # Key in the existing secret for Accred API key
       accredApiUsernameKey: ACCRED_API_USERNAME # Key in the existing secret for Accred API username
-      accredApiUrlKey: ACCRED_API_URL # Key in the existing secret for Accred API URL
+      accredApiBaseUrlKey: ACCRED_API_BASE_URL # Key in the existing secret for Accred API base URL
       filesEncryptionKeyKey: FILES_ENCRYPTION_KEY # Key in the existing secret for files encryption key
       filesEncryptionSaltKey: FILES_ENCRYPTION_SALT # Key in the existing secret for files encryption salt
       filesMaxSizeMbKey: FILES_MAX_SIZE_MB # Key in the existing secret for maximum file size (MB)
@@ -227,7 +228,8 @@ frontend:
     # in the ops repo (e.g. "stage", "production").
     APP_ENVIRONMENT: "production"
     # Public label + portal URL shown in the calculator's access popover (role
-    # delegation). Free text — NOT the backend PROVIDER_PLUGIN role provider.
+    # delegation). Free text — NOT the backend ROLE_PROVIDER_TYPE/
+    # UNIT_PROVIDER_TYPE provider selection.
     # Example placeholders only; real per-env values are set in the ops repo.
     # No code default: if unset the popover CTA/label is hidden.
     APP_ACCESS_MANAGEMENT_PROVIDER_NAME: "ACCRED"
