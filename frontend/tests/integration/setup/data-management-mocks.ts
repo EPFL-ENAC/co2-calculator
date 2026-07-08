@@ -49,6 +49,13 @@ export interface YearConfigBuilderOptions {
    * fine — the tests target Headcount specifically.
    */
   modulesOverride?: Record<string, unknown>;
+  /**
+   * Issue #1204 follow-up — ``min_configurable_year`` echoed by the
+   * backend. Defaults to the production floor (2025); tests proving the
+   * frontend actually reacts to the backend value (rather than a
+   * hardcoded copy) override this.
+   */
+  minConfigurableYear?: number;
 }
 
 const SUCCESS_FACTOR_JOB = {
@@ -139,6 +146,7 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
     },
     recalculation_status: options.recalculationStatus ?? [],
     updated_at: '2025-01-01T00:00:00Z',
+    min_configurable_year: options.minConfigurableYear ?? 2025,
   };
 }
 

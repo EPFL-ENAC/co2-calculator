@@ -59,6 +59,68 @@ test.describe('back-office data-management — happy paths', () => {
       .toBeGreaterThanOrEqual(1);
   });
 
+  test('1b — year selector shows a loading skeleton until min_configurable_year resolves, never a guessed range', async ({
+    page,
+  }) => {
+    // Issue #1204 follow-up — the selectable range is no longer a
+    // hardcoded frontend constant; it comes from the year-configuration
+    // response. Gate the GET response so we can observe the
+    // pre-resolution state deterministically.
+    let releaseGet: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseGet = resolve;
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await gate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildYearConfig({ year })),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Before the response resolves, the loading skeleton stands in for
+    // the selector — no `.q-select` rendered with a guessed range.
+    await expect(page.getByTestId('year-selector-loading')).toBeVisible();
+    await expect(page.locator('.q-select').first()).toHaveCount(0);
+
+    releaseGet();
+
+    await expect(page.getByTestId('year-selector-loading')).toHaveCount(0);
+    await expect(page.locator('.q-select').first()).toBeVisible();
+  });
+
+  test('1c — year selector range reacts to a non-default min_configurable_year', async ({
+    page,
+  }) => {
+    // Issue #1204 follow-up — mock a floor that moved to 2026 and
+    // confirm 2025 drops out of the dropdown. Proves the frontend reads
+    // the backend value instead of a hardcoded copy that could drift.
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({ year, minConfigurableYear: 2026 }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    await page.locator('.q-select').first().click();
+    await expect(page.getByRole('option', { name: '2025' })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: '2026' })).toBeVisible();
+  });
+
   test('2 — create year happy path: POST /year-configuration/{year} on missing config', async ({
     page,
   }) => {
