@@ -57,6 +57,8 @@ env = [
     "FRONTEND_URL=http://test-frontend",
     "DEBUG=False",
     "ELASTICSEARCH_INDEX=opdo-test",
+    "ROLE_PROVIDER_TYPE=test",
+    "UNIT_PROVIDER_TYPE=test",
 
 ]
 

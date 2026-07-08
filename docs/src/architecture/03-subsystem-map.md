@@ -108,7 +108,7 @@ by the app Helm chart.
 
 - **API routers** (`/api/v1/*`) — REST surface; HTTP-only auth cookies.
 - **Auth** — Authlib OIDC handshake with Entra ID; mints and validates JWT cookies in-process (no separate auth service). See [Auth Flow](./04-auth-flow.md).
-- **Roles & permissions** — from JWT claims, or the EPFL Accred API when `PROVIDER_PLUGIN=accred`.
+- **Roles & permissions** — from JWT claims, or the EPFL Accred API when `ROLE_PROVIDER_TYPE=accred`.
 - **Data ingestion** — pluggable providers; the professional-travel provider reads flights from Tableau VizQL.
 - **Exchange rates** — pulls FX rates from the ECB API (8-hour in-memory cache).
 - **Files** — `enacit4r-files` abstraction; writes to EPFL S3 when configured, otherwise the local filesystem.

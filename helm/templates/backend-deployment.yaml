@@ -117,11 +117,11 @@ spec:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
                   key: {{ .Values.backend.existingSecret.keys.accredApiUsernameKey | default "ACCRED_API_USERNAME" }}
-            - name: ACCRED_API_URL
+            - name: ACCRED_API_BASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "co2-calculator.backendSecretName" . }}
-                  key: {{ .Values.backend.existingSecret.keys.accredApiUrlKey | default "ACCRED_API_URL" }}
+                  key: {{ .Values.backend.existingSecret.keys.accredApiBaseUrlKey | default "ACCRED_API_BASE_URL" }}
             - name: FILES_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:

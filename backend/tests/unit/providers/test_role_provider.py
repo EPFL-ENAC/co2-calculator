@@ -1,6 +1,6 @@
 """Unit and integration tests for role provider plugin system.
 
-Tests cover both DefaultRoleProvider and AccredRoleProvider with 100% coverage.
+Tests cover both JwtClaimsRoleProvider and AccredRoleProvider with 100% coverage.
 """
 
 from typing import Any, Dict
@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
+from app.core.config import RoleProviderType
 from app.models.user import (
     AffiliationScope,
     GlobalScope,
@@ -20,7 +21,8 @@ from app.models.user import (
 )
 from app.providers.role_provider import (
     AccredRoleProvider,
-    DefaultRoleProvider,
+    JwtClaimsRoleProvider,
+    TestRoleProvider,
     get_role_provider,
 )
 
@@ -33,10 +35,10 @@ from app.providers.role_provider import (
 def mock_settings():
     """Fixture providing mock settings."""
     settings = Mock()
-    settings.ACCRED_API_URL = "https://api.epfl.ch"
+    settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
     settings.ACCRED_API_USERNAME = "test_user"
     settings.ACCRED_API_KEY = "test_key"
-    settings.PROVIDER_PLUGIN = "default"
+    settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
     return settings
 
 
@@ -67,17 +69,17 @@ def sample_user_id() -> int:
 
 
 # ============================================================================
-# DefaultRoleProvider Tests
+# JwtClaimsRoleProvider Tests
 # ============================================================================
 
 
-class TestDefaultRoleProvider:
-    """Test suite for DefaultRoleProvider."""
+class TestJwtClaimsRoleProvider:
+    """Test suite for JwtClaimsRoleProvider."""
 
     @pytest.mark.asyncio
     async def test_parse_roles_with_unit_scope(self, sample_userinfo, sample_user_id):
         """Test parsing roles with unit scope."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(sample_userinfo)
 
         assert len(roles) == 3
@@ -96,7 +98,7 @@ class TestDefaultRoleProvider:
             "email": "admin@epfl.ch",
             "roles": [f"{RoleName.CO2_SUPERADMIN.value}@global"],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
@@ -106,7 +108,7 @@ class TestDefaultRoleProvider:
     async def test_parse_roles_no_roles_in_jwt(self):
         """Test handling of missing roles in JWT."""
         userinfo = {"email": "user@epfl.ch"}
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert roles == []
@@ -115,7 +117,7 @@ class TestDefaultRoleProvider:
     async def test_parse_roles_empty_roles_list(self):
         """Test handling of empty roles list."""
         userinfo = {"email": "user@epfl.ch", "roles": []}
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert roles == []
@@ -130,7 +132,7 @@ class TestDefaultRoleProvider:
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
@@ -148,7 +150,7 @@ class TestDefaultRoleProvider:
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
@@ -166,7 +168,7 @@ class TestDefaultRoleProvider:
                 f"{RoleName.CO2_USER_STD.value}@unit:12345",
             ],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
@@ -181,7 +183,7 @@ class TestDefaultRoleProvider:
             "email": "user@epfl.ch",
             "roles": [f" {RoleName.CO2_USER_STD.value} @ unit : 12345 "],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 1
@@ -200,7 +202,7 @@ class TestDefaultRoleProvider:
                 f"{RoleName.CO2_USER_STD.value}@unit:11111",
             ],
         }
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles(userinfo)
 
         assert len(roles) == 3
@@ -223,7 +225,7 @@ class TestAccredRoleProvider:
     def accred_provider(self):
         """Fixture providing an AccredRoleProvider instance."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = "https://api.epfl.ch"
+            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "test_user"
             mock_settings.ACCRED_API_KEY = "test_key"
             provider = AccredRoleProvider()
@@ -542,7 +544,7 @@ class TestAccredRoleProvider:
     def test_accred_missing_credentials(self):
         """Test AccredRoleProvider initialization with missing credentials."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = None
+            mock_settings.ACCRED_API_BASE_URL = None
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
 
@@ -553,7 +555,7 @@ class TestAccredRoleProvider:
     async def test_accred_missing_credentials_get_roles(self):
         """Test get_roles returns empty list when credentials are missing."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.ACCRED_API_URL = None
+            mock_settings.ACCRED_API_BASE_URL = None
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
 
@@ -571,20 +573,20 @@ class TestAccredRoleProvider:
 class TestGetRoleProvider:
     """Test suite for get_role_provider factory function."""
 
-    def test_get_default_role_provider(self):
-        """Test that DefaultRoleProvider is returned for 'default' type."""
+    def test_get_jwt_role_provider(self):
+        """Test that JwtClaimsRoleProvider is returned for 'jwt' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = UserProvider.DEFAULT
+            mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
 
             provider = get_role_provider()
 
-            assert isinstance(provider, DefaultRoleProvider)
+            assert isinstance(provider, JwtClaimsRoleProvider)
 
     def test_get_accred_role_provider(self):
         """Test that AccredRoleProvider is returned for 'accred' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = UserProvider.ACCRED
-            mock_settings.ACCRED_API_URL = "https://api.epfl.ch"
+            mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.ACCRED
+            mock_settings.ACCRED_API_BASE_URL = "https://api.epfl.ch"
             mock_settings.ACCRED_API_USERNAME = "user"
             mock_settings.ACCRED_API_KEY = "key"
 
@@ -592,20 +594,50 @@ class TestGetRoleProvider:
 
             assert isinstance(provider, AccredRoleProvider)
 
-    def test_get_unknown_role_provider_raises(self):
-        """Pins F9: unknown PROVIDER_PLUGIN raises ValueError instead of
-        silently degrading to DefaultRoleProvider."""
+    def test_get_test_role_provider(self):
+        """Test that TestRoleProvider is returned for 'test' type."""
         with patch("app.providers.role_provider.settings") as mock_settings:
-            mock_settings.PROVIDER_PLUGIN = "unknown"
+            mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.TEST
+
+            provider = get_role_provider()
+
+            assert isinstance(provider, TestRoleProvider)
+
+    def test_get_role_provider_override_accepts_persisted_user_provider(self):
+        """The override param also accepts a persisted ``UserProvider``
+        value (e.g. ``User.provider``), used by background sync to
+        re-resolve roles from an entity's original source regardless of
+        the current ROLE_PROVIDER_TYPE setting."""
+        provider = get_role_provider(UserProvider.ACCRED)
+        assert isinstance(provider, AccredRoleProvider)
+
+    def test_get_unknown_role_provider_raises(self):
+        """Pins F9: unknown ROLE_PROVIDER_TYPE raises ValueError instead of
+        silently degrading to JwtClaimsRoleProvider."""
+        with patch("app.providers.role_provider.settings") as mock_settings:
+            mock_settings.ROLE_PROVIDER_TYPE = "unknown"
 
             with pytest.raises(ValueError, match="Unknown role provider type"):
                 get_role_provider()
 
+    def test_factory_no_longer_reads_provider_plugin(self):
+        """Regression: the factory must read ROLE_PROVIDER_TYPE, not the
+        removed PROVIDER_PLUGIN setting."""
+        with patch("app.providers.role_provider.settings") as mock_settings:
+            mock_settings.ROLE_PROVIDER_TYPE = RoleProviderType.JWT
+            # A stray PROVIDER_PLUGIN would only be read by legacy code; the
+            # factory must ignore it and dispatch off ROLE_PROVIDER_TYPE.
+            mock_settings.PROVIDER_PLUGIN = RoleProviderType.ACCRED
 
-class TestDefaultRoleProviderClaimCombinations:
+            provider = get_role_provider()
+
+            assert isinstance(provider, JwtClaimsRoleProvider)
+
+
+class TestJwtClaimsRoleProviderClaimCombinations:
     """Tests for issue #458 success criterion 'incorrect role/claim combinations'.
 
-    Pin the behaviour of DefaultRoleProvider when the IdP returns
+    Pin the behaviour of JwtClaimsRoleProvider when the IdP returns
     malformed or unexpected role claims. F11 and F12 are now fixed —
     these tests assert the hardened behaviour.
     """
@@ -615,7 +647,7 @@ class TestDefaultRoleProviderClaimCombinations:
         """Pins F11 fix: a role whose name is not in the RoleName enum is
         skipped (with a warning), so one malformed entry from the IdP does
         not DoS the entire login."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         good_role = f"{RoleName.CO2_USER_STD.value}@unit:12345"
         userinfo = {
             "sub": "x",
@@ -629,7 +661,7 @@ class TestDefaultRoleProviderClaimCombinations:
     async def test_empty_role_name_is_skipped_not_raised(self):
         """Pins F11 fix: an empty role name (e.g. `@unit:12345`) is also a
         ValueError from RoleName(""); must be skipped with a warning."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles({"sub": "x", "roles": ["@unit:12345"]})
         assert roles == []
 
@@ -638,7 +670,7 @@ class TestDefaultRoleProviderClaimCombinations:
         """Pins F12 fix: roles with an unknown scope type
         (e.g. `co2.user.standard@bogus:value`) emit a warning before being
         dropped. Silent drops mask IdP/config drift."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         with caplog.at_level("WARNING"):
             roles = await provider.get_roles(
                 {
@@ -657,14 +689,14 @@ class TestDefaultRoleProviderClaimCombinations:
         """If the IdP returns a non-list `roles` claim (e.g. a string), the
         provider must not crash. Current behaviour: returns []. Pin so we
         notice if iteration semantics change."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles({"sub": "x", "roles": "not_a_list"})
         assert roles == []
 
     @pytest.mark.asyncio
     async def test_missing_roles_claim_returns_empty(self):
         """If the IdP omits the `roles` claim entirely, return []."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         roles = await provider.get_roles({"sub": "x"})
         assert roles == []
 
@@ -672,7 +704,7 @@ class TestDefaultRoleProviderClaimCombinations:
     async def test_role_with_non_string_entry_is_skipped(self):
         """A role entry that isn't a string (e.g. a dict from a misconfigured
         IdP) must be skipped, not crash the whole resolution."""
-        provider = DefaultRoleProvider()
+        provider = JwtClaimsRoleProvider()
         good_role = f"{RoleName.CO2_USER_STD.value}@unit:12345"
         roles = await provider.get_roles(
             {"sub": "x", "roles": [{"not": "a string"}, 42, good_role]}
