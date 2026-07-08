@@ -1323,6 +1323,19 @@ class DataIngestionRepository:
             )
             return
 
+        # Issue #1578 — a FINISHED+ERROR job (e.g. a failed CSV
+        # re-upload) must not evict the last good job from the
+        # "current" slot the backoffice config UI reads
+        # (latest_data_job / latest_common_data_job). An ERROR job's
+        # meta never carries processed_file_path/rows_processed (only
+        # written on the success path), so promoting it blanked the
+        # prior upload's filename/rows/download summary even though
+        # its DataEntry rows were untouched. WARNING/SUCCESS still
+        # promote — their meta is usable and they ARE the latest
+        # attempt worth showing.
+        if job.state == IngestionState.FINISHED and job.result == IngestionResult.ERROR:
+            return
+
         # MODULE_UNIT_SPECIFIC uploads live on the per-unit module page,
         # not the per-year backoffice config — and nothing reads their
         # is_current flag (year-config skips them; recalc-status + factor
