@@ -4,10 +4,13 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.carbon_report import CarbonReportModule
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionResult
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
     REUPLOAD_HINT,
@@ -248,6 +251,107 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
 
     # 5. Assertions: check execution runs without completely failing out
     assert result is not None
+
+
+# ======================================================================
+# Issue #1564 — member (uid, sius_code) composite uniqueness in the row loop
+# ======================================================================
+
+
+def _drive_member_csv(
+    db_session: AsyncSession, module_id: int, rows_data: list[dict]
+) -> "ConcreteCSVProvider":
+    """Build a provider that feeds ``rows_data`` through the real row loop.
+
+    ``_process_row`` is stubbed to skip CSV parsing/validation (out of scope
+    here) but returns a real ``member`` DataEntry per row, so the composite
+    (user_institutional_id, sius_code) uniqueness check in
+    ``process_csv_in_batches`` — the code under test — runs for real against
+    ``db_session``. ``_process_batch`` is stubbed to skip factor/emission
+    computation, which is irrelevant to the uniqueness check.
+    """
+    config = {
+        "file_path": "tmp/test.csv",
+        "carbon_report_module_id": module_id,
+        "year": 2025,
+    }
+    provider = ConcreteCSVProvider(config, data_session=db_session)
+
+    mock_files_store = MagicMock()
+    mock_files_store.move_file = AsyncMock(return_value="processing/test.csv")
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    csv_content = ("\n".join(["header"] + ["row"] * len(rows_data))).encode()
+    mock_files_store.get_file = AsyncMock(return_value=(csv_content, "text/csv"))
+    provider._files_store = mock_files_store
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"header"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    async def fake_process_row(row, row_idx, setup_result, stats, max_row_errors, _map):
+        entry = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module_id,
+            data=dict(rows_data[row_idx - 1]),
+        )
+        return entry, None, None, None
+
+    provider._process_row = fake_process_row
+    provider._process_batch = AsyncMock(return_value=len(rows_data))
+    return provider
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_accepts_same_member_different_sius_code(
+    db_session: AsyncSession,
+):
+    """Same unit + user_institutional_id, different sius_code (multi-role
+    member) — both rows must be ingested, no DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "54"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 0
+    assert result["stats"]["rows_processed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSession):
+    """Same unit + user_institutional_id + sius_code (true duplicate) — the
+    second row is rejected with DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
 
 
 @pytest.mark.asyncio

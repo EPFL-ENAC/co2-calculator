@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: delivered
 issue: 1564
-last_updated: 2026-07-07
+last_updated: 2026-07-08
 title: "Headcount: Allow the Same Member With Multiple Roles in One Unit"
 summary: "Headcount uniqueness is keyed on user_institutional_id alone, so a member with two SIUS roles in the same unit gets their second CSV row silently dropped; fixing that exposes a real duplicate-row risk in the Professional Travel <-> Headcount join that must be fixed in the same PR."
 ---
@@ -85,15 +85,15 @@ Recommendation: (B), on the same reasoning `1661-sql-factor-resolution.md` used 
 
 ## Steps
 
-- [ ] Extend `DataEntryRepository.check_json_field_unique` (`data_entry_repo.py:252`) to accept a `fields: dict[str, str]` composite predicate (backward-compatible: single-entry dict == today's behavior), or add a sibling method — reuse the existing `DataEntry.data[k].as_string()` pattern.
-- [ ] Update `DataEntryService.check_institutional_id_unique` (`data_entry_service.py:66`) to require `sius_code` and check the composite `(user_institutional_id, sius_code)` key; rename to reflect the new semantics.
-- [ ] Update `backend/app/workflows/carbon_report_module.py:68-83` to pass `sius_code` into the renamed check.
-- [ ] Update `backend/app/services/data_ingestion/base_csv_provider.py:982-1009`: key `seen_institutional_ids` by `(uid, sius_code)` tuple; pass `sius_code` into the DB check.
-- [ ] Regression test: CSV batch with two rows, same `unit_institutional_id` + `user_institutional_id`, different `sius_code` -> both rows ingested, `stats["errors"]` empty for those rows.
-- [ ] Regression test: CSV batch with two rows, same `unit_institutional_id` + `user_institutional_id` + same `sius_code` (true duplicate) -> second row still rejected with `DUPLICATE_INSTITUTIONAL_ID`.
-- [ ] Regression test: manual API create of a second role for an existing member (same unit, same SCIPER, different `sius_code`) -> 201, not 422.
-- [ ] Update `docs/src/implementation-plans/518-headcount-uniqueness-validation.md` status/scope note to point at this plan (the "uniqueness is per `carbon_report_module_id`" line needs a "...and per `sius_code`" amendment) per the "keep implementation plans aligned" convention.
-- [ ] **Decision needed before this step**: option (A) or (B) above for the Professional Travel join. Once decided:
-  - [ ] (B, recommended) Replace the plain `MemberEntry` join in `data_entry_repo.py:706-722` with a `LEFT JOIN LATERAL ... LIMIT 1` (or correlated-subquery equivalent, matching `1661-sql-factor-resolution.md`'s pattern) keyed on `(user_institutional_id, carbon_report_module_id)`, deterministic tie-break (e.g. lowest `sius_code` or lowest `id`) when a person has multiple roles.
-  - [ ] (A, alternative) Add role capture to travel create/update DTOs + frontend traveler picker, extend the join predicate to include it, and resolve the retroactive-migration question for existing travel rows.
-- [ ] Regression test pinning the travel-join fix: seed a same-unit two-role member with at least one travel entry, assert the travel list returns exactly one row for that entry (not two) and `kg_co2eq` sums aren't doubled — this is the test that would have caught this bug, must ship in the same PR as the composite-uniqueness change, not as a follow-up.
+- [x] Extend `DataEntryRepository.check_json_field_unique` (`data_entry_repo.py:252`) to accept a `fields: dict[str, str]` composite predicate (backward-compatible: single-entry dict == today's behavior), or add a sibling method — reuse the existing `DataEntry.data[k].as_string()` pattern.
+- [x] Update `DataEntryService.check_institutional_id_unique` (`data_entry_service.py:66`) to require `sius_code` and check the composite `(user_institutional_id, sius_code)` key; rename to reflect the new semantics. *(Shipped as `check_member_role_unique`.)*
+- [x] Update `backend/app/workflows/carbon_report_module.py:68-83` to pass `sius_code` into the renamed check.
+- [x] Update `backend/app/services/data_ingestion/base_csv_provider.py:982-1009`: key `seen_institutional_ids` by `(uid, sius_code)` tuple; pass `sius_code` into the DB check.
+- [x] Regression test: CSV batch with two rows, same `unit_institutional_id` + `user_institutional_id`, different `sius_code` -> both rows ingested, `stats["errors"]` empty for those rows.
+- [x] Regression test: CSV batch with two rows, same `unit_institutional_id` + `user_institutional_id` + same `sius_code` (true duplicate) -> second row still rejected with `DUPLICATE_INSTITUTIONAL_ID`.
+- [x] Regression test: manual API create of a second role for an existing member (same unit, same SCIPER, different `sius_code`) -> 201, not 422.
+- [x] Update `docs/src/implementation-plans/518-headcount-uniqueness-validation.md` status/scope note to point at this plan (the "uniqueness is per `carbon_report_module_id`" line needs a "...and per `sius_code`" amendment) per the "keep implementation plans aligned" convention.
+- [x] **Decision needed before this step**: option (A) or (B) above for the Professional Travel join. Once decided:
+  - [x] (B, shipped) Replaced the plain `MemberEntry` join in `data_entry_repo.py` with a correlated scalar subquery (not `LEFT JOIN LATERAL` — unsupported on SQLite, used in unit tests) selecting `traveler_name`, keyed on `(user_institutional_id, carbon_report_module_id, data_entry_type_id=member)`, tie-broken on lowest `MemberEntry.id` (always present and monotonic, unlike `sius_code` which can be null on legacy rows). The class-level `sort_map["traveler_name"]` (in `professional_travel/schemas.py`) referenced the now-removed `MemberEntry` join directly; the repo overrides it locally with the same subquery so sorting by traveler name doesn't reintroduce an unjoined `MemberEntry` reference.
+  - [ ] (A, alternative) Not implemented — out of scope per the owner's decision.
+- [x] Regression test pinning the travel-join fix: seed a same-unit two-role member with at least one travel entry, assert the travel list returns exactly one row for that entry (not two) and `kg_co2eq` sums aren't doubled. Verified this test fails on the pre-fix join (temporarily reverted, re-ran, confirmed 2 duplicated rows) and passes post-fix.
