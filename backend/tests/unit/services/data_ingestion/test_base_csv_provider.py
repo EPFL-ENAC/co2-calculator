@@ -1074,6 +1074,50 @@ async def test_recompute_module_stats_skips_when_pure_async():
 
 
 # ======================================================================
+# Setup / Idempotent Move Tests (#1559)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_setup_and_validate_skips_move_when_already_in_processing():
+    """Regression #1559: a retry after a prior successful tmp->processing
+    move (job crashed/restarted before FINISHED, sweep_stuck_running_jobs
+    reset it to NOT_STARTED) must succeed by reading the file that is
+    already at processing/<job_id>/, not fail with "Failed to move file"
+    just because the tmp/ source is gone.
+    """
+    config = {"file_path": "tmp/test.csv", "job_id": 7, "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    # Short-circuit the DB lookup at the top of _setup_and_validate.
+    provider.job = SimpleNamespace(id=7)
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"col1"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    mock_files_store = MagicMock()
+    # Destination already present (prior attempt); tmp/ source is gone —
+    # move_file would fail if called, proving the retry never touches it.
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    mock_files_store.move_file = AsyncMock(
+        side_effect=AssertionError("move_file must not be called on retry")
+    )
+    mock_files_store.get_file = AsyncMock(return_value=(b"col1\nval1\n", "text/csv"))
+    provider._files_store = mock_files_store
+
+    result = await provider._setup_and_validate()
+
+    mock_files_store.move_file.assert_not_awaited()
+    assert result["processing_path"] == "processing/7/test.csv"
+
+
+# ======================================================================
 # Finalization Tests
 # ======================================================================
 
@@ -1087,6 +1131,7 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()

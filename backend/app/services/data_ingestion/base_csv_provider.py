@@ -1097,13 +1097,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)  # Extra safety check
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
@@ -1377,18 +1372,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
-        filename = setup_result["filename"]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        metadata_update = {}
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
-            metadata_update["processed_file_path"] = processing_path
-        else:
-            metadata_update = {"processed_file_path": processed_path}
+        metadata_update = {
+            "processed_file_path": await self._move_to_processed(processing_path)
+        }
 
         # Flush all changes
         await self.data_session.flush()

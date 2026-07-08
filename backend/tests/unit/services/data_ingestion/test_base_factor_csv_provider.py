@@ -328,6 +328,7 @@ async def test_finalize_and_commit_move_file_failure():
         data_session=MagicMock(),
     )
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=False)
     provider.data_session.flush = AsyncMock()
 
