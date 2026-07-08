@@ -45,22 +45,19 @@ export async function mockPipelineList(
   page: Page,
 ): Promise<PipelineListController> {
   let current: PipelineListItem[] = [];
-  await page.route(
-    /\/api\/v1\/sync\/pipelines(\?[^/]*)?$/,
-    async (route) => {
-      const body: PipelineListResponse = {
-        items: current,
-        total: current.length,
-        limit: 50,
-        offset: 0,
-      };
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(body),
-      });
-    },
-  );
+  await page.route(/\/api\/v1\/sync\/pipelines(\?[^/]*)?$/, async (route) => {
+    const body: PipelineListResponse = {
+      items: current,
+      total: current.length,
+      limit: 50,
+      offset: 0,
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
   return {
     set(items) {
       current = items;

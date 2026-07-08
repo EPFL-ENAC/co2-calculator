@@ -47,8 +47,7 @@ async function dispatchPipelineUpdate(
       if (!map) return false;
       const url = `/api/v1/sync/pipelines/${pipelineId}/stream`;
       const pipe = map.get(url) as
-        | { dispatch(eventName: string, payload: unknown): void }
-        | undefined;
+        { dispatch(eventName: string, payload: unknown): void } | undefined;
       if (!pipe) return false;
       pipe.dispatch('pipeline-update', payload);
       return true;
@@ -215,8 +214,8 @@ test.describe('pipeline operations console — upload progress tracking (#1403d)
     await expect(failedBadge).toHaveClass(/bg-negative/);
 
     // Error-count marker only renders on the failed row.
-    await expect(
-      page.locator('.text-negative', { hasText: '✗' }),
-    ).toHaveCount(1);
+    await expect(page.locator('.text-negative', { hasText: '✗' })).toHaveCount(
+      1,
+    );
   });
 });
