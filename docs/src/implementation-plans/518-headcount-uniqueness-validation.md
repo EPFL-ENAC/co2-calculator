@@ -18,6 +18,8 @@ Two issues exist:
 
 Scope: uniqueness is **per `carbon_report_module_id`** (same unit + year). The same SCIPER across different units/years is allowed (by design).
 
+> **Amended by [#1564](1564-headcount-duplicate-member-multiple-roles.md):** uniqueness is per `carbon_report_module_id` **and per `sius_code`** — a member can legitimately hold two roles (different `sius_code`) in the same unit, so the key is `(user_institutional_id, sius_code)`, not `user_institutional_id` alone. See that plan for the composite-key fix and the downstream Professional Travel join fix it required.
+
 ---
 
 ## Part 1 — Backend: Uniqueness Validation on Create
@@ -118,6 +120,8 @@ Two issues exist:
 2. **Generic label**: the field shows "Institutional ID" but EPFL calls it "SCIPER". The label should be institution-configurable by a dev.
 
 Scope: uniqueness is **per `carbon_report_module_id`** (same unit + year). The same SCIPER across different units/years is allowed (by design).
+
+> **Amended by [#1564](1564-headcount-duplicate-member-multiple-roles.md):** uniqueness is per `carbon_report_module_id` **and per `sius_code`** — a member can legitimately hold two roles (different `sius_code`) in the same unit, so the key is `(user_institutional_id, sius_code)`, not `user_institutional_id` alone. See that plan for the composite-key fix and the downstream Professional Travel join fix it required.
 
 ---
 

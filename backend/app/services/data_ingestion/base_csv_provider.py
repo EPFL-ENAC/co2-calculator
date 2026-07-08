@@ -933,8 +933,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
             batch_kg_co2eq_overrides: List[float | None] = []
-            # Track seen user_institutional_ids per module to catch intra-CSV duplicates
-            seen_institutional_ids: Dict[int, set] = {}
+            # Track seen (user_institutional_id, sius_code) pairs per module to
+            # catch intra-CSV duplicates. A person can legitimately hold two
+            # roles (different sius_code) in the same unit.
+            seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -993,7 +995,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 if data_entry is None:
                     raise ValueError("Data entry is None without error message")
 
-                # Check institutional ID uniqueness for member entries
+                # Check (user_institutional_id, sius_code) role uniqueness for
+                # member entries.
                 # TODO: refactor, should not be done in base_csv_provider but elsewhere
                 # process or task or sql
                 if (
@@ -1002,17 +1005,20 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     and data_entry.data.get("user_institutional_id")
                 ):
                     uid = str(data_entry.data["user_institutional_id"])
+                    sius_code = str(data_entry.data["sius_code"])
                     module_id = data_entry.carbon_report_module_id
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
-                    if uid in module_seen:
+                    role_key = (uid, sius_code)
+                    if role_key in module_seen:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    is_unique = await data_entry_service.check_institutional_id_unique(
+                    is_unique = await data_entry_service.check_member_role_unique(
                         carbon_report_module_id=module_id,
                         uid=uid,
+                        sius_code=sius_code,
                     )
                     if not is_unique:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
@@ -1020,7 +1026,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    module_seen.add(uid)
+                    module_seen.add(role_key)
 
                 # Row processed successfully
                 batch.append(data_entry)
