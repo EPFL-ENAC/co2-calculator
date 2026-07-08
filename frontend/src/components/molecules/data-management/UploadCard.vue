@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, inject, type ComputedRef } from 'vue';
 import { useUploadCard } from 'src/composables/useUploadCard';
+import { resolvePipelinePhaseLabelKey } from 'src/composables/pipelinePhaseLabel';
 import {
   TargetType,
   IngestionState,
@@ -92,12 +93,10 @@ const apiErrorDetails = computed(() => getErrorDetails(props.apiJob));
 // matching this card's ``targetType`` — empty kind (orphan / unknown
 // root) falls back to "don't render" rather than risk showing on the
 // wrong card.
-const PIPELINE_PHASE_LABEL_KEYS: Record<string, string> = {
-  data: 'data_management_pipeline_phase_data',
-  emissions: 'data_management_pipeline_phase_emissions',
-  aggregation: 'data_management_pipeline_phase_aggregation',
-};
-
+//
+// Phase-label vocabulary (3-step ingest map vs. the recalc-kind's
+// single collapsed label) lives in ``resolvePipelinePhaseLabelKey`` —
+// see that file for why it's a shared pure helper.
 const TARGET_TO_KINDS: Record<number, ReadonlyArray<string>> = {
   // TargetType.DATA_ENTRIES = 0 — every pipeline whose work targets
   // the data-entries domain belongs on the data card:
@@ -169,7 +168,7 @@ const pipelinePhaseLabelKey = computed<string | null>(() => {
   if (!pipelineAppliesToCard.value) return null;
   const p = props.pipelineProgress;
   if (!p || p.done || p.has_error) return null;
-  return PIPELINE_PHASE_LABEL_KEYS[p.phase_label] ?? null;
+  return resolvePipelinePhaseLabelKey(p.phase_label, p.kind);
 });
 
 // Pipeline-in-progress flag for the "validated" ✓ indicator below.

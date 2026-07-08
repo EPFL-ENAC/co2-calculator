@@ -633,6 +633,10 @@ export default {
     en: 'Step 3/3 · Aggregating…',
     fr: 'Étape 3/3 · Agrégation…',
   },
+  data_management_pipeline_phase_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
+  },
   data_management_pipeline_running_tooltip: {
     en: 'Upload accepted — recalculation still in progress',
     fr: 'Téléchargement accepté — recalcul en cours',
