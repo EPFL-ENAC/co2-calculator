@@ -636,9 +636,7 @@ async def create_year_configuration(
     if year < MIN_CONFIGURABLE_YEAR or year > current_year:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Year must be between {MIN_CONFIGURABLE_YEAR} and {current_year}"
-            ),
+            detail=(f"Year must be between {MIN_CONFIGURABLE_YEAR} and {current_year}"),
         )
 
     stmt = select(YearConfiguration).where(
