@@ -10,8 +10,16 @@ export default {
     fr: 'Local | Locaux',
   },
   [`${MODULES.Buildings}-description`]: {
-    en: 'This module estimates the carbon footprint related to energy combustion sources (if your unit uses a non-centralized energy source) as well as to other building functions (heating, air conditioning, ventilation, and lighting). For more information: [buildings](https://epfl-enac.github.io/co2-calculator-user-doc/building/)',
-    fr: "Ce module permet d'estimer l'empreinte carbone liée aux émissions de combustion d'énergie (au cas où votre unité utilise une source d'énergie non-centralisée) ainsi que celles liées au bâtiment (chauffage, climatisation, ventilation et éclairage). Pour plus d'information : [bâtiments](https://epfl-enac.github.io/co2-calculator-user-doc/fr/building/)",
+    en: 'This module estimates the carbon footprint related to energy combustion sources (if your unit uses a non-centralized energy source) as well as to other building functions (heating, air conditioning, ventilation, and lighting).',
+    fr: "Ce module permet d'estimer l'empreinte carbone liée aux émissions de combustion d'énergie (au cas où votre unité utilise une source d'énergie non-centralisée) ainsi que celles liées au bâtiment (chauffage, climatisation, ventilation et éclairage).",
+  },
+  [`${MODULES.Buildings}-documentation-title`]: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
+  [`${MODULES.Buildings}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/building/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/building/',
   },
   [`${MODULES.Buildings}-title-subtext`]: {
     en: 'Enter the data required to estimate the carbon footprint related to the use of the buildings.',

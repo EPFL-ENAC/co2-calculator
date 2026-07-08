@@ -114,8 +114,16 @@ export default {
     fr: 'Consultez et renseignez les voyages professionnels de votre unité.',
   },
   [`${MODULES.ProfessionalTravel}-title-subtext`]: {
-    en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane. Data relating to your air travel is provided to us by the EPFL Travel Agency, and the associated carbon footprint is calculated taking into account several factors such as distance, class booked, flight altitude, number of people on the plane, airline, etc. If you have traveled outside of the agency, please enter the departure city and arrival city in the tab below. The calculation methodology will then be different and will take into account the distance and type of flight (very short-haul, short-haul, medium-haul, or long-haul). For more information: [professional travel](https://epfl-enac.github.io/co2-calculator-user-doc/professional-travel/)",
-    fr: "Ce module permet d'estimer et de visualiser l'impact de vos voyages (ou de votre unité) en train et en avion. Les données relatives à vos voyages en avion nous sont communiquées par l’Agence de voyages EPFL et l’empreinte carbone associée est calculée en considérant plusieurs facteurs tels que la distance, la classe réservée, la hauteur de vol, le nombre de personne dans l’avion, la compagnie aérienne, etc. Si vous avez effectué un voyage hors agence, merci de saisir dans l’onglet ci-dessous, la ville de départ et la ville d’arrivée. La méthodologie de calcul sera alors différente et considérera la distance et le type de vol (très court-courrier, court-courrier, moyen-courrier ou long-courrier). Pour plus d'information : [voyages professionnels](https://epfl-enac.github.io/co2-calculator-user-doc/fr/professional-travel/)",
+    en: "This module allows you to estimate and visualize the impact of your (or your unit's) travel by train and plane. Data relating to your air travel is provided to us by the EPFL Travel Agency, and the associated carbon footprint is calculated taking into account several factors such as distance, class booked, flight altitude, number of people on the plane, airline, etc. If you have traveled outside of the agency, please enter the departure city and arrival city in the tab below. The calculation methodology will then be different and will take into account the distance and type of flight (very short-haul, short-haul, medium-haul, or long-haul).",
+    fr: "Ce module permet d'estimer et de visualiser l'impact de vos voyages (ou de votre unité) en train et en avion. Les données relatives à vos voyages en avion nous sont communiquées par l’Agence de voyages EPFL et l’empreinte carbone associée est calculée en considérant plusieurs facteurs tels que la distance, la classe réservée, la hauteur de vol, le nombre de personne dans l’avion, la compagnie aérienne, etc. Si vous avez effectué un voyage hors agence, merci de saisir dans l’onglet ci-dessous, la ville de départ et la ville d’arrivée. La méthodologie de calcul sera alors différente et considérera la distance et le type de vol (très court-courrier, court-courrier, moyen-courrier ou long-courrier).",
+  },
+  [`${MODULES.ProfessionalTravel}-documentation-title`]: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
+  [`${MODULES.ProfessionalTravel}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/professional-travel/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/professional-travel/',
   },
   [`${MODULES.ProfessionalTravel}-results-total-travel-carbon-footprint`]: {
     en: 'Total travel carbon footprint',

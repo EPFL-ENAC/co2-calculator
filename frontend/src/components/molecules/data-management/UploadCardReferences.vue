@@ -229,8 +229,7 @@ async function uploadSelectedFile(file: File) {
       (payload?: JobUpdatePayload) => {
         const result = payload?.result;
         const rowsProcessed = payload?.meta?.rows_processed as
-          | number
-          | undefined;
+          number | undefined;
 
         let color: string;
         let message: string;
