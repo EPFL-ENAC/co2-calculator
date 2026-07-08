@@ -149,18 +149,18 @@ truth: the implementation plan
 `docs/src/implementation-plans/458-security-authentication-integration-hardening.md`
 (landed with PR #1310 — [issue #458](https://github.com/EPFL-ENAC/co2-calculator/issues/458)).
 
-| Finding | Test file                                            | Test name                                                                                                                                    |
-| ------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1      | `backend/tests/integration/v1/test_auth_security.py` | `test_callback_binds_session_to_idp_institutional_id`                                                                                        |
-| F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                  |
-| F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                               |
-| F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                          |
-| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                         |
-| F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                           |
-| F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                        |
-| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                |
-| F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                           |
-| F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                  |
+| Finding | Test file                                            | Test name                                                                                                                                      |
+| ------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1      | `backend/tests/integration/v1/test_auth_security.py` | `test_callback_binds_session_to_idp_institutional_id`                                                                                          |
+| F2      | `backend/tests/integration/v1/test_auth_security.py` | `test_auth_cookies_secure_when_cookie_secure_true`, `test_auth_cookies_not_secure_when_cookie_secure_false`                                    |
+| F3      | `backend/tests/integration/v1/test_auth_security.py` | `test_login_test_registration_matches_debug_flag`, `test_login_test_returns_404_in_prod_build`                                                 |
+| F4      | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_alg_none_rejected`, `test_jwt_wrong_alg_rejected`, `test_jwt_tampered_signature_rejected`                                            |
+| F5      | `backend/tests/integration/v1/test_auth_security.py` | `test_refresh_rotates_both_auth_and_refresh_cookies`                                                                                           |
+| F6      | _deferred_                                           | _server-side JTI denylist — see follow-up comment_                                                                                             |
+| F7      | `backend/tests/integration/v1/test_auth_security.py` | `test_audit_event_failure_logs_error_with_marker`, `test_audit_event_must_succeed_propagates_failure`                                          |
+| F8      | `backend/tests/integration/v1/test_auth_security.py` | `test_me_rejects_legacy_user_id_only_token`, `test_refresh_rejects_legacy_user_id_only_token`                                                  |
+| F9      | `backend/tests/unit/providers/test_role_provider.py` | `test_get_unknown_role_provider_raises` (in `TestGetRoleProvider`)                                                                             |
+| F10     | `backend/tests/integration/v1/test_auth_security.py` | `test_jwt_expired_rejected`                                                                                                                    |
 | F11     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_role_name_is_skipped_not_raised`, `test_empty_role_name_is_skipped_not_raised` (in `TestJwtClaimsRoleProviderClaimCombinations`) |
 | F12     | `backend/tests/unit/providers/test_role_provider.py` | `test_unknown_scope_type_warns_when_skipped` (in `TestJwtClaimsRoleProviderClaimCombinations`)                                                 |
 

@@ -26,11 +26,11 @@ The stale piece of state is **`yearConfigStore.configuredYears`**, not `workspac
   - `redirectToDefaultRoute.ts`'s `fetchStartedYears()`
   - Since a unit's years list is populated at bootstrap (created-but-unopened years already appear with `is_started: false`), `.length === 0` is essentially never true again after login — so an admin opening a year via the backoffice mid-session never reached these stores until a hard reload re-ran bootstrap from scratch. This exactly matches "F5 fixes it."
 - `workspaceStore.units` (org/unit descriptors) has **no year-scoped fields** and doesn't change when a year opens — it was a red herring from the earlier investigation, structurally similar (same fetch-once-if-empty pattern) but not the mechanism behind this specific bug.
-- `fetchWorkspaceHome` (`GET workspace/{unit}/{year}/home`) genuinely is fetched fresh on every guard run, as previously assumed — but it only decides content for an *already-selected* unit/year, not which years are offered as selectable in the first place.
+- `fetchWorkspaceHome` (`GET workspace/{unit}/{year}/home`) genuinely is fetched fresh on every guard run, as previously assumed — but it only decides content for an _already-selected_ unit/year, not which years are offered as selectable in the first place.
 
 **`unitResults` / `getUnitResults()` in `workspace.ts` is confirmed dead code** — a repo-wide grep for `getUnitResults` found it defined and re-exported by the store, but never called anywhere else (no dynamic access, no wrapper). `availableYears` / `currentYearData` / `getLatestYear` on `workspaceStore`, which are all derived from `unitResults`, are dead by extension. Left untouched; out of scope for this fix.
 
-**Backoffice-side (`DataManagementPage.vue`) is not affected by this bug.** Its year dropdown reads `yearConfigStore.availableYears`, a *static* `ref` populated once with the range `2023..currentYear` (not fetched from the backend at all — see the `TODO` at `yearConfig.ts:185-186`), so there's no cache to go stale there.
+**Backoffice-side (`DataManagementPage.vue`) is not affected by this bug.** Its year dropdown reads `yearConfigStore.availableYears`, a _static_ `ref` populated once with the range `2023..currentYear` (not fetched from the backend at all — see the `TODO` at `yearConfig.ts:185-186`), so there's no cache to go stale there.
 
 ## Fix (delivered)
 

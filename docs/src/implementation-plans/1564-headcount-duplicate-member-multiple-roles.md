@@ -86,7 +86,7 @@ Recommendation: (B), on the same reasoning `1661-sql-factor-resolution.md` used 
 ## Steps
 
 - [x] Extend `DataEntryRepository.check_json_field_unique` (`data_entry_repo.py:252`) to accept a `fields: dict[str, str]` composite predicate (backward-compatible: single-entry dict == today's behavior), or add a sibling method — reuse the existing `DataEntry.data[k].as_string()` pattern.
-- [x] Update `DataEntryService.check_institutional_id_unique` (`data_entry_service.py:66`) to require `sius_code` and check the composite `(user_institutional_id, sius_code)` key; rename to reflect the new semantics. *(Shipped as `check_member_role_unique`.)*
+- [x] Update `DataEntryService.check_institutional_id_unique` (`data_entry_service.py:66`) to require `sius_code` and check the composite `(user_institutional_id, sius_code)` key; rename to reflect the new semantics. _(Shipped as `check_member_role_unique`.)_
 - [x] Update `backend/app/workflows/carbon_report_module.py:68-83` to pass `sius_code` into the renamed check.
 - [x] Update `backend/app/services/data_ingestion/base_csv_provider.py:982-1009`: key `seen_institutional_ids` by `(uid, sius_code)` tuple; pass `sius_code` into the DB check.
 - [x] Regression test: CSV batch with two rows, same `unit_institutional_id` + `user_institutional_id`, different `sius_code` -> both rows ingested, `stats["errors"]` empty for those rows.

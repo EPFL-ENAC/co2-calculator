@@ -33,16 +33,16 @@ CSV" and got two different answers:
    already ran `_delete_existing_entries_for_module_per_year` before the row
    loop. Since every row fails via `handler.validate_create` (caught,
    recorded as a soft row error, no exception raised), `rows_processed == 0`
-   and `_compute_ingestion_result` returns `ERROR`, but the handler *returns
-   normally* — it never raises. `app/tasks/runner.py`'s `run_job` treats a
+   and `_compute_ingestion_result` returns `ERROR`, but the handler _returns
+   normally_ — it never raises. `app/tasks/runner.py`'s `run_job` treats a
    non-raising handler as `handler_succeeded = True` regardless of the
    embedded `result`, and unconditionally calls `data_session.commit()`.
    That commits the DELETE with nothing inserted to replace it. Confirmed
    via integration test: 2 rows before, **0 rows after** — the prior
    successful upload's data is permanently gone.
 
-   `csv_ingest_handler`'s own comment ("No data_entries committed (or
-   partial state we don't trust)") is incorrect for this path — data *can*
+   `csv_ingest_handler`'s own comment ("No data*entries committed (or
+   partial state we don't trust)") is incorrect for this path — data \_can*
    be committed even when `result == ERROR`.
 
 This is a distinct, more severe bug than the one this plan fixes, and it is
@@ -52,7 +52,7 @@ structurally-invalid one). **The `mark_job_as_current` fix below does not
 address it** — with the fix, an operator will see the config UI look
 correct (still pointing at the last "current" job) but if that CSV was the
 content-invalid kind, the underlying data is gone and the UI is now
-*wrong*, not just uninformative. This needs its own fix (e.g. don't delete
+_wrong_, not just uninformative. This needs its own fix (e.g. don't delete
 before rows are known to insert successfully, or roll back when
 `rows_processed == 0`) and is out of scope for this PR — flagged for
 owner triage before closing #1578.
@@ -117,7 +117,7 @@ keep being marked current (mid-flight visibility, unrelated to this bug).
       case, which does lose data.**
 - [x] Fix `mark_job_as_current` (`backend/app/repositories/data_ingestion.py`)
       to skip promoting `is_current` when `job.state == FINISHED and
-    job.result == IngestionResult.ERROR` (keep `WARNING`/`SUCCESS`
+job.result == IngestionResult.ERROR` (keep `WARNING`/`SUCCESS`
       promoting, since those still carry usable meta and are the closest
       "latest attempt" the user should see).
 - [x] Verify `hasErrorOrWarning` / error banner still surfaces the failed
@@ -136,10 +136,10 @@ keep being marked current (mid-flight visibility, unrelated to this bug).
       ERROR job does not demote a FINISHED+SUCCESS job's `is_current` flag,
       and that `get_latest_jobs_by_year` keeps returning the successful job.
 - [~] Manually verify in backoffice config: upload a good CSV, then an
-      invalid one, for a non-Buildings module (e.g. Travel) to confirm the
-      fix isn't module-scoped and the shared component now behaves
-      correctly everywhere. **Not done as a manual UI walkthrough; instead
-      added a second repository-level regression test using
-      `module_type_id=2` (professional_travel) proving the same contract
-      holds for a non-Buildings module — consistent with
-      `mark_job_as_current` having no module-specific branching.**
+  invalid one, for a non-Buildings module (e.g. Travel) to confirm the
+  fix isn't module-scoped and the shared component now behaves
+  correctly everywhere. **Not done as a manual UI walkthrough; instead
+  added a second repository-level regression test using
+  `module_type_id=2` (professional_travel) proving the same contract
+  holds for a non-Buildings module — consistent with
+  `mark_job_as_current` having no module-specific branching.**
