@@ -100,6 +100,7 @@ const affiliationSegments = computed(
             dense
             outlined
             options-dense
+            data-testid="workspace-unit-select"
             class="workspace-selector-bar__select"
           />
         </div>
@@ -113,6 +114,7 @@ const affiliationSegments = computed(
             dense
             outlined
             options-dense
+            data-testid="workspace-year-select"
             class="workspace-selector-bar__select"
           />
         </div>

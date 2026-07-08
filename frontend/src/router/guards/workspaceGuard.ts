@@ -58,6 +58,15 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
   if (workspaceStore.units.length === 0) {
     await workspaceStore.getUnits();
   }
+  // Issue #1558 — `startedYears` (which years are open to users, driving the
+  // WorkspaceSelectorBar year dropdown) can NOT be cached the same way as
+  // `units` above: a backoffice admin can flip a year's `is_started` flag at
+  // any point mid-session, so a once-per-bootstrap fetch goes stale the
+  // moment that happens, and stays stale until a hard reload. Refetch it
+  // unconditionally on every guard run instead — it's a cheap list call, the
+  // same cost class as the `fetchWorkspaceHome` call below which already
+  // refreshes on every run.
+  await useYearConfigStore().fetchConfiguredYears();
   const response = await validateUnit();
   // if unit is valid retrieve carbon report  !
   let carbonReportId = null;
