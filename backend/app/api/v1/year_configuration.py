@@ -21,6 +21,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.core.submodule_mandatoriness import (
@@ -64,6 +65,7 @@ from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
 router = APIRouter()
+settings = get_settings()
 
 
 def _build_job_lookup(
@@ -560,6 +562,7 @@ async def build_year_configuration_response(
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
     )
 
 
@@ -629,6 +632,14 @@ async def create_year_configuration(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can create year configurations",
+        )
+
+    current_year = datetime.now().year
+    min_year = settings.MIN_CONFIGURABLE_YEAR
+    if year < min_year or year > current_year:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Year must be between {min_year} and {current_year}",
         )
 
     stmt = select(YearConfiguration).where(
@@ -769,6 +780,7 @@ async def create_year_configuration(
         recalculation_status=[],
         updated_at=new_config.updated_at,
         pipeline_id=str(pipeline_id),
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
     )
     return response
 
@@ -902,6 +914,7 @@ async def update_year_configuration(
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
     )
 
 

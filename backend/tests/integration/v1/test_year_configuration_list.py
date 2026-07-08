@@ -305,3 +305,102 @@ def test_post_year_as_test_user_does_not_conflict_with_existing_accred_row(
     accred_rows = r.json()
     assert len(accred_rows) == 1
     assert accred_rows[0]["is_started"] is True  # ACCRED untouched
+
+
+@pytest_asyncio.fixture
+async def db_empty():
+    """Empty in-memory DB — no seeded rows, for year-bounds validation."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    async with async_session() as session:
+        yield session, async_session
+
+    await engine.dispose()
+
+
+def test_post_year_below_minimum_rejected(client, monkeypatch, db_empty):
+    """Regression for #1204: POST /year-configuration/2024 is below the
+    MIN_CONFIGURABLE_YEAR floor (2025) and must be rejected with 400,
+    never reaching the existing-config query.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    r = client.post(URL + "2024")
+    assert r.status_code == 400, r.text
+
+
+def test_post_year_at_minimum_succeeds(client, monkeypatch, db_empty):
+    """Regression for #1204: POST /year-configuration/2025, the new floor,
+    still succeeds.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    def _consume_coro(coro, *_args, **_kwargs):
+        coro.close()
+        return None
+
+    monkeypatch.setattr("app.api.v1.year_configuration.fire_and_forget", _consume_coro)
+
+    r = client.post(URL + "2025")
+    assert r.status_code == 201, r.text
+    assert r.json()["year"] == 2025
+
+
+def test_post_year_bound_follows_overridden_setting(client, monkeypatch, db_empty):
+    """Follow-up for #1204: the floor must be read from
+    ``settings.MIN_CONFIGURABLE_YEAR`` at request time, not a hardcoded
+    constant. Push the floor up to the current year and confirm the
+    boundary actually moves — proves the read path, not just that a 400
+    still fires at the old default.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    current_year = datetime.now().year
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.settings.MIN_CONFIGURABLE_YEAR",
+        current_year,
+    )
+
+    # One year below the overridden floor — would have been accepted under
+    # the branch's original hardcoded 2025 default.
+    r = client.post(URL + f"{current_year - 1}")
+    assert r.status_code == 400, r.text
+
+    def _consume_coro(coro, *_args, **_kwargs):
+        coro.close()
+        return None
+
+    monkeypatch.setattr("app.api.v1.year_configuration.fire_and_forget", _consume_coro)
+
+    r = client.post(URL + f"{current_year}")
+    assert r.status_code == 201, r.text
+    assert r.json()["year"] == current_year
+
+
+def test_get_year_configuration_echoes_min_configurable_year(
+    client, monkeypatch, db_with_two_years
+):
+    """Follow-up for #1204: GET /year-configuration/{year} must echo
+    ``settings.MIN_CONFIGURABLE_YEAR`` so the frontend year dropdown can
+    read its floor from the backend instead of hardcoding its own copy.
+    Overriding the setting and asserting the override comes back proves
+    this isn't just the default value coincidentally matching.
+    """
+    _, factory = db_with_two_years
+    _wire(monkeypatch, factory, is_admin=True)
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.settings.MIN_CONFIGURABLE_YEAR", 2027
+    )
+
+    r = client.get(URL + "2024")
+    assert r.status_code == 200, r.text
+    assert r.json()["min_configurable_year"] == 2027

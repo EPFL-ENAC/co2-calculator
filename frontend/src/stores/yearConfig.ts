@@ -137,6 +137,13 @@ export interface YearConfigurationResponse {
    * ``GET /v1/sync/active-pipelines``).
    */
   pipeline_id?: string | null;
+  /**
+   * Issue #1204 follow-up — earliest year backoffice can create a
+   * configuration for (``settings.MIN_CONFIGURABLE_YEAR``). Drives the
+   * year-selector's lower bound so the frontend no longer hardcodes its
+   * own copy of the floor.
+   */
+  min_configurable_year: number;
 }
 
 /** Lightweight row from `GET /year-configuration/` (workspace year selector). */
@@ -178,19 +185,36 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   const configuredYears = ref<YearConfigurationListItem[]>([]);
 
   /**
+   * Issue #1204 follow-up — the year-selector's lower bound comes from
+   * the backend (``min_configurable_year`` on every year-configuration
+   * response) instead of a hardcoded frontend constant that had to be
+   * kept in sync by hand. ``null`` means "not yet fetched" — callers
+   * (DataManagementPage.vue) render a loading skeleton instead of
+   * guessing a range.
+   */
+  const minConfigurableYear = ref<number | null>(null);
+  /**
+   * Set when a year-configuration response is missing (or has a
+   * malformed) ``min_configurable_year`` — surfaced as an error state
+   * rather than silently falling back to a guessed year.
+   */
+  const minConfigurableYearError = ref<string | null>(null);
+
+  /**
    * Backoffice data-management year selection — the single source of truth
    * that the year dropdown writes and every config composable reads, so a
    * year change trickles down to sub-components without prop drilling.
    */
-  // TODO: fix the available years dynamically (drive from configuredYears
-  // rather than a hardcoded 2023..now range).
-  const MIN_YEAR = 2023;
-  const availableYears = ref<number[]>([]);
   const thisYear = new Date().getFullYear();
-  for (let y = MIN_YEAR; y <= thisYear; y++) availableYears.value.push(y);
-  const selectedYear = ref<number>(
-    availableYears.value[availableYears.value.length - 1] ?? thisYear,
-  );
+  const availableYears = computed<number[]>(() => {
+    if (minConfigurableYear.value === null) return [];
+    const years: number[] = [];
+    for (let y = minConfigurableYear.value; y <= thisYear; y++) {
+      years.push(y);
+    }
+    return years;
+  });
+  const selectedYear = ref<number>(thisYear);
 
   /** Set of years that are globally open (`is_started`) — the list endpoint only ever returns these. */
   const startedYears = computed(
@@ -227,6 +251,19 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
   function setConfig(response: YearConfigurationResponse | null) {
     config.value = response;
     notFound.value = response === null;
+    if (!response) return;
+
+    // Issue #1204 follow-up — read the year-selector's lower bound off
+    // the response instead of silently keeping the previous (or no)
+    // bound if it's missing/malformed.
+    const value = response.min_configurable_year;
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      minConfigurableYearError.value =
+        'year-configuration response is missing min_configurable_year';
+      return;
+    }
+    minConfigurableYear.value = value;
+    minConfigurableYearError.value = null;
   }
 
   /** Apply an already-fetched list of configured years (bootstrap / session). */
@@ -248,14 +285,13 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
       const response = (await api
         .get(`year-configuration/${year}`, { skipErrorCodes: [404] })
         .json()) as YearConfigurationResponse;
-      config.value = response;
+      setConfig(response);
       return response;
     } catch (err: unknown) {
       if (err instanceof Error && 'response' in err) {
         const httpErr = err as Error & { response: { status: number } };
         if (httpErr.response?.status === 404) {
-          notFound.value = true;
-          config.value = null;
+          setConfig(null);
           return null;
         }
       }
@@ -281,8 +317,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
           json: payload ?? {},
         })
         .json()) as YearConfigurationResponse;
-      config.value = response;
-      notFound.value = false;
+      setConfig(response);
       return response;
     } finally {
       loading.value = false;
@@ -301,7 +336,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
           json: payload,
         })
         .json()) as YearConfigurationResponse;
-      config.value = response;
+      setConfig(response);
       return response;
     } finally {
       loading.value = false;
@@ -579,6 +614,8 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     configuredYears,
     availableYears,
     selectedYear,
+    minConfigurableYear,
+    minConfigurableYearError,
     // Computed
     startedYears,
     anyModuleIncomplete,
