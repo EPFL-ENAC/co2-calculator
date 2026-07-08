@@ -98,6 +98,11 @@ export interface RecalculationStatusEntry {
   needs_recalculation: boolean;
   last_factor_job_id?: number | null;
   last_factor_job_result?: number | null;
+  // Issue #1591 — count of per-factor failures on the last factor job
+  // (backend ``stats.errors``). Count only — never the per-row detail,
+  // which can name another unit's Unit/CarbonReport for shared
+  // "common" research-facilities factors.
+  last_factor_job_error_count?: number | null;
   last_recalculation_job_id?: number | null;
   last_recalculation_job_result?: number | null;
 }

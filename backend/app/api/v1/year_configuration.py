@@ -312,6 +312,7 @@ def _build_recalculation_status(
                 needs_recalculation=row["needs_recalculation"],
                 last_factor_job_id=row["last_factor_job_id"],
                 last_factor_job_result=row["last_factor_job_result"],
+                last_factor_job_error_count=row["last_factor_job_error_count"],
                 last_recalculation_job_id=row["last_recalculation_job_id"],
                 last_recalculation_job_result=row["last_recalculation_job_result"],
             )

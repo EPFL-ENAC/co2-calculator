@@ -609,6 +609,14 @@ export default {
     en: 'Missing factors computation failed',
     fr: 'Le calcul des facteurs manquants a échoué',
   },
+  data_management_compute_factors_error_count: {
+    en: 'No factor could not be recomputed | One factor could not be recomputed | {count} factors could not be recomputed',
+    fr: "Aucun facteur n'a pu être recalculé | Un facteur n'a pas pu être recalculé | {count} facteurs n'ont pas pu être recalculés",
+  },
+  data_management_view_pipeline_details: {
+    en: 'View details in Pipeline Operations',
+    fr: 'Voir les détails dans Pipeline Operations',
+  },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',

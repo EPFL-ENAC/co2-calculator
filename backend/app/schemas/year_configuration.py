@@ -490,6 +490,15 @@ class RecalculationStatusEntry(BaseModel):
     needs_recalculation: bool
     last_factor_job_id: Optional[int] = None
     last_factor_job_result: Optional[IngestionResult] = None
+    # Issue #1591 — count of per-factor failures recorded on the last
+    # factor job (``stats.errors``), so the UI can show "N factors could
+    # not be recomputed" without a second round trip.  ``None`` when the
+    # last factor job had no errors (or none is known).  Deliberately a
+    # COUNT only — never the per-row ``stats.error_details`` (factor_id +
+    # raw exception), which can name a Unit/CarbonReport belonging to a
+    # different unit than the one viewing this status (research
+    # facilities "common" factors are shared across units).
+    last_factor_job_error_count: Optional[int] = None
     last_recalculation_job_id: Optional[int] = None
     last_recalculation_job_result: Optional[IngestionResult] = None
 
