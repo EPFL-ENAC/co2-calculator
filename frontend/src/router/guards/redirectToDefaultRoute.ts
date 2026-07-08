@@ -10,16 +10,16 @@ import { currentLanguage } from 'src/utils/language';
 import { HOME_ROUTE_NAME } from '../routeNames';
 
 /**
- * The set of globally-open (`is_started`) years. Normally hydrated by the auth
- * bootstrap (`GET /session`), which `authGuard` awaits before this resolver
- * ever runs; refetch only in the rare case configured years aren't populated
- * yet.
+ * The set of globally-open (`is_started`) years. Issue #1558 — unlike `units`
+ * below, this can go stale mid-session: a backoffice admin can open a year at
+ * any time, and a once-per-bootstrap fetch would keep sending returning users
+ * to /unauthorized (or the wrong default year) until a hard reload. Always
+ * refetch, so this resolver reflects the current backend state on every
+ * landing-route hit.
  */
 async function fetchStartedYears(): Promise<Set<number>> {
   const yearConfigStore = useYearConfigStore();
-  if (yearConfigStore.configuredYears.length === 0) {
-    await yearConfigStore.fetchConfiguredYears();
-  }
+  await yearConfigStore.fetchConfiguredYears();
   return yearConfigStore.startedYears;
 }
 
