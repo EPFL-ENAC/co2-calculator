@@ -91,23 +91,17 @@ def _wire(monkeypatch, factory, *, is_admin: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Year bounds — #1204 (PR #1737) adds "2025 <= year <= current_year" but
-# hasn't merged into dev yet. These pin the INTENDED behavior and stay
-# skipped (not deleted) until #1204 lands, per #1403's "no silent pass" rule.
+# Year bounds — #1204 (PR #1737, merged) adds "MIN_CONFIGURABLE_YEAR <= year
+# <= current_year" (default MIN_CONFIGURABLE_YEAR=2025, see Settings).
 # ---------------------------------------------------------------------------
 
 
-_SKIP_1204 = "blocked on #1204 merging (PR #1737 not yet merged into dev)"
-
-
 class TestYearBoundsValidation:
-    @pytest.mark.skip(reason=_SKIP_1204)
     def test_year_below_2025_rejected(self, client, monkeypatch, db_factory):
         _wire(monkeypatch, db_factory, is_admin=True)
         r = client.post(CREATE_URL.format(year=2024))
         assert r.status_code in (400, 422), r.text
 
-    @pytest.mark.skip(reason=_SKIP_1204)
     def test_year_above_current_year_rejected(self, client, monkeypatch, db_factory):
         _wire(monkeypatch, db_factory, is_admin=True)
         future_year = datetime.utcnow().year + 1
