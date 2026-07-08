@@ -446,7 +446,6 @@ class Settings(BaseSettings):
         ),
     )
 
-
     # Year Configuration Bounds (issue #1204)
     MIN_CONFIGURABLE_YEAR: int = Field(
         default=2025,

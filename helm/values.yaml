@@ -42,6 +42,7 @@ backend:
     OAUTH_COOKIE_PATH: "/"
     FRONTEND_URL: "http://localhost:3000" # Change to frontend URL in production
     ACCRED_API_HEALTH_URL: "https://url-you-want-to-check"
+    MIN_CONFIGURABLE_YEAR: "2025" # Earliest year an admin can create a YearConfiguration for
     # Background job safety poller (orphan-job recovery)
     RUN_BACKGROUND_POLLER: "true"
     POLLER_INTERVAL_SECONDS: "2" # Seconds between poller sweeps
