@@ -1196,6 +1196,7 @@ async def test_finalize_and_commit_warning_includes_reupload_hint():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()
@@ -1235,6 +1236,7 @@ async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()
