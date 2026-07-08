@@ -34,26 +34,26 @@ test.describe('back-office data-management — happy paths', () => {
 
     await page.goto(DATA_MANAGEMENT_URL);
 
-    // Initial load fires GET for 2024 (URL query param).  Wait for
+    // Initial load fires GET for 2025 (URL query param).  Wait for
     // the year-config card to render so we know the watcher ran.
     await expect(page.getByText(/year configuration/i).first()).toBeVisible();
 
     const initialGets = requests.filter(
-      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+      (r) => r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
     );
     expect(initialGets.length).toBeGreaterThanOrEqual(1);
 
-    // Switch the q-select to 2025.  Quasar renders the popup outside
+    // Switch the q-select to 2026.  Quasar renders the popup outside
     // the page in ``document.body``; ``getByRole('option')`` finds it.
     await page.locator('.q-select').first().click();
-    await page.getByRole('option', { name: '2025' }).click();
+    await page.getByRole('option', { name: '2026' }).click();
 
     await expect
       .poll(
         () =>
           requests.filter(
             (r) =>
-              r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
+              r.method === 'GET' && /year-configuration\/2026$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
@@ -89,7 +89,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'POST' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBe(1);
@@ -144,7 +144,7 @@ test.describe('back-office data-management — happy paths', () => {
     // response and the page subscribes to its SSE stream.  Verify the
     // full chain end-to-end:
     //
-    //   1. POST /year-configuration/2024 fires once.
+    //   1. POST /year-configuration/2025 fires once.
     //   2. The page opens an EventSource against the pipeline_id.
     //   3. Module config is gated (``inert``) while the pipeline is
     //      in flight.
@@ -167,7 +167,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'POST' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBe(1);
@@ -208,7 +208,7 @@ test.describe('back-office data-management — happy paths', () => {
     // can assert it grows on completion (not just the count from
     // the create-then-watch flow).
     const getsBefore = requests.filter(
-      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+      (r) => r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
     ).length;
 
     // (4) Drive the FINISHED event.  Single job, FINISHED+SUCCESS;
@@ -226,8 +226,8 @@ test.describe('back-office data-management — happy paths', () => {
               state: 'FINISHED',
               result: 'SUCCESS',
               status_message: 'ok',
-              started_at: '2024-01-01T00:00:00Z',
-              finished_at: '2024-01-01T00:01:00Z',
+              started_at: '2025-01-01T00:00:00Z',
+              finished_at: '2025-01-01T00:01:00Z',
             },
           ],
           stream_closed: true,
@@ -252,7 +252,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBeGreaterThan(getsBefore);
@@ -481,7 +481,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 100,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 1,
       target_type: 0,
       state: 3,
@@ -493,7 +493,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 200,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0,
       target_type: 0,
       state: 3,
@@ -567,13 +567,13 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 300,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0, // API
       target_type: 0,
       state: 3,
       result: 0,
       status_message: 'Success',
-      meta: { rows_processed: 10475, timestamp: '2024-01-15T00:00:00Z' },
+      meta: { rows_processed: 10475, timestamp: '2025-01-15T00:00:00Z' },
     };
 
     const yearConfigApiOnly = (year: number) => ({
@@ -644,13 +644,13 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 301,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0, // API
       target_type: 0,
       state: 3,
       result: 0,
       status_message: 'Success',
-      meta: { rows_processed: 42, timestamp: '2024-01-15T00:00:00Z' },
+      meta: { rows_processed: 42, timestamp: '2025-01-15T00:00:00Z' },
     };
 
     const yearConfigApiOnly = (year: number) => ({
@@ -899,7 +899,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 999,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 1,
       target_type: 1,
       state: 3,
@@ -912,7 +912,7 @@ test.describe('back-office data-management — happy paths', () => {
     const fileMeta = {
       path: '/uploads/x.csv',
       filename: 'x.csv',
-      uploaded_at: '2024-01-01T00:00:00Z',
+      uploaded_at: '2025-01-01T00:00:00Z',
     };
     const yearConfigStaleErroredJob = (year: number) => ({
       ...buildYearConfig({ year }),
@@ -944,7 +944,7 @@ test.describe('back-office data-management — happy paths', () => {
             {
               target_year: 2030,
               reduction_percentage: 50,
-              reference_year: 2024,
+              reference_year: 2025,
             },
           ],
           institutional_footprint: [],
@@ -992,7 +992,7 @@ test.describe('back-office data-management — happy paths', () => {
     // resolves a tick later.
     await expect(page.getByText(/year configuration/i).first()).toBeVisible();
 
-    // Initial year (2024 — URL query param) must trigger one
+    // Initial year (2025 — URL query param) must trigger one
     // year-level fetch.  Without this fetch the SSE watcher has no
     // way to discover an in-flight unit-sync after a hard reload.
     await expect
@@ -1001,7 +1001,7 @@ test.describe('back-office data-management — happy paths', () => {
           requests.filter(
             (r) =>
               r.method === 'GET' &&
-              /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
+              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
@@ -1010,7 +1010,7 @@ test.describe('back-office data-management — happy paths', () => {
     // year-config fetch pattern (test 1) but for the year-level
     // pipeline channel.
     await page.locator('.q-select').first().click();
-    await page.getByRole('option', { name: '2025' }).click();
+    await page.getByRole('option', { name: '2026' }).click();
 
     await expect
       .poll(
@@ -1018,7 +1018,7 @@ test.describe('back-office data-management — happy paths', () => {
           requests.filter(
             (r) =>
               r.method === 'GET' &&
-              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
+              /\/sync\/active-pipelines\/year\/2026$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
@@ -1143,7 +1143,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
   const fileMeta = {
     path: '/uploads/x.csv',
     filename: 'x.csv',
-    uploaded_at: '2024-01-01T00:00:00Z',
+    uploaded_at: '2025-01-01T00:00:00Z',
   };
   return {
     year,
@@ -1155,7 +1155,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
     // signal).  These tests assume the year is fully provisioned —
     // the button should be present, just enabled/disabled depending
     // on ``is_started`` — so stamp the field.
-    configuration_completed: '2024-01-01T00:00:00Z',
+    configuration_completed: '2025-01-01T00:00:00Z',
     config: {
       modules: {
         '1': disabledModule,
@@ -1174,7 +1174,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
           unit_scenarios: fileMeta,
         },
         goals: [
-          { target_year: 2030, reduction_percentage: 50, reference_year: 2024 },
+          { target_year: 2030, reduction_percentage: 50, reference_year: 2025 },
         ],
         institutional_footprint: [],
         population_projections: [],
@@ -1182,7 +1182,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
       },
     },
     recalculation_status: [],
-    updated_at: '2024-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
   };
 }
 

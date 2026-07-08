@@ -16,7 +16,7 @@
 import type { BrowserContext, Page, Route } from '@playwright/test';
 
 /** Default backoffice landing URL with explicit year. */
-export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2024';
+export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2025';
 
 /**
  * Issue #867 — fixed pipeline_id returned by the create-year mock so
@@ -55,7 +55,7 @@ const SUCCESS_FACTOR_JOB = {
   job_id: 1001,
   module_type_id: 1,
   data_entry_type_id: 1,
-  year: 2024,
+  year: 2025,
   ingestion_method: 1,
   target_type: 1,
   state: 3,
@@ -68,7 +68,7 @@ const SUCCESS_DATA_JOB = {
   job_id: 1002,
   module_type_id: 1,
   data_entry_type_id: 1,
-  year: 2024,
+  year: 2025,
   ingestion_method: 1,
   target_type: 0,
   state: 3,
@@ -122,7 +122,7 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
     // satisfies the gate so upload/dispatch happy-path tests aren't
     // blocked; tests that want to exercise the unprovisioned state
     // can pass an explicit override via ``onGetYearConfig``.
-    configuration_completed: '2024-01-01T00:00:00Z',
+    configuration_completed: '2025-01-01T00:00:00Z',
     config: {
       modules: options.modulesOverride ?? { '1': baseHeadcount },
       reduction_objectives: {
@@ -138,7 +138,7 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
       },
     },
     recalculation_status: options.recalculationStatus ?? [],
-    updated_at: '2024-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
   };
 }
 
@@ -362,7 +362,7 @@ export async function mockBackend(
   // active-pipelines/year/{year} — empty list by default (no live
   // year-level pipeline).  Issue #867 reload-rehydrate path.
   // Registered BEFORE the module-scoped catch-all so this more
-  // specific URL pattern wins for ``…/active-pipelines/year/2025``.
+  // specific URL pattern wins for ``…/active-pipelines/year/2026``.
   await page.route(
     /.*\/api\/v1\/sync\/active-pipelines\/year\/(\d+)$/,
     async (route) => {
