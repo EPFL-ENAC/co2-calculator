@@ -4,12 +4,16 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.carbon_report import CarbonReportModule
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionResult
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
+    REUPLOAD_HINT,
     BaseCSVProvider,
     StatsDict,
     _get_expected_columns_from_handlers,
@@ -247,6 +251,107 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
 
     # 5. Assertions: check execution runs without completely failing out
     assert result is not None
+
+
+# ======================================================================
+# Issue #1564 — member (uid, sius_code) composite uniqueness in the row loop
+# ======================================================================
+
+
+def _drive_member_csv(
+    db_session: AsyncSession, module_id: int, rows_data: list[dict]
+) -> "ConcreteCSVProvider":
+    """Build a provider that feeds ``rows_data`` through the real row loop.
+
+    ``_process_row`` is stubbed to skip CSV parsing/validation (out of scope
+    here) but returns a real ``member`` DataEntry per row, so the composite
+    (user_institutional_id, sius_code) uniqueness check in
+    ``process_csv_in_batches`` — the code under test — runs for real against
+    ``db_session``. ``_process_batch`` is stubbed to skip factor/emission
+    computation, which is irrelevant to the uniqueness check.
+    """
+    config = {
+        "file_path": "tmp/test.csv",
+        "carbon_report_module_id": module_id,
+        "year": 2025,
+    }
+    provider = ConcreteCSVProvider(config, data_session=db_session)
+
+    mock_files_store = MagicMock()
+    mock_files_store.move_file = AsyncMock(return_value="processing/test.csv")
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    csv_content = ("\n".join(["header"] + ["row"] * len(rows_data))).encode()
+    mock_files_store.get_file = AsyncMock(return_value=(csv_content, "text/csv"))
+    provider._files_store = mock_files_store
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"header"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    async def fake_process_row(row, row_idx, setup_result, stats, max_row_errors, _map):
+        entry = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module_id,
+            data=dict(rows_data[row_idx - 1]),
+        )
+        return entry, None, None, None
+
+    provider._process_row = fake_process_row
+    provider._process_batch = AsyncMock(return_value=len(rows_data))
+    return provider
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_accepts_same_member_different_sius_code(
+    db_session: AsyncSession,
+):
+    """Same unit + user_institutional_id, different sius_code (multi-role
+    member) — both rows must be ingested, no DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "54"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 0
+    assert result["stats"]["rows_processed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSession):
+    """Same unit + user_institutional_id + sius_code (true duplicate) — the
+    second row is rejected with DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
 
 
 @pytest.mark.asyncio
@@ -1074,6 +1179,50 @@ async def test_recompute_module_stats_skips_when_pure_async():
 
 
 # ======================================================================
+# Setup / Idempotent Move Tests (#1559)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_setup_and_validate_skips_move_when_already_in_processing():
+    """Regression #1559: a retry after a prior successful tmp->processing
+    move (job crashed/restarted before FINISHED, sweep_stuck_running_jobs
+    reset it to NOT_STARTED) must succeed by reading the file that is
+    already at processing/<job_id>/, not fail with "Failed to move file"
+    just because the tmp/ source is gone.
+    """
+    config = {"file_path": "tmp/test.csv", "job_id": 7, "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    # Short-circuit the DB lookup at the top of _setup_and_validate.
+    provider.job = SimpleNamespace(id=7)
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"col1"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    mock_files_store = MagicMock()
+    # Destination already present (prior attempt); tmp/ source is gone —
+    # move_file would fail if called, proving the retry never touches it.
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    mock_files_store.move_file = AsyncMock(
+        side_effect=AssertionError("move_file must not be called on retry")
+    )
+    mock_files_store.get_file = AsyncMock(return_value=(b"col1\nval1\n", "text/csv"))
+    provider._files_store = mock_files_store
+
+    result = await provider._setup_and_validate()
+
+    mock_files_store.move_file.assert_not_awaited()
+    assert result["processing_path"] == "processing/7/test.csv"
+
+
+# ======================================================================
 # Finalization Tests
 # ======================================================================
 
@@ -1087,6 +1236,7 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()
@@ -1124,6 +1274,8 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
     assert call_args.kwargs["state"] == IngestionState.FINISHED
     assert call_args.kwargs["result"] == IngestionResult.SUCCESS
+    # Issue #1398 — an all-rows-succeeded job stays silent on re-upload.
+    assert REUPLOAD_HINT not in call_args.kwargs["status_message"]
     assert "rows_processed" in call_args.kwargs["extra_metadata"]
     assert "stats" in call_args.kwargs["extra_metadata"]
     # Check processed_file_path is in metadata
@@ -1133,6 +1285,138 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
 
     assert result["inserted"] == 2
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_warning_includes_reupload_hint():
+    """Issue #1398 — a partial ingestion (rows_skipped > 0, e.g. the job
+    stopped early) must explicitly tell the user to re-upload the file.
+    Recalculating only recomputes emissions for rows already committed —
+    it cannot add rows that were never ingested.
+    """
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 7
+    stats["rows_skipped"] = 3
+    stats["batches_processed"] = 1
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[MagicMock()],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[None],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.WARNING
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    # The original summary is preserved, not replaced.
+    assert "3 skipped" in call_args.kwargs["status_message"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
+    """Issue #1398 — the ERROR case reachable through _finalize_and_commit
+    (every row skipped, nothing processed) also needs the re-upload hint,
+    not just WARNING."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 0
+    stats["rows_skipped"] = 5
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+
+
+# ======================================================================
+# Issue #1398 — mid-stream failure (before _finalize_and_commit) messaging
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_csv_in_batches_failure_includes_reupload_hint():
+    """A hard stop before _finalize_and_commit (crash/timeout during setup
+    or row processing) must still tell the user to re-upload — not leave a
+    bare exception string that implies recalculation would help."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.data_session.rollback = AsyncMock()
+    provider._setup_and_validate = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.process_csv_in_batches()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+
+
+@pytest.mark.asyncio
+async def test_ingest_mid_stream_failure_includes_reupload_hint():
+    """The terminal message actually persisted for a mid-stream failure is
+    written by ingest()'s exception handler (it runs after, and overwrites,
+    process_csv_in_batches()'s own handler) — it must carry the same
+    re-upload wording."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.process_csv_in_batches = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.ingest()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
 
 
 # ======================================================================

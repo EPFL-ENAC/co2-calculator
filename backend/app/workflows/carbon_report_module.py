@@ -69,12 +69,13 @@ class CarbonReportModuleWorkflow:
             data_entry_type == DataEntryTypeEnum.member
             and validated_data.model_dump().get("user_institutional_id")
         ):
-            uid = validated_data.model_dump()["user_institutional_id"]
-            is_unique = await DataEntryService(
-                self.session
-            ).check_institutional_id_unique(
+            member_data = validated_data.model_dump()
+            uid = member_data["user_institutional_id"]
+            sius_code = member_data["sius_code"]
+            is_unique = await DataEntryService(self.session).check_member_role_unique(
                 carbon_report_module_id=carbon_report_module.id,
                 uid=uid,
+                sius_code=sius_code,
             )
             if not is_unique:
                 raise HTTPException(
@@ -106,12 +107,6 @@ class CarbonReportModuleWorkflow:
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
-
-            if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="This user institutional id already exists in this module.",
-                )
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

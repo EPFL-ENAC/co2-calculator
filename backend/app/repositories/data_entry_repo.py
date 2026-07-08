@@ -253,28 +253,32 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: int,
-        field: str,
-        value: str,
+        fields: dict[str, str],
         exclude_id: Optional[int] = None,
     ) -> bool:
-        """Check whether a JSON data field value is unique within a submodule.
+        """Check whether a set of JSON data field values is unique within a submodule.
 
         Args:
             carbon_report_module_id: The module to scope the check to.
             data_entry_type_id: The submodule type.
-            field: The JSON key inside ``DataEntry.data`` to check.
-            value: The value that must be unique.
+            fields: JSON keys inside ``DataEntry.data`` mapped to the values that
+                must be unique together (ANDed). A single-entry dict reproduces
+                the previous single-field check.
             exclude_id: Optional entry ID to exclude (for PATCH uniqueness checks).
 
         Returns:
-            True if the value is unique (no conflicting row found), False otherwise.
+            True if the combination is unique (no conflicting row found), False
+            otherwise.
         """
         statement = (
             select(DataEntry)
             .where(
                 col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
                 col(DataEntry.data_entry_type_id) == data_entry_type_id,
-                DataEntry.data[field].as_string() == value,
+                *[
+                    DataEntry.data[key].as_string() == val
+                    for key, val in fields.items()
+                ],
             )
             .limit(1)
         )
@@ -532,6 +536,7 @@ class DataEntryRepository:
         is_plane_entry = data_entry_type_id == DataEntryTypeEnum.plane.value
         OriginLocation: Any = None
         DestLocation: Any = None
+        traveler_name_subq: Any = None
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
@@ -681,7 +686,33 @@ class DataEntryRepository:
 
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
-                entities.extend([MemberEntry, DataEntryEmission])
+                # A person can hold multiple headcount roles (sius_code) in the
+                # same unit, so a plain JOIN on (uid, module) can match >1
+                # MemberEntry row and fan out/duplicate every travel row for
+                # that person. traveler_name is identical across roles, so pick
+                # one match deterministically via a correlated scalar subquery
+                # (same pattern as list_units's latest_stats_subq; LATERAL
+                # JOIN is avoided — unsupported on SQLite, used in unit tests).
+                # Tie-break on lowest id: always present, unlike sius_code
+                # which can be null on legacy rows.
+                traveler_name_subq = (
+                    select(MemberEntry.data["name"].as_string())
+                    .where(
+                        MemberEntry.data["user_institutional_id"].as_string()
+                        == DataEntry.data["user_institutional_id"].as_string(),
+                        col(MemberEntry.carbon_report_module_id)
+                        == col(DataEntry.carbon_report_module_id),
+                        col(MemberEntry.data_entry_type_id)
+                        == DataEntryTypeEnum.member.value,
+                    )
+                    .order_by(asc(col(MemberEntry.id)))
+                    .limit(1)
+                    .correlate(DataEntry)
+                    .scalar_subquery()
+                )
+                entities.extend(
+                    [traveler_name_subq.label("traveler_name"), DataEntryEmission]
+                )
                 if is_train_entry or is_plane_entry:
                     OriginLocation = aliased(Location)
                     DestLocation = aliased(Location)
@@ -708,21 +739,6 @@ class DataEntryRepository:
 
             if is_travel_entry:
                 statement = statement.join(
-                    MemberEntry,
-                    (
-                        MemberEntry.data["user_institutional_id"].as_string()
-                        == DataEntry.data["user_institutional_id"].as_string()
-                    )
-                    & (
-                        col(MemberEntry.carbon_report_module_id)
-                        == col(DataEntry.carbon_report_module_id)
-                    )
-                    & (
-                        col(MemberEntry.data_entry_type_id)
-                        == DataEntryTypeEnum.member.value
-                    ),
-                    isouter=True,
-                ).join(
                     DataEntryEmission,
                     col(DataEntryEmission.data_entry_id) == DataEntry.id,
                     isouter=True,
@@ -808,6 +824,12 @@ class DataEntryRepository:
                 DataEntryEmission.additional_value,
                 DataEntry.data["distance_km"].as_float(),
             )
+            # The class-level sort_map's "traveler_name" references MemberEntry
+            # directly, which relied on the (now-removed) plain JOIN. Point it at
+            # the same correlated subquery used for enrichment above, or sorting
+            # by traveler_name would silently reintroduce an unjoined MemberEntry
+            # reference (implicit cross join).
+            sort_map["traveler_name"] = traveler_name_subq
         if (is_train_entry or is_plane_entry) and OriginLocation is not None:
             sort_map["origin_name"] = OriginLocation.name
             sort_map["destination_name"] = DestLocation.name
@@ -857,9 +879,7 @@ class DataEntryRepository:
         for row in rows:
             # Pre-bind conditionally-unpacked variables so static type checkers
             # see them as definitely-bound (T | None) on every branch path.
-            # MemberEntry is a SQLAlchemy alias of DataEntry, so the runtime
-            # type is DataEntry.
-            member_entry: DataEntry | None = None
+            traveler_name: str | None = None
             _emission: DataEntryEmission | None = None
             building_room: BuildingRoom | None = None
             _origin_loc: Location | None = None
@@ -871,9 +891,9 @@ class DataEntryRepository:
             # 2. Unpack only the remaining tail fields
             if is_travel_entry:
                 if is_train_entry or is_plane_entry:
-                    member_entry, _emission, _origin_loc, _dest_loc = row[3:]
+                    traveler_name, _emission, _origin_loc, _dest_loc = row[3:]
                 else:
-                    member_entry, _emission = row[3:]
+                    traveler_name, _emission = row[3:]
             elif is_buildings_entry:
                 building_room = row[3]
 
@@ -881,9 +901,11 @@ class DataEntryRepository:
             # accidental mutation (here or downstream) cannot be flushed back to
             # the DB. This method only reads scalar columns and the JSON `data`
             # field after unpack — no lazy relationships — so expunge is safe.
+            # traveler_name is a plain scalar (from a subquery), not an ORM row,
+            # so it needs no detaching.
             self._detach(data_entry, primary_factor)
             if is_travel_entry:
-                self._detach(member_entry, _emission, _origin_loc, _dest_loc)
+                self._detach(_emission, _origin_loc, _dest_loc)
             elif is_buildings_entry:
                 self._detach(building_room)
 
@@ -910,8 +932,8 @@ class DataEntryRepository:
                     if _emission is not None and _emission.additional_value is not None
                     else enriched_data.get("distance_km")
                 )
-                if member_entry is not None:
-                    enriched_data["traveler_name"] = member_entry.data.get("name")
+                if traveler_name is not None:
+                    enriched_data["traveler_name"] = traveler_name
                 if distance_km is not None:
                     enriched_data["distance_km"] = distance_km
                 if is_train_entry or is_plane_entry:

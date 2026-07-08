@@ -609,6 +609,14 @@ export default {
     en: 'Missing factors computation failed',
     fr: 'Le calcul des facteurs manquants a échoué',
   },
+  data_management_compute_factors_error_count: {
+    en: 'No factor could not be recomputed | One factor could not be recomputed | {count} factors could not be recomputed',
+    fr: "Aucun facteur n'a pu être recalculé | Un facteur n'a pas pu être recalculé | {count} facteurs n'ont pas pu être recalculés",
+  },
+  data_management_view_pipeline_details: {
+    en: 'View details in Pipeline Operations',
+    fr: 'Voir les détails dans Pipeline Operations',
+  },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',
@@ -632,6 +640,10 @@ export default {
   data_management_pipeline_phase_aggregation: {
     en: 'Step 3/3 · Aggregating…',
     fr: 'Étape 3/3 · Agrégation…',
+  },
+  data_management_pipeline_phase_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
   },
   data_management_pipeline_running_tooltip: {
     en: 'Upload accepted — recalculation still in progress',
@@ -698,8 +710,8 @@ export default {
     fr: 'Recalculer les émissions',
   },
   data_management_recalculate_emissions_description: {
-    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage.',
-    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
+    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage. This only recomputes emissions for rows already imported — if an upload was skipped or incomplete, re-upload the file first to add the missing rows.',
+    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil. Cela ne recalcule que les émissions des lignes déjà importées — si un import a été partiel ou incomplet, re-téléversez d'abord le fichier pour ajouter les lignes manquantes.",
   },
   data_management_recalculation_success: {
     en: 'Emissions recalculation successful',
@@ -712,6 +724,10 @@ export default {
   data_management_recalculation_warning: {
     en: 'Emissions recalculated with warnings',
     fr: 'Le recalcul des émissions a été effectué avec des avertissements',
+  },
+  data_management_recalculation_connection_lost: {
+    en: 'Connection lost while waiting for the result. The job may still be running — check back shortly.',
+    fr: 'Connexion perdue en attendant le résultat. Le traitement est peut-être toujours en cours — vérifiez à nouveau dans quelques instants.',
   },
   data_management_recalculate_only_stale: {
     en: 'Recalculate only stale emissions',

@@ -9,7 +9,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
+from app.models.data_entry_emission import DataEntryEmission, EmissionType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
@@ -1416,6 +1416,104 @@ async def test_get_submodule_data_duplicate_factor_rows_resolve_deterministicall
     assert len(response.items) == 1
     item = response.items[0]
     assert item.active_power_w == 42.0, "lowest factor id must win deterministically"
+
+
+# ======================================================================
+# Regression #1564 Part 2: travel<->headcount join must not fan out for a
+# member holding multiple roles (sius_code) in the same unit.
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_travel_not_duplicated_for_multi_role_member(
+    db_session: AsyncSession,
+):
+    """A person can now legitimately have two headcount rows in the same
+    unit (different sius_code, issue #1564 Part 1). The MemberEntry join
+    used to fetch the traveler's display name must pick exactly one of
+    those rows deterministically — not fan out and duplicate the travel
+    entry once per matching role."""
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    # Two headcount roles for the same person, same unit/module.
+    db_session.add_all(
+        [
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={
+                    "name": "X X",
+                    "user_institutional_id": "123456",
+                    "sius_code": "53",
+                },
+            ),
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={
+                    "name": "X X",
+                    "user_institutional_id": "123456",
+                    "sius_code": "54",
+                },
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    travel_entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "cabin_class": "economy",
+            "user_institutional_id": "123456",
+            "number_of_trips": 1,
+        },
+    )
+    db_session.add(travel_entry)
+    await db_session.flush()
+    assert travel_entry.id is not None
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=travel_entry.id,
+            emission_type_id=EmissionType.professional_travel__plane.value,
+            kg_co2eq=100.0,
+        )
+    )
+    await db_session.flush()
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1, (
+        "a multi-role member's travel entry must appear exactly once, not "
+        "once per matching headcount role"
+    )
+    assert response.summary.total_items == 1
+    total_kg_co2eq = sum(item.kg_co2eq or 0 for item in response.items)
+    assert total_kg_co2eq == pytest.approx(100.0), (
+        "kg_co2eq must not be double-counted by the join fan-out"
+    )
 
 
 # ======================================================================

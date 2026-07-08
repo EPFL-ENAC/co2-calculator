@@ -564,8 +564,8 @@ class PipelineResponse(BaseModel):
 
 # Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
 # Everything else (esp. ``error_details`` / ``affected_module_ids``,
-# which are KB-scale per row) is stripped server-side so the list
-# payload stays small.
+# which are KB-scale per row for a bulk data-entry recalc) is stripped
+# server-side so the list payload stays small.
 #
 # Phase 5B (#1236) retired three keys from this list:
 # ``parent_job_id``, ``recalc_jobs_chained``, ``aggregation_job_id``.
@@ -586,9 +586,28 @@ _PIPELINE_META_ALLOW = (
 )
 
 
-def _project_pipeline_meta(meta: Optional[dict]) -> dict:
+def _project_pipeline_meta(
+    meta: Optional[dict], *, include_factor_errors: bool = False
+) -> dict:
+    """Allow-list a job's ``meta`` for the ops-console list payload.
+
+    Issue #1591 — ``include_factor_errors`` opts a FACTORS-target job
+    into shipping ``stats.error_details`` (factor_id + raw exception,
+    which may name a Unit/CarbonReport belonging to a different unit —
+    fine here since this list is gated by ``backoffice.pipeline_operations``,
+    unlike the unit-facing recalc status).  Bounded by the factor table
+    size (curated reference data), unlike the blanket-excluded
+    ``error_details``/``affected_module_ids`` a bulk data-entry recalc
+    can produce, which is why this stays opt-in per call site rather
+    than joining ``_PIPELINE_META_ALLOW``.
+    """
     m = meta or {}
-    return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    projected = {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    if include_factor_errors:
+        error_details = (m.get("stats") or {}).get("error_details")
+        if error_details:
+            projected["error_details"] = error_details
+    return projected
 
 
 def _pipeline_author(meta: Optional[dict]) -> Optional[str]:
@@ -677,7 +696,8 @@ class PipelineJobListEntry(BaseModel):
 
     Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
     carries timing for per-step duration and an **allow-listed** ``meta``
-    (never the big ``error_details`` / ``affected_module_ids`` arrays).
+    (never the big ``affected_module_ids`` array; ``error_details`` only
+    for FACTORS-target jobs — see ``_project_pipeline_meta``, #1591).
 
     ``state`` and ``result`` serialize as the enum NAME (string), not
     the int value — Pydantic's int-enum default would ship ``3`` for
@@ -1744,7 +1764,10 @@ async def list_pipelines(
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
-                        meta=_project_pipeline_meta(j.meta),
+                        meta=_project_pipeline_meta(
+                            j.meta,
+                            include_factor_errors=j.target_type == TargetType.FACTORS,
+                        ),
                     )
                     for j in jobs
                     if j.id is not None

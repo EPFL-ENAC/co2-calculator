@@ -279,6 +279,10 @@ export default {
     en: 'Failed to save. Please try again.',
     fr: 'Échec de la sauvegarde. Veuillez réessayer.',
   },
+  common_post_create_refresh_error: {
+    en: 'Item added, but some data may be out of date. Please refresh the page.',
+    fr: 'Élément ajouté, mais certaines données peuvent être obsolètes. Veuillez rafraîchir la page.',
+  },
   common_actions: {
     en: 'Actions',
     fr: 'Actions',

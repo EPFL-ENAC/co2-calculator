@@ -1323,6 +1323,19 @@ class DataIngestionRepository:
             )
             return
 
+        # Issue #1578 — a FINISHED+ERROR job (e.g. a failed CSV
+        # re-upload) must not evict the last good job from the
+        # "current" slot the backoffice config UI reads
+        # (latest_data_job / latest_common_data_job). An ERROR job's
+        # meta never carries processed_file_path/rows_processed (only
+        # written on the success path), so promoting it blanked the
+        # prior upload's filename/rows/download summary even though
+        # its DataEntry rows were untouched. WARNING/SUCCESS still
+        # promote — their meta is usable and they ARE the latest
+        # attempt worth showing.
+        if job.state == IngestionState.FINISHED and job.result == IngestionResult.ERROR:
+            return
+
         # MODULE_UNIT_SPECIFIC uploads live on the per-unit module page,
         # not the per-year backoffice config — and nothing reads their
         # is_current flag (year-config skips them; recalc-status + factor
@@ -1598,18 +1611,29 @@ class DataIngestionRepository:
         exec_result = await self.session.execute(stmt)
         rows = exec_result.all()
 
-        # Fetch only id + result for factor jobs — avoids loading the meta JSON field.
+        # Fetch id + result + meta for factor jobs.  ``meta`` used to be
+        # skipped here to avoid loading the JSON column; Issue #1591 needs
+        # ``stats.errors`` (a plain int count) surfaced to the UI, and the
+        # factor table is small (curated reference data, not per-row CSV
+        # data), so loading meta for just these jobs stays cheap.
         factor_job_ids = [r.max_factor_job_id for r in rows]
         factor_job_result_by_id: dict[int, Optional[IngestionResult]] = {}
+        factor_job_error_count_by_id: dict[int, Optional[int]] = {}
         if factor_job_ids:
             fj_stmt = select(
                 col(DataIngestionJob.id),
                 col(DataIngestionJob.result),
+                col(DataIngestionJob.meta),
             ).where(col(DataIngestionJob.id).in_(factor_job_ids))
             fj_result = await self.session.execute(fj_stmt)
             for fj_row in fj_result.all():
                 if fj_row.id is not None:
                     factor_job_result_by_id[fj_row.id] = fj_row.result
+                    stats = (fj_row.meta or {}).get("stats") or {}
+                    errors = stats.get("errors")
+                    factor_job_error_count_by_id[fj_row.id] = (
+                        errors if isinstance(errors, int) and errors > 0 else None
+                    )
 
         status_rows: list[RecalculationStatusRow] = []
         for row in rows:
@@ -1626,6 +1650,9 @@ class DataIngestionRepository:
                     needs_recalculation=needs_recalculation,
                     last_factor_job_id=row.max_factor_job_id,
                     last_factor_job_result=factor_job_result_by_id.get(
+                        row.max_factor_job_id
+                    ),
+                    last_factor_job_error_count=factor_job_error_count_by_id.get(
                         row.max_factor_job_id
                     ),
                     last_recalculation_job_id=row.recalc_job_id,
@@ -1817,6 +1844,7 @@ class RecalculationStatusRow(TypedDict):
     needs_recalculation: bool
     last_factor_job_id: Optional[int]
     last_factor_job_result: Optional[IngestionResult]
+    last_factor_job_error_count: Optional[int]
     last_recalculation_job_id: Optional[int]
     last_recalculation_job_result: Optional[IngestionResult]
 

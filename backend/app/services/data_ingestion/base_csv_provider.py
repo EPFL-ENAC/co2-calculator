@@ -56,6 +56,16 @@ logger = get_logger(__name__)
 # hammering the session.
 PROGRESS_REPORT_INTERVAL_S = 2.0
 
+# Issue #1398 — appended to a job's terminal ``status_message`` whenever it
+# finishes without every CSV row landing (WARNING, or an ERROR/mid-stream
+# crash before ``_finalize_and_commit`` runs). Recalculation only
+# recomputes emissions for rows already committed to the DB — it cannot add
+# rows that were never ingested, so the message has to say so explicitly.
+REUPLOAD_HINT = (
+    "Re-upload the file to import the missing rows — recalculation alone "
+    "will not add them."
+)
+
 
 def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
     """Return True when every required column is empty or absent in the raw row."""
@@ -707,8 +717,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "data": result,
             }
         except Exception as e:
+            # Job died before _finalize_and_commit ran (mid-stream crash,
+            # timeout, setup/header validation failure...) — whatever rows
+            # made it in are all that exist; re-upload is the only way to
+            # get the rest (issue #1398).
             await self._update_job(
-                status_message=f"failed: {str(e)}",
+                status_message=f"failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -919,8 +933,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
             batch_kg_co2eq_overrides: List[float | None] = []
-            # Track seen user_institutional_ids per module to catch intra-CSV duplicates
-            seen_institutional_ids: Dict[int, set] = {}
+            # Track seen (user_institutional_id, sius_code) pairs per module to
+            # catch intra-CSV duplicates. A person can legitimately hold two
+            # roles (different sius_code) in the same unit.
+            seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -979,7 +995,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 if data_entry is None:
                     raise ValueError("Data entry is None without error message")
 
-                # Check institutional ID uniqueness for member entries
+                # Check (user_institutional_id, sius_code) role uniqueness for
+                # member entries.
                 # TODO: refactor, should not be done in base_csv_provider but elsewhere
                 # process or task or sql
                 if (
@@ -988,17 +1005,20 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     and data_entry.data.get("user_institutional_id")
                 ):
                     uid = str(data_entry.data["user_institutional_id"])
+                    sius_code = str(data_entry.data["sius_code"])
                     module_id = data_entry.carbon_report_module_id
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
-                    if uid in module_seen:
+                    role_key = (uid, sius_code)
+                    if role_key in module_seen:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    is_unique = await data_entry_service.check_institutional_id_unique(
+                    is_unique = await data_entry_service.check_member_role_unique(
                         carbon_report_module_id=module_id,
                         uid=uid,
+                        sius_code=sius_code,
                     )
                     if not is_unique:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
@@ -1006,7 +1026,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    module_seen.add(uid)
+                    module_seen.add(role_key)
 
                 # Row processed successfully
                 batch.append(data_entry)
@@ -1061,10 +1081,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
         except Exception as e:
+            # Mid-stream crash/timeout before _finalize_and_commit — same
+            # re-upload wording as the ingest()-level handler below, in
+            # case a caller drives process_csv_in_batches() directly
+            # (issue #1398).
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             await self._update_job(
-                status_message=f"Processing failed: {str(e)}",
+                status_message=f"Processing failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -1097,13 +1121,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)  # Extra safety check
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
@@ -1377,18 +1396,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
-        filename = setup_result["filename"]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        metadata_update = {}
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
-            metadata_update["processed_file_path"] = processing_path
-        else:
-            metadata_update = {"processed_file_path": processed_path}
+        metadata_update = {
+            "processed_file_path": await self._move_to_processed(processing_path)
+        }
 
         # Flush all changes
         await self.data_session.flush()
@@ -1400,15 +1410,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Recompute stats for affected carbon report modules
         await self._recompute_module_stats()
 
-        # Update job status to COMPLETED with summary
+        # Compute result dynamically based on success rate
+        result = self._compute_ingestion_result(stats)
+
+        # Update job status to COMPLETED with summary. Only SUCCESS (every
+        # row processed) stays silent on re-upload — WARNING/ERROR here
+        # both mean at least one row was skipped, and recalculating alone
+        # can't bring those rows back (issue #1398).
         status_message = (
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_with_factors']} with factors, "
             f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
-        # Compute result dynamically based on success rate
-        result = self._compute_ingestion_result(stats)
+        if result != IngestionResult.SUCCESS:
+            status_message = f"{status_message}. {REUPLOAD_HINT}"
 
         # Prepare metadata: exclude row_errors from root level to avoid duplication
         # (row_errors remain in stats for detailed error reporting)

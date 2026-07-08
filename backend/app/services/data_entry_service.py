@@ -63,15 +63,22 @@ class DataEntryService:
             data_entry_type_id=data_entry_type_id,
         )
 
-    async def check_institutional_id_unique(
-        self, carbon_report_module_id: int, uid: str, exclude_id: Optional[int] = None
+    async def check_member_role_unique(
+        self,
+        carbon_report_module_id: int,
+        uid: str,
+        sius_code: str,
+        exclude_id: Optional[int] = None,
     ) -> bool:
-        """Check whether user_institutional_id is unique in member submodule."""
+        """Check whether (user_institutional_id, sius_code) is unique.
+
+        A person can legitimately hold multiple roles (``sius_code``) in the
+        same unit, so the uniqueness key is the role, not just the person.
+        """
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=DataEntryTypeEnum.member.value,
-            field="user_institutional_id",
-            value=uid,
+            fields={"user_institutional_id": uid, "sius_code": sius_code},
             exclude_id=exclude_id,
         )
 
@@ -114,8 +121,7 @@ class DataEntryService:
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
-            field=field,
-            value=value,
+            fields={field: value},
             exclude_id=exclude_id,
         )
 

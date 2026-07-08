@@ -100,6 +100,7 @@ async def test_finalize_and_commit_routes_batch_through_upsert(monkeypatch):
         data_session=mock_data_session,
     )
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
 
     mock_factor_repo = MagicMock()
@@ -165,6 +166,7 @@ def _sweep_provider() -> ModulePerYearFactorCSVProvider:
         data_session=data_session,
     )
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     return provider
 

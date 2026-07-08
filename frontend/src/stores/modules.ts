@@ -648,6 +648,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string | number,
     submoduleType: string,
     payload: Record<string, FieldValue>,
+    onCreated?: () => void,
   ) {
     state.error = null;
     try {
@@ -731,6 +732,12 @@ export const useModuleStore = defineStore('modules', () => {
           throw error;
         }
       }
+
+      // The create POST(s) above succeeded — the item exists server-side.
+      // Notify the caller now, before the unrelated refresh chain below,
+      // so a failure there can't suppress feedback for a create that
+      // already succeeded (#1463).
+      onCreated?.();
 
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unitId, year);

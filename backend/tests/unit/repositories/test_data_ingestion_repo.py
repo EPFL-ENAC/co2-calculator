@@ -1739,3 +1739,184 @@ async def test_claim_unit_specific_does_not_demote_or_claim_current(
     unit_specific = await _reload_job(db_session, unit_specific_id)
     assert unit_specific.is_current is False  # RUNNING but never current
     assert unit_specific.state == IngestionState.RUNNING
+
+
+# ======================================================================
+# Issue #1578 — a failed re-upload must not blank the prior successful
+# job's is_current slot (backoffice config UI reads latest_data_job /
+# latest_common_data_job from it).
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_error_does_not_demote_success(
+    db_session: AsyncSession,
+):
+    """Regression: a FINISHED+ERROR job (failed CSV re-upload) must not
+    demote a prior FINISHED+SUCCESS job's ``is_current`` flag, and must
+    not become current itself — its ``meta`` never carries
+    ``processed_file_path``/``rows_processed``, so promoting it blanks
+    the upload card even though the successful job's DataEntry rows are
+    untouched.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=3,  # buildings
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    error_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(success_job)
+    db_session.add(error_job)
+    await db_session.flush()
+    success_id, error_id = success_job.id, error_job.id
+
+    await repo.mark_job_as_current(error_job)
+
+    assert (await _reload_job(db_session, success_id)).is_current is True
+    assert (await _reload_job(db_session, error_id)).is_current is False
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_warning_still_promotes(
+    db_session: AsyncSession,
+):
+    """A FINISHED+WARNING job (partial success) still promotes and
+    demotes the prior current job — only ERROR is excluded, since
+    WARNING/SUCCESS both carry usable meta and are the latest attempt
+    worth showing.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    prior = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    warning_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.WARNING,
+        is_current=False,
+    )
+    db_session.add(prior)
+    db_session.add(warning_job)
+    await db_session.flush()
+    prior_id, warning_id = prior.id, warning_job.id
+
+    await repo.mark_job_as_current(warning_job)
+
+    assert (await _reload_job(db_session, prior_id)).is_current is False
+    assert (await _reload_job(db_session, warning_id)).is_current is True
+
+
+@pytest.mark.asyncio
+async def test_get_latest_jobs_by_year_keeps_success_after_failed_reupload(
+    db_session: AsyncSession,
+):
+    """End-to-end (within the repository layer): after a failed
+    re-upload, ``get_latest_jobs_by_year`` still returns the prior
+    successful job — not the failed one, and not neither.
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    db_session.add(success_job)
+    await db_session.flush()
+
+    error_job = _make_job(
+        module_type_id=3,
+        data_entry_type_id=30,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(error_job)
+    await db_session.flush()
+
+    await repo.mark_job_as_current(error_job)
+
+    current_jobs = await repo.get_latest_jobs_by_year(2025)
+    current_ids = {j.id for j in current_jobs}
+    assert success_job.id in current_ids
+    assert error_job.id not in current_ids
+
+
+@pytest.mark.asyncio
+async def test_mark_current_finished_error_does_not_demote_success_non_buildings(
+    db_session: AsyncSession,
+):
+    """Same contract as ``test_mark_current_finished_error_does_not_demote_success``
+    but for a different module (professional_travel=2) — ``mark_job_as_current``
+    is keyed purely on ``(module_type_id, target_type, year, ingestion_method,
+    data_entry_type_id)`` with no module-specific branching, so the fix must
+    hold for every module, not just Buildings (the module the bug was
+    reported against).
+    """
+    repo = DataIngestionRepository(db_session)
+
+    success_job = _make_job(
+        module_type_id=2,  # professional_travel
+        data_entry_type_id=40,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.SUCCESS,
+        is_current=True,
+    )
+    error_job = _make_job(
+        module_type_id=2,
+        data_entry_type_id=40,
+        year=2025,
+        target_type=TargetType.DATA_ENTRIES,
+        ingestion_method=IngestionMethod.csv,
+        state=IngestionState.FINISHED,
+        result=IngestionResult.ERROR,
+        is_current=False,
+    )
+    db_session.add(success_job)
+    db_session.add(error_job)
+    await db_session.flush()
+    success_id, error_id = success_job.id, error_job.id
+
+    await repo.mark_job_as_current(error_job)
+
+    assert (await _reload_job(db_session, success_id)).is_current is True
+    assert (await _reload_job(db_session, error_id)).is_current is False
