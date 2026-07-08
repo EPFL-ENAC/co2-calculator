@@ -43,6 +43,7 @@ from app.models.user import (
     Role,
     RoleName,
     UnitScope,
+    UserProvider,
     calculate_user_permissions,
 )
 
@@ -538,4 +539,96 @@ class TestActivePipelinesPerYearGate:
         user = _user("11111", [_std(UNIT_IID)])
         _wire_active_pipelines(monkeypatch, user)
         r = client.get(ACTIVE_PIPELINES_URL)
+        assert r.status_code == 403, r.text
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /api/v1/year-configuration/{year} (#1403 slice a) — the
+# ``Calco2.backoffice.admin`` gate for the BackOffice Configuration tab.
+#
+# ``create_year_configuration`` guards on ``backoffice.configuration.edit``,
+# which ``calculate_user_permissions`` grants ONLY to CO2_SUPERADMIN
+# ("calco2.backoffice.admin"). CO2_BACKOFFICE_METIER (even affiliation-
+# scoped, which unlocks reporting/users/documentation/ui_texts) never gets
+# it — configuration is Super Admin only (#862). No mocking of
+# ``is_permitted`` here: the real role → permission → OPA-style policy
+# chain runs, same as the rest of this file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+YEAR_CONFIG_CREATE_URL = "/api/v1/year-configuration/2025"
+
+
+@pytest_asyncio.fixture
+async def empty_db():
+    """In-memory SQLite with all tables created, no seeded rows."""
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:", echo=False, future=True
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+    factory = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    yield factory
+    await engine.dispose()
+
+
+def _wire_year_config(monkeypatch, user, factory) -> None:
+    """Wire the real user + a real DB; stub only the background dispatch.
+
+    ``fire_and_forget`` would otherwise spawn the actual unit-sync job
+    runner — irrelevant to an access-control test and slow/flaky in-process.
+    """
+    user.provider = UserProvider.DEFAULT
+    app.dependency_overrides[deps_module.get_current_user] = lambda: user
+
+    async def override_get_db():
+        async with factory() as session:
+            yield session
+
+    app.dependency_overrides[deps_module.get_db] = override_get_db
+
+    def fake_fire_and_forget(coro, *, name=None):
+        coro.close()
+        return None
+
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.fire_and_forget", fake_fire_and_forget
+    )
+
+
+class TestYearConfigurationAdminOnlyGate:
+    """Only Calco2.backoffice.admin (CO2_SUPERADMIN) may create a year
+    configuration; every other role is denied via the same
+    ``backoffice.configuration.edit`` gate."""
+
+    def test_superadmin_creates_year_configuration(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_superadmin()])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 201, r.text
+
+    def test_backoffice_metier_denied(self, client, monkeypatch, empty_db):
+        """Affiliation-scoped metier holds reporting/users/documentation/
+        ui_texts but NOT configuration — Super Admin only (#862)."""
+        user = _user("11111", [_backoffice_scoped(ENAC_CF)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_principal_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_principal(UNIT_IID)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_std_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", [_std(UNIT_IID)])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
+        assert r.status_code == 403, r.text
+
+    def test_no_roles_denied(self, client, monkeypatch, empty_db):
+        user = _user("11111", roles=[])
+        _wire_year_config(monkeypatch, user, empty_db)
+        r = client.post(YEAR_CONFIG_CREATE_URL)
         assert r.status_code == 403, r.text
