@@ -56,6 +56,16 @@ logger = get_logger(__name__)
 # hammering the session.
 PROGRESS_REPORT_INTERVAL_S = 2.0
 
+# Issue #1398 — appended to a job's terminal ``status_message`` whenever it
+# finishes without every CSV row landing (WARNING, or an ERROR/mid-stream
+# crash before ``_finalize_and_commit`` runs). Recalculation only
+# recomputes emissions for rows already committed to the DB — it cannot add
+# rows that were never ingested, so the message has to say so explicitly.
+REUPLOAD_HINT = (
+    "Re-upload the file to import the missing rows — recalculation alone "
+    "will not add them."
+)
+
 
 def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
     """Return True when every required column is empty or absent in the raw row."""
@@ -707,8 +717,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "data": result,
             }
         except Exception as e:
+            # Job died before _finalize_and_commit ran (mid-stream crash,
+            # timeout, setup/header validation failure...) — whatever rows
+            # made it in are all that exist; re-upload is the only way to
+            # get the rest (issue #1398).
             await self._update_job(
-                status_message=f"failed: {str(e)}",
+                status_message=f"failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -1061,10 +1075,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
         except Exception as e:
+            # Mid-stream crash/timeout before _finalize_and_commit — same
+            # re-upload wording as the ingest()-level handler below, in
+            # case a caller drives process_csv_in_batches() directly
+            # (issue #1398).
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             await self._update_job(
-                status_message=f"Processing failed: {str(e)}",
+                status_message=f"Processing failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -1386,15 +1404,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Recompute stats for affected carbon report modules
         await self._recompute_module_stats()
 
-        # Update job status to COMPLETED with summary
+        # Compute result dynamically based on success rate
+        result = self._compute_ingestion_result(stats)
+
+        # Update job status to COMPLETED with summary. Only SUCCESS (every
+        # row processed) stays silent on re-upload — WARNING/ERROR here
+        # both mean at least one row was skipped, and recalculating alone
+        # can't bring those rows back (issue #1398).
         status_message = (
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_with_factors']} with factors, "
             f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
-        # Compute result dynamically based on success rate
-        result = self._compute_ingestion_result(stats)
+        if result != IngestionResult.SUCCESS:
+            status_message = f"{status_message}. {REUPLOAD_HINT}"
 
         # Prepare metadata: exclude row_errors from root level to avoid duplication
         # (row_errors remain in stats for detailed error reporting)
