@@ -633,6 +633,10 @@ export default {
     en: 'Step 3/3 · Aggregating…',
     fr: 'Étape 3/3 · Agrégation…',
   },
+  data_management_pipeline_phase_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
+  },
   data_management_pipeline_running_tooltip: {
     en: 'Upload accepted — recalculation still in progress',
     fr: 'Téléchargement accepté — recalcul en cours',
@@ -712,6 +716,10 @@ export default {
   data_management_recalculation_warning: {
     en: 'Emissions recalculated with warnings',
     fr: 'Le recalcul des émissions a été effectué avec des avertissements',
+  },
+  data_management_recalculation_connection_lost: {
+    en: 'Connection lost while waiting for the result. The job may still be running — check back shortly.',
+    fr: 'Connexion perdue en attendant le résultat. Le traitement est peut-être toujours en cours — vérifiez à nouveau dans quelques instants.',
   },
   data_management_recalculate_only_stale: {
     en: 'Recalculate only stale emissions',

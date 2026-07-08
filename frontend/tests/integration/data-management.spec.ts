@@ -520,6 +520,86 @@ test.describe('back-office data-management — happy paths', () => {
       .toBeTruthy();
   });
 
+  test('6b — recalculate emissions: SSE connection drop surfaces a negative notification (#1523)', async ({
+    page,
+  }) => {
+    // Regression for issue #1523: ``useRecalculation.ts`` previously only
+    // reset the running/loading flag when the job-stream ``EventSource``
+    // itself errored (dropped connection, backend crash mid-stream) —
+    // distinct from a job finishing with an explicit ERROR result, which
+    // already showed a toast. A dropped connection left the spinner
+    // silently stopping with zero feedback.
+    const { requests } = await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              recalculationStatus: [
+                {
+                  module_type_id: 1,
+                  needs_recalculation: true,
+                  data_entry_types: [
+                    {
+                      data_entry_type_id: 1,
+                      needs_recalculation: true,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expect(page.locator('text=/headcount/i').first()).toBeVisible();
+
+    const recalcBtn = page
+      .getByRole('button', { name: /recalculate emissions/i })
+      .first();
+    await expect(recalcBtn).toBeVisible({ timeout: 10000 });
+    await recalcBtn.click();
+    await page
+      .getByRole('button', { name: /^confirm$/i })
+      .first()
+      .click();
+
+    // Default ``onRecalculateEmissions`` mock returns ``job_id: 9100`` —
+    // wait for the request so the page has opened the job-stream
+    // EventSource before we drive its ``onerror``.
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) =>
+            r.method === 'POST' &&
+            /sync\/recalculate-emissions\/1(\?|$)/.test(r.url),
+        ),
+      )
+      .toBeTruthy();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__sse?.sources.has('9100') === true,
+        ),
+      )
+      .toBe(true);
+
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__sse.emitError('9100');
+    });
+
+    await expect(
+      page.getByText(/failed to recalculate emissions/i),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/connection lost/i)).toBeVisible();
+  });
+
   test.fixme('7 — computed factors trigger: nested SubmoduleItem button — covered by component test', async () => {
     // The ``compute-factors`` button lives 4 levels deep inside
     // ``ModuleUploadsSection > submodules slot > SubmoduleConfig

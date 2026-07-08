@@ -182,9 +182,16 @@ export async function installInitScripts(
     // can drive ``pipeline-update`` events deterministically via
     // ``window.__sse.emit(pipelineId, payload)`` instead of waiting on
     // a real SSE socket.
+    //
+    // Issue #1523 — also matches ``/sync/jobs/{id}/stream`` (the
+    // per-job stream ``useRecalculation.ts`` subscribes to) keyed by
+    // the numeric job id, so tests can drive ``onerror`` via
+    // ``window.__sse.emitError(jobId)`` to cover the "SSE connection
+    // dropped" path distinct from a job finishing with an ERROR result.
     interface FakeSseRegistry {
       sources: Map<string, FakeEventSource>;
-      emit: (pipelineId: string, payload: unknown) => void;
+      emit: (id: string, payload: unknown) => void;
+      emitError: (id: string) => void;
     }
 
     class FakeEventSource extends EventTarget {
@@ -200,8 +207,9 @@ export async function installInitScripts(
       constructor(url: string) {
         super();
         this.url = url;
-        // ``/api/v1/sync/pipelines/{id}/stream`` → extract id segment.
-        const match = url.match(/\/sync\/pipelines\/([^/]+)\/stream/);
+        // ``/api/v1/sync/pipelines/{id}/stream`` or
+        // ``/api/v1/sync/jobs/{id}/stream`` → extract id segment.
+        const match = url.match(/\/sync\/(?:pipelines|jobs)\/([^/]+)\/stream/);
         if (match) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const reg = (window as any).__sse as FakeSseRegistry | undefined;
@@ -225,13 +233,18 @@ export async function installInitScripts(
 
     const registry: FakeSseRegistry = {
       sources: new Map(),
-      emit(pipelineId, payload) {
-        const source = this.sources.get(pipelineId);
+      emit(id, payload) {
+        const source = this.sources.get(id);
         if (!source) return;
         const evt = new MessageEvent('pipeline-update', {
           data: JSON.stringify(payload),
         });
         source.dispatchEvent(evt);
+      },
+      emitError(id) {
+        const source = this.sources.get(id);
+        if (!source) return;
+        source.onerror?.(new Event('error'));
       },
     };
 
