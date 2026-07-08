@@ -352,3 +352,55 @@ def test_post_year_at_minimum_succeeds(client, monkeypatch, db_empty):
     r = client.post(URL + "2025")
     assert r.status_code == 201, r.text
     assert r.json()["year"] == 2025
+
+
+def test_post_year_bound_follows_overridden_setting(client, monkeypatch, db_empty):
+    """Follow-up for #1204: the floor must be read from
+    ``settings.MIN_CONFIGURABLE_YEAR`` at request time, not a hardcoded
+    constant. Push the floor up to the current year and confirm the
+    boundary actually moves — proves the read path, not just that a 400
+    still fires at the old default.
+    """
+    _, factory = db_empty
+    _wire(monkeypatch, factory, is_admin=True)
+
+    current_year = datetime.now().year
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.settings.MIN_CONFIGURABLE_YEAR",
+        current_year,
+    )
+
+    # One year below the overridden floor — would have been accepted under
+    # the branch's original hardcoded 2025 default.
+    r = client.post(URL + f"{current_year - 1}")
+    assert r.status_code == 400, r.text
+
+    def _consume_coro(coro, *_args, **_kwargs):
+        coro.close()
+        return None
+
+    monkeypatch.setattr("app.api.v1.year_configuration.fire_and_forget", _consume_coro)
+
+    r = client.post(URL + f"{current_year}")
+    assert r.status_code == 201, r.text
+    assert r.json()["year"] == current_year
+
+
+def test_get_year_configuration_echoes_min_configurable_year(
+    client, monkeypatch, db_with_two_years
+):
+    """Follow-up for #1204: GET /year-configuration/{year} must echo
+    ``settings.MIN_CONFIGURABLE_YEAR`` so the frontend year dropdown can
+    read its floor from the backend instead of hardcoding its own copy.
+    Overriding the setting and asserting the override comes back proves
+    this isn't just the default value coincidentally matching.
+    """
+    _, factory = db_with_two_years
+    _wire(monkeypatch, factory, is_admin=True)
+    monkeypatch.setattr(
+        "app.api.v1.year_configuration.settings.MIN_CONFIGURABLE_YEAR", 2027
+    )
+
+    r = client.get(URL + "2024")
+    assert r.status_code == 200, r.text
+    assert r.json()["min_configurable_year"] == 2027

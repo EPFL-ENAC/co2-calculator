@@ -534,6 +534,12 @@ class YearConfigurationResponse(BaseModel):
             "(populated only on POST; None elsewhere)."
         ),
     )
+    # Issue #1204 follow-up — echoes ``settings.MIN_CONFIGURABLE_YEAR`` so the
+    # backoffice year dropdown (frontend/src/stores/yearConfig.ts) can derive
+    # its lower bound from the backend instead of hardcoding its own copy.
+    min_configurable_year: int = Field(
+        description="Earliest year backoffice can create a configuration for."
+    )
 
     class Config:
         from_attributes = True

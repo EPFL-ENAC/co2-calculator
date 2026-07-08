@@ -447,6 +447,18 @@ class Settings(BaseSettings):
     )
 
 
+    # Year Configuration Bounds (issue #1204)
+    MIN_CONFIGURABLE_YEAR: int = Field(
+        default=2025,
+        description=(
+            "Earliest year backoffice can create a YearConfiguration for. "
+            "``POST /year-configuration/{year}`` rejects anything below this "
+            "floor; the GET response also echoes it so the frontend year "
+            "dropdown stays in sync without a hardcoded copy of its own."
+        ),
+    )
+
+
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance."""
