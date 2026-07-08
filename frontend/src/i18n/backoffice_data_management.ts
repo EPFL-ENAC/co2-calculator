@@ -698,8 +698,8 @@ export default {
     fr: 'Recalculer les émissions',
   },
   data_management_recalculate_emissions_description: {
-    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage.',
-    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
+    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage. This only recomputes emissions for rows already imported — if an upload was skipped or incomplete, re-upload the file first to add the missing rows.',
+    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil. Cela ne recalcule que les émissions des lignes déjà importées — si un import a été partiel ou incomplet, re-téléversez d'abord le fichier pour ajouter les lignes manquantes.",
   },
   data_management_recalculation_success: {
     en: 'Emissions recalculation successful',

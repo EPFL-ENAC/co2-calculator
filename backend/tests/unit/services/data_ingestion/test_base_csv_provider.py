@@ -10,6 +10,7 @@ from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
+    REUPLOAD_HINT,
     BaseCSVProvider,
     StatsDict,
     _get_expected_columns_from_handlers,
@@ -1169,6 +1170,8 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
     assert call_args.kwargs["state"] == IngestionState.FINISHED
     assert call_args.kwargs["result"] == IngestionResult.SUCCESS
+    # Issue #1398 — an all-rows-succeeded job stays silent on re-upload.
+    assert REUPLOAD_HINT not in call_args.kwargs["status_message"]
     assert "rows_processed" in call_args.kwargs["extra_metadata"]
     assert "stats" in call_args.kwargs["extra_metadata"]
     # Check processed_file_path is in metadata
@@ -1178,6 +1181,136 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
 
     assert result["inserted"] == 2
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_warning_includes_reupload_hint():
+    """Issue #1398 — a partial ingestion (rows_skipped > 0, e.g. the job
+    stopped early) must explicitly tell the user to re-upload the file.
+    Recalculating only recomputes emissions for rows already committed —
+    it cannot add rows that were never ingested.
+    """
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 7
+    stats["rows_skipped"] = 3
+    stats["batches_processed"] = 1
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[MagicMock()],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[None],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.WARNING
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    # The original summary is preserved, not replaced.
+    assert "3 skipped" in call_args.kwargs["status_message"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
+    """Issue #1398 — the ERROR case reachable through _finalize_and_commit
+    (every row skipped, nothing processed) also needs the re-upload hint,
+    not just WARNING."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 0
+    stats["rows_skipped"] = 5
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+
+
+# ======================================================================
+# Issue #1398 — mid-stream failure (before _finalize_and_commit) messaging
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_csv_in_batches_failure_includes_reupload_hint():
+    """A hard stop before _finalize_and_commit (crash/timeout during setup
+    or row processing) must still tell the user to re-upload — not leave a
+    bare exception string that implies recalculation would help."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.data_session.rollback = AsyncMock()
+    provider._setup_and_validate = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.process_csv_in_batches()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+
+
+@pytest.mark.asyncio
+async def test_ingest_mid_stream_failure_includes_reupload_hint():
+    """The terminal message actually persisted for a mid-stream failure is
+    written by ingest()'s exception handler (it runs after, and overwrites,
+    process_csv_in_batches()'s own handler) — it must carry the same
+    re-upload wording."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.process_csv_in_batches = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.ingest()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
 
 
 # ======================================================================
