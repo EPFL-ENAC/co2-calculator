@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   useBackofficeDataManagement,
   IngestionState,
@@ -10,14 +11,19 @@ import {
   type JobUpdatePayload,
 } from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore, type SyncJobSummary } from 'src/stores/yearConfig';
+import { useAuthStore, PermissionAction } from 'src/stores/auth';
 import { Notify } from 'quasar';
 import { useI18n } from 'vue-i18n';
 import type { SubmoduleConfig } from 'src/constant/backoffice-module-config';
+import { resolveLanguage } from 'src/utils/language';
 
 export function useSubmoduleConfig() {
   const { t: $t } = useI18n();
+  const route = useRoute();
+  const router = useRouter();
   const yearConfigStore = useYearConfigStore();
   const backofficeDataManagement = useBackofficeDataManagement();
+  const authStore = useAuthStore();
   const {
     isSubmoduleEnabled,
     isSubmoduleInputsDeactivated,
@@ -235,6 +241,41 @@ export function useSubmoduleConfig() {
     Object.values(computedFactorRunning.value).some(Boolean),
   );
 
+  // Issue #1591 — research-facilities "common" factors are shared across
+  // units, so a per-row failure can name another unit's Unit/CarbonReport.
+  // The compute-factors toast may only show a COUNT (never that detail);
+  // full detail stays behind the permission-gated Pipeline Operations
+  // Console, linked here only for users who already hold that permission.
+  const canViewPipelineOperations = computed(() =>
+    authStore.hasUserAnyScopePermission(
+      'backoffice.pipeline_operations',
+      PermissionAction.VIEW,
+    ),
+  );
+
+  function computeFactorsErrorCaption(payload?: JobUpdatePayload): string {
+    const count = payload?.meta?.stats?.errors;
+    if (typeof count === 'number' && count > 0) {
+      return $t('data_management_compute_factors_error_count', { count });
+    }
+    return payload?.status_message ?? '';
+  }
+
+  function pipelineDetailsAction() {
+    if (!canViewPipelineOperations.value) return undefined;
+    return [
+      {
+        label: $t('data_management_view_pipeline_details'),
+        handler: () => {
+          void router.push({
+            name: 'backoffice-pipeline-operations',
+            params: { language: resolveLanguage(route) },
+          });
+        },
+      },
+    ];
+  }
+
   async function confirmComputedFactorSync(
     sub: SubmoduleConfig,
     onCompleted: () => Promise<void>,
@@ -255,9 +296,10 @@ export function useSubmoduleConfig() {
             Notify.create({
               type: 'warning',
               message: $t('data_management_compute_factors_warning'),
-              caption: payload?.status_message ?? '',
+              caption: computeFactorsErrorCaption(payload),
               position: 'top',
               timeout: 5000,
+              actions: pipelineDetailsAction(),
             });
           } else if (result === IngestionResult.SUCCESS) {
             Notify.create({

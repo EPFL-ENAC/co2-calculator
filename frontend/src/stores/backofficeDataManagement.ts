@@ -60,6 +60,15 @@ export interface JobUpdatePayload {
     rows_skipped?: number;
     rows_with_factors?: number;
     rows_without_factors?: number;
+    // Issue #1591 — factor-recompute stats (``BaseFactorUpdateProvider``).
+    // Deliberately typed as a count only, not ``error_details``: those
+    // per-row entries can name a Unit/CarbonReport belonging to a
+    // different unit for shared "common" research-facilities factors,
+    // and are reserved for the permission-gated Pipeline Operations
+    // Console, not this generic per-job stream payload.
+    stats?: {
+      errors?: number;
+    };
   };
 }
 
