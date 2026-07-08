@@ -108,12 +108,6 @@ class CarbonReportModuleWorkflow:
         except IntegrityError as e:
             await self.session.rollback()
 
-            if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="This user institutional id already exists in this module.",
-                )
-
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Database integrity error.",
