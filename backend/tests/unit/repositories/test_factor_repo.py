@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 from app.repositories.factor_repo import FactorRepository
 
 

@@ -12,23 +12,25 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
     FactorQuery,
-    get_subtree_leaves,
 )
 from app.models.factor import Factor
+from app.modules.emissions import (
+    EmissionType,
+    additional_value_unit,
+    get_subtree_leaves,
+)
+from app.modules.emissions.registry import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    emission_type_scope,
+    resolve_emission_types,
+)
 from app.repositories.data_entry_emission_repo import (
     DataEntryEmissionRepository,
 )
 from app.schemas.data_entry import BaseModuleHandler, DataEntryResponse
 from app.services.factor_resolver import FactorResolver
 from app.services.factor_service import FactorService
-from app.utils.data_entry_emission_type_map import (
-    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
-    resolve_emission_types,
-)
-from app.utils.emission_category import additional_value_unit
-from app.utils.it_breakdown import ITSqlTotals
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -405,7 +407,7 @@ class DataEntryEmissionService:
                                 data_entry_id=data_entry.id,
                                 emission_type_id=emission_type.value,
                                 primary_factor_id=None,
-                                scope=emission_type.scope,
+                                scope=emission_type_scope(emission_type),
                                 kg_co2eq=float(override_kg),
                                 meta={
                                     "factors_used": [],
@@ -432,7 +434,7 @@ class DataEntryEmissionService:
                             emission_type_id=comp.emission_type.value,
                             primary_factor_id=None,
                             kg_co2eq=float(effective_override),
-                            scope=comp.emission_type.scope,
+                            scope=emission_type_scope(comp.emission_type),
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -495,7 +497,7 @@ class DataEntryEmissionService:
                             primary_factor_id=factor.id,
                             kg_co2eq=per_factor_kg,
                             additional_value=additional_value,
-                            scope=EmissionType(_et_id).scope,
+                            scope=emission_type_scope(EmissionType(_et_id)),
                             meta={
                                 "factors_used": [
                                     {"id": factor.id, "values": factor.values}
@@ -807,56 +809,6 @@ class DataEntryEmissionService:
             aggregate_field,
         )
         return stats
-
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        *,
-        validated_only: bool = True,
-    ) -> dict[str, float]:
-        """Get emission totals per module for a carbon report."""
-        return await self.repo.get_stats_by_carbon_report_id(
-            carbon_report_id=carbon_report_id,
-            validated_only=validated_only,
-        )
-
-    async def get_emission_breakdown(
-        self,
-        carbon_report_id: int,
-    ) -> list[tuple[int, int, float, float | None]]:
-        """Get emission breakdown by module and emission type.
-
-        Returns list of
-        (
-            module_type_id,
-            emission_type_id,
-            sum_kg_co2eq,
-            sum_additional_value,
-        ).
-        """
-        return await self.repo.get_emission_breakdown_with_quantity(
-            carbon_report_id=carbon_report_id,
-        )
-
-    async def get_it_emission_sql_totals(
-        self,
-        carbon_report_id: int,
-        it_emission_type_ids: list[int],
-        validated_source_module_type_ids: list[int],
-        exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
-    ) -> ITSqlTotals:
-        """Compute IT emission totals in SQL.
-
-        Delegates to the repository. Returns a dict with
-        ``it_total_kg``, ``overall_total_kg``, ``validated_source_total_kg``,
-        and ``validated_it_kg``.
-        """
-        return await self.repo.get_it_emission_sql_totals(
-            carbon_report_id=carbon_report_id,
-            it_emission_type_ids=it_emission_type_ids,
-            validated_source_module_type_ids=validated_source_module_type_ids,
-            exclude_module_type_ids=exclude_module_type_ids,
-        )
 
     async def get_embodied_energy_by_building(
         self,

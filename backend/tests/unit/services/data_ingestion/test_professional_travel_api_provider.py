@@ -10,12 +10,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
+from app.modules.emissions.registry import resolve_emission_types
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
     normalize_vds_payload,
     to_bool,
 )
-from app.utils.data_entry_emission_type_map import resolve_emission_types
 
 # ---------------------------------------------------------------------------
 # to_bool

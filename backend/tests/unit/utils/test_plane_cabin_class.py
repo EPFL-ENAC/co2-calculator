@@ -1,14 +1,14 @@
 """Unit tests for plane cabin-class → EmissionType resolution.
 
-Verifies that ``_resolve_plane`` (used by ``resolve_emission_types`` at
+Verifies that ``resolve_plane`` (used by ``resolve_emission_types`` at
 runtime) correctly maps each cabin class to its EmissionType leaf, and
 that unknown or missing values return ``None`` (no emission produced).
 """
 
 import pytest
 
-from app.models.data_entry_emission import EmissionType
-from app.utils.data_entry_emission_type_map import _resolve_plane
+from app.modules.emissions import EmissionType
+from app.modules.professional_travel.emissions import resolve_plane
 
 
 @pytest.mark.parametrize(
@@ -25,7 +25,7 @@ from app.utils.data_entry_emission_type_map import _resolve_plane
 def test_resolve_plane_maps_class_to_emission_type(
     cabin_class: str, expected: EmissionType
 ) -> None:
-    result = _resolve_plane({"cabin_class": cabin_class})
+    result = resolve_plane({"cabin_class": cabin_class})
     assert result == [expected], (
         f"cabin_class={cabin_class!r}: expected [{expected}], got {result}"
     )
@@ -41,7 +41,7 @@ def test_resolve_plane_maps_class_to_emission_type(
     ],
 )
 def test_resolve_plane_returns_none_for_unknown_class(data: dict) -> None:
-    result = _resolve_plane(data)
+    result = resolve_plane(data)
     assert result is None, (
         f"data={data!r}: expected None for unknown cabin class, got {result}"
     )

@@ -77,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     user: User;
     units: Unit[];
     configured_years: YearConfigurationListItem[];
+    min_configurable_year: number;
   }
 
   /**
@@ -99,7 +100,11 @@ export const useAuthStore = defineStore('auth', () => {
         // Hydrate the workspace context that used to come from separate
         // `/users/units` and `/year-configuration/` calls.
         workspaceStore.setUnits(raw.units ?? []);
-        useYearConfigStore().setConfiguredYears(raw.configured_years ?? []);
+        const yearConfigStore = useYearConfigStore();
+        yearConfigStore.setConfiguredYears(raw.configured_years ?? []);
+        if (typeof raw.min_configurable_year === 'number') {
+          yearConfigStore.setMinConfigurableYear(raw.min_configurable_year);
+        }
         return u;
       } catch {
         user.value = null;

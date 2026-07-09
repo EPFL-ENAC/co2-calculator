@@ -66,9 +66,10 @@ export interface CarbonReport {
 export interface WorkspaceHomePayload {
   carbon_report_id: number;
   year_config: unknown | null;
-  // Includes `module_states` (per-module status), which the guard fans out to
-  // the timeline store.
-  emission_breakdown: Record<string, unknown>;
+  /** Persisted report stats (buckets shape) with the validated headline merged. */
+  stats: Record<string, unknown>;
+  /** Per-module status map, fanned out to the timeline store by the guard. */
+  module_states: { module_type_id: number; status: number }[];
 }
 
 export const useWorkspaceStore = defineStore(

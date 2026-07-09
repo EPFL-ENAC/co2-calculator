@@ -9,8 +9,8 @@ from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import BaseModuleHandler
 
 # Staging table for the COPY-based factor upsert.  TEMP + per-session:

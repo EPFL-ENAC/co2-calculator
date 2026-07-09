@@ -10,20 +10,14 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import TargetType
 from app.models.module_type import get_module_type_for_data_entry_type
-from app.modules.external_cloud_and_ai import (
-    schemas as schemas,
-)  # This ensures the handlers are registered
-from app.modules.process_emissions import (
-    schemas as _pe_schemas,  # noqa: F401 — registers handlers
-)
-from app.modules.purchase import (
-    schemas as _purchase_schemas,  # noqa: F401 — registers handlers
+from app.modules.external_cloud_and_ai import schemas as schemas
+from app.modules.process_emissions import schemas as _pe_schemas  # noqa: F401
+from app.modules.purchase import schemas as _purchase_schemas  # noqa: F401
+from app.modules.research_facilities import (
+    animals_schemas as _rf_animals_schemas,  # noqa: F401
 )
 from app.modules.research_facilities import (
-    animals_schemas as _rf_animals_schemas,  # noqa: F401 — registers handlers
-)
-from app.modules.research_facilities import (
-    common_schemas as _rf_common_schemas,  # noqa: F401 — registers handlers
+    common_schemas as _rf_common_schemas,  # noqa: F401
 )
 from app.schemas.factor import BaseFactorHandler
 from app.seed._stub_jobs import create_seed_stub_job
@@ -128,7 +122,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
     FactorSeedConfig(
         path=BACKEND_FOLDER / "purchases_additional_factors.csv",
         data_entry_types=[
-            DataEntryTypeEnum.additional_purchases,
+            DataEntryTypeEnum.purchases_centralized,
         ],
     ),
     FactorSeedConfig(

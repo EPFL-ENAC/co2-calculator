@@ -8,41 +8,36 @@ from sqlalchemy import Integer, case, cast
 from sqlmodel import col, delete, desc, func, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import DEFAULT_COMPLETION_PROGRESS, ModuleStatus
+from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
-from app.models.module_type import ModuleTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.module_type import DEFAULT_COMPLETION_PROGRESS, ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleCreate
-from app.utils.emission_category import build_chart_breakdown
-from app.utils.it_breakdown import (
-    IT_EMISSION_TYPES,
-    ITSqlTotals,
-    build_it_breakdown,
-    get_validated_source_module_type_ids,
-)
+from app.utils.report_stats import merge_report_stats
 
 logger = get_logger(__name__)
 
-# Top-level emission category roots exposed in the results report CSV/JSON, in
-
-RESULTS_REPORT_CATEGORY_ROOTS: list[EmissionType] = [
-    EmissionType.process_emissions,
-    EmissionType.buildings,
-    EmissionType.equipment,
-    EmissionType.external,
-    EmissionType.professional_travel,
-    EmissionType.purchases,
-    EmissionType.research_facilities,
-    EmissionType.commuting,
-    EmissionType.food,
-    EmissionType.waste,
-    EmissionType.buildings__construction_and_renovation,
-]
+# Results report CSV/JSON columns: column name -> stat bucket keys summed
+# into it. "buildings" keeps its historical meaning (rooms + combustion +
+# embodied) alongside the standalone embodied column.
+RESULTS_REPORT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "process_emissions": ("process_emissions",),
+    "buildings": ("buildings_energy_combustion", "buildings_room", "embodied_energy"),
+    "equipment": ("equipment",),
+    "external": ("external_cloud_and_ai",),
+    "professional_travel": ("professional_travel",),
+    "purchases": ("purchases",),
+    "research_facilities": ("research_facilities",),
+    "commuting": ("commuting",),
+    "food": ("food",),
+    "waste": ("waste",),
+    "buildings__construction_and_renovation": ("embodied_energy",),
+}
 
 
 class CarbonReportModuleRepository:
@@ -728,106 +723,17 @@ class CarbonReportModuleRepository:
 
         paginated_units = (await self.session.exec(units_stmt)).all()
 
-        module_stats_stmt = select(
-            CarbonReportModule.module_type_id,
-            CarbonReportModule.status,
-            CarbonReportModule.stats,
-        ).where(col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in))
-        raw_module_stats_rows = (await self.session.exec(module_stats_stmt)).all()
-        module_stats_rows: list[tuple[int, int, Optional[dict[str, Any]]]] = [
-            (
-                int(module_type_id),
-                int(status),
-                stats if isinstance(stats, dict) else None,
-            )
-            for module_type_id, status, stats in raw_module_stats_rows
-        ]
-
-        global_fte_stmt = (
-            select(func.sum(func.coalesce(DataEntry.data["fte"].as_float(), 0.0)))
-            .join(
-                CarbonReportModule,
-                col(CarbonReportModule.id) == col(DataEntry.carbon_report_module_id),
-            )
-            .where(
-                col(CarbonReportModule.carbon_report_id).in_(filtered_report_ids_in),
-                col(CarbonReportModule.module_type_id) == ModuleTypeEnum.headcount,
-            )
-        )
-        global_fte_result = (await self.session.exec(global_fte_stmt)).one()
-        global_fte = float(global_fte_result or 0.0)
-
-        chart_rows: list[tuple[int, int, float, float | None]] = []
-        validated_module_type_ids: set[int] = set()
-        headcount_validated = False
-
-        for module_type_id, status, stats in module_stats_rows:
-            if status == ModuleStatus.VALIDATED:
-                validated_module_type_ids.add(int(module_type_id))
-                if int(module_type_id) == int(ModuleTypeEnum.headcount):
-                    headcount_validated = True
-
-            if not isinstance(stats, dict):
-                continue
-
-            by_emission_type = stats.get("by_emission_type", {})
-            if not isinstance(by_emission_type, dict):
-                continue
-            by_additional_value = stats.get("by_additional_value", {})
-            if not isinstance(by_additional_value, dict):
-                by_additional_value = {}
-
-            for emission_type_id_raw, kg_value in by_emission_type.items():
-                try:
-                    emission_type_id = int(emission_type_id_raw)
-                except (TypeError, ValueError):
-                    continue
-
-                if not isinstance(kg_value, (int, float)):
-                    continue
-
-                add_raw = by_additional_value.get(emission_type_id_raw)
-                add_value = (
-                    float(add_raw) if isinstance(add_raw, (int, float)) else None
+        # Merge the persisted per-report stats across the filtered units —
+        # no re-aggregation from data entries.
+        report_stats_rows = (
+            await self.session.exec(
+                select(col(CarbonReport.stats)).where(
+                    col(CarbonReport.id).in_(filtered_report_ids_in)
                 )
-                chart_rows.append(
-                    (int(module_type_id), emission_type_id, float(kg_value), add_value)
-                )
-
-        emission_breakdown = build_chart_breakdown(
-            rows=chart_rows,
-            total_fte=global_fte,
-            headcount_validated=headcount_validated,
-            validated_module_type_ids=validated_module_type_ids,
-        )
-
-        # Build IT breakdown from the same aggregated rows (no extra SQL needed)
-        rows_no_add = [(mt, et, kg) for mt, et, kg, _add in chart_rows]
-        it_type_ids = {et.value for et in IT_EMISSION_TYPES}
-        validated_source_ids = set(
-            get_validated_source_module_type_ids(validated_module_type_ids)
-        )
-        it_total_kg = sum(kg for _mt, et, kg in rows_no_add if et in it_type_ids)
-        overall_total_kg = sum(kg for _mt, _et, kg in rows_no_add)
-        validated_source_total_kg = sum(
-            kg for mt, _et, kg in rows_no_add if mt in validated_source_ids
-        )
-        validated_it_kg = sum(
-            kg
-            for mt, et, kg in rows_no_add
-            if mt in validated_source_ids and et in it_type_ids
-        )
-        it_sql_totals: ITSqlTotals = {
-            "it_total_kg": float(it_total_kg),
-            "overall_total_kg": float(overall_total_kg),
-            "validated_source_total_kg": float(validated_source_total_kg),
-            "validated_it_kg": float(validated_it_kg),
-        }
-        it_breakdown = build_it_breakdown(
-            rows=rows_no_add,
-            total_fte=global_fte,
-            validated_module_type_ids=validated_module_type_ids,
-            sql_totals=it_sql_totals,
+            )
+        ).all()
+        aggregated_stats = merge_report_stats(
+            [stats for stats in report_stats_rows if isinstance(stats, dict)]
         )
 
         # --- STEP 3: Use cached stats from CarbonReport ---
@@ -898,8 +804,7 @@ class CarbonReportModuleRepository:
             "page": page,
             "page_size": page_size,
             "total_pages": ceil(total / page_size) if page_size > 0 else 1,
-            "emission_breakdown": emission_breakdown,
-            "it_breakdown": it_breakdown,
+            "stats": aggregated_stats,
             "validated_units_count": validated_units_count,
             "in_progress_units_count": in_progress_units_count,
             "not_started_units_count": not_started_units_count,
@@ -1339,11 +1244,13 @@ class CarbonReportModuleRepository:
         async for partition in cursor.partitions(500):
             for row in partition:
                 stats = row.stats if isinstance(row.stats, dict) else {}
-                by_emission_type = stats.get("by_emission_type") or {}
-                # Keep only the top-level category scope totals
+                buckets = stats.get("buckets") or {}
                 category_totals = {
-                    root.name: by_emission_type.get(str(root.value), 0)
-                    for root in RESULTS_REPORT_CATEGORY_ROOTS
+                    column: sum(
+                        (buckets.get(key) or {}).get("total_kg", 0) or 0
+                        for key in bucket_keys
+                    )
+                    for column, bucket_keys in RESULTS_REPORT_COLUMNS.items()
                 }
                 report.append(
                     {

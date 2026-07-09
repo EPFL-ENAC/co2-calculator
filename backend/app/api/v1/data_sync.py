@@ -2311,3 +2311,91 @@ async def get_stale_stats(
     """
     rows = await DataIngestionRepository(db).find_stale_aggregations(older_than_minutes)
     return [StaleStatsEntry(**row) for row in rows]
+
+
+class RecomputeStatsResponse(BaseModel):
+    """Result of the admin bulk stats-recompute trigger."""
+
+    dispatched: int
+    skipped: int
+    skipped_no_factors: int = 0
+    job_ids: list[int]
+
+
+async def _run_jobs_sequentially(job_ids: list[int]) -> None:
+    """Run a batch of aggregation jobs one at a time.
+
+    Jobs for the same year serialize on ``aggregation_handler``'s
+    ``pg_advisory_xact_lock(1236, year)`` regardless of dispatch order, so
+    firing them all concurrently only means every job but one sits blocked
+    on that lock while still holding its DB connections. Awaiting them in
+    sequence means only the currently-running job ever holds one.
+    """
+    for job_id in job_ids:
+        await run_job(job_id)
+
+
+@router.post("/admin/recompute-stats", response_model=RecomputeStatsResponse)
+async def recompute_stats(
+    year: Optional[int] = Query(
+        None, description="Limit to a single year; omit to recompute every year."
+    ),
+    module_type_id: Optional[int] = Query(
+        None, description="Limit to a single module type; omit for every module type."
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.pipeline_operations", "edit")
+    ),
+) -> RecomputeStatsResponse:
+    """Force a full stats recompute for every ``(module_type_id, year)`` scope.
+
+    Dispatches one root ``aggregation`` job per scope — the same handler the
+    recalc chain uses to write ``carbon_report_module.stats`` /
+    ``carbon_report.stats``, but with no ``affected_module_ids`` scoping, so
+    every module in the scope is recomputed rather than just the ones a
+    recalc flagged as touched.
+
+    Scopes with no current, successful FACTORS job are skipped outright
+    (counted in ``skipped_no_factors``): recomputing stats against missing
+    reference data just writes zeros, so there's nothing worth spending a
+    job — or a pooled DB connection — on.
+
+    Jobs for the same year are chained to run one at a time rather than
+    fired concurrently, since they'd only queue up behind each other's
+    Postgres advisory lock anyway; different years still dispatch in
+    parallel.
+
+    Needed after any change to what recompute_stats persists (e.g. a stats
+    JSON shape change): existing rows keep whatever an older deploy wrote
+    until something re-triggers their aggregation, and most reports won't
+    naturally get one soon.  The dedup index makes re-triggering a safe
+    no-op for scopes still in flight.
+    """
+    repo = DataIngestionRepository(db)
+    scopes = await repo.list_module_type_year_scopes(year, module_type_id)
+    scopes_with_factors = await repo.filter_scopes_with_current_factors(scopes)
+    skipped_no_factors = len(scopes) - len(scopes_with_factors)
+
+    jobs_by_year: dict[int, list[int]] = {}
+    job_ids: list[int] = []
+    for scope_module_type_id, scope_year in scopes_with_factors:
+        job_id = await repo.create_root_aggregation_job(
+            scope_module_type_id, scope_year, current_user.provider
+        )
+        if job_id is not None:
+            job_ids.append(job_id)
+            jobs_by_year.setdefault(scope_year, []).append(job_id)
+
+    for scope_year, year_job_ids in jobs_by_year.items():
+        fire_and_forget(
+            _run_jobs_sequentially(year_job_ids),
+            name=f"recompute-stats-{scope_year}",
+        )
+
+    return RecomputeStatsResponse(
+        dispatched=len(job_ids),
+        skipped=len(scopes_with_factors) - len(job_ids),
+        skipped_no_factors=skipped_no_factors,
+        job_ids=job_ids,
+    )

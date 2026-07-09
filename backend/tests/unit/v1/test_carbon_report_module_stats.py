@@ -1,7 +1,8 @@
 """Unit tests for carbon_report_module_stats API endpoints.
 
 Focus: build_validated_totals derives validated_only from the DB-stored
-CarbonProject.carbon_report_type rather than any client-supplied signal.
+CarbonProject.carbon_report_type rather than any client-supplied signal, and
+reads persisted module stats instead of re-aggregating emissions.
 """
 
 from unittest.mock import AsyncMock, MagicMock
@@ -9,97 +10,84 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 import app.api.v1.carbon_report_module_stats as stats_module
+from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReportType
+from app.models.module_type import ModuleTypeEnum
+
+_HEADCOUNT = ModuleTypeEnum.headcount.value
+
+# (module_type_id, status, stats): one validated emissions module, one
+# in-progress module, and a validated headcount module carrying FTE.
+_MODULE_ROWS = [
+    (
+        ModuleTypeEnum.equipment.value,
+        ModuleStatus.VALIDATED,
+        {"total": 41700.0},
+    ),
+    (
+        ModuleTypeEnum.professional_travel.value,
+        ModuleStatus.IN_PROGRESS,
+        {"total": 15000.0},
+    ),
+    (
+        _HEADCOUNT,
+        ModuleStatus.VALIDATED,
+        {"total": 200.0, "total_fte": 25.5},
+    ),
+]
 
 
-def _db():
+def _db(report_type: CarbonReportType | None):
     db = MagicMock()
-    db.commit = AsyncMock()
+    type_result = MagicMock()
+    type_result.scalar_one_or_none.return_value = report_type
+    rows_result = MagicMock()
+    rows_result.all.return_value = _MODULE_ROWS
+    db.execute = AsyncMock(side_effect=[type_result, rows_result])
     return db
 
 
-def _mock_db_execute(db: MagicMock, report_type: CarbonReportType | None) -> None:
-    """Wire db.execute to return the given report_type from scalar_one_or_none."""
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = report_type
-    db.execute = AsyncMock(return_value=mock_result)
+@pytest.mark.asyncio
+async def test_build_validated_totals_calculator_uses_validated_only():
+    """CALCULATOR report → only VALIDATED module stats count."""
+    result = await stats_module.build_validated_totals(
+        _db(CarbonReportType.CALCULATOR), 1
+    )
 
-
-async def _call_validated_totals(db, report_type: CarbonReportType | None) -> dict:
-    """Helper: stub services, call build_validated_totals, return call-arg capture."""
-    _mock_db_execute(db, report_type)
-
-    emission_svc = MagicMock()
-    emission_svc.get_stats_by_carbon_report_id = AsyncMock(return_value={})
-    fte_svc = MagicMock()
-    fte_svc.get_stats_by_carbon_report_id = AsyncMock(return_value={})
-
-    orig_emission = stats_module.DataEntryEmissionService
-    orig_fte = stats_module.DataEntryService
-    orig_compute = stats_module.compute_validated_totals
-    stats_module.DataEntryEmissionService = lambda _db: emission_svc
-    stats_module.DataEntryService = lambda _db: fte_svc
-    stats_module.compute_validated_totals = lambda *a, **kw: {}
-    try:
-        await stats_module.build_validated_totals(db, 1)
-    finally:
-        stats_module.DataEntryEmissionService = orig_emission
-        stats_module.DataEntryService = orig_fte
-        stats_module.compute_validated_totals = orig_compute
-
-    return {"emission_svc": emission_svc, "fte_svc": fte_svc}
-
-
-# ── build_validated_totals: server-side type check ─────────────────────────────
+    assert result["modules"][ModuleTypeEnum.equipment.value] == 41.7
+    # headcount displays FTE, not tonnes
+    assert result["modules"][_HEADCOUNT] == 25.5
+    assert ModuleTypeEnum.professional_travel.value not in result["modules"]
+    assert result["total_tonnes_co2eq"] == pytest.approx((41700.0 + 200.0) / 1000.0)
+    assert result["total_fte"] == 25.5
 
 
 @pytest.mark.asyncio
-async def test_build_validated_totals_calculator_uses_validated_only_true():
-    """CALCULATOR report → validated_only=True (server derives from DB, not client)."""
-    db = _db()
-    svcs = await _call_validated_totals(db, CarbonReportType.CALCULATOR)
-
-    svcs["emission_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, validated_only=True
+async def test_build_validated_totals_simulator_explore_counts_all_modules():
+    """SIMULATOR_EXPLORE has no validation step → every module counts."""
+    result = await stats_module.build_validated_totals(
+        _db(CarbonReportType.SIMULATOR_EXPLORE), 1
     )
-    svcs["fte_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, aggregate_by="module_type_id", validated_only=True
+
+    assert ModuleTypeEnum.professional_travel.value in result["modules"]
+    assert result["total_tonnes_co2eq"] == pytest.approx(
+        (41700.0 + 15000.0 + 200.0) / 1000.0
     )
 
 
 @pytest.mark.asyncio
-async def test_build_validated_totals_simulator_explore_uses_validated_only_false():
-    """SIMULATOR_EXPLORE report → validated_only=False."""
-    db = _db()
-    svcs = await _call_validated_totals(db, CarbonReportType.SIMULATOR_EXPLORE)
+async def test_build_validated_totals_simulator_plan_uses_validated_only():
+    """SIMULATOR_PLAN → validated_only (only EXPLORE relaxes validation)."""
+    result = await stats_module.build_validated_totals(
+        _db(CarbonReportType.SIMULATOR_PLAN), 1
+    )
 
-    svcs["emission_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, validated_only=False
-    )
-    svcs["fte_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, aggregate_by="module_type_id", validated_only=False
-    )
+    assert ModuleTypeEnum.professional_travel.value not in result["modules"]
 
 
 @pytest.mark.asyncio
-async def test_build_validated_totals_simulator_plan_uses_validated_only_true():
-    """SIMULATOR_PLAN report → validated_only=True (only EXPLORE relaxes validation)."""
-    db = _db()
-    svcs = await _call_validated_totals(db, CarbonReportType.SIMULATOR_PLAN)
+async def test_build_validated_totals_unknown_report_id_uses_validated_only():
+    """Unknown carbon_report_id (DB returns None) → validated_only safe default."""
+    result = await stats_module.build_validated_totals(_db(None), 1)
 
-    svcs["emission_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, validated_only=True
-    )
-
-
-@pytest.mark.asyncio
-async def test_build_validated_totals_unknown_report_id_uses_validated_only_true():
-    """
-    Unknown carbon_report_id (DB returns None) → validated_only=True (safe default).
-    """
-    db = _db()
-    svcs = await _call_validated_totals(db, None)
-
-    svcs["emission_svc"].get_stats_by_carbon_report_id.assert_awaited_once_with(
-        carbon_report_id=1, validated_only=True
-    )
+    assert ModuleTypeEnum.professional_travel.value not in result["modules"]

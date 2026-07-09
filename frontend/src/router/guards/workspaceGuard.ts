@@ -3,8 +3,11 @@ import {
   useTimelineStore,
   useModuleStore,
   type CarbonReportModuleResponse,
-  type EmissionBreakdownResponse,
 } from 'src/stores/modules';
+import {
+  toEmissionBreakdown,
+  type ReportStats,
+} from 'src/utils/emissionStatsAdapter';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import {
   useYearConfigStore,
@@ -82,18 +85,25 @@ export async function loadWorkspaceFromRoute(to: RouteLocationNormalized) {
     if (data && carbonReportId) {
       // Fan the aggregate payload out into the per-concern stores so every
       // child page (home/module/results) reads it as if fetched individually.
-      const breakdown =
-        data.emission_breakdown as unknown as EmissionBreakdownResponse;
-      // Module states ride inside the breakdown (the backend already computes
-      // the per-module status map there), so we hydrate the timeline from it.
+      const moduleStates = (data.module_states ?? []) as {
+        module_type_id: number;
+        status: number;
+      }[];
       useTimelineStore().setModuleStates(
         carbonReportId,
-        (breakdown.module_states ?? []) as CarbonReportModuleResponse[],
+        moduleStates as CarbonReportModuleResponse[],
       );
       useYearConfigStore().setConfig(
         data.year_config as YearConfigurationResponse | null,
       );
-      useModuleStore().setEmissionBreakdown(carbonReportId, breakdown);
+      useModuleStore().setEmissionBreakdown(
+        carbonReportId,
+        toEmissionBreakdown(
+          data.stats as unknown as ReportStats,
+          [],
+          moduleStates,
+        ),
+      );
     }
   }
   // then we can retrieve modules

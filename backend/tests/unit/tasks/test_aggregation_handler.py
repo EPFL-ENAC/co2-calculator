@@ -80,13 +80,13 @@ async def test_aggregation_calls_recompute_stats_for_each_affected_module():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, job_session, data_session)
 
     svc.list_modules_for.assert_awaited_once_with(module_type_id=11, year=2025)
-    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303])
+    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303], bump_status=True)
     assert meta["modules_refreshed"] == 3
     assert meta["status_message"] == "Aggregation completed"
     assert meta["result"] == IngestionResult.SUCCESS
@@ -99,7 +99,7 @@ async def test_aggregation_returns_modules_refreshed_in_meta():
     job = _make_job()
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
@@ -119,12 +119,12 @@ async def test_aggregation_handles_empty_module_set():
     job = _make_job()
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    svc.recompute_stats_many.assert_awaited_once_with([])
+    svc.recompute_stats_many.assert_awaited_once_with([], bump_status=True)
     assert meta["modules_refreshed"] == 0
     assert meta["result"] == IngestionResult.SUCCESS
 
@@ -181,7 +181,7 @@ async def test_aggregation_acquires_advisory_lock_on_postgres():
 
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
@@ -207,7 +207,7 @@ async def test_aggregation_skips_advisory_lock_on_non_postgres():
 
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=[])
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
         await aggregation_mod.aggregation_handler(job, MagicMock(), data_session)
@@ -230,7 +230,7 @@ async def test_aggregation_scopes_to_affected_module_ids():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with (
         patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
@@ -242,7 +242,7 @@ async def test_aggregation_scopes_to_affected_module_ids():
     ):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    svc.recompute_stats_many.assert_awaited_once_with([101, 303])
+    svc.recompute_stats_many.assert_awaited_once_with([101, 303], bump_status=True)
     assert meta["modules_refreshed"] == 2
 
 
@@ -254,7 +254,7 @@ async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
     modules = [MagicMock(id=101), MagicMock(id=202), MagicMock(id=303)]
     svc = MagicMock()
     svc.list_modules_for = AsyncMock(return_value=modules)
-    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids: len(ids))
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
 
     with (
         patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc),
@@ -266,5 +266,42 @@ async def test_aggregation_falls_back_to_full_slice_when_no_affected_meta():
     ):
         meta = await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
 
-    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303])
+    svc.recompute_stats_many.assert_awaited_once_with([101, 202, 303], bump_status=True)
     assert meta["modules_refreshed"] == 3
+
+
+# ---------------------------------------------------------------------------
+# skip_module_status_update — admin recompute-stats backfill trigger
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_aggregation_bumps_status_by_default():
+    """No ``skip_module_status_update`` in meta.config → the recalc-chained
+    default: modules still get bumped back to IN_PROGRESS."""
+    job = _make_job(meta={"config": {}})
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
+
+    with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
+        await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+    svc.recompute_stats_many.assert_awaited_once_with([42], bump_status=True)
+
+
+@pytest.mark.asyncio
+async def test_aggregation_skips_status_bump_when_flagged():
+    """``meta.config.skip_module_status_update`` (set by the admin
+    recompute-stats trigger's create_root_aggregation_job) → bump_status=False,
+    so a bulk backfill of stats under current code doesn't stale-out an
+    operator's prior module validation."""
+    job = _make_job(meta={"config": {"skip_module_status_update": True}})
+    svc = MagicMock()
+    svc.list_modules_for = AsyncMock(return_value=[MagicMock(id=42)])
+    svc.recompute_stats_many = AsyncMock(side_effect=lambda ids, **_kw: len(ids))
+
+    with patch.object(aggregation_mod, "CarbonReportModuleService", return_value=svc):
+        await aggregation_mod.aggregation_handler(job, MagicMock(), MagicMock())
+
+    svc.recompute_stats_many.assert_awaited_once_with([42], bump_status=False)

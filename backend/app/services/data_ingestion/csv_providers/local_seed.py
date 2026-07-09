@@ -52,7 +52,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         When provided, deletion before seeding is scoped to exactly these
         DataEntryTypeEnum values.  Useful when a CSV covers only a subset of
         the module's types (e.g. purchases_common does not cover
-        additional_purchases).
+        purchases_centralized).
     """
 
     def __init__(self, config: Dict[str, Any], data_session: Any):

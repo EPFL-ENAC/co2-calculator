@@ -20,6 +20,14 @@ Why a single dispatcher:
 
 Concurrency model per ``run_job`` invocation:
 
+- The per-pod ``MAX_CONCURRENT_JOBS`` semaphore is acquired BEFORE
+  either session opens, so a job queued behind a full semaphore holds
+  zero pool connections while it waits.  A burst dispatch (e.g. an
+  admin "recompute stats" trigger firing N jobs via
+  ``fire_and_forget`` almost simultaneously) would otherwise have all
+  N race to check out a ``job_session`` connection up front, which
+  can exhaust the pool well before the semaphore ever throttles
+  anything.
 - Two SQLModel sessions: ``job_session`` for the
   ``DataIngestionJob`` row's lifecycle, ``data_session`` for the
   handler's domain writes.  Separate so a handler ``rollback`` does
@@ -73,12 +81,14 @@ async def run_job(job_id: int) -> None:
 
     Lifecycle:
 
-      1. Open job_session + data_session.
-      2. Resolve job → reject if missing or ``job_type IS NULL``.
-      3. Acquire the per-pod ``MAX_CONCURRENT_JOBS`` semaphore (#1723)
-         — BEFORE the claim.  A job blocked here holds no connection
-         and no claim, so an idle replica's poller can claim it
-         instead of it queueing behind this pod's busy workers.
+      1. Acquire the per-pod ``MAX_CONCURRENT_JOBS`` semaphore (#1723)
+         — BEFORE opening either session.  A job blocked here holds
+         no connection and no claim, so an idle replica's poller can
+         claim it instead of it queueing behind this pod's busy
+         workers, and it can't contribute to pool exhaustion while
+         waiting.
+      2. Open job_session + data_session.
+      3. Resolve job → reject if missing or ``job_type IS NULL``.
       4. ``claim_job`` (atomic RUNNING + attempts++ + ``started_at``).
          Returns False if the job was already claimed / finished /
          out of retries — in which case run_job is a silent no-op.
@@ -117,26 +127,26 @@ async def run_job(job_id: int) -> None:
 
     bootstrap_handlers()
 
-    async with SessionLocal() as job_session, SessionLocal() as data_session:
-        repo = DataIngestionRepository(job_session)
+    async with _get_job_semaphore():
+        async with SessionLocal() as job_session, SessionLocal() as data_session:
+            repo = DataIngestionRepository(job_session)
 
-        job = await repo.get_job_by_id(job_id)
-        if job is None:
-            logger.error(f"run_job: job {job_id} not found")
-            return
-        if job.job_type is None:
-            logger.error(
-                f"run_job: job {job_id} has no job_type — refusing to dispatch"
-            )
-            return
+            job = await repo.get_job_by_id(job_id)
+            if job is None:
+                logger.error(f"run_job: job {job_id} not found")
+                return
+            if job.job_type is None:
+                logger.error(
+                    f"run_job: job {job_id} has no job_type — refusing to dispatch"
+                )
+                return
 
-        # Capture job_type while it's narrowed to ``str`` by the
-        # check above; the post-claim re-fetch widens it back to
-        # ``Optional[str]`` (claim_job never touches job_type, so this
-        # is a type-narrowing convenience, not a behavior change).
-        job_type: str = job.job_type
+            # Capture job_type while it's narrowed to ``str`` by the
+            # check above; the post-claim re-fetch widens it back to
+            # ``Optional[str]`` (claim_job never touches job_type, so this
+            # is a type-narrowing convenience, not a behavior change).
+            job_type: str = job.job_type
 
-        async with _get_job_semaphore():
             if not await repo.claim_job(job_id, POD_ID):
                 # Another pod beat us, attempts exhausted, or the row is
                 # already FINISHED.  Either way: not ours to run.

@@ -6,15 +6,15 @@ Formula: kwh = surface × kwh_per_m² × ratio
 conversion_factor applies only to the heating field
 ("heating_kwh_per_square_meter") — it converts primary energy to final
 energy — and defaults to 1.0 when absent. Which heating leaf (electric vs
-thermal) is emitted is decided upstream by ``_resolve_building_rooms``, so
+thermal) is emitted is decided upstream by ``resolve_building_rooms``, so
 the formula no longer inspects energy_type. For non-heating fields,
 conversion_factor is always 1.0.
 """
 
 import pytest
 
-from app.models.data_entry_emission import EmissionType
 from app.modules.buildings.schemas import BuildingRoomModuleHandler
+from app.modules.emissions import EmissionType
 
 _HANDLER = BuildingRoomModuleHandler()
 

@@ -8,12 +8,14 @@ branching here (the registry is the single source of truth — see
 ``app/tasks/registry.py``).
 """
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import app.tasks._poller as poller_module
 from app.models.data_ingestion import DataIngestionJob
-from app.tasks._poller import dispatch_job
+from app.tasks._poller import dispatch_job, schedule_job
 
 
 def _make_job(job_id: int | None, job_type: str | None = "csv_ingest"):
@@ -70,3 +72,50 @@ async def test_dispatch_job_skips_when_id_missing():
     with patch("app.tasks._poller.run_job", new_callable=AsyncMock) as mock_run:
         await dispatch_job(job, "test-pod")
     mock_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_schedule_job_does_not_redispatch_while_in_flight():
+    """A job still NOT_STARTED (e.g. queued behind MAX_CONCURRENT_JOBS or a
+    pooled connection) keeps matching the poller's pending-jobs query every
+    sweep. ``schedule_job`` must not fire a second ``dispatch_job`` for the
+    same job_id while an earlier dispatch hasn't resolved yet — otherwise a
+    slow claim turns one job into an ever-growing pile of redundant tasks.
+    """
+    poller_module._IN_FLIGHT_JOB_IDS.clear()
+    job = _make_job(7, "csv_ingest")
+
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _slow_dispatch(_job, _pod_id):
+        started.set()
+        await release.wait()
+
+    with patch(
+        "app.tasks._poller.dispatch_job", new=AsyncMock(side_effect=_slow_dispatch)
+    ) as mock_dispatch:
+        schedule_job(job, "test-pod")
+        await started.wait()
+
+        # Second sweep, same still-pending job — must be a no-op.
+        schedule_job(job, "test-pod")
+        await asyncio.sleep(0)
+
+        assert mock_dispatch.await_count == 1
+        assert 7 in poller_module._IN_FLIGHT_JOB_IDS
+
+        release.set()
+        # Let the first dispatch's task finish and its done-callback fire.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+    assert 7 not in poller_module._IN_FLIGHT_JOB_IDS
+
+    # Once resolved, a later sweep for the same job_id can dispatch again.
+    with patch(
+        "app.tasks._poller.dispatch_job", new_callable=AsyncMock
+    ) as mock_dispatch_again:
+        schedule_job(job, "test-pod")
+        await asyncio.sleep(0)
+        mock_dispatch_again.assert_awaited_once()

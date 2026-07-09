@@ -19,30 +19,40 @@ from faker import Faker
 
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
-from app.modules import (
-    BuildingRoomHandlerCreate,
-    EnergyCombustionHandlerCreate,
-    EquipmentHandlerCreate,
-    ExternalAIHandlerCreate,
-    ExternalCloudHandlerCreate,
-    HeadCountCreate,
-    HeadCountStudentCreate,
-    ProcessEmissionsHandlerCreate,
-    ProfessionalTravelPlaneHandlerCreate,
-    ProfessionalTravelTrainHandlerCreate,
-    PurchaseAdditionalHandlerCreate,
-    PurchaseHandlerCreate,
-    ResearchFacilitiesAnimalHandlerCreate,
-    ResearchFacilitiesCommonHandlerCreate,
-)
 from app.modules.buildings.schemas import (
     VALID_ROOM_TYPES,
     BuildingEmbodiedEnergyHandlerCreate,
+    BuildingRoomHandlerCreate,
+    EnergyCombustionHandlerCreate,
 )
-from app.modules.external_cloud_and_ai.schemas import REQUESTS_FREQUENCY_OPTIONS
-from app.modules.headcount.schemas import SIUS_CODE_VALUES
+from app.modules.emissions import EmissionType
+from app.modules.equipment.schemas import EquipmentHandlerCreate
+from app.modules.external_cloud_and_ai.schemas import (
+    REQUESTS_FREQUENCY_OPTIONS,
+    ExternalAIHandlerCreate,
+    ExternalCloudHandlerCreate,
+)
+from app.modules.headcount.schemas import (
+    SIUS_CODE_VALUES,
+    HeadCountCreate,
+    HeadCountStudentCreate,
+)
+from app.modules.process_emissions.schemas import ProcessEmissionsHandlerCreate
+from app.modules.professional_travel.schemas import (
+    ProfessionalTravelPlaneHandlerCreate,
+    ProfessionalTravelTrainHandlerCreate,
+)
+from app.modules.purchase.schemas import (
+    PurchaseCentralizedHandlerCreate,
+    PurchaseHandlerCreate,
+)
+from app.modules.research_facilities.animals_schemas import (
+    ResearchFacilitiesAnimalHandlerCreate,
+)
+from app.modules.research_facilities.common_schemas import (
+    ResearchFacilitiesCommonHandlerCreate,
+)
 from app.seed.seed_helper import versionapi
 
 fake = Faker()
@@ -178,7 +188,7 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     # process emissions
     DataEntryTypeEnum.process_emissions: ProcessEmissionsHandlerCreate,
     # purchases (standard purchase DTO covers all subkinds except
-    # ``additional_purchases``, which has its own DTO).
+    # ``purchases_centralized``, which has its own DTO).
     DataEntryTypeEnum.scientific_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.it_equipment: PurchaseHandlerCreate,
     DataEntryTypeEnum.consumable_accessories: PurchaseHandlerCreate,
@@ -186,7 +196,7 @@ DATA_ENTRY_TYPE_TO_DTO: dict[DataEntryTypeEnum, type] = {
     DataEntryTypeEnum.services: PurchaseHandlerCreate,
     DataEntryTypeEnum.vehicles: PurchaseHandlerCreate,
     DataEntryTypeEnum.other_purchases: PurchaseHandlerCreate,
-    DataEntryTypeEnum.additional_purchases: PurchaseAdditionalHandlerCreate,
+    DataEntryTypeEnum.purchases_centralized: PurchaseCentralizedHandlerCreate,
     # research facilities
     DataEntryTypeEnum.research_facilities: ResearchFacilitiesCommonHandlerCreate,
     DataEntryTypeEnum.mice_and_fish_animal_facilities: (
@@ -420,7 +430,7 @@ DTO_BUILDERS: dict[type, object] = {
     HeadCountCreate: build_headcount,
     HeadCountStudentCreate: build_student,
     PurchaseHandlerCreate: build_purchase,
-    PurchaseAdditionalHandlerCreate: build_purchase_additional,
+    PurchaseCentralizedHandlerCreate: build_purchase_additional,
     BuildingRoomHandlerCreate: build_building_room,
     EnergyCombustionHandlerCreate: build_energy_combustion,
     BuildingEmbodiedEnergyHandlerCreate: build_building_embodied_energy,

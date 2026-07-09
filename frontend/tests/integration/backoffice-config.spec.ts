@@ -283,7 +283,7 @@ test.describe('backoffice-config — module & sub-module deactivation', () => {
 // `home-module-visibility-mocks.ts` and `simulator-mocks.ts` for the same
 // constraint on `SimulationExplorePage`.
 test.describe('backoffice-config — module deactivation in the calculator view', () => {
-  test('module deactivation greys out the module icon for a regular user', async ({
+  test('module deactivation and missing stats grey out the module icon for a regular user', async ({
     page,
   }) => {
     // This is genuinely Calculator-page behavior (HomePage's
@@ -292,19 +292,32 @@ test.describe('backoffice-config — module deactivation in the calculator view'
     // tests/integration/*.spec.ts), so it lands here per the #1403 master
     // plan's file split, which groups "greyed-out module rendering for a
     // regular user" into this new frontend spec.
+    //
+    // Three modules, three reasons a module can render greyed-out — see
+    // isModuleFullyAvailable (src/composables/useModuleAvailability.ts),
+    // the single source of truth every page (Home/Results/Reporting)
+    // shares: deactivated in the back-office (process-emissions), enabled
+    // but never touched / no computed stats (external-cloud-and-ai), and
+    // fully available (equipment).
     await mockHomeBackend(page);
     await page.goto(HOME_URL);
 
-    const disabledItem = page
+    const deactivatedItem = page
       .locator('.module-icon-axis__item')
       .filter({ hasText: 'Process emissions' });
+    const noStatsItem = page
+      .locator('.module-icon-axis__item')
+      .filter({ hasText: 'External clouds' });
     const enabledItem = page
       .locator('.module-icon-axis__item')
       .filter({ hasText: 'Equipment' });
 
     await expect(enabledItem).toBeVisible({ timeout: 10000 });
     await expect(enabledItem).toHaveClass(/module-icon-axis__item--link/);
-    await expect(disabledItem).toHaveClass(/module-icon-axis__item--disabled/);
+    await expect(deactivatedItem).toHaveClass(
+      /module-icon-axis__item--disabled/,
+    );
+    await expect(noStatsItem).toHaveClass(/module-icon-axis__item--disabled/);
   });
 });
 

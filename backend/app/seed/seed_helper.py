@@ -8,13 +8,13 @@ from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions.registry import resolve_factor_emission_type
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.data_entry import BaseModuleHandler
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.factor_service import FactorService
 from app.services.unit_service import UnitService
-from app.utils.data_entry_emission_type_map import resolve_factor_emission_type
 
 logger = get_logger(__name__)
 settings = get_settings()

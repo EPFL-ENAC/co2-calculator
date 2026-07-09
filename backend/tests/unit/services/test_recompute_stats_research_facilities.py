@@ -1,59 +1,45 @@
-"""Regression test for the research_facilities recompute-stats gap.
+"""Regression test for module-type stat-bucket coverage.
 
-Past LLM-session review flagged: ``MODULE_TYPE_TO_EMISSION_ROOTS`` was
-missing an entry for ``research_facilities``.  Without it,
-``CarbonReportModuleService.recompute_stats`` early-returned at
-``if not emission_roots: return`` (see
-``carbon_report_module_service.py:283``), leaving
-``carbon_report_modules.stats`` as None for every research_facilities
-module — the dashboard's per-module totals broke silently.
+Past LLM-session review flagged: the module → emission mapping was missing
+an entry for ``research_facilities``.  Without it,
+``CarbonReportModuleService.recompute_stats_many`` early-continues at
+``if not bucket_nodes``, leaving ``carbon_report_modules.stats`` as None —
+the dashboard's per-module totals broke silently.
 
-This test pins the map's coverage so a future "add new module type
-without updating the roots" regression trips at import time, not in
+This test pins ``MODULE_STAT_BUCKETS`` coverage so a future "add new module
+type without declaring its buckets" regression trips at test time, not in
 production aggregation runs.
 """
 
-from app.models.module_type import (
-    ALL_MODULE_TYPE_IDS,
-    MODULE_TYPE_TO_EMISSION_ROOTS,
-    ModuleTypeEnum,
-)
+from app.models.module_type import ALL_MODULE_TYPE_IDS, ModuleTypeEnum
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import MODULE_STAT_BUCKETS
 
 
-def test_every_module_type_has_emission_roots() -> None:
-    """Every ``ModuleTypeEnum`` value in ``ALL_MODULE_TYPE_IDS`` MUST
-    appear as a key in ``MODULE_TYPE_TO_EMISSION_ROOTS`` with a
-    non-empty list.
-
-    ``recompute_stats`` falls back to ``return`` on a missing or
-    empty entry, leaving the module's ``stats`` column unset.  The
-    aggregation chain still reports SUCCESS, so the regression is
-    invisible to the runner — only the dashboard reveals it via
-    missing per-module totals.
+def test_every_module_type_has_stat_buckets() -> None:
+    """Every ``ModuleTypeEnum`` value MUST appear in ``MODULE_STAT_BUCKETS``
+    with at least one bucket, or its stats stay unset while the aggregation
+    chain still reports SUCCESS.
     """
     for module_id in ALL_MODULE_TYPE_IDS:
         module_type = ModuleTypeEnum(module_id)
-        roots = MODULE_TYPE_TO_EMISSION_ROOTS.get(module_type)
-        assert roots, (
-            f"{module_type.name!r} has no entry in "
-            "MODULE_TYPE_TO_EMISSION_ROOTS — recompute_stats will "
-            "early-return for this module and leave its stats unset. "
-            "Add the EmissionType root(s) whose subtree covers every "
-            "emission_type_id that can appear under this module."
+        buckets = MODULE_STAT_BUCKETS.get(module_type)
+        assert buckets, (
+            f"{module_type.name!r} has no entry in MODULE_STAT_BUCKETS — "
+            "recompute_stats will skip this module and leave its stats "
+            "unset. Declare STAT_BUCKETS in the module's emissions.py and "
+            "register it in the emissions registry."
         )
 
 
-def test_research_facilities_has_explicit_root() -> None:
-    """Pin the specific fix: ``research_facilities`` rolls up to
-    ``EmissionType.research_facilities`` (value 100000) per
-    ``EMISSION_TYPE_PARENT_MAP``.  The two leaves
-    (``research_facilities__facilities`` = 100100 +
-    ``research_facilities__animal`` = 100200) both share this root.
+def test_research_facilities_has_explicit_bucket() -> None:
+    """Pin the specific fix: research_facilities reports under one bucket
+    rooted at ``EmissionType.research_facilities`` (value 100000), covering
+    both leaves (facilities + animal).
     """
-    from app.models.data_entry_emission import EmissionType
-
-    roots = MODULE_TYPE_TO_EMISSION_ROOTS[ModuleTypeEnum.research_facilities]
-    assert EmissionType.research_facilities in roots, (
-        f"research_facilities module roots = {[r.name for r in roots]} — "
-        "expected EmissionType.research_facilities as the rollup root."
+    buckets = MODULE_STAT_BUCKETS[ModuleTypeEnum.research_facilities]
+    assert any(EmissionType.research_facilities in bn.bucket.roots for bn in buckets), (
+        f"research_facilities buckets = "
+        f"{[bn.bucket.key for bn in buckets]} — expected a bucket rooted at "
+        "EmissionType.research_facilities."
     )

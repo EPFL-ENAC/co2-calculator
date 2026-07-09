@@ -485,7 +485,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
         'services',
         'vehicles',
         'other_purchases',
-        'additional',
+        'centralized',
       ];
       const { darker, lighter } = colors.value.lightGreen;
       const shade = (i: number) =>

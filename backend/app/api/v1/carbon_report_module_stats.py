@@ -1,4 +1,11 @@
-"""Module stats API endpoints."""
+"""Module stats API endpoints.
+
+The heavy chart payloads (emission breakdown, IT breakdown) are gone: the
+frontend reads the persisted ``carbon_report.stats`` /
+``carbon_report_module.stats`` shapes written at recompute time. Only the
+results summary remains an endpoint because it compares against the
+previous year's report, which can change after this report was computed.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import col, select
@@ -12,21 +19,13 @@ from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
-from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
-from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
 from app.services.unit_totals_service import UnitTotalsService
-from app.utils.emission_category import build_chart_breakdown
-from app.utils.it_breakdown import (
-    IT_EMISSION_TYPES,
-    build_it_breakdown,
-    get_validated_source_module_type_ids,
-)
 from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
@@ -37,13 +36,12 @@ router = APIRouter()
 
 
 async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dict:
-    """Compute validated totals for a carbon report.
+    """Compute validated totals for a carbon report from persisted stats.
 
     Aggregates emissions (kg → tonnes CO2eq) and FTE across all validated
-    modules in the given carbon report. Both are keyed by module_type_id so
-    headcount appears with total_fte while other modules show total_tonnes_co2eq.
-    Used by the workspace-home aggregate to merge the validated-only headline
-    total into the emission breakdown.
+    modules. Both are keyed by module_type_id so headcount appears with
+    total_fte while other modules show total_tonnes_co2eq. Simulator Explore
+    reports have no validation step, so every module counts there.
 
     Returns:
         {
@@ -62,15 +60,28 @@ async def build_validated_totals(db: AsyncSession, carbon_report_id: int) -> dic
     report_type = report_type_row.scalar_one_or_none()
     validated_only = report_type != CarbonReportType.SIMULATOR_EXPLORE
 
-    emission_stats = await DataEntryEmissionService(db).get_stats_by_carbon_report_id(
-        carbon_report_id=carbon_report_id,
-        validated_only=validated_only,
-    )
-    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
-        carbon_report_id=carbon_report_id,
-        aggregate_by="module_type_id",
-        validated_only=validated_only,
-    )
+    rows = (
+        await db.execute(
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(CarbonReportModule.status),
+                col(CarbonReportModule.stats),
+            ).where(col(CarbonReportModule.carbon_report_id) == carbon_report_id)
+        )
+    ).all()
+
+    emission_stats: dict[str, float] = {}
+    fte_stats: dict[str, float] = {}
+    for module_type_id, module_status, stats in rows:
+        if validated_only and module_status != ModuleStatus.VALIDATED:
+            continue
+        if not isinstance(stats, dict):
+            continue
+        total = stats.get("total", 0.0) or 0.0
+        if total:
+            emission_stats[str(module_type_id)] = total
+        if stats.get("total_fte"):
+            fte_stats[str(module_type_id)] = stats["total_fte"]
 
     return compute_validated_totals(
         emission_stats, fte_stats, str(ModuleTypeEnum.headcount.value)
@@ -138,6 +149,40 @@ async def get_module_stats(
     return stats
 
 
+@router.get("/{carbon_report_id}/report-stats", response_model=dict)
+async def get_report_stats(
+    carbon_report_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return the persisted report stats with the validated headline merged in.
+
+    Same payload as the ``stats`` field of the workspace-home aggregate; used
+    by the frontend to refresh charts after mutations without refetching the
+    whole home bundle.
+    """
+    report = await db.get(CarbonReport, carbon_report_id)
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Carbon report {carbon_report_id} not found",
+        )
+    stats = dict(report.stats or {})
+    validated = await build_validated_totals(db, carbon_report_id)
+    stats["total_tonnes_validated_co2eq"] = validated["total_tonnes_co2eq"]
+    return stats
+
+
+@router.get("/{carbon_report_id}/validated-totals", response_model=dict)
+async def get_validated_totals(
+    carbon_report_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Validated-only totals per module (tonnes; FTE for headcount)."""
+    return await build_validated_totals(db, carbon_report_id)
+
+
 @router.get("/{carbon_report_id}/results-summary", response_model=dict)
 async def get_results_summary(
     carbon_report_id: int,
@@ -169,250 +214,4 @@ async def get_results_summary(
         get_settings().CO2_PER_KM_KG,
         str(ModuleTypeEnum.headcount.value),
         exclude_module_type_ids=set(exclude_modules),
-    )
-
-
-async def build_emission_breakdown(
-    db: AsyncSession,
-    carbon_report_id: int,
-    exclude_modules: list[int] | None = None,
-) -> dict:
-    """Compute the chart-ready emission breakdown for a carbon report.
-
-    Extracted from the ``/emission-breakdown`` route so the workspace-home
-    aggregate can reuse the exact same computation without a second HTTP round
-    trip. See ``get_emission_breakdown`` for the response shape.
-    """
-    exclude_modules = exclude_modules or []
-
-    emission_rows = await DataEntryEmissionService(db).get_emission_breakdown(
-        carbon_report_id=carbon_report_id,
-    )
-
-    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
-        carbon_report_id=carbon_report_id,
-        aggregate_by="module_type_id",
-    )
-    total_fte = sum(fte_stats.values())
-
-    result = await db.execute(
-        select(
-            CarbonReportModule.module_type_id,
-            CarbonReportModule.status,
-        ).where(
-            CarbonReportModule.carbon_report_id == carbon_report_id,
-        )
-    )
-    module_statuses = {row[0]: row[1] for row in result.all()}
-
-    # Determine server-side whether this is a Simulator Explore report so that
-    # all modules are treated as validated (the Explore flow has no validation
-    # step). Never rely on the client-controlled X-Co2-Simulation header here.
-    report_type_row = await db.execute(
-        select(CarbonProject.carbon_report_type)
-        .join(
-            CarbonReport, col(CarbonReport.carbon_project_id) == col(CarbonProject.id)
-        )
-        .where(col(CarbonReport.id) == carbon_report_id)
-    )
-    report_type = report_type_row.scalar_one_or_none()
-    is_simulator = report_type == CarbonReportType.SIMULATOR_EXPLORE
-
-    if is_simulator:
-        headcount_validated = True
-        buildings_validated = True
-        validated_module_type_ids = set(module_statuses.keys())
-    else:
-        headcount_validated = (
-            module_statuses.get(ModuleTypeEnum.headcount.value)
-            == ModuleStatus.VALIDATED
-        )
-        buildings_validated = (
-            module_statuses.get(ModuleTypeEnum.buildings.value)
-            == ModuleStatus.VALIDATED
-        )
-        validated_module_type_ids = {
-            mid
-            for mid, status in module_statuses.items()
-            if status == ModuleStatus.VALIDATED
-        }
-
-    breakdown = build_chart_breakdown(
-        rows=emission_rows,
-        total_fte=total_fte,
-        headcount_validated=headcount_validated,
-        buildings_validated=buildings_validated,
-        validated_module_type_ids=validated_module_type_ids,
-        exclude_module_type_ids=set(exclude_modules),
-    )
-
-    # Per-module status map (module_type_id -> status). Already queried above for
-    # the validated flags; surfaced here so the workspace-home aggregate can drive
-    # the sidebar timeline without a second `list_modules` round trip.
-    breakdown["module_states"] = [
-        {"module_type_id": mid, "status": status}
-        for mid, status in module_statuses.items()
-    ]
-
-    breakdown["embodied_energy_by_building"] = []
-    breakdown["embodied_energy_by_category"] = []
-
-    if buildings_validated:
-        emission_svc = DataEntryEmissionService(db)
-
-        # Per-building embodied energy breakdown for the doughnut chart.
-        building_rows = await emission_svc.get_embodied_energy_by_building(
-            carbon_report_id=carbon_report_id,
-        )
-        breakdown["embodied_energy_by_building"] = [
-            {"building_name": name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
-            for name, kg in building_rows
-            if kg > 0
-        ]
-
-        # Per-category embodied energy breakdown (new_env, new_tech, ren_env, ren_tech,
-        # demolition).
-        category_rows = await emission_svc.get_embodied_energy_by_category(
-            carbon_report_id=carbon_report_id,
-        )
-        breakdown["embodied_energy_by_category"] = [
-            {"category": cat, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
-            for cat, kg in category_rows
-            if kg > 0
-        ]
-    return breakdown
-
-
-@router.get("/{carbon_report_id}/emission-breakdown")
-async def get_emission_breakdown(
-    carbon_report_id: int,
-    exclude_modules: list[int] = Query(default_factory=list),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Return chart-ready emission breakdown for a carbon report.
-
-    Serves both ModuleCarbonFootprintChart (module_breakdown +
-    additional_breakdown) and CarbonFootPrintPerPersonChart
-    (per_person_breakdown).
-    """
-    logger.info(
-        f"GET emission breakdown: carbon_report_id={sanitize(carbon_report_id)}"
-    )
-
-    return await build_emission_breakdown(db, carbon_report_id, exclude_modules)
-
-
-@router.get("/{carbon_report_id}/it-breakdown")
-async def get_it_breakdown(
-    carbon_report_id: int,
-    exclude_modules: list[int] = Query(default_factory=list),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Return IT-focused emission breakdown for a carbon report.
-
-    Aggregates IT-related emissions from Equipment (IT electricity),
-    Purchases (IT hardware), and External Cloud & AI into a single view.
-    Includes top-class breakdown per IT category.
-
-    ``exclude_modules`` matches emission-breakdown / results-summary filtering
-    (e.g. hide research facilities).
-    """
-    logger.info(f"GET IT breakdown: carbon_report_id={sanitize(carbon_report_id)}")
-
-    exclude_set = set(exclude_modules)
-
-    emission_rows = await DataEntryEmissionService(db).get_emission_breakdown(
-        carbon_report_id=carbon_report_id,
-    )
-
-    fte_stats = await DataEntryService(db).get_stats_by_carbon_report_id(
-        carbon_report_id=carbon_report_id,
-        aggregate_by="module_type_id",
-    )
-    total_fte = sum(fte_stats.values())
-
-    result = await db.execute(
-        select(
-            CarbonReportModule.id,
-            CarbonReportModule.module_type_id,
-            CarbonReportModule.status,
-        ).where(
-            CarbonReportModule.carbon_report_id == carbon_report_id,
-        )
-    )
-    module_rows = result.all()
-
-    cr_year_result = await db.execute(
-        select(CarbonReport.year).where(CarbonReport.id == carbon_report_id)
-    )
-    report_year = cr_year_result.scalar_one_or_none()
-    validated_module_type_ids = {
-        row[1] for row in module_rows if row[2] == ModuleStatus.VALIDATED
-    }
-    # Map module_type_id → carbon_report_module_id
-    crm_by_type = {row[1]: row[0] for row in module_rows}
-
-    validated_source_module_type_ids = get_validated_source_module_type_ids(
-        validated_module_type_ids
-    )
-
-    # Fetch top-class breakdowns for equipment IT and purchases IT
-    emission_svc = DataEntryEmissionService(db)
-    sql_totals = await emission_svc.get_it_emission_sql_totals(
-        carbon_report_id=carbon_report_id,
-        it_emission_type_ids=[et.value for et in IT_EMISSION_TYPES],
-        validated_source_module_type_ids=validated_source_module_type_ids,
-        exclude_module_type_ids=exclude_set,
-    )
-    top_class_detail: dict[str, list] = {}
-
-    equip_crm_id = crm_by_type.get(ModuleTypeEnum.equipment.value)
-    if equip_crm_id is not None and ModuleTypeEnum.equipment.value not in exclude_set:
-        top_class_detail["equipment_it"] = await emission_svc.get_top_class_breakdown(
-            carbon_report_module_id=equip_crm_id,
-            data_entry_types=[DataEntryTypeEnum.it],
-            group_by_field="equipment_class",
-            report_year=report_year,
-        )
-
-    purchase_crm_id = crm_by_type.get(ModuleTypeEnum.purchase.value)
-    if purchase_crm_id is not None and ModuleTypeEnum.purchase.value not in exclude_set:
-        top_class_detail["purchases_it"] = await emission_svc.get_top_class_breakdown(
-            carbon_report_module_id=purchase_crm_id,
-            data_entry_types=[DataEntryTypeEnum.it_equipment],
-            group_by_field="purchase_institutional_code",
-            report_year=report_year,
-        )
-
-    rf_crm_id = crm_by_type.get(ModuleTypeEnum.research_facilities.value)
-    if (
-        rf_crm_id is not None
-        and ModuleTypeEnum.research_facilities.value not in exclude_set
-    ):
-        top_class_detail[
-            "research_facilities_it"
-        ] = await emission_svc.get_top_class_breakdown(
-            carbon_report_module_id=rf_crm_id,
-            data_entry_types=[
-                DataEntryTypeEnum.research_facilities,
-                DataEntryTypeEnum.mice_and_fish_animal_facilities,
-            ],
-            group_by_field="researchfacility_name",
-            report_year=report_year,
-        )
-
-    emission_rows_no_qty: list[tuple[int, int, float]] = [
-        (module_type_id, emission_type_id, kg_co2eq)
-        for module_type_id, emission_type_id, kg_co2eq, _add in emission_rows
-    ]
-
-    return build_it_breakdown(
-        rows=emission_rows_no_qty,
-        total_fte=total_fte,
-        sql_totals=sql_totals,
-        validated_module_type_ids=validated_module_type_ids,
-        top_class_detail=top_class_detail,
-        exclude_module_type_ids=exclude_set,
     )

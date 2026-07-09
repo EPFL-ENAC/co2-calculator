@@ -382,7 +382,6 @@ async function handleDialogCompleted() {
       </template>
 
       <template v-if="yearConfigStore.config">
-        <temp-files-banner class="q-mb-xl" />
         <!--
           Issue #867 — gate module config + CSV uploads on the
           unit_sync pipeline.  ``q-inner-loading`` keeps the rendered

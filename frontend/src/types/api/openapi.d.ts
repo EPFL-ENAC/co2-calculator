@@ -54,6 +54,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/auth/login-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Login Test
+         * @description Test login endpoint for development.
+         *
+         *     Registered on the router only when ``settings.DEBUG`` is true (see
+         *     bottom of this module). In a production build the route does not
+         *     exist — clients see 404 rather than 403, and the handler code is
+         *     unreachable.
+         */
+        get: operations["login_test_v1_auth_login_test_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/session": {
         parameters: {
             query?: never;
@@ -63,11 +88,15 @@ export interface paths {
         };
         /**
          * Get Session
-         * @description Return the current session's user (whoami).
+         * @description Return the current session bootstrap payload (whoami + workspace context).
          *
          *     Requires a valid ``auth_token`` cookie. Resolves user by stable
          *     identity (institutional_id, provider) from JWT. Uses cached DB
          *     roles — does not sync from the role provider synchronously.
+         *
+         *     Beyond the user, the response bundles the units the caller can access and
+         *     the globally-configured years, so the frontend hydrates its whole auth/
+         *     workspace context in a single request instead of three.
          */
         get: operations["get_session_v1_session_get"];
         put?: never;
@@ -622,37 +651,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/modules-stats/{carbon_report_id}/validated-totals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Validated Totals
-         * @description Get validated totals for a carbon report.
-         *
-         *     Aggregates emissions (kg → tonnes CO2eq) and FTE across all validated
-         *     modules in the given carbon report. Both are keyed by module_type_id so
-         *     headcount appears with total_fte while other modules show total_tonnes_co2eq.
-         *
-         *     Returns:
-         *         {
-         *             "modules": {1: 25.5, 2: 15.0, 4: 41.7, 7: 5.0},
-         *             "total_tonnes_co2eq": 61.7,
-         *             "total_fte": 25.5
-         *         }
-         */
-        get: operations["get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/modules-stats/{unit_id}/{year}/{module_id}/stats": {
         parameters: {
             query?: never;
@@ -682,6 +680,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/modules-stats/{carbon_report_id}/report-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Report Stats
+         * @description Return the persisted report stats with the validated headline merged in.
+         *
+         *     Same payload as the ``stats`` field of the workspace-home aggregate; used
+         *     by the frontend to refresh charts after mutations without refetching the
+         *     whole home bundle.
+         */
+        get: operations["get_report_stats_v1_modules_stats__carbon_report_id__report_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/modules-stats/{carbon_report_id}/validated-totals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Validated Totals
+         * @description Validated-only totals per module (tonnes; FTE for headcount).
+         */
+        get: operations["get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/modules-stats/{carbon_report_id}/results-summary": {
         parameters: {
             query?: never;
@@ -698,57 +740,6 @@ export interface paths {
          *     - equivalent_car_km, previous year comparison
          */
         get: operations["get_results_summary_v1_modules_stats__carbon_report_id__results_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/modules-stats/{carbon_report_id}/emission-breakdown": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Emission Breakdown
-         * @description Return chart-ready emission breakdown for a carbon report.
-         *
-         *     Serves both ModuleCarbonFootprintChart (module_breakdown +
-         *     additional_breakdown) and CarbonFootPrintPerPersonChart
-         *     (per_person_breakdown).
-         */
-        get: operations["get_emission_breakdown_v1_modules_stats__carbon_report_id__emission_breakdown_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/modules-stats/{carbon_report_id}/it-breakdown": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get It Breakdown
-         * @description Return IT-focused emission breakdown for a carbon report.
-         *
-         *     Aggregates IT-related emissions from Equipment (IT electricity),
-         *     Purchases (IT hardware), and External Cloud & AI into a single view.
-         *     Includes top-class breakdown per IT category.
-         *
-         *     ``exclude_modules`` matches emission-breakdown / results-summary filtering
-         *     (e.g. hide research facilities).
-         */
-        get: operations["get_it_breakdown_v1_modules_stats__carbon_report_id__it_breakdown_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1971,14 +1962,13 @@ export interface paths {
         };
         /**
          * List Year Configurations
-         * @description List year configurations available to the caller.
+         * @description List opened year configurations available to the caller.
          *
          *     Results are always scoped to ``current_user.provider`` — a TEST user
-         *     never sees ACCRED rows and vice versa. Backoffice data managers
-         *     additionally bypass the ``is_started`` filter (regular users only
-         *     see opened years). This is what drives the workspace year selector
-         *     — closed years stay hidden from regular users until backoffice
-         *     opens them.
+         *     never sees ACCRED rows and vice versa. Only ``is_started`` years are
+         *     returned, for every caller including backoffice data managers, since
+         *     this is what drives the workspace year selector — closed years stay
+         *     hidden until backoffice opens them.
          *
          *     Sorted by year descending (latest first).
          */
@@ -2122,6 +2112,30 @@ export interface paths {
          *         Whether threshold is exceeded and threshold value.
          */
         get: operations["check_emission_threshold_v1_year_configuration_check_threshold_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/workspace/{unit_id}/{year}/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Workspace Home
+         * @description Resolve the full workspace + home dashboard payload in one call.
+         *
+         *     Gets the carbon report for ``unit_id``/``year``, then bundles the year
+         *     configuration, the persisted report stats (with the validated-only total
+         *     merged in) and the per-module states.
+         */
+        get: operations["get_workspace_home_v1_workspace__unit_id___year__home_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3204,6 +3218,23 @@ export interface components {
             last_recalculation_job_result?: components["schemas"]["IngestionResult"] | null;
         };
         /**
+         * SessionRead
+         * @description Bootstrap payload for ``GET /v1/session``.
+         *
+         *     Bundles everything the frontend needs at app-init in a single call: the
+         *     current user (unchanged ``UserRead`` shape), the units the user can access,
+         *     and the globally-configured years for the workspace year selector. This
+         *     collapses what used to be three separate calls (``/session`` + ``/users/units``
+         *     + ``/year-configuration/``) into one.
+         */
+        SessionRead: {
+            user: components["schemas"]["UserRead"];
+            /** Units */
+            units: components["schemas"]["UnitWithUserRole"][];
+            /** Configured Years */
+            configured_years: components["schemas"]["YearConfigurationListItem"][];
+        };
+        /**
          * StaleStatsEntry
          * @description One ``(module_type_id, year)`` scope whose aggregation is missing,
          *     failed, stuck, or too old.  Returned by ``GET /sync/health/stale-stats``
@@ -3703,6 +3734,23 @@ export interface components {
             claimed_job_count: number;
         };
         /**
+         * WorkspaceHomeResponse
+         * @description Minimal aggregate payload the frontend fans out across its stores.
+         */
+        WorkspaceHomeResponse: {
+            /** Carbon Report Id */
+            carbon_report_id: number;
+            year_config?: components["schemas"]["YearConfigurationResponse"] | null;
+            /** Stats */
+            stats: {
+                [key: string]: unknown;
+            };
+            /** Module States */
+            module_states: {
+                [key: string]: unknown;
+            }[];
+        };
+        /**
          * YearConfigurationCreate
          * @description Schema for creating/updating year configuration.
          */
@@ -3859,6 +3907,37 @@ export interface operations {
             };
         };
     };
+    login_test_v1_auth_login_test_get: {
+        parameters: {
+            query?: {
+                role?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_session_v1_session_get: {
         parameters: {
             query?: never;
@@ -3876,7 +3955,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserRead"];
+                    "application/json": components["schemas"]["SessionRead"];
                 };
             };
             /** @description Validation Error */
@@ -4923,41 +5002,6 @@ export interface operations {
             };
         };
     };
-    get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                carbon_report_id: number;
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_module_stats_v1_modules_stats__unit_id___year___module_id__stats_get: {
         parameters: {
             query?: never;
@@ -4995,81 +5039,77 @@ export interface operations {
             };
         };
     };
+    get_report_stats_v1_modules_stats__carbon_report_id__report_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                carbon_report_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                carbon_report_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_results_summary_v1_modules_stats__carbon_report_id__results_summary_get: {
-        parameters: {
-            query?: {
-                exclude_modules?: number[];
-            };
-            header?: never;
-            path: {
-                carbon_report_id: number;
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_emission_breakdown_v1_modules_stats__carbon_report_id__emission_breakdown_get: {
-        parameters: {
-            query?: {
-                exclude_modules?: number[];
-            };
-            header?: never;
-            path: {
-                carbon_report_id: number;
-            };
-            cookie?: {
-                auth_token?: string;
-            };
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_it_breakdown_v1_modules_stats__carbon_report_id__it_breakdown_get: {
         parameters: {
             query?: {
                 exclude_modules?: number[];
@@ -6978,6 +7018,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_workspace_home_v1_workspace__unit_id___year__home_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+                year: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WorkspaceHomeResponse"];
                 };
             };
             /** @description Validation Error */

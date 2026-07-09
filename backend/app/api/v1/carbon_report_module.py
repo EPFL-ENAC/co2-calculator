@@ -30,6 +30,7 @@ from app.models.module_type import (
 )
 from app.models.unit import Unit
 from app.models.user import GlobalScope, RoleName, User
+from app.modules.emissions.registry import is_additional_breakdown_emission
 from app.modules.headcount.schemas import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
@@ -48,7 +49,6 @@ from app.schemas.user import UserRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
-from app.utils.emission_category import is_additional_breakdown_emission
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow

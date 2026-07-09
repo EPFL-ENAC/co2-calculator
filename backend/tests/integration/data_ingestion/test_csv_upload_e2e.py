@@ -111,7 +111,11 @@ class TestCSVUploadBasic:
         test_user: User,
         get_test_client,
     ):
-        """Test that non-CSV files are rejected at upload time."""
+        """Non-import extensions are rejected at upload (415).
+
+        ``validate_upload_mimetype`` allowlists import extensions; a ``.txt``
+        never reaches the file store.
+        """
         client = get_test_client()
 
         txt_path = FIXTURES_DIR / "not_a_csv.txt"

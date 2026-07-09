@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.taxonomy import TaxonomyNode
+from app.schemas.taxonomy import TaxonomyNode
 from app.services.factor_service import FactorService
 
 if TYPE_CHECKING:

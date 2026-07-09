@@ -38,7 +38,7 @@ SUBMODULE_MANDATORINESS: dict[tuple[int, int], SubmoduleMandatoriness] = {
     (4, 10): SubmoduleMandatoriness(mandatory_factor=False, mandatory_reference=False),
     (4, 11): SubmoduleMandatoriness(mandatory_factor=False, mandatory_reference=False),
     (4, 12): SubmoduleMandatoriness(mandatory_factor=False, mandatory_reference=False),
-    # Purchase — most submodules are noFactors; additional_purchases (67)
+    # Purchase — most submodules are noFactors; purchases_centralized (67)
     # carries its own factors.
     (5, 60): SubmoduleMandatoriness(mandatory_factor=False, mandatory_reference=False),
     (5, 61): SubmoduleMandatoriness(mandatory_factor=False, mandatory_reference=False),

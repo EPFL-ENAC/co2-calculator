@@ -15,11 +15,12 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.unit import Unit
 from app.models.unit_user import UnitUser
 from app.models.user import RoleName, User, UserProvider
+from app.modules.emissions import EmissionType
 
 # Test database URL (use in-memory SQLite for tests)
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
