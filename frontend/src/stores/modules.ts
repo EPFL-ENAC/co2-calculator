@@ -100,7 +100,7 @@ export interface EmissionBreakdownResponse {
   module_states?: { module_type_id: number; status: number }[];
 }
 
-export interface CompareYearsEntry {
+export interface MultiYearReportStatsEntry {
   year: number;
   total_tonnes_co2eq: number;
   /** Category key (RESULTS_CATEGORY_ORDER) → tonnes CO2eq. */
@@ -109,8 +109,8 @@ export interface CompareYearsEntry {
   scopes: Record<string, number>;
 }
 
-export interface CompareYearsResponse {
-  years: CompareYearsEntry[];
+export interface MultiYearReportStatsResponse {
+  years: MultiYearReportStatsEntry[];
 }
 
 export interface ItBreakdownEmission {
@@ -1116,11 +1116,11 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getMultiYearBreakdown(
+  async function getMultiYearReportStats(
     unitId: number,
-  ): Promise<CompareYearsResponse> {
-    const path = `modules-stats/unit/${encodeURIComponent(unitId)}/multi-year-breakdown`;
-    return api.get(path).json<CompareYearsResponse>();
+  ): Promise<MultiYearReportStatsResponse> {
+    const path = `modules-stats/unit/${encodeURIComponent(unitId)}/multi-year-report-stats`;
+    return api.get(path).json<MultiYearReportStatsResponse>();
   }
 
   // Track which carbon report the cached validated totals belong to
@@ -1213,7 +1213,7 @@ export const useModuleStore = defineStore('modules', () => {
     getValidatedTotals,
     invalidateValidatedTotals,
     getEmissionBreakdown,
-    getMultiYearBreakdown,
+    getMultiYearReportStats,
     invalidateEmissionBreakdown,
     setEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,

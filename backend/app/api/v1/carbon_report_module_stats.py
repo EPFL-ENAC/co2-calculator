@@ -17,11 +17,13 @@ from app.core.constants import ModuleStatus
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.policy import check_module_permission as _check_module_permission
+from app.core.policy import require_unit_access
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import User
+from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
@@ -30,6 +32,7 @@ from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
 )
+from app.utils.report_stats import build_year_comparison, merge_report_stats
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -147,6 +150,50 @@ async def get_module_stats(
     logger.info(f"Module stats returned: {stats}")
 
     return stats
+
+
+# Declared before the ``/{carbon_report_id}/...`` dynamic routes so the literal
+# ``unit`` segment is matched first and never captured as a carbon_report_id.
+@router.get("/unit/{unit_id}/multi-year-report-stats", response_model=dict)
+async def get_multi_year_breakdown(
+    unit_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return per-year emission breakdown (by module and by scope) for a unit.
+
+    Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
+    totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
+    straight off each report's persisted stats.
+
+    Returns:
+        {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
+                    "modules": {...}, "scopes": {...}}, ...]}
+    """
+    logger.info(f"GET multi-year breakdown: unit_id={sanitize(unit_id)}")
+
+    unit = await db.get(Unit, unit_id)
+    require_unit_access(current_user, unit)
+
+    reports = await CarbonReportRepository(db).list_by_unit(unit_id)
+
+    # A unit can own more than one Calculator project, and uniqueness is on
+    # (carbon_project_id, year) -- not (unit_id, year) -- so a year may map to
+    # several reports. Fold them into one aggregate of the same stats shape.
+    stats_by_year: dict[int, list[dict]] = {}
+    for report in reports:
+        if report.stats:
+            stats_by_year.setdefault(report.year, []).append(report.stats)
+
+    years = []
+    for year in sorted(stats_by_year):
+        stats_list = stats_by_year[year]
+        stats = (
+            stats_list[0] if len(stats_list) == 1 else merge_report_stats(stats_list)
+        )
+        years.append({"year": year, **build_year_comparison(stats)})
+
+    return {"years": years}
 
 
 @router.get("/{carbon_report_id}/report-stats", response_model=dict)

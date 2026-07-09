@@ -2,7 +2,7 @@
 import { computed, ref, watch, type PropType } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useModuleStore } from 'src/stores/modules';
-import type { CompareYearsResponse } from 'src/stores/modules';
+import type { MultiYearReportStatsResponse } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import {
@@ -64,7 +64,7 @@ const SCOPE_COLORS: Record<string, string> = {
   '3': '#C5CAE9',
 };
 
-const data = ref<CompareYearsResponse | null>(null);
+const data = ref<MultiYearReportStatsResponse | null>(null);
 const loading = ref(false);
 const error = ref<string | null>(null);
 
@@ -85,7 +85,7 @@ async function load() {
   try {
     const year = workspaceStore.selectedYear ?? new Date().getFullYear();
     const [res] = await Promise.all([
-      moduleStore.getMultiYearBreakdown(props.unitId),
+      moduleStore.getMultiYearReportStats(props.unitId),
       // Populate reduction_objectives.goals for the objective bar.
       yearConfigStore.fetchConfig(year),
     ]);

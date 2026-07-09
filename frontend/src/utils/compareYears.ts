@@ -1,4 +1,4 @@
-import type { CompareYearsEntry } from 'src/stores/modules';
+import type { MultiYearReportStatsEntry } from 'src/stores/modules';
 import type { ReductionObjectiveGoal } from 'src/stores/yearConfig';
 
 /**
@@ -7,7 +7,9 @@ import type { ReductionObjectiveGoal } from 'src/stores/yearConfig';
  */
 
 /** Years that carry any emissions — the default year selection. */
-export function defaultSelectedYears(years: CompareYearsEntry[]): number[] {
+export function defaultSelectedYears(
+  years: MultiYearReportStatsEntry[],
+): number[] {
   return years.filter((y) => y.total_tonnes_co2eq > 0).map((y) => y.year);
 }
 
@@ -16,7 +18,7 @@ export function defaultSelectedYears(years: CompareYearsEntry[]): number[] {
  * least one year — the default category selection / available options.
  */
 export function presentCategories(
-  years: CompareYearsEntry[],
+  years: MultiYearReportStatsEntry[],
   order: readonly string[],
 ): string[] {
   return order.filter((key) => years.some((y) => (y.modules[key] ?? 0) > 0));
@@ -30,7 +32,7 @@ export type CompareYearsDimension = 'modules' | 'scopes';
  * (`modules` = category keys, `scopes` = "1" | "2" | "3").
  */
 function sumSelected(
-  years: CompareYearsEntry[],
+  years: MultiYearReportStatsEntry[],
   selectedYears: number[],
   selectedKeys: string[],
   dimension: CompareYearsDimension,
@@ -53,7 +55,7 @@ function sumSelected(
  * chart it drives.
  */
 export function computeCompareYearsTotal(
-  years: CompareYearsEntry[],
+  years: MultiYearReportStatsEntry[],
   selectedYears: number[],
   selectedCategories: string[],
 ): number {
@@ -74,7 +76,7 @@ export interface CompareYearsObjective {
  * when no year carries a positive baseline for the selection.
  */
 export function closestAvailableYear(
-  years: CompareYearsEntry[],
+  years: MultiYearReportStatsEntry[],
   referenceYear: number,
   selectedKeys: string[],
   dimension: CompareYearsDimension = 'modules',
@@ -107,7 +109,7 @@ export function closestAvailableYear(
  * are skipped.
  */
 export function computeCompareYearsObjectives(
-  years: CompareYearsEntry[],
+  years: MultiYearReportStatsEntry[],
   selectedKeys: string[],
   goals: ReductionObjectiveGoal[],
   dimension: CompareYearsDimension = 'modules',

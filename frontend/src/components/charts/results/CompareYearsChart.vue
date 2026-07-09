@@ -84,13 +84,11 @@ function buildTooltipState(rawParams: unknown): TooltipState {
   const rows: TooltipRow[] = params
     .map((p) => ({ p, value: extractSeriesValue(p.value) }))
     .filter(({ value }) => typeof value === 'number' && value > 0)
-    .map(
-      ({ p, value }): TooltipRow => ({
-        label: String(p.seriesName ?? ''),
-        value: formatTooltipTonnes(value),
-        color: colorByName.value[String(p.seriesName ?? '')],
-      }),
-    );
+    .map(({ p, value }): TooltipRow => ({
+      label: String(p.seriesName ?? ''),
+      value: formatTooltipTonnes(value),
+      color: colorByName.value[String(p.seriesName ?? '')],
+    }));
 
   if (!rows.length) return null;
   return { title, rows };

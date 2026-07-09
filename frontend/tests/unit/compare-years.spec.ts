@@ -9,7 +9,7 @@
 
 import { test, expect } from '@playwright/test';
 
-import type { CompareYearsEntry } from '../../src/stores/modules';
+import type { MultiYearReportStatsEntry } from '../../src/stores/modules';
 import type { ReductionObjectiveGoal } from '../../src/stores/yearConfig';
 import {
   defaultSelectedYears,
@@ -21,7 +21,7 @@ import {
 
 const ORDER = ['equipment', 'professional_travel', 'commuting'] as const;
 
-const YEARS: CompareYearsEntry[] = [
+const YEARS: MultiYearReportStatsEntry[] = [
   {
     year: 2022,
     total_tonnes_co2eq: 0,
