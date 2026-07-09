@@ -56,18 +56,15 @@ const UNIT_B = {
   current_user_role: 'principal',
 };
 
-function buildEmissionBreakdown() {
+// Raw persisted-stats shape (`ReportStats` in emissionStatsAdapter.ts) —
+// workspaceGuard adapts this via toEmissionBreakdown() itself. All-empty:
+// this suite only cares about the year dropdown, not computed totals.
+function buildReportStats() {
   return {
-    module_breakdown: [],
-    total_tonnes_co2eq: 0,
-    total_tonnes_validated_co2eq: 0,
-    additional_breakdown: [],
-    per_person_breakdown: {},
-    validated_categories: [],
-    headcount_validated: false,
-    buildings_validated: false,
+    buckets: {},
+    per_fte: {},
+    validated_buckets: [],
     total_fte: 0,
-    module_states: [],
   };
 }
 
@@ -145,7 +142,7 @@ export async function mockWorkspaceBackend(
         body: JSON.stringify({
           carbon_report_id: unitId === 20 ? 43 : 42,
           year_config: null,
-          emission_breakdown: buildEmissionBreakdown(),
+          stats: buildReportStats(),
         }),
       });
     },

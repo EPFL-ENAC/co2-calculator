@@ -218,7 +218,9 @@ function updateScopeGraphics(
     const label = String(item.category);
     // Scope bands come from the stat bucket itself; additional buckets sit
     // in their own band regardless of GHG scope.
-    const scope = item.additional ? 'additional' : String(item.scope ?? 'additional');
+    const scope = item.additional
+      ? 'additional'
+      : String(item.scope ?? 'additional');
     groups[scope].push(label);
   }
 

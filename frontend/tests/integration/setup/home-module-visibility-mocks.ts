@@ -131,22 +131,33 @@ export async function mockHomeBackend(page: Page): Promise<void> {
           recalculation_status: [],
           updated_at: '2024-01-01T00:00:00Z',
         },
-        emission_breakdown: {
-          module_breakdown: [
-            { category: 'process_emissions', emissions: [] },
-            { category: 'equipment', emissions: [] },
-          ],
-          total_tonnes_co2eq: 5,
-          total_tonnes_validated_co2eq: 5,
-          additional_breakdown: [],
-          per_person_breakdown: {},
+        // Raw persisted-stats shape (`ReportStats` in emissionStatsAdapter.ts)
+        // — workspaceGuard adapts this via toEmissionBreakdown() itself. A
+        // bucket's mere presence (regardless of its emissions detail) is what
+        // makes `isModuleFullyAvailable`'s `hasStats` true for that category;
+        // `external_cloud_and_ai` has no bucket at all, so it renders as "not
+        // started" / greyed out.
+        stats: {
+          buckets: {
+            process_emissions: {
+              scope: 1,
+              additional: false,
+              total_kg: 3000,
+              by_emission_type: {},
+            },
+            equipment: {
+              scope: 2,
+              additional: false,
+              total_kg: 2000,
+              by_emission_type: {},
+            },
+          },
+          per_fte: {},
           // Non-empty so HomePage's ``hasValidatedData`` renders the chart
           // instead of the empty "ready to start" state.
-          validated_categories: ['process_emissions', 'equipment'],
-          headcount_validated: false,
-          buildings_validated: false,
+          validated_buckets: ['process_emissions', 'equipment'],
           total_fte: 0,
-          module_states: [],
+          total_tonnes_validated_co2eq: 5,
         },
       }),
     });

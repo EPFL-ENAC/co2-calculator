@@ -21,7 +21,11 @@ export interface BucketStats {
   total_kg: number;
   by_emission_type: Record<string, number>;
   by_additional_value?: Record<string, number>;
-  by_building?: { building_name: string; kg_co2eq: number; tonnes_co2eq: number }[];
+  by_building?: {
+    building_name: string;
+    kg_co2eq: number;
+    tonnes_co2eq: number;
+  }[];
   by_category?: EmbodiedEnergyCategoryEntry[];
 }
 

@@ -212,7 +212,10 @@ def _parent_name(name: str) -> str | None:
 
 def _build_parent_map() -> dict[int, int]:
     parent_map: dict[int, int] = {}
-    for node in EmissionType:
+    # `.__members__.values()` (not `for node in EmissionType`) — CodeQL's
+    # non-iterable-in-for-loop check doesn't model EnumMeta.__iter__ on an
+    # `int`-mixed Enum subclass, and flags a false positive otherwise.
+    for node in EmissionType.__members__.values():
         parent_name = _parent_name(node.name)
         if parent_name is None:
             continue
@@ -230,7 +233,7 @@ def _build_children_map(
     parent_map: dict[int, int],
 ) -> dict[int, tuple[EmissionType, ...]]:
     children: dict[int, list[EmissionType]] = {}
-    for node in EmissionType:
+    for node in EmissionType.__members__.values():
         parent_value = parent_map.get(node.value)
         if parent_value is not None:
             children.setdefault(parent_value, []).append(node)
