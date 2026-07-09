@@ -59,7 +59,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -73,6 +73,7 @@ from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import UserProvider
+from app.modules.emissions import EmissionType
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService

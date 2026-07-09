@@ -106,23 +106,6 @@ function getSubcategoryColor(
   return getChartSubcategoryColor(category, key, fallback);
 }
 
-// Static map: raw category key → GHG scope
-const CATEGORY_SCOPE: Record<string, 1 | 2 | 3 | 'additional'> = {
-  process_emissions: 1,
-  buildings_energy_combustion: 1,
-  buildings_room: 2,
-
-  equipment: 2,
-  external_cloud_and_ai: 3,
-  purchases: 3,
-  professional_travel: 3,
-  research_facilities: 3,
-  commuting: 'additional',
-  food: 'additional',
-  waste: 'additional',
-  embodied_energy: 'additional',
-};
-
 // Reverse map: translated label → raw category key (rebuilt when locale changes)
 const labelToKey = computed<Record<string, string>>(() => {
   const map: Record<string, string> = {};
@@ -249,8 +232,9 @@ function updateScopeGraphics(
   };
   for (const item of items) {
     const label = String(item.category);
-    const key = labelToKey.value[label] ?? '';
-    const scope = String(CATEGORY_SCOPE[key] ?? 'additional');
+    // Scope bands come from the stat bucket itself; additional buckets sit
+    // in their own band regardless of GHG scope.
+    const scope = item.additional ? 'additional' : String(item.scope ?? 'additional');
     groups[scope].push(label);
   }
 
@@ -719,7 +703,7 @@ const PURCHASES_SUBKEYS = [
   'services',
   'vehicles',
   'other_purchases',
-  'additional',
+  'centralized',
 ] as const;
 
 const equipPurchRankings = computed(() => {
@@ -1066,7 +1050,7 @@ const chartOption = computed((): EChartsOption => {
         services: t('charts-services-subcategory'),
         vehicles: t('charts-vehicles-subcategory'),
         other_purchases: t('charts-other-purchases-subcategory'),
-        additional: t('charts-additional-purchases-subcategory'),
+        centralized: t('charts-purchases-centralized-subcategory'),
       };
       const top3Series = equipPurchRankings.value.purchTop3.map((item, i) => ({
         name: purchSubcatLabels[item.key] ?? item.key,
@@ -1371,7 +1355,7 @@ const chartOption = computed((): EChartsOption => {
         'services',
         'vehicles',
         'other_purchases',
-        'additional',
+        'centralized',
         'equip_rank1',
         'equip_rank2',
         'equip_rank3',

@@ -1,2 +1,1 @@
-# This ensures the handlers are registered.
-from . import schemas as schemas
+"""Buildings module package."""

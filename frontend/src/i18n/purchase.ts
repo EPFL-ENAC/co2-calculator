@@ -135,11 +135,11 @@ export default {
       en: 'Add other purchase',
       fr: 'Ajoutez un autre achat',
     },
-  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]: {
+  [`${MODULES.Purchase}-${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}`]: {
     en: 'Centralized purchase | Centralized purchases',
     fr: 'Achats centralisés | achats centralisés',
   },
-  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`]:
+  [`${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}-table-title`]:
     {
       en: 'Centralized purchases ({count})',
       fr: 'Achats centralisés ({count})',

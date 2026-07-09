@@ -46,9 +46,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow

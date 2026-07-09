@@ -9,7 +9,8 @@ No DB or async fixture is needed — ``_apply_formula`` is pure arithmetic.
 
 import pytest
 
-from app.models.data_entry_emission import EmissionComputation, EmissionType
+from app.models.data_entry_emission import EmissionComputation
+from app.modules.emissions import EmissionType
 from app.modules.professional_travel.schemas import ProfessionalTravelPlaneModuleHandler
 from app.services.data_entry_emission_service import DataEntryEmissionService
 

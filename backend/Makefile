@@ -200,3 +200,7 @@ formula-version: ## Update formula version (SHA1) in .env and .env.example
 .PHONY: erd
 erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
 	uv run -m  app.generate_mermaid_erd > ../docs/src/database/erd.md ## Generate Mermaid ERD diagram from SQLAlchemy models
+
+.PHONY: gen-emission-taxonomy
+gen-emission-taxonomy: ## Generate frontend emission-taxonomy constant from EmissionType
+	uv run -m app.generate_emission_taxonomy_ts > ../frontend/src/types/emission-taxonomy.gen.ts

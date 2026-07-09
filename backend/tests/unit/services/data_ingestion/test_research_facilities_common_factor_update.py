@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.data_ingestion import IngestionResult
+from app.modules.emissions import EmissionType
 from app.services.data_ingestion.computed_providers.research_facilities_common import (
     ResearchFacilitiesCommonFactorUpdateProvider,
 )
@@ -46,17 +46,21 @@ def _make_carbon_report(
 
 @pytest.mark.asyncio
 async def test_happy_path_sums_all_valid_emissions():
-    """Multiple emission rows from different modules
-    → kg_co2eq_sum = sum of all emissions of interest."""
+    """Multiple leaf emission rows from different modules
+    → kg_co2eq_sum = sum of all emissions of interest. Non-leaf rollup
+    entries and research-facility leaves are excluded."""
     provider = _make_provider()
     factor = _make_factor("RF-001", None)
     session = MagicMock()
 
     breakdown = [
-        (EmissionType.process_emissions.value, 500.0),
-        (EmissionType.buildings.value, 300.0),
+        (EmissionType.process_emissions__co2.value, 500.0),
+        (EmissionType.buildings__combustion__natural_gas.value, 300.0),
+        (EmissionType.equipment__it.value, 200.0),
+        # Rollup entry: must not double-count on top of its leaves.
         (EmissionType.equipment.value, 200.0),
-        (EmissionType.research_facilities.value, 600.0),  # Not included in sum
+        # Research facility leaf: not included in the sum.
+        (EmissionType.research_facilities__facilities.value, 600.0),
     ]
 
     with (

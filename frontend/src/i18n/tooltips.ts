@@ -162,7 +162,7 @@ export default {
     en: 'This table lists all remaining purchases whose classification codes do not correspond to any of the specific main categories.',
     fr: 'Ce tableau regroupe tous les achats restants dont les codes de classification ne correspondent à aucune des catégories principales spécifiques.',
   },
-  'module-purchase-submodule-additional_purchases': {
+  'module-purchase-submodule-purchases_centralized': {
     en: 'Enter annual consumption values if your unit uses any of the items listed below.',
     fr: 'Saisissez les consommations annuelles si votre unité utilise les éléments listés ci-dessous.',
   },
@@ -253,7 +253,7 @@ export default {
     fr: "Veuillez ajouter tous les achats liés aux véhicules réglés avec la carte de crédit de l'unité (ex. le carburant, les locations de voiture, les péages, les frais de stationnement ou l'entretien des véhicules.",
   },
   'module-purchase-submodule-other_purchases-form': { en: '', fr: '' },
-  'module-purchase-submodule-additional_purchases-form': { en: '', fr: '' },
+  'module-purchase-submodule-purchases_centralized-form': { en: '', fr: '' },
 
   // ── Research Facilities ────────────────────────────────────────────────────
   'module-research-facilities-submodule-research-facilities-form': {

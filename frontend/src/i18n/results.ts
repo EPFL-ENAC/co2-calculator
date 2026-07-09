@@ -505,7 +505,7 @@ export default {
     en: 'Vehicles',
     fr: 'Véhicules',
   },
-  'charts-additional-purchases-subcategory': {
+  'charts-purchases-centralized-subcategory': {
     en: 'Centralized purchases',
     fr: 'Achats centralisés',
   },

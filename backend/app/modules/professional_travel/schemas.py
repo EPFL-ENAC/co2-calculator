@@ -11,10 +11,10 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
     FactorQuery,
 )
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,

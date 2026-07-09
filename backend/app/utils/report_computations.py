@@ -1,8 +1,7 @@
 """Pure functions for computing validated totals and results summary.
 
 Extracted from carbon_report_module_stats routes so they can be unit tested
-without DB or HTTP dependencies. Follows the same pattern as
-utils/emission_category.py.
+without DB or HTTP dependencies.
 """
 
 

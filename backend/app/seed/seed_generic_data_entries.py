@@ -106,7 +106,7 @@ DATA_ENTRY_SEEDS: list[DataEntrySeedConfig] = [
     ),
     DataEntrySeedConfig(
         path=SEED_FOLDER / "purchases_additional_data.csv",
-        data_entry_types=[DataEntryTypeEnum.additional_purchases],
+        data_entry_types=[DataEntryTypeEnum.purchases_centralized],
         module_type=ModuleTypeEnum.purchase,
     ),
     DataEntrySeedConfig(

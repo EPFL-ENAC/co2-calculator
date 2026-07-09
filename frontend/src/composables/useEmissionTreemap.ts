@@ -32,7 +32,8 @@ export interface EmissionTreemapCategory {
 const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
   ['other_purchase', 'other_purchases'],
   ['other', 'other_purchases'],
-  ['additional', 'additional'],
+  ['centralized', 'centralized'],
+  ['additional', 'centralized'],
   ['scientific_equipment', 'scientific_equipment'],
   ['it_equipment', 'it_equipment'],
   ['consumable', 'consumable_accessories'],
@@ -72,7 +73,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'services',
     'vehicles',
     'other_purchases',
-    'additional',
+    'centralized',
   ],
   research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],

@@ -8,8 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.db import SessionLocal
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 
 fake = Faker()
 

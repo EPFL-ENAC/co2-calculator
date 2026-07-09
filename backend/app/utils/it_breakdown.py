@@ -1,4 +1,4 @@
-"""Utilities for building an IT-focused emission breakdown.
+"""IT emission categorisation over the persisted stats maps.
 
 Aggregates IT-related emissions from four source modules:
 
@@ -10,20 +10,7 @@ Aggregates IT-related emissions from four source modules:
   facility emissions (Scope 3)
 """
 
-from typing import Any, TypedDict
-
-from app.models.data_entry_emission import EmissionType
-from app.models.module_type import ModuleTypeEnum
-
-
-class ITSqlTotals(TypedDict):
-    """Pre-computed SQL totals passed into ``build_it_breakdown``."""
-
-    it_total_kg: float
-    overall_total_kg: float
-    validated_it_kg: float
-    validated_source_total_kg: float
-
+from app.modules.emissions import EmissionType, get_children, resolve_emission_type
 
 # ---------------------------------------------------------------------------
 # IT category definitions
@@ -76,30 +63,6 @@ IT_EMISSION_TYPES: frozenset[EmissionType] = (
     _IT_EQUIPMENT_TYPES | _IT_PURCHASES_TYPES | _IT_CLOUD_AI_TYPES | _IT_RESEARCH_TYPES
 )
 
-# Maps IT category key -> set of module_type_ids that feed into it
-_IT_CATEGORY_MODULE_IDS: dict[str, set[int]] = {
-    IT_CATEGORY_EQUIPMENT: {ModuleTypeEnum.equipment.value},
-    IT_CATEGORY_PURCHASES: {ModuleTypeEnum.purchase.value},
-    IT_CATEGORY_CLOUD_AI: {ModuleTypeEnum.external_cloud_and_ai.value},
-    IT_CATEGORY_RESEARCH: {ModuleTypeEnum.research_facilities.value},
-}
-
-
-def get_validated_source_module_type_ids(
-    validated_module_type_ids: set[int],
-) -> list[int]:
-    """Return all IT source module type IDs whose category is fully validated.
-
-    A category is considered fully validated when every module type ID it
-    maps to is present in *validated_module_type_ids*.
-    """
-    result: list[int] = []
-    for mod_ids in _IT_CATEGORY_MODULE_IDS.values():
-        if mod_ids.issubset(validated_module_type_ids):
-            result.extend(mod_ids)
-    return result
-
-
 # Ordered list of IT categories for deterministic output
 IT_CATEGORIES_ORDER: list[str] = [
     IT_CATEGORY_EQUIPMENT,
@@ -107,6 +70,15 @@ IT_CATEGORIES_ORDER: list[str] = [
     IT_CATEGORY_CLOUD_AI,
     IT_CATEGORY_RESEARCH,
 ]
+
+# IT category -> the stat bucket its source module reports under; used to
+# derive per-category validation from a report's validated_buckets list.
+IT_CATEGORY_TO_BUCKET_KEY: dict[str, str] = {
+    IT_CATEGORY_EQUIPMENT: "equipment",
+    IT_CATEGORY_PURCHASES: "purchases",
+    IT_CATEGORY_CLOUD_AI: "external_cloud_and_ai",
+    IT_CATEGORY_RESEARCH: "research_facilities",
+}
 
 
 def _categorize_it_emission(emission_type: EmissionType) -> str | None:
@@ -122,150 +94,33 @@ def _categorize_it_emission(emission_type: EmissionType) -> str | None:
     return None
 
 
-def build_it_breakdown(
-    rows: list[tuple[int, int, float]],
-    total_fte: float = 0.0,
-    validated_module_type_ids: set[int] | None = None,
-    top_class_detail: dict[str, list[dict[str, Any]]] | None = None,
-    exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),
-    *,
-    sql_totals: ITSqlTotals,
-) -> dict[str, Any]:
-    """Build an IT-focused emission breakdown from raw aggregated rows.
+def build_it_category_totals(by_emission_type: dict[str, float]) -> dict[str, float]:
+    """Sum a flat ``by_emission_type`` map into IT category totals.
 
-    Args:
-        rows: Aggregated tuples of ``(module_type_id, emission_type_id, kg_co2eq)``.
-        total_fte: Total headcount FTE for per-person normalization.
-        validated_module_type_ids: Set of validated module type IDs.
-        exclude_module_type_ids: Module type IDs to omit (same as emission
-            breakdown / results summary).
-        sql_totals: Pre-computed SQL totals from
-            ``DataEntryEmissionService.get_it_emission_sql_totals``
-            typed as :class:`ITSqlTotals`.
-
-    Returns:
-        A dictionary with ``total_it_tonnes_co2eq``, ``total_it_per_fte``,
-        ``categories`` (ordered list), ``scope_breakdown``, and validation info.
+    Only childless nodes count: non-leaf values in the map are subtree
+    rollups, and the IT type sets include both, so summing everything would
+    double-count.
     """
-    exclude = exclude_module_type_ids or frozenset()
-    filtered_rows = [r for r in rows if r[0] not in exclude]
-    validated_ids = validated_module_type_ids or set()
-
-    # Accumulate kg per IT category and per emission type within cloud/AI
-    category_kg: dict[str, float] = {cat: 0.0 for cat in IT_CATEGORIES_ORDER}
-    cloud_ai_detail: dict[str, float] = {}
-
-    for _module_type_id, emission_type_id, kg_co2eq in filtered_rows:
-        try:
-            et = EmissionType(emission_type_id)
-        except ValueError:
+    totals = {cat: 0.0 for cat in IT_CATEGORIES_ORDER}
+    for et_id_str, kg_co2eq in by_emission_type.items():
+        emission_type = resolve_emission_type(int(et_id_str))
+        if emission_type is None or get_children(emission_type):
             continue
+        category = _categorize_it_emission(emission_type)
+        if category is not None:
+            totals[category] += kg_co2eq or 0.0
+    return totals
 
-        it_cat = _categorize_it_emission(et)
-        if it_cat is None:
+
+def build_cloud_ai_detail(by_emission_type: dict[str, float]) -> dict[str, float]:
+    """Cloud & AI sub-detail in kg: cloud leaves by name, AI grouped as "ai"."""
+    detail: dict[str, float] = {}
+    for et_id_str, kg_co2eq in by_emission_type.items():
+        emission_type = resolve_emission_type(int(et_id_str))
+        if emission_type is None or emission_type not in _IT_CLOUD_AI_TYPES:
             continue
-
-        category_kg[it_cat] += kg_co2eq
-
-        if it_cat == IT_CATEGORY_CLOUD_AI:
-            key = et.name.split("__")[-1]
-            # Group AI providers under a single "ai" key
-            parent = et.parent
-            if parent is not None and parent == EmissionType.external__ai:
-                key = "ai"
-            cloud_ai_detail[key] = cloud_ai_detail.get(key, 0.0) + kg_co2eq
-
-    total_it_kg = sql_totals["it_total_kg"]
-    effective_total_kg = sql_totals["overall_total_kg"]
-    validated_it_kg = sql_totals["validated_it_kg"]
-    total_validated_source_kg = sql_totals["validated_source_total_kg"]
-
-    total_it_tonnes = total_it_kg / 1000.0
-    total_it_per_fte = (total_it_kg / total_fte / 1000.0) if total_fte > 0 else 0.0
-
-    percentage_of_total = (
-        (total_it_kg / effective_total_kg * 100.0) if effective_total_kg > 0 else 0.0
-    )
-    percentage_of_source_modules = (
-        (validated_it_kg / total_validated_source_kg * 100.0)
-        if total_validated_source_kg > 0
-        else 0.0
-    )
-
-    # Build scope breakdown
-    scope_2_kg = category_kg[IT_CATEGORY_EQUIPMENT]
-    scope_3_kg = (
-        category_kg[IT_CATEGORY_PURCHASES]
-        + category_kg[IT_CATEGORY_CLOUD_AI]
-        + category_kg[IT_CATEGORY_RESEARCH]
-    )
-
-    # Determine validation status (skip categories whose module is excluded)
-    active_categories = [
-        ck
-        for ck in IT_CATEGORIES_ORDER
-        if not _IT_CATEGORY_MODULE_IDS[ck].issubset(exclude)
-    ]
-    validated_sources: list[str] = []
-    for cat_key in IT_CATEGORIES_ORDER:
-        module_ids = _IT_CATEGORY_MODULE_IDS[cat_key]
-        if module_ids.issubset(exclude):
-            continue
-        if module_ids.issubset(validated_ids):
-            validated_sources.append(cat_key)
-
-    all_validated = len(active_categories) > 0 and len(validated_sources) == len(
-        active_categories
-    )
-    partially_validated = len(validated_sources) > 0 and not all_validated
-
-    # Build categories list
-    tc_detail = top_class_detail or {}
-    categories: list[dict[str, Any]] = []
-    for cat_key in IT_CATEGORIES_ORDER:
-        kg = category_kg[cat_key]
-        cat_entry: dict[str, Any] = {
-            "category_key": cat_key,
-            "tonnes_co2eq": kg / 1000.0,
-            "percentage": (kg / total_it_kg * 100.0) if total_it_kg > 0 else 0.0,
-        }
-        if cat_key == IT_CATEGORY_CLOUD_AI and cloud_ai_detail:
-            cat_entry["emissions"] = [
-                {"key": k, "value": v / 1000.0}
-                for k, v in sorted(cloud_ai_detail.items())
-            ]
-            # Cloud & AI: use sub-breakdown keys (ai, stockage, etc.)
-            cat_entry["top_items"] = [
-                {"name": k, "value": v / 1000.0}
-                for k, v in sorted(cloud_ai_detail.items(), key=lambda x: -x[1])
-            ]
-        elif cat_key in tc_detail:
-            # Equipment IT / Purchases IT: flatten top-class children
-            items: list[dict[str, Any]] = []
-            for subcategory in tc_detail[cat_key]:
-                for child in subcategory.get("children", []):
-                    items.append(
-                        {
-                            "name": child["name"],
-                            "value": child["value"] / 1000.0,  # kg → tonnes
-                        }
-                    )
-            # Sort descending by value, "rest" always last
-            items.sort(key=lambda x: (x["name"] == "rest", -x["value"]))
-            cat_entry["top_items"] = items
-        categories.append(cat_entry)
-
-    return {
-        "total_it_tonnes_co2eq": total_it_tonnes,
-        "total_it_per_fte": total_it_per_fte,
-        "percentage_of_total": percentage_of_total,
-        "percentage_of_source_modules": percentage_of_source_modules,
-        "categories": categories,
-        "scope_breakdown": {
-            "scope_2": scope_2_kg / 1000.0,
-            "scope_3": scope_3_kg / 1000.0,
-        },
-        "validated": all_validated,
-        "partially_validated": partially_validated,
-        "validated_sources": validated_sources,
-    }
+        key = emission_type.name.split("__")[-1]
+        if emission_type.parent is EmissionType.external__ai:
+            key = "ai"
+        detail[key] = detail.get(key, 0.0) + (kg_co2eq or 0.0)
+    return detail

@@ -19,6 +19,11 @@ import type {
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
+import {
+  toEmissionBreakdown,
+  toItBreakdown,
+  type ReportStats,
+} from 'src/utils/emissionStatsAdapter';
 
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
@@ -81,6 +86,11 @@ export interface EmissionBreakdownResponse {
     percentage_of_total: number;
   };
   embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
+  embodied_energy_by_building?: {
+    building_name: string;
+    kg_co2eq: number;
+    tonnes_co2eq: number;
+  }[];
   /**
    * Per-module status map, merged in by the workspace-home aggregate so the
    * guard can hydrate the sidebar timeline without a separate module-states
@@ -135,6 +145,10 @@ export interface EmissionBreakdownValue {
 export interface EmissionBreakdownCategoryRow {
   category: string;
   category_key: string;
+  /** GHG scope band (1|2|3) of the stat bucket this row renders. */
+  scope?: number;
+  /** True for informative rows excluded from the organisational total. */
+  additional?: boolean;
   emissions: EmissionBreakdownValue[];
   parent_keys_order: string[];
   [key: string]: unknown;
@@ -1014,18 +1028,10 @@ export const useModuleStore = defineStore('modules', () => {
 
     // Always refetch after mutations so that ResultsPage, ModuleCharts, and
     // simulation pages all reflect the latest data without requiring a report
-    // or year change to bust the cache.
+    // or year change to bust the cache. The report-stats payload already
+    // carries `total_tonnes_validated_co2eq`.
     invalidateEmissionBreakdown();
     await getEmissionBreakdown(carbonReportId, []);
-    // The plain /emission-breakdown route this refetches from doesn't carry
-    // `total_tonnes_validated_co2eq` (only the workspace-home aggregate merges
-    // it in) — refetch it here too so Home's headline figure doesn't regress
-    // to a dash after a post-save refresh.
-    await getValidatedTotals(carbonReportId);
-    if (state.emissionBreakdown && state.validatedTotals) {
-      state.emissionBreakdown.total_tonnes_validated_co2eq =
-        state.validatedTotals.total_tonnes_co2eq;
-    }
   }
 
   async function getEmissionBreakdown(
@@ -1053,17 +1059,14 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
-        const params = new URLSearchParams();
-        excludeModules.forEach((id) =>
-          params.append('exclude_modules', String(id)),
-        );
-        const qs = params.toString() ? `?${params.toString()}` : '';
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown${qs}`;
-        const data = await api.get(path).json<EmissionBreakdownResponse>();
+        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
+        const stats = await api.get(path).json<ReportStats>();
         if (!isLatestRequest()) {
           return;
         }
-        state.emissionBreakdown = data;
+        // exclude_modules is a display filter: drop the excluded buckets
+        // client-side instead of re-aggregating server-side.
+        state.emissionBreakdown = toEmissionBreakdown(stats, excludeModules);
         emissionBreakdownCacheKey.value = cacheKey;
       } catch (err: unknown) {
         if (!isLatestRequest()) {
@@ -1128,14 +1131,9 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingItBreakdown = true;
     state.errorItBreakdown = null;
     try {
-      const params = new URLSearchParams();
-      excludeModules.forEach((id) =>
-        params.append('exclude_modules', String(id)),
-      );
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/it-breakdown${qs}`;
-      const data = await api.get(path).json<ItBreakdownResponse>();
-      state.itBreakdown = data;
+      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
+      const stats = await api.get(path).json<ReportStats>();
+      state.itBreakdown = toItBreakdown(stats, excludeModules);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       state.errorItBreakdown = message;

@@ -47,7 +47,7 @@ const TEMPLATE_MAP: Record<string, string> = {
     'external_clouds_template.csv',
   [`${MODULES.ExternalCloudAndAI}:${SUBMODULE_EXTERNAL_CLOUD_TYPES.external_ai}`]:
     'external_ai_template.csv',
-  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}`]:
+  [`${MODULES.Purchase}:${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}`]:
     'purchases_additional_template.csv',
 };
 

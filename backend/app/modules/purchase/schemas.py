@@ -7,9 +7,9 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
 )
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
@@ -38,7 +38,7 @@ class PurchaseHandlerResponse(DataEntryResponseGen):
     kg_co2eq: Optional[float] = None
 
 
-class PurchaseAdditionalHandlerResponse(DataEntryResponseGen):
+class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
     name: str
     unit: Optional[str] = None
     annual_consumption: float
@@ -119,7 +119,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
         return normalized_v
 
 
-class PurchaseAdditionalHandlerCreate(DataEntryCreate):
+class PurchaseCentralizedHandlerCreate(DataEntryCreate):
     name: str
     unit: str
     annual_consumption: float
@@ -217,7 +217,7 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
         return v
 
 
-class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
+class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
     unit: Optional[str] = None
     annual_consumption: Optional[float] = None
@@ -362,13 +362,13 @@ class PurchaseModuleHandler(BaseModuleHandler):
         ]
 
 
-class PurchaseAdditionalModuleHandler(BaseModuleHandler):
+class PurchaseCentralizedModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.additional_purchases
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.purchases_centralized
 
-    create_dto = PurchaseAdditionalHandlerCreate
-    update_dto = PurchaseAdditionalHandlerUpdate
-    response_dto = PurchaseAdditionalHandlerResponse
+    create_dto = PurchaseCentralizedHandlerCreate
+    update_dto = PurchaseCentralizedHandlerUpdate
+    response_dto = PurchaseCentralizedHandlerResponse
 
     kind_field: str = "name"
     subkind_field: Optional[str] = ""
@@ -391,7 +391,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         self,
         data_entry: DataEntry,
         enriched_data: dict | None = None,
-    ) -> PurchaseAdditionalHandlerResponse:
+    ) -> PurchaseCentralizedHandlerResponse:
         data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
@@ -402,10 +402,10 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             }
         )
 
-    def validate_create(self, payload: dict) -> PurchaseAdditionalHandlerCreate:
+    def validate_create(self, payload: dict) -> PurchaseCentralizedHandlerCreate:
         return self.create_dto.model_validate(payload)
 
-    def validate_update(self, payload: dict) -> PurchaseAdditionalHandlerUpdate:
+    def validate_update(self, payload: dict) -> PurchaseCentralizedHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
@@ -443,7 +443,7 @@ purchase_additional_classification_fields: list[str] = ["name"]
 purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
 
 
-class PurchaseAdditionalFactorCreate(FactorCreate):
+class PurchaseCentralizedFactorCreate(FactorCreate):
     name: str
     ef_kg_co2eq_per_kg: float
 
@@ -455,7 +455,7 @@ class PurchaseAdditionalFactorCreate(FactorCreate):
         return v
 
 
-class PurchaseAdditionalFactorUpdate(FactorUpdate):
+class PurchaseCentralizedFactorUpdate(FactorUpdate):
     name: Optional[str] = None
     ef_kg_co2eq_per_kg: Optional[float] = None
 
@@ -469,19 +469,19 @@ class PurchaseAdditionalFactorUpdate(FactorUpdate):
         return v
 
 
-class PurchaseAdditionalFactorResponse(FactorResponseGen):
+class PurchaseCentralizedFactorResponse(FactorResponseGen):
     name: str
     ef_kg_co2eq_per_kg: float
 
 
-class PurchaseAdditionalFactorHandler(BaseFactorHandler):
+class PurchaseCentralizedFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [DataEntryTypeEnum.additional_purchases]
-    emission_type = EmissionType.purchases__additional
+    registration_keys = [DataEntryTypeEnum.purchases_centralized]
+    emission_type = EmissionType.purchases__centralized
 
-    create_dto = PurchaseAdditionalFactorCreate
-    update_dto = PurchaseAdditionalFactorUpdate
-    response_dto = PurchaseAdditionalFactorResponse
+    create_dto = PurchaseCentralizedFactorCreate
+    update_dto = PurchaseCentralizedFactorUpdate
+    response_dto = PurchaseCentralizedFactorResponse
 
     classification_fields: list[str] = purchase_additional_classification_fields
     value_fields: list[str] = purchase_additional_value_fields

@@ -537,7 +537,7 @@ export default {
     en: 'Other Purchases',
     fr: 'Autres achats',
   },
-  data_management_submodule_additional_purchases: {
+  data_management_submodule_purchases_centralized: {
     en: 'Centralized Purchases',
     fr: 'Achats Centralisés',
   },

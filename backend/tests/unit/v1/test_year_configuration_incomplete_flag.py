@@ -259,7 +259,7 @@ class TestCommonFactorModules:
         """When a module's common-factor exists, per-submodule mandatory
         factor is satisfied even without a per-submodule factor job.
         """
-        # purchase additional_purchases (5, 67) has mandatory_factor=True
+        # purchase purchases_centralized (5, 67) has mandatory_factor=True
         config = {
             "modules": {
                 "5": _module(

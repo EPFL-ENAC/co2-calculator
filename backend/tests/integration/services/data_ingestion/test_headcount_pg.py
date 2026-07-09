@@ -60,7 +60,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -70,6 +70,7 @@ from app.models.data_ingestion import (
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 
 from .conftest import (
     assert_stats_match,

@@ -21,12 +21,11 @@ consume — nothing more:
   that is backoffice-only (data-management page, which refetches the full config),
   so skipping it here drops two DB queries per load and the per-submodule
   ``latest_*_job`` payload bloat.
-- ``emission_breakdown`` — chart data, augmented with
+- ``stats`` — the persisted ``CarbonReport.stats``, augmented with
   ``total_tonnes_validated_co2eq`` (the validated-only headline figure, distinct
-  from the breakdown's all-modules ``total_tonnes_co2eq``). Also carries
-  ``module_states`` (per-module ``{module_type_id, status}``) which the frontend
-  fans out to the sidebar timeline + validation gates — the breakdown already
-  computes this map internally, so no separate ``list_modules`` call is needed.
+  from the all-modules ``total``).
+- ``module_states`` (per-module ``{module_type_id, status}``) which the frontend
+  fans out to the sidebar timeline + validation gates.
 
 It is deliberately *not* per-module permission-gated (only unit access is
 enforced, like ``results-summary``) so limited users can load their home page
@@ -41,12 +40,10 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
-from app.api.v1.carbon_report_module_stats import (
-    build_emission_breakdown,
-    build_validated_totals,
-)
+from app.api.v1.carbon_report_module_stats import build_validated_totals
 from app.core.logging import get_logger
 from app.core.policy import require_unit_access
+from app.models.carbon_report import CarbonReportModule
 from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
@@ -102,7 +99,8 @@ class WorkspaceHomeResponse(BaseModel):
 
     carbon_report_id: int
     year_config: Optional[HomeYearConfiguration] = None
-    emission_breakdown: dict
+    stats: dict
+    module_states: list[dict]
 
 
 @router.get("/{unit_id}/{year}/home", response_model=WorkspaceHomeResponse)
@@ -115,8 +113,8 @@ async def get_workspace_home(
     """Resolve the full workspace + home dashboard payload in one call.
 
     Gets the carbon report for ``unit_id``/``year``, then bundles the year
-    configuration and the emission breakdown (with the validated-only total
-    merged in; the breakdown also carries the per-module states).
+    configuration, the persisted report stats (with the validated-only total
+    merged in) and the per-module states.
     """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
@@ -130,16 +128,28 @@ async def get_workspace_home(
 
     year_config = await build_home_year_configuration(db, year, current_user.provider)
 
-    emission_breakdown = await build_emission_breakdown(db, report.id)
-    # The headline needs the validated-only total, which differs from the
-    # breakdown's all-modules total. Reuse the shared helper so validated
-    # semantics (headcount FTE handling, simulator treat-all-validated) stay
-    # identical to /modules-stats/{id}/validated-totals.
+    stats = dict(report.stats or {})
+    # The headline needs the validated-only total with headcount-FTE and
+    # simulator treat-all-validated semantics; reuse the shared helper.
     validated = await build_validated_totals(db, report.id)
-    emission_breakdown["total_tonnes_validated_co2eq"] = validated["total_tonnes_co2eq"]
+    stats["total_tonnes_validated_co2eq"] = validated["total_tonnes_co2eq"]
+
+    module_state_rows = (
+        await db.execute(
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(CarbonReportModule.status),
+            ).where(col(CarbonReportModule.carbon_report_id) == report.id)
+        )
+    ).all()
+    module_states = [
+        {"module_type_id": module_type_id, "status": module_status}
+        for module_type_id, module_status in module_state_rows
+    ]
 
     return WorkspaceHomeResponse(
         carbon_report_id=report.id,
         year_config=year_config,
-        emission_breakdown=emission_breakdown,
+        stats=stats,
+        module_states=module_states,
     )

@@ -8,15 +8,15 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
 )
 from app.models.factor import Factor
-from app.schemas.data_entry import DataEntryResponse
-from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.utils.data_entry_emission_type_map import (
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
+from app.schemas.data_entry import DataEntryResponse
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -265,7 +265,7 @@ class TestMetaExtras:
     @pytest.mark.asyncio
     async def test_commuting_emission_has_distance_km(self):
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -321,7 +321,7 @@ class TestMetaExtras:
     @pytest.mark.asyncio
     async def test_food_emission_has_weight_kg(self):
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -377,7 +377,7 @@ class TestMetaExtras:
     async def test_non_headcount_emission_has_no_named_quantity_key(self):
         """Professional travel (plane) should not duplicate quantity keys into meta."""
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -453,7 +453,8 @@ class TestApplyFormula:
         return DataEntryEmissionService(MagicMock())
 
     def test_key_based_simple(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -467,7 +468,8 @@ class TestApplyFormula:
         assert result == pytest.approx(336.0)
 
     def test_key_based_with_multiplier(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -483,7 +485,8 @@ class TestApplyFormula:
         assert result == pytest.approx(300.0)
 
     def test_multiplier_key_missing_uses_default(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -499,7 +502,8 @@ class TestApplyFormula:
         assert result == pytest.approx(200.0)
 
     def test_missing_quantity_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -512,7 +516,8 @@ class TestApplyFormula:
         assert service._apply_formula(ctx, factor_values, comp) is None
 
     def test_missing_formula_key_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -525,7 +530,8 @@ class TestApplyFormula:
         assert service._apply_formula(ctx, factor_values, comp) is None
 
     def test_no_keys_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -535,7 +541,8 @@ class TestApplyFormula:
         assert service._apply_formula({}, {}, comp) is None
 
     def test_formula_func_takes_precedence(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
 
@@ -554,7 +561,8 @@ class TestApplyFormula:
         assert result == pytest.approx(15.0)
 
     def test_formula_func_can_return_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -631,12 +639,6 @@ class TestDelegationMethods:
         result = await service.get_stats(1)
         assert result == {"total": 100}
         service.repo.get_stats.assert_awaited_once()
-
-    async def test_get_stats_by_carbon_report_id_delegates(self):
-        service = _make_service()
-        service.repo.get_stats_by_carbon_report_id = AsyncMock(return_value={"a": 1})
-        result = await service.get_stats_by_carbon_report_id(1)
-        assert result == {"a": 1}
 
     async def test_create_with_no_emissions(self):
         service = _make_service()
@@ -1209,7 +1211,7 @@ class TestDelegationMethods:
 #     service = DataEntryEmissionService(mock_session)
 
 #     data_entry = MagicMock()
-#     data_entry.data_entry_type = DataEntryTypeEnum.additional_purchases
+#     data_entry.data_entry_type = DataEntryTypeEnum.purchases_centralized
 #     data_entry.data = {
 #         "name": "Liquid Nitrogen",
 #         "annual_consumption": 1000,
@@ -1219,7 +1221,7 @@ class TestDelegationMethods:
 
 #     factor = Factor(
 #         id=1,
-#         data_entry_type_id=DataEntryTypeEnum.additional_purchases,
+#         data_entry_type_id=DataEntryTypeEnum.purchases_centralized,
 #         values={"ef_kg_co2eq_per_kg": 0.001},
 #         classification={
 #             "name": "Liquid Nitrogen",
@@ -1848,9 +1850,9 @@ class TestFetchFactorsStrategyBCache:
     def _comp(self):
         from app.models.data_entry_emission import (
             EmissionComputation,
-            EmissionType,
             FactorQuery,
         )
+        from app.modules.emissions import EmissionType
 
         return EmissionComputation(
             emission_type=EmissionType.food,

@@ -11,9 +11,9 @@ from app.models.module_type import (
     get_data_entry_types_for_module_type,
     get_module_type_for_data_entry_type,
 )
-from app.models.taxonomy import TaxonomyNode
 from app.models.user import User
 from app.schemas.data_entry import BaseModuleHandler
+from app.schemas.taxonomy import TaxonomyNode
 from app.services.module_handler_service import ModuleHandlerService
 
 router = APIRouter()

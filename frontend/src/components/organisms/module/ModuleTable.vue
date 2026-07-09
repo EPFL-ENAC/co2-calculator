@@ -1507,7 +1507,7 @@ function isComplete(row: ModuleRow) {
     return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.Purchase) {
-    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.AdditionalPurchases) {
+    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.PurchasesCentralized) {
       return isCompletePurchaseAdditional(row);
     }
     return isCompletePurchase(row);

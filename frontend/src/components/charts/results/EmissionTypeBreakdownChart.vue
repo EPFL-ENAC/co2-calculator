@@ -79,7 +79,7 @@ const SUBCATEGORY_LABEL_MAP: Record<string, string> = {
   biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
   services: 'charts-services-subcategory',
   vehicles: 'charts-vehicles-subcategory',
-  additional: 'charts-additional-purchases-subcategory',
+  centralized: 'charts-purchases-centralized-subcategory',
   other_purchases: 'charts-other-purchases-subcategory',
   goods_and_services: 'charts-services-subcategory',
   plane: 'charts-plane-subcategory',
