@@ -331,7 +331,9 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
-    async def recompute_stats_many(self, carbon_report_module_ids: list[int]) -> int:
+    async def recompute_stats_many(
+        self, carbon_report_module_ids: list[int], *, bump_status: bool = True
+    ) -> int:
         """Set-based stats recompute for the aggregation job.
 
         Replaces N sequential ``recompute_stats`` calls (~8 queries per
@@ -339,8 +341,16 @@ class CarbonReportModuleService:
         entry-count query, then one batched report rollup
         (``recompute_report_stats_many``) over the distinct parent
         reports.  Each refreshed module is also marked IN_PROGRESS (data
-        changed → prior validation is stale).  Returns the number of
-        modules refreshed.
+        changed → prior validation is stale) unless ``bump_status=False``.
+        Returns the number of modules refreshed.
+
+        ``bump_status=False`` is for the admin recompute-stats backfill
+        trigger (``aggregation_handler`` with
+        ``meta.config.skip_module_status_update``): that path re-derives
+        stats under current code from data that hasn't changed, so it
+        would otherwise stale-out every module's validation for no
+        reason. The recalc-chained call (real data change) always keeps
+        the default.
         """
         if not carbon_report_module_ids:
             return 0
@@ -406,10 +416,12 @@ class CarbonReportModuleService:
                 ),
             )
             module.last_updated = now_utc
-            # Recomputing means the underlying data changed, so the module is
-            # back in progress: any prior validation is now stale. The report
-            # rollup below re-derives overall_status from these statuses.
-            module.status = ModuleStatus.IN_PROGRESS
+            if bump_status:
+                # Recomputing means the underlying data changed, so the module
+                # is back in progress: any prior validation is now stale. The
+                # report rollup below re-derives overall_status from these
+                # statuses.
+                module.status = ModuleStatus.IN_PROGRESS
             self.session.add(module)
             report_ids.add(module.carbon_report_id)
             refreshed += 1

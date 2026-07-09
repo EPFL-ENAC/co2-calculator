@@ -10,6 +10,7 @@ funneled through a runner that has no handler for them.
 """
 
 import asyncio
+import functools
 
 from sqlalchemy import func, or_
 from sqlmodel import col, select
@@ -25,6 +26,22 @@ from app.tasks.runner import run_job
 logger = get_logger(__name__)
 
 
+# A job stays NOT_STARTED (and keeps matching the poller's pending-jobs
+# query) for the whole window between being selected here and actually
+# reaching ``claim_job`` inside ``run_job`` — e.g. while queued behind
+# ``MAX_CONCURRENT_JOBS`` or waiting on a pooled DB connection.  Without
+# this guard, every ``POLLER_INTERVAL_SECONDS`` sweep re-fires a fresh
+# ``dispatch_job`` for the same still-pending job on top of the ones
+# already in flight, so a slowdown anywhere downstream (a busy semaphore,
+# pool pressure) turns into an ever-growing, self-reinforcing pile of
+# redundant tasks instead of just a queue of one.
+_IN_FLIGHT_JOB_IDS: set[int] = set()
+
+
+def _clear_in_flight(job_id: int, _task: asyncio.Task) -> None:
+    _IN_FLIGHT_JOB_IDS.discard(job_id)
+
+
 def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
     """Fire-and-forget: dispatch a job, logging any unhandled exception.
 
@@ -33,12 +50,20 @@ def schedule_job(job: DataIngestionJob, pod_id: str) -> None:
     to running tasks).  Bare ``asyncio.create_task`` here had the same
     hazard that bit recalc enqueuing in 310-B — orphan recovery would
     silently fail to dispatch.
+
+    No-ops if this job_id already has a dispatch in flight from an earlier
+    sweep (see ``_IN_FLIGHT_JOB_IDS`` above).
     """
-    if job.id is None:
+    job_id = job.id
+    if job_id is None:
+        return
+    if job_id in _IN_FLIGHT_JOB_IDS:
         return
     from app.tasks._background import fire_and_forget
 
-    fire_and_forget(dispatch_job(job, pod_id), name=f"dispatch-{job.id}")
+    _IN_FLIGHT_JOB_IDS.add(job_id)
+    task = fire_and_forget(dispatch_job(job, pod_id), name=f"dispatch-{job_id}")
+    task.add_done_callback(functools.partial(_clear_in_flight, job_id))
 
 
 async def dispatch_job(job: DataIngestionJob, pod_id: str) -> None:

@@ -134,6 +134,52 @@ export default {
     en: 'Multiple workers are running different commits — this can cause silent stalls (e.g. two pods racing the same job queue with mismatched logic). Verify intentional before debugging further.',
     fr: 'Plusieurs workers exécutent des commits différents — cela peut provoquer des blocages silencieux (par ex. deux pods en compétition sur la même file avec une logique divergente). Vérifier si c’est intentionnel avant d’investiguer.',
   },
+  // Recompute-stats panel — admin backfill trigger (#841 follow-up).
+  pipeops_recompute_title: {
+    en: 'Recompute stats',
+    fr: 'Recalculer les statistiques',
+  },
+  pipeops_recompute_year_placeholder: {
+    en: 'Year (all if empty)',
+    fr: 'Année (toutes si vide)',
+  },
+  pipeops_recompute_module_type_placeholder: {
+    en: 'Module type (all if empty)',
+    fr: 'Type de module (tous si vide)',
+  },
+  pipeops_recompute_trigger: { en: 'Recompute', fr: 'Recalculer' },
+  pipeops_recompute_hint: {
+    en: 'Forces every module/report to recompute its stats from current data — use after a stats format change, not for routine data fixes. Scopes with no factors uploaded yet are skipped automatically.',
+    fr: 'Force chaque module/rapport à recalculer ses statistiques à partir des données actuelles — à utiliser après un changement de format des statistiques, pas pour une correction de données courante. Les périmètres sans facteurs importés sont ignorés automatiquement.',
+  },
+  pipeops_recompute_confirm_year: {
+    en: 'Recompute stats for every module and report in {year}?',
+    fr: 'Recalculer les statistiques de tous les modules et rapports pour {year} ?',
+  },
+  pipeops_recompute_confirm_all: {
+    en: 'Recompute stats for every module and report, across all years?',
+    fr: 'Recalculer les statistiques de tous les modules et rapports, toutes années confondues ?',
+  },
+  pipeops_recompute_confirm_year_module: {
+    en: 'Recompute stats for {moduleType} in {year}?',
+    fr: 'Recalculer les statistiques de {moduleType} pour {year} ?',
+  },
+  pipeops_recompute_confirm_all_module: {
+    en: 'Recompute stats for {moduleType}, across all years?',
+    fr: 'Recalculer les statistiques de {moduleType}, toutes années confondues ?',
+  },
+  pipeops_recompute_success: {
+    en: '{dispatched} scope(s) queued for recompute ({skipped} already in flight).',
+    fr: '{dispatched} périmètre(s) mis en file pour recalcul ({skipped} déjà en cours).',
+  },
+  pipeops_recompute_success_no_factors: {
+    en: '{dispatched} scope(s) queued for recompute ({skipped} already in flight, {skippedNoFactors} skipped — no factors uploaded yet).',
+    fr: '{dispatched} périmètre(s) mis en file pour recalcul ({skipped} déjà en cours, {skippedNoFactors} ignoré(s) — aucun facteur importé).',
+  },
+  pipeops_recompute_failed: {
+    en: 'Failed to trigger stats recompute',
+    fr: 'Échec du déclenchement du recalcul des statistiques',
+  },
   pipeops_live: { en: 'live', fr: 'live' },
   pipeops_empty: {
     en: 'No pipelines match the current filters.',

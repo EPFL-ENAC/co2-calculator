@@ -737,6 +737,41 @@ provider_type
       }
     }
 
+    /** Wire shape of POST /sync/admin/recompute-stats. */
+    interface RecomputeStatsResponse {
+      dispatched: number;
+      skipped: number;
+      skipped_no_factors: number;
+      job_ids: number[];
+    }
+
+    async function recomputeStats(
+      year: number | null,
+      moduleTypeId: number | null = null,
+    ): Promise<RecomputeStatsResponse> {
+      // Admin backfill trigger (#841 follow-up): dispatches one root
+      // aggregation job per (module_type_id, year) scope so every
+      // report/module stats row gets recomputed under the current code —
+      // needed after a stats JSON shape change, since existing rows keep
+      // whatever an older deploy wrote until something re-triggers them.
+      try {
+        return await api
+          .post('sync/admin/recompute-stats', {
+            searchParams: {
+              ...(year ? { year } : {}),
+              ...(moduleTypeId ? { module_type_id: moduleTypeId } : {}),
+            },
+          })
+          .json<RecomputeStatsResponse>();
+      } catch (err: unknown) {
+        error.value =
+          err instanceof Error
+            ? err.message
+            : 'Failed to trigger stats recompute';
+        throw err;
+      }
+    }
+
     async function reset(): Promise<void> {
       loading.value = false;
       error.value = null;
@@ -770,6 +805,7 @@ provider_type
       subscribeToJobUpdates,
       unsubscribeFromJobUpdates,
       abortPipeline,
+      recomputeStats,
       reset,
     };
   },
