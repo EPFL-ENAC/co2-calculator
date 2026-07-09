@@ -17,7 +17,6 @@ from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
     DataEntry,
     DataEntrySourceEnum,
-    DataEntryStatusEnum,
     DataEntryTypeEnum,
 )
 from app.models.data_ingestion import (
@@ -1311,7 +1310,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
-            payload["status"] = DataEntryStatusEnum.VALIDATED.value
 
             try:
                 with self._timed("validate"):

@@ -21,6 +21,7 @@ from app.core.constants import (
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE_EXPORT,
     DEFAULT_PAGE_SIZE_UNITS,
+    DETAILED_EXPORT_FILE_NAMES,
     ERROR_AT_LEAST_ONE_YEAR,
     ERROR_INVALID_FORMAT,
     EXPORT_CSV_DATE_FORMAT,
@@ -522,7 +523,7 @@ async def report_detailed(
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
 
-        for module_type, data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.items():
+        for data_entry_types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.values():
             for data_entry_type in data_entry_types:
                 if scoped_caller_no_affiliations:
                     continue
@@ -546,7 +547,7 @@ async def report_detailed(
                     continue
 
                 file_path = (
-                    tmp_path / f"{module_type.name}_{data_entry_type.name}.{format}"
+                    tmp_path / f"{DETAILED_EXPORT_FILE_NAMES[data_entry_type]}.{format}"
                 )
                 if format == "json":
                     file_path.write_text(
