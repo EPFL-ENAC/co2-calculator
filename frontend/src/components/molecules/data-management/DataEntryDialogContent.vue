@@ -5,7 +5,7 @@ import type {
   ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { TargetType } from 'src/stores/backofficeDataManagement';
-import { watch, toRef } from 'vue';
+import { computed, watch, toRef } from 'vue';
 
 interface Props {
   modelValue: boolean;
@@ -27,10 +27,18 @@ const {
   isUploading,
   isConnecting,
   isCopying,
+  isTestingConnection,
+  connectorsList,
+  selectedConnector,
+  connectorFormFields,
   apiServerUrl,
+  apiSiteContentUrl,
+  apiUsername,
   apiClientId,
   apiSecretId,
   apiSecretValue,
+  apiConnectorLuid,
+  hasExistingSecret,
   previousYearJobs,
   selectedPreviousJob,
   allApiFieldsFilled,
@@ -39,8 +47,10 @@ const {
   handleEnterKey,
   resetDialog,
   loadPreviousYearJobs,
+  loadConnectorOptions,
   uploadFiles,
   connectAndSync,
+  testConnectionNow,
   copyFromPreviousYear,
 } = useDataEntryDialog({
   row: toRef(props, 'row'),
@@ -50,6 +60,10 @@ const {
   onProgressing: (job: SyncJobResponse) => emit('progressing', job),
 });
 
+const connectorOptions = computed(() =>
+  connectorsList.value.map((c) => ({ label: c.label, value: c.connector })),
+);
+
 watch(
   () => props.modelValue,
   (newVal) => {
@@ -57,6 +71,7 @@ watch(
     if (newVal) {
       resetDialog();
       loadPreviousYearJobs();
+      loadConnectorOptions();
     }
   },
 );
@@ -74,7 +89,7 @@ watch(showDialog, (newVal) => {
     @keyup.escape="showDialog = false"
     @keyup.enter="handleEnterKey"
   >
-    <q-card class="column" style="width: 800px; max-width: 80vw">
+    <q-card class="column no-wrap" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
           <!--
@@ -171,31 +186,79 @@ watch(showDialog, (newVal) => {
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
             <div class="q-gutter-sm q-mt-sm">
+              <q-select
+                v-model="selectedConnector"
+                :options="connectorOptions"
+                emit-value
+                map-options
+                dense
+                outlined
+                :label="$t('data_management_api_connector')"
+              />
               <q-input
+                v-if="connectorFormFields.includes('server_url')"
                 v-model="apiServerUrl"
                 dense
                 outlined
                 :placeholder="$t('data_management_api_server_url')"
               />
               <q-input
+                v-if="connectorFormFields.includes('site_content_url')"
+                v-model="apiSiteContentUrl"
+                dense
+                outlined
+                :placeholder="$t('data_management_api_site_content_url')"
+              />
+              <q-input
+                v-if="connectorFormFields.includes('username')"
+                v-model="apiUsername"
+                dense
+                outlined
+                :placeholder="$t('data_management_api_username')"
+              />
+              <q-input
+                v-if="connectorFormFields.includes('client_id')"
                 v-model="apiClientId"
                 dense
                 outlined
                 :placeholder="$t('data_management_api_client_id')"
               />
               <q-input
+                v-if="connectorFormFields.includes('secret_id')"
                 v-model="apiSecretId"
                 dense
                 outlined
                 :placeholder="$t('data_management_api_secret_id')"
               />
               <q-input
+                v-if="connectorFormFields.includes('secret_value')"
                 v-model="apiSecretValue"
                 dense
                 outlined
                 type="password"
                 auto-complete="current-password"
                 :placeholder="$t('data_management_api_secret_value')"
+                :hint="
+                  hasExistingSecret
+                    ? $t('data_management_api_secret_kept')
+                    : undefined
+                "
+              />
+              <q-input
+                v-model="apiConnectorLuid"
+                dense
+                outlined
+                :placeholder="$t('data_management_api_luid')"
+              />
+              <q-btn
+                :label="$t('data_management_api_test_connection')"
+                dense
+                outline
+                color="grey-8"
+                class="text-weight-medium text-capitalize"
+                :loading="isTestingConnection"
+                :disable="!selectedConnector || isTestingConnection"
+                @click="testConnectionNow"
               />
             </div>
           </div>

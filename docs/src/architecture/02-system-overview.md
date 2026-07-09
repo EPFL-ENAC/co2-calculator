@@ -113,6 +113,11 @@ dotted arrows are integrations enabled per-environment through injected
 secrets. The app is **not** publicly reachable — access is over the EPFL
 network/VPN.
 
+Tableau is the exception: its connection (server, site, credentials) is
+entered per module via the backoffice API-connect form and stored
+encrypted in the database, not injected as environment secrets — see
+[API-Connect Tableau Credentials](../implementation-plans/1552-api-connect-tableau-credentials-prd.md).
+
 **Boundaries.** The system owns its data in a managed PostgreSQL (EPFL
 DBaaS), which also holds the background-job queue table; a `db-dump`
 CronJob backs it up to a PVC. Identity is delegated to Entra ID (OIDC).

@@ -103,9 +103,10 @@ async def test_create_provider_invalid_entity_type():
 
 @pytest.mark.asyncio
 async def test_create_provider_no_matching_provider():
+    # buildings has no API provider registered (headcount gained one in #1552)
     config = {
         "entity_type": EntityType.MODULE_PER_YEAR.value,
-        "module_type_id": ModuleTypeEnum.headcount,
+        "module_type_id": ModuleTypeEnum.buildings,
     }
     provider = await ProviderFactory.create_provider(
         ingestion_method=IngestionMethod.api,

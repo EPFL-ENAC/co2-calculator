@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed, watch, type Ref } from 'vue';
 import { useFilesStore, type FileObject } from 'src/stores/files';
 import {
   useBackofficeDataManagement,
@@ -7,6 +7,10 @@ import {
   type JobUpdatePayload,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
+import {
+  useConnectorsStore,
+  type ConnectorSpecRead,
+} from 'src/stores/connectors';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -21,6 +25,7 @@ interface UseDataEntryDialogOptions {
 export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const filesStore = useFilesStore();
   const dataManagementStore = useBackofficeDataManagement();
+  const connectorsStore = useConnectorsStore();
   const $q = useQuasar();
   const { t: $t } = useI18n();
 
@@ -29,11 +34,24 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const isUploading = ref<boolean>(false);
   const isConnecting = ref<boolean>(false);
   const isCopying = ref<boolean>(false);
+  const isTestingConnection = ref<boolean>(false);
 
+  const connectorsList = ref<ConnectorSpecRead[]>([]);
+  const selectedConnector = ref<string>('');
   const apiServerUrl = ref<string>('');
+  const apiSiteContentUrl = ref<string>('');
+  const apiUsername = ref<string>('');
   const apiClientId = ref<string>('');
   const apiSecretId = ref<string>('');
   const apiSecretValue = ref<string>('');
+  const apiConnectorLuid = ref<string>('');
+  const hasExistingSecret = ref<boolean>(false);
+
+  const connectorFormFields = computed(
+    () =>
+      connectorsList.value.find((c) => c.connector === selectedConnector.value)
+        ?.form_fields ?? [],
+  );
 
   const previousYearJobs = ref<SyncJobResponse[]>([]);
   const selectedPreviousJob = ref<number | null>(null);
@@ -41,10 +59,13 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const allApiFieldsFilled = computed(
     () =>
       options.row.value.hasApi &&
+      !!selectedConnector.value &&
       !!apiServerUrl.value &&
+      !!apiUsername.value &&
       !!apiClientId.value &&
       !!apiSecretId.value &&
-      !!apiSecretValue.value,
+      !!apiConnectorLuid.value &&
+      (hasExistingSecret.value || !!apiSecretValue.value),
   );
 
   const showOverwriteWarning = computed(() => {
@@ -67,12 +88,61 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     isUploading.value = false;
     isConnecting.value = false;
     isCopying.value = false;
+    isTestingConnection.value = false;
+    connectorsList.value = [];
+    selectedConnector.value = '';
     apiServerUrl.value = '';
+    apiSiteContentUrl.value = '';
+    apiUsername.value = '';
     apiClientId.value = '';
     apiSecretId.value = '';
     apiSecretValue.value = '';
+    apiConnectorLuid.value = '';
+    hasExistingSecret.value = false;
     selectedPreviousJob.value = null;
     previousYearJobs.value = [];
+  }
+
+  /** Prefill non-secret connection fields for the currently selected connector. */
+  async function loadConnectionForSelectedConnector() {
+    if (!selectedConnector.value) return;
+    try {
+      const conn = await connectorsStore.getConnection(selectedConnector.value);
+      hasExistingSecret.value = !!conn?.has_secret;
+      apiServerUrl.value = conn?.server_url ?? '';
+      apiSiteContentUrl.value = conn?.site_content_url ?? '';
+      apiUsername.value = conn?.username ?? '';
+      apiClientId.value = conn?.client_id ?? '';
+      apiSecretId.value = conn?.secret_id ?? '';
+      apiSecretValue.value = '';
+    } catch {
+      hasExistingSecret.value = false;
+    }
+  }
+
+  watch(selectedConnector, loadConnectionForSelectedConnector);
+
+  /**
+   * Load the connector registry and prefill the connection form. Only
+   * relevant for the DATA_ENTRIES tab of API-enabled rows — mirrors the
+   * template's `row.hasApi && targetType === DATA_ENTRIES` guard.
+   */
+  async function loadConnectorOptions() {
+    if (
+      !options.row.value.hasApi ||
+      options.targetType.value !== TargetType.DATA_ENTRIES.valueOf()
+    ) {
+      return;
+    }
+    try {
+      connectorsList.value = await connectorsStore.listConnectors();
+      if (connectorsList.value.length > 0) {
+        // Triggers loadConnectionForSelectedConnector() via the watcher above.
+        selectedConnector.value = connectorsList.value[0].connector;
+      }
+    } catch {
+      connectorsList.value = [];
+    }
   }
 
   async function loadPreviousYearJobs() {
@@ -134,16 +204,66 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   async function connectAndSync() {
     isConnecting.value = true;
     try {
+      const connectorSpec = connectorsList.value.find(
+        (c) => c.connector === selectedConnector.value,
+      );
+      await connectorsStore.saveConnection(selectedConnector.value, {
+        label: connectorSpec?.label ?? selectedConnector.value,
+        server_url: apiServerUrl.value,
+        site_content_url: apiSiteContentUrl.value || undefined,
+        username: apiUsername.value,
+        client_id: apiClientId.value,
+        secret_id: apiSecretId.value,
+        secret_value: apiSecretValue.value || undefined,
+      });
+      await connectorsStore.saveDatasource(selectedConnector.value, {
+        module_type_id: options.row.value.moduleTypeId,
+        data_entry_type_id: options.row.value.dataEntryTypeId,
+        connector_luid: apiConnectorLuid.value,
+        label: $t(options.row.value.labelKey),
+      });
       await initiateSync('api', undefined, undefined);
       showDialog.value = false;
-    } catch {
+    } catch (err: unknown) {
+      // The `api` client's afterResponse hook already surfaced the
+      // backend's 422/429 `detail` via its own notification (see
+      // src/api/http.ts); this is the generic fallback shown alongside
+      // it, mirroring uploadFiles()/copyFromPreviousYear() below.
       $q.notify({
         color: 'negative',
         message: $t('data_management_connection_failed'),
+        caption: err instanceof Error ? err.message : undefined,
         position: 'top',
       });
     } finally {
       isConnecting.value = false;
+    }
+  }
+
+  async function testConnectionNow() {
+    if (!selectedConnector.value) return;
+    isTestingConnection.value = true;
+    try {
+      const result = await connectorsStore.testConnection(
+        selectedConnector.value,
+      );
+      $q.notify({
+        color: result.ok ? 'positive' : 'negative',
+        message: result.ok
+          ? $t('data_management_connection_success')
+          : $t('data_management_connection_failed'),
+        caption: result.detail,
+        position: 'top',
+      });
+    } catch (err: unknown) {
+      $q.notify({
+        color: 'negative',
+        message: $t('data_management_connection_failed'),
+        caption: err instanceof Error ? err.message : undefined,
+        position: 'top',
+      });
+    } finally {
+      isTestingConnection.value = false;
     }
   }
 
@@ -177,47 +297,16 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     filePath?: string,
     sourceJobId?: number,
   ) {
-    const syncParams: Record<string, unknown> = {
-      module_type_id: options.row.value.moduleTypeId,
-      year: options.year.value,
-      provider_type: providerType === 'copy' ? 'csv' : providerType,
-      target_type: options.targetType.value,
-      config: {},
-    };
-
-    if (options.row.value.dataEntryTypeId !== undefined) {
-      syncParams.data_entry_type_id = options.row.value.dataEntryTypeId;
-    }
-
+    const config: Record<string, unknown> = {};
     if (options.row.value.reductionObjectiveTypeId !== undefined) {
-      const existingConfig = syncParams.config as
-        Record<string, unknown> | undefined;
-      syncParams.config = {
-        ...existingConfig,
-        reduction_objective_type_id: options.row.value.reductionObjectiveTypeId,
-      };
+      config.reduction_objective_type_id =
+        options.row.value.reductionObjectiveTypeId;
     }
-
     if (options.row.value.factorVariant !== undefined) {
-      const existingConfig = syncParams.config as
-        Record<string, unknown> | undefined;
-      syncParams.config = {
-        ...existingConfig,
-        factor_variant: options.row.value.factorVariant,
-      };
+      config.factor_variant = options.row.value.factorVariant;
     }
-
-    if (filePath) {
-      syncParams.file_path = filePath;
-    }
-
     if (sourceJobId && providerType === 'copy') {
-      const existingConfig = syncParams.config as
-        Record<string, unknown> | undefined;
-      syncParams.config = {
-        ...(existingConfig || {}),
-        source_job_id: sourceJobId,
-      };
+      config.source_job_id = sourceJobId;
     }
 
     const syncPayload = {
@@ -226,7 +315,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
       provider_type: providerType === 'copy' ? 'csv' : providerType,
       target_type: options.targetType.value,
       data_entry_type_id: options.row.value.dataEntryTypeId,
-      config: syncParams.config as Record<string, unknown>,
+      config,
       file_path: filePath,
     };
 
@@ -324,10 +413,18 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     isUploading,
     isConnecting,
     isCopying,
+    isTestingConnection,
+    connectorsList,
+    selectedConnector,
+    connectorFormFields,
     apiServerUrl,
+    apiSiteContentUrl,
+    apiUsername,
     apiClientId,
     apiSecretId,
     apiSecretValue,
+    apiConnectorLuid,
+    hasExistingSecret,
     previousYearJobs,
     selectedPreviousJob,
     allApiFieldsFilled,
@@ -336,8 +433,10 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     handleEnterKey,
     resetDialog,
     loadPreviousYearJobs,
+    loadConnectorOptions,
     uploadFiles,
     connectAndSync,
+    testConnectionNow,
     copyFromPreviousYear,
   };
 }

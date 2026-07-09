@@ -147,6 +147,8 @@ backend:
       accredApiBaseUrlKey: ACCRED_API_BASE_URL # Key in the existing secret for Accred API base URL
       filesEncryptionKeyKey: FILES_ENCRYPTION_KEY # Key in the existing secret for files encryption key
       filesEncryptionSaltKey: FILES_ENCRYPTION_SALT # Key in the existing secret for files encryption salt
+      credentialsEncryptionKeyKey: CREDENTIALS_ENCRYPTION_KEY # Key in the existing secret for credential encryption key
+      credentialsEncryptionSaltKey: CREDENTIALS_ENCRYPTION_SALT # Key in the existing secret for credential encryption salt
       filesMaxSizeMbKey: FILES_MAX_SIZE_MB # Key in the existing secret for maximum file size (MB)
       s3EndpointProtocolKey: S3_ENDPOINT_PROTOCOL # Key in the existing secret for S3 endpoint protocol
       s3EndpointHostnameKey: S3_ENDPOINT_HOSTNAME # Key in the existing secret for S3 endpoint hostname
@@ -165,9 +167,12 @@ backend:
       filename: http_ca_test.crt
       path: /tmp/
   tableau:
+    verifySsl: "true"
     requestTimeoutSeconds: "300"
     restMinApiVersion: "2.4"
     maxFields: "50"
+  connector:
+    allowedHostSuffixes: "" # SSRF guard; empty fails closed, e.g. "epfl.ch"
 
   initContainers:
     waitForPostgres:

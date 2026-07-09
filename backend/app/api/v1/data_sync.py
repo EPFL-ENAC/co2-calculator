@@ -47,6 +47,7 @@ from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
+from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
 from app.tasks._background import fire_and_forget
@@ -144,6 +145,29 @@ async def _stamp_job_type_and_meta(
         )
         row.pipeline_id = pipeline_id
     db.add(row)
+
+
+async def _validate_provider_connection_or_503(
+    provider: DataIngestionProvider, ingestion_method: IngestionMethod
+) -> None:
+    """Call ``provider.validate_connection()``, mapping both a config-gap
+    ``ValueError`` and a plain "not connected" result to a clean 503 instead
+    of letting either escape as (or resemble) a bare 500."""
+    try:
+        connected = await provider.validate_connection()
+    except ValueError as exc:
+        # Provider config gaps — no connection / no datasource configured —
+        # are the normal post-deploy state and raise a ValueError with an
+        # operator-actionable message. Surface it as a clean 503 instead of
+        # letting it escape as a bare 500 (no traceback in the response).
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
+        ) from exc
+    if not connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {ingestion_method}",
+        )
 
 
 async def _resolve_source_job_to_file_path(
@@ -954,11 +978,7 @@ async def sync_module_data_entries(
                 not supported""",
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     factor_type_id = getattr(syncRequest, "factor_type_id", None)
     if factor_type_id is not None:
@@ -1071,11 +1091,7 @@ async def sync_module_factors(
             ),
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),

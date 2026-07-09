@@ -239,9 +239,21 @@ export default {
     en: 'Copy from Previous Year',
     fr: "Copier de l'année précédente",
   },
+  data_management_api_connector: {
+    en: 'Connector',
+    fr: 'Connecteur',
+  },
   data_management_api_server_url: {
     en: 'Server URL',
     fr: 'URL du serveur',
+  },
+  data_management_api_site_content_url: {
+    en: 'Site Content URL',
+    fr: 'URL du contenu du site',
+  },
+  data_management_api_username: {
+    en: 'Username',
+    fr: "Nom d'utilisateur",
   },
   data_management_api_client_id: {
     en: 'Client ID',
@@ -254,6 +266,14 @@ export default {
   data_management_api_secret_value: {
     en: 'Secret Value',
     fr: 'Valeur du secret',
+  },
+  data_management_api_secret_kept: {
+    en: 'Secret set — leave blank to keep',
+    fr: 'Secret défini — laisser vide pour le conserver',
+  },
+  data_management_api_luid: {
+    en: 'Datasource LUID',
+    fr: 'LUID de la source de données',
   },
   data_management_api_test_connection: {
     en: 'Test Connection',

@@ -45,7 +45,14 @@ class Settings(BaseSettings):
     # (dev=true, stage/prod=false). Never flip this default to True.
     DEBUG: bool = False
     LOCAL_ENVIRONMENT: bool = Field(
-        default=False, description="Set to True for local development environment"
+        default=False,
+        description=(
+            "Set to True for local development environment. Double-duty: also "
+            "gates the boot-time security check (`assert_security_settings` in "
+            "app/main.py) that fails closed when credential-encryption/SSRF "
+            "settings are missing. Forced true for the whole test suite via "
+            "pytest-env in pyproject.toml."
+        ),
     )
     API_DOCS_PREFIX: str = "/api"
     API_VERSION: str = "/v1"
@@ -197,17 +204,38 @@ class Settings(BaseSettings):
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
     # TRAVEL API TABLEAU CONFIGURATION
-    TABLEAU_SERVER_URL: str = ""
-    TABLEAU_SITE_CONTENT_URL: Optional[str] = None
-    TABLEAU_DS_FLIGHTS_LUID: str = ""
-    TABLEAU_CONNECTED_APP_CLIENT_ID: str = ""
-    TABLEAU_CONNECTED_APP_SECRET_ID: str = ""
-    TABLEAU_CONNECTED_APP_SECRET_VALUE: str = ""
-    TABLEAU_USERNAME: str = ""
+    # Connection credentials (server_url, site, username, connected-app) are
+    # stored per-connector in the DB (ConnectorConnection, #1552); only the
+    # operational knobs below stay in settings.
     TABLEAU_VERIFY_SSL: str = "true"
     TABLEAU_REQUEST_TIMEOUT_SECONDS: str = "300"
     TABLEAU_REST_MIN_API_VERSION: str = "2.4"
     TABLEAU_MAX_FIELDS: int = 50
+
+    # Credential encryption (required to store connection secrets)
+    CREDENTIALS_ENCRYPTION_KEY: str = Field(
+        default="",
+        description=(
+            "URL-safe base64 secret (>=32 bytes) used to derive the Fernet "
+            "key that encrypts stored connection secrets. Provide via env or "
+            "a secret manager only; never commit."
+        ),
+    )
+    CREDENTIALS_ENCRYPTION_SALT: str = Field(
+        default="",
+        description=(
+            "URL-safe base64 salt (>=16 bytes) for credential key derivation. "
+            "Keep stable for the lifetime of the encrypted data."
+        ),
+    )
+    # SSRF guard: host suffixes a connection server_url may target.
+    CONNECTOR_ALLOWED_HOST_SUFFIXES: str = Field(
+        default="",
+        description=(
+            "Comma-separated host suffixes an API-connection server_url may "
+            "target (e.g. 'epfl.ch'). SSRF guard; empty fails closed."
+        ),
+    )
 
     # Role/Unit provider selection — where do app roles / institutional units
     # come from. No default: invalid or missing config fails at startup
