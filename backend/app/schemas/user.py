@@ -50,11 +50,19 @@ class SessionRead(BaseModel):
     and the globally-configured years for the workspace year selector. This
     collapses what used to be three separate calls (``/session`` + ``/users/units``
     + ``/year-configuration/``) into one.
+
+    ``min_configurable_year`` is also echoed on the single-year
+    ``YearConfigurationResponse``, but that one only exists once a row has
+    been created for the requested year. Bundling it here too gives the
+    frontend a source that doesn't depend on any particular year existing —
+    e.g. the backoffice year selector can seed its lower bound even when the
+    current real-world year has no ``YearConfiguration`` row yet.
     """
 
     user: UserRead
     units: List[UnitWithUserRole]
     configured_years: List[YearConfigurationListItem]
+    min_configurable_year: int
 
 
 class UserCreate(BaseModel):

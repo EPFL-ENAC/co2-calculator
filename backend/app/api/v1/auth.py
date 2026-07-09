@@ -600,6 +600,7 @@ async def get_session(
             user=UserRead.model_validate(user),
             units=units,
             configured_years=configured_years,
+            min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
         )
 
     except HTTPException:

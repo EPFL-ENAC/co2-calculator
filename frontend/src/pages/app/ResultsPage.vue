@@ -28,6 +28,7 @@ import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { MODULE_STATES, getModuleTypeId } from 'src/constant/moduleStates';
 import { useI18n } from 'vue-i18n';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
 import ReductionObjectiveChart from 'src/components/charts/results/ReductionObjectiveChart.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
@@ -249,6 +250,15 @@ const getModuleResult = (module: string): ModuleResult | undefined => {
     (m) => m.module_type_id === typeId,
   );
 };
+
+/**
+ * Same enabled/greyed decision Home's chart icon axis and the backoffice
+ * Reporting page use (isModuleFullyAvailable) — deactivated, no EDIT
+ * permission, or no computed stats all render the row greyed out rather
+ * than hiding or fully enabling it.
+ */
+const isModuleAvailable = (module: string): boolean =>
+  isModuleFullyAvailable(module as Module, Boolean(getModuleResult(module)));
 const { t, te } = useI18n();
 
 function getTotalModuleCarbonFootprintTitle(module: Module): string {
@@ -685,9 +695,16 @@ const getUncertainty = (
               <q-expansion-item
                 v-model="resultsCategoryExpanded[module]"
                 header-class="q-py-md"
+                :disable="!isModuleAvailable(module)"
               >
                 <template #header>
-                  <div class="flex justify-between items-center">
+                  <div
+                    class="flex justify-between items-center"
+                    :class="{
+                      'results-module-header--unavailable':
+                        !isModuleAvailable(module),
+                    }"
+                  >
                     <ModuleIconBox :name="module" size="sm" class="q-mr-sm" />
                     <div class="text-h5 text-weight-medium">
                       {{ $t(module) }}
@@ -872,6 +889,14 @@ const getUncertainty = (
 <style scoped lang="scss">
 .page-grid {
   gap: 2.5rem;
+}
+
+// Deactivated / no-EDIT-permission / no-stats-yet — same muted treatment
+// Home's module-icon-axis chart uses for the same three reasons (see
+// isModuleFullyAvailable).
+.results-module-header--unavailable {
+  opacity: 0.4;
+  filter: grayscale(1);
 }
 
 .summary-section {

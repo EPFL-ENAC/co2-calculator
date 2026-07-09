@@ -17,9 +17,7 @@ import type { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { SUBMODULE_TO_CATEGORY } from 'src/composables/useModuleIconColors';
 import { useColorblindStore } from 'src/stores/colorblind';
-import { useAuthStore } from 'src/stores/auth';
-import { useYearConfigStore } from 'src/stores/yearConfig';
-import { PermissionAction } from 'src/utils/permission';
+import { isModuleFullyAvailable } from 'src/composables/useModuleAvailability';
 import {
   TooltipComponent,
   LegendComponent,
@@ -90,8 +88,6 @@ const props = defineProps({
 const { t, locale } = useI18n();
 const isPrintMode = usePrintMode();
 const colorblindStore = useColorblindStore();
-const authStore = useAuthStore();
-const yearConfigStore = useYearConfigStore();
 
 const toggleAdditionalData = ref(false);
 const effectiveToggle = computed(
@@ -130,24 +126,12 @@ type IconAxisItem = {
   module: Module | null;
   submoduleType?: string;
   x: number;
-  // Whether the icon links to its module page. False (greyed-out, non-clickable)
-  // when the user lacks edit access to the module (e.g. a standard user without
-  // own-edit) or when the module is disabled in the back-office.
+  // Whether the icon links to its module page — false (greyed-out,
+  // non-clickable) when the module is disabled in the back-office, the
+  // user lacks edit access, or the module has no computed stats yet (never
+  // touched). See isModuleFullyAvailable — same decision every page uses.
   enabled: boolean;
 };
-
-/**
- * A module icon is an actionable link only when the user may edit that module
- * AND the module is enabled in the back-office. Otherwise it is shown greyed
- * out and non-clickable.
- */
-function isModuleIconEnabled(module: Module | null): boolean {
-  if (!module) return false;
-  return (
-    yearConfigStore.isModuleVisible(module) &&
-    authStore.hasUserModulePermission(module, PermissionAction.EDIT)
-  );
-}
 
 // Pixel-positioned module icon buttons under each bar (moduleIconAxis mode).
 const iconAxisItems = ref<IconAxisItem[]>([]);
@@ -178,7 +162,7 @@ function updateIconAxis(chart: NonNullable<typeof chartRef.value>['chart']) {
       module,
       submoduleType: CATEGORY_TO_SUBMODULE[categoryKey],
       x: chart.convertToPixel({ xAxisIndex: 0 }, label) as number,
-      enabled: isModuleIconEnabled(module),
+      enabled: isModuleFullyAvailable(module, Boolean(item.__hasStats)),
     };
   });
   iconAxisTop.value = yZero;
@@ -515,12 +499,19 @@ function normalizeCategoryRowKeys(
   return entry;
 }
 
+// Metadata fields that happen to be numbers but aren't emission values —
+// zeroing them (or, in collapseByCategory, summing them across merged rows)
+// corrupts the field instead of just hiding an unvalidated category's stats.
+// `scope` in particular feeds updateScopeGraphics's `groups[String(scope)]`
+// lookup, so a zeroed/summed value (e.g. 0 or 6) crashes it outright.
+const NON_EMISSION_NUMERIC_KEYS = new Set(['category', 'scope']);
+
 function zeroNumericValues(
   entry: Record<string, unknown>,
 ): Record<string, unknown> {
   const next: Record<string, unknown> = { ...entry };
   Object.entries(next).forEach(([key, value]) => {
-    if (key === 'category') return;
+    if (NON_EMISSION_NUMERIC_KEYS.has(key)) return;
     if (typeof value === 'number' && Number.isFinite(value)) {
       next[key] = 0;
     }
@@ -547,7 +538,7 @@ function collapseByCategory(
     }
 
     Object.entries(row).forEach(([key, value]) => {
-      if (key === 'category' || key.startsWith('__')) return;
+      if (key.startsWith('__') || NON_EMISSION_NUMERIC_KEYS.has(key)) return;
       if (typeof value === 'object' && value !== null) return;
       const n = Number(value);
       if (!Number.isNaN(n)) {
@@ -629,15 +620,52 @@ const additionalCategoryOrderMap = computed(() => {
   return map;
 });
 
+// Every main-category bar/icon must always render, even for a module that
+// has never been touched (no bucket in module_breakdown at all) — a
+// "not started" module should show up greyed out, not silently vanish
+// from the chart. `scope` mirrors each module's StatBucket declaration
+// (backend app/modules/*/emissions.py) since a placeholder row has no
+// backend response to read it from.
+const MAIN_RESULT_CATEGORIES: { key: string; scope: 1 | 2 | 3 }[] = [
+  { key: 'process_emissions', scope: 1 },
+  { key: 'buildings_energy_combustion', scope: 1 },
+  { key: 'buildings_room', scope: 2 },
+  { key: 'equipment', scope: 2 },
+  { key: 'external_cloud_and_ai', scope: 3 },
+  { key: 'professional_travel', scope: 3 },
+  { key: 'purchases', scope: 3 },
+  { key: 'research_facilities', scope: 3 },
+];
+
 const datasetSource = computed(() => {
   if (!props.breakdownData) return [];
 
+  const presentCategoryKeys = new Set(
+    props.breakdownData.module_breakdown.map((entry) =>
+      String(entry.category_key ?? entry.category ?? ''),
+    ),
+  );
+  const missingPlaceholders = MAIN_RESULT_CATEGORIES.filter(
+    ({ key }) => !presentCategoryKeys.has(key),
+  ).map(({ key, scope }) => ({
+    category: key,
+    category_key: key,
+    scope,
+    additional: false,
+    __hasStats: false,
+  }));
+
   const baseData = collapseByCategory(
-    props.breakdownData.module_breakdown
-      .map((entry) => {
+    [
+      ...props.breakdownData.module_breakdown.map((entry) => {
         const category = String(entry.category ?? '');
-        return isCategoryValidated(category) ? entry : zeroNumericValues(entry);
-      })
+        const row = isCategoryValidated(category)
+          ? entry
+          : zeroNumericValues(entry);
+        return { ...row, __hasStats: true };
+      }),
+      ...missingPlaceholders,
+    ]
       .map(normalizeCategoryRowKeys)
       .map(translateCategory),
   );

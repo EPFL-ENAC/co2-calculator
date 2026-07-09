@@ -275,8 +275,16 @@ export const useTimelineStore = defineStore('timeline', () => {
         )
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
-      useModuleStore().invalidateValidatedTotals();
-      useModuleStore().invalidateEmissionBreakdown();
+      const moduleStore = useModuleStore();
+      moduleStore.invalidateValidatedTotals();
+      moduleStore.invalidateEmissionBreakdown();
+      // Unlike postItem/patchItem/deleteItem, this used to only invalidate
+      // the cache key without refetching — nothing else refetches on a pure
+      // validate/unvalidate (no item CRUD, no carbon-report-id change), so
+      // moduleStore.state.emissionBreakdown (what Home reads for the chart
+      // and validated_categories) stayed stale until an unrelated refetch
+      // happened to fire, or the user hard-refreshed.
+      await moduleStore.refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;

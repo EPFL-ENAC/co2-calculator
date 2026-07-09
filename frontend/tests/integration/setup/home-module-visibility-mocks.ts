@@ -1,6 +1,11 @@
 /**
  * HTTP-boundary mocks for the "module deactivation greys out the module in
- * the calculator view" spec (Issue #1403, slice c).
+ * the calculator view" spec (Issue #1403, slice c) — extended to also cover
+ * a module with no computed stats at all ("not started"), which must
+ * likewise render greyed-out rather than being omitted from the chart.
+ * Single source of truth for the enabled/greyed decision is
+ * `isModuleFullyAvailable` (src/composables/useModuleAvailability.ts),
+ * shared with Results and the backoffice Reporting page.
  *
  * Unlike ``data-management-mocks.ts`` we do NOT set
  * ``__LIGHTHOUSE_BYPASS__``: ``workspaceGuard`` returns early on that flag
@@ -25,12 +30,13 @@ const MOCK_USER = {
   display_name: 'Test User',
   institutional_id: 'test-user',
   roles_raw: [],
-  // Grant edit on both modules under test so config (enabled/disabled) is
-  // the only thing that differs between the two icons — isolates the
-  // "module deactivation greys it out" behavior from permission gating.
+  // Grant edit on all three modules under test so config (enabled/disabled)
+  // and stats presence are the only things differing between the icons —
+  // isolates each grey-out reason from permission gating.
   permissions: {
     'modules.process_emissions': ['view', 'edit'],
     'modules.equipment': ['view', 'edit'],
+    'modules.external_cloud_and_ai': ['view', 'edit'],
   },
 };
 
@@ -93,8 +99,17 @@ export async function mockHomeBackend(page: Page): Promise<void> {
                 incomplete: false,
                 submodules: {},
               },
-              // equipment — enabled.
+              // equipment — enabled, has stats.
               '4': {
+                enabled: true,
+                uncertainty_tag: 'medium',
+                incomplete: false,
+                submodules: {},
+              },
+              // external-cloud-and-ai — enabled, but never touched: no entry
+              // in module_breakdown below, so it has no computed stats at
+              // all ("not started"). Must still render, greyed out.
+              '7': {
                 enabled: true,
                 uncertainty_tag: 'medium',
                 incomplete: false,

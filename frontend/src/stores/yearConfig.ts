@@ -276,6 +276,23 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     configuredYears.value = rows;
   }
 
+  /**
+   * Seed the year-selector's lower bound from ``GET /session`` at app-init.
+   *
+   * Unlike ``setConfig``, this doesn't depend on any particular year's
+   * ``YearConfiguration`` row existing — ``fetchConfig(year)`` only sets
+   * ``minConfigurableYear`` on a 200, so if the caller's current real-world
+   * year has no row yet (e.g. only last year was ever created), a 404 left
+   * ``minConfigurableYear`` permanently ``null`` and the backoffice year
+   * dropdown (``availableYears``) stayed empty forever with no way to
+   * recover. Session hydration always has a value, regardless of which
+   * years exist.
+   */
+  function setMinConfigurableYear(value: number) {
+    minConfigurableYear.value = value;
+    minConfigurableYearError.value = null;
+  }
+
   // Methods
   async function fetchConfig(
     year: number,
@@ -646,6 +663,7 @@ export const useYearConfigStore = defineStore('yearConfig', () => {
     setConfig,
     fetchConfiguredYears,
     setConfiguredYears,
+    setMinConfigurableYear,
     createConfig,
     updateConfig,
     openForUsers,
