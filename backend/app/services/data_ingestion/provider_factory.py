@@ -23,6 +23,7 @@ from app.services.data_ingestion.csv_providers import (
     ModuleUnitSpecificCSVProvider,
     ReferenceDataCSVProvider,
 )
+from app.services.data_ingestion.factor_copy_provider import FactorCopyProvider
 
 
 class ProviderFactory:
@@ -63,6 +64,20 @@ class ProviderFactory:
                 TargetType.FACTORS,
                 EntityType.MODULE_PER_YEAR,
             ): ModulePerYearFactorCSVProvider
+            for module_type in ModuleTypeEnum
+        },
+        # MODULE_PER_YEAR factor copy-from-previous-year providers (#740) —
+        # same registration shape as the factor CSV providers above, since
+        # the copy is keyed by (module_type, data_entry_type) exactly like
+        # a CSV re-upload, just sourced from last year's rows instead of a
+        # file.
+        **{
+            (
+                module_type,
+                IngestionMethod.copy_previous_year,
+                TargetType.FACTORS,
+                EntityType.MODULE_PER_YEAR,
+            ): FactorCopyProvider
             for module_type in ModuleTypeEnum
         },
         ## MODULE_PER_YEAR REDUCTION OBJECTIVES

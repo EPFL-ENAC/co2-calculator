@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { ref, inject, computed, type ComputedRef, type Ref } from 'vue';
+import {
+  ref,
+  inject,
+  computed,
+  watch,
+  onMounted,
+  type ComputedRef,
+  type Ref,
+} from 'vue';
 import { useSubmoduleConfig } from 'src/composables/useSubmoduleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
 import {
@@ -14,6 +22,7 @@ import UploadCardData from 'src/components/molecules/data-management/UploadCardD
 import UploadCardFactors from 'src/components/molecules/data-management/UploadCardFactors.vue';
 import UploadCardReferences from 'src/components/molecules/data-management/UploadCardReferences.vue';
 import ComputedFactorDialog from 'src/components/molecules/data-management/ComputedFactorDialog.vue';
+import CopyFactorsDialog from 'src/components/molecules/data-management/CopyFactorsDialog.vue';
 
 interface Props {
   submodule: SubmoduleConfig;
@@ -39,6 +48,11 @@ const {
   computedFactorRunning,
   anyComputedFactorRunning,
   confirmComputedFactorSync,
+  copyFactorsRunning,
+  anyCopyFactorsRunning,
+  loadCopyFactorsAvailability,
+  canCopyFactorsFromPreviousYear,
+  confirmCopyFactorsFromPreviousYear,
 } = useSubmoduleConfig();
 
 const { getRecalcStatus } = useRecalculation();
@@ -82,6 +96,30 @@ function openComputedFactorConfirm() {
 async function handleComputedFactorConfirm() {
   await confirmComputedFactorSync(props.submodule, handleJobCompleted);
 }
+
+// #740 — "Copy from {year - 1}" per-submodule factor copy. Availability
+// (does the prior year have factors to copy?) is loaded once on mount
+// and whenever the selected year changes.
+const showCopyFactorsConfirm = ref(false);
+
+function openCopyFactorsConfirm() {
+  showCopyFactorsConfirm.value = true;
+}
+
+async function handleCopyFactorsConfirm() {
+  await confirmCopyFactorsFromPreviousYear(props.submodule, handleJobCompleted);
+}
+
+onMounted(() => {
+  void loadCopyFactorsAvailability(props.submodule);
+});
+
+watch(
+  () => yearConfigStore.selectedYear,
+  () => {
+    void loadCopyFactorsAvailability(props.submodule);
+  },
+);
 
 async function handleReferenceCompleted() {
   await handleJobCompleted();
@@ -274,6 +312,10 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         :module="submodule.key"
         :computed-factor-running="computedFactorRunning[submodule.key]"
         :any-computed-factor-running="anyComputedFactorRunning"
+        :can-copy-from-previous-year="canCopyFactorsFromPreviousYear(submodule)"
+        :copy-factors-running="copyFactorsRunning[submodule.key]"
+        :any-copy-factors-running="anyCopyFactorsRunning"
+        :previous-year="yearConfigStore.selectedYear - 1"
         :pipeline-progress="pipelineProgress"
         :on-download="
           (e, y) => {
@@ -283,6 +325,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
         @upload="(row) => openDataEntryDialog(row, TargetType.FACTORS)"
         @recalculate="() => triggerTypeRecalculation(submodule)"
         @compute-factors="openComputedFactorConfirm"
+        @copy-from-previous-year="openCopyFactorsConfirm"
         @abort="handleAbortPipeline"
       />
       <UploadCardReferences
@@ -313,6 +356,12 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
       v-model="showComputedFactorConfirm"
       @confirm="handleComputedFactorConfirm"
       @cancel="showComputedFactorConfirm = false"
+    />
+    <CopyFactorsDialog
+      v-model="showCopyFactorsConfirm"
+      :year="yearConfigStore.selectedYear - 1"
+      @confirm="handleCopyFactorsConfirm"
+      @cancel="showCopyFactorsConfirm = false"
     />
   </q-expansion-item>
 </template>

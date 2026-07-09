@@ -1,9 +1,9 @@
 ---
-status: proposed
+status: delivered
 issue: 740
-last_updated: 2026-07-07
+last_updated: 2026-07-09
 title: "Backoffice: Copy factors from previous year"
-summary: "Add a backoffice action to duplicate a prior year's factor rows into a newly opened year, bulk or per-row, instead of forcing a full CSV re-upload."
+summary: "Add a backoffice action to duplicate a prior year's factor rows into a newly opened year, bulk or per-submodule, instead of forcing a full CSV re-upload."
 ---
 
 # Backoffice: Copy factors from previous year
@@ -97,12 +97,39 @@ is deferred to a follow-up if operators ask for it after using bulk copy.
 
 ## Steps
 
-- [ ] Add `IngestionMethod.copy_previous_year` to `backend/app/models/data_ingestion.py`
-- [ ] Implement `FactorCopyProvider` (source-year lookup, clone-with-new-year, `upsert_factors`)
-- [ ] Register provider in `ProviderFactory.PROVIDERS` for `(copy_previous_year, TargetType.FACTORS)`
-- [ ] Unit test: `FactorCopyProvider` copies rows, is idempotent on retry, no-ops when source year is empty
-- [ ] Unit test: `sync_module_factors` endpoint accepts `ingestion_method=copy_previous_year` with `filters.source_year` override
-- [ ] Frontend: `initiateFactorCopyFromPreviousYear` in `backofficeDataManagement.ts`
-- [ ] Frontend: per-submodule "Copy from {year-1}" button in `DataManagementPage.vue`, gated on prior-year success via `getPreviousYearSuccessfulJobs`
-- [ ] Frontend: page-level "Copy all factors from {year-1}" bulk action looping per-submodule calls
-- [ ] Manual verification: open a new year, bulk-copy from prior year, confirm submodules flip from "incomplete" to populated without CSV re-upload
+- [x] Add `IngestionMethod.copy_previous_year` to `backend/app/models/data_ingestion.py`
+- [x] Implement `FactorCopyProvider` (source-year lookup, clone-with-new-year, `upsert_factors`)
+- [x] Register provider in `ProviderFactory.PROVIDERS` for `(copy_previous_year, TargetType.FACTORS)`
+- [x] Unit test: `FactorCopyProvider` copies rows, is idempotent on retry, no-ops when source year is empty
+- [x] Unit test: `sync_module_factors` endpoint accepts `ingestion_method=copy_previous_year` with `filters.source_year` override
+- [x] Frontend: `initiateFactorCopyFromPreviousYear` in `backofficeDataManagement.ts`
+- [x] Frontend: per-submodule "Copy from {year-1}" button (in `UploadCardFactors.vue` / `SubmoduleItem.vue`, consumed from `DataManagementPage.vue`'s module tree), gated on prior-year success via `getPreviousYearSuccessfulJobs`
+- [x] Frontend: page-level "Copy all factors from {year-1}" bulk action in `DataManagementPage.vue` looping per-submodule calls, skipping pairs with no source-year factors
+- [x] Manual/logical verification: reasoned through the end-to-end flow (see "Verification" note below) — no live app available in this environment to click through.
+
+### Implementation notes (2026-07-09)
+
+- The per-submodule "Copy from {year-1}" button lives on the existing
+  `UploadCardFactors` card (next to "Compute Missing Factors"), wired
+  through `SubmoduleItem.vue` → `useSubmoduleConfig.ts`, not directly in
+  `DataManagementPage.vue` (that file only hosts the page-level bulk
+  button) — the per-submodule UI composition already lived one level
+  down from the page component before this change (mirrors how
+  "Compute Missing Factors" is wired), so the new button follows the
+  same layering rather than moving existing structure.
+- A confirmation dialog (`CopyFactorsDialog.vue`, modeled on the
+  existing `ComputedFactorDialog.vue`) gates both the per-submodule and
+  bulk actions, since copying overwrites already-entered current-year
+  factor rows for the affected data-entry type(s).
+- Pre-existing, unrelated mechanism found during implementation: a
+  file-replay "copy from previous year" flow already exists for
+  individual data-entry-type dialogs (`useDataEntryDialog.ts` +
+  `config.source_job_id` + `_resolve_source_job_to_file_path` in
+  `data_sync.py`), which re-uploads the prior year's *processed CSV
+  file* through the normal CSV provider. It is orthogonal to this
+  plan's DB-level `FactorCopyProvider`: it depends on the source year's
+  processed file still existing in file storage and only replays
+  CSV-sourced factors, whereas `FactorCopyProvider` clones the `Factor`
+  rows directly from the database and also covers factors that were
+  never CSV-uploaded (e.g. seeded or computed). Both mechanisms now
+  coexist; no changes were made to the file-replay path.

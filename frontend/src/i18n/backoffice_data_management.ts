@@ -617,6 +617,46 @@ export default {
     en: 'View details in Pipeline Operations',
     fr: 'Voir les détails dans Pipeline Operations',
   },
+  data_management_copy_factors_confirm_title: {
+    en: 'Copy factors from {year}',
+    fr: 'Copier les facteurs depuis {year}',
+  },
+  data_management_copy_factors_confirm_message: {
+    en: 'This will copy factor rows from {year} into the current year. Existing rows for the current year will be updated to match. Do you want to proceed?',
+    fr: "Ceci copiera les facteurs de l'année {year} vers l'année en cours. Les facteurs existants pour l'année en cours seront mis à jour en conséquence. Souhaitez-vous continuer ?",
+  },
+  data_management_copy_factors_success: {
+    en: 'Factors copied successfully',
+    fr: 'Facteurs copiés avec succès',
+  },
+  data_management_copy_factors_warning: {
+    en: 'Factors copied with warnings',
+    fr: 'Facteurs copiés avec avertissements',
+  },
+  data_management_copy_factors_error: {
+    en: 'Failed to copy factors from previous year',
+    fr: "Échec de la copie des facteurs de l'année précédente",
+  },
+  data_management_copy_all_factors: {
+    en: 'Copy all factors from {year}',
+    fr: 'Copier tous les facteurs depuis {year}',
+  },
+  data_management_copy_all_factors_confirm_message: {
+    en: 'This will copy factor rows from {year} into every submodule of the current year that has no factors yet copied from it. Submodules without factors for {year} are skipped. Do you want to proceed?',
+    fr: "Ceci copiera les facteurs de l'année {year} dans tous les sous-modules de l'année en cours n'ayant pas encore de facteurs copiés depuis celle-ci. Les sous-modules sans facteurs pour {year} sont ignorés. Souhaitez-vous continuer ?",
+  },
+  data_management_copy_all_factors_success: {
+    en: 'Copied factors for {count} submodule(s)',
+    fr: 'Facteurs copiés pour {count} sous-module(s)',
+  },
+  data_management_copy_all_factors_none: {
+    en: 'No submodules have factors available to copy from {year}',
+    fr: "Aucun sous-module n'a de facteurs disponibles à copier depuis {year}",
+  },
+  data_management_copy_all_factors_error: {
+    en: 'Some submodules failed to copy factors',
+    fr: 'Certains sous-modules ont échoué à copier les facteurs',
+  },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',

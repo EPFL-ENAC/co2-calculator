@@ -98,6 +98,10 @@ export enum IngestionMethod {
   CSV = 1,
   MANUAL = 2,
   COMPUTED = 3,
+  // Clones factors from a source year (default year - 1, overridable via
+  // filters.source_year) into the target year — see backend
+  // ``app.models.data_ingestion.IngestionMethod.copy_previous_year`` (#740).
+  COPY_PREVIOUS_YEAR = 4,
 }
 // institutional_footprint
 // population_projections
@@ -655,6 +659,65 @@ provider_type
     }
 
     /**
+     * Trigger a "copy factors from previous year" job for a given
+     * module / data-entry type (#740).  Uses the same /sync/factors
+     * endpoint as ``initiateComputedFactorSync``, but with
+     * ``ingestion_method=COPY_PREVIOUS_YEAR``.
+     *
+     * ``sourceYear`` overrides the backend default of ``year - 1``
+     * (e.g. to skip a year with known-bad data); omit to use the default.
+     *
+     * Returns the created job_id.
+     */
+    async function initiateFactorCopyFromPreviousYear(
+      moduleTypeId: number,
+      dataEntryTypeId: number,
+      year: number,
+      sourceYear?: number,
+    ): Promise<number> {
+      if (loading.value) throw new Error('Another operation is in progress');
+
+      loading.value = true;
+      error.value = null;
+
+      try {
+        const response = (await api
+          .post(`sync/factors/${moduleTypeId}/${dataEntryTypeId}`, {
+            json: {
+              ingestion_method: IngestionMethod.COPY_PREVIOUS_YEAR,
+              target_type: TargetType.FACTORS,
+              year,
+              filters:
+                sourceYear !== undefined ? { source_year: sourceYear } : {},
+            },
+          })
+          .json()) as { job_id: number; pipeline_id?: string };
+
+        // Issue #1219 — see initiateSync: seed the pipeline_id now so
+        // the card subscribes from dispatch, not from the post-finish
+        // active-pipelines poll.
+        if (response.pipeline_id) {
+          usePipelineStateStore().setPipelineId(
+            moduleTypeId,
+            year,
+            response.pipeline_id,
+          );
+        }
+
+        return response.job_id;
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          error.value = err.message ?? 'Failed to initiate factor copy';
+        } else {
+          error.value = 'Failed to initiate factor copy';
+        }
+        throw err;
+      } finally {
+        loading.value = false;
+      }
+    }
+
+    /**
      * Trigger emission recalculation for a single data entry type.
      * Returns the created job_id.
      */
@@ -800,6 +863,7 @@ provider_type
       getPreviousYearSuccessfulJobs,
       initiateSync,
       initiateComputedFactorSync,
+      initiateFactorCopyFromPreviousYear,
       initiateEmissionRecalculation,
       initiateModuleEmissionRecalculation,
       subscribeToJobUpdates,
