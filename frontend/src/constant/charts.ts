@@ -401,6 +401,87 @@ export const RESULTS_CATEGORY_LABEL_KEYS: Record<
   embodied_energy: 'charts-embodied-energy-category',
 };
 
+/**
+ * Emission key → i18n key, for the Results CSV export's subcategory columns.
+ *
+ * The keys are the trailing segment of the backend `EmissionType` name, as
+ * returned in each breakdown row's `emissions[].key` / `.parent_key`. Values
+ * reuse the labels the chart already puts on its series, so the CSV and the
+ * legend agree. Keys with no entry here (waste and commuting leaves, purchases'
+ * `goods_and_services`) fall back to the raw key.
+ *
+ * Purchases' `other` is normalized to `other_purchases` before lookup, so it
+ * does not collide with equipment's `other`.
+ */
+export const RESULTS_SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
+  // process emissions
+  co2: 'process-emissions.category.co2',
+  ch4: 'process-emissions.category.ch4',
+  n2o: 'process-emissions.category.n2o',
+  refrigerants: 'process-emissions.category.refrigerants',
+  // buildings — energy combustion, then its fuels
+  combustion: 'charts-energy-combustion-subcategory',
+  natural_gas: 'charts-natural-gas-subcategory',
+  propane: 'charts-propane-subcategory',
+  heating_oil: 'charts-heating-oil-subcategory',
+  biomethane: 'charts-biomethane-subcategory',
+  pellets: 'charts-pellets-subcategory',
+  forest_chips: 'charts-forest-chips-subcategory',
+  wood_logs: 'charts-wood-logs-subcategory',
+  // buildings — rooms, then their room types
+  lighting: 'charts-lighting-subcategory',
+  cooling: 'charts-cooling-subcategory',
+  ventilation: 'charts-ventilation-subcategory',
+  heating_electric: 'charts-heating-elec-subcategory',
+  heating_thermal: 'charts-heating-thermal-subcategory',
+  office: 'charts-office-subcategory',
+  laboratories: 'charts-laboratories-subcategory',
+  archives: 'charts-archives-subcategory',
+  libraries: 'charts-libraries-subcategory',
+  auditoriums: 'charts-auditoriums-subcategory',
+  miscellaneous: 'charts-miscellaneous-subcategory',
+  // equipment
+  scientific: 'charts-scientific-subcategory',
+  it: 'charts-equipment-it',
+  other: 'charts-other-equipment-subcategory',
+  // external cloud & AI, then storage kinds and AI providers
+  clouds: 'charts-clouds-subcategory',
+  ai: 'charts-ai-subcategory',
+  stockage: 'charts-stockage-subcategory',
+  virtualisation: 'charts-virtualisation-subcategory',
+  calcul: 'charts-calcul-subcategory',
+  provider_google: 'charts-ai-provider-google-subcategory',
+  provider_openai: 'charts-ai-provider-openai-subcategory',
+  provider_anthropic: 'charts-ai-provider-anthropic-subcategory',
+  provider_mistral_ai: 'charts-ai-provider-mistral-ai-subcategory',
+  provider_cohere: 'charts-ai-provider-cohere-subcategory',
+  provider_others: 'charts-ai-provider-others-subcategory',
+  // professional travel — modes, then classes (issue #866)
+  plane: 'charts-plane-subcategory',
+  train: 'charts-train-subcategory',
+  class_1: 'charts-class-1-subcategory',
+  class_2: 'charts-class-2-subcategory',
+  first: 'charts-first-class-subcategory',
+  business: 'charts-business-class-subcategory',
+  eco: 'charts-eco-class-subcategory',
+  // purchases
+  scientific_equipment: 'charts-scientific-subcategory',
+  it_equipment: 'charts-equipment-it',
+  consumable_accessories: 'charts-consumables-subcategory',
+  biological_chemical_gaseous: 'charts-bio-chemicals-subcategory',
+  services: 'charts-services-subcategory',
+  vehicles: 'charts-vehicles-subcategory',
+  other_purchases: 'charts-other-purchases-subcategory',
+  additional: 'charts-additional-purchases-subcategory',
+  ln2: 'charts-ln2-subcategory',
+  // research facilities, then animal kinds
+  facilities: 'charts-research-facilities-subcategory',
+  it_facilities: 'charts-research-it-facilities-subcategory',
+  animal: 'charts-research-animal-subcategory',
+  mice: 'charts-animal-mice-subcategory',
+  fish: 'charts-animal-fish-subcategory',
+};
+
 // Maps chart category name -> full color scale (shared across charts)
 export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
   headcount: colors.value.yellow,

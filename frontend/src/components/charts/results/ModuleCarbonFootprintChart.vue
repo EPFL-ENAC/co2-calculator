@@ -11,8 +11,10 @@ import {
   getChartSubcategoryColor,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
+  RESULTS_SUBCATEGORY_LABEL_KEYS,
   ADDITIONAL_DATA_ICON,
 } from 'src/constant/charts';
+import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
 import type { Module } from 'src/constant/modules';
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import { SUBMODULE_TO_CATEGORY } from 'src/composables/useModuleIconColors';
@@ -1438,44 +1440,33 @@ const onChartReady = async () => {
 const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'module-carbon-footprint');
 
+const subcategoryLabel = (key: string) => {
+  const i18nKey = RESULTS_SUBCATEGORY_LABEL_KEYS[key];
+  return i18nKey ? t(i18nKey) : key;
+};
+
 const downloadCSV = () => {
   const escape = (v: unknown) => {
     const s = String(v ?? '');
     return /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
-  // Pivot: one row per category × subcategory pair where the value is non-zero.
-  // This avoids the sparse wide-table format where each category gets all
-  // possible subcategory columns, 90% of which are empty.
-  const SKIP_KEYS = new Set(['category', 'category_key']);
-
-  const rows: Array<[string, string, number]> = datasetSource.value.flatMap(
-    (item) => {
-      const category = String(item.category ?? '');
-      return Object.entries(item)
-        .filter(([key, value]) => {
-          if (SKIP_KEYS.has(key) || key.startsWith('__')) return false;
-          if (typeof value === 'object' && value !== null) return false;
-          const n = Number(value);
-          // Only emit rows where the subcategory actually has a value
-          return Number.isFinite(n) && n !== 0;
-        })
-        .map(
-          ([key, value]) =>
-            [category, key, Number(value)] as [string, string, number],
-        );
-    },
+  const rows = buildCarbonFootprintCsvRows(
+    datasetSource.value,
+    isCategoryValidated,
+    subcategoryLabel,
   );
 
   const headers = [
     t('csv_header_category'),
     t('csv_header_subcategory'),
+    t('csv_header_subcategory_2'),
     t('csv_header_co2'),
   ];
   const csv = [
     headers.map(escape).join(','),
-    ...rows.map(([category, subcategory, co2]) =>
-      [escape(category), escape(subcategory), escape(co2)].join(','),
+    ...rows.map(({ category, subcategory, subcategory2, co2 }) =>
+      [category, subcategory, subcategory2, co2].map(escape).join(','),
     ),
   ].join('\n');
 
