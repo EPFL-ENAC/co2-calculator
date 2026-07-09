@@ -1,7 +1,7 @@
 ---
-status: proposed
+status: delivered
 issue: 659
-last_updated: 2026-07-07
+last_updated: 2026-07-09
 title: "CSV upload: surface per-row validation errors with readable messages"
 summary: "Turn raw pydantic ValidationError dumps into readable field-level messages, and fix the upload-card UI which currently never renders them."
 ---
@@ -28,8 +28,8 @@ Two independent bugs, both confirmed in code:
 
 ## Steps
 
-- [ ] Backend: catch `pydantic.ValidationError` in `base_factor_csv_provider.py::_process_row`'s `validate_create` call and format a readable per-field message (see Design); keep the generic fallback for other exceptions.
-- [ ] Backend: apply the same fix at `base_csv_provider.py:1278`'s `validate_create` call site (data-entry CSV path — same `float_parsing`/`date_parsing` failure modes for `factor`/`date` columns).
-- [ ] Frontend: extract `formatRowErrors` (from `ModuleTable.vue`) into a shared helper reusable from `useUploadCard.ts`.
-- [ ] Frontend: wire `getErrorDetails()` (`useUploadCard.ts:130-143`) to expose formatted row errors, and update `UploadCard.vue`'s error tooltip (`:317-331`) to render them instead of dumping `errorDetails.stats` (excluding `row_errors`/`row_errors_count` from that dump).
-- [ ] Add/extend a backend unit test asserting a bad-float and a bad-date CSV row produce the new readable `row_errors` reason string (existing suites: `tests/unit/services/data_ingestion/test_base_factor_csv_provider.py`, `test_base_csv_provider.py`).
+- [x] Backend: catch `pydantic.ValidationError` in `base_factor_csv_provider.py::_process_row`'s `validate_create` call and format a readable per-field message (see Design); keep the generic fallback for other exceptions.
+- [x] Backend: apply the same fix at `base_csv_provider.py:1278`'s `validate_create` call site (data-entry CSV path — same `float_parsing`/`date_parsing` failure modes for `factor`/`date` columns).
+- [x] Frontend: extract `formatRowErrors` (from `ModuleTable.vue`) into a shared helper reusable from `useUploadCard.ts`.
+- [x] Frontend: wire `getErrorDetails()` (`useUploadCard.ts:130-143`) to expose formatted row errors, and update `UploadCard.vue`'s error tooltip (`:317-331`) to render them instead of dumping `errorDetails.stats` (excluding `row_errors`/`row_errors_count` from that dump).
+- [x] Add/extend a backend unit test asserting a bad-float and a bad-date CSV row produce the new readable `row_errors` reason string (existing suites: `tests/unit/services/data_ingestion/test_base_factor_csv_provider.py`, `test_base_csv_provider.py`).

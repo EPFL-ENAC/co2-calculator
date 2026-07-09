@@ -1,9 +1,11 @@
 """Unit tests for BaseCSVProvider."""
 
+import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
@@ -21,6 +23,16 @@ from app.services.data_ingestion.base_csv_provider import (
     _is_blank_data_row,
     _validate_file_path,
 )
+
+
+class _DummyDataEntryPayload(BaseModel):
+    """Minimal model used to trigger a real ``pydantic.ValidationError``
+    (float/date parsing failures) the same way a real handler's
+    ``create_dto`` would, without depending on a concrete handler."""
+
+    amount: float
+    date: datetime.date
+
 
 # ======================================================================
 # File Path Validation Tests - Security Critical
@@ -794,6 +806,108 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
     assert data_entry is None
     assert result_factor is None
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_float():
+    """A bad-float CSV value produces a readable ``field: reason (got
+    value)`` message instead of pydantic's raw multi-line dump (issue
+    #659), for the data-entry CSV path."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    def fake_validate_create(payload):
+        return _DummyDataEntryPayload(amount="abc", date=datetime.date(2026, 1, 1))
+
+    handler.validate_create.side_effect = fake_validate_create
+    # Bypass handler resolution (covered by other tests) so this test
+    # exercises the validate_create/ValidationError path directly.
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.member, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"amount"},
+    }
+    row = {"amount": "abc"}
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=4,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg == (
+        "amount: Input should be a valid number, unable to parse "
+        "string as a number (got 'abc')"
+    )
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"][0]["reason"] == error_msg
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_date():
+    """An invalid date CSV value produces a readable per-field message
+    (issue #659), for the data-entry CSV path."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    def fake_validate_create(payload):
+        return _DummyDataEntryPayload(amount=1.0, date="2026-13-40")
+
+    handler.validate_create.side_effect = fake_validate_create
+    # Bypass handler resolution (covered by other tests) so this test
+    # exercises the validate_create/ValidationError path directly.
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.member, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"amount"},
+    }
+    row = {"amount": "10"}
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=5,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg.startswith("date: Input should be a valid date or datetime")
+    assert "(got '2026-13-40')" in error_msg
     assert stats["rows_skipped"] == 1
 
 

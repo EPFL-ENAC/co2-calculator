@@ -1,14 +1,25 @@
 """Tests for BaseFactorCSVProvider."""
 
+import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from pydantic import BaseModel
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionState
 from app.services.data_ingestion import base_factor_csv_provider
 from app.services.data_ingestion.base_factor_csv_provider import BaseFactorCSVProvider
+
+
+class _DummyFactorPayload(BaseModel):
+    """Minimal model used to trigger a real ``pydantic.ValidationError``
+    (float/date parsing failures) the same way ``BaseFactorHandler``'s real
+    ``create_dto`` would, without depending on the concrete handler."""
+
+    co2_factor: float
+    date: datetime.date
 
 
 class ConcreteFactorProvider(BaseFactorCSVProvider):
@@ -248,6 +259,106 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
     assert factor is None
     assert "Validation error" in error_msg
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_float(monkeypatch):
+    """A bad-float value produces a readable ``field: reason (got value)``
+    message instead of pydantic's raw multi-line dump (issue #659)."""
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    def fake_validate_create(payload):
+        return _DummyFactorPayload(co2_factor="abc", date=datetime.date(2026, 1, 1))
+
+    handler.validate_create.side_effect = fake_validate_create
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "kind"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=2,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert error_msg == (
+        "co2_factor: Input should be a valid number, unable to parse "
+        "string as a number (got 'abc')"
+    )
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"][0]["reason"] == error_msg
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_date(monkeypatch):
+    """An invalid date produces a readable per-field message (issue #659)."""
+    handler = MagicMock()
+    handler.category_field = "data_entry_type"
+    handler.classification_fields = ["kind"]
+    provider = ConcreteFactorProvider(
+        {"file_path": "tmp/test.csv", "handlers": [handler]}, data_session=MagicMock()
+    )
+    stats = _build_stats()
+
+    def fake_validate_create(payload):
+        return _DummyFactorPayload(co2_factor=1.0, date="2026-13-40")
+
+    handler.validate_create.side_effect = fake_validate_create
+
+    monkeypatch.setattr(
+        base_factor_csv_provider.BaseFactorHandler,
+        "get_by_type",
+        MagicMock(return_value=handler),
+    )
+    monkeypatch.setattr(
+        base_factor_csv_provider,
+        "get_factor_emission_type_id",
+        lambda *args, **kwargs: 10000,
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "expected_columns": {"data_entry_type", "kind"},
+        "valid_entry_types": [DataEntryTypeEnum.member],
+    }
+
+    factor, error_msg = await provider._process_row(
+        row={"data_entry_type": "member", "kind": "x"},
+        row_idx=3,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=5,
+        factor_service=MagicMock(),
+    )
+
+    assert factor is None
+    assert error_msg.startswith("date: Input should be a valid date or datetime")
+    assert "(got '2026-13-40')" in error_msg
     assert stats["rows_skipped"] == 1
 
 

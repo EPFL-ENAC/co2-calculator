@@ -5,6 +5,8 @@ import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypedDict
 
+from pydantic import ValidationError
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -21,7 +23,10 @@ from app.models.user import User
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
-from app.services.data_ingestion.base_csv_provider import _validate_file_path
+from app.services.data_ingestion.base_csv_provider import (
+    _format_pydantic_validation_error,
+    _validate_file_path,
+)
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.factor_service import FactorService
 
@@ -387,6 +392,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             try:
                 handler.validate_create(validation_payload)
+            except ValidationError as validation_error:
+                error_msg = _format_pydantic_validation_error(validation_error)
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)

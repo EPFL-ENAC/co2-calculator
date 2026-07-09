@@ -432,6 +432,7 @@ import {
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+import { formatRowErrorLines } from 'src/utils/rowErrors';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -567,34 +568,13 @@ const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
 
-const MAX_DISPLAYED_ROW_ERRORS = 5;
-
 const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
-  const rowErrors = payload?.meta?.row_errors ?? [];
-  if (rowErrors.length === 0) return undefined;
-  const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
-  const lines = rowErrors.slice(0, MAX_DISPLAYED_ROW_ERRORS).map((e) => {
-    let reason = e.reason;
-
-    // Special handling for headcount duplicate institutional ID error to provide a more user-friendly message
-    if (reason === 'DUPLICATE_INSTITUTIONAL_ID') {
-      reason = $t('headcount-member-error-duplicate-uid', {
-        label:
-          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
-            ? INSTITUTIONAL_ID_LABEL
-            : '',
-      });
-    }
-    return $t('csv_sync_row_error', { row: e.row, reason });
-  });
-  if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
-    lines.push(
-      $t('csv_sync_and_more_errors', {
-        count: totalErrorCount - MAX_DISPLAYED_ROW_ERRORS,
-      }),
-    );
-  }
-  return lines.join('\n');
+  const lines = formatRowErrorLines(
+    payload?.meta?.row_errors,
+    payload?.meta?.row_errors_count,
+    $t,
+  );
+  return lines.length === 0 ? undefined : lines.join('\n');
 };
 
 const onFilesUploaded = async (filePaths: string[]) => {
