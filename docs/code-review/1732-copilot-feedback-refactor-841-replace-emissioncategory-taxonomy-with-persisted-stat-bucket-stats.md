@@ -1,7 +1,6 @@
 # Bot Review TODOs: PR #1732
 
-Source Branch: `refactor/reduce-data-entry-emission-type-reach`
----
+## Source Branch: `refactor/reduce-data-entry-emission-type-reach`
 
 ## Raw Feedback
 
@@ -200,18 +199,15 @@ Copilot reviewed 151 out of 153 changed files in this pull request and generated
 
 ### Summary Feedback (copilot-pull-request-reviewer)
 
-Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
----
+## Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
 
 ### Summary Feedback (copilot-pull-request-reviewer)
 
-Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
----
+## Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
 
 ### Summary Feedback (copilot-pull-request-reviewer)
 
-Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
----
+## Copilot was unable to review this pull request because the user who requested the review has reached their quota limit.
 
 ### File: `backend/app/modules/emissions/taxonomy.py` (Line 215) — github-advanced-security[bot]
 
@@ -219,8 +215,7 @@ Copilot was unable to review this pull request because the user who requested th
 
 This for-loop may attempt to iterate over a [non-iterable instance](1) of class [type](2).
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/703)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/703)
 
 ### File: `backend/app/modules/emissions/taxonomy.py` (Line 233) — github-advanced-security[bot]
 
@@ -228,8 +223,7 @@ This for-loop may attempt to iterate over a [non-iterable instance](1) of class 
 
 This for-loop may attempt to iterate over a [non-iterable instance](1) of class [type](2).
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/704)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/704)
 
 ### File: `backend/app/modules/emissions/taxonomy.py` (Line null) — github-advanced-security[bot]
 
@@ -237,8 +231,7 @@ This for-loop may attempt to iterate over a [non-iterable instance](1) of class 
 
 This for-loop may attempt to iterate over a [non-iterable instance](1) of class [type](2).
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/705)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/705)
 
 ### File: `backend/app/seed/seed_generic_factors.py` (Line 13) — github-advanced-security[bot]
 
@@ -246,26 +239,23 @@ This for-loop may attempt to iterate over a [non-iterable instance](1) of class 
 
 Import of 'schemas' is not used.
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/706)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/706)
 
 ### File: `backend/app/seed/seed_generic_factors.py` (Line 14) — github-advanced-security[bot]
 
 ## CodeQL / Unused import
 
-Import of '_pe_schemas' is not used.
+Import of '\_pe_schemas' is not used.
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/707)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/707)
 
 ### File: `backend/app/seed/seed_generic_factors.py` (Line 15) — github-advanced-security[bot]
 
 ## CodeQL / Unused import
 
-Import of '_purchase_schemas' is not used.
+Import of '\_purchase_schemas' is not used.
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/708)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/708)
 
 ### File: `backend/app/generate_emission_taxonomy_ts.py` (Line 18) — github-advanced-security[bot]
 
@@ -273,14 +263,12 @@ Import of '_purchase_schemas' is not used.
 
 This for-loop may attempt to iterate over a [non-iterable instance](1) of class [type](2).
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/709)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/709)
 
 ### File: `backend/tests/unit/tasks/test_poller_dispatch.py` (Line 16) — github-advanced-security[bot]
 
 ## CodeQL / Module is imported with 'import' and 'import from'
 
-Module 'app.tasks._poller' is imported with both 'import' and 'import from'.
+Module 'app.tasks.\_poller' is imported with both 'import' and 'import from'.
 
-[Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/714)
----
+## [Show more details](https://github.com/EPFL-ENAC/co2-calculator/security/code-scanning/714)
