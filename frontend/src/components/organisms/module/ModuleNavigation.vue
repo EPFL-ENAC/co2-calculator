@@ -29,6 +29,9 @@ const currentIndex = computed(() => {
 });
 
 const isLastModule = computed(() => {
+  // `indexOf` returns -1 when the list is empty, which would otherwise equal
+  // `length - 1` and render the results link on a module with no neighbours.
+  if (currentIndex.value === -1) return false;
   return currentIndex.value === visibleModulesList.value.length - 1;
 });
 

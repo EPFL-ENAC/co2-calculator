@@ -159,6 +159,64 @@ export function hasAnyScopePermission(
 }
 
 /**
+ * Check if the user has `action` on `path` within the SELECTED workspace unit.
+ *
+ * Resolution order, mirroring the backend's `has_permission`:
+ *   1. the bare key (`modules.headcount`) — a global grant,
+ *   2. the unit-scoped key (`modules.headcount/<unit>`) — principal,
+ *   3. the own-scoped key (`modules.headcount/<unit>/own`) — standard user.
+ *
+ * Unlike `hasAnyScopePermission`, a grant held in a DIFFERENT unit never
+ * matches. Use this for anything that reads or writes unit data.
+ */
+export function hasWorkspacePermission(
+  permissions: FlatUserPermissions | null | undefined,
+  path: string,
+  institutionalId: string | undefined,
+  action: PermissionAction = PermissionAction.VIEW,
+): boolean {
+  if (hasPermission(permissions, path, action)) return true;
+  if (!institutionalId) return false;
+  const unitPath = `${path}/${institutionalId}`;
+  return (
+    hasPermission(permissions, unitPath, action) ||
+    hasPermission(permissions, `${unitPath}/own`, action)
+  );
+}
+
+/**
+ * Whether the user may open `module`'s page in the selected unit.
+ *
+ * This is the single definition of module reachability: `permissionGuard`
+ * enforces it on navigation, and the nav surfaces (sidebar, prev/next arrows,
+ * home "start" button) filter on it, so an affordance can never lead to
+ * `/unauthorized` (#1382). Module pages are data-entry pages, hence view AND
+ * edit. Modules with no permission path are unreachable, not public.
+ */
+export function canAccessModule(
+  permissions: FlatUserPermissions | null | undefined,
+  module: Module,
+  institutionalId: string | undefined,
+): boolean {
+  const path = getModulePermissionPath(module);
+  if (!path) return false;
+  return (
+    hasWorkspacePermission(
+      permissions,
+      path,
+      institutionalId,
+      PermissionAction.VIEW,
+    ) &&
+    hasWorkspacePermission(
+      permissions,
+      path,
+      institutionalId,
+      PermissionAction.EDIT,
+    )
+  );
+}
+
+/**
  * Check if the user holds ANY back-office area permission granting `action`.
  *
  * The back-office area is the `backoffice.*` page family (reporting, users,

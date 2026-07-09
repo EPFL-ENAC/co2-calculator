@@ -12,9 +12,10 @@ import { computed } from 'vue';
 import {
   PermissionAction,
   MODULE_STATUS_PERMISSION,
-  hasPermission,
   hasAnyScopePermission,
+  hasWorkspacePermission,
   hasBackOfficeAreaPermission,
+  canAccessModule,
   getModulePermissionPath,
   type FlatUserPermissions,
 } from 'src/utils/permission';
@@ -169,27 +170,17 @@ export const useAuthStore = defineStore('auth', () => {
     action: PermissionAction = PermissionAction.VIEW,
   ): boolean {
     if (!user.value || !user.value.permissions) return false;
-    // Check for global permission first (without workspace context)
-    const globallyPermitted = hasPermission(
+    // A global (bare) key wins; otherwise the lookup carries workspace context
+    // and matches either the unit-scoped key (principal) or the own-scoped key
+    // (standard user, ``modules.X/<unit>/own``). Unit-level-only controls (e.g.
+    // the validate button) use a dedicated permission key (``module.status``),
+    // not scope inference.
+    return hasWorkspacePermission(
       user.value.permissions,
       path,
+      workspaceStore.selectedUnit?.institutional_id,
       action,
     );
-    if (globallyPermitted) return true;
-    // append workspace context to permission path if available. A unit-context
-    // lookup matches either the unit-scoped key (principal) or the own-scoped
-    // key (standard user, ``modules.X/<unit>/own``) — mirrors the backend
-    // ``has_permission``. Unit-level-only controls (e.g. the validate button)
-    // use a dedicated permission key (``module.status``), not scope inference.
-    const institutionalId = workspaceStore.selectedUnit?.institutional_id;
-    if (institutionalId) {
-      const unitPath = `${path}/${institutionalId}`;
-      return (
-        hasPermission(user.value.permissions, unitPath, action) ||
-        hasPermission(user.value.permissions, `${unitPath}/own`, action)
-      );
-    }
-    return false;
   }
 
   /**
@@ -220,12 +211,20 @@ export const useAuthStore = defineStore('auth', () => {
     return hasUserPermission(MODULE_STATUS_PERMISSION, PermissionAction.EDIT);
   }
 
+  /**
+   * Whether the current user may open `module`'s page in the selected unit.
+   *
+   * `permissionGuard` enforces this on navigation and the nav surfaces
+   * (sidebar, prev/next arrows, home "start" button) filter on it, so no
+   * affordance can lead to `/unauthorized` (#1382). Deliberately
+   * workspace-scoped: a grant held in another unit must not make a module
+   * appear here.
+   */
   function canUserAccessModule(module: Module): boolean {
-    const path = getModulePermissionPath(module);
-    if (!path) return true; // Unprotected module, accessible to all users
-    return (
-      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
-      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+    return canAccessModule(
+      user.value?.permissions,
+      module,
+      workspaceStore.selectedUnit?.institutional_id,
     );
   }
 
