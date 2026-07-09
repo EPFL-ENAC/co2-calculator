@@ -333,7 +333,7 @@ test.describe('backoffice-config — uncertainty & threshold fields', () => {
         requests.find(
           (r) =>
             r.method === 'PATCH' &&
-            /year-configuration\/2024$/.test(r.url) &&
+            /year-configuration\/2025$/.test(r.url) &&
             r.body?.includes('"uncertainty_tag":"low"'),
         ),
       )
@@ -421,7 +421,7 @@ test.describe('backoffice-config — uncertainty & threshold fields', () => {
         requests.find(
           (r) =>
             r.method === 'PATCH' &&
-            /year-configuration\/2024$/.test(r.url) &&
+            /year-configuration\/2025$/.test(r.url) &&
             r.body?.includes('"threshold":12.5'),
         ),
       )
