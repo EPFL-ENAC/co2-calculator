@@ -39,7 +39,21 @@
             </p>
           </div>
 
-          <div>
+          <div class="row q-gutter-x-md justify-center">
+            <!-- Back-office users always have a legitimate destination there
+                 (it's where units are assigned and years are opened), whatever
+                 brought them to this page. Same gate + target as the header's
+                 back-office button. -->
+            <q-btn
+              v-if="hasBackOfficeAccess"
+              color="accent"
+              :to="backOfficeRoute"
+              :label="t('user_management_access_button')"
+              unelevated
+              no-caps
+              size="md"
+              class="text-weight-medium q-px-xl"
+            />
             <!-- A user with no unit or no open year is bounced back to
                  /unauthorized by the landing guard, so "Home" would loop.
                  Offer Logout instead. -->
@@ -52,6 +66,7 @@
               no-caps
               size="md"
               class="text-weight-medium q-px-xl"
+              :outline="hasBackOfficeAccess"
               @click="onLogout"
             />
             <q-btn
@@ -63,6 +78,7 @@
               no-caps
               size="md"
               class="text-weight-medium q-px-xl"
+              :outline="hasBackOfficeAccess"
             />
           </div>
 
@@ -84,14 +100,31 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { DEFAULT_ROUTE_NAME } from 'src/router/routes';
-import { currentLanguage } from 'src/utils/language';
+import { currentLanguage, resolveLanguage } from 'src/utils/language';
 import { unauthorizedReasonMessageKey } from 'src/utils/unauthorized';
-import { useAuthStore } from 'src/stores/auth';
+import { useAuthStore, PermissionAction } from 'src/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
 const authStore = useAuthStore();
+
+// Gate on what the target actually requires: the `back-office` route's meta
+// demands `backoffice.reporting` VIEW (routes.ts), so a broader any-backoffice
+// check could offer a button that bounces to a bare 403.
+const hasBackOfficeAccess = computed(() =>
+  authStore.hasUserAnyScopePermission(
+    'backoffice.reporting',
+    PermissionAction.VIEW,
+  ),
+);
+
+// The back-office route lives under `:language`; /unauthorized is top-level,
+// so the param must be resolved here rather than inherited from the URL.
+const backOfficeRoute = computed(() => ({
+  name: 'back-office',
+  params: { language: resolveLanguage(route) },
+}));
 
 function formatPermissionName(permissionPath: string): string {
   const parts = permissionPath.split('.');

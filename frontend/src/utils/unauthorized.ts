@@ -1,45 +1,25 @@
 /**
- * Pure helpers for the "no assigned unit" flow (landing redirect + the
- * /unauthorized page message). Kept free of store/i18n imports so they stay
- * unit-testable without mounting Vue — importing a store would drag
- * `src/i18n/index.ts` (`import.meta.glob`) into the Playwright loader.
+ * Pure helpers for the "no workspace" flow (no assigned unit, or no
+ * globally-open reporting year): the landing redirect and the /unauthorized
+ * page message. Kept free of store/i18n imports so they stay unit-testable
+ * without mounting Vue — importing a store would drag `src/i18n/index.ts`
+ * (`import.meta.glob`) into the Playwright loader.
  */
-import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import { UNAUTHORIZED_ROUTE_NAME } from 'src/router/routeNames';
 
-/**
- * Where a user with no assigned unit should land. A user who can reach the
- * back-office configuration page has a legitimate destination there, so they go
- * straight to it. Everyone else — including back-office users WITHOUT
- * configuration access — stays on /unauthorized, tagged so the page can explain
- * that the account is simply not assigned to a unit rather than showing a bare
- * 403. (`canAccessBackOfficeConfig` must reflect the config page's own
- * permission gate, or we'd forward to a page that just bounces to a 403.)
- *
- * The back-office page lives under the `:language` segment, so its redirect must
- * carry the current `language` param; `/unauthorized` is a top-level route and
- * needs none.
- */
-export function resolveNoUnitRoute(
-  canAccessBackOfficeConfig: boolean,
-  language: string,
-) {
-  if (canAccessBackOfficeConfig) {
-    return {
-      name: BACKOFFICE_NAV.BACKOFFICE_DATA_MANAGEMENT.routeName,
-      params: { language },
-    };
-  }
-  return { name: UNAUTHORIZED_ROUTE_NAME, query: { reason: 'no-unit' } };
-}
+/** Why a workspace can't be resolved: no assigned unit, or no globally-open year. */
+export type NoWorkspaceReason = 'no-unit' | 'no-open-year';
 
 /**
- * Where to send a user when no reporting year is globally open, so there's no
- * workspace to resolve a default year for. `/unauthorized` is a top-level route
- * and needs no `language` param.
+ * Where to send a user when no workspace can be resolved: /unauthorized, tagged
+ * with `reason` so the page can explain the situation rather than showing a
+ * bare 403. The page itself offers back-office users an escape button to the
+ * back-office (where units are assigned and years are opened), so this resolver
+ * stays permission-free. `/unauthorized` is a top-level route and needs no
+ * `language` param.
  */
-export function resolveNoOpenYearRoute() {
-  return { name: UNAUTHORIZED_ROUTE_NAME, query: { reason: 'no-open-year' } };
+export function resolveNoWorkspaceRoute(reason: NoWorkspaceReason) {
+  return { name: UNAUTHORIZED_ROUTE_NAME, query: { reason } };
 }
 
 /**
@@ -48,10 +28,20 @@ export function resolveNoOpenYearRoute() {
  * absent/unrecognised (the page then falls back to the permission message or
  * the generic copy).
  */
+const REASON_MESSAGE_KEYS: Record<NoWorkspaceReason, string> = {
+  'no-unit': 'unauthorized_no_unit_message',
+  'no-open-year': 'unauthorized_no_open_year_message',
+};
+
+function isNoWorkspaceReason(reason: string): reason is NoWorkspaceReason {
+  return reason in REASON_MESSAGE_KEYS;
+}
+
 export function unauthorizedReasonMessageKey(
   reason: string | null,
 ): string | null {
-  if (reason === 'no-unit') return 'unauthorized_no_unit_message';
-  if (reason === 'no-open-year') return 'unauthorized_no_open_year_message';
+  if (reason !== null && isNoWorkspaceReason(reason)) {
+    return REASON_MESSAGE_KEYS[reason];
+  }
   return null;
 }

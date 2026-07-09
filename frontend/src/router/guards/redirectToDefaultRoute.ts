@@ -1,12 +1,7 @@
 import type { RouteLocationNormalized } from 'vue-router';
 import { useWorkspaceStore, unitSlug } from 'src/stores/workspace';
 import { useYearConfigStore } from 'src/stores/yearConfig';
-import { useAuthStore, PermissionAction } from 'src/stores/auth';
-import {
-  resolveNoUnitRoute,
-  resolveNoOpenYearRoute,
-} from 'src/utils/unauthorized';
-import { currentLanguage } from 'src/utils/language';
+import { resolveNoWorkspaceRoute } from 'src/utils/unauthorized';
 import { HOME_ROUTE_NAME } from '../routeNames';
 
 /**
@@ -37,8 +32,9 @@ export function pickDefaultYear(startedYears: Set<number>): number {
  * Resolver for the parameterless landing route. The unified home page hosts the
  * Unit/Year dropdowns, so this guard's only job is to pick a default workspace —
  * the user's first unit + most recent open year — and forward to the home page,
- * or to {@link resolveNoUnitRoute} (back-office for admins, /unauthorized
- * otherwise) when the account has no units.
+ * or to {@link resolveNoWorkspaceRoute} (/unauthorized, tagged with why — the
+ * page offers back-office users an escape button) when there's no unit or no
+ * open year.
  */
 export default async function redirectToDefaultRoute(
   to: RouteLocationNormalized,
@@ -53,18 +49,11 @@ export default async function redirectToDefaultRoute(
   }
   const unit = workspaceStore.units[0];
   if (!unit) {
-    const canAccessBackOfficeConfig = useAuthStore().hasUserAnyScopePermission(
-      'backoffice.configuration',
-      PermissionAction.EDIT,
-    );
-    return resolveNoUnitRoute(
-      canAccessBackOfficeConfig,
-      String(to.params.language ?? currentLanguage()),
-    );
+    return resolveNoWorkspaceRoute('no-unit');
   }
 
   const startedYears = await fetchStartedYears();
-  if (startedYears.size === 0) return resolveNoOpenYearRoute();
+  if (startedYears.size === 0) return resolveNoWorkspaceRoute('no-open-year');
 
   return {
     name: HOME_ROUTE_NAME,
