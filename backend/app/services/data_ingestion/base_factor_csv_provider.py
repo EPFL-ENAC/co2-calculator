@@ -373,7 +373,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             # create DTO (``required_columns``), so handlers with
             # legitimately-nullable classification fields (e.g. subkind-less
             # rows) are unaffected.
-            required_fields = getattr(handler, "required_columns", set())
+            required_fields: set[str] = getattr(handler, "required_columns", set())
             missing_identity = sorted(
                 name
                 for name, value in classification.items()
