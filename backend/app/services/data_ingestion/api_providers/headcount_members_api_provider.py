@@ -42,10 +42,25 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
     # validated against read-metadata at fetch time so a rename upstream
     # fails loud instead of silently dropping a column.
     CAPTION_NAME = "Name"
-    CAPTION_SCIPER = "SCIPER"
-    CAPTION_SIUS = "SIUS"
+    CAPTION_SCIPER = "user_institutional_id"
+    CAPTION_SIUS = "sius_code"
     CAPTION_FTE = "FTE"
-    CAPTION_UNIT = "Centre financier"
+    CAPTION_UNIT = "unit_institutional_id"
+
+    # "FTE",
+    #     "Headcount",
+    #     "OrgID",
+    #     "Name",
+    #     "SAPPersID",
+    #     "PersStatusTxt",
+    #     "FONCTION FR",
+    #     "FUNCTION EN",
+    #     "unit_institutional_txt",
+    #     "unit_institutional_id",
+    #     "OrgTxt",
+    #     "sius_code",
+    #     "user_institutional_id",
+    #     "ISODate",
 
     REQUIRED_CAPTIONS: list[str] = [
         CAPTION_NAME,
