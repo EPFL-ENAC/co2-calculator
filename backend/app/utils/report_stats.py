@@ -3,7 +3,8 @@
 ``derive_report_sections`` computes the display-derived sections (scope
 totals, per-FTE, IT rollup) from merged buckets; ``merge_report_stats``
 combines several reports' stats into one aggregate of the same shape
-(backoffice multi-unit views). Neither touches the database.
+(backoffice multi-unit views); ``build_year_comparison`` reshapes one
+report's stats into the compare-years payload. None touch the database.
 """
 
 from app.modules.emissions.registry import ORDERED_STAT_BUCKETS
@@ -60,6 +61,52 @@ def derive_report_sections(
         "top_class_detail": top_class_detail,
     }
     return {**scope_totals, "per_fte": per_fte, "it": it_stats}
+
+
+def build_year_comparison(stats: dict) -> dict:
+    """Reshape one report's persisted stats into a compare-years year entry.
+
+    Args:
+        stats: a persisted ``carbon_report.stats`` dict (or a
+            ``merge_report_stats`` aggregate, which has the same shape).
+
+    Returns:
+        ``{"modules": {bucket_key: tonnes}, "scopes": {"1": t, "2": t,
+        "3": t}, "total_tonnes_co2eq": t}``. ``modules`` is keyed by stat-bucket
+        key -- including the additional buckets (commuting, food, waste,
+        embodied_energy) -- so the stacked-bar segments match the Results
+        category palette.
+
+    Only buckets whose module is validated are counted, so a year's total
+    matches the validated-only Results headline. An in-progress module is
+    absent rather than zero, which keeps it out of the objective baselines
+    too. Note this means the current year can read lower here than in the
+    unit carbon footprint chart behind the dialog, which shows every module.
+
+    Scopes are summed from the buckets rather than read off ``scope1/2/3``,
+    which cover every module validated or not, so they stay consistent with
+    the filtered ``modules`` above.
+    """
+    modules: dict[str, float] = {}
+    scopes: dict[str, float] = {"1": 0.0, "2": 0.0, "3": 0.0}
+    validated_keys = set(stats.get("validated_buckets") or [])
+
+    for key, bucket in (stats.get("buckets") or {}).items():
+        if key not in validated_keys:
+            continue
+        bucket_kg = bucket.get("total_kg", 0.0) or 0.0
+        if bucket_kg <= 0:
+            continue
+        tonnes = bucket_kg / 1000.0
+        modules[key] = tonnes
+        scope_key = str(bucket.get("scope", 3))
+        scopes[scope_key] = scopes.get(scope_key, 0.0) + tonnes
+
+    return {
+        "modules": modules,
+        "scopes": scopes,
+        "total_tonnes_co2eq": sum(modules.values()),
+    }
 
 
 def _merge_bucket_into(target: dict, bucket: dict) -> None:
