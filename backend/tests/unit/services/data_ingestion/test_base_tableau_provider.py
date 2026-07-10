@@ -6,7 +6,8 @@ Only the network hop (``_signin_with_jwt``) is monkeypatched — JWT signing,
 SSRF re-validation, and DB loading all run for real.
 """
 
-from unittest.mock import AsyncMock
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import pytest
 import pytest_asyncio
@@ -23,7 +24,7 @@ from app.models.connector import (
     ConnectorDatasource,
     ConnectorType,
 )
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     BaseTableauApiProvider,
@@ -188,3 +189,24 @@ async def test_ensure_credentials_is_idempotent(session, monkeypatch):
     provider.datasource_luid = "sentinel"
     await provider._ensure_credentials()
     assert provider.datasource_luid == "sentinel"
+
+
+async def test_delete_existing_api_entries_replaces_same_year_and_type(session):
+    provider = _make_provider(session)
+    delete = AsyncMock(return_value=7)
+
+    with patch(
+        "app.services.data_ingestion.api_providers."
+        "base_tableau_api_provider.DataEntryService",
+        return_value=SimpleNamespace(
+            repo=SimpleNamespace(bulk_delete_by_source_year=delete)
+        ),
+    ):
+        deleted = await provider._delete_existing_api_entries()
+
+    assert deleted == 7
+    delete.assert_awaited_once_with(
+        year=2024,
+        data_entry_type_ids=[DataEntryTypeEnum.plane.value],
+        source=DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
+    )

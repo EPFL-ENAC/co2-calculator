@@ -772,6 +772,296 @@ test.describe('back-office data-management — happy paths', () => {
     );
   });
 
+  test('9c — API ingestion surfaces stored messages and row errors', async ({
+    page,
+  }) => {
+    const apiSuccessWithRowErrors = {
+      job_id: 301,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: {
+        rows_processed: 8468,
+        rows_skipped: 56,
+        row_errors_count: 56,
+        status_history: [
+          { message: 'processing', ts: '2025-01-15T00:00:00Z' },
+          {
+            message: 'Processed 8468 member records, 56 skipped',
+            ts: '2025-01-15T00:01:00Z',
+          },
+        ],
+        stats: {
+          row_errors_count: 56,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+            },
+          ],
+        },
+      },
+    };
+
+    const yearConfigApiOnly = (year: number) =>
+      buildYearConfig({
+        year,
+        modulesOverride: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: false,
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: apiSuccessWithRowErrors,
+                latest_api_data_job: apiSuccessWithRowErrors,
+                incomplete: false,
+                incomplete_reasons: [],
+              },
+            },
+          },
+        },
+      });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigApiOnly(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    await expect(page.getByTestId('api-status-success').first()).toContainText(
+      /8468/,
+    );
+    const apiDetails = page.getByTestId('api-status-error').first();
+    await expect(apiDetails).toBeVisible({ timeout: 10000 });
+    await expect(apiDetails).toContainText(
+      /Processed 8468 member records, 56 skipped/i,
+    );
+    await expect(apiDetails).toContainText(
+      /Row 409: No unit with unit_institutional_id 1005 found after unit sync/i,
+    );
+    await expect(apiDetails).toContainText(/55 more error/i);
+  });
+
+  test('9d — API ingestion hides stale API status while a new API sync runs', async ({
+    page,
+  }) => {
+    const previousApiJob = {
+      job_id: 302,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 1,
+      status_message: 'Processed 8468 member records, 56 skipped',
+      meta: {
+        rows_processed: 8468,
+        stats: {
+          row_errors_count: 1,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+            },
+          ],
+        },
+      },
+    };
+
+    await mockBackend(page, {
+      onActivePipelines: async (route, moduleIds) => {
+        const body: Record<string, string | null> = {};
+        for (const id of moduleIds) {
+          body[String(id)] = id === 1 ? TEST_PIPELINE_ID : null;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(body),
+        });
+      },
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              modulesOverride: {
+                '1': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  incomplete: false,
+                  submodules: {
+                    '1': {
+                      enabled: true,
+                      threshold: null,
+                      latest_factor_job: previousApiJob,
+                      latest_api_data_job: previousApiJob,
+                      incomplete: false,
+                      incomplete_reasons: [],
+                    },
+                  },
+                },
+              },
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    await expect(page.getByTestId('api-status-success').first()).toBeVisible();
+    await expect(page.getByTestId('api-status-error').first()).toBeVisible();
+
+    await page.evaluate(
+      ({ id }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__sse.emit(id, {
+          pipeline_id: id,
+          jobs: [
+            {
+              id: 1,
+              job_type: 'api_ingest',
+              data_entry_type_id: 1,
+              state: 'RUNNING',
+              result: null,
+              status_message: null,
+              started_at: '2025-01-15T00:00:00Z',
+              finished_at: null,
+            },
+          ],
+          progress: {
+            phase: 1,
+            phases_total: 3,
+            phase_label: 'data',
+            done: false,
+            has_error: false,
+            kind: 'api_ingest',
+          },
+          stream_closed: false,
+        });
+      },
+      { id: TEST_PIPELINE_ID },
+    );
+
+    await expect(page.getByTestId('pipeline-phase')).toHaveText(
+      /Step 1\/3 · Inserting data/,
+    );
+    await expect(page.getByTestId('api-status-success')).toHaveCount(0);
+    await expect(page.getByTestId('api-status-error')).toHaveCount(0);
+  });
+
+  test('9e — API ingestion groups missing synced units behind an expander', async ({
+    page,
+  }) => {
+    const apiWarning = {
+      job_id: 303,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 1,
+      status_message: 'Processed 8468 member records, 3 skipped',
+      meta: {
+        rows_processed: 8468,
+        rows_skipped: 3,
+        stats: {
+          row_errors_count: 3,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '1005',
+            },
+            {
+              row: 493,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '1005',
+            },
+            {
+              row: 519,
+              reason:
+                'No unit with unit_institutional_id 0173 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '0173',
+            },
+          ],
+        },
+      },
+    };
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              modulesOverride: {
+                '1': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  incomplete: false,
+                  submodules: {
+                    '1': {
+                      enabled: true,
+                      threshold: null,
+                      latest_factor_job: apiWarning,
+                      latest_api_data_job: apiWarning,
+                      incomplete: false,
+                      incomplete_reasons: [],
+                    },
+                  },
+                },
+              },
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    const group = page.getByTestId('api-error-group-missing-synced-unit');
+    await expect(group).toContainText(/3 rows skipped/i);
+    await expect(group).toContainText(/2 distinct unit IDs/i);
+    const unit1005 = group.getByText('1005 (2 rows)');
+    await expect(unit1005).toBeHidden();
+
+    await group.click();
+    await expect(unit1005).toBeVisible();
+    await expect(group.getByText('0173 (1 row)')).toBeVisible();
+  });
+
   test('1216a — successful API ingestion (no CSV) turns the data card button green', async ({
     page,
   }) => {

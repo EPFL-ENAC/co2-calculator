@@ -26,12 +26,13 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.url_safety import validate_external_url
 from app.models.connector import ConnectorConnection, ConnectorType
-from app.models.data_entry import DataEntryTypeEnum
+from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
 from app.models.module_type import ModuleTypeEnum
 from app.repositories.unit_repo import UnitRepository
 from app.services.carbon_report_service import CarbonReportService
 from app.services.connector_service import ConnectorConnectionService
+from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 
 logger = get_logger(__name__)
@@ -633,13 +634,21 @@ class BaseTableauApiProvider(DataIngestionProvider):
         row_idx: int,
         reason: str,
         max_row_errors: int,
+        *,
+        error_type: str | None = None,
+        unit_institutional_id: str | None = None,
     ) -> None:
         """Record a row processing error in stats."""
         stats["rows_skipped"] += 1
         stats["row_errors_count"] += 1
         logger.warning(f"Row {row_idx}: {reason}")
         if len(stats["row_errors"]) < max_row_errors:
-            stats["row_errors"].append({"row": row_idx, "reason": reason})
+            row_error: dict[str, Any] = {"row": row_idx, "reason": reason}
+            if error_type is not None:
+                row_error["type"] = error_type
+            if unit_institutional_id is not None:
+                row_error["unit_institutional_id"] = unit_institutional_id
+            stats["row_errors"].append(row_error)
 
     # ------------------------------------------------------------------
     # Shared ingest orchestration (#1552)
@@ -671,6 +680,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
             )
             if not valid_records:
                 await self._fail_no_valid_records(stats)
+            await self._delete_existing_api_entries()
             result = await self._load_data(valid_records)
             return await self._finalize_success(stats, result)
         except Exception as e:
@@ -749,8 +759,12 @@ class BaseTableauApiProvider(DataIngestionProvider):
                 self._record_row_error(
                     stats,
                     idx,
-                    f"No carbon_report_module_id for unit {unit_code}",
+                    "No unit with unit_institutional_id "
+                    f"{unit_code} found after unit sync; no carbon report "
+                    "module could be resolved",
                     max_row_errors,
+                    error_type="missing_synced_unit",
+                    unit_institutional_id=unit_code,
                 )
                 continue
             record["carbon_report_module_id"] = carbon_report_module_id
@@ -770,6 +784,35 @@ class BaseTableauApiProvider(DataIngestionProvider):
         )
         raise ValueError(error_msg)
 
+    async def _delete_existing_api_entries(self) -> int:
+        """Replace this provider's prior API import for the target year.
+
+        API feeds are complete yearly exports. Delete only rows created by an
+        external integration for this provider's data-entry type, preserving
+        manual entries and CSV uploads. This is called only after at least one
+        valid replacement row has survived transformation and module
+        resolution.
+        """
+        year = self.config.get("year")
+        if year is None:
+            raise ValueError("year is required for API ingestion replacement")
+
+        service = DataEntryService(self.data_session)
+        deleted_rows = await service.repo.bulk_delete_by_source_year(
+            year=int(year),
+            data_entry_type_ids=[self.DATA_ENTRY_TYPE.value],
+            source=DataEntrySourceEnum.EXTERNAL_INTEGRATION.value,
+        )
+        logger.info(
+            "Deleted %s data entries from the previous %s API import "
+            "(year=%s, data_entry_type_id=%s)",
+            deleted_rows,
+            self.INGEST_NOUN,
+            year,
+            self.DATA_ENTRY_TYPE.value,
+        )
+        return deleted_rows
+
     async def _finalize_success(
         self, stats: StatsDict, result: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -787,6 +830,7 @@ class BaseTableauApiProvider(DataIngestionProvider):
         return {
             "state": IngestionState.FINISHED,
             "result": ingestion_result,
+            "status_message": self._success_status_message(stats),
             "inserted": result.get("inserted", 0),
             "skipped": stats["rows_skipped"],
             "stats": stats,

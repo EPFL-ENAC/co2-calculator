@@ -14,6 +14,45 @@ export const MAX_DISPLAYED_ROW_ERRORS = 5;
  */
 type Translate = (key: string, params?: Record<string, unknown>) => string;
 
+export interface MissingSyncedUnitErrorGroup {
+  rowsSkipped: number;
+  units: Array<{ unitInstitutionalId: string; rowCount: number }>;
+}
+
+/**
+ * Collapse repeated unresolved-unit errors into the list an operator needs to
+ * reconcile after the unit sync. If other error types are present, retain the
+ * exact count only for the entries recorded in this group.
+ */
+export function groupMissingSyncedUnitErrors(
+  rowErrors: JobRowError[] | undefined,
+  rowErrorsCount: number | undefined,
+): MissingSyncedUnitErrorGroup | undefined {
+  const errors = rowErrors ?? [];
+  const matching = errors.filter(
+    (error) =>
+      error.type === 'missing_synced_unit' && error.unit_institutional_id,
+  );
+  if (matching.length === 0) return undefined;
+
+  const unitCounts = new Map<string, number>();
+  for (const error of matching) {
+    const unit = error.unit_institutional_id as string;
+    unitCounts.set(unit, (unitCounts.get(unit) ?? 0) + 1);
+  }
+
+  return {
+    rowsSkipped:
+      matching.length === errors.length
+        ? (rowErrorsCount ?? matching.length)
+        : matching.length,
+    units: Array.from(unitCounts, ([unitInstitutionalId, rowCount]) => ({
+      unitInstitutionalId,
+      rowCount,
+    })),
+  };
+}
+
 /**
  * Format a CSV/data-ingestion job's per-row validation errors into
  * human-readable lines ("Row 3: co2_factor: Input should be a valid
@@ -59,9 +98,13 @@ export function formatRowErrorLines(
   });
 
   if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
+    const displayedErrorCount = Math.min(
+      errors.length,
+      MAX_DISPLAYED_ROW_ERRORS,
+    );
     lines.push(
       t('csv_sync_and_more_errors', {
-        count: totalErrorCount - MAX_DISPLAYED_ROW_ERRORS,
+        count: totalErrorCount - displayedErrorCount,
       }),
     );
   }

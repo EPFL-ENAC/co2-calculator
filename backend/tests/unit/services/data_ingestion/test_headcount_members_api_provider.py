@@ -215,6 +215,7 @@ class TestIngest:
             ]
         )
         provider._resolve_carbon_report_modules = AsyncMock(return_value={"0828": 42})
+        provider._delete_existing_api_entries = AsyncMock(return_value=12)
         provider._load_data = AsyncMock(return_value={"inserted": 1})
         provider._update_job = AsyncMock()
 
@@ -226,17 +227,32 @@ class TestIngest:
         stats = result["stats"]
         assert stats["rows_processed"] == 1
         assert stats["rows_skipped"] == 1  # unit 9999 has no module
+        assert stats["row_errors"] == [
+            {
+                "row": 2,
+                "reason": (
+                    "No unit with unit_institutional_id 9999 found after unit sync; "
+                    "no carbon report module could be resolved"
+                ),
+                "type": "missing_synced_unit",
+                "unit_institutional_id": "9999",
+            }
+        ]
         assert result["inserted"] == 1
+        assert result["status_message"] == "Processed 1 member records, 1 skipped"
+        provider._delete_existing_api_entries.assert_awaited_once_with()
 
     async def test_ingest_fails_when_no_valid_records(self):
         provider = _make_provider()
         provider.fetch_data = AsyncMock(return_value=[_make_record()])
         provider._resolve_carbon_report_modules = AsyncMock(return_value={})
+        provider._delete_existing_api_entries = AsyncMock()
         provider._load_data = AsyncMock()
         provider._update_job = AsyncMock()
 
         with pytest.raises(ValueError, match="No valid records"):
             await provider.ingest()
+        provider._delete_existing_api_entries.assert_not_awaited()
         provider._load_data.assert_not_awaited()
 
 

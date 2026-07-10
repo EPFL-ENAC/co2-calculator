@@ -355,6 +355,22 @@ export default {
     en: 'API ingestion',
     fr: 'Ingestion API',
   },
+  data_management_missing_synced_units: {
+    en: '{rows} rows skipped: no matching synced unit',
+    fr: '{rows} lignes ignorées : aucune unité synchronisée correspondante',
+  },
+  data_management_distinct_unit_ids: {
+    en: '{count} distinct unit IDs',
+    fr: '{count} identifiants d’unité distincts',
+  },
+  data_management_unit_row_count: {
+    en: '{unit} ({count} row)',
+    fr: '{unit} ({count} ligne)',
+  },
+  data_management_unit_rows_count: {
+    en: '{unit} ({count} rows)',
+    fr: '{unit} ({count} lignes)',
+  },
   data_management_download_last_csv: {
     en: 'Download last CSV',
     fr: 'Télécharger le dernier CSV',

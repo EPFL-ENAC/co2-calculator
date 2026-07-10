@@ -4,6 +4,7 @@ import { useUploadCard } from 'src/composables/useUploadCard';
 import { resolvePipelinePhaseLabelKey } from 'src/composables/pipelinePhaseLabel';
 import {
   TargetType,
+  IngestionResult,
   IngestionState,
   IngestionMethod,
 } from 'src/stores/backofficeDataManagement';
@@ -93,6 +94,10 @@ const isJobStuck = computed(
 const apiJobInfo = computed(() => getJobInfo(props.apiJob));
 const hasApiErrorOrWarn = computed(() => hasErrorOrWarning(props.apiJob));
 const apiErrorDetails = computed(() => getErrorDetails(props.apiJob));
+const hasApiFatalError = computed(() => {
+  const meta = props.apiJob?.meta as Record<string, unknown> | undefined;
+  return props.apiJob?.result === IngestionResult.ERROR || Boolean(meta?.error);
+});
 
 // ``row_errors``/``row_errors_count`` are rendered separately via
 // ``errorDetails.rowErrors`` (formatted "row N: reason" lines) — drop them
@@ -202,6 +207,20 @@ const pipelineStillRunning = computed<boolean>(() => {
   if (!pipelineAppliesToCard.value) return false;
   const p = props.pipelineProgress;
   return !!(p && !p.done);
+});
+
+// A new CSV upload or API sync replaces the data shown on this card. Keep the
+// live phase as the single source of truth until that ingest finishes, rather
+// than showing stale API results beside it. Downstream recalculation phases do
+// not hide the finished ingestion summary.
+const dataIngestionRunning = computed<boolean>(() => {
+  if (!pipelineAppliesToCard.value) return false;
+  const p = props.pipelineProgress;
+  return !!(
+    p &&
+    !p.done &&
+    (p.kind === 'csv_ingest' || p.kind === 'api_ingest')
+  );
 });
 
 function handleUpload() {
@@ -426,13 +445,18 @@ function handleAbort() {
       />
     </div>
 
-    <!-- API ingestion status (success: small inline line; error: banner below) -->
+    <!-- API ingestion status (success/warning: inline; details below) -->
     <div
-      v-if="apiJob && !hasApiErrorOrWarn"
+      v-if="apiJob && !hasApiFatalError && !dataIngestionRunning"
       class="row items-center text-caption q-mt-xs text-grey-7"
       data-testid="api-status-success"
     >
-      <span class="text-positive q-mr-xs">✓</span>
+      <span
+        :class="hasApiErrorOrWarn ? 'text-warning' : 'text-positive'"
+        class="q-mr-xs"
+      >
+        {{ hasApiErrorOrWarn ? '!' : '✓' }}
+      </span>
       <span>{{ $t('data_management_api_ingestion') }}:</span>
       <span v-if="apiJobInfo.rowsProcessed !== undefined" class="q-ml-xs">
         {{ apiJobInfo.rowsProcessed }}
@@ -476,7 +500,7 @@ function handleAbort() {
 
     <!-- API ingestion error/warning banner (secondary, below the CSV one) -->
     <div
-      v-if="hasApiErrorOrWarn"
+      v-if="hasApiErrorOrWarn && !dataIngestionRunning"
       class="q-mt-sm q-pa-md bg-grey-2 rounded-borders"
       data-testid="api-status-error"
     >
@@ -492,6 +516,53 @@ function handleAbort() {
         class="text-body2"
       >
         {{ apiErrorDetails.error }}
+      </div>
+      <q-expansion-item
+        v-if="apiErrorDetails.missingSyncedUnitErrors"
+        dense
+        switch-toggle-side
+        class="q-mt-xs text-caption text-grey-7"
+        :label="
+          $t('data_management_missing_synced_units', {
+            rows: apiErrorDetails.missingSyncedUnitErrors.rowsSkipped,
+          })
+        "
+        :caption="
+          $t('data_management_distinct_unit_ids', {
+            count: apiErrorDetails.missingSyncedUnitErrors.units.length,
+          })
+        "
+        data-testid="api-error-group-missing-synced-unit"
+      >
+        <q-list dense class="q-pb-xs">
+          <q-item
+            v-for="unit in apiErrorDetails.missingSyncedUnitErrors.units"
+            :key="unit.unitInstitutionalId"
+            dense
+          >
+            <q-item-section>
+              {{
+                $t(
+                  unit.rowCount === 1
+                    ? 'data_management_unit_row_count'
+                    : 'data_management_unit_rows_count',
+                  {
+                    unit: unit.unitInstitutionalId,
+                    count: unit.rowCount,
+                  },
+                )
+              }}
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-expansion-item>
+      <div
+        v-if="apiErrorDetails.rowErrors.length"
+        class="text-caption text-grey-7 q-mt-xs"
+      >
+        <div v-for="(line, index) in apiErrorDetails.rowErrors" :key="index">
+          {{ line }}
+        </div>
       </div>
     </div>
   </q-card>
