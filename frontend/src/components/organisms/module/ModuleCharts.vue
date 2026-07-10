@@ -176,7 +176,7 @@ import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import TripsMap from 'src/components/molecules/TripsMap.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, type MergedUnitsContext } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
 import { PermissionAction } from 'src/utils/permission';
@@ -202,10 +202,20 @@ const props = withDefaults(
     forcedView?: 'breakdown' | 'type';
     showControls?: boolean;
     printMode?: boolean;
+    /** Extra units whose entries are ranked together with the current unit's. */
+    combineUnitIds?: number[];
+    /**
+     * Module type ids the parent has filtered out. Must match what the parent
+     * passed to `getEmissionBreakdown`, or the refetch below misses the shared
+     * cache and overwrites the parent's breakdown with an unfiltered one.
+     */
+    excludeModules?: number[];
   }>(),
   {
     showControls: true,
     forcedView: 'breakdown',
+    combineUnitIds: () => [],
+    excludeModules: () => [],
   },
 );
 
@@ -316,6 +326,17 @@ const supportsTopClassBreakdown = computed(() =>
   TOP_CLASS_MODULES.includes(props.type),
 );
 
+/**
+ * Mirrors the Results page's combined-units context. Without it the breakdown
+ * refetch below would overwrite the combined data with this unit's alone.
+ */
+const mergedUnitsContext = computed<MergedUnitsContext | null>(() => {
+  const unitId = workspaceStore.selectedUnit?.id;
+  const year = workspaceStore.selectedYear;
+  if (!props.combineUnitIds.length || !unitId || !year) return null;
+  return { unitIds: [unitId, ...props.combineUnitIds], year };
+});
+
 function fetchTopClassBreakdownIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
@@ -324,7 +345,12 @@ function fetchTopClassBreakdownIfNeeded() {
     return;
   }
   if (unitId && year && supportsTopClassBreakdown.value) {
-    void moduleStore.getTopClassBreakdown(unitId, String(year), props.type);
+    void moduleStore.getTopClassBreakdown(
+      unitId,
+      String(year),
+      props.type,
+      props.combineUnitIds,
+    );
   }
 }
 
@@ -359,10 +385,19 @@ function fetchTripsMapIfNeeded() {
 }
 
 watch(
-  () => workspaceStore.selectedCarbonReport?.id,
-  (carbonReportId) => {
+  () => [
+    workspaceStore.selectedCarbonReport?.id,
+    props.combineUnitIds.join(','),
+    props.excludeModules.join(','),
+  ],
+  () => {
+    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (carbonReportId) {
-      void moduleStore.getEmissionBreakdown(carbonReportId);
+      void moduleStore.getEmissionBreakdown(
+        carbonReportId,
+        props.excludeModules,
+        mergedUnitsContext.value,
+      );
       fetchTopClassBreakdownIfNeeded();
       fetchTripsMapIfNeeded();
     }

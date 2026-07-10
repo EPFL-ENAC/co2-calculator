@@ -204,3 +204,62 @@ def test_year_comparison_empty_stats():
     assert entry["modules"] == {}
     assert entry["scopes"] == {"1": 0.0, "2": 0.0, "3": 0.0}
     assert entry["total_tonnes_co2eq"] == 0.0
+
+
+def _embodied_report(by_building: list[dict], by_category: list[dict]) -> dict:
+    """A minimal report whose embodied bucket carries the detail lists."""
+    return {
+        "buckets": {
+            "embodied_energy": {
+                "scope": 3,
+                "additional": True,
+                "total_kg": sum(row["kg_co2eq"] for row in by_category),
+                "by_emission_type": {},
+                "by_additional_value": {},
+                "by_building": by_building,
+                "by_category": by_category,
+            }
+        },
+        "validated_buckets": ["embodied_energy"],
+        "total": sum(row["kg_co2eq"] for row in by_category),
+        "validated_total": 0.0,
+        "total_fte": 0.0,
+        "entry_count": 0,
+    }
+
+
+def test_merge_report_stats_sums_embodied_energy_detail():
+    """Without this the combined Results view shows a total but an empty chart."""
+    first = _embodied_report(
+        by_building=[{"building_name": "GC", "kg_co2eq": 1000.0, "tonnes_co2eq": 1.0}],
+        by_category=[
+            {"category": "concrete", "kg_co2eq": 600.0, "tonnes_co2eq": 0.6},
+            {"category": "steel", "kg_co2eq": 400.0, "tonnes_co2eq": 0.4},
+        ],
+    )
+    second = _embodied_report(
+        by_building=[
+            # Same building in another unit collapses into one row.
+            {"building_name": "GC", "kg_co2eq": 500.0, "tonnes_co2eq": 0.5},
+            {"building_name": "BC", "kg_co2eq": 250.0, "tonnes_co2eq": 0.25},
+        ],
+        by_category=[{"category": "steel", "kg_co2eq": 750.0, "tonnes_co2eq": 0.75}],
+    )
+
+    bucket = merge_report_stats([first, second])["buckets"]["embodied_energy"]
+
+    assert bucket["by_building"] == [
+        {"building_name": "BC", "kg_co2eq": 250.0, "tonnes_co2eq": 0.25},
+        {"building_name": "GC", "kg_co2eq": 1500.0, "tonnes_co2eq": 1.5},
+    ]
+    assert bucket["by_category"] == [
+        {"category": "concrete", "kg_co2eq": 600.0, "tonnes_co2eq": 0.6},
+        {"category": "steel", "kg_co2eq": 1150.0, "tonnes_co2eq": 1.15},
+    ]
+
+
+def test_merge_report_stats_omits_absent_bucket_detail():
+    """Buckets that never carried detail lists must not grow empty ones."""
+    merged = merge_report_stats([_build_report_stats(_modules())])
+    assert "by_building" not in merged["buckets"]["equipment"]
+    assert "by_category" not in merged["buckets"]["equipment"]

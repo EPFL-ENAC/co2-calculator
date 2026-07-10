@@ -27,6 +27,11 @@ from app.modules.buildings.schemas import (
     EnergyCombustionHandlerCreate,
 )
 from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import (
+    DATA_ENTRY_TO_EMISSION_TYPES,
+    emission_type_scope,
+)
+from app.modules.emissions.taxonomy import get_subtree_leaves
 from app.modules.equipment.schemas import EquipmentHandlerCreate
 from app.modules.external_cloud_and_ai.schemas import (
     REQUESTS_FREQUENCY_OPTIONS,
@@ -489,14 +494,52 @@ def generate_data_entries_for_module(module_id, module_type_id):
     return rows
 
 
+# The app resolves these data entry types' emission types at compute time from
+# the factor rows (``_RUNTIME_RESOLVERS``), which the seeder deliberately skips.
+# Seeding needs *some* valid leaf under the right taxonomy root, otherwise the
+# emission falls outside the module's stat buckets and recompute yields zero.
+_SEED_EMISSION_ROOTS: dict[DataEntryTypeEnum, EmissionType] = {
+    DataEntryTypeEnum.building: EmissionType.buildings__rooms,
+    DataEntryTypeEnum.energy_combustion: EmissionType.buildings__combustion,
+    DataEntryTypeEnum.plane: EmissionType.professional_travel__plane,
+    DataEntryTypeEnum.train: EmissionType.professional_travel__train,
+    DataEntryTypeEnum.external_clouds: EmissionType.external__clouds,
+    DataEntryTypeEnum.process_emissions: EmissionType.process_emissions,
+    DataEntryTypeEnum.research_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.mice_and_fish_animal_facilities: EmissionType.research_facilities,
+    DataEntryTypeEnum.purchases_centralized: EmissionType.purchases,
+}
+
+
+def seed_emission_candidates(
+    data_entry_type: DataEntryTypeEnum,
+) -> list[EmissionType]:
+    """Emission types a seeded entry of this data entry type may carry.
+
+    Every data entry type of every module must resolve to at least one leaf, or
+    that module seeds entries with no emissions and recomputes to an empty
+    chart. ``tests/unit/seed/test_seed_data_entries.py`` pins that.
+    """
+    static = DATA_ENTRY_TO_EMISSION_TYPES.get(data_entry_type)
+    if static:
+        return list(static)
+    root = _SEED_EMISSION_ROOTS.get(data_entry_type)
+    if root is None:
+        return []
+    return [EmissionType(leaf_id) for leaf_id in get_subtree_leaves(root)]
+
+
 def generate_emissions_for_entry(entry_id, data_entry_type_id):
     rows = []
     now = datetime.now(timezone.utc)
 
     # simple placeholder logic for speed — no factor lookup; primary_factor_id
     # stays NULL. Fields mirror ``DataEntryEmissionBase``.
-    emission_type = random.choice(list(EmissionType))  # nosec B311
-    scope = emission_type.scope.value if emission_type.scope is not None else None
+    candidates = seed_emission_candidates(DataEntryTypeEnum(data_entry_type_id))
+    if not candidates:
+        return rows
+    emission_type = random.choice(candidates)  # nosec B311
+    scope = emission_type_scope(emission_type)
 
     rows.append(
         (

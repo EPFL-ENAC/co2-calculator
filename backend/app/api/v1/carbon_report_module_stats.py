@@ -27,6 +27,7 @@ from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.data_entry_service import DataEntryService
+from app.services.unit_service import UnitService
 from app.services.unit_totals_service import UnitTotalsService
 from app.utils.report_computations import (
     compute_results_summary,
@@ -194,6 +195,137 @@ async def get_multi_year_breakdown(
         years.append({"year": year, **build_year_comparison(stats)})
 
     return {"years": years}
+
+
+async def _authorize_and_resolve_reports(
+    db: AsyncSession,
+    current_user: User,
+    unit_ids: list[int],
+    year: int,
+) -> list[CarbonReport]:
+    """Resolve the CALCULATOR report of each requested unit, for one year.
+
+    Every unit must be one the caller may see, per the same allow-list the
+    workspace switcher is built from. A unit outside it yields 404 rather than
+    403: the frontend turns any 403 into a hard redirect to /unauthorized, so a
+    forged id must look like "not found", not trip that redirect.
+
+    Units with no report for ``year`` are skipped, so the aggregate simply
+    covers the units that do have one.
+    """
+    if not unit_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one unit_id is required",
+        )
+
+    allowed_unit_ids = {
+        unit["id"] for unit in await UnitService(db).get_user_units(current_user)
+    }
+    unknown = [unit_id for unit_id in unit_ids if unit_id not in allowed_unit_ids]
+    if unknown:
+        logger.info(
+            "Merged stats requested for inaccessible units",
+            extra={"unit_ids": sanitize(unknown), "user_id": sanitize(current_user.id)},
+        )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Unit(s) not found: {', '.join(str(u) for u in unknown)}",
+        )
+
+    report_repo = CarbonReportRepository(db)
+    reports: list[CarbonReport] = []
+    for unit_id in dict.fromkeys(unit_ids):
+        report = await report_repo.get_by_unit_and_year(unit_id=unit_id, year=year)
+        if report is not None:
+            reports.append(report)
+    return reports
+
+
+@router.get("/merged/report-stats", response_model=dict)
+async def get_merged_report_stats(
+    unit_ids: list[int] = Query(default_factory=list),
+    year: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Sum several units' persisted report stats into one payload.
+
+    Same shape as ``/{carbon_report_id}/report-stats``, so the frontend derives
+    its charts from it unchanged. ``merge_report_stats`` drops per-unit
+    top-class detail on purpose, so the IT section's is re-ranked across all
+    the reports here rather than unioned.
+    """
+    reports = await _authorize_and_resolve_reports(db, current_user, unit_ids, year)
+    if not reports:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No carbon report found for year {year}",
+        )
+
+    merged = merge_report_stats([dict(report.stats or {}) for report in reports])
+
+    report_ids = [report.id for report in reports if report.id is not None]
+    merged["it"]["top_class_detail"] = await CarbonReportModuleService(
+        db
+    ).build_merged_it_top_classes(report_ids, report_year=year)
+
+    validated_total = 0.0
+    for report_id in report_ids:
+        validated = await build_validated_totals(db, report_id)
+        validated_total += validated["total_tonnes_co2eq"]
+    merged["total_tonnes_validated_co2eq"] = validated_total
+
+    return merged
+
+
+@router.get("/merged/results-summary", response_model=dict)
+async def get_merged_results_summary(
+    unit_ids: list[int] = Query(default_factory=list),
+    year: int = Query(...),
+    exclude_modules: list[int] = Query(default_factory=list),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Results summary over several units, summed per module.
+
+    Each unit contributes its own validated module totals and its own
+    previous-year comparison basis, so the year-over-year figure stays
+    meaningful for a combined perimeter.
+    """
+    reports = await _authorize_and_resolve_reports(db, current_user, unit_ids, year)
+    if not reports:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No carbon report found for year {year}",
+        )
+
+    service = UnitTotalsService(db)
+    current_emissions: dict[str, float] = {}
+    current_fte: dict[str, float] = {}
+    prev_emissions: dict[str, float] = {}
+    for report in reports:
+        if report.id is None:
+            continue
+        raw = await service.get_results_summary(report.id)
+        for target, source in (
+            (current_emissions, raw["current_emissions"]),
+            (current_fte, raw["current_fte"]),
+            (prev_emissions, raw["prev_emissions"]),
+        ):
+            for module_type_id, value in source.items():
+                target[module_type_id] = target.get(module_type_id, 0.0) + (
+                    value or 0.0
+                )
+
+    return compute_results_summary(
+        current_emissions,
+        current_fte,
+        prev_emissions,
+        get_settings().CO2_PER_KM_KG,
+        str(ModuleTypeEnum.headcount.value),
+        exclude_module_type_ids=set(exclude_modules),
+    )
 
 
 @router.get("/{carbon_report_id}/report-stats", response_model=dict)

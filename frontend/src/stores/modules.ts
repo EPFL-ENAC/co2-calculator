@@ -41,6 +41,15 @@ export interface ValidatedTotalsResponse {
   total_fte: number;
 }
 
+/**
+ * The units whose carbon reports are summed on the Results page, and the year
+ * they are summed for. `unitIds` includes the unit currently being viewed.
+ */
+export interface MergedUnitsContext {
+  unitIds: number[];
+  year: number;
+}
+
 export interface EmbodiedEnergyCategoryEntry {
   category: string;
   kg_co2eq: number;
@@ -968,12 +977,19 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     moduleId: string,
+    combineUnitIds: number[] = [],
   ) {
     state.loadingTopClassBreakdown = true;
     state.errorTopClassBreakdown = null;
     state.topClassBreakdown = [];
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const basePath = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const searchParams = new URLSearchParams();
+      for (const id of combineUnitIds) {
+        searchParams.append('combine_unit_ids', String(id));
+      }
+      const query = searchParams.toString();
+      const path = query ? `${basePath}?${query}` : basePath;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch (err: unknown) {
@@ -1015,11 +1031,34 @@ export const useModuleStore = defineStore('modules', () => {
   const emissionBreakdownInFlightToken = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
+  /**
+   * In combined mode the same carbonReportId maps to different data depending
+   * on which units are summed, so the unit set has to be part of the key.
+   */
   function makeBreakdownCacheKey(
     carbonReportId: number,
     excludeModules: number[],
+    merged: MergedUnitsContext | null = null,
   ): string {
-    return `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    const base = `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    if (!merged) return base;
+    const units = [...merged.unitIds].sort((a, b) => a - b).join(',');
+    return `${base}::m=${units}@${merged.year}`;
+  }
+
+  function reportStatsPath(
+    carbonReportId: number,
+    merged: MergedUnitsContext | null,
+  ): string {
+    if (!merged) {
+      return `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
+    }
+    const searchParams = new URLSearchParams();
+    searchParams.append('year', String(merged.year));
+    for (const id of merged.unitIds) {
+      searchParams.append('unit_ids', String(id));
+    }
+    return `modules-stats/merged/report-stats?${searchParams.toString()}`;
   }
 
   function invalidateEmissionBreakdown() {
@@ -1058,8 +1097,13 @@ export const useModuleStore = defineStore('modules', () => {
   async function getEmissionBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
-    const cacheKey = makeBreakdownCacheKey(carbonReportId, excludeModules);
+    const cacheKey = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+      merged,
+    );
     if (emissionBreakdownCacheKey.value === cacheKey) return;
     if (
       emissionBreakdownInFlight &&
@@ -1080,8 +1124,9 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
-        const stats = await api.get(path).json<ReportStats>();
+        const stats = await api
+          .get(reportStatsPath(carbonReportId, merged))
+          .json<ReportStats>();
         if (!isLatestRequest()) {
           return;
         }
@@ -1155,12 +1200,14 @@ export const useModuleStore = defineStore('modules', () => {
   async function getItBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
     state.loadingItBreakdown = true;
     state.errorItBreakdown = null;
     try {
-      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
-      const stats = await api.get(path).json<ReportStats>();
+      const stats = await api
+        .get(reportStatsPath(carbonReportId, merged))
+        .json<ReportStats>();
       state.itBreakdown = toItBreakdown(stats, excludeModules);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);

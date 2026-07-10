@@ -144,16 +144,30 @@ export default {
     fr: 'kg CO₂-eq',
   },
   results_title: {
-    en: 'Results',
-    fr: 'Résultats',
+    en: 'Annual carbon footprint',
+    fr: 'Empreinte carbone annuelle',
+  },
+  // Subtitle under the Results heading: which units are summed, and for which year.
+  results_perimeter_subtitle: {
+    en: '{unit} · {year}',
+    fr: '{unit} · {year}',
   },
   results_print_title: {
     en: 'Total results',
     fr: 'Résultats totaux',
   },
+  // Still the subtitle of the printed report, which keeps its own header.
   results_subtitle: {
     en: 'Annual carbon footprint {year}',
     fr: 'Empreinte carbone annuelle {year}',
+  },
+  results_combine_units_label: {
+    en: 'Add a Unit',
+    fr: 'Ajouter une unité',
+  },
+  results_combine_units_counter: {
+    en: '{unit} + {count} units',
+    fr: '{unit} + {count} unités',
   },
   results_total_unit_carbon_footprint: {
     en: 'Unit carbon footprint',

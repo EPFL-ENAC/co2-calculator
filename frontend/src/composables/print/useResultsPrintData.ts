@@ -3,13 +3,18 @@ import { useRoute } from 'vue-router';
 
 import {
   getResultsSummary,
+  getMergedResultsSummary,
   type ResultsSummary,
   type ModuleResult,
 } from 'src/api/modules';
 import { MODULES, MODULES_LIST, type Module } from 'src/constant/modules';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import {
+  useModuleStore,
+  useTimelineStore,
+  type MergedUnitsContext,
+} from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 
 export function useResultsPrintData() {
@@ -45,6 +50,28 @@ export function useResultsPrintData() {
       if (id !== undefined) ids.push(id);
     }
     return ids;
+  });
+
+  /** Combined units carried over from the Results page's `?combineUnits=`. */
+  const combinedUnitIds = computed(() => {
+    const raw = route.query.combineUnits;
+    const value = Array.isArray(raw) ? raw.join(',') : raw;
+    if (!value) return [];
+    const currentUnitId = workspaceStore.selectedUnit?.id;
+    const reachable = new Set(workspaceStore.units.map((unit) => unit.id));
+    return value
+      .split(',')
+      .map((id) => Number(id))
+      .filter((id) => id !== currentUnitId && reachable.has(id));
+  });
+
+  const mergedContext = computed<MergedUnitsContext | null>(() => {
+    const currentUnitId = workspaceStore.selectedUnit?.id;
+    if (!combinedUnitIds.value.length || !currentUnitId) return null;
+    return {
+      unitIds: [currentUnitId, ...combinedUnitIds.value],
+      year: currentYear.value,
+    };
   });
 
   const co2PerKmKg = computed(() => resultsSummary.value?.co2_per_km_kg ?? 0);
@@ -209,12 +236,16 @@ export function useResultsPrintData() {
   }
 
   async function fetchAllData(carbonReportId: number) {
+    const merged = mergedContext.value;
     try {
       resultsSummaryLoading.value = true;
-      resultsSummary.value = await getResultsSummary(
-        carbonReportId,
-        excludedModules.value,
-      );
+      resultsSummary.value = merged
+        ? await getMergedResultsSummary(
+            merged.unitIds,
+            merged.year,
+            excludedModules.value,
+          )
+        : await getResultsSummary(carbonReportId, excludedModules.value);
     } catch {
       resultsSummary.value = null;
     } finally {
@@ -224,14 +255,21 @@ export function useResultsPrintData() {
     await moduleStore.getEmissionBreakdown(
       carbonReportId,
       excludedModules.value,
+      merged,
     );
-    await moduleStore.getItBreakdown(carbonReportId, excludedModules.value);
+    await moduleStore.getItBreakdown(
+      carbonReportId,
+      excludedModules.value,
+      merged,
+    );
   }
 
   return {
     resultsSummary,
     resultsSummaryLoading,
     currentYear,
+    combinedUnitIds,
+    excludedModules,
     viewAdditionalData,
     co2PerKmKg,
     hasCo2PerKmKg,

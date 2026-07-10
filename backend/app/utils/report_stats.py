@@ -109,6 +109,16 @@ def build_year_comparison(stats: dict) -> dict:
     }
 
 
+# Bucket detail lists persisted alongside the numeric aggregates, mapped to the
+# field naming each row. They are plain per-key kg sums (no top-N), so summing
+# them across reports is exact: e.g. the same building in two units collapses
+# into one row, as it should.
+_BUCKET_DETAIL_NAME_FIELDS = {
+    "by_building": "building_name",
+    "by_category": "category",
+}
+
+
 def _merge_bucket_into(target: dict, bucket: dict) -> None:
     target["total_kg"] += bucket.get("total_kg", 0.0) or 0.0
     for et_id_str, kg in (bucket.get("by_emission_type") or {}).items():
@@ -119,10 +129,38 @@ def _merge_bucket_into(target: dict, bucket: dict) -> None:
         target["by_additional_value"][et_id_str] = target["by_additional_value"].get(
             et_id_str, 0.0
         ) + float(add_val)
+    for detail_key, name_field in _BUCKET_DETAIL_NAME_FIELDS.items():
+        rows = bucket.get(detail_key)
+        if not rows:
+            continue
+        accumulator = target.setdefault(detail_key, {})
+        for row in rows:
+            name = row.get(name_field)
+            if name is None:
+                continue
+            accumulator[name] = accumulator.get(name, 0.0) + (
+                row.get("kg_co2eq") or 0.0
+            )
+
+
+def _finalize_bucket_details(bucket: dict) -> None:
+    """Turn the name→kg accumulators back into the persisted row shape."""
+    for detail_key, name_field in _BUCKET_DETAIL_NAME_FIELDS.items():
+        accumulator = bucket.get(detail_key)
+        if not isinstance(accumulator, dict):
+            continue
+        bucket[detail_key] = [
+            {name_field: name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            for name, kg in sorted(accumulator.items())
+            if kg > 0
+        ]
 
 
 def merge_report_stats(stats_list: list[dict]) -> dict:
     """Merge several reports' stats into one aggregate of the same shape.
+
+    Bucket detail lists (embodied energy by building / by category) are summed
+    per key, so charts fed from them keep working on a combined perimeter.
 
     Per-unit top-class detail is dropped: a union of per-unit top-3 lists is
     not a meaningful aggregate.
@@ -154,6 +192,7 @@ def merge_report_stats(stats_list: list[dict]) -> dict:
             _merge_bucket_into(merged_bucket, bucket)
         if merged_bucket is None:
             continue
+        _finalize_bucket_details(merged_bucket)
         buckets[key] = merged_bucket
         for et_id_str, kg in merged_bucket["by_emission_type"].items():
             by_emission_type[et_id_str] = by_emission_type.get(et_id_str, 0.0) + kg
