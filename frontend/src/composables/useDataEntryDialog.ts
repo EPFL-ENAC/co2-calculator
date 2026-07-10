@@ -34,24 +34,15 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const isUploading = ref<boolean>(false);
   const isConnecting = ref<boolean>(false);
   const isCopying = ref<boolean>(false);
-  const isTestingConnection = ref<boolean>(false);
 
   const connectorsList = ref<ConnectorSpecRead[]>([]);
   const selectedConnector = ref<string>('');
-  const apiServerUrl = ref<string>('');
-  const apiSiteContentUrl = ref<string>('');
-  const apiUsername = ref<string>('');
-  const apiClientId = ref<string>('');
-  const apiSecretId = ref<string>('');
-  const apiSecretValue = ref<string>('');
   const apiConnectorLuid = ref<string>('');
-  const hasExistingSecret = ref<boolean>(false);
-
-  const connectorFormFields = computed(
-    () =>
-      connectorsList.value.find((c) => c.connector === selectedConnector.value)
-        ?.form_fields ?? [],
-  );
+  // Connections are configured once per connector from the backoffice
+  // "API Connectors" card, not per module — this only tracks whether one
+  // already exists so a datasource save doesn't 404 against a connector
+  // nobody has set up yet.
+  const connectionConfigured = ref<boolean>(false);
 
   const previousYearJobs = ref<SyncJobResponse[]>([]);
   const selectedPreviousJob = ref<number | null>(null);
@@ -60,12 +51,8 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     () =>
       options.row.value.hasApi &&
       !!selectedConnector.value &&
-      !!apiServerUrl.value &&
-      !!apiUsername.value &&
-      !!apiClientId.value &&
-      !!apiSecretId.value &&
-      !!apiConnectorLuid.value &&
-      (hasExistingSecret.value || !!apiSecretValue.value),
+      connectionConfigured.value &&
+      !!apiConnectorLuid.value,
   );
 
   const showOverwriteWarning = computed(() => {
@@ -88,35 +75,24 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     isUploading.value = false;
     isConnecting.value = false;
     isCopying.value = false;
-    isTestingConnection.value = false;
     connectorsList.value = [];
     selectedConnector.value = '';
-    apiServerUrl.value = '';
-    apiSiteContentUrl.value = '';
-    apiUsername.value = '';
-    apiClientId.value = '';
-    apiSecretId.value = '';
-    apiSecretValue.value = '';
     apiConnectorLuid.value = '';
-    hasExistingSecret.value = false;
+    connectionConfigured.value = false;
     selectedPreviousJob.value = null;
     previousYearJobs.value = [];
   }
 
-  /** Prefill non-secret connection fields for the currently selected connector. */
+  /** Check whether the currently selected connector already has a saved
+   * connection — configuring one happens in the "API Connectors" card,
+   * not here. */
   async function loadConnectionForSelectedConnector() {
     if (!selectedConnector.value) return;
     try {
       const conn = await connectorsStore.getConnection(selectedConnector.value);
-      hasExistingSecret.value = !!conn?.has_secret;
-      apiServerUrl.value = conn?.server_url ?? '';
-      apiSiteContentUrl.value = conn?.site_content_url ?? '';
-      apiUsername.value = conn?.username ?? '';
-      apiClientId.value = conn?.client_id ?? '';
-      apiSecretId.value = conn?.secret_id ?? '';
-      apiSecretValue.value = '';
+      connectionConfigured.value = !!conn;
     } catch {
-      hasExistingSecret.value = false;
+      connectionConfigured.value = false;
     }
   }
 
@@ -204,18 +180,6 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   async function connectAndSync() {
     isConnecting.value = true;
     try {
-      const connectorSpec = connectorsList.value.find(
-        (c) => c.connector === selectedConnector.value,
-      );
-      await connectorsStore.saveConnection(selectedConnector.value, {
-        label: connectorSpec?.label ?? selectedConnector.value,
-        server_url: apiServerUrl.value,
-        site_content_url: apiSiteContentUrl.value || undefined,
-        username: apiUsername.value,
-        client_id: apiClientId.value,
-        secret_id: apiSecretId.value,
-        secret_value: apiSecretValue.value || undefined,
-      });
       await connectorsStore.saveDatasource(selectedConnector.value, {
         module_type_id: options.row.value.moduleTypeId,
         data_entry_type_id: options.row.value.dataEntryTypeId,
@@ -237,33 +201,6 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
       });
     } finally {
       isConnecting.value = false;
-    }
-  }
-
-  async function testConnectionNow() {
-    if (!selectedConnector.value) return;
-    isTestingConnection.value = true;
-    try {
-      const result = await connectorsStore.testConnection(
-        selectedConnector.value,
-      );
-      $q.notify({
-        color: result.ok ? 'positive' : 'negative',
-        message: result.ok
-          ? $t('data_management_connection_success')
-          : $t('data_management_connection_failed'),
-        caption: result.detail,
-        position: 'top',
-      });
-    } catch (err: unknown) {
-      $q.notify({
-        color: 'negative',
-        message: $t('data_management_connection_failed'),
-        caption: err instanceof Error ? err.message : undefined,
-        position: 'top',
-      });
-    } finally {
-      isTestingConnection.value = false;
     }
   }
 
@@ -413,18 +350,10 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     isUploading,
     isConnecting,
     isCopying,
-    isTestingConnection,
     connectorsList,
     selectedConnector,
-    connectorFormFields,
-    apiServerUrl,
-    apiSiteContentUrl,
-    apiUsername,
-    apiClientId,
-    apiSecretId,
-    apiSecretValue,
     apiConnectorLuid,
-    hasExistingSecret,
+    connectionConfigured,
     previousYearJobs,
     selectedPreviousJob,
     allApiFieldsFilled,
@@ -436,7 +365,6 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     loadConnectorOptions,
     uploadFiles,
     connectAndSync,
-    testConnectionNow,
     copyFromPreviousYear,
   };
 }

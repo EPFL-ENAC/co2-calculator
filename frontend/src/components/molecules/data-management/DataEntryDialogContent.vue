@@ -27,18 +27,10 @@ const {
   isUploading,
   isConnecting,
   isCopying,
-  isTestingConnection,
   connectorsList,
   selectedConnector,
-  connectorFormFields,
-  apiServerUrl,
-  apiSiteContentUrl,
-  apiUsername,
-  apiClientId,
-  apiSecretId,
-  apiSecretValue,
   apiConnectorLuid,
-  hasExistingSecret,
+  connectionConfigured,
   previousYearJobs,
   selectedPreviousJob,
   allApiFieldsFilled,
@@ -50,7 +42,6 @@ const {
   loadConnectorOptions,
   uploadFiles,
   connectAndSync,
-  testConnectionNow,
   copyFromPreviousYear,
 } = useDataEntryDialog({
   row: toRef(props, 'row'),
@@ -195,70 +186,18 @@ watch(showDialog, (newVal) => {
                 outlined
                 :label="$t('data_management_api_connector')"
               />
-              <q-input
-                v-if="connectorFormFields.includes('server_url')"
-                v-model="apiServerUrl"
+              <q-banner
+                v-if="selectedConnector && !connectionConfigured"
                 dense
-                outlined
-                :placeholder="$t('data_management_api_server_url')"
-              />
-              <q-input
-                v-if="connectorFormFields.includes('site_content_url')"
-                v-model="apiSiteContentUrl"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_site_content_url')"
-              />
-              <q-input
-                v-if="connectorFormFields.includes('username')"
-                v-model="apiUsername"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_username')"
-              />
-              <q-input
-                v-if="connectorFormFields.includes('client_id')"
-                v-model="apiClientId"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_client_id')"
-              />
-              <q-input
-                v-if="connectorFormFields.includes('secret_id')"
-                v-model="apiSecretId"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_secret_id')"
-              />
-              <q-input
-                v-if="connectorFormFields.includes('secret_value')"
-                v-model="apiSecretValue"
-                dense
-                outlined
-                type="password"
-                auto-complete="current-password"
-                :placeholder="$t('data_management_api_secret_value')"
-                :hint="
-                  hasExistingSecret
-                    ? $t('data_management_api_secret_kept')
-                    : undefined
-                "
-              />
+                class="bg-grey-3"
+              >
+                {{ $t('data_management_connection_not_configured_hint') }}
+              </q-banner>
               <q-input
                 v-model="apiConnectorLuid"
                 dense
                 outlined
                 :placeholder="$t('data_management_api_luid')"
-              />
-              <q-btn
-                :label="$t('data_management_api_test_connection')"
-                dense
-                outline
-                color="grey-8"
-                class="text-weight-medium text-capitalize"
-                :loading="isTestingConnection"
-                :disable="!selectedConnector || isTestingConnection"
-                @click="testConnectionNow"
               />
             </div>
           </div>

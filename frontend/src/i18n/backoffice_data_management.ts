@@ -283,6 +283,38 @@ export default {
     en: 'Connect & Sync',
     fr: 'Connecter et synchroniser',
   },
+  data_management_connection_not_configured_hint: {
+    en: 'No connection configured for this connector yet — set it up in the "API Connectors" card above.',
+    fr: 'Aucune connexion configurée pour ce connecteur — configurez-la dans la section « Connecteurs API » ci-dessus.',
+  },
+  data_management_connectors_title: {
+    en: 'API Connectors',
+    fr: 'Connecteurs API',
+  },
+  data_management_connectors_hint: {
+    en: 'Configure the credentials each API-connected module uses to pull data. One connection per connector, shared across every module that uses it.',
+    fr: "Configurez les identifiants utilisés par chaque module connecté à une API pour récupérer des données. Une connexion par connecteur, partagée par tous les modules qui l'utilisent.",
+  },
+  data_management_connector_configured: {
+    en: 'Configured',
+    fr: 'Configuré',
+  },
+  data_management_connector_not_configured: {
+    en: 'Not configured',
+    fr: 'Non configuré',
+  },
+  data_management_configure_connection: {
+    en: 'Configure',
+    fr: 'Configurer',
+  },
+  data_management_configure_connector_title: {
+    en: 'Configure {connector}',
+    fr: 'Configurer {connector}',
+  },
+  data_management_connection_saved: {
+    en: 'Connection saved',
+    fr: 'Connexion enregistrée',
+  },
   data_management_copy_from_year: {
     en: 'Copy from {year}',
     fr: 'Copier de {year}',
