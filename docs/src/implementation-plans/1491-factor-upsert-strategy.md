@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: delivered
 issue: 1491
 last_updated: 2026-07-10
 title: "Factor Upsert Strategy — Re-scoped: keep the upsert, harden it, ship viewer + bulk delete"
@@ -170,9 +170,46 @@ CSV row with null identity field → row error, no factor written, upload result
 
 ## Steps
 
-- [ ] Decide sweep policy for non-CSV factor writers (recommend: accept CSV-as-source-of-truth) — product sign-off, no code unless option 2
-- [ ] Update stale rationale comments (`factor_repo.py:140-143`, `base_factor_csv_provider.py:178-181`) and add a "factor lifecycle" docs section (upsert / stale sweep / recalc / what re-import does)
-- [ ] Add generic null-identity-field guard in `_process_row` + regression test
-- [ ] `GET /api/v1/backoffice/factors` + frontend viewer page (surface `last_seen_job_id`)
-- [ ] `DELETE /api/v1/backoffice/data-entries` and `DELETE /api/v1/backoffice/factors`, each chaining recalc or the `recompute-stats` admin trigger; permission-gated; tests
-- [ ] Comment on #1491 linking the lifecycle doc: the originally-reported upsert bug no longer reproduces; issue re-scoped to the items above
+- [x] Decide sweep policy for non-CSV factor writers — **option 1 accepted** (CSV is the source of truth for its scope); satisfied by documentation only, no code change
+- [x] Update stale rationale comments (`factor_repo.py`, `base_factor_csv_provider.py`) and add a "factor lifecycle" docs section (`docs/src/backend/12-FACTOR-LIFECYCLE.md`)
+- [x] Add generic null-identity-field guard in `_process_row` + regression tests
+- [x] `GET /api/v1/backoffice/factors` + frontend viewer (Data Management page section, surfaces `last_seen_job_id`)
+- [x] `DELETE /api/v1/backoffice/data-entries` and `DELETE /api/v1/backoffice/factors`, each dispatching an `emission_recalc` (which chains the stat-bucket aggregation); permission-gated; tests
+- [ ] ~~Comment on #1491~~ — issue communication is handled by the maintainer; the lifecycle doc and this plan carry the write-up
+
+## Implementation notes (2026-07-10, PR #1744)
+
+- **Sweep policy (ask 1)**: option 1 — the factor CSV is the source of truth
+  for its `(det, year)` scope; non-CSV factor writes (computed providers) are
+  transient by design. Documented in
+  `docs/src/backend/12-FACTOR-LIFECYCLE.md`; no sweep-predicate change.
+- **Null-identity guard (ask 2)**: `_process_row` rejects rows whose
+  DTO-required classification fields are null, naming the field(s) in the
+  per-row error, before emission-type resolution and before the null can
+  enter the upsert identity key. Requiredness derives from the handler's
+  `required_columns` (create-DTO required set), so legitimately nullable
+  classification fields (e.g. subkind) still pass.
+- **Recalc vs recompute-stats after bulk delete (ask 4)**: the delete
+  endpoints dispatch a root `emission_recalc` job (same shape as
+  `POST /sync/recalculate-emissions/{module}/{det}`), NOT the admin
+  `recompute-stats` trigger. Reasoning: deleting factors CASCADE-deletes
+  the emission rows that reference them, but emission rows with a NULL
+  `primary_factor_id` survive with stale values, and surviving data entries
+  need their emissions rebuilt — only the recalc path does that (set-based
+  replace per entry) and then chains the trailing `aggregation` that
+  rewrites `carbon_report_module.stats`. `recompute-stats` only
+  re-aggregates existing emission rows (and is designed for unchanged data:
+  it skips the module-status bump and skips scopes without a current
+  FACTORS job), so it would preserve stale emissions in the stats.
+  Module-scoped data-entry deletes pin `carbon_report_module_ids` on the
+  recalc config, mirroring the unit-specific ingest.
+- **Viewer**: rows serialize through the type's factor handler response DTO
+  plus `year` / `last_seen_job_id`;
+  `FactorRepository.list_by_data_entry_type` gained an optional
+  `limit`/`offset` window (id-ordered). Frontend: a read-only `q-table`
+  section on the Data Management page (reuses the page's year selector),
+  `listBackofficeFactors` in `api/factors.ts`, `fetchBackofficeFactors` in
+  the factors store, en/fr i18n keys.
+- **Permissions**: `backoffice.configuration` — `view` for the viewer,
+  `edit` for both DELETE endpoints (same gate as the neighbouring
+  recalculate/upload operations in `data_sync.py`).
