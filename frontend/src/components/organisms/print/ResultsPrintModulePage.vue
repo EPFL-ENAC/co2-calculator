@@ -16,9 +16,14 @@ interface Props {
   hasCo2PerKmKg: boolean;
   co2PerKmKg: number;
   currentYear: number;
+  combineUnitIds?: number[];
+  excludeModules?: number[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  combineUnitIds: () => [],
+  excludeModules: () => [],
+});
 
 const { t, te } = useI18n();
 
@@ -152,6 +157,8 @@ function getTotalModuleCarbonFootprintTitle(): string {
           :type="module"
           forced-view="type"
           :show-controls="false"
+          :combine-unit-ids="props.combineUnitIds"
+          :exclude-modules="props.excludeModules"
         />
       </q-card>
 
@@ -163,6 +170,8 @@ function getTotalModuleCarbonFootprintTitle(): string {
           :type="module"
           forced-view="breakdown"
           :show-controls="false"
+          :combine-unit-ids="props.combineUnitIds"
+          :exclude-modules="props.excludeModules"
         />
       </q-card>
     </div>

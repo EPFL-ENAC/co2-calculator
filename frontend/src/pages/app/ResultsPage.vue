@@ -16,12 +16,17 @@ import BigNumber from 'src/components/molecules/BigNumber.vue';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
 import {
   getResultsSummary,
+  getMergedResultsSummary,
   type ResultsSummary,
   type ModuleResult,
 } from 'src/api/modules';
 
 import { useWorkspaceStore } from 'src/stores/workspace';
-import { useTimelineStore, useModuleStore } from 'src/stores/modules';
+import {
+  useTimelineStore,
+  useModuleStore,
+  type MergedUnitsContext,
+} from 'src/stores/modules';
 import { useResultsFiltersStore } from 'src/stores/resultsFilters';
 import { storeToRefs } from 'pinia';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
@@ -157,16 +162,63 @@ const excludedModules = computed(() => {
   return ids;
 });
 
+const currentUnitId = computed(() => workspaceStore.selectedUnit?.id ?? null);
+
+/** Units offered for combining: everything the user can reach except this one. */
+const combineUnitOptions = computed(() =>
+  workspaceStore.units
+    .filter((unit) => unit.id !== currentUnitId.value)
+    .map((unit) => ({ label: unit.name, value: unit.id })),
+);
+
+const combinedUnitIds = ref<number[]>([]);
+
+/** Ignore ids the user cannot reach, so a hand-edited URL degrades quietly. */
+function readCombineUnitsQuery(): number[] {
+  const raw = route.query.combineUnits;
+  const value = Array.isArray(raw) ? raw.join(',') : raw;
+  if (!value) return [];
+  const selectable = new Set(combineUnitOptions.value.map((o) => o.value));
+  return value
+    .split(',')
+    .map((id) => Number(id))
+    .filter((id) => selectable.has(id));
+}
+
+function unitNameById(unitId: number): string {
+  return workspaceStore.units.find((unit) => unit.id === unitId)?.name ?? '';
+}
+
+function toggleCombinedUnit(unitId: number) {
+  combinedUnitIds.value = combinedUnitIds.value.includes(unitId)
+    ? combinedUnitIds.value.filter((id) => id !== unitId)
+    : [...combinedUnitIds.value, unitId];
+}
+
+/** Null in single-unit mode; the fetches then take their existing per-report path. */
+const mergedContext = computed<MergedUnitsContext | null>(() => {
+  if (!combinedUnitIds.value.length || currentUnitId.value === null)
+    return null;
+  return {
+    unitIds: [currentUnitId.value, ...combinedUnitIds.value],
+    year: currentYear.value,
+  };
+});
+
 async function fetchResultsSummary() {
+  const merged = mergedContext.value;
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
-  if (!carbonReportId) return;
+  if (!merged && !carbonReportId) return;
 
   try {
     resultsSummaryLoading.value = true;
-    resultsSummary.value = await getResultsSummary(
-      carbonReportId,
-      excludedModules.value,
-    );
+    resultsSummary.value = merged
+      ? await getMergedResultsSummary(
+          merged.unitIds,
+          merged.year,
+          excludedModules.value,
+        )
+      : await getResultsSummary(Number(carbonReportId), excludedModules.value);
   } catch {
     resultsSummary.value = null;
   } finally {
@@ -177,13 +229,21 @@ async function fetchResultsSummary() {
 async function fetchEmissionBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
   if (!carbonReportId) return;
-  await moduleStore.getEmissionBreakdown(carbonReportId, excludedModules.value);
+  await moduleStore.getEmissionBreakdown(
+    carbonReportId,
+    excludedModules.value,
+    mergedContext.value,
+  );
 }
 
 async function fetchItBreakdown() {
   const carbonReportId = workspaceStore.selectedCarbonReport?.id;
   if (!carbonReportId) return;
-  await moduleStore.getItBreakdown(carbonReportId, excludedModules.value);
+  await moduleStore.getItBreakdown(
+    carbonReportId,
+    excludedModules.value,
+    mergedContext.value,
+  );
 }
 
 /** Schedule a callback after the next paint frame, then wait for idle. */
@@ -200,6 +260,7 @@ function afterPaint(cb: () => void) {
 }
 
 onMounted(async () => {
+  combinedUnitIds.value = readCombineUnitsQuery();
   await fetchResultsSummary();
 
   // Phase 1: after first paint, mount charts + start data fetches.
@@ -216,12 +277,32 @@ onMounted(async () => {
   });
 });
 
-// Watch for year/unit changes
+// A combine set is only meaningful against the unit and year it was picked for.
+watch(
+  () => [currentUnitId.value, currentYear.value],
+  () => {
+    combinedUnitIds.value = [];
+  },
+);
+
+// Keep the selection in the URL so it survives a reload and rides along to the
+// PDF export. Params are untouched, so `workspaceGuard` skips its reload.
+watch(combinedUnitIds, (ids) => {
+  void router.replace({
+    query: {
+      ...route.query,
+      combineUnits: ids.length ? ids.join(',') : undefined,
+    },
+  });
+});
+
+// Watch for year/unit/combine changes
 watch(
   () => [
     workspaceStore.selectedCarbonReport?.id,
     currentYear.value,
     hideResearchFacilities.value,
+    combinedUnitIds.value.join(','),
   ],
   async () => {
     moduleStore.invalidateEmissionBreakdown();
@@ -264,6 +345,38 @@ const getModuleResult = (module: string): ModuleResult | undefined => {
 const isModuleAvailable = (module: string): boolean =>
   isModuleFullyAvailable(module as Module, Boolean(getModuleResult(module)));
 const { t, te } = useI18n();
+
+const combinedUnitNames = computed(() =>
+  combinedUnitIds.value
+    .map((id) => workspaceStore.units.find((unit) => unit.id === id)?.name)
+    .filter((name): name is string => Boolean(name)),
+);
+
+/** Up to two units in the perimeter are named; beyond that a counter is used. */
+const titleUnitLabel = computed(() => {
+  const currentName = workspaceStore.selectedUnit?.name ?? '';
+  const names = combinedUnitNames.value;
+  if (!names.length) return currentName;
+  if (names.length === 1) return `${currentName} + ${names[0]}`;
+  return t('results_combine_units_counter', {
+    unit: currentName,
+    count: names.length,
+  });
+});
+
+/**
+ * The perimeter moves to a subtitle rather than sitting inside the heading:
+ * "footprint - UNIT + 3 units, 2026" stacked a dash, a plus and a comma on one
+ * line. This also matches the title/subtitle pairing used by the cards below.
+ */
+const resultsTitleLead = computed(() => t('results_title'));
+
+const resultsSubtitle = computed(() =>
+  t('results_perimeter_subtitle', {
+    unit: titleUnitLabel.value,
+    year: currentYear.value,
+  }),
+);
 
 function getTotalModuleCarbonFootprintTitle(module: Module): string {
   const specificKey = `results_total_module_carbon_footprint_${module}`;
@@ -425,6 +538,9 @@ const downloadPDF = () => {
     query: {
       hideResearchFacilities: hideResearchFacilities.value ? '1' : '0',
       hideAdditionalData: hideAdditionalData.value ? '1' : '0',
+      ...(combinedUnitIds.value.length
+        ? { combineUnits: combinedUnitIds.value.join(',') }
+        : {}),
     },
   });
   window.open(resolved.href, '_blank');
@@ -451,13 +567,71 @@ const getUncertainty = (
     <div class="page-grid">
       <q-card flat bordered class="q-pa-xl">
         <div class="flex justify-between items-center">
-          <div>
+          <div class="results-header__identity">
             <h2 class="text-h2 text-weight-medium">
-              {{ $t('results_title') }}
+              {{ resultsTitleLead }}
             </h2>
-            <span class="text-body1 text-secondary">{{
-              $t('results_subtitle', { year: currentYear })
-            }}</span>
+            <span class="text-body1 text-secondary">{{ resultsSubtitle }}</span>
+            <div
+              v-if="combineUnitOptions.length"
+              class="results-header__combine"
+            >
+              <!-- Each toggle rewrites the `combineUnits` query param, and
+                   Quasar dismisses menus on navigation — keep it open so
+                   several units can be ticked in one go. -->
+              <q-btn-dropdown
+                :label="$t('results_combine_units_label')"
+                color="info"
+                outline
+                no-caps
+                dense
+                no-route-dismiss
+                class="results-header__combine-btn"
+              >
+                <q-list dense>
+                  <q-item
+                    v-for="option in combineUnitOptions"
+                    :key="option.value"
+                    v-ripple
+                    clickable
+                    @click="toggleCombinedUnit(option.value)"
+                  >
+                    <q-item-section side>
+                      <!-- Display only: the enclosing q-item owns the toggle,
+                           so a click on the box must not toggle a second time. -->
+                      <q-checkbox
+                        :model-value="combinedUnitIds.includes(option.value)"
+                        color="info"
+                        dense
+                        tabindex="-1"
+                        class="results-header__combine-check"
+                      />
+                    </q-item-section>
+                    <q-item-section>
+                      <q-item-label>{{ option.label }}</q-item-label>
+                    </q-item-section>
+                  </q-item>
+                </q-list>
+              </q-btn-dropdown>
+
+              <q-chip
+                v-if="workspaceStore.selectedUnit"
+                color="info"
+                text-color="white"
+                class="results-header__combine-chip"
+                :label="workspaceStore.selectedUnit.name"
+              />
+              <q-chip
+                v-for="unitId in combinedUnitIds"
+                :key="unitId"
+                color="info"
+                text-color="white"
+                removable
+                class="results-header__combine-chip results-header__combine-chip--removable"
+                :label="unitNameById(unitId)"
+                @remove="toggleCombinedUnit(unitId)"
+              />
+            </div>
           </div>
 
           <div class="flex column justify-between">
@@ -740,7 +914,11 @@ const getUncertainty = (
                     <template v-if="getModuleResult(module)">
                       <!-- Per-module treemap -->
                       <template v-if="isModuleValidated(module)">
-                        <ModuleCharts :type="module" />
+                        <ModuleCharts
+                          :type="module"
+                          :combine-unit-ids="combinedUnitIds"
+                          :exclude-modules="excludedModules"
+                        />
                       </template>
                       <div class="module-stats-row">
                         <BigNumber
@@ -894,6 +1072,67 @@ const getUncertainty = (
 <style scoped lang="scss">
 .page-grid {
   gap: 2.5rem;
+}
+
+.results-header__identity {
+  min-width: 0;
+}
+
+// Dropdown button, then one badge per unit in the combined perimeter. Wraps
+// rather than pushing the header actions off on narrow viewports.
+.results-header__combine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.75rem;
+}
+
+// The row owns the toggle; the box is a display affordance, so it must not
+// swallow the click (which would toggle twice and appear to do nothing).
+.results-header__combine-check {
+  pointer-events: none;
+}
+
+// The button and the badges are one control strip: same type scale, same
+// vertical rhythm, so the dashed "add" affordance reads as a peer of the chips.
+// Only the horizontal padding differs — chips carry a remove icon that needs
+// breathing room from the label without widening the badge.
+$combine-font-size: 0.75rem;
+$combine-padding-y: 0.3125rem;
+$combine-padding-x: 0.75rem;
+$combine-chip-padding-x: 1.125rem;
+
+.results-header__combine-btn {
+  border-radius: 1.25rem;
+  font-weight: 400;
+  font-size: $combine-font-size;
+  padding: $combine-padding-y $combine-padding-x;
+
+  // Quasar draws the outline on a ::before pseudo-element, not on the button.
+  &::before {
+    border-style: dashed;
+    border-radius: inherit;
+  }
+}
+
+.results-header__combine-chip {
+  font-size: $combine-font-size;
+  padding: $combine-padding-y $combine-chip-padding-x;
+  height: auto;
+  margin: 0;
+}
+
+// The remove icon is its own visual terminator, so it needs less room to the
+// chip's edge than a bare label does — otherwise it reads as floating inside.
+.results-header__combine-chip--removable {
+  padding-right: 0.625rem;
+
+  :deep(.q-chip__icon--remove) {
+    margin-left: 0.5rem;
+    margin-right: 0;
+    font-size: 1.1em;
+  }
 }
 
 // Deactivated / no-EDIT-permission / no-stats-yet — same muted treatment

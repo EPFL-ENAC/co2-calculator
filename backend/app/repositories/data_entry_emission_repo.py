@@ -617,7 +617,7 @@ class DataEntryEmissionRepository:
 
     async def get_top_class_breakdown(
         self,
-        carbon_report_module_id: int,
+        carbon_report_module_ids: List[int],
         data_entry_types: List[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
@@ -631,8 +631,12 @@ class DataEntryEmissionRepository:
         subcategory (data_entry_type) by the specified JSON data field, returning
         the top N items plus a "rest" bucket.
 
+        Passing several module ids yields a single cross-unit ranking: the
+        grouping keys are (data_entry_type, class), so rows from every module
+        collapse into the same class before the top-N cut is applied.
+
         Args:
-            carbon_report_module_id: The carbon report module to query.
+            carbon_report_module_ids: The carbon report modules to query.
             data_entry_types: Which data entry types to include.
             group_by_field: The DataEntry.data JSON field to group by
                 (e.g. ``"equipment_class"`` or
@@ -642,6 +646,8 @@ class DataEntryEmissionRepository:
                 display label instead of ``group_by_field`` values.
             report_year: Carbon report year.
         """
+        if not carbon_report_module_ids:
+            return []
         det_name_map = {det.value: det.name for det in data_entry_types}
         category_expr = col(DataEntry.data_entry_type_id)
         class_expr = DataEntry.data[group_by_field].as_string()
@@ -674,7 +680,7 @@ class DataEntryEmissionRepository:
             select(*ranked_columns)
             .join(DataEntry, col(DataEntryEmission.data_entry_id) == col(DataEntry.id))
             .where(
-                DataEntry.carbon_report_module_id == carbon_report_module_id,
+                col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids),
                 col(DataEntry.data_entry_type_id).in_(
                     [det.value for det in data_entry_types]
                 ),

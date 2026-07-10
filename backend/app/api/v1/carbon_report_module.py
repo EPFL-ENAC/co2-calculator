@@ -409,6 +409,7 @@ async def get_top_class_breakdown(
     year: int,
     module_id: str,
     carbon_project_type: int = Query(default=0, ge=0, le=2),
+    combine_unit_ids: List[int] = Query(default_factory=list),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> List:
@@ -417,6 +418,9 @@ async def get_top_class_breakdown(
     Returns a list per subcategory, each containing the top 3 items (by
     emission) and a "rest" bucket. Works for any module configured in
     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
+
+    ``combine_unit_ids`` re-ranks the classes over the union of those units'
+    entries plus ``unit_id``'s, for the Results page's combined-units view.
     """
     report_type = _resolve_carbon_report_type(carbon_project_type)
     await check_module_permission_for_unit(
@@ -437,13 +441,46 @@ async def get_top_class_breakdown(
             detail=f"Top-class breakdown not supported for module '{module_id}'",
         )
 
-    carbon_report_module_id = await get_carbon_report_id(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=module_type,
-        db=db,
-        report_type=report_type,
-    )
+    carbon_report_module_ids = [
+        await get_carbon_report_id(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=module_type,
+            db=db,
+            report_type=report_type,
+        )
+    ]
+    # A combined unit the caller cannot view, or that has no report this year,
+    # drops out of the aggregate. Raising here would surface as a 403 and the
+    # frontend turns any 403 into a hard redirect to /unauthorized.
+    for combine_unit_id in dict.fromkeys(combine_unit_ids):
+        if combine_unit_id == unit_id:
+            continue
+        try:
+            await check_module_permission_for_unit(
+                current_user=current_user,
+                module_id=module_id,
+                action="view",
+                db=db,
+                unit_id=combine_unit_id,
+            )
+            carbon_report_module_ids.append(
+                await get_carbon_report_id(
+                    unit_id=combine_unit_id,
+                    year=year,
+                    module_type_id=module_type,
+                    db=db,
+                    report_type=report_type,
+                )
+            )
+        except HTTPException:
+            logger.info(
+                "Skipping combined unit in top-class breakdown",
+                extra={
+                    "unit_id": sanitize(combine_unit_id),
+                    "module_id": sanitize(module_id),
+                },
+            )
 
     data_entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(module_type, [])
 
@@ -460,7 +497,7 @@ async def get_top_class_breakdown(
     for field, dets in field_groups.items():
         stats.extend(
             await svc.get_top_class_breakdown(
-                carbon_report_module_id=carbon_report_module_id,
+                carbon_report_module_ids=carbon_report_module_ids,
                 data_entry_types=dets,
                 group_by_field=field,
                 report_year=int(year),

@@ -839,7 +839,7 @@ class DataEntryEmissionService:
 
     async def get_top_class_breakdown(
         self,
-        carbon_report_module_id: int,
+        carbon_report_module_ids: list[int],
         data_entry_types: list[DataEntryTypeEnum],
         group_by_field: str,
         top_n: int = 3,
@@ -850,9 +850,10 @@ class DataEntryEmissionService:
         """Get emissions aggregated by subcategory and a grouping field.
 
         Generic method that returns top N items per subcategory plus a "rest" bucket.
+        Several module ids are ranked together as one cross-unit aggregate.
         """
         return await self.repo.get_top_class_breakdown(
-            carbon_report_module_id=carbon_report_module_id,
+            carbon_report_module_ids=carbon_report_module_ids,
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             top_n=top_n,

@@ -530,12 +530,58 @@ class CarbonReportModuleService:
         stats_key, data_entry_types, group_by_field = spec
         emission_repo = DataEntryEmissionRepository(self.session)
         rows = await emission_repo.get_top_class_breakdown(
-            carbon_report_module_id=module.id,
+            carbon_report_module_ids=[module.id],
             data_entry_types=data_entry_types,
             group_by_field=group_by_field,
             report_year=report_year,
         )
         return {"it_top_classes": {stats_key: rows}}
+
+    async def build_merged_it_top_classes(
+        self, carbon_report_ids: List[int], report_year: int | None = None
+    ) -> dict[str, list]:
+        """Rank IT top classes across several reports as one aggregate.
+
+        The per-report ``it_top_classes`` persisted in module stats cannot be
+        unioned — a union of per-unit top-3 lists is not a top-3. This re-ranks
+        from the underlying data entries of every report at once.
+        """
+        if not carbon_report_ids:
+            return {}
+
+        rows = (
+            await self.session.execute(
+                select(
+                    col(CarbonReportModule.id),
+                    col(CarbonReportModule.module_type_id),
+                ).where(
+                    col(CarbonReportModule.carbon_report_id).in_(carbon_report_ids),
+                    col(CarbonReportModule.module_type_id).in_(
+                        [m.value for m in _IT_TOP_CLASS_SPECS]
+                    ),
+                )
+            )
+        ).all()
+
+        module_ids_by_type: dict[ModuleTypeEnum, list[int]] = {}
+        for module_id, module_type_id in rows:
+            module_ids_by_type.setdefault(ModuleTypeEnum(module_type_id), []).append(
+                module_id
+            )
+
+        emission_repo = DataEntryEmissionRepository(self.session)
+        top_classes: dict[str, list] = {}
+        for module_type, module_ids in module_ids_by_type.items():
+            stats_key, data_entry_types, group_by_field = _IT_TOP_CLASS_SPECS[
+                module_type
+            ]
+            top_classes[stats_key] = await emission_repo.get_top_class_breakdown(
+                carbon_report_module_ids=module_ids,
+                data_entry_types=data_entry_types,
+                group_by_field=group_by_field,
+                report_year=report_year,
+            )
+        return top_classes
 
     async def delete_all_modules_for_report(self, carbon_report_id: int) -> int:
         """Delete all modules for a carbon report. Returns count deleted."""

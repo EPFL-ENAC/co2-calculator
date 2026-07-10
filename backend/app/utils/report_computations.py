@@ -4,6 +4,8 @@ Extracted from carbon_report_module_stats routes so they can be unit tested
 without DB or HTTP dependencies.
 """
 
+from collections.abc import Mapping
+
 
 def compute_validated_totals(
     emission_stats: dict[str, float],
@@ -42,9 +44,9 @@ def compute_validated_totals(
 
 
 def compute_results_summary(
-    current_emissions: dict[str, float | None],
-    current_fte: dict[str, float | None],
-    prev_emissions: dict[str, float],
+    current_emissions: Mapping[str, float | None],
+    current_fte: Mapping[str, float | None],
+    prev_emissions: Mapping[str, float],
     co2_per_km_kg: float,
     headcount_key: str,
     exclude_module_type_ids: set[int] | frozenset[int] = frozenset(),

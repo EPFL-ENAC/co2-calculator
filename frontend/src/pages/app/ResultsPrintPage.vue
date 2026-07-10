@@ -16,6 +16,8 @@ const {
   resultsSummary,
   resultsSummaryLoading,
   currentYear,
+  combinedUnitIds,
+  excludedModules,
   viewAdditionalData,
   co2PerKmKg,
   hasCo2PerKmKg,
@@ -256,6 +258,8 @@ onMounted(async () => {
         :has-co2-per-km-kg="hasCo2PerKmKg"
         :co2-per-km-kg="co2PerKmKg"
         :current-year="currentYear"
+        :combine-unit-ids="combinedUnitIds"
+        :exclude-modules="excludedModules"
       />
 
       <ReportPage
