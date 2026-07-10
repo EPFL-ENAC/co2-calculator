@@ -180,10 +180,14 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             }
             factor_service = FactorService(self.data_session)
             factor_repo = FactorRepository(self.data_session)
-            # Plan 310B: upsert in place (preserves factor.id so existing
-            # DataEntryEmission.primary_factor_id FKs stay valid).  No bulk
-            # delete: factors absent from the new CSV are kept and surfaced
-            # as stale via last_seen_job_id.
+            # Plan 310B / #1491: upsert in place.  Rationale is
+            # operability, not FK preservation (emission rows are derived
+            # state, rebuilt by the chained recalc): a partial (WARNING)
+            # upload writes what parsed and never sweeps — operator error
+            # cannot destroy factors — and unchanged rows plus their
+            # emission rows stay untouched (minimal blast radius).  Rows
+            # absent from a 100% SUCCESS upload are swept afterwards via
+            # last_seen_job_id (_delete_stale_factors).
 
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             batch: List[Factor] = []
@@ -362,6 +366,26 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
                 classification[field_name] = (
                     value.strip() if value and value.strip() else None
                 )
+
+            # #1491 ask 2 — a null in a *required* classification field must
+            # be a per-row error, never a silently-null component of the
+            # factor identity key.  Requiredness comes from the handler's
+            # create DTO (``required_columns``), so handlers with
+            # legitimately-nullable classification fields (e.g. subkind-less
+            # rows) are unaffected.
+            required_fields = getattr(handler, "required_columns", set())
+            missing_identity = sorted(
+                name
+                for name, value in classification.items()
+                if value is None and name in required_fields
+            )
+            if missing_identity:
+                error_msg = (
+                    "Missing required classification field(s): "
+                    f"{', '.join(missing_identity)}"
+                )
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg
 
             # Build values with type conversion, filtering empty values
             values: Dict[str, Any] = {}
