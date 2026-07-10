@@ -453,12 +453,17 @@ class FactorRepository:
         self,
         data_entry_type_id: DataEntryTypeEnum,
         year: Optional[int] = None,
+        *,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None,
     ) -> List[Factor]:
         """List all factors for a data entry type.
 
         Args:
             data_entry_type_id: Data entry type filter
             year: Optional year filter for year-scoped factors
+            limit / offset: Optional pagination window (backoffice factor
+                viewer, #1491).  Ordered by id for a stable page sequence.
         """
         conditions = [col(Factor.data_entry_type_id) == data_entry_type_id]
 
@@ -467,6 +472,12 @@ class FactorRepository:
             conditions.append(col(Factor.year) == year)
 
         stmt = select(Factor).where(*conditions)
+        if limit is not None or offset is not None:
+            stmt = stmt.order_by(col(Factor.id).asc())
+            if offset is not None:
+                stmt = stmt.offset(offset)
+            if limit is not None:
+                stmt = stmt.limit(limit)
 
         result = await self.session.exec(stmt)
         return list(result.all())

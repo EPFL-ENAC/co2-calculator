@@ -76,3 +76,29 @@ class PaginatedUnitReportingData(BaseModel):
     not_started_units_count: int = 0
     total_units_count: int = 0
     module_status_counts: Optional[Dict[int, int]] = None
+
+
+class PaginatedBackofficeFactors(BaseModel):
+    """Paginated factor rows for the backoffice factor viewer (#1491).
+
+    Rows are the handler's response DTO dump plus ``year`` and
+    ``last_seen_job_id`` (so an operator can spot rows the latest
+    upload did not assert) — shape varies per data entry type, hence
+    the open dict.
+    """
+
+    data: List[Dict[str, Any]]
+    pagination: PaginationMeta
+
+
+class BulkDeleteResponse(BaseModel):
+    """Result of a backoffice bulk delete (#1491).
+
+    ``recalc_job_id``/``recalc_pipeline_id`` reference the emission
+    recalculation dispatched to keep emissions and stat buckets
+    consistent after the delete; None when nothing was deleted.
+    """
+
+    deleted: int
+    recalc_job_id: Optional[int] = None
+    recalc_pipeline_id: Optional[str] = None
