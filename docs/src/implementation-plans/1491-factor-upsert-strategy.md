@@ -1,152 +1,178 @@
 ---
-status: proposed
+status: accepted
 issue: 1491
-last_updated: 2026-07-07
-title: "Factor Upsert Strategy: Identity-Key Hardening, Backoffice Viewer, Bulk Delete"
-summary: "Close the remaining null-classification-key gap in factor CSV ingestion, add a backoffice factor viewer, and expose bulk delete-by-entry-type for factors and data entries."
+last_updated: 2026-07-10
+title: "Factor Upsert Strategy — Re-scoped: keep the upsert, harden it, ship viewer + bulk delete"
+summary: "The duplicate-factor bug that motivated #1491 is structurally fixed by the 310B upsert + stale sweep, and plan 1661 removed the original reason id-stability was load-bearing. Decided scope (maintainer, 2026-07-10): keep the upsert and make it stronger — null-identity guard, semantics write-up, backoffice factor viewer, bulk delete endpoints."
 ---
 
-# Factor Upsert Strategy: Identity-Key Hardening, Backoffice Viewer, Bulk Delete
+# Factor Upsert Strategy — Re-scoped Plan (supersedes the 2026-07-07 draft)
 
-## Problem
+## Why this rewrite
 
-The reporter hit duplicate `research_facilities` factors after uploading a CSV with a null
-`researchfacility_id`, then re-uploading a corrected file. `researchfacility_id` is part of
-the factor identity key, so the null-vs-corrected value produced two distinct identity
-digests instead of one row being updated in place.
+Maintainer prompt: "we deleted the primary_factor_id and we don't do upsert anymore.
+Review if it's even necessary still to do so."
 
-**This repo has since shipped Plan 310B** (`backend/app/services/data_ingestion/base_factor_csv_provider.py`,
-`backend/app/repositories/factor_repo.py`), which changes the picture substantially:
+**Maintainer decisions (2026-07-10), binding for this plan:** the recollection
+referred to plan 1661's removal of the persisted-FK rematch (confirmed); the
+upsert stays and gets hardened; the issue stays open re-scoped to asks 2–4
+below (no close/re-file); related issues #828 and #421 have been closed as
+resolved by 1661 + the current upsert.
 
-- Identity key is `(data_entry_type_id, year, emission_type_id, classification::text)`,
-  enforced by two partial unique indexes and an `INSERT ... ON CONFLICT DO UPDATE`
-  (`factor_repo.py:41-72`, `127-148`). `classification` is stored as JSONB specifically so
-  `classification::text` is key-order-deterministic (`app/models/factor.py:30-34`).
-- The upsert preserves `factor.id` across re-uploads (so `DataEntryEmission.primary_factor_id`
-  FKs stay valid) and stamps `last_seen_job_id`. A stale-sweep
-  (`_delete_stale_factors`, `base_factor_csv_provider.py:597-622`) deletes rows not stamped
-  by the current job — but **only runs when the upload is a clean `SUCCESS`**
-  (`base_factor_csv_provider.py:541-546`): a partially-failed upload intentionally does not
-  sweep, so it can't silently destroy data on operator error.
-- For `research_facilities`, `researchfacility_id`/`researchfacility_name` are **already**
-  required (non-`Optional`) on the _factor_ DTO,
-  `ResearchFacilitiesCommonFactorCreate` (`app/modules/research_facilities/common_schemas.py:203-208`) —
-  distinct from the `Optional[str] = None` the reporter quoted, which is the _data-entry_
-  response/update DTO (`common_schemas.py:32`, `84`), not the factor identity path. A null
-  CSV cell for these fields now raises a Pydantic `ValidationError` inside
-  `handler.validate_create(...)`, caught per-row (`base_factor_csv_provider.py:393-398`) and
-  recorded as a row error — not a crash, not a silently-duplicated row.
-- The "None classification kind" crash is also not reproducible on the current runtime-resolver
-  path: `resolve_factor_emission_type` (`app/utils/data_entry_emission_type_map.py:414-459`)
-  degrades a bad/missing classification value to `None` → `get_factor_emission_type_id` raises
-  `ValueError` → caught per-row (`base_factor_csv_provider.py:375-382`).
+Verified against `dev` tip (2026-07-10, includes the stat-bucket refactor `42186e8c`):
 
-**What's actually still broken:**
+- **`primary_factor_id` — deleted from `DataEntry.data` only.** Plan 1661
+  (commit `5293bbd5`, data migration
+  `backend/alembic/versions/2026_07_06_1124-954eac6c95da_strip_legacy_primary_factor_id_and_null_.py`)
+  removed the persisted entry→factor denormalization; factors are now derived
+  state resolved on demand (`backend/app/services/factor_resolver.py:1-42`).
+  The **`DataEntryEmission.primary_factor_id` FK still exists**
+  (`backend/app/models/data_entry_emission.py:103-110`, `ondelete=CASCADE`) and is
+  written on every emission computation
+  (`backend/app/services/data_entry_emission_service.py:497,529`). It is derived
+  state too — rebuilt by every recalc.
+- **The factor upsert is still live — it was not removed.** Every factor CSV
+  upload goes through `FactorRepository.upsert_factors`
+  (`backend/app/repositories/factor_repo.py:127-285`): COPY-staged
+  `INSERT … ON CONFLICT DO UPDATE` keyed on
+  `(data_entry_type_id, year, emission_type_id, classification::text)`, backed by
+  two partial unique indexes (`backend/app/models/factor.py:100-125`), invoked
+  from `BaseFactorCSVProvider._upsert_batch`
+  (`backend/app/services/data_ingestion/base_factor_csv_provider.py:474-495`).
+  What 1661 removed is the persisted-`primary_factor_id` _rematch_ inside the
+  recalc workflow — likely the source of the "we don't do upsert anymore"
+  recollection.
 
-1. The null-guard only exists because `ResearchFacilitiesCommonFactorCreate` happens to
-   declare its identity fields as required `str`. That's per-handler DTO discipline, not a
-   framework guarantee — nothing stops another handler's `*FactorCreate` from declaring an
-   identity-bearing classification field as `Optional`, letting a null back into
-   `classification` and into the identity key silently. `_process_row` builds `classification`
-   generically off `handler.classification_fields` (`base_factor_csv_provider.py:357-365`) but
-   never checks those specific fields for `None` before they become part of the identity.
-2. `factor_repo.py:309-311` documents (not fixes) a real landmine: **any factor row not
-   stamped by a CSV job** (manual entry, `computed`-provider updates, API) has
-   `last_seen_job_id IS NULL` and is silently deleted by the _next_ CSV upload covering that
-   `(det, year)`. That's the deeper "upsert strategy" question the reporter is gesturing at.
-3. No backoffice visibility into what factors exist for a year/det — the only way to catch a
-   duplicate today is a crash or a wrong total.
-4. `DataEntrySourceEnum`/`bulk_delete_by_source[_year]` already exist on the _data-entry_ side
-   (`app/models/data_entry.py:53-66`, `app/repositories/data_entry_repo.py:168-209`,
-   `app/services/data_entry_service.py:375-436`) — explicitly built "enabling selective
-   deletion" — but are only ever called internally by the CSV re-ingest cleanup path
-   (`base_csv_provider.py`), never exposed as an admin-triggered action. No equivalent
-   bulk-delete exists for `Factor` rows at all.
+## What a factor CSV re-import does TODAY (current semantics, end to end)
 
-## Design
+1. Rows are parsed per-row; bad rows (validation error, unresolvable emission
+   type) are recorded as row errors and skipped — no crash, no write
+   (`base_factor_csv_provider.py:374-393`).
+2. Good rows are **upserted in place**: existing identity → `values` +
+   `last_seen_job_id` updated, `factor.id` preserved; new identity → inserted
+   (`factor_repo.py:41-72`).
+3. Only on a 100 % `SUCCESS` run, a **stale sweep** deletes rows for the
+   upserted `(det, year)` scope whose `last_seen_job_id` predates this job or is
+   NULL (`factor_repo.py:287-324`, gated at `base_factor_csv_provider.py:540-541`).
+   Their emission rows go via FK CASCADE.
+4. An `emission_recalc` fan-out is chained per affected `(module, det)`
+   (`backend/app/tasks/ingestion_tasks.py:120-170`), which rebuilds emissions —
+   including `primary_factor_id` — and feeds the stat-bucket aggregation.
 
-### 1. Identity-key hardening (straightforward, no product decision needed)
+**Consequence: the bug reported in #1491 (duplicate factors after a corrected
+re-upload) is structurally fixed.** A corrected `SUCCESS` upload replaces
+exactly what it carries and sweeps the rest. The specific reproduction (null
+`researchfacility_id`) is also closed: those identity fields are required on the
+factor DTO (`backend/app/modules/research_facilities/common_schemas.py`), so a
+null cell is a per-row error, not a silently-keyed duplicate.
 
-- Add one generic guard in `BaseFactorCSVProvider._process_row`
-  (`base_factor_csv_provider.py`, right after the `classification` dict is built, before
-  `get_factor_emission_type_id`/`validate_create`): if any value in
-  `handler.classification_fields` is `None`, record a row error naming the missing field and
-  skip the row. This is a single choke point — every factor CSV provider routes through
-  `_process_row` — so it replaces relying on each handler's DTO annotations happening to
-  agree with its own `classification_fields` list.
-- Audit existing `*FactorCreate` DTOs for handlers where a `classification_fields` entry is
-  typed `Optional` (mechanical grep, not a design question) and tighten those to match
-  `research_facilities`' pattern, or rely solely on the new generic guard.
-- Out of scope: the `computed`/`manual` provider paths (`BaseFactorUpdateProvider`) update
-  factors in place by `factor.id` and never rebuild `classification` from a row loop, so
-  they're structurally not exposed to this class of bug.
+## Is the upsert (id-preservation) still necessary? — the maintainer's actual question
 
-### 2. Rediscuss the upsert strategy (needs product decision)
+**No longer for correctness; yes for operability. Recommendation: keep it, fix its
+documentation.**
 
-Flag, don't resolve, in this plan:
+- Post-1661 there is **no persisted entry→factor link**, and
+  `DataEntryEmission.primary_factor_id` is rebuilt by the recalc that is chained
+  after every successful factor ingest. So a delete-all + reinsert ("replace")
+  strategy would no longer corrupt anything — the original hard constraint
+  (docstring at `factor_repo.py:140-143` still cites the FK as the reason) is
+  obsolete as stated.
+- But replace-all would be strictly worse operationally:
+  - **Partial-upload safety**: today a `WARNING` upload writes what parsed and
+    never sweeps — operator error cannot destroy factors. Delete-then-insert has
+    no such mode.
+  - **Blast radius**: upsert leaves unchanged factors (and their emission rows)
+    untouched; replace-all CASCADE-deletes _every_ emission row for the scope
+    and leaves reports empty until the chained recalc finishes — or indefinitely
+    if it fails.
+  - The COPY + ON CONFLICT path is already the performance solution for the
+    25k-row purchase files.
+- **Action**: keep `upsert_factors`; update the `factor_repo.py:140-143` and
+  `base_factor_csv_provider.py:178-181` comments so the stated rationale is
+  partial-upload safety + blast radius, with the FK as a secondary
+  nice-to-have. Do not build a replace-mode.
 
-- Should a factor row created outside a CSV job (manual/API/`computed`) be eligible for
-  deletion by the next CSV upload that covers its `(det, year)`? Today it silently is
-  (`factor_repo.py:309-311`). This is the actual "upserting doesn't reliably work" complaint —
-  it's not a bug, it's an unreviewed policy baked into `last_seen_job_id IS NULL` matching the
-  stale-sweep predicate.
-- Is `classification::text` (raw JSON serialization) the right long-term identity, or should
-  identity-bearing fields get dedicated typed columns / a canonical hash? JSONB normalizes key
-  order today, which covers the obvious footgun, but the approach still couples identity to
-  JSON encoding.
+## Verdict on the four asks in issue #1491
 
-Both need sign-off before touching `factor_repo.py`'s conflict targets or sweep predicate —
-out of scope for this plan's Steps.
+| #   | Ask (paraphrased)                                                            | Verdict                                                                                                                                                                                                      |
+| --- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Explain or change the factor update strategy ("upsert visibly doesn't work") | **Obsolete as a bug** — fixed by 310B upsert + stale sweep + 1661. Residual: write the semantics down (operator-facing), update stale code comments, and decide the one open policy below.                   |
+| 2   | Robust error message; don't crash on None classification kind                | **Mostly done** — per-row error capture exists. Residual: one generic null-identity-field guard (below).                                                                                                     |
+| 3   | Backoffice viewer for factors per year                                       | **Still open, unchanged** — no such endpoint exists (`backend/app/api/v1/factors.py` has only class-subclass-map + get-by-id; nothing in `backoffice.py`).                                                   |
+| 4   | Bulk delete factors/data by entry source                                     | **Still open, unchanged** — plumbing exists internally (`DataEntryService.bulk_delete_by_source`, `data_entry_service.py:365-424`; `data_entry_repo.py:167-209`) but is never exposed; no factor equivalent. |
 
-### 3. Backoffice factor viewer (ask #3, straightforward)
+## Remaining work (small; ordered by value)
 
-- New read-only endpoint, e.g. `GET /api/v1/backoffice/factors` filtered by
-  `data_entry_type_id` + `year` (+ pagination), backed by the already-existing
-  `FactorRepository.list_by_data_entry_type` and `count_by_data_entry_type_and_year`
-  (`factor_repo.py:403-465`) — no new query logic needed.
-- Serialize rows via the existing `handler.to_response(factor)` (`app/schemas/factor.py:205-213`)
-  for human-readable classification/values instead of raw JSON, and surface
-  `last_seen_job_id` so an operator can spot rows never touched by the latest upload (early
-  warning for exactly the duplicate/staleness class of bug reported here).
-- Frontend: extend the existing `frontend/src/stores/factors.ts` / `frontend/src/api/factors.ts`
-  rather than inventing a new list-view pattern; mirror whatever table component the other
-  backoffice list pages already use.
+### A. One policy decision, then document the semantics (ask 1 residual)
 
-### 4. Bulk delete by entry type/year (ask #4, mostly wiring)
+The single unreviewed landmine, still present verbatim
+(`factor_repo.py:309-311`): **any factor row not stamped by the current CSV job
+is deleted by the next covering upload.** Concretely, the `computed` factor
+providers (`backend/app/services/data_ingestion/factor_update_provider.py`)
+update factor `values` in place **without** stamping `last_seen_job_id`; their
+rows survive only because the CSV re-asserts the same identity (which then
+overwrites the computed values). Decide one of:
 
-- **Data entries**: capability already exists end-to-end
-  (`DataEntryService.bulk_delete_by_source`, `data_entry_service.py:375-436`, backed by
-  `DataEntryRepository.bulk_delete_by_source[_year]`, `data_entry_repo.py:168-209`, keyed on
-  `DataEntrySourceEnum` = `USER_MANUAL` / `CSV_MODULE_PER_YEAR` /
-  `CSV_MODULE_UNIT_SPECIFIC` / `API_MODULE_PER_YEAR` / `API_MODULE_UNIT_SPECIFIC` /
-  `EXTERNAL_INTEGRATION`, `data_entry.py:53-66`). Just needs a backoffice-guarded endpoint,
-  e.g. `DELETE /api/v1/backoffice/data-entries?module_type_id=&data_entry_type_id=&source=&year=`,
-  wired to the existing service method.
-- **Factors**: no equivalent bulk endpoint. Add
-  `FactorRepository.bulk_delete_by_data_entry_type_and_year(data_entry_type_id, year)` as a
-  thin wrapper composing the already-existing `list_id_by_data_entry_type_and_year` +
-  `bulk_delete` (both in `factor_repo.py`), exposed via
-  `DELETE /api/v1/backoffice/factors?data_entry_type_id=&year=`.
-- **Recalc consideration (must not skip)**: `_delete_stale_factors` chains a recalc for
-  affected reports today (`base_factor_csv_provider.py:600`, dispatched from
-  `ingestion_tasks.py`). A manual admin delete of factors or data entries a report already
-  used needs the same fan-out — or the endpoint must clearly document that reports are left
-  stale and must be regenerated. Decide which before shipping the delete button; don't ship a
-  delete that silently orphans reports.
-- Gate both new endpoints behind the existing backoffice custom-permission-key scheme (no
-  role checks in code, per repo convention) — reuse whatever key already guards other
-  destructive backoffice actions rather than inventing a new one.
+1. **Accept**: "the factor CSV is the source of truth for its `(det, year)`
+   scope; anything else is transient." Then just document it (docs page +
+   docstrings) — zero code.
+2. **Protect non-CSV rows**: exclude `last_seen_job_id IS NULL` from the sweep
+   predicate. One-line change + tests, but re-opens a duplicate-leak path.
+
+Recommendation: option 1 — it matches how the system already behaves and how
+operators use it. Either way, add a short "factor lifecycle" section to the docs
+describing upsert/sweep/recalc (the issue's ask #1 was literally "mieux
+expliquer notre stratégie").
+
+The old plan's second open question (JSON-`::text` identity vs dedicated
+columns) is **dropped**: JSONB key-order normalization
+(`models/factor.py:26-35`) covers the practical footgun, the identity has two
+enforcing unique indexes, and no observed bug remains. Re-open only if a
+concrete failure appears.
+
+### B. Null-identity-field guard (ask 2 residual — ~20 lines)
+
+`_process_row` builds `classification` with explicit `None`s for missing fields
+(`base_factor_csv_provider.py:354-359`); only per-handler DTO discipline stops a
+null from entering the identity key. Add one generic check after the dict is
+built: if any `handler.classification_fields` value is `None` **and the handler
+does not declare it optional**, record a row error naming the field. Note some
+handlers legitimately have nullable classification fields (e.g. subkind-less
+rows), so this needs a small per-handler allowlist (e.g. reuse the DTO's
+required-field set) rather than a blanket non-null rule. Add a regression test:
+CSV row with null identity field → row error, no factor written, upload result
+`WARNING`, no sweep.
+
+### C. Backoffice factor viewer (ask 3 — unchanged from previous draft)
+
+- `GET /api/v1/backoffice/factors?data_entry_type_id=&year=` (paginated),
+  backed by existing `FactorRepository.list_by_data_entry_type` /
+  `count_by_data_entry_type_and_year` (`factor_repo.py:403-465`).
+- Serialize via `handler.to_response(factor)`; expose `last_seen_job_id` so an
+  operator can spot rows the latest upload didn't assert (this is the
+  observability the reporter actually wanted).
+- Frontend: extend `frontend/src/stores/factors.ts` / `frontend/src/api/factors.ts`,
+  reuse the existing backoffice table pattern.
+
+### D. Bulk delete endpoints (ask 4 — unchanged, plus one new constraint)
+
+- `DELETE /api/v1/backoffice/data-entries?…&source=&year=` wired to the existing
+  `DataEntryService.bulk_delete_by_source[_year]`.
+- `DELETE /api/v1/backoffice/factors?data_entry_type_id=&year=` via a thin
+  `list_id_by_data_entry_type_and_year` + `bulk_delete` composition.
+- **New since the stat-bucket refactor (`42186e8c`)**: a manual delete must not
+  leave `carbon_report_module.stats` stale. Chain the same recalc fan-out the
+  ingest uses, or reuse the admin recompute trigger that already exists —
+  `POST /v1/sync/admin/recompute-stats` (`backend/app/api/v1/data_sync.py:2338`,
+  commit `0159a4e7`) — scoped to the affected year. Don't ship the delete button
+  without one of the two.
+- Gate both behind the existing backoffice permission-key scheme.
 
 ## Steps
 
-- [ ] Add generic null-classification-field guard to `BaseFactorCSVProvider._process_row`; record a clear row error naming the field
-- [ ] Audit all `*FactorCreate` DTOs for identity fields typed `Optional` where they shouldn't be; tighten to match `research_facilities`' pattern
-- [ ] Add regression test: CSV row with a null identity-bearing classification field produces a row error, not a written factor or a crash
-- [ ] Write up the two open policy questions (cross-source stale-sweep eligibility; JSON-text identity vs. dedicated columns) as a decision doc / ticket for product sign-off — do not implement either without sign-off
-- [ ] Add `GET /api/v1/backoffice/factors` (filtered by `data_entry_type_id`, `year`, paginated) using existing `FactorRepository` list/count methods
-- [ ] Add frontend backoffice factor-viewer page, extending `frontend/src/stores/factors.ts` / `frontend/src/api/factors.ts`
-- [ ] Add `DELETE /api/v1/backoffice/data-entries` wired to existing `DataEntryService.bulk_delete_by_source[_year]`
-- [ ] Add `FactorRepository.bulk_delete_by_data_entry_type_and_year` and `DELETE /api/v1/backoffice/factors` endpoint
-- [ ] Decide and implement recalc/staleness handling for both new delete endpoints (chain existing recalc fan-out, or document + surface "reports stale" state)
-- [ ] Gate both delete endpoints behind the existing backoffice destructive-action permission key
-- [ ] Add regression tests for both bulk-delete endpoints (happy path + recalc/staleness behavior)
+- [ ] Decide sweep policy for non-CSV factor writers (recommend: accept CSV-as-source-of-truth) — product sign-off, no code unless option 2
+- [ ] Update stale rationale comments (`factor_repo.py:140-143`, `base_factor_csv_provider.py:178-181`) and add a "factor lifecycle" docs section (upsert / stale sweep / recalc / what re-import does)
+- [ ] Add generic null-identity-field guard in `_process_row` + regression test
+- [ ] `GET /api/v1/backoffice/factors` + frontend viewer page (surface `last_seen_job_id`)
+- [ ] `DELETE /api/v1/backoffice/data-entries` and `DELETE /api/v1/backoffice/factors`, each chaining recalc or the `recompute-stats` admin trigger; permission-gated; tests
+- [ ] Comment on #1491 linking the lifecycle doc: the originally-reported upsert bug no longer reproduces; issue re-scoped to the items above
