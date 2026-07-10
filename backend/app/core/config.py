@@ -4,7 +4,7 @@ from enum import Enum
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, computed_field, model_validator
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -254,7 +254,9 @@ class Settings(BaseSettings):
     )
 
     # EPFL Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
-    # and/or UNIT_PROVIDER_TYPE is 'accred' (see validate_accred_config).
+    # and/or UNIT_PROVIDER_TYPE is 'accred', enforced at app boot by
+    # assert_accred_settings (app/main.py), NOT here: Settings is also
+    # built by non-app contexts (alembic migrations) that never call Accred.
     # Shared by both RoleProvider and UnitProvider — Accred is one API
     # serving both concerns, so the config is not role- or unit-specific.
     ACCRED_API_BASE_URL: Optional[str] = Field(
@@ -277,28 +279,6 @@ class Settings(BaseSettings):
             "authorization data. Not a generic API health URL."
         ),
     )
-
-    @model_validator(mode="after")
-    def validate_accred_config(self) -> "Settings":
-        """Require Accred credentials whenever a provider selects Accred.
-
-        No fallback: missing config fails Settings construction at startup.
-        """
-        uses_accred = (
-            self.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
-            or self.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
-        )
-        if not uses_accred:
-            return self
-
-        missing = [
-            name
-            for name in ("ACCRED_API_BASE_URL", "ACCRED_API_USERNAME", "ACCRED_API_KEY")
-            if getattr(self, name) is None
-        ]
-        if missing:
-            raise ValueError("Missing required Accred config: " + ", ".join(missing))
-        return self
 
     # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
     OAUTH_CLIENT_ID: Optional[str] = Field(
