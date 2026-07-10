@@ -25,9 +25,28 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+def assert_security_settings(settings) -> None:
+    """Fail closed at boot outside local/dev when security settings are missing."""
+    if settings.LOCAL_ENVIRONMENT:
+        return
+    missing = [
+        name
+        for name in (
+            "CREDENTIALS_ENCRYPTION_KEY",
+            "CREDENTIALS_ENCRYPTION_SALT",
+            "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+        )
+        if not getattr(settings, name)
+    ]
+    if missing:
+        raise RuntimeError(f"Missing required security settings: {missing}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
+    assert_security_settings(settings)
+
     logger.info(
         "Starting application",
         extra={

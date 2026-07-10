@@ -10,6 +10,7 @@ import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.
 import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
 import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
 import CopyFactorsDialog from 'src/components/molecules/data-management/CopyFactorsDialog.vue';
+import ConnectorsCard from 'src/components/molecules/backoffice/ConnectorsCard.vue';
 
 import {
   TargetType,
@@ -436,6 +437,10 @@ async function handleBulkCopyFactorsConfirm() {
           </div>
         </div>
       </q-card>
+
+      <!-- Connection credentials are per-connector, not per-year — shown
+           unconditionally rather than gated behind yearConfigStore.config. -->
+      <ConnectorsCard />
 
       <!-- Startup: no configuration exists yet -->
       <q-card

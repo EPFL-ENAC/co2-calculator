@@ -5,7 +5,7 @@ import type {
   ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { TargetType } from 'src/stores/backofficeDataManagement';
-import { watch, toRef } from 'vue';
+import { computed, watch, toRef } from 'vue';
 
 interface Props {
   modelValue: boolean;
@@ -27,10 +27,10 @@ const {
   isUploading,
   isConnecting,
   isCopying,
-  apiServerUrl,
-  apiClientId,
-  apiSecretId,
-  apiSecretValue,
+  connectorsList,
+  selectedConnector,
+  apiConnectorLuid,
+  connectionConfigured,
   previousYearJobs,
   selectedPreviousJob,
   allApiFieldsFilled,
@@ -39,6 +39,7 @@ const {
   handleEnterKey,
   resetDialog,
   loadPreviousYearJobs,
+  loadConnectorOptions,
   uploadFiles,
   connectAndSync,
   copyFromPreviousYear,
@@ -50,6 +51,10 @@ const {
   onProgressing: (job: SyncJobResponse) => emit('progressing', job),
 });
 
+const connectorOptions = computed(() =>
+  connectorsList.value.map((c) => ({ label: c.label, value: c.connector })),
+);
+
 watch(
   () => props.modelValue,
   (newVal) => {
@@ -57,6 +62,7 @@ watch(
     if (newVal) {
       resetDialog();
       loadPreviousYearJobs();
+      loadConnectorOptions();
     }
   },
 );
@@ -74,7 +80,7 @@ watch(showDialog, (newVal) => {
     @keyup.escape="showDialog = false"
     @keyup.enter="handleEnterKey"
   >
-    <q-card class="column" style="width: 800px; max-width: 80vw">
+    <q-card class="column no-wrap" style="width: 800px; max-width: 80vw">
       <q-card-section class="flex justify-between items-center flex-shrink">
         <div class="text-h4 text-weight-medium">
           <!--
@@ -171,31 +177,27 @@ watch(showDialog, (newVal) => {
               {{ $t('data_management_last_upload_overwrite') }}
             </q-banner>
             <div class="q-gutter-sm q-mt-sm">
-              <q-input
-                v-model="apiServerUrl"
+              <q-select
+                v-model="selectedConnector"
+                :options="connectorOptions"
+                emit-value
+                map-options
                 dense
                 outlined
-                :placeholder="$t('data_management_api_server_url')"
+                :label="$t('data_management_api_connector')"
               />
+              <q-banner
+                v-if="selectedConnector && !connectionConfigured"
+                dense
+                class="bg-grey-3"
+              >
+                {{ $t('data_management_connection_not_configured_hint') }}
+              </q-banner>
               <q-input
-                v-model="apiClientId"
+                v-model="apiConnectorLuid"
                 dense
                 outlined
-                :placeholder="$t('data_management_api_client_id')"
-              />
-              <q-input
-                v-model="apiSecretId"
-                dense
-                outlined
-                :placeholder="$t('data_management_api_secret_id')"
-              />
-              <q-input
-                v-model="apiSecretValue"
-                dense
-                outlined
-                type="password"
-                auto-complete="current-password"
-                :placeholder="$t('data_management_api_secret_value')"
+                :placeholder="$t('data_management_api_luid')"
               />
             </div>
           </div>

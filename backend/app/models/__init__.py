@@ -6,6 +6,7 @@ from .audit import AuditDocument
 from .building_room import BuildingRoom
 from .carbon_project import CarbonProject
 from .carbon_report import CarbonReport, CarbonReportModule
+from .connector import ConnectorConnection, ConnectorDatasource, ConnectorType
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
@@ -59,6 +60,9 @@ __all__ = [
     "CarbonProject",
     "CarbonReport",
     "CarbonReportModule",
+    "ConnectorConnection",
+    "ConnectorDatasource",
+    "ConnectorType",
     "Location",
     "DataEntry",
     "DataEntryEmission",

@@ -28,6 +28,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.Headcount}-member`,
       moduleTypeId: 1,
       dataEntryTypeId: 1,
+      hasApi: true,
       noThreshold: true,
     },
     {

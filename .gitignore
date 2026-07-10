@@ -14,3 +14,5 @@ AGENTS.md
 # Local DB dumps + secrets (never commit)
 *.pgdump
 app_dump*
+.agents
+.codex

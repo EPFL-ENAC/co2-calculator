@@ -31,6 +31,7 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.42.1",
     "elasticsearch>=8.0.0,<9.0.0",
     "pyyaml>=6.0.3",
+    "cryptography>=49.0.0",
 ]
 
 [project.scripts]
@@ -59,6 +60,10 @@ env = [
     "ELASTICSEARCH_INDEX=opdo-test",
     "ROLE_PROVIDER_TYPE=test",
     "UNIT_PROVIDER_TYPE=test",
+    # Boot-time security check (app/main.py:assert_security_settings) is gated
+    # on LOCAL_ENVIRONMENT; keep it true in CI (no backend/.env there) so the
+    # suite never trips on unset CREDENTIALS_ENCRYPTION_*/CONNECTOR_ALLOWED_HOST_SUFFIXES.
+    "LOCAL_ENVIRONMENT=true",
 
 ]
 

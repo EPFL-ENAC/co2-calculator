@@ -42,6 +42,8 @@ export interface ImportRow {
 export interface JobRowError {
   row: number;
   reason: string;
+  type?: string;
+  unit_institutional_id?: string;
 }
 
 export interface JobUpdatePayload {

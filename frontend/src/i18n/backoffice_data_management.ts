@@ -239,9 +239,21 @@ export default {
     en: 'Copy from Previous Year',
     fr: "Copier de l'année précédente",
   },
+  data_management_api_connector: {
+    en: 'Connector',
+    fr: 'Connecteur',
+  },
   data_management_api_server_url: {
     en: 'Server URL',
     fr: 'URL du serveur',
+  },
+  data_management_api_site_content_url: {
+    en: 'Site Content URL',
+    fr: 'URL du contenu du site',
+  },
+  data_management_api_username: {
+    en: 'Username',
+    fr: "Nom d'utilisateur",
   },
   data_management_api_client_id: {
     en: 'Client ID',
@@ -255,6 +267,14 @@ export default {
     en: 'Secret Value',
     fr: 'Valeur du secret',
   },
+  data_management_api_secret_kept: {
+    en: 'Secret set — leave blank to keep',
+    fr: 'Secret défini — laisser vide pour le conserver',
+  },
+  data_management_api_luid: {
+    en: 'Datasource LUID',
+    fr: 'LUID de la source de données',
+  },
   data_management_api_test_connection: {
     en: 'Test Connection',
     fr: 'Tester la connexion',
@@ -262,6 +282,38 @@ export default {
   data_management_api_connect_and_sync: {
     en: 'Connect & Sync',
     fr: 'Connecter et synchroniser',
+  },
+  data_management_connection_not_configured_hint: {
+    en: 'No connection configured for this connector yet — set it up in the "API Connectors" card above.',
+    fr: 'Aucune connexion configurée pour ce connecteur — configurez-la dans la section « Connecteurs API » ci-dessus.',
+  },
+  data_management_connectors_title: {
+    en: 'API Connectors',
+    fr: 'Connecteurs API',
+  },
+  data_management_connectors_hint: {
+    en: 'Configure the credentials each API-connected module uses to pull data. One connection per connector, shared across every module that uses it.',
+    fr: "Configurez les identifiants utilisés par chaque module connecté à une API pour récupérer des données. Une connexion par connecteur, partagée par tous les modules qui l'utilisent.",
+  },
+  data_management_connector_configured: {
+    en: 'Configured',
+    fr: 'Configuré',
+  },
+  data_management_connector_not_configured: {
+    en: 'Not configured',
+    fr: 'Non configuré',
+  },
+  data_management_configure_connection: {
+    en: 'Configure',
+    fr: 'Configurer',
+  },
+  data_management_configure_connector_title: {
+    en: 'Configure {connector}',
+    fr: 'Configurer {connector}',
+  },
+  data_management_connection_saved: {
+    en: 'Connection saved',
+    fr: 'Connexion enregistrée',
   },
   data_management_copy_from_year: {
     en: 'Copy from {year}',
@@ -302,6 +354,22 @@ export default {
   data_management_api_ingestion: {
     en: 'API ingestion',
     fr: 'Ingestion API',
+  },
+  data_management_missing_synced_units: {
+    en: '{rows} rows skipped: no matching synced unit',
+    fr: '{rows} lignes ignorées : aucune unité synchronisée correspondante',
+  },
+  data_management_distinct_unit_ids: {
+    en: '{count} distinct unit IDs',
+    fr: '{count} identifiants d’unité distincts',
+  },
+  data_management_unit_row_count: {
+    en: '{unit} ({count} row)',
+    fr: '{unit} ({count} ligne)',
+  },
+  data_management_unit_rows_count: {
+    en: '{unit} ({count} rows)',
+    fr: '{unit} ({count} lignes)',
   },
   data_management_download_last_csv: {
     en: 'Download last CSV',

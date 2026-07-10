@@ -401,6 +401,16 @@ export async function mockBackend(
     },
   );
 
+  // connectors — none configured, so ConnectorsCard mounts silently
+  // (an unmocked 404 here trips the global negative-toast hook).
+  await page.route('**/api/v1/connectors', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }),
+  );
+
   // active-pipelines — empty by default (no recalculating badge).
   await page.route('**/api/v1/sync/active-pipelines**', async (route) => {
     if (overrides.onActivePipelines) {
