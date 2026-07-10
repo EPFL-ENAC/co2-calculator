@@ -5,8 +5,10 @@ import {
 } from 'src/stores/backofficeDataManagement';
 import type {
   ImportRow,
+  JobRowError,
   SyncJobResponse,
 } from 'src/stores/backofficeDataManagement';
+import { formatRowErrorLines } from 'src/utils/rowErrors';
 
 export function useUploadCard() {
   const { t } = useI18n();
@@ -131,14 +133,23 @@ export function useUploadCard() {
     message: string;
     error?: string;
     stats?: Record<string, unknown>;
+    rowErrors: string[];
   } {
-    if (!job) return { message: '' };
+    if (!job) return { message: '', rowErrors: [] };
 
     const meta = job.meta as Record<string, unknown> | undefined;
+    const stats = meta?.stats as
+      { row_errors?: JobRowError[]; row_errors_count?: number } | undefined;
+
     return {
       message: job.status_message || '',
       error: meta?.error as string | undefined,
       stats: meta?.stats as Record<string, unknown> | undefined,
+      rowErrors: formatRowErrorLines(
+        stats?.row_errors,
+        stats?.row_errors_count,
+        t,
+      ),
     };
   }
 

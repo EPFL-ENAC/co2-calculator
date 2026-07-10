@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TypedDict
 
+from pydantic import ValidationError
 from sqlmodel import col, select
 
 from app.api.v1.files import make_files_store
@@ -108,6 +109,26 @@ class StatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
+
+
+def _format_pydantic_validation_error(validation_error: ValidationError) -> str:
+    """Turn a ``handler.validate_create()`` ``ValidationError`` into a short,
+    readable message.
+
+    Pydantic's own ``str(validation_error)`` is a multi-line technical dump
+    (one paragraph per failing field, plus ``type=...``/``input_type=...``
+    noise) — unreadable to an operator uploading a CSV. Walk
+    ``.errors()`` instead and build one line per field, e.g.
+    ``co2_factor: Input should be a valid number, unable to parse string as
+    a number (got 'abc')``, joined with ``; `` for rows with more than one
+    bad field. Still pydantic's own wording (no new i18n/custom-copy layer
+    — deliberately out of scope), just on one line and free of the
+    ``type=...`` noise.
+    """
+    return "; ".join(
+        f"{err['loc'][-1]}: {err['msg']} (got {err['input']!r})"
+        for err in validation_error.errors()
+    )
 
 
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
@@ -1295,6 +1316,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             try:
                 with self._timed("validate"):
                     validated = handler.validate_create(payload)
+            except ValidationError as validation_error:
+                error_msg = _format_pydantic_validation_error(validation_error)
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None, None
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)

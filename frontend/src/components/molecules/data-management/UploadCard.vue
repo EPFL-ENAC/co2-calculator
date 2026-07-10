@@ -84,6 +84,20 @@ const apiJobInfo = computed(() => getJobInfo(props.apiJob));
 const hasApiErrorOrWarn = computed(() => hasErrorOrWarning(props.apiJob));
 const apiErrorDetails = computed(() => getErrorDetails(props.apiJob));
 
+// ``row_errors``/``row_errors_count`` are rendered separately via
+// ``errorDetails.rowErrors`` (formatted "row N: reason" lines) — drop them
+// here so the raw stats dump doesn't also render `row_errors:
+// [object Object],[object Object]` right below it.
+function statsWithoutRowErrors(
+  stats?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!stats) return {};
+  const { row_errors, row_errors_count, ...rest } = stats;
+  void row_errors;
+  void row_errors_count;
+  return rest;
+}
+
 // Issue #1219 — live recalc-pipeline phase for this card.
 //
 // Pipeline progress is module-scoped (provided by ModuleConfig as the
@@ -321,8 +335,18 @@ function handleAbort() {
                 {{ errorDetails.error }}
               </span>
               <hr />
+              <div v-if="errorDetails.rowErrors.length">
+                <div
+                  v-for="(line, index) in errorDetails.rowErrors"
+                  :key="index"
+                >
+                  {{ line }}
+                </div>
+              </div>
               <div
-                v-for="(value, key, index) in errorDetails.stats || []"
+                v-for="(value, key, index) in statsWithoutRowErrors(
+                  errorDetails.stats,
+                )"
                 :key="index"
               >
                 {{ key }}: {{ value }}
@@ -402,7 +426,15 @@ function handleAbort() {
         {{ errorDetails.error }}
       </div>
       <div
-        v-for="(value, key, index) in errorDetails.stats || []"
+        v-if="errorDetails.rowErrors.length"
+        class="text-caption text-grey-7"
+      >
+        <div v-for="(line, index) in errorDetails.rowErrors" :key="index">
+          {{ line }}
+        </div>
+      </div>
+      <div
+        v-for="(value, key, index) in statsWithoutRowErrors(errorDetails.stats)"
         :key="index"
         class="text-caption text-grey-7"
       >
