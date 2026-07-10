@@ -3,6 +3,8 @@ import { reactive } from 'vue';
 import {
   getSubclassMap,
   getFactorValues,
+  listBackofficeFactors,
+  type BackofficeFactorsResponse,
   type ValueFactorResponse,
 } from 'src/api/factors';
 import { type AllSubmoduleTypes, enumSubmodule } from 'src/constant/modules';
@@ -78,11 +80,23 @@ export const useFactorsStore = defineStore('factors', () => {
     return await getFactorValues(submodule, equipmentClass, subClass, year);
   }
 
+  // Backoffice factor viewer (#1491) — always fresh, no cache: the
+  // viewer exists to inspect what an upload just wrote.
+  async function fetchBackofficeFactors(params: {
+    dataEntryTypeId: number;
+    year: number;
+    page: number;
+    pageSize: number;
+  }): Promise<BackofficeFactorsResponse> {
+    return await listBackofficeFactors(params);
+  }
+
   return {
     subclassOptionMapByKey,
     subclassMapFetchedAt,
     fetchClassOptions,
     fetchSubclassOptions,
     fetchPowerFactor,
+    fetchBackofficeFactors,
   };
 });

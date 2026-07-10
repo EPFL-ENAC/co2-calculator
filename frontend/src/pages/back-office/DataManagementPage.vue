@@ -10,6 +10,7 @@ import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.
 import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
 import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
 import ConnectorsCard from 'src/components/molecules/backoffice/ConnectorsCard.vue';
+import FactorsViewer from 'src/components/organisms/data-management/FactorsViewer.vue';
 
 import {
   TargetType,
@@ -402,6 +403,8 @@ async function handleDialogCompleted() {
             <ModuleConfig :module="module" />
           </template>
           <ReductionObjectivesSection />
+          <!-- #1491 — read-only viewer for the factors each upload wrote -->
+          <FactorsViewer :year="selectedYear" />
           <q-inner-loading :showing="yearSyncInFlight" color="primary">
             <div class="text-center q-pa-md">
               <q-spinner-dots size="48px" color="primary" class="q-mb-md" />
