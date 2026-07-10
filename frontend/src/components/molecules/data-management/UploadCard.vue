@@ -35,6 +35,11 @@ interface Props {
   hasComputedFactorButton?: boolean;
   computedFactorRunning?: boolean;
   isComputedFactorDisabled?: boolean;
+  /** #740 — "Copy from {year}" button (per-submodule factor copy). */
+  hasCopyFactorsButton?: boolean;
+  copyFactorsLabel?: string;
+  copyFactorsRunning?: boolean;
+  isCopyFactorsDisabled?: boolean;
   row?: ImportRow;
 }
 
@@ -54,6 +59,10 @@ const props = withDefaults(defineProps<Props>(), {
   hasComputedFactorButton: false,
   computedFactorRunning: false,
   isComputedFactorDisabled: false,
+  hasCopyFactorsButton: false,
+  copyFactorsLabel: undefined,
+  copyFactorsRunning: false,
+  isCopyFactorsDisabled: false,
   row: undefined,
 });
 
@@ -62,6 +71,7 @@ const emit = defineEmits<{
   (e: 'download', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
+  (e: 'copy-factors', item: ImportRow): void;
   // Stops the whole pipeline this card is bound to (replaces the
   // legacy per-job ``cancel`` — see backofficeDataManagement.abortPipeline
   // for the why).  Parent resolves the pipeline_id via inject.
@@ -214,6 +224,12 @@ function handleComputeFactors() {
   }
 }
 
+function handleCopyFactors() {
+  if (props.row) {
+    emit('copy-factors', props.row);
+  }
+}
+
 function handleAbort() {
   emit('abort');
 }
@@ -270,6 +286,22 @@ function handleAbort() {
             class="text-weight-medium"
             :disable="isDisabled || isComputedFactorDisabled"
             @click="handleComputeFactors"
+          />
+        </template>
+
+        <!-- #740 — Copy factors from previous year -->
+        <template v-if="hasCopyFactorsButton">
+          <q-spinner-rings v-if="copyFactorsRunning" color="grey" />
+          <q-btn
+            v-else
+            color="accent"
+            outline
+            icon="content_copy"
+            size="sm"
+            :label="copyFactorsLabel"
+            class="text-weight-medium"
+            :disable="isDisabled || isCopyFactorsDisabled"
+            @click="handleCopyFactors"
           />
         </template>
       </div>
