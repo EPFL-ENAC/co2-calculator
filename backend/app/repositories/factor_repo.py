@@ -137,10 +137,17 @@ class FactorRepository:
         unique index expression — so the input must be split by year-presence
         and one ON CONFLICT inference issued per partition.
 
-        Preserves ``factor.id`` for existing rows so downstream references —
-        including the ``DataEntryEmission.primary_factor_id`` FK — stay valid
-        across reuploads.  Stamps ``last_seen_job_id`` so callers can later
-        detect rows not present in the current batch.
+        Upsert-in-place (rather than delete-all + reinsert) is an
+        operability choice, not a correctness constraint (#1491): a
+        partial (WARNING) upload writes what parsed and can never destroy
+        factors, and unchanged rows — plus the emission rows referencing
+        them — stay untouched, so a reupload's blast radius is exactly
+        the rows it carries.  Preserving ``factor.id`` also keeps the
+        derived ``DataEntryEmission.primary_factor_id`` FK valid until
+        the chained recalc rebuilds it, but emissions are derived state —
+        the FK is no longer the load-bearing reason.  Stamps
+        ``last_seen_job_id`` so callers can later detect rows not present
+        in the current batch.
 
         Postgres-only: relies on ``INSERT ... ON CONFLICT DO UPDATE``.
 
