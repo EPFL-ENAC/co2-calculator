@@ -100,8 +100,9 @@ class AccredUnitProvider(UnitProvider):
     def __init__(self):
         """Initialize the Accred provider with API credentials.
 
-        Credential completeness is enforced at startup by Settings'
-        validate_accred_config — this constructor does not re-check it.
+        Credential completeness is enforced at app boot by
+        assert_accred_settings (app/main.py) — this constructor does not
+        re-check it.
         """
         self.api_url = settings.ACCRED_API_BASE_URL
         self.api_username = settings.ACCRED_API_USERNAME

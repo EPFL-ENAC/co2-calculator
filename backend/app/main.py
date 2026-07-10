@@ -42,10 +42,33 @@ def assert_security_settings(settings) -> None:
         raise RuntimeError(f"Missing required security settings: {missing}")
 
 
+def assert_accred_settings(settings) -> None:
+    """Require Accred credentials at boot whenever a provider selects Accred.
+
+    Enforced here rather than in Settings construction so non-app contexts
+    that build Settings but never call Accred (alembic migrations) don't
+    need the credentials.
+    """
+    uses_accred = (
+        settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
+        or settings.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
+    )
+    if not uses_accred:
+        return
+    missing = [
+        name
+        for name in ("ACCRED_API_BASE_URL", "ACCRED_API_USERNAME", "ACCRED_API_KEY")
+        if getattr(settings, name) is None
+    ]
+    if missing:
+        raise RuntimeError("Missing required Accred config: " + ", ".join(missing))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
     assert_security_settings(settings)
+    assert_accred_settings(settings)
 
     logger.info(
         "Starting application",
