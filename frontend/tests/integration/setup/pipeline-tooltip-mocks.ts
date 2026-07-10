@@ -164,37 +164,27 @@ export async function installPlaywrightTestShims(page: Page): Promise<void> {
       Native;
 
     // 3. Clipboard mirror.
-    //    Headless chromium accepts the ``clipboard-write`` permission
-    //    grant but the resulting write doesn't always flow back through
-    //    ``navigator.clipboard.readText()`` reliably across the
-    //    Playwright transport.  Hijack
-    //    ``Clipboard.prototype.writeText`` (the prototype is shared
-    //    by every ``navigator.clipboard`` instance) and mirror the
-    //    value into ``window.__clipboard`` so the spec asserts off
-    //    the deterministic mirror instead of fighting transport
-    //    quirks.  Quasar's ``copyToClipboard`` also has an
-    //    ``execCommand`` fallback when ``navigator.clipboard`` is
-    //    undefined; we leave clipboard defined so the prototype
-    //    patch is what runs.
+    //    The real clipboard is not reliably writable/readable in
+    //    headless CI (permission + focus quirks), so don't touch it at
+    //    all: replace ``Clipboard.prototype.writeText`` (the prototype
+    //    is shared by every ``navigator.clipboard`` instance) with a
+    //    recorder that mirrors the value into ``window.__clipboard``
+    //    and resolves immediately.  The spec asserts off the
+    //    deterministic mirror — this still exercises the component's
+    //    real behaviour (it must call ``writeText`` with the right
+    //    value).  Quasar's ``copyToClipboard`` only falls back to
+    //    ``execCommand`` when ``navigator.clipboard`` is undefined; we
+    //    leave clipboard defined so the prototype patch is what runs.
     type ClipMirror = { value: string };
     const mirror: ClipMirror = { value: '' };
     (window as Window & { __clipboard?: ClipMirror }).__clipboard = mirror;
-    if (
-      typeof Clipboard !== 'undefined' &&
-      Clipboard.prototype &&
-      typeof Clipboard.prototype.writeText === 'function'
-    ) {
-      const original = Clipboard.prototype.writeText;
+    if (typeof Clipboard !== 'undefined' && Clipboard.prototype) {
       Clipboard.prototype.writeText = function (
         this: Clipboard,
         text: string,
       ): Promise<void> {
         mirror.value = text;
-        try {
-          return original.call(this, text);
-        } catch {
-          return Promise.resolve();
-        }
+        return Promise.resolve();
       };
     }
   });
