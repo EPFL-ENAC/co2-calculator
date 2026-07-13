@@ -9,18 +9,15 @@ import { MODULES_LIST } from 'src/constant/modules';
 import ModuleConfig from 'src/components/organisms/data-management/ModuleConfig.vue';
 import ReductionObjectivesSection from 'src/components/organisms/data-management/ReductionObjectivesSection.vue';
 import DataEntryDialog from 'src/components/organisms/data-management/DataEntryDialog.vue';
-import CopyFactorsDialog from 'src/components/molecules/data-management/CopyFactorsDialog.vue';
 import ConnectorsCard from 'src/components/molecules/backoffice/ConnectorsCard.vue';
 
 import {
   TargetType,
-  useBackofficeDataManagement,
   type ImportRow,
 } from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
-import { MODULE_SUBMODULES } from 'src/constant/backoffice-module-config';
 import { Notify, Loading } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
@@ -268,95 +265,6 @@ provide('openDataEntryDialog', openDataEntryDialog);
 async function handleDialogCompleted() {
   await yearConfigStore.fetchConfig(selectedYear.value);
 }
-
-// #740 — "Copy all factors from {year - 1}" bulk action: loops the same
-// per-submodule /sync/factors call the individual "Copy from {year - 1}"
-// buttons use (see useSubmoduleConfig.confirmCopyFactorsFromPreviousYear),
-// one per configured (module_type_id, data_entry_type_id) pair, instead
-// of adding a separate backend bulk endpoint — this reuses each job's
-// existing per-submodule pipeline tracking (SSE, pipeline_id) rather than
-// inventing a second bulk-job abstraction. Pairs whose previous year has
-// no successful FACTORS job (nothing to copy) are skipped rather than
-// erroring.
-const backofficeDataManagement = useBackofficeDataManagement();
-const showBulkCopyFactorsConfirm = ref(false);
-const bulkCopyFactorsRunning = ref(false);
-
-const allFactorSubmodules = computed(() =>
-  Object.values(MODULE_SUBMODULES)
-    .flat()
-    .filter((sub) => sub.dataEntryTypeId !== undefined),
-);
-
-function openBulkCopyFactorsConfirm() {
-  showBulkCopyFactorsConfirm.value = true;
-}
-
-async function handleBulkCopyFactorsConfirm() {
-  bulkCopyFactorsRunning.value = true;
-  const sourceYear = selectedYear.value - 1;
-  let copied = 0;
-  let skipped = 0;
-  let failed = 0;
-
-  try {
-    for (const sub of allFactorSubmodules.value) {
-      if (sub.dataEntryTypeId === undefined) continue;
-      try {
-        const previousJobs =
-          await backofficeDataManagement.getPreviousYearSuccessfulJobs(
-            sourceYear,
-            sub.moduleTypeId,
-            TargetType.FACTORS,
-          );
-        const hasSourceFactors = previousJobs.some(
-          (job) => job.data_entry_type_id === sub.dataEntryTypeId,
-        );
-        if (!hasSourceFactors) {
-          skipped += 1;
-          continue;
-        }
-        await backofficeDataManagement.initiateFactorCopyFromPreviousYear(
-          sub.moduleTypeId,
-          sub.dataEntryTypeId,
-          selectedYear.value,
-        );
-        copied += 1;
-      } catch {
-        failed += 1;
-      }
-    }
-
-    if (copied === 0 && failed === 0) {
-      Notify.create({
-        type: 'info',
-        message: $t('data_management_copy_all_factors_none', {
-          year: sourceYear,
-        }),
-        position: 'top',
-      });
-    } else if (failed > 0) {
-      Notify.create({
-        type: 'warning',
-        message: $t('data_management_copy_all_factors_error'),
-        caption: `${copied} ${$t('data_management_copy_all_factors_success', { count: copied })}, ${failed} failed, ${skipped} skipped`,
-        position: 'top',
-      });
-    } else {
-      Notify.create({
-        type: 'positive',
-        message: $t('data_management_copy_all_factors_success', {
-          count: copied,
-        }),
-        position: 'top',
-      });
-    }
-
-    await fetchYearConfig();
-  } finally {
-    bulkCopyFactorsRunning.value = false;
-  }
-}
 </script>
 
 <template>
@@ -514,20 +422,6 @@ async function handleBulkCopyFactorsConfirm() {
 
       <q-btn
         v-if="yearConfigStore.config && !yearSyncInFlight"
-        icon="content_copy"
-        color="accent"
-        outline
-        :label="
-          $t('data_management_copy_all_factors', { year: selectedYear - 1 })
-        "
-        class="text-weight-medium q-mt-md q-mr-sm"
-        :loading="bulkCopyFactorsRunning"
-        data-testid="copy-all-factors-btn"
-        @click="openBulkCopyFactorsConfirm"
-      />
-
-      <q-btn
-        v-if="yearConfigStore.config && !yearSyncInFlight"
         icon="calendar_month"
         color="accent"
         :label="$t('open_year_for_users')"
@@ -556,14 +450,6 @@ async function handleBulkCopyFactorsConfirm() {
       :target-type="dialogTargetType ?? TargetType.DATA_ENTRIES"
       @completed="handleDialogCompleted"
       @progressing="handleDialogCompleted"
-    />
-
-    <copy-factors-dialog
-      v-model="showBulkCopyFactorsConfirm"
-      :year="selectedYear - 1"
-      message-key="data_management_copy_all_factors_confirm_message"
-      @confirm="handleBulkCopyFactorsConfirm"
-      @cancel="showBulkCopyFactorsConfirm = false"
     />
   </q-page>
 </template>

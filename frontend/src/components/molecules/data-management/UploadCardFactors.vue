@@ -17,12 +17,6 @@ interface Props {
   isDisabled?: boolean;
   computedFactorRunning?: boolean;
   anyComputedFactorRunning?: boolean;
-  /** #740 — whether the previous year has factors available to copy. */
-  canCopyFromPreviousYear?: boolean;
-  copyFactorsRunning?: boolean;
-  anyCopyFactorsRunning?: boolean;
-  /** #740 — source year shown in the "Copy from {year}" button label. */
-  previousYear?: number;
   /** Issue #1219 — module-scoped pipeline progress (null when idle). */
   pipelineProgress?: PipelineProgress | null;
   onDownload?: (row: ImportRow, targetType: TargetType) => void;
@@ -33,10 +27,6 @@ const props = withDefaults(defineProps<Props>(), {
   isDisabled: false,
   computedFactorRunning: false,
   anyComputedFactorRunning: false,
-  canCopyFromPreviousYear: false,
-  copyFactorsRunning: false,
-  anyCopyFactorsRunning: false,
-  previousYear: undefined,
   pipelineProgress: null,
   onDownload: undefined,
 });
@@ -45,7 +35,6 @@ const emit = defineEmits<{
   (e: 'upload', row: ImportRow, targetType: TargetType): void;
   (e: 'recalculate', item: ImportRow): void;
   (e: 'compute-factors', item: ImportRow): void;
-  (e: 'copy-from-previous-year', item: ImportRow): void;
   (e: 'abort'): void;
 }>();
 
@@ -93,9 +82,6 @@ function handleComputeFactors(item: ImportRow) {
   emit('compute-factors', item);
 }
 
-function handleCopyFromPreviousYear(item: ImportRow) {
-  emit('copy-from-previous-year', item);
-}
 </script>
 
 <template>
@@ -115,17 +101,10 @@ function handleCopyFromPreviousYear(item: ImportRow) {
     :has-computed-factor-button="hasComputedFactor"
     :computed-factor-running="computedFactorRunning"
     :is-computed-factor-disabled="props.anyComputedFactorRunning"
-    :has-copy-factors-button="canCopyFromPreviousYear"
-    :copy-factors-label="
-      $t('data_management_copy_from_year', { year: previousYear })
-    "
-    :copy-factors-running="copyFactorsRunning"
-    :is-copy-factors-disabled="props.anyCopyFactorsRunning"
     @upload="handleUpload"
     @download="handleDownload"
     @recalculate="handleRecalculate"
     @compute-factors="handleComputeFactors"
-    @copy-factors="handleCopyFromPreviousYear"
     @abort="emit('abort')"
   />
 </template>

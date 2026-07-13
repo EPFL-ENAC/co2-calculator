@@ -26,23 +26,18 @@ const {
   selectedFiles,
   isUploading,
   isConnecting,
-  isCopying,
   connectorsList,
   selectedConnector,
   apiConnectorLuid,
   connectionConfigured,
-  previousYearJobs,
-  selectedPreviousJob,
   allApiFieldsFilled,
   showOverwriteWarning,
   showOverwriteWarningAPI,
   handleEnterKey,
   resetDialog,
-  loadPreviousYearJobs,
   loadConnectorOptions,
   uploadFiles,
   connectAndSync,
-  copyFromPreviousYear,
 } = useDataEntryDialog({
   row: toRef(props, 'row'),
   year: toRef(props, 'year'),
@@ -61,7 +56,6 @@ watch(
     showDialog.value = newVal;
     if (newVal) {
       resetDialog();
-      loadPreviousYearJobs();
       loadConnectorOptions();
     }
   },
@@ -203,60 +197,6 @@ watch(showDialog, (newVal) => {
           </div>
         </template>
 
-        <div class="row items-center q-my-sm">
-          <q-separator class="col" />
-          <span class="q-px-md text-grey-6 text-caption">{{
-            $t('common_or')
-          }}</span>
-          <q-separator class="col" />
-        </div>
-
-        <div class="text-subtitle1 text-weight-medium">
-          {{ $t('data_management_tab_copy_previous') }}
-        </div>
-        <div v-if="previousYearJobs.length === 0">
-          <q-btn
-            :label="$t('data_management_copy_start')"
-            unelevated
-            dense
-            outline
-            color="black"
-            icon="calendar_today"
-            class="full-width text-weight-medium text-capitalize"
-            disabled
-          />
-          <div class="text-caption text-grey-6 q-mt-xs">
-            {{ $t('data_management_no_previous_jobs') }}
-          </div>
-        </div>
-        <div v-else class="q-gutter-sm">
-          <q-select
-            v-model="selectedPreviousJob"
-            :options="
-              previousYearJobs.map((job) => ({
-                value: job.job_id,
-                label: `${$t('data_management_copy_from_year', { year: job.year })} - ${job.status_message || ''}`,
-              }))
-            "
-            emit-value
-            map-options
-            dense
-            outlined
-            :label="$t('data_management_select_import')"
-          />
-          <q-btn
-            :label="$t('data_management_copy_start')"
-            unelevated
-            color="grey-3"
-            text-color="dark"
-            icon="calendar_today"
-            class="full-width"
-            :loading="isCopying"
-            :disable="!selectedPreviousJob || isCopying"
-            @click="copyFromPreviousYear"
-          />
-        </div>
-
         <div class="text-caption text-grey-7 q-mt-sm">
           {{ $t('data_management_overwrite_warning') }}
         </div>
@@ -278,7 +218,7 @@ watch(showDialog, (newVal) => {
           unelevated
           class="q-px-xl text-weight-medium"
           :loading="isUploading || isConnecting"
-          :disable="isUploading || isConnecting || isCopying"
+          :disable="isUploading || isConnecting"
           @click="
             selectedFiles && selectedFiles.length > 0
               ? uploadFiles()
