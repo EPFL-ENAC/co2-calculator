@@ -16,6 +16,7 @@ from app.core.exceptions import (
     RecordAccessDeniedError,
 )
 from app.core.logging import get_logger, setup_logging
+from app.middleware.csrf import CSRFProtectionMiddleware
 
 # Setup logging
 setup_logging()
@@ -314,6 +315,9 @@ app.add_middleware(
     same_site="lax",
     https_only=not settings.DEBUG,
 )
+
+# CSRF protection: Origin header validation for state-changing requests
+app.add_middleware(CSRFProtectionMiddleware)
 
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)

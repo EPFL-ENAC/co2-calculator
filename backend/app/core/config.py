@@ -237,6 +237,16 @@ class Settings(BaseSettings):
         ),
     )
 
+    # CSRF Protection (Origin header validation for state-changing requests)
+    CSRF_ORIGIN_CHECK_ENABLED: bool = Field(
+        default=False,
+        description="Enable CSRF Origin header validation (default: False)",
+    )
+    CSRF_TRUSTED_ORIGIN: str = Field(
+        default="",
+        description="Trusted origin for CSRF validation (e.g., https://co2-calculator-dev.epfl.ch)",
+    )
+
     # Role/Unit provider selection — where do app roles / institutional units
     # come from. No default: invalid or missing config fails at startup
     # rather than silently picking a provider.
