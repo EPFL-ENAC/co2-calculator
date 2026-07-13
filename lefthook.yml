@@ -5,6 +5,12 @@ commit-msg:
     commitlint:
       run: npx --no -- commitlint --edit {1}
 
+# Append " (#NNNN)" to the subject from branch names like feat/1234-slug
+prepare-commit-msg:
+  commands:
+    issue-from-branch:
+      run: sh scripts/prepare-commit-msg.sh {1} {2}
+
 # Pre-commit hooks - delegates to Makefiles for single source of truth
 pre-commit:
   commands:
