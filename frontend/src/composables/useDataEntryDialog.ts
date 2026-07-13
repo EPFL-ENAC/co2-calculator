@@ -33,7 +33,6 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   const selectedFiles = ref<FileObject[]>([]);
   const isUploading = ref<boolean>(false);
   const isConnecting = ref<boolean>(false);
-  const isCopying = ref<boolean>(false);
 
   const connectorsList = ref<ConnectorSpecRead[]>([]);
   const selectedConnector = ref<string>('');
@@ -43,9 +42,6 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
   // already exists so a datasource save doesn't 404 against a connector
   // nobody has set up yet.
   const connectionConfigured = ref<boolean>(false);
-
-  const previousYearJobs = ref<SyncJobResponse[]>([]);
-  const selectedPreviousJob = ref<number | null>(null);
 
   const allApiFieldsFilled = computed(
     () =>
@@ -74,13 +70,10 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     selectedFiles.value = [];
     isUploading.value = false;
     isConnecting.value = false;
-    isCopying.value = false;
     connectorsList.value = [];
     selectedConnector.value = '';
     apiConnectorLuid.value = '';
     connectionConfigured.value = false;
-    selectedPreviousJob.value = null;
-    previousYearJobs.value = [];
   }
 
   /** Check whether the currently selected connector already has a saved
@@ -121,25 +114,8 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     }
   }
 
-  async function loadPreviousYearJobs() {
-    const previousYear = options.year.value - 1;
-    try {
-      const jobs = await dataManagementStore.getPreviousYearSuccessfulJobs(
-        previousYear,
-        options.row.value.moduleTypeId,
-        options.targetType.value,
-      );
-      previousYearJobs.value = jobs;
-      if (jobs.length > 0) {
-        selectedPreviousJob.value = jobs[0].job_id;
-      }
-    } catch {
-      previousYearJobs.value = [];
-    }
-  }
-
   function handleEnterKey() {
-    if (isUploading.value || isConnecting.value || isCopying.value) return;
+    if (isUploading.value || isConnecting.value) return;
     if (selectedFiles.value && selectedFiles.value.length > 0) {
       uploadFiles();
     } else if (allApiFieldsFilled.value) {
@@ -186,13 +162,13 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
         connector_luid: apiConnectorLuid.value,
         label: $t(options.row.value.labelKey),
       });
-      await initiateSync('api', undefined, undefined);
+      await initiateSync('api');
       showDialog.value = false;
     } catch (err: unknown) {
       // The `api` client's afterResponse hook already surfaced the
       // backend's 422/429 `detail` via its own notification (see
       // src/api/http.ts); this is the generic fallback shown alongside
-      // it, mirroring uploadFiles()/copyFromPreviousYear() below.
+      // it, mirroring uploadFiles() above.
       $q.notify({
         color: 'negative',
         message: $t('data_management_connection_failed'),
@@ -204,36 +180,7 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     }
   }
 
-  async function copyFromPreviousYear() {
-    if (!selectedPreviousJob.value) {
-      $q.notify({
-        color: 'negative',
-        message: $t('data_management_no_previous_jobs'),
-        position: 'top',
-      });
-      return;
-    }
-
-    isCopying.value = true;
-    try {
-      await initiateSync('copy', undefined, selectedPreviousJob.value);
-      showDialog.value = false;
-    } catch {
-      $q.notify({
-        color: 'negative',
-        message: $t('data_management_copy_failed'),
-        position: 'top',
-      });
-    } finally {
-      isCopying.value = false;
-    }
-  }
-
-  async function initiateSync(
-    providerType: 'csv' | 'api' | 'copy',
-    filePath?: string,
-    sourceJobId?: number,
-  ) {
+  async function initiateSync(providerType: 'csv' | 'api', filePath?: string) {
     const config: Record<string, unknown> = {};
     if (options.row.value.reductionObjectiveTypeId !== undefined) {
       config.reduction_objective_type_id =
@@ -242,14 +189,11 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     if (options.row.value.factorVariant !== undefined) {
       config.factor_variant = options.row.value.factorVariant;
     }
-    if (sourceJobId && providerType === 'copy') {
-      config.source_job_id = sourceJobId;
-    }
 
     const syncPayload = {
       module_type_id: options.row.value.moduleTypeId,
       year: options.year.value,
-      provider_type: providerType === 'copy' ? 'csv' : providerType,
+      provider_type: providerType,
       target_type: options.targetType.value,
       data_entry_type_id: options.row.value.dataEntryTypeId,
       config,
@@ -349,22 +293,17 @@ export function useDataEntryDialog(options: UseDataEntryDialogOptions) {
     selectedFiles,
     isUploading,
     isConnecting,
-    isCopying,
     connectorsList,
     selectedConnector,
     apiConnectorLuid,
     connectionConfigured,
-    previousYearJobs,
-    selectedPreviousJob,
     allApiFieldsFilled,
     showOverwriteWarning,
     showOverwriteWarningAPI,
     handleEnterKey,
     resetDialog,
-    loadPreviousYearJobs,
     loadConnectorOptions,
     uploadFiles,
     connectAndSync,
-    copyFromPreviousYear,
   };
 }

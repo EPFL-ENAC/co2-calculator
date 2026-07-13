@@ -455,6 +455,9 @@ export interface paths {
          *     Returns a list per subcategory, each containing the top 3 items (by
          *     emission) and a "rest" bucket. Works for any module configured in
          *     ``_MODULE_TOP_CLASS_GROUP_FIELD``.
+         *
+         *     ``combine_unit_ids`` re-ranks the classes over the union of those units'
+         *     entries plus ``unit_id``'s, for the Results page's combined-units view.
          */
         get: operations["get_top_class_breakdown_v1_modules__unit_id___year___module_id__top_class_breakdown_get"];
         put?: never;
@@ -672,6 +675,83 @@ export interface paths {
          *         Dict with statistics (e.g., total items, total kg_co2eq)
          */
         get: operations["get_module_stats_v1_modules_stats__unit_id___year___module_id__stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/modules-stats/unit/{unit_id}/multi-year-report-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Multi Year Breakdown
+         * @description Return per-year emission breakdown (by module and by scope) for a unit.
+         *
+         *     Feeds the "Compare Years" pop-up: one entry per year with stat-bucket
+         *     totals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read
+         *     straight off each report's persisted stats.
+         *
+         *     Returns:
+         *         {"years": [{"year": 2023, "total_tonnes_co2eq": 61.7,
+         *                     "modules": {...}, "scopes": {...}}, ...]}
+         */
+        get: operations["get_multi_year_breakdown_v1_modules_stats_unit__unit_id__multi_year_report_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/modules-stats/merged/report-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Merged Report Stats
+         * @description Sum several units' persisted report stats into one payload.
+         *
+         *     Same shape as ``/{carbon_report_id}/report-stats``, so the frontend derives
+         *     its charts from it unchanged. ``merge_report_stats`` drops per-unit
+         *     top-class detail on purpose, so the IT section's is re-ranked across all
+         *     the reports here rather than unioned.
+         */
+        get: operations["get_merged_report_stats_v1_modules_stats_merged_report_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/modules-stats/merged/results-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Merged Results Summary
+         * @description Results summary over several units, summed per module.
+         *
+         *     Each unit contributes its own validated module totals and its own
+         *     previous-year comparison basis, so the year-over-year figure stays
+         *     meaningful for a combined perimeter.
+         */
+        get: operations["get_merged_results_summary_v1_modules_stats_merged_results_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1873,6 +1953,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/sync/admin/recompute-stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recompute Stats
+         * @description Force a full stats recompute for every ``(module_type_id, year)`` scope.
+         *
+         *     Dispatches one root ``aggregation`` job per scope — the same handler the
+         *     recalc chain uses to write ``carbon_report_module.stats`` /
+         *     ``carbon_report.stats``, but with no ``affected_module_ids`` scoping, so
+         *     every module in the scope is recomputed rather than just the ones a
+         *     recalc flagged as touched.
+         *
+         *     Scopes with no current, successful FACTORS job are skipped outright
+         *     (counted in ``skipped_no_factors``): recomputing stats against missing
+         *     reference data just writes zeros, so there's nothing worth spending a
+         *     job — or a pooled DB connection — on.
+         *
+         *     Jobs for the same year are chained to run one at a time rather than
+         *     fired concurrently, since they'd only queue up behind each other's
+         *     Postgres advisory lock anyway; different years still dispatch in
+         *     parallel.
+         *
+         *     Needed after any change to what recompute_stats persists (e.g. a stats
+         *     JSON shape change): existing rows keep whatever an older deploy wrote
+         *     until something re-triggers their aggregation, and most reports won't
+         *     naturally get one soon.  The dedup index makes re-triggering a safe
+         *     no-op for scopes still in flight.
+         */
+        post: operations["recompute_stats_v1_sync_admin_recompute_stats_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connectors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Connectors */
+        get: operations["get_connectors_v1_connectors_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connectors/{connector}/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Connection */
+        get: operations["get_connection_v1_connectors__connector__connection_get"];
+        /** Upsert Connection */
+        put: operations["upsert_connection_v1_connectors__connector__connection_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connectors/{connector}/datasources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upsert Datasource */
+        post: operations["upsert_datasource_v1_connectors__connector__datasources_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/connectors/{connector}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Connection
+         * @description Trigger a live connection test.
+         *
+         *     Enforces a per-user cooldown so the outbound call is rate-limited, then
+         *     runs the provider's JWT sign-in probe. ``detail`` is always a generic
+         *     string — never a raw exception, stack trace, or provider response body
+         *     (A06/A10).
+         *
+         *     The test itself is audited (PRD): who + when + connector + the boolean
+         *     outcome — never the secret, never a raw error. Rate-limited (429) calls
+         *     raise before this point, so they leave no audit row.
+         */
+        post: operations["test_connection_v1_connectors__connector__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audit/activity": {
         parameters: {
             query?: never;
@@ -2485,6 +2688,96 @@ export interface components {
              */
             overall_status: number;
         };
+        /** ConnectorConnectionCreate */
+        ConnectorConnectionCreate: {
+            /** Label */
+            label: string;
+            /** Server Url */
+            server_url: string;
+            /** Site Content Url */
+            site_content_url?: string | null;
+            /** Username */
+            username: string;
+            /** Client Id */
+            client_id: string;
+            /** Secret Id */
+            secret_id: string;
+            /** Secret Value */
+            secret_value?: string | null;
+        };
+        /** ConnectorConnectionRead */
+        ConnectorConnectionRead: {
+            /** Id */
+            id: number;
+            connector: components["schemas"]["ConnectorType"];
+            /** Label */
+            label: string;
+            /** Server Url */
+            server_url: string;
+            /** Site Content Url */
+            site_content_url: string | null;
+            /** Username */
+            username: string;
+            /** Client Id */
+            client_id: string;
+            /** Secret Id */
+            secret_id: string;
+            /** Has Secret */
+            has_secret: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ConnectorDatasourceCreate */
+        ConnectorDatasourceCreate: {
+            /** Module Type Id */
+            module_type_id: number;
+            /** Data Entry Type Id */
+            data_entry_type_id?: number | null;
+            /** Connector Luid */
+            connector_luid: string;
+            /** Label */
+            label: string;
+        };
+        /** ConnectorDatasourceRead */
+        ConnectorDatasourceRead: {
+            /** Id */
+            id: number;
+            /** Connection Id */
+            connection_id: number;
+            /** Module Type Id */
+            module_type_id: number;
+            /** Data Entry Type Id */
+            data_entry_type_id: number | null;
+            /** Connector Luid */
+            connector_luid: string;
+            /** Label */
+            label: string;
+            /** Is Active */
+            is_active: boolean;
+        };
+        /** ConnectorSpecRead */
+        ConnectorSpecRead: {
+            connector: components["schemas"]["ConnectorType"];
+            /** Label */
+            label: string;
+            /** Form Fields */
+            form_fields: string[];
+        };
+        /**
+         * ConnectorType
+         * @enum {string}
+         */
+        ConnectorType: "EPFL_TABLEAU";
         /**
          * DataEntryResponse
          * @description Response schema for DataEntry items.
@@ -2758,6 +3051,28 @@ export interface components {
             name: string;
         };
         /**
+         * HomeYearConfiguration
+         * @description Slim year-config for the home aggregate — only what workspace pages read.
+         *
+         *     The workspace pages (home / module / results / sidebar) read module
+         *     ``enabled``/``uncertainty_tag`` and submodule
+         *     ``enabled``/``threshold``/``inputs_deactivated``/``csv_deactivated`` (plus
+         *     ``reduction_objectives``) — all of which live under ``config``. Every other
+         *     field of the full ``YearConfigurationResponse`` (``is_started``,
+         *     ``updated_at``, ``configuration_completed``, ``pipeline_id``,
+         *     ``recalculation_status``) is read only on the backoffice data-management page,
+         *     which refetches the full config via ``GET /year-configuration/{year}``. So
+         *     home omits them entirely.
+         */
+        HomeYearConfiguration: {
+            /** Year */
+            year: number;
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * IngestionMethod
          * @description Docstring for IngestionMethod
          *
@@ -2769,9 +3084,13 @@ export interface components {
          *     :vartype manual: Literal[2]
          *     :var computed: Recompute factor values from existing emission data
          *     :vartype computed: Literal[3]
+         *     :var copy_previous_year: Historical only — the factor-copy feature
+         *         (#740) was removed and no provider is registered for this method;
+         *         the value persists on old ingestion-job rows.
+         *     :vartype copy_previous_year: Literal[4]
          * @enum {integer}
          */
-        IngestionMethod: 0 | 1 | 2 | 3;
+        IngestionMethod: 0 | 1 | 2 | 3 | 4;
         /**
          * IngestionResult
          * @description Outcome result of an ingestion job (only valid when state is FINISHED).
@@ -3003,7 +3322,8 @@ export interface components {
          *
          *     Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
          *     carries timing for per-step duration and an **allow-listed** ``meta``
-         *     (never the big ``error_details`` / ``affected_module_ids`` arrays).
+         *     (never the big ``affected_module_ids`` array; ``error_details`` only
+         *     for FACTORS-target jobs — see ``_project_pipeline_meta``, #1591).
          *
          *     ``state`` and ``result`` serialize as the enum NAME (string), not
          *     the int value — Pydantic's int-enum default would ship ``3`` for
@@ -3213,9 +3533,28 @@ export interface components {
             /** Last Factor Job Id */
             last_factor_job_id?: number | null;
             last_factor_job_result?: components["schemas"]["IngestionResult"] | null;
+            /** Last Factor Job Error Count */
+            last_factor_job_error_count?: number | null;
             /** Last Recalculation Job Id */
             last_recalculation_job_id?: number | null;
             last_recalculation_job_result?: components["schemas"]["IngestionResult"] | null;
+        };
+        /**
+         * RecomputeStatsResponse
+         * @description Result of the admin bulk stats-recompute trigger.
+         */
+        RecomputeStatsResponse: {
+            /** Dispatched */
+            dispatched: number;
+            /** Skipped */
+            skipped: number;
+            /**
+             * Skipped No Factors
+             * @default 0
+             */
+            skipped_no_factors: number;
+            /** Job Ids */
+            job_ids: number[];
         };
         /**
          * SessionRead
@@ -3226,6 +3565,13 @@ export interface components {
          *     and the globally-configured years for the workspace year selector. This
          *     collapses what used to be three separate calls (``/session`` + ``/users/units``
          *     + ``/year-configuration/``) into one.
+         *
+         *     ``min_configurable_year`` is also echoed on the single-year
+         *     ``YearConfigurationResponse``, but that one only exists once a row has
+         *     been created for the requested year. Bundling it here too gives the
+         *     frontend a source that doesn't depend on any particular year existing —
+         *     e.g. the backoffice year selector can seed its lower bound even when the
+         *     current real-world year has no ``YearConfiguration`` row yet.
          */
         SessionRead: {
             user: components["schemas"]["UserRead"];
@@ -3233,6 +3579,8 @@ export interface components {
             units: components["schemas"]["UnitWithUserRole"][];
             /** Configured Years */
             configured_years: components["schemas"]["YearConfigurationListItem"][];
+            /** Min Configurable Year */
+            min_configurable_year: number;
         };
         /**
          * StaleStatsEntry
@@ -3361,8 +3709,6 @@ export interface components {
             /** Reduction Objective Type Id */
             reduction_objective_type_id?: number | null;
             module_type_id?: components["schemas"]["ModuleTypeEnum"] | null;
-            /** Source Job Id */
-            source_job_id?: number | null;
         };
         /** SyncStatusResponse */
         SyncStatusResponse: {
@@ -3740,7 +4086,7 @@ export interface components {
         WorkspaceHomeResponse: {
             /** Carbon Report Id */
             carbon_report_id: number;
-            year_config?: components["schemas"]["YearConfigurationResponse"] | null;
+            year_config?: components["schemas"]["HomeYearConfiguration"] | null;
             /** Stats */
             stats: {
                 [key: string]: unknown;
@@ -3819,6 +4165,11 @@ export interface components {
              * @description UUID of the unit_sync pipeline kicked off by the create endpoint (populated only on POST; None elsewhere).
              */
             pipeline_id?: string | null;
+            /**
+             * Min Configurable Year
+             * @description Earliest year backoffice can create a configuration for.
+             */
+            min_configurable_year: number;
         };
         /**
          * YearConfigurationUpdate
@@ -4606,6 +4957,7 @@ export interface operations {
         parameters: {
             query?: {
                 carbon_project_type?: number;
+                combine_unit_ids?: number[];
             };
             header?: never;
             path: {
@@ -5025,6 +5377,114 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: number | null;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_multi_year_breakdown_v1_modules_stats_unit__unit_id__multi_year_report_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit_id: number;
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_merged_report_stats_v1_modules_stats_merged_report_stats_get: {
+        parameters: {
+            query: {
+                unit_ids?: number[];
+                year: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_merged_results_summary_v1_modules_stats_merged_results_summary_get: {
+        parameters: {
+            query: {
+                unit_ids?: number[];
+                year: number;
+                exclude_modules?: number[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
                     };
                 };
             };
@@ -6636,6 +7096,215 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StaleStatsEntry"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recompute_stats_v1_sync_admin_recompute_stats_post: {
+        parameters: {
+            query?: {
+                /** @description Limit to a single year; omit to recompute every year. */
+                year?: number | null;
+                /** @description Limit to a single module type; omit for every module type. */
+                module_type_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecomputeStatsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connectors_v1_connectors_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorSpecRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_connection_v1_connectors__connector__connection_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connector: components["schemas"]["ConnectorType"];
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorConnectionRead"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_connection_v1_connectors__connector__connection_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connector: components["schemas"]["ConnectorType"];
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectorConnectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorConnectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upsert_datasource_v1_connectors__connector__datasources_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connector: components["schemas"]["ConnectorType"];
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectorDatasourceCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectorDatasourceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    test_connection_v1_connectors__connector__test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                connector: components["schemas"]["ConnectorType"];
+            };
+            cookie?: {
+                auth_token?: string;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

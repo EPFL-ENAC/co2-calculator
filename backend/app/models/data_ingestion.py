@@ -69,9 +69,9 @@ class IngestionMethod(int, Enum):
     :vartype manual: Literal[2]
     :var computed: Recompute factor values from existing emission data
     :vartype computed: Literal[3]
-    :var copy_previous_year: Clone factor rows from a source year (default
-        ``year - 1``, overridable via ``filters.source_year``) into the
-        target year — see ``FactorCopyProvider`` (#740).
+    :var copy_previous_year: Historical only — the factor-copy feature
+        (#740) was removed and no provider is registered for this method;
+        the value persists on old ingestion-job rows.
     :vartype copy_previous_year: Literal[4]
     """
 

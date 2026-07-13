@@ -1,12 +1,23 @@
 ---
-status: delivered
+status: abandoned
 issue: 740
-last_updated: 2026-07-09
+last_updated: 2026-07-13
 title: "Backoffice: Copy factors from previous year"
 summary: "Add a backoffice action to duplicate a prior year's factor rows into a newly opened year, bulk or per-submodule, instead of forcing a full CSV re-upload."
 ---
 
 # Backoffice: Copy factors from previous year
+
+> **Removed (2026-07-13).** Every copy-from-previous-year affordance was
+> removed. Frontend: the bulk "Copy all factors from {year}" button, the
+> per-submodule "Copy from {year}" buttons, `CopyFactorsDialog.vue`, and
+> the whole copy-from-previous-year section of the data-entry dialog
+> (factors, data entries, and reduction objectives alike). Backend:
+> `FactorCopyProvider`, its `ProviderFactory` registration, the
+> `source_job_id` resolution in the dispatch endpoint
+> (`_resolve_source_job_to_file_path`), and their tests were deleted;
+> only the `copy_previous_year = 4` enum member remains so persisted
+> historical jobs still decode.
 
 ## Problem
 

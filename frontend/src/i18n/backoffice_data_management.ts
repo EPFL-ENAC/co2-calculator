@@ -122,10 +122,6 @@ export default {
     en: 'Connect API',
     fr: "Connecter l'API",
   },
-  data_management_copy_previous_year: {
-    en: 'Copy Previous Year',
-    fr: "Copier l'année précédente",
-  },
   data_management_no_data: {
     en: 'No data available for this year.',
     fr: 'Aucune donnée disponible pour cette année.',
@@ -235,10 +231,6 @@ export default {
     en: 'Connect API',
     fr: 'Connecter API',
   },
-  data_management_tab_copy_previous: {
-    en: 'Copy from Previous Year',
-    fr: "Copier de l'année précédente",
-  },
   data_management_api_connector: {
     en: 'Connector',
     fr: 'Connecteur',
@@ -315,22 +307,6 @@ export default {
     en: 'Connection saved',
     fr: 'Connexion enregistrée',
   },
-  data_management_copy_from_year: {
-    en: 'Copy from {year}',
-    fr: 'Copier de {year}',
-  },
-  data_management_select_import: {
-    en: 'Select import to copy',
-    fr: "Sélectionner l'import à copier",
-  },
-  data_management_copy_start: {
-    en: 'Start Copy',
-    fr: 'Démarrer la copie',
-  },
-  data_management_no_previous_jobs: {
-    en: 'No successful imports from previous year',
-    fr: "Aucune importation réussie de l'année précédente",
-  },
   data_management_connection_success: {
     en: 'Connection successful',
     fr: 'Connexion réussie',
@@ -338,10 +314,6 @@ export default {
   data_management_connection_failed: {
     en: 'Connection failed',
     fr: 'Connexion échouée',
-  },
-  data_management_copy_failed: {
-    en: 'Failed to copy from previous year',
-    fr: "Échec de la copie de l'année précédente",
   },
   data_management_last_import_date: {
     en: 'Last import',
@@ -684,46 +656,6 @@ export default {
   data_management_view_pipeline_details: {
     en: 'View details in Pipeline Operations',
     fr: 'Voir les détails dans Pipeline Operations',
-  },
-  data_management_copy_factors_confirm_title: {
-    en: 'Copy factors from {year}',
-    fr: 'Copier les facteurs depuis {year}',
-  },
-  data_management_copy_factors_confirm_message: {
-    en: 'This will copy factor rows from {year} into the current year. Existing rows for the current year will be updated to match. Do you want to proceed?',
-    fr: "Ceci copiera les facteurs de l'année {year} vers l'année en cours. Les facteurs existants pour l'année en cours seront mis à jour en conséquence. Souhaitez-vous continuer ?",
-  },
-  data_management_copy_factors_success: {
-    en: 'Factors copied successfully',
-    fr: 'Facteurs copiés avec succès',
-  },
-  data_management_copy_factors_warning: {
-    en: 'Factors copied with warnings',
-    fr: 'Facteurs copiés avec avertissements',
-  },
-  data_management_copy_factors_error: {
-    en: 'Failed to copy factors from previous year',
-    fr: "Échec de la copie des facteurs de l'année précédente",
-  },
-  data_management_copy_all_factors: {
-    en: 'Copy all factors from {year}',
-    fr: 'Copier tous les facteurs depuis {year}',
-  },
-  data_management_copy_all_factors_confirm_message: {
-    en: 'This will copy factor rows from {year} into every submodule of the current year that has no factors yet copied from it. Submodules without factors for {year} are skipped. Do you want to proceed?',
-    fr: "Ceci copiera les facteurs de l'année {year} dans tous les sous-modules de l'année en cours n'ayant pas encore de facteurs copiés depuis celle-ci. Les sous-modules sans facteurs pour {year} sont ignorés. Souhaitez-vous continuer ?",
-  },
-  data_management_copy_all_factors_success: {
-    en: 'Copied factors for {count} submodule(s)',
-    fr: 'Facteurs copiés pour {count} sous-module(s)',
-  },
-  data_management_copy_all_factors_none: {
-    en: 'No submodules have factors available to copy from {year}',
-    fr: "Aucun sous-module n'a de facteurs disponibles à copier depuis {year}",
-  },
-  data_management_copy_all_factors_error: {
-    en: 'Some submodules failed to copy factors',
-    fr: 'Certains sous-modules ont échoué à copier les facteurs',
   },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',

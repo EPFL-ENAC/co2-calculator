@@ -350,114 +350,6 @@ export function useSubmoduleConfig() {
     }
   }
 
-  // #740 — "Copy from {year - 1}" per-submodule factor copy.
-  //
-  // Availability is cached per submodule key rather than re-fetched on
-  // every render: ``getPreviousYearSuccessfulJobs`` hits
-  // ``sync/jobs/year/{year}/latest`` and filters client-side, so we
-  // only want to pay for it once per submodule per year.
-  const copyFactorsAvailability = ref<Record<string, boolean>>({});
-  const copyFactorsRunning = ref<Record<string, boolean>>({});
-  const anyCopyFactorsRunning = computed(() =>
-    Object.values(copyFactorsRunning.value).some(Boolean),
-  );
-
-  async function loadCopyFactorsAvailability(
-    sub: SubmoduleConfig,
-  ): Promise<void> {
-    if (sub.dataEntryTypeId === undefined) return;
-    try {
-      const jobs = await backofficeDataManagement.getPreviousYearSuccessfulJobs(
-        yearConfigStore.selectedYear - 1,
-        sub.moduleTypeId,
-        TargetType.FACTORS,
-      );
-      copyFactorsAvailability.value[sub.key] = jobs.some(
-        (job) => job.data_entry_type_id === sub.dataEntryTypeId,
-      );
-    } catch {
-      copyFactorsAvailability.value[sub.key] = false;
-    }
-  }
-
-  function canCopyFactorsFromPreviousYear(sub: SubmoduleConfig): boolean {
-    return !!copyFactorsAvailability.value[sub.key];
-  }
-
-  async function confirmCopyFactorsFromPreviousYear(
-    sub: SubmoduleConfig,
-    onCompleted: () => Promise<void>,
-  ): Promise<void> {
-    if (sub.dataEntryTypeId === undefined) return;
-    copyFactorsRunning.value[sub.key] = true;
-    try {
-      const jobId =
-        await backofficeDataManagement.initiateFactorCopyFromPreviousYear(
-          sub.moduleTypeId,
-          sub.dataEntryTypeId,
-          yearConfigStore.selectedYear,
-        );
-      backofficeDataManagement.subscribeToJobUpdates(
-        jobId,
-        (payload?: JobUpdatePayload) => {
-          const result = payload?.result;
-          if (result === IngestionResult.WARNING) {
-            Notify.create({
-              type: 'warning',
-              message: $t('data_management_copy_factors_warning'),
-              caption: payload?.status_message ?? '',
-              position: 'top',
-              timeout: 5000,
-            });
-          } else if (result === IngestionResult.SUCCESS) {
-            Notify.create({
-              type: 'positive',
-              message: $t('data_management_copy_factors_success'),
-              position: 'top',
-              timeout: 5000,
-            });
-          } else {
-            Notify.create({
-              type: 'negative',
-              message: $t('data_management_copy_factors_error'),
-              caption: payload?.status_message ?? '',
-              position: 'top',
-              timeout: 5000,
-            });
-          }
-          copyFactorsRunning.value[sub.key] = false;
-          void onCompleted();
-        },
-        (payload?: JobUpdatePayload) => {
-          Notify.create({
-            type: 'negative',
-            message: $t('data_management_copy_factors_error'),
-            caption: payload?.status_message ?? '',
-            position: 'top',
-            timeout: 5000,
-          });
-          copyFactorsRunning.value[sub.key] = false;
-          void onCompleted();
-        },
-        () => {
-          copyFactorsRunning.value[sub.key] = false;
-        },
-        () => {
-          void onCompleted();
-        },
-      );
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
-      Notify.create({
-        type: 'negative',
-        message: $t('data_management_copy_factors_error'),
-        caption: msg,
-        position: 'top',
-      });
-      copyFactorsRunning.value[sub.key] = false;
-    }
-  }
-
   return {
     isSubmoduleEnabled,
     isSubmoduleIncomplete,
@@ -474,10 +366,5 @@ export function useSubmoduleConfig() {
     computedFactorRunning,
     anyComputedFactorRunning,
     confirmComputedFactorSync,
-    copyFactorsRunning,
-    anyCopyFactorsRunning,
-    loadCopyFactorsAvailability,
-    canCopyFactorsFromPreviousYear,
-    confirmCopyFactorsFromPreviousYear,
   };
 }
