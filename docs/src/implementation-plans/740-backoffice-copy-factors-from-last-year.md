@@ -125,8 +125,8 @@ is deferred to a follow-up if operators ask for it after using bulk copy.
   file-replay "copy from previous year" flow already exists for
   individual data-entry-type dialogs (`useDataEntryDialog.ts` +
   `config.source_job_id` + `_resolve_source_job_to_file_path` in
-  `data_sync.py`), which re-uploads the prior year's *processed CSV
-  file* through the normal CSV provider. It is orthogonal to this
+  `data_sync.py`), which re-uploads the prior year's _processed CSV
+  file_ through the normal CSV provider. It is orthogonal to this
   plan's DB-level `FactorCopyProvider`: it depends on the source year's
   processed file still existing in file storage and only replays
   CSV-sourced factors, whereas `FactorCopyProvider` clones the `Factor`
