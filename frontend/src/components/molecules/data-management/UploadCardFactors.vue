@@ -81,7 +81,6 @@ function handleRecalculate(item: ImportRow) {
 function handleComputeFactors(item: ImportRow) {
   emit('compute-factors', item);
 }
-
 </script>
 
 <template>

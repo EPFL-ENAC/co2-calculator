@@ -291,7 +291,6 @@ function handleAbort() {
             @click="handleComputeFactors"
           />
         </template>
-
       </div>
 
       <!-- Download and file info -->
