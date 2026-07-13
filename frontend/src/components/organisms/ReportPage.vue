@@ -79,8 +79,19 @@ withDefaults(defineProps<Props>(), {
 @media print {
   .page {
     margin: 0;
+    // The sheet is defined by @page (A4). Forcing the element to an exact
+    // 297mm height overflows onto a blank sheet due to sub-pixel rounding,
+    // so let content flow naturally in print and rely on the page breaks.
+    height: auto;
+    min-height: 0;
     page-break-after: always;
     break-after: page;
+  }
+
+  // Don't force a break after the final page — it emits a trailing blank sheet.
+  .page:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 }
 </style>
