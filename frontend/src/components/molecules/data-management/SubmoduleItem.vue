@@ -284,7 +284,7 @@ const isSubmoduleDisabled = (sub: SubmoduleConfig): boolean =>
             outlined
             size="md"
             :debounce="600"
-            :suffix="$t('tco2eq')"
+            :suffix="$t('kgco2eq')"
             :placeholder="$t('no_threshold')"
             style="max-width: 500px"
             @update:model-value="
