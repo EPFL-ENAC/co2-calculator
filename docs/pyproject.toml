@@ -18,6 +18,6 @@ dependencies = [
     "mkdocs-with-pdf>=0.9.3",
     "python-frontmatter>=1.2.0",
     # explicit transitive overrides
-    "pillow>=12.2.0",
+    "pillow>=12.3.0",
     "urllib3>=2.7.0",
 ]
