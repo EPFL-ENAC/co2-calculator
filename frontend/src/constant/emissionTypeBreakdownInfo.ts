@@ -5,9 +5,13 @@ import { MODULES } from 'src/constant/modules';
 export const EMISSION_TYPE_BREAKDOWN_INFO_KEYS: Partial<
   Record<Module, string>
 > = {
-  [MODULES.Equipment]: 'module-equipment-charts',
+  [MODULES.Headcount]: 'module-headcount-charts',
+  [MODULES.ProcessEmissions]: 'module-process-emissions-charts',
   [MODULES.Buildings]: 'module-buildings-charts',
+  [MODULES.Equipment]: 'module-equipment-charts',
   [MODULES.ExternalCloudAndAI]: 'module-external-cloud-and-ai-charts',
+  [MODULES.ProfessionalTravel]: 'module-professional-travel-charts',
+  [MODULES.Purchase]: 'module-purchase-charts',
   [MODULES.ResearchFacilities]: 'module-research-facilities-charts',
 };
 

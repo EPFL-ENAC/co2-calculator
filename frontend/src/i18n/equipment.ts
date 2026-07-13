@@ -23,9 +23,7 @@ Please fill in the following columns:
 
 - Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task.
 
-If your equipement active or standby power is different from the one used by default, please contact the administrator.
-
-For more information: [equipment](https://epfl-enac.github.io/co2-calculator-user-doc/equipment/)`,
+If your equipement active or standby power is different from the one used by default, please contact the administrator.`,
     fr: `Ce module permet d'estimer la consommation électrique de vos équipements scientifiques, IT et autres. La liste de équipements vient de l'inventaire effectué par votre unité pour la faculté.
 
 Veuillez remplir les colonnes suivantes:
@@ -34,9 +32,15 @@ Veuillez remplir les colonnes suivantes:
 
 - Usage actif et usage standby: veuillez mettre à jour les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche.
 
-Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.
-
-Pour plus d'information : [équipments](https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/)`,
+Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
+  },
+  [`${MODULES.Equipment}-documentation-title`]: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
+  [`${MODULES.Equipment}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/',
   },
   [`${MODULES.Equipment}-charts-title`]: {
     en: 'Charts',

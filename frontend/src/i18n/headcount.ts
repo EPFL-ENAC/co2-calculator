@@ -11,8 +11,16 @@ export default {
     fr: 'Vérifiez les membres de l’unité et leurs équivalents plein-temps (EPT)',
   },
   [`${MODULES.Headcount}-title-subtext`]: {
-    en: `This module automatically displays the names, functions, SCIPERs, and FTE values of your unit’s members as of the reference year. For student contributions, please manually add their total accumulated FTE over the year. The total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste), as well as the total carbon footprint per FTE for your unit. For more information: User Guide [headcount](https://epfl-enac.github.io/co2-calculator-user-doc/headcount/) and [additional categories ](https://epfl-enac.github.io/co2-calculator-user-doc/additional-categories/)`,
-    fr: `Ce module affiche automatiquement les noms, fonctions, SCIPERs et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité. Pour plus d'information : Documentation utilisation [personnel](https://epfl-enac.github.io/co2-calculator-user-doc/fr/headcount/), et [catégories additionnelles](https://epfl-enac.github.io/co2-calculator-user-doc/fr/additional-categories/)`,
+    en: `This module automatically displays the names, functions, SCIPERs, and FTE values of your unit’s members as of the reference year. For student contributions, please manually add their total accumulated FTE over the year. The total number of FTEs is used to generate the indicators for the additional categories (Food, Commuting, and Waste), as well as the total carbon footprint per FTE for your unit.`,
+    fr: `Ce module affiche automatiquement les noms, fonctions, SCIPERs et valeurs EPT des membres de votre unité pour l'année de référence. Pour les contributions des étudiant·e·s, veuillez ajouter manuellement leur EPT total sur l'ensemble de l'année. Le nombre total d'EPT est utilisé pour générer les indicateurs des catégories additionnelles (Alimentation, Pendularité et Déchets), ainsi que l'empreinte carbone totale par EPT pour votre unité.`,
+  },
+  [`${MODULES.Headcount}-documentation-title`]: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
+  [`${MODULES.Headcount}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/headcount/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/headcount/',
   },
   [`${MODULES.Headcount}-member`]: {
     en: 'Member| Members',
@@ -20,7 +28,7 @@ export default {
   },
   [`${MODULES.Headcount}-student`]: {
     en: 'Student| Students',
-    fr: 'Étudiant•e| Étudiant•e•s',
+    fr: 'Étudiant·e| Étudiant·e·s',
   },
   [`${MODULES.Headcount}-member-table-title`]: {
     en: 'Member ({count})| Members ({count})',
@@ -28,7 +36,7 @@ export default {
   },
   [`${MODULES.Headcount}-student-table-title`]: {
     en: 'Students',
-    fr: 'Étudiant•es',
+    fr: 'Étudiant·es',
   },
 
   [`${MODULES.Headcount}-student-table-title-info-label`]: {
@@ -58,7 +66,7 @@ export default {
 
   [`${MODULES.Headcount}-student-form-add-button`]: {
     en: 'Add Student FTE',
-    fr: 'Ajouter un EPT étudiant•e',
+    fr: 'Ajouter un EPT étudiant·e',
   },
   // module member
 
@@ -81,21 +89,15 @@ export default {
   // module_mylab_student_form_field_fte_label
   [`${MODULES.Headcount}-student_form_field_fte_label`]: {
     en: 'Total Student FTE',
-    fr: 'EPT étudiant•es total',
+    fr: 'EPT étudiant·es total',
   },
   [`${MODULES.Headcount}-student-form-title`]: {
     en: 'Add Student FTE',
-    fr: 'Ajouter un EPT étudiant•e',
+    fr: 'Ajouter un EPT étudiant·e',
   },
-
-  [`${MODULES.Headcount}-student-form-subtitle`]: {
-    en: 'Enter the aggregated student FTE for your unit over the year.',
-    fr: 'Entrez de manière agrégée les EPT des étudiant·es qui ont travaillé dans votre unité sur l’année.',
-  },
-
   [`${MODULES.Headcount}-student-form-title-info-label`]: {
     en: 'fte student tooltip',
-    fr: 'info-bulle étudiant•e EPT',
+    fr: 'info-bulle étudiant·e EPT',
   },
   'headcount-member-function-required': {
     en: 'Function is required',
@@ -104,41 +106,5 @@ export default {
   'headcount-member-error-duplicate-uid': {
     en: "This user's {label} already exists.",
     fr: 'Le {label} de cet utilisateur•rice existe déjà.',
-  },
-  headcount_student: {
-    en: 'Student',
-    fr: 'Étudiant•e',
-  },
-  headcount_professor: {
-    en: 'Professor',
-    fr: 'Professeur•e',
-  },
-  headcount_scientific_collaborator: {
-    en: 'Scientific Collaborator',
-    fr: 'Collaborateur•rice scientifique',
-  },
-  headcount_postdoctoral_researcher: {
-    en: 'Postdoctoral Researcher',
-    fr: 'Chercheur•e postdoctoral•e',
-  },
-  headcount_postdoctoral_assistant: {
-    en: 'Postdoctoral Assistant',
-    fr: 'Assistant•e postdoctoral•e',
-  },
-  headcount_doctoral_assistant: {
-    en: 'Doctoral Assistant',
-    fr: 'Assistant•e doctorant•e',
-  },
-  headcount_trainee: {
-    en: 'Trainee',
-    fr: 'Stagiaire',
-  },
-  headcount_technical_administrative_staff: {
-    en: 'Technical/Administrative Staff',
-    fr: 'Personnel technique/administratif',
-  },
-  headcount_other: {
-    en: 'Other',
-    fr: 'Autre',
   },
 } as const;

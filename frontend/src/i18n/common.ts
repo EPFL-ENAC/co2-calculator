@@ -503,10 +503,6 @@ export default {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
   },
-  carbon_footprint_tooltip_equipment: {
-    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
-  },
   carbon_footprint_title_purchase: {
     en: 'Purchases carbon footprint',
     fr: 'Empreinte carbone des achats',

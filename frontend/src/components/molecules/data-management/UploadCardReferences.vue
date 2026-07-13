@@ -413,7 +413,7 @@ function isErrorOrWarning(): boolean {
             {{ getJobInfo().rowsProcessed }}
             {{ $t('data_management_rows_imported') }}
             <span v-if="getJobInfo().timestamp">
-              • {{ getJobInfo().timestamp.toLocaleDateString() }}
+              · {{ getJobInfo().timestamp.toLocaleDateString() }}
             </span>
           </div>
         </div>

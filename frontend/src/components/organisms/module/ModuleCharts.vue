@@ -26,26 +26,23 @@
     <template v-else>
       <template v-if="!isPrintMode">
         <div class="flex w-full items-center justify-between q-mx-lg">
-          <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
-            {{ carbonFootprintTitle }}
-          </div>
           <div
-            v-if="showControls"
-            class="flex items-center no-wrap q-gutter-xs"
+            class="flex items-center no-wrap q-ml-sm q-mb-md text-body1 text-weight-medium text-black"
           >
+            {{ carbonFootprintTitle }}
             <q-btn
-              v-if="emissionTypeInfoKey && moduleChartView === 'type'"
+              v-if="emissionTypeInfoKey"
               flat
               round
               dense
               icon="info_outline"
               size="sm"
-              class="text-grey-7"
+              class="text-grey-7 q-ml-xs"
               :aria-label="t('emission-type-breakdown-info-aria')"
             >
               <q-tooltip
-                anchor="bottom right"
-                self="top right"
+                anchor="bottom left"
+                self="top left"
                 :offset="[0, 8]"
                 max-width="320px"
                 class="text-body2"
@@ -53,6 +50,11 @@
                 {{ t(emissionTypeInfoKey) }}
               </q-tooltip>
             </q-btn>
+          </div>
+          <div
+            v-if="showControls"
+            class="flex items-center no-wrap q-gutter-xs"
+          >
             <div class="chart-view-toggle">
               <q-btn
                 unelevated
@@ -258,9 +260,12 @@ watch(
   },
 );
 
-const emissionTypeInfoKey = computed(() =>
-  getEmissionTypeBreakdownInfoKey(props.type),
-);
+const emissionTypeInfoKey = computed(() => {
+  const key = getEmissionTypeBreakdownInfoKey(props.type);
+  // Honor the tooltips.ts convention: empty copy hides the icon.
+  if (!key || !te(key) || !t(key)) return null;
+  return key;
+});
 
 const carbonFootprintTitle = computed(() => {
   const moduleKey = `carbon_footprint_title_${props.type}`;
