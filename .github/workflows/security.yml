@@ -8,6 +8,7 @@ on:
     branches: [main, dev, stage] # Scan PRs targeting these branches
   schedule:
     - cron: "0 0 * * 1" # Weekly scheduled scan
+  workflow_dispatch:
 
 jobs:
   npm-audit:

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
 # Runtime env injection for the Quasar SPA.
 #
@@ -20,38 +20,20 @@
 # (writable) by the deployment template. nginx.conf has a `location =
 # /injectEnv.js` alias that maps the URL to this file.
 #
-# Why no jq dep: the base nginx-unprivileged image doesn't ship jq, and
-# our values are single-line ASCII (DSNs, env names, git SHAs), so a small
-# bash escape function is sufficient and keeps the image lean.
+# Why POSIX sh + awk, not bash or jq: the alpine-slim base ships neither, and
+# our values are single-line ASCII (DSNs, env names, git SHAs), so awk's
+# gsub-based JSON escaping is sufficient and keeps the image lean.
 
-set -euo pipefail
+# No pipefail: POSIX only added it in the 2024 spec and older /bin/sh
+# implementations lack it. Re-add (as `set -o pipefail`) if a pipeline gains a
+# left-hand command that can actually fail — today both start with printenv.
+set -eu
 
 OUT_DIR="${OUT_DIR:-/tmp}"
 PREFIX="${FRONTEND_ENV_PREFIX:-APP_}"
 INJECT_FILE="${OUT_DIR}/injectEnv.js"
 
-# JSON-string escape for value side: backslash, then double-quote. Values are
-# assumed single-line ASCII; if you need to inject multi-line or unicode
-# values, switch to jq (and apt-get install jq in the Dockerfile).
-escape_json() {
-  local s=$1
-  s=${s//\\/\\\\}
-  s=${s//\"/\\\"}
-  printf '%s' "$s"
-}
-
-body=""
-sep=""
-count=0
-while IFS='=' read -r key value; do
-  case "${key}" in
-    "${PREFIX}"*)
-      body+="${sep}\"${key}\": \"$(escape_json "${value}")\""
-      sep=", "
-      count=$((count + 1))
-      ;;
-  esac
-done < <(printenv)
+count=$(printenv | grep -c "^${PREFIX}") || count=0
 
 # Atomic write: temp file in the same dir, then mv. Prevents nginx from
 # serving a half-written injectEnv.js if this script is killed mid-execution.
@@ -59,8 +41,18 @@ tmp=$(mktemp "${OUT_DIR}/injectEnv.js.XXXXXX")
 {
   printf '%s\n' \
     "// Generated at container startup by /docker-entrypoint.d/40-inject-env.sh." \
-    "// Do not edit; values come from ${PREFIX}*-prefixed env vars at startup." \
-    "window.injectedEnvVariable = { ${body} };"
+    "// Do not edit; values come from ${PREFIX}*-prefixed env vars at startup."
+  printenv | awk -v prefix="${PREFIX}" '
+    index($0, prefix) == 1 {
+      eq = index($0, "=")
+      key = substr($0, 1, eq - 1)
+      value = substr($0, eq + 1)
+      gsub(/\\/, "\\\\&", value)
+      gsub(/"/, "\\\\&", value)
+      pairs = pairs sep "\"" key "\": \"" value "\""
+      sep = ", "
+    }
+    END { print "window.injectedEnvVariable = { " pairs " };" }'
 } > "${tmp}"
 mv -f "${tmp}" "${INJECT_FILE}"
 

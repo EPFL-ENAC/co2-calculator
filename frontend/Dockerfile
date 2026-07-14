@@ -45,7 +45,7 @@ RUN npm run build
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable
+FROM nginxinc/nginx-unprivileged:stable-alpine-slim
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf
