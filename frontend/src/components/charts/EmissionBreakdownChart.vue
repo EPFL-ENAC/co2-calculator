@@ -12,7 +12,7 @@ import {
   CHART_SUBCATEGORY_COLOR_SCHEMES,
 } from 'src/constant/charts';
 import { getEmissionTypeBreakdownInfoKey } from 'src/constant/emissionTypeBreakdownInfo';
-import { MODULES } from 'src/constant/modules';
+import { MODULES, MODULES_LIST } from 'src/constant/modules';
 import {
   CATEGORY_CHART_KEYS,
   type EmissionTreemapCategory,
@@ -36,17 +36,9 @@ const props = defineProps<{
 const { t } = useI18n();
 const isPrintMode = usePrintMode();
 
-// Modules that can appear as tabs (exclude headcount — no treemap chart)
-// Same left-to-right order as the bar chart (mirrors backend MODULE_BREAKDOWN_ORDER)
-const TREEMAP_MODULES = [
-  MODULES.ProcessEmissions,
-  MODULES.Buildings,
-  MODULES.Equipment,
-  MODULES.ExternalCloudAndAI,
-  MODULES.Purchase,
-  MODULES.ResearchFacilities,
-  MODULES.ProfessionalTravel,
-] as const;
+// Modules that can appear as tabs, in the canonical app order
+// (MODULES_LIST from timelineItems); headcount has no treemap chart.
+const TREEMAP_MODULES = MODULES_LIST.filter((mod) => mod !== MODULES.Headcount);
 
 /** Modules that actually have non-zero data in the current breakdown */
 const availableModules = computed(() => {
