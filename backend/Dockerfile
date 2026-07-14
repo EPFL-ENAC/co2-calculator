@@ -34,7 +34,7 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
-FROM python:3.12-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 WORKDIR /app
 
