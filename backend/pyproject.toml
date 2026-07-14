@@ -2,7 +2,7 @@
 name = "co2-calculator-backend"
 version = "0.1.0"
 description = ""
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     "itsdangerous==2.2.0",
     "aiosqlite>=0.21.0",                # fall back for when no external db is provided

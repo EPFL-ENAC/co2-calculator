@@ -104,9 +104,7 @@ of child module stats + statuses — no DB aggregation):
 
 ```jsonc
 {
-  "buckets": {
-    /* merged, ordered by registry bucket order */
-  },
+  "buckets": {/* merged, ordered by registry bucket order */},
   "per_fte": { "<bucket_key>": 0.0 }, // tonnes per FTE
   "validated_buckets": ["<bucket_key>"],
   "total_tonnes": 0.0,

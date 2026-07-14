@@ -23,7 +23,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Backend
 
-- **Language**: [Python 3.12](https://www.python.org/) (target: 3.13 when stable in Alpine)
+- **Language**: [Python 3.14](https://www.python.org/)
 - **Package Manager**: [uv](https://docs.astral.sh/uv/)
 - **Dependency File**: `backend/pyproject.toml`
 - **Lockfile**: `uv.lock`
@@ -66,7 +66,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 - **Build Output**: Static SPA assets (`/dist/spa`)
 - **Server**: Nginx (Alpine-based, port 8080, non-root)
-- **Container**: Multi-stage build (`node:24-alpine` → `nginx:stable-alpine-slim`)
+- **Container**: Multi-stage build (`node:26-alpine` → `nginx:stable-alpine-slim`)
 
 ---
 
@@ -93,7 +93,7 @@ considered, see [Architectural Decisions](./14-architectural-decisions.md).
 
 ### Deployment
 
-- **Container**: `ghcr.io/astral-sh/uv:python3.12-alpine` (multi-stage build)
+- **Container**: `ghcr.io/astral-sh/uv:python3.14-alpine` (multi-stage build)
 - **Runtime User**: `appuser` (UID/GID 1001, non-root)
 - **Exposed Port**: 8000
 

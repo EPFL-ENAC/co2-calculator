@@ -156,6 +156,7 @@ Copilot reviewed 45 out of 45 changed files in this pull request and generated 6
 **frontend/src/stores/modules.ts:832**
 
 - `refreshEmissionBreakdownIfNeeded()` forces a refetch with `excludeModules=[]`, but `getEmissionBreakdown()` caches only by `carbonReportId` (it returns early when the id matches). After a mutation, this can prevent ResultsPage from ever refetching the breakdown with its own `exclude_modules` query params, leading to stale/incorrect breakdowns when some modules are intentionally excluded. Consider including `excludeModules` in the cache key (e.g., store a stable serialized exclude list alongside the report id) and/or have `refreshEmissionBreakdownIfNeeded` take the caller’s exclude list instead of hard-coding `[]`.
+
 </details>
 
 ---

@@ -28,7 +28,7 @@ jobs:
     outputs:
       chart_version: ${{ steps.chart_version.outputs.chart_version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Log into registry ${{ inputs.registry }}
         if: github.event_name != 'pull_request'

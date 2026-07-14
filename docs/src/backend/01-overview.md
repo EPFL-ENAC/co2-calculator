@@ -54,7 +54,7 @@ make db-migrate
 make run
 ```
 
-Requires Python 3.12+ and PostgreSQL 15+.
+Requires Python 3.14+ and PostgreSQL 15+.
 
 ## Architecture Overview
 

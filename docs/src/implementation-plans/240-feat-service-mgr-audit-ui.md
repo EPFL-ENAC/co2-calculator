@@ -367,12 +367,7 @@ New file: `src/types/audit.ts`
 
 ```typescript
 export type AuditAction =
-  | "CREATE"
-  | "READ"
-  | "UPDATE"
-  | "DELETE"
-  | "ROLLBACK"
-  | "TRANSFER";
+  "CREATE" | "READ" | "UPDATE" | "DELETE" | "ROLLBACK" | "TRANSFER";
 
 export interface AuditLogEntry {
   id: number;
