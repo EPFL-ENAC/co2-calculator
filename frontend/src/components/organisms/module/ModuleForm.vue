@@ -193,7 +193,9 @@
               <component
                 :is="fieldComponent(inp.type)"
                 v-else
-                v-model="form[inp.id]"
+                :model-value="
+                  isReadOnly(inp) ? displayValue(inp) : form[inp.id]
+                "
                 :label="
                   $t(`${inp.labelKey || inp.label}`, {
                     submoduleTitle: $t(`${moduleType}-${submoduleType}`),
@@ -217,7 +219,8 @@
                 :size="inp.type === 'checkbox' ? 'xs' : undefined"
                 :emit-value="inp.type === 'select'"
                 :map-options="inp.type === 'select'"
-                @blur="validateField(inp)"
+                @update:model-value="(val: unknown) => (form[inp.id] = val)"
+                @blur="normalizeField(inp)"
               >
                 <template v-if="inp.icon && inp.type !== 'checkbox'" #prepend>
                   <q-icon :name="inp.icon" color="grey-6" size="xs" />
@@ -357,6 +360,7 @@ interface Option {
 type FieldValue = string | number | boolean | null | Option;
 import type { AllSubmoduleTypes, Module } from 'src/constant/modules';
 import { sortByOrder } from 'src/utils/options';
+import { nOrDash } from 'src/utils/number';
 
 const props = withDefaults(
   defineProps<{
@@ -457,6 +461,43 @@ function isReadOnly(inp: ModuleField): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === 'string') return value.trim() !== '';
   return true;
+}
+
+// Read-only rendering only — never bind this to an editable input, or the
+// formatted value fights the user's cursor while typing. Number fields with a
+// displayPrecision render rounded, while form[inp.id] keeps the full precision
+// that buildPayload() sends to the backend.
+function displayValue(inp: ModuleField): unknown {
+  const value = form[inp.id];
+  if (inp.type !== 'number' || inp.displayPrecision === undefined) return value;
+
+  return nOrDash(value as number | string | null | undefined, {
+    options: {
+      // No padding: 22 stays "22", 1.302… becomes "1.3".
+      minimumFractionDigits: 0,
+      maximumFractionDigits: inp.displayPrecision,
+    },
+  });
+}
+
+// On blur, round a user-typed value to the field's displayPrecision so the
+// stored value matches what is displayed. Read-only fields are skipped: their
+// auto-filled values must keep full precision for the submitted payload.
+function normalizeField(inp: ModuleField): void {
+  if (
+    inp.type === 'number' &&
+    inp.displayPrecision !== undefined &&
+    !isReadOnly(inp)
+  ) {
+    const value = form[inp.id];
+    if (value !== null && value !== undefined && value !== '') {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        form[inp.id] = Number(parsed.toFixed(inp.displayPrecision));
+      }
+    }
+  }
+  validateField(inp);
 }
 
 // Generic conditional options filtering - made reactive with computed
