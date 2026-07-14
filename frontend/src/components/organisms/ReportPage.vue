@@ -1,11 +1,12 @@
 <template>
   <section class="page" :class="{ 'page--first': isFirst }">
-    <header v-if="title || pageNumber != null" class="page__header">
+    <header v-if="title || scope || pageNumber != null" class="page__header">
       <div class="page__title">
         <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="75px" />
         <span class="q-ml-md text-h5 text-weight-medium">{{
           $t('calculator_title')
         }}</span>
+        <span v-if="scope" class="page__scope">{{ scope }}</span>
       </div>
       <div class="page__number">
         <span v-if="pageNumber != null">{{ pageNumber }}</span>
@@ -21,12 +22,15 @@
 <script setup lang="ts">
 interface Props {
   title?: string;
+  /** What the report covers, e.g. "SCI-STI-AB · 2025". Shown on every sheet. */
+  scope?: string;
   pageNumber?: number;
   isFirst?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   title: undefined,
+  scope: undefined,
   pageNumber: undefined,
   isFirst: false,
 });
@@ -60,6 +64,13 @@ withDefaults(defineProps<Props>(), {
 .page__title {
   font-weight: 600;
   font-size: 14px;
+}
+
+.page__scope {
+  margin-left: 12px;
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.7;
 }
 
 .page__number {

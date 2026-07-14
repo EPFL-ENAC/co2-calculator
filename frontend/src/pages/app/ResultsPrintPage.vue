@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { nOrDash } from 'src/utils/number';
+import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
@@ -17,6 +18,7 @@ const {
   resultsSummaryLoading,
   currentYear,
   combinedUnitIds,
+  scopeLabel,
   excludedModules,
   viewAdditionalData,
   co2PerKmKg,
@@ -125,6 +127,12 @@ onMounted(async () => {
 
   await loadModulesConfig();
   await fetchAllData(carbonReportId);
+
+  // Chrome seeds the "Save as PDF" filename from the document title.
+  document.title = toPrintDocumentTitle(
+    scopeLabel.value,
+    t('results_print_title'),
+  );
 });
 </script>
 
@@ -148,6 +156,7 @@ onMounted(async () => {
     >
       <ReportPage
         :title="$t('results_print_title')"
+        :scope="scopeLabel"
         :page-number="1"
         :is-first="true"
       >
@@ -155,7 +164,7 @@ onMounted(async () => {
           {{ $t('results_print_title') }}
         </h2>
         <div class="text-body2 text-secondary report-subtitle">
-          {{ $t('results_subtitle', { year: currentYear }) }}
+          {{ scopeLabel }}
         </div>
 
         <div class="grid-3-col q-mt-lg">
@@ -260,11 +269,13 @@ onMounted(async () => {
         :current-year="currentYear"
         :combine-unit-ids="combinedUnitIds"
         :exclude-modules="excludedModules"
+        :scope="scopeLabel"
       />
 
       <ReportPage
         v-if="showItFocusSection"
         :title="$t('it-focus-title')"
+        :scope="scopeLabel"
         :page-number="itPageNumber"
       >
         <h2 class="text-h5 q-mt-none">
@@ -290,6 +301,7 @@ onMounted(async () => {
           additionalChartsValidated
         "
         :title="$t('results_additional_title')"
+        :scope="scopeLabel"
         :page-number="additionalPageNumber"
       >
         <h2 class="text-h5 q-mt-none">

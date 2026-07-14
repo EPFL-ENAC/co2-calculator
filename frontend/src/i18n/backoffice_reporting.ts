@@ -1,4 +1,9 @@
 export default {
+  // Perimeter of a printed export that spans several affiliations.
+  print_scope_units_count: {
+    en: '{count} units',
+    fr: '{count} unités',
+  },
   backoffice_reporting_print_combined_title: {
     en: 'Combined Report',
     fr: 'Rapport combiné',
