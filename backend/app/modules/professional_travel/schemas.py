@@ -151,7 +151,7 @@ class ProfessionalTravelTrainHandlerResponse(DepartureDateMixin, DataEntryRespon
     kg_co2eq: Optional[float] = None
 
 
-class ProfessionalTravelPlaneHandlerCreate(
+class ProfessionalTravelPlaneHandlerCreate(  # type: ignore[misc]
     PlaneCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
 ):
     origin_iata: str  ## IATA code
@@ -171,7 +171,7 @@ class ProfessionalTravelPlaneHandlerCreate(
         return v
 
 
-class ProfessionalTravelTrainHandlerCreate(
+class ProfessionalTravelTrainHandlerCreate(  # type: ignore[misc]
     TrainCabinClassValidationMixin, DepartureDateMixin, DataEntryCreate
 ):
     user_institutional_id: str
@@ -201,7 +201,9 @@ class ProfessionalTravelTrainHandlerCreate(
         return v
 
 
-class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
+class ProfessionalTravelPlaneHandlerUpdate(  # type: ignore[misc]
+    DepartureDateMixin, DataEntryUpdate
+):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
     origin_iata: Optional[str] = None
@@ -212,7 +214,9 @@ class ProfessionalTravelPlaneHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
     note: Optional[str] = None
 
 
-class ProfessionalTravelTrainHandlerUpdate(DepartureDateMixin, DataEntryUpdate):
+class ProfessionalTravelTrainHandlerUpdate(  # type: ignore[misc]
+    DepartureDateMixin, DataEntryUpdate
+):
     # traveler_name: Optional[str] = None
     # traveler_id: Optional[int] = None
     origin_name: Optional[str] = None

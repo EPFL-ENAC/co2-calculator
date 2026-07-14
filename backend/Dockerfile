@@ -4,7 +4,7 @@
 # Alpine (musl) on both stages: the runtime is alpine to shed the Debian base
 # packages (perl, util-linux, ...) that dominate CVE scans, and the venv must
 # be built on the same libc it runs on.
-FROM ghcr.io/astral-sh/uv:python3.12-alpine AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-alpine AS builder
 
 WORKDIR /app
 
@@ -34,7 +34,7 @@ COPY alembic.ini ./
 # =========================
 # 2-  Runtime Stage
 # =========================
-FROM python:3.12-alpine AS runtime
+FROM python:3.14-alpine AS runtime
 
 WORKDIR /app
 

@@ -6,7 +6,7 @@
   },
   "packageManager": "npm@11.14.1",
   "engines": {
-    "node": ">=v24.15.0 <25",
+    "node": ">=v26.5.0 <27",
     "npm": ">=11.12.1 <12"
   },
   "devDependencies": {

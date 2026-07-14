@@ -60,7 +60,7 @@ Container Registry (ghcr.io).
 
 **Base Images**:
 
-- Backend: Python 3.12 on Debian Bookworm (slim)
+- Backend: Python 3.14 on Alpine Linux
 - Frontend: Nginx on Alpine Linux
 - Database: PostgreSQL 16 official image
 
