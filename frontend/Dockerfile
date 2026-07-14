@@ -14,11 +14,6 @@ WORKDIR /app
 # Copy package files for dependency installation
 COPY package.json ./
 
-# Enable Corepack
-RUN corepack enable \
- && corepack prepare --activate \
- && npm --version
-
 # ---- Dependencies ----
 FROM base AS deps
 # Copy package-lock.json for dependency installation
