@@ -84,7 +84,6 @@ async def test_csrf_post_without_origin_or_referer_fails():
         ) as client:
             response = await client.post("/api/v1/session", json={})
             assert response.status_code == 403
-            assert "missing Origin and Referer" in response.text
     finally:
         settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
         settings.CSRF_TRUSTED_ORIGIN = original_origin
@@ -131,7 +130,6 @@ async def test_csrf_post_with_wrong_referer_fails():
                 headers={"referer": "https://malicious.com/some/page"},
             )
             assert response.status_code == 403
-            assert "origin not trusted" in response.text
     finally:
         settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
         settings.CSRF_TRUSTED_ORIGIN = original_origin
@@ -155,7 +153,6 @@ async def test_csrf_post_with_wrong_origin_fails():
                 headers={"origin": "https://malicious.com"},
             )
             assert response.status_code == 403
-            assert "CSRF validation failed: Origin not trusted" in response.text
     finally:
         settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
         settings.CSRF_TRUSTED_ORIGIN = original_origin

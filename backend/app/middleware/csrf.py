@@ -45,7 +45,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         if not origin and not referer:
             return Response(
-                content="CSRF validation failed: missing Origin and Referer headers",
+                content="CSRF validation failed",
                 status_code=403,
             )
 
@@ -60,7 +60,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         # Validate origin matches trusted origin exactly
         if request_origin != settings.CSRF_TRUSTED_ORIGIN:
             return Response(
-                content="CSRF validation failed: origin not trusted",
+                content="CSRF validation failed",
                 status_code=403,
             )
 
