@@ -49,7 +49,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         if not origin and not referer:
             return JSONResponse(
-                content={"detail": "CSRF validation failed: missing Origin and Referer headers"},
+                content={
+                    "detail": "CSRF validation failed: missing Origin and Referer headers"
+                },
                 status_code=403,
             )
 
