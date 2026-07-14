@@ -55,7 +55,8 @@ async function toggleSelectAll(shouldSelectAll: boolean) {
   await fetchUnits();
 }
 
-const selectedYears = ref<string[]>(['2026']); // Default to latest year
+// Populated by ReportingYear, which defaults to the latest configured year.
+const selectedYears = ref<string[]>([]);
 
 // Track selected hierarchy filters from ReportingFilters
 const selectedPathAffiliation = ref<number[]>([]);
