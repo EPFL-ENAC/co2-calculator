@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from app.core.config import get_settings
 
@@ -36,7 +36,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Skip OAuth endpoints (they set cookies via redirect)
-        if "/auth/callback" in request.url.path or "/auth/login" in request.url.path:
+        if request.url.path.startswith("/api/v1/auth/callback") or request.url.path.startswith("/api/v1/auth/login"):
             return await call_next(request)
 
         # Require Origin or Referer header
@@ -44,8 +44,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         referer = request.headers.get("referer")
 
         if not origin and not referer:
-            return Response(
-                content="CSRF validation failed",
+            return JSONResponse(
+                content={"detail": "CSRF validation failed: missing Origin and Referer headers"},
                 status_code=403,
             )
 
@@ -59,8 +59,8 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
         # Validate origin matches trusted origin exactly
         if request_origin != settings.CSRF_TRUSTED_ORIGIN:
-            return Response(
-                content="CSRF validation failed",
+            return JSONResponse(
+                content={"detail": "CSRF validation failed: origin not trusted"},
                 status_code=403,
             )
 
