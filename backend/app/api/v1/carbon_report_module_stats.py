@@ -33,7 +33,11 @@ from app.utils.report_computations import (
     compute_results_summary,
     compute_validated_totals,
 )
-from app.utils.report_stats import build_year_comparison, merge_report_stats
+from app.utils.report_stats import (
+    build_year_comparison,
+    derive_quantity_sections,
+    merge_report_stats,
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -347,6 +351,9 @@ async def get_report_stats(
             detail=f"Carbon report {carbon_report_id} not found",
         )
     stats = dict(report.stats or {})
+    # Derived at read time so reports persisted before the section existed
+    # still serve quantity donut data without waiting for a recompute.
+    stats["quantities"] = derive_quantity_sections(stats.get("buckets") or {})
     validated = await build_validated_totals(db, carbon_report_id)
     stats["total_tonnes_validated_co2eq"] = validated["total_tonnes_co2eq"]
     return stats
