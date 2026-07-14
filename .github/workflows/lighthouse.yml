@@ -15,10 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4.4.0
+        uses: actions/setup-node@v5
         with:
           cache: "npm"
           node-version-file: '.nvmrc'
@@ -30,9 +30,6 @@ jobs:
         with:
           path: ./frontend/dist
           key: frontend-build-${{ hashFiles('frontend/src/**', 'frontend/package-lock.json') }}
-
-      - name: Enable Corepack
-        run: corepack enable
 
       - name: Install frontend dependencies
         if: steps.build-cache.outputs.cache-hit != 'true'
