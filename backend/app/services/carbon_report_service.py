@@ -166,6 +166,11 @@ class CarbonReportService:
         """Return the existing CarbonProject for a unit+type, or None.
 
         Idempotent: never creates or mutates any data.
+
+        Must not be called with SIMULATOR_PLAN: a unit can have many plan
+        projects, so ``scalar_one_or_none`` would raise MultipleResultsFound.
+        Use :class:`app.services.simulator_plan_service.SimulatorPlanService`
+        for plans.
         """
         stmt = select(CarbonProject).where(
             CarbonProject.unit_id == unit_id,
