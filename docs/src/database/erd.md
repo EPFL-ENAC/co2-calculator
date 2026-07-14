@@ -35,6 +35,8 @@ erDiagram
   }
   carbon_projects {
     VARCHAR carbon_report_type
+    DATETIME created_at
+    INTEGER created_by FK
     INTEGER end_year "indexed"
     INTEGER id PK
     BOOLEAN is_viewable_by_unit_members
@@ -236,6 +238,7 @@ erDiagram
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
+  users ||--}o carbon_projects : "created_by"
   users ||--}o unit_users : "user_id"
 ```
 
