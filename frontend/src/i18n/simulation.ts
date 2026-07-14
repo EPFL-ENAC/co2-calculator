@@ -95,4 +95,28 @@ export default {
     en: 'Simulation carbon footprint {year}',
     fr: 'Empreinte carbone de la simulation {year}',
   },
+  project_planner_page_title: {
+    en: 'Project planner',
+    fr: 'Planificateur de projet',
+  },
+  project_planner_page_intro: {
+    en: 'Plan the carbon footprint of an upcoming project. Give your project a name; its content will appear here.',
+    fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
+  },
+  project_planner_name_label: {
+    en: 'Project name',
+    fr: 'Nom du projet',
+  },
+  project_planner_name_save: {
+    en: 'Save',
+    fr: 'Enregistrer',
+  },
+  project_planner_not_found: {
+    en: 'This project does not exist or has been deleted.',
+    fr: "Ce projet n'existe pas ou a été supprimé.",
+  },
+  project_planner_back_home: {
+    en: 'Back to home',
+    fr: "Retour à l'accueil",
+  },
 };
