@@ -1,5 +1,6 @@
 """CSRF protection middleware: Origin header validation for state-changing requests."""
 
+from typing import Callable
 from urllib.parse import urlparse
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -23,7 +24,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
     - Skips GET, HEAD, OPTIONS and OAuth endpoints
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
         if not settings.CSRF_ORIGIN_CHECK_ENABLED:
             return await call_next(request)
 
