@@ -39,14 +39,15 @@ XX YY ZZ scheme:
 ```
 
 **Examples per module:**
-| Module | Bars (XX categories) | Segments (YY subcategories) |
-|---|---|---|
-| Professional Travel | Trains, Planes | class_1, class_2 / first, business, eco |
-| Buildings | Rooms, Combustion | lighting, cooling, ventilation, heating_elec / heating_thermal |
-| Equipment | (single XX) | scientific, it, other |
-| Process Emissions | (single XX) | co2, ch4, n2o, refrigerants |
-| Purchases | (single XX) | goods_and_services, scientific_equipment, it_equipment, consumable_accessories, biological_chemical_gaseous, services, vehicles, additional, other |
-| External Cloud & AI | Clouds, AI | virtualisation, calcul, stockage / provider_google, provider_openai, ... |
+
+| Module              | Bars (XX categories) | Segments (YY subcategories)                                                                                                                        |
+| ------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Professional Travel | Trains, Planes       | class_1, class_2 / first, business, eco                                                                                                            |
+| Buildings           | Rooms, Combustion    | lighting, cooling, ventilation, heating_elec / heating_thermal                                                                                     |
+| Equipment           | (single XX)          | scientific, it, other                                                                                                                              |
+| Process Emissions   | (single XX)          | co2, ch4, n2o, refrigerants                                                                                                                        |
+| Purchases           | (single XX)          | goods_and_services, scientific_equipment, it_equipment, consumable_accessories, biological_chemical_gaseous, services, vehicles, additional, other |
+| External Cloud & AI | Clouds, AI           | virtualisation, calcul, stockage / provider_google, provider_openai, ...                                                                           |
 
 For modules with a **single XX category** (e.g., Equipment), the chart shows one bar with YY subcategories as segments.
 For modules with **multiple XX categories** (e.g., Professional Travel), each XX is a separate bar.
@@ -92,13 +93,14 @@ defineProps<{
 6. Build series dynamically from all unique YY keys found across all bars
 
 **ECharts config:**
-| Setting | Value |
-|---|---|
-| Orientation | Horizontal: `yAxis: { type: 'category' }`, `xAxis: { type: 'value' }` |
-| Stack | All series stacked (`stack: 'total'`) |
-| Y axis labels | Translated XX category names (e.g., "Planes", "Trains") |
-| Tooltip | Show YY segment breakdown + bar total |
-| No scope overlays | Not applicable for per-module view |
+
+| Setting           | Value                                                                 |
+| ----------------- | --------------------------------------------------------------------- |
+| Orientation       | Horizontal: `yAxis: { type: 'category' }`, `xAxis: { type: 'value' }` |
+| Stack             | All series stacked (`stack: 'total'`)                                 |
+| Y axis labels     | Translated XX category names (e.g., "Planes", "Trains")               |
+| Tooltip           | Show YY segment breakdown + bar total                                 |
+| No scope overlays | Not applicable for per-module view                                    |
 
 **Key implementation details:**
 
