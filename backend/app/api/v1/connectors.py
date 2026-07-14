@@ -92,7 +92,7 @@ async def upsert_connection(
     audit_service = AuditDocumentService(db)
     await audit_service.create_version(
         entity_type="ConnectorConnection",
-        entity_id=conn.id,  # type: ignore[arg-type]
+        entity_id=conn.id,  # type: ignore
         data_snapshot=read.model_dump(mode="json"),
         change_type=AuditChangeTypeEnum.UPDATE,
         changed_by=current_user.id,
@@ -124,7 +124,7 @@ async def upsert_datasource(
     audit_service = AuditDocumentService(db)
     await audit_service.create_version(
         entity_type="ConnectorDatasource",
-        entity_id=ds.id,  # type: ignore[arg-type]
+        entity_id=ds.id,  # type: ignore
         data_snapshot=read.model_dump(mode="json"),
         change_type=AuditChangeTypeEnum.UPDATE,
         changed_by=current_user.id,

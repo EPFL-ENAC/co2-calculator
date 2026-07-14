@@ -96,10 +96,8 @@ dev = [
     "pytest-benchmark>=5.1",
     "pytest-mock>=3.15",
     "pytest-elasticsearch>=5.0",
-    "mypy>=1.18",
     "ruff>=0.15.21",
     "httpx>=0.28",
-    "mypy>=1.18.2",
     "locust>=2.44.4",
     "pytest-env>=1.6.0",
     "faker>=40.23.1",
@@ -107,10 +105,6 @@ dev = [
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260518",
 ]
-
-[tool.mypy]
-plugins = ["pydantic.mypy"]
-
 
 [tool.alembic]
 

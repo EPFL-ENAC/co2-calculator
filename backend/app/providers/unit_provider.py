@@ -126,7 +126,7 @@ class AccredUnitProvider(UnitProvider):
                 response = await client.get(
                     f"{self.api_url}/units",
                     params={"pageindex": page, "pagesize": page_size},
-                    auth=(self.api_username, self.api_key),
+                    auth=(self.api_username, self.api_key),  # type: ignore
                     timeout=30.0,
                 )
                 response.raise_for_status()
@@ -248,7 +248,7 @@ class AccredUnitProvider(UnitProvider):
                 response = await client.get(
                     url,
                     params=params,
-                    auth=(self.api_username, self.api_key),
+                    auth=(self.api_username, self.api_key),  # type: ignore
                     timeout=10.0,
                 )
                 response.raise_for_status()

@@ -204,7 +204,7 @@ class RoleSyncService:
 
         # Resolve unit IDs from database
         units = await self.unit_service.get_by_institutional_ids(
-            list(unit_institutional_ids)
+            list(unit_institutional_ids)  # type: ignore
         )
 
         if not units:

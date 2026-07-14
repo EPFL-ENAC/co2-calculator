@@ -276,7 +276,7 @@ class DataIngestionRepository:
         # the UPDATE driver — Pyright's stubs don't expose it, so guard
         # via ``hasattr`` (matches the pattern in ``mark_job_as_current``).
         if result is not None and hasattr(result, "rowcount"):
-            return int(result.rowcount or 0)
+            return int(result.rowcount or 0)  # type: ignore
         return 0
 
     async def set_started_at(self, job_id: int) -> None:
@@ -1593,7 +1593,7 @@ class DataIngestionRepository:
 
         # LEFT JOIN: factor combos left-join recalculation combos
         # SQLAlchemy stubs only define up to 4 positional args for select()
-        stmt = select(  # type: ignore[call-overload]
+        stmt = select(  # type: ignore
             factor_jobs_sub.c.module_type_id,
             factor_jobs_sub.c.data_entry_type_id,
             factor_jobs_sub.c.max_factor_job_id,

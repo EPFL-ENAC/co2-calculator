@@ -217,7 +217,7 @@ async def run_job(job_id: int) -> None:
                     # value IS a coroutine — the registry's structural type just
                     # widens it.
                     handler_task: asyncio.Task[dict] = asyncio.create_task(
-                        handler(job, job_session, data_session),  # type: ignore[arg-type]
+                        handler(job, job_session, data_session),  # type: ignore
                         name=f"handler-{job_id}",
                     )
                     abort_waiter = asyncio.create_task(

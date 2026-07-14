@@ -417,7 +417,7 @@ class AccredRoleProvider(RoleProvider):
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
-                    auth=(self.api_username, self.api_key),
+                    auth=(self.api_username, self.api_key),  # type: ignore
                     timeout=10.0,
                 )
                 response.raise_for_status()
@@ -523,7 +523,7 @@ class AccredRoleProvider(RoleProvider):
                 response = await client.get(
                     url,
                     params=params,
-                    auth=(self.api_username, self.api_key),
+                    auth=(self.api_username, self.api_key),  # type: ignore
                     timeout=10.0,
                 )
                 response.raise_for_status()

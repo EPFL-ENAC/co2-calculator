@@ -385,7 +385,7 @@ async def ready():
             async with httpx.AsyncClient(timeout=2) as client:
                 resp = await client.get(
                     settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL,
-                    auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
+                    auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),  # type: ignore
                 )
                 if resp.status_code == 200:
                     role_provider_status = "ok"

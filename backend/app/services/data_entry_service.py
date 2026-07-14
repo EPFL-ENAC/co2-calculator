@@ -205,7 +205,7 @@ class DataEntryService:
             for entry in data_entries:
                 if source is not None:
                     # Convert enum to integer value for database
-                    entry.source = source.value if hasattr(source, "value") else source
+                    entry.source = source.value if hasattr(source, "value") else source  # type: ignore
                 if created_by_id is not None:
                     entry.created_by_id = created_by_id
 
@@ -279,7 +279,7 @@ class DataEntryService:
         """
         for entry in data_entries:
             if source is not None:
-                entry.source = source.value if hasattr(source, "value") else source
+                entry.source = source.value if hasattr(source, "value") else source  # type: ignore
             if created_by_id is not None:
                 entry.created_by_id = created_by_id
         count = await self.repo.bulk_copy(data_entries)

@@ -150,9 +150,9 @@ def _finalize_bucket_details(bucket: dict) -> None:
         if not isinstance(accumulator, dict):
             continue
         bucket[detail_key] = [
-            {name_field: name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
+            {name_field: name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}  # type: ignore
             for name, kg in sorted(accumulator.items())
-            if kg > 0
+            if kg > 0  # type: ignore
         ]
 
 

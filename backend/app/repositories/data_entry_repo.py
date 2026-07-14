@@ -637,7 +637,7 @@ class DataEntryRepository:
             RollupEmission = aliased(DataEntryEmission)
             entities = [
                 DataEntry,
-                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore[attr-defined]
+                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore
                 Factor,
             ]
             statement = (
@@ -745,7 +745,7 @@ class DataEntryRepository:
                 if is_train_entry:
                     statement = statement.join(
                         OriginLocation,
-                        (
+                        (  # type: ignore
                             OriginLocation.name
                             == DataEntry.data["origin_name"].as_string()
                         )
@@ -756,7 +756,7 @@ class DataEntryRepository:
                         isouter=True,
                     ).join(
                         DestLocation,
-                        (
+                        (  # type: ignore
                             DestLocation.name
                             == DataEntry.data["destination_name"].as_string()
                         )
@@ -766,7 +766,7 @@ class DataEntryRepository:
                 elif is_plane_entry:
                     statement = statement.join(
                         OriginLocation,
-                        (
+                        (  # type: ignore
                             OriginLocation.iata_code
                             == DataEntry.data["origin_iata"].as_string()
                         )
@@ -777,7 +777,7 @@ class DataEntryRepository:
                         isouter=True,
                     ).join(
                         DestLocation,
-                        (
+                        (  # type: ignore
                             DestLocation.iata_code
                             == DataEntry.data["destination_iata"].as_string()
                         )
@@ -1043,12 +1043,12 @@ class DataEntryRepository:
                 )
                 .join(
                     OriginLocation,
-                    OriginLocation.natural_key == origin_key,
+                    OriginLocation.natural_key == origin_key,  # type: ignore
                     isouter=True,
                 )
                 .join(
                     DestLocation,
-                    DestLocation.natural_key == dest_key,
+                    DestLocation.natural_key == dest_key,  # type: ignore
                     isouter=True,
                 )
             )

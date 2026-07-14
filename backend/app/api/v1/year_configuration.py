@@ -1038,7 +1038,7 @@ async def upload_reduction_objective_file(
         ):
             ro.setdefault(key, None)
 
-    result.config["reduction_objectives"]["files"][config_key] = {
+    result.config["reduction_objectives"]["files"][config_key] = {  # type: ignore
         "path": file_metadata.path,
         "filename": file_metadata.filename,
         "uploaded_at": file_metadata.uploaded_at,

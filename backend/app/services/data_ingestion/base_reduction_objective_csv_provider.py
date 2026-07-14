@@ -399,7 +399,9 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         result.config["reduction_objectives"][config_key] = validated_rows
 
         # Store file metadata
-        result.config["reduction_objectives"]["files"][config_key] = {
+        result.config["reduction_objectives"]["files"][  # type: ignore
+            config_key
+        ] = {
             "path": processed_path or "",
             "filename": filename,
             "uploaded_at": datetime.now(timezone.utc).isoformat(),

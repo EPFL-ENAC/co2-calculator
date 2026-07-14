@@ -627,10 +627,11 @@ class CarbonReportModuleRepository:
 
             units_stmt = (
                 select(*units_stmt_columns)
-                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore
                 .outerjoin(
                     User,
-                    User.institutional_id == Unit.principal_user_institutional_id,
+                    User.institutional_id  # type: ignore
+                    == Unit.principal_user_institutional_id,
                 )
                 .where(col(CarbonReport.year).in_(years))
             )
@@ -705,7 +706,8 @@ class CarbonReportModuleRepository:
         # Apply sort order with NULL handling
         if use_case_for_nulls:
             order_col_for_sort = case(
-                (order_col.is_(None), null_value_for_sort), else_=order_col
+                (order_col.is_(None), null_value_for_sort),  # type: ignore
+                else_=order_col,
             )
             if sort_order == "desc":
                 units_stmt = units_stmt.order_by(desc(order_col_for_sort))

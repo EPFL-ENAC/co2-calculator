@@ -200,14 +200,14 @@ class LocationService:
         )
 
         # Create corrected location objects
-        origin_corrected = Location(
+        origin_corrected = Location(  # type: ignore
             id=origin_location.id,
             name=origin_location.name,
             transport_mode=origin_location.transport_mode,
             latitude=origin_lat,
             longitude=origin_lon,
         )
-        dest_corrected = Location(
+        dest_corrected = Location(  # type: ignore
             id=destination_location.id,
             name=destination_location.name,
             transport_mode=destination_location.transport_mode,

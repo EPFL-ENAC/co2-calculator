@@ -290,8 +290,8 @@ class ReductionObjectives(BaseModel):
     files: Dict[
         Literal["institutional_footprint", "population_projections", "unit_scenarios"],
         Optional[FileMetadata],
-    ] = Field(
-        default_factory=lambda: {  # type: ignore
+    ] = Field(  # type: ignore
+        default_factory=lambda: {
             "institutional_footprint": None,
             "population_projections": None,
             "unit_scenarios": None,

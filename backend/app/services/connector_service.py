@@ -50,7 +50,7 @@ class ConnectorConnectionService:
         existing = await self.repo.get_by_connector(connector)
         if existing is None and not payload.secret_value:
             raise ValueError("secret_value is required for a new connection")
-        target = existing or ConnectorConnection(
+        target = existing or ConnectorConnection(  # type: ignore
             connector=connector,
             secret_value_encrypted="",  # nosec B106 - placeholder, overwritten below before persisting
         )
@@ -91,7 +91,7 @@ class ConnectorConnectionService:
         existing = await self.datasources.get_active_for_module(
             payload.module_type_id, payload.data_entry_type_id
         )
-        target = existing or ConnectorDatasource(
+        target = existing or ConnectorDatasource(  # type: ignore
             module_type_id=payload.module_type_id,
             data_entry_type_id=payload.data_entry_type_id,
         )

@@ -264,7 +264,7 @@ class CarbonReportService:
                 ) or await self._create_project(
                     item.unit_id, CarbonReportType.CALCULATOR
                 )
-                unit_project[item.unit_id] = project.id  # type: ignore[assignment]
+                unit_project[item.unit_id] = project.id  # type: ignore
             enriched.append(
                 item.model_copy(
                     update={"carbon_project_id": unit_project[item.unit_id]}

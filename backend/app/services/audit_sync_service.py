@@ -235,8 +235,11 @@ class AuditSyncService:
             conflict_count = 0
 
             # Create sets for faster lookup
-            error_ids = {item["id"] for item in sync_stats.get("errors", [])}
-            conflict_ids = {item["id"] for item in sync_stats.get("conflicts", [])}
+            error_ids = {item["id"] for item in sync_stats.get("errors", [])}  # type: ignore
+            conflict_ids = {
+                item["id"]
+                for item in sync_stats.get("conflicts", [])  # type: ignore
+            }
 
             # Update records based on their sync result
             for record in records_to_sync:

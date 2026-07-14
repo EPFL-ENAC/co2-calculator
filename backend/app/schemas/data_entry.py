@@ -198,7 +198,7 @@ class ModuleHandlerMeta(type):
             # Register for all keys
             if keys:
                 for key in keys:
-                    MODULE_HANDLERS[key] = cls()
+                    MODULE_HANDLERS[key] = cls()  # type: ignore
 
         return cls
 

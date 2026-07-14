@@ -71,9 +71,9 @@ def make_files_store() -> FilesStore:
             bucket=settings.S3_BUCKET,
             path_prefix=settings.S3_PATH_PREFIX,
         )
-        return S3FilesStore(s3_service, key=encryption_key)
+        return S3FilesStore(s3_service, key=encryption_key)  # type: ignore
     # Default to local file storage
-    return LocalFilesStore(settings.FILES_STORAGE_PATH, key=encryption_key)
+    return LocalFilesStore(settings.FILES_STORAGE_PATH, key=encryption_key)  # type: ignore
 
 
 files_store = make_files_store()

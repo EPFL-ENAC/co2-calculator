@@ -420,7 +420,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         target_mode = TransportModeEnum(det.name)
         await self.data_session.exec(
             delete(Location).where(
-                Location.transport_mode == target_mode  # type: ignore[arg-type]
+                Location.transport_mode == target_mode  # type: ignore
             )
         )
 
@@ -457,7 +457,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             # used elsewhere in the codebase (see app/api/v1/data_sync.py).
             existing = await self.data_session.execute(
                 select(Location).where(
-                    Location.natural_key == natural_key  # type: ignore[arg-type]
+                    Location.natural_key == natural_key  # type: ignore
                 )
             )
             row_obj = existing.scalar_one_or_none()

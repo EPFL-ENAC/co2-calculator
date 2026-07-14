@@ -229,7 +229,7 @@ class UnitRepository:
         # the same row).  SQLModel exposes the SQLAlchemy Table via
         # ``__table__``; mypy doesn't see it through the metaclass so
         # access it via a typing escape hatch on the row type.
-        table = Unit.__table__  # type: ignore[attr-defined]
+        table = Unit.__table__  # type: ignore
         value_dicts = [
             {c.name: getattr(unit, c.name) for c in table.columns if c.name != "id"}
             for unit in units

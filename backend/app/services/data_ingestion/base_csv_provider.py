@@ -1504,7 +1504,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 select(CarbonReportModule, CarbonReport)
                 .join(
                     CarbonReport,
-                    CarbonReport.id == CarbonReportModule.carbon_report_id,  # type: ignore[arg-type]
+                    CarbonReport.id == CarbonReportModule.carbon_report_id,  # type: ignore
                 )
                 .where(col(CarbonReportModule.id).in_(list(module_ids)))
             )

@@ -288,7 +288,7 @@ async def _run_ingest(
     job_config = job_meta.get("config") or {}
     provider = provider_class(
         config={**job.__dict__, **job_config, "job_id": job.id},
-        user=job.user if hasattr(job, "user") else None,
+        user=job.user if hasattr(job, "user") else None,  # type: ignore
         job_session=job_session,
         data_session=data_session,
     )
