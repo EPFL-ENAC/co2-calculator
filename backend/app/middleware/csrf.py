@@ -37,7 +37,10 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Skip OAuth endpoints (they set cookies via redirect)
-        if request.url.path.startswith("/api/v1/auth/callback") or request.url.path.startswith("/api/v1/auth/login"):
+        if (
+            request.url.path.startswith("/api/v1/auth/callback")
+            or request.url.path.startswith("/api/v1/auth/login")
+        ):
             return await call_next(request)
 
         # Require Origin or Referer header
