@@ -57,17 +57,22 @@ jobs:
   scan-built-images:
     needs: deploy
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       packages: read
     strategy:
       matrix:
         image: [frontend, backend]
     steps:
-      - name: Install trivy
+      # Version-pinned with a hardcoded checksum: installing from a live apt
+      # repo would run whatever it serves that day as root on the runner.
+      - name: Install trivy (pinned)
         run: |
-          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-          echo "deb https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
-          sudo apt-get update && sudo apt-get install -y trivy
+          TRIVY_VERSION=0.72.0
+          TRIVY_SHA256=9bf8aba92f524b74f8e83d53b298a7dfc6b4d60aca779217e7817e5433c73eeb
+          wget -q "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+          echo "${TRIVY_SHA256}  trivy_${TRIVY_VERSION}_Linux-64bit.deb" | sha256sum -c
+          sudo dpkg -i "trivy_${TRIVY_VERSION}_Linux-64bit.deb"
 
       - name: Scan freshly built image (fail on fixable HIGH/CRITICAL)
         run: |
