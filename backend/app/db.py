@@ -31,7 +31,8 @@ def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:
     }
 
 
-assert settings.DB_URL, "DB_URL must be set"
+if settings.DB_URL is None:
+    raise ValueError("DB_URL must be set")
 url = make_url(settings.DB_URL)
 is_sqlite = False
 if (

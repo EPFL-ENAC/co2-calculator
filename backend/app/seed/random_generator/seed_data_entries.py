@@ -71,7 +71,8 @@ BATCH_SIZE = 1000
 
 async def get_connection():
     settings = get_settings()
-    assert settings.DB_URL, "DB_URL must be set to run this seed script"
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 
