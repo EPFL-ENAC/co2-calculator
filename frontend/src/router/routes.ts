@@ -214,13 +214,13 @@ const routes: RouteRecordRaw[] = [
               },
               {
                 // Reached from the "Start a project" button on the unified
-                // home page (CO2ProjectPlanner).
-                path: 'simulation/add',
+                // home page (CO2ProjectPlanner); :name is the plan name.
+                path: `simulation/project-planner/:name(${SIMULATION_ID_PATTERN})`,
                 name: 'project-planner',
-                component: () => import('pages/app/AddSimulationPage.vue'),
+                component: () => import('pages/app/ProjectPlannerPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Project Planner - Add a new project simulation',
+                  note: 'Project Planner - plan a project simulation',
                   breadcrumb: true,
                 },
               },
@@ -234,16 +234,7 @@ const routes: RouteRecordRaw[] = [
                   breadcrumb: true,
                 },
               },
-              {
-                path: `simulation/plan/:plan(${SIMULATION_ID_PATTERN})`,
-                name: 'simulation-plan',
-                component: () => import('pages/app/SimulationPlanPage.vue'),
-                meta: {
-                  requiresAuth: true,
-                  note: 'Simulation - Plan a simulation',
-                  breadcrumb: true,
-                },
-              },
+
               {
                 path: 'documentation',
                 name: 'documentation',
