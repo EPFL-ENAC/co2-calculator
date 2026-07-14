@@ -1,5 +1,7 @@
 """CSRF protection middleware: Origin header validation for state-changing requests."""
 
+from urllib.parse import urlparse
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -37,18 +39,28 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if "/auth/callback" in request.url.path or "/auth/login" in request.url.path:
             return await call_next(request)
 
-        # Require Origin header
+        # Require Origin or Referer header
         origin = request.headers.get("origin")
-        if not origin:
+        referer = request.headers.get("referer")
+
+        if not origin and not referer:
             return Response(
-                content="CSRF validation failed: missing Origin header",
+                content="CSRF validation failed: missing Origin and Referer headers",
                 status_code=403,
             )
 
-        # Validate Origin matches trusted origin exactly
-        if origin != settings.CSRF_TRUSTED_ORIGIN:
+        # Use Origin if present, otherwise fall back to Referer
+        request_origin = origin if origin else referer
+
+        # Extract scheme + host from Referer if it's a full URL
+        if not origin and referer:
+            parsed = urlparse(referer)
+            request_origin = f"{parsed.scheme}://{parsed.netloc}"
+
+        # Validate origin matches trusted origin exactly
+        if request_origin != settings.CSRF_TRUSTED_ORIGIN:
             return Response(
-                content="CSRF validation failed: Origin not trusted",
+                content="CSRF validation failed: origin not trusted",
                 status_code=403,
             )
 

@@ -69,8 +69,10 @@ async def test_csrf_post_with_correct_origin_passes():
 
 
 @pytest.mark.asyncio
-async def test_csrf_post_without_origin_fails():
-    """POST requests without Origin header are rejected when CSRF is enabled."""
+async def test_csrf_post_without_origin_or_referer_fails():
+    """
+    POST requests without Origin or Referer header are rejected when CSRF is enabled.
+    """
     original_enabled = settings.CSRF_ORIGIN_CHECK_ENABLED
     original_origin = settings.CSRF_TRUSTED_ORIGIN
     settings.CSRF_ORIGIN_CHECK_ENABLED = True
@@ -82,7 +84,54 @@ async def test_csrf_post_without_origin_fails():
         ) as client:
             response = await client.post("/api/v1/session", json={})
             assert response.status_code == 403
-            assert "CSRF validation failed: missing Origin header" in response.text
+            assert "missing Origin and Referer" in response.text
+    finally:
+        settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
+        settings.CSRF_TRUSTED_ORIGIN = original_origin
+
+
+@pytest.mark.asyncio
+async def test_csrf_post_with_referer_fallback_passes():
+    """POST requests with correct Referer header pass validation (Origin fallback)."""
+    original_enabled = settings.CSRF_ORIGIN_CHECK_ENABLED
+    original_origin = settings.CSRF_TRUSTED_ORIGIN
+    settings.CSRF_ORIGIN_CHECK_ENABLED = True
+    settings.CSRF_TRUSTED_ORIGIN = "https://example.com"
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/api/v1/session",
+                json={},
+                headers={"referer": "https://example.com/some/page"},
+            )
+            assert response.status_code != 403
+    finally:
+        settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
+        settings.CSRF_TRUSTED_ORIGIN = original_origin
+
+
+@pytest.mark.asyncio
+async def test_csrf_post_with_wrong_referer_fails():
+    """POST requests with wrong Referer header are rejected."""
+    original_enabled = settings.CSRF_ORIGIN_CHECK_ENABLED
+    original_origin = settings.CSRF_TRUSTED_ORIGIN
+    settings.CSRF_ORIGIN_CHECK_ENABLED = True
+    settings.CSRF_TRUSTED_ORIGIN = "https://example.com"
+
+    try:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/api/v1/session",
+                json={},
+                headers={"referer": "https://malicious.com/some/page"},
+            )
+            assert response.status_code == 403
+            assert "origin not trusted" in response.text
     finally:
         settings.CSRF_ORIGIN_CHECK_ENABLED = original_enabled
         settings.CSRF_TRUSTED_ORIGIN = original_origin
