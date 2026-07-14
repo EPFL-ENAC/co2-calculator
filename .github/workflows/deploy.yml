@@ -49,3 +49,30 @@ jobs:
             "argo_repositories": ["EPFL-ENAC/openshift-app-config"]
           }
         ]
+
+  # Immediate feedback on the images just built. Fails only on findings with
+  # an available fix (--ignore-unfixed): unfixable base-image CVEs are drift,
+  # tracked by the weekly registry scan instead. Runs after deploy, so it
+  # alerts without gating the rollout.
+  scan-built-images:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+    strategy:
+      matrix:
+        image: [frontend, backend]
+    steps:
+      - name: Install trivy
+        run: |
+          wget -qO- https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb generic main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update && sudo apt-get install -y trivy
+
+      - name: Scan freshly built image (fail on fixable HIGH/CRITICAL)
+        run: |
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --ignore-unfixed \
+            --exit-code 1 \
+            ghcr.io/epfl-enac/epfl/co2-calculator/${{ matrix.image }}:${{ github.sha }}
