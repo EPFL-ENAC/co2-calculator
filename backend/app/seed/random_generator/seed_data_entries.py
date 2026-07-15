@@ -21,7 +21,7 @@ from faker import Faker
 from app.core.config import get_settings
 from app.models.data_entry import DataEntryStatusEnum, DataEntryTypeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
-from app.modules.buildings.schemas import (
+from app.modules.buildings import (
     VALID_ROOM_TYPES,
     BuildingEmbodiedEnergyHandlerCreate,
     BuildingRoomHandlerCreate,
@@ -33,30 +33,28 @@ from app.modules.emissions.registry import (
     emission_type_scope,
 )
 from app.modules.emissions.taxonomy import get_subtree_leaves
-from app.modules.equipment.schemas import EquipmentHandlerCreate
-from app.modules.external_cloud_and_ai.schemas import (
+from app.modules.equipment import EquipmentHandlerCreate
+from app.modules.external_cloud_and_ai import (
     REQUESTS_FREQUENCY_OPTIONS,
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,
 )
-from app.modules.headcount.schemas import (
+from app.modules.headcount import (
     SIUS_CODE_VALUES,
     HeadCountCreate,
     HeadCountStudentCreate,
 )
-from app.modules.process_emissions.schemas import ProcessEmissionsHandlerCreate
-from app.modules.professional_travel.schemas import (
+from app.modules.process_emissions import ProcessEmissionsHandlerCreate
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
 )
-from app.modules.purchase.schemas import (
+from app.modules.purchase import (
     PurchaseCentralizedHandlerCreate,
     PurchaseHandlerCreate,
 )
-from app.modules.research_facilities.animals_schemas import (
+from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
-)
-from app.modules.research_facilities.common_schemas import (
     ResearchFacilitiesCommonHandlerCreate,
 )
 from app.seed.seed_helper import versionapi
