@@ -7,7 +7,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
 from app.core.logging import get_logger
-from app.core.policy import require_unit_access
+from app.core.policy import (
+    plan_is_visible_to,
+    require_plan_access,
+    require_unit_access,
+)
 from app.models.unit import Unit
 from app.models.user import User
 from app.schemas.simulator_plan import (
@@ -24,15 +28,20 @@ router = APIRouter()
 
 
 async def _require_plan_unit_access(
-    db: AsyncSession, current_user: User, plan_id: int
+    db: AsyncSession, current_user: User, plan_id: int, action: str
 ) -> SimulatorPlanService:
-    """Load the plan's unit and enforce access; 404 if the plan is missing."""
+    """Load the plan's unit and enforce access; 404 if the plan is missing.
+
+    ``action``: "view" allows the creator, global roles, and unit members
+    of a shared plan; "edit" is creator/global only (shared = read-only).
+    """
     service = SimulatorPlanService(db)
     plan = await service.repo.get_plan(plan_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found")
     unit = await db.get(Unit, plan.unit_id)
     require_unit_access(current_user, unit)
+    require_plan_access(current_user, plan, action)
     return service
 
 
@@ -42,11 +51,15 @@ async def list_simulator_plans(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all simulator plans for a unit, newest first."""
+    """List the unit's simulator plans visible to the caller, newest first.
+
+    Unshared plans of other unit members are omitted.
+    """
     unit = await db.get(Unit, unit_id)
     require_unit_access(current_user, unit)
     service = SimulatorPlanService(db)
-    return await service.list_plans(unit_id)
+    plans = await service.list_plans(unit_id)
+    return [p for p in plans if plan_is_visible_to(current_user, p)]
 
 
 @router.post(
@@ -90,6 +103,7 @@ async def get_simulator_plan_by_name(
     result = await service.get_plan_by_name(unit_id, name)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
+    require_plan_access(current_user, result, "view")
     return result
 
 
@@ -106,7 +120,7 @@ async def update_simulator_plan(
     missing years are created with their modules, out-of-range years are
     deleted together with their entries.
     """
-    service = await _require_plan_unit_access(db, current_user, plan_id)
+    service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
     try:
         result = await service.update_plan(plan_id, plan)
     except ValueError as exc:
@@ -124,7 +138,7 @@ async def list_simulator_plan_years(
     current_user: User = Depends(get_current_user),
 ):
     """List the plan's per-year reports (with modules and stats), by year."""
-    service = await _require_plan_unit_access(db, current_user, plan_id)
+    service = await _require_plan_unit_access(db, current_user, plan_id, "view")
     result = await service.list_plan_years(plan_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -144,7 +158,7 @@ async def set_simulator_plan_reference_year(
     All factors and prefill data of the simulation year are sourced from
     the reference year; existing entries get their emissions recomputed.
     """
-    service = await _require_plan_unit_access(db, current_user, plan_id)
+    service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
     result = await service.set_reference_year(plan_id, year, update.reference_year)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan year not found")
@@ -163,7 +177,7 @@ async def duplicate_simulator_plan(
     current_user: User = Depends(get_current_user),
 ):
     """Duplicate a simulator plan under the next free `<name>-N` name."""
-    service = await _require_plan_unit_access(db, current_user, plan_id)
+    service = await _require_plan_unit_access(db, current_user, plan_id, "view")
     result = await service.duplicate_plan(plan_id, current_user)
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -178,7 +192,7 @@ async def delete_simulator_plan(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a simulator plan (and any carbon reports attached to it)."""
-    service = await _require_plan_unit_access(db, current_user, plan_id)
+    service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
     deleted = await service.delete_plan(plan_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Plan not found")

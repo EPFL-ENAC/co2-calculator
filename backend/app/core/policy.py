@@ -612,6 +612,50 @@ def require_unit_access(current_user: User, unit: Unit | None) -> None:
         )
 
 
+def plan_is_visible_to(current_user: User, project: Any) -> bool:
+    """Whether a Simulator Plan project is visible to the user.
+
+    Visible to: global-scope roles, the creator, and unit members when the
+    plan is shared (``is_viewable_by_unit_members``). Unit membership itself
+    is enforced separately via :func:`require_unit_access`.
+    """
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return True
+    if project.created_by == current_user.id:
+        return True
+    return bool(project.is_viewable_by_unit_members)
+
+
+def require_plan_access(current_user: User, project: Any, action: str) -> None:
+    """Enforce Simulator Plan scoping on top of unit access.
+
+    Shared plans are read-only for non-creators: ``view`` follows
+    :func:`plan_is_visible_to`; ``edit`` requires the creator (or a
+    global-scope role). Unshared plans 404 for other unit members so
+    their existence is not leaked.
+
+    Args:
+        current_user: The authenticated user.
+        project: The plan's CarbonProject row.
+        action: ``"view"`` or ``"edit"``.
+    """
+    if not plan_is_visible_to(current_user, project):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Plan not found",
+        )
+    if action == "view":
+        return
+    if any(isinstance(role.on, GlobalScope) for role in current_user.roles):
+        return
+    if project.created_by == current_user.id:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only the plan's creator can modify it.",
+    )
+
+
 def require_module_unit_scope(
     current_user: User,
     module_id: str | int,
