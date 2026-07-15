@@ -119,6 +119,16 @@ class CarbonReportModuleBase(SQLModel):
         default=ModuleStatus.NOT_STARTED,
         description="Module status: 0=not_started, 1=in_progress, 2=validated",
     )
+    is_active: bool = Field(
+        default=True,
+        nullable=False,
+        sa_column_kwargs={"server_default": "true"},
+        description=(
+            "Whether the module counts toward report sums/stats."
+            " Toggled by the Simulator Plan 'Active' checkbox;"
+            " always true for Calculator/Explore modules."
+        ),
+    )
     carbon_report_id: int = Field(
         foreign_key="carbon_reports.id",
         index=True,

@@ -271,3 +271,73 @@ async def test_bulk_upsert_resolves_project_ids_before_repo_call(async_session):
     assert unit1_ids[0] == unit1_ids[1]
     # unit_id=2 has a distinct project
     assert unit1_ids[0] != unit2_ids[0]
+
+
+@pytest.mark.asyncio
+async def test_recompute_report_stats_excludes_inactive_modules(async_session):
+    """Simulator Plan 'Active' checkbox off ⇒ module out of sums and progress."""
+    service = CarbonReportService(async_session)
+    report = await service.create(CarbonReportCreate(year=2025, unit_id=1))
+
+    modules = await service.module_service.list_modules(report.id)
+    by_type = {m.module_type_id: m for m in modules}
+    headcount = by_type[int(ModuleTypeEnum.headcount)]
+    travel = by_type[int(ModuleTypeEnum.professional_travel)]
+
+    db_headcount = await async_session.get(CarbonReportModule, headcount.id)
+    db_travel = await async_session.get(CarbonReportModule, travel.id)
+    assert db_headcount is not None
+    assert db_travel is not None
+
+    stats = {
+        "buckets": {
+            "professional_travel": {
+                "scope": 3,
+                "additional": False,
+                "total_kg": 3.0,
+                "by_emission_type": {"50101": 3.0},
+                "by_additional_value": {"50101": 4.0},
+            }
+        },
+        "total": 3.0,
+        "by_emission_type": {"50101": 3.0},
+        "by_additional_value": {"50101": 4.0},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    db_headcount.stats = {
+        "buckets": {
+            "food": {
+                "scope": 3,
+                "additional": True,
+                "total_kg": 1.0,
+                "by_emission_type": {"10001": 1.0},
+                "by_additional_value": {"10001": 2.0},
+            }
+        },
+        "total": 1.0,
+        "by_emission_type": {"10001": 1.0},
+        "by_additional_value": {"10001": 2.0},
+        "computed_at": "2026-01-01T00:00:00+00:00",
+        "entry_count": 1,
+    }
+    db_travel.stats = stats
+    db_travel.is_active = False
+    await async_session.flush()
+
+    await service.recompute_report_stats(report.id)
+
+    fetched = await service.get(report.id)
+    assert fetched is not None
+    assert fetched.stats is not None
+    assert fetched.stats["total"] == pytest.approx(1.0)
+    assert "professional_travel" not in fetched.stats["buckets"]
+
+    toggled = await service.module_service.update_is_active(
+        report.id, int(ModuleTypeEnum.professional_travel), True
+    )
+    assert toggled is not None and toggled.is_active is True
+    await service.recompute_report_stats(report.id)
+    fetched = await service.get(report.id)
+    assert fetched is not None and fetched.stats is not None
+    assert fetched.stats["total"] == pytest.approx(4.0)
