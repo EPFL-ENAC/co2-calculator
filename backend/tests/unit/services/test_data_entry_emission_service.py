@@ -1900,3 +1900,41 @@ class TestFetchFactorsStrategyBCache:
 
         # Without the opt-in cache, behaviour is unchanged: one query per call.
         assert get_by_classification.await_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Factor-year resolution — reference_year wins (Simulator Plan)
+# ---------------------------------------------------------------------------
+
+
+class TestFactorYearResolution:
+    """Plan-year reports source factors from their reference year."""
+
+    @staticmethod
+    def _report(year, reference_year):
+        report = MagicMock()
+        report.year = year
+        report.reference_year = reference_year
+        return report
+
+    @pytest.mark.asyncio
+    async def test_plan_report_uses_reference_year(self):
+        service = _make_service()
+        de = _make_data_entry_response({})
+        with patch.object(
+            service,
+            "_get_report_for_data_entry",
+            new=AsyncMock(return_value=self._report(2027, 2024)),
+        ):
+            assert await service._get_year_from_data_entry(de) == 2024
+
+    @pytest.mark.asyncio
+    async def test_calculator_report_uses_year(self):
+        service = _make_service()
+        de = _make_data_entry_response({})
+        with patch.object(
+            service,
+            "_get_report_for_data_entry",
+            new=AsyncMock(return_value=self._report(2025, None)),
+        ):
+            assert await service._get_year_from_data_entry(de) == 2025

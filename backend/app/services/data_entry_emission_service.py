@@ -127,7 +127,12 @@ class DataEntryEmissionService:
         report = await self._get_report_for_data_entry(data_entry)
         if report is None:
             return None
-        return report.year if report.year is not None else report.reference_year
+        # reference_year wins: Simulator Plan reports source all factors from
+        # their baseline year (plan years can be in the future, where no
+        # factors exist). reference_year is NULL for Calculator/Explore.
+        if report.reference_year is not None:
+            return report.reference_year
+        return report.year
 
     async def _get_percentage_override_kg(
         self,
@@ -307,7 +312,13 @@ class DataEntryEmissionService:
             # production while making unit tests easier to mock.
             report = await self._get_report_for_data_entry(data_entry)
             if report is not None:
-                year = report.year if report.year is not None else report.reference_year
+                # Same precedence as _get_year_from_data_entry: the plan's
+                # reference year drives factor lookup.
+                year = (
+                    report.reference_year
+                    if report.reference_year is not None
+                    else report.year
+                )
         if year is None:
             logger.warning(
                 "Could not determine year for data entry, factors may not match"
