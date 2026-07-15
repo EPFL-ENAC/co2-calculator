@@ -38,9 +38,11 @@ api_router.include_router(
     prefix="/backoffice-reporting",
     tags=["backoffice-reporting"],
 )
-# TODO: rename /modules in the frontend!
+# Module/data-entry operations are identity-addressed under /carbon-reports
+# ("lookup once, then identity" — see docs/src/implementation-plans/
+# 1556-simulation-plan-backend.md).
 api_router.include_router(
-    carbon_report_module.router, prefix="/modules", tags=["modules"]
+    carbon_report_module.router, prefix="/carbon-reports", tags=["modules"]
 )
 api_router.include_router(building_rooms.router, prefix="/modules", tags=["modules"])
 # TODO: rename /modules-stats in the frontend!
