@@ -60,7 +60,9 @@ def test_dto_map_covers_every_reachable_data_entry_type():
     """
     reachable: set[DataEntryTypeEnum] = set()
     for types in MODULE_TYPE_TO_DATA_ENTRY_TYPES.values():
-        reachable.update(types)
+        # Mirror the generator's pick filter: planner kinds (Simulator
+        # Plan) are never randomly seeded into Calculator modules.
+        reachable.update(t for t in types if not t.is_planner_kind)
 
     missing = reachable - set(DATA_ENTRY_TYPE_TO_DTO.keys())
     missing_names = sorted(t.name for t in missing)
