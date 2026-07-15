@@ -32,26 +32,24 @@ DataEntryEmission.model_rebuild()
 # After model_rebuild()
 # Assigned dynamically to avoid circular imports; ty doesn't see these as
 # declared attributes the way the mypy pydantic plugin did.
-Unit.unit_users = Relationship(back_populates="unit")  # type: ignore
-UnitUser.unit = Relationship(back_populates="unit_users")  # type: ignore
+Unit.unit_users = Relationship(back_populates="unit")
+UnitUser.unit = Relationship(back_populates="unit_users")
 
-User.unit_users = Relationship(back_populates="user")  # type: ignore
-UnitUser.user = Relationship(back_populates="unit_users")  # type: ignore
+User.unit_users = Relationship(back_populates="user")
+UnitUser.user = Relationship(back_populates="unit_users")
 
 # CarbonReport <-> CarbonReportModule relationships
-CarbonReport.modules = Relationship(back_populates="carbon_report")  # type: ignore
-CarbonReportModule.carbon_report = Relationship(back_populates="modules")  # type: ignore
+CarbonReport.modules = Relationship(back_populates="carbon_report")
+CarbonReportModule.carbon_report = Relationship(back_populates="modules")
 
 # CarbonReportModule <-> Module relationships
-CarbonReportModule.module_rows = Relationship(  # type: ignore
-    back_populates="carbon_report_module"
-)
-DataEntry.carbon_report_module = Relationship(back_populates="module_rows")  # type: ignore
+CarbonReportModule.module_rows = Relationship(back_populates="carbon_report_module")
+DataEntry.carbon_report_module = Relationship(back_populates="module_rows")
 
 ## implement join later then for equipment power_Factors
 # and equipment_emissions and user if needed
 
-DataEntryEmission.data_entry = Relationship()  # type: ignore
+DataEntryEmission.data_entry = Relationship()
 
 __all__ = [
     "BuildingRoom",

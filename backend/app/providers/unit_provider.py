@@ -109,7 +109,7 @@ class AccredUnitProvider(UnitProvider):
         self.api_key = settings.ACCRED_API_KEY
 
     async def fetch_all_units(self) -> tuple[list[dict], list[dict]]:
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if self.api_url is None or self.api_username is None or self.api_key is None:
             logger.error("Cannot fetch units: Accred API not configured")
             return [], []
 
@@ -126,7 +126,7 @@ class AccredUnitProvider(UnitProvider):
                 response = await client.get(
                     f"{self.api_url}/units",
                     params={"pageindex": page, "pagesize": page_size},
-                    auth=(self.api_username, self.api_key),  # type: ignore
+                    auth=(self.api_username, self.api_key),
                     timeout=30.0,
                 )
                 response.raise_for_status()
@@ -225,7 +225,7 @@ class AccredUnitProvider(UnitProvider):
         Returns:
             List of Unit objects with full metadata
         """
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if self.api_url is None or self.api_username is None or self.api_key is None:
             logger.error("Cannot fetch units: Accred API not configured")
             return []
 
@@ -248,7 +248,7 @@ class AccredUnitProvider(UnitProvider):
                 response = await client.get(
                     url,
                     params=params,
-                    auth=(self.api_username, self.api_key),  # type: ignore
+                    auth=(self.api_username, self.api_key),
                     timeout=10.0,
                 )
                 response.raise_for_status()

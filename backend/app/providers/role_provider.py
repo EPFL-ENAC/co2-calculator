@@ -401,7 +401,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User info dict from Accred API
         """
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if self.api_url is None or self.api_username is None or self.api_key is None:
             logger.error(
                 "Cannot fetch user: Accred API not configured",
                 extra={"user_id": user_id},
@@ -417,7 +417,7 @@ class AccredRoleProvider(RoleProvider):
             async with httpx.AsyncClient() as client:
                 response = await client.get(
                     url,
-                    auth=(self.api_username, self.api_key),  # type: ignore
+                    auth=(self.api_username, self.api_key),
                     timeout=10.0,
                 )
                 response.raise_for_status()
@@ -499,7 +499,7 @@ class AccredRoleProvider(RoleProvider):
             List of role dicts derived from authorizations
         """
 
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if self.api_url is None or self.api_username is None or self.api_key is None:
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
                 extra={"user_id": user_id},
@@ -523,7 +523,7 @@ class AccredRoleProvider(RoleProvider):
                 response = await client.get(
                     url,
                     params=params,
-                    auth=(self.api_username, self.api_key),  # type: ignore
+                    auth=(self.api_username, self.api_key),
                     timeout=10.0,
                 )
                 response.raise_for_status()

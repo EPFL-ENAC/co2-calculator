@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timedelta, timezone
-from typing import List, Literal, Optional, TypedDict
+from typing import List, Literal, Optional, TypedDict, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import and_, func, or_
@@ -276,7 +276,7 @@ class DataIngestionRepository:
         # the UPDATE driver — Pyright's stubs don't expose it, so guard
         # via ``hasattr`` (matches the pattern in ``mark_job_as_current``).
         if result is not None and hasattr(result, "rowcount"):
-            return int(result.rowcount or 0)  # type: ignore
+            return int(cast(int, result.rowcount) or 0)
         return 0
 
     async def set_started_at(self, job_id: int) -> None:
@@ -1592,21 +1592,28 @@ class DataIngestionRepository:
         )
 
         # LEFT JOIN: factor combos left-join recalculation combos
-        # SQLAlchemy stubs only define up to 4 positional args for select()
-        stmt = select(  # type: ignore
-            factor_jobs_sub.c.module_type_id,
-            factor_jobs_sub.c.data_entry_type_id,
-            factor_jobs_sub.c.max_factor_job_id,
-            recalc_jobs_sub.c.recalc_job_id,
-            recalc_jobs_sub.c.recalc_job_result,
-        ).join(
-            recalc_jobs_sub,
-            and_(
-                factor_jobs_sub.c.module_type_id == recalc_jobs_sub.c.module_type_id,
-                factor_jobs_sub.c.data_entry_type_id
-                == recalc_jobs_sub.c.data_entry_type_id,
-            ),
-            isouter=True,
+        # SQLAlchemy/SQLModel `select()` stubs only define overloads up to 4
+        # positional args; `.add_columns()` has no such arity limit.
+        stmt = (
+            select(
+                factor_jobs_sub.c.module_type_id,
+                factor_jobs_sub.c.data_entry_type_id,
+                factor_jobs_sub.c.max_factor_job_id,
+                recalc_jobs_sub.c.recalc_job_id,
+            )
+            .add_columns(
+                recalc_jobs_sub.c.recalc_job_result,
+            )
+            .join(
+                recalc_jobs_sub,
+                and_(
+                    factor_jobs_sub.c.module_type_id
+                    == recalc_jobs_sub.c.module_type_id,
+                    factor_jobs_sub.c.data_entry_type_id
+                    == recalc_jobs_sub.c.data_entry_type_id,
+                ),
+                isouter=True,
+            )
         )
 
         exec_result = await self.session.execute(stmt)

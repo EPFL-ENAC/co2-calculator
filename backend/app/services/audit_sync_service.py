@@ -13,7 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from app.elasticsearch.client import ElasticsearchClient
+from app.elasticsearch.client import AuditSyncStats, ElasticsearchClient
 from app.models.audit import AuditDocument, SyncStatusEnum
 from app.repositories.audit_repo import AuditDocumentRepository
 
@@ -224,6 +224,7 @@ class AuditSyncService:
             ]
 
             # Bulk sync with Elasticsearch (only non-skipped records)
+            sync_stats: AuditSyncStats
             if audit_dicts:
                 sync_stats = self.es_client.bulk_sync_audit_records(audit_dicts)
             else:
@@ -235,11 +236,8 @@ class AuditSyncService:
             conflict_count = 0
 
             # Create sets for faster lookup
-            error_ids = {item["id"] for item in sync_stats.get("errors", [])}  # type: ignore
-            conflict_ids = {
-                item["id"]
-                for item in sync_stats.get("conflicts", [])  # type: ignore
-            }
+            error_ids = {item["id"] for item in sync_stats["errors"]}
+            conflict_ids = {item["id"] for item in sync_stats["conflicts"]}
 
             # Update records based on their sync result
             for record in records_to_sync:

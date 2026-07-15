@@ -637,7 +637,7 @@ class DataEntryRepository:
             RollupEmission = aliased(DataEntryEmission)
             entities = [
                 DataEntry,
-                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore
+                col(RollupEmission.kg_co2eq).label("total_kg_co2eq"),
                 Factor,
             ]
             statement = (
@@ -745,8 +745,8 @@ class DataEntryRepository:
                 if is_train_entry:
                     statement = statement.join(
                         OriginLocation,
-                        (  # type: ignore
-                            OriginLocation.name
+                        (
+                            col(OriginLocation.name)
                             == DataEntry.data["origin_name"].as_string()
                         )
                         & (
@@ -756,8 +756,8 @@ class DataEntryRepository:
                         isouter=True,
                     ).join(
                         DestLocation,
-                        (  # type: ignore
-                            DestLocation.name
+                        (
+                            col(DestLocation.name)
                             == DataEntry.data["destination_name"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.train),
@@ -766,8 +766,8 @@ class DataEntryRepository:
                 elif is_plane_entry:
                     statement = statement.join(
                         OriginLocation,
-                        (  # type: ignore
-                            OriginLocation.iata_code
+                        (
+                            col(OriginLocation.iata_code)
                             == DataEntry.data["origin_iata"].as_string()
                         )
                         & (
@@ -777,8 +777,8 @@ class DataEntryRepository:
                         isouter=True,
                     ).join(
                         DestLocation,
-                        (  # type: ignore
-                            DestLocation.iata_code
+                        (
+                            col(DestLocation.iata_code)
                             == DataEntry.data["destination_iata"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
@@ -1043,12 +1043,12 @@ class DataEntryRepository:
                 )
                 .join(
                     OriginLocation,
-                    OriginLocation.natural_key == origin_key,  # type: ignore
+                    col(OriginLocation.natural_key) == origin_key,
                     isouter=True,
                 )
                 .join(
                     DestLocation,
-                    DestLocation.natural_key == dest_key,  # type: ignore
+                    col(DestLocation.natural_key) == dest_key,
                     isouter=True,
                 )
             )

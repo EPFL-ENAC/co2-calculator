@@ -286,9 +286,11 @@ async def _run_ingest(
         )
 
     job_config = job_meta.get("config") or {}
+    # DataIngestionJob carries no user/created_by field — background jobs
+    # are never attributed to a user (audit falls back to job_id/handler_id).
     provider = provider_class(
         config={**job.__dict__, **job_config, "job_id": job.id},
-        user=job.user if hasattr(job, "user") else None,  # type: ignore
+        user=None,
         job_session=job_session,
         data_session=data_session,
     )

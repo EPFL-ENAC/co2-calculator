@@ -8,7 +8,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.core.role_priority import pick_role_for_institutional_id
-from app.models.user import Role
+from app.models.user import OwnScope, Role, UnitScope
 from app.providers.role_provider import RoleProvider
 from app.repositories.user_repo import UserRepository
 from app.services.unit_service import UnitService
@@ -190,11 +190,10 @@ class RoleSyncService:
             return False
 
         # Extract unit IDs from roles
-        unit_institutional_ids = set()
+        unit_institutional_ids: set[str] = set()
         for role in roles:
-            if hasattr(role, "on") and hasattr(role.on, "institutional_id"):
-                if role.on.institutional_id:
-                    unit_institutional_ids.add(role.on.institutional_id)
+            if isinstance(role.on, (UnitScope, OwnScope)) and role.on.institutional_id:
+                unit_institutional_ids.add(role.on.institutional_id)
 
         if not unit_institutional_ids:
             # No unit roles - delete all associations
@@ -204,7 +203,7 @@ class RoleSyncService:
 
         # Resolve unit IDs from database
         units = await self.unit_service.get_by_institutional_ids(
-            list(unit_institutional_ids)  # type: ignore
+            list(unit_institutional_ids)
         )
 
         if not units:

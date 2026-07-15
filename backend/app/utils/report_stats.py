@@ -146,13 +146,14 @@ def _merge_bucket_into(target: dict, bucket: dict) -> None:
 def _finalize_bucket_details(bucket: dict) -> None:
     """Turn the name→kg accumulators back into the persisted row shape."""
     for detail_key, name_field in _BUCKET_DETAIL_NAME_FIELDS.items():
-        accumulator = bucket.get(detail_key)
-        if not isinstance(accumulator, dict):
+        raw_accumulator = bucket.get(detail_key)
+        if not isinstance(raw_accumulator, dict):
             continue
+        accumulator: dict[str, float] = raw_accumulator
         bucket[detail_key] = [
-            {name_field: name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}  # type: ignore
+            {name_field: name, "kg_co2eq": kg, "tonnes_co2eq": kg / 1000.0}
             for name, kg in sorted(accumulator.items())
-            if kg > 0  # type: ignore
+            if kg > 0
         ]
 
 

@@ -284,18 +284,25 @@ class ReductionObjectiveGoal(BaseModel):
     )
 
 
+ReductionObjectiveFiles = Dict[
+    Literal["institutional_footprint", "population_projections", "unit_scenarios"],
+    Optional[FileMetadata],
+]
+
+
+def _default_reduction_objective_files() -> ReductionObjectiveFiles:
+    return {
+        "institutional_footprint": None,
+        "population_projections": None,
+        "unit_scenarios": None,
+    }
+
+
 class ReductionObjectives(BaseModel):
     """Reduction objectives configuration."""
 
-    files: Dict[
-        Literal["institutional_footprint", "population_projections", "unit_scenarios"],
-        Optional[FileMetadata],
-    ] = Field(  # type: ignore
-        default_factory=lambda: {
-            "institutional_footprint": None,
-            "population_projections": None,
-            "unit_scenarios": None,
-        },
+    files: ReductionObjectiveFiles = Field(
+        default_factory=_default_reduction_objective_files,
         description="File metadata for reduction objective references",
     )
 

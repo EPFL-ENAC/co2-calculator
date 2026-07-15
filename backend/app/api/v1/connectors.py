@@ -88,11 +88,13 @@ async def upsert_connection(
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     read = service.to_read(conn)
+    if conn.id is None:
+        raise HTTPException(status_code=500, detail="connection was not persisted")
 
     audit_service = AuditDocumentService(db)
     await audit_service.create_version(
         entity_type="ConnectorConnection",
-        entity_id=conn.id,  # type: ignore
+        entity_id=conn.id,
         data_snapshot=read.model_dump(mode="json"),
         change_type=AuditChangeTypeEnum.UPDATE,
         changed_by=current_user.id,
@@ -120,11 +122,13 @@ async def upsert_datasource(
         raise HTTPException(status_code=404, detail="connection not found")
     ds = await service.save_datasource(conn.id, payload)
     read = ConnectorDatasourceRead.model_validate(ds, from_attributes=True)
+    if ds.id is None:
+        raise HTTPException(status_code=500, detail="datasource was not persisted")
 
     audit_service = AuditDocumentService(db)
     await audit_service.create_version(
         entity_type="ConnectorDatasource",
-        entity_id=ds.id,  # type: ignore
+        entity_id=ds.id,
         data_snapshot=read.model_dump(mode="json"),
         change_type=AuditChangeTypeEnum.UPDATE,
         changed_by=current_user.id,

@@ -23,6 +23,17 @@ exclude = [
     "alembic"
 ]
 
+# app/models/__init__.py assigns SQLModel Relationship() fields dynamically
+# after model_rebuild() to avoid circular imports between model modules;
+# ty (unlike mypy's pydantic plugin) doesn't see these as declared
+# attributes. Same single systemic cause for every attribute assigned
+# there, so it's suppressed once here instead of per-line.
+[[overrides]]
+include = ["app/models/__init__.py"]
+
+[overrides.rules]
+unresolved-attribute = "ignore"
+
 
 [terminal]
 output-format = "full" # equivalent to mypy's pretty = True

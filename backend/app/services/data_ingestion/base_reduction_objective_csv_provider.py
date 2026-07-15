@@ -398,8 +398,10 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         # Store parsed rows
         result.config["reduction_objectives"][config_key] = validated_rows
 
-        # Store file metadata
-        result.config["reduction_objectives"]["files"][  # type: ignore
+        # Store file metadata. `config` is a dynamic JSON blob (no fixed
+        # schema); ty narrows the nested-subscript type from the last
+        # assignment seen above, which is a false positive here.
+        result.config["reduction_objectives"]["files"][  # ty: ignore[invalid-assignment]
             config_key
         ] = {
             "path": processed_path or "",

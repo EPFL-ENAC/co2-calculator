@@ -104,6 +104,7 @@ dev = [
     "docker>=7.1.0",
     "asyncpg>=0.31.0",
     "types-pyyaml>=6.0.12.20260518",
+    "ty>=0.0.59",
 ]
 
 [tool.alembic]

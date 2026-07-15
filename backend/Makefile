@@ -96,7 +96,7 @@ audit: ## Run security audits with uv-audit and bandit
 .PHONY: type-check
 type-check: ## Run type checking with ty
 	@set -e; \
-	uvx ty check
+	uv run ty check
 
 .PHONY: test
 test: ## Run tests

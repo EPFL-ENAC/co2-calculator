@@ -71,9 +71,14 @@ def make_files_store() -> FilesStore:
             bucket=settings.S3_BUCKET,
             path_prefix=settings.S3_PATH_PREFIX,
         )
-        return S3FilesStore(s3_service, key=encryption_key)  # type: ignore
+        # enacit4r_files declares `key: bytes = None` (should be `bytes | None`);
+        # the stub is wrong, not this call.
+        return S3FilesStore(s3_service, key=encryption_key)  # ty: ignore[invalid-argument-type]
     # Default to local file storage
-    return LocalFilesStore(settings.FILES_STORAGE_PATH, key=encryption_key)  # type: ignore
+    return LocalFilesStore(
+        settings.FILES_STORAGE_PATH,
+        key=encryption_key,  # ty: ignore[invalid-argument-type]
+    )
 
 
 files_store = make_files_store()

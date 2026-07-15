@@ -250,8 +250,10 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             job_session=None,
             data_session=data_session,
         )
-        # Fake job object — never persisted, satisfies base-class attribute access.
-        self.job = SimpleNamespace(  # type: ignore
+        # Fake job object — never persisted, satisfies base-class attribute
+        # access (.module_type_id/.data_entry_type_id) without a real
+        # DataIngestionJob; deliberately duck-typed, not a real DataIngestionJob.
+        self.job = SimpleNamespace(  # ty: ignore[invalid-assignment]
             module_type_id=config.get("module_type_id"),
             data_entry_type_id=config.get("data_entry_type_id"),
         )
