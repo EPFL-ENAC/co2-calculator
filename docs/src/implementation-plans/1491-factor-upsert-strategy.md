@@ -213,3 +213,9 @@ CSV row with null identity field → row error, no factor written, upload result
 - **Permissions**: `backoffice.configuration` — `view` for the viewer,
   `edit` for both DELETE endpoints (same gate as the neighbouring
   recalculate/upload operations in `data_sync.py`).
+- **Rebase onto dev (2026-07-15)**: rebased past the mypy→ty migration and
+  Node 26/Python 3.14 bump; only one real conflict, in
+  `DataManagementPage.vue` (dev's independent `ConnectorsCard` import vs.
+  this branch's `FactorsViewer` import — both kept, no logic changed). `ty
+  check`, ruff, and the branch's backend/frontend tests all pass unchanged
+  on the new toolchain; no code changes were needed.
