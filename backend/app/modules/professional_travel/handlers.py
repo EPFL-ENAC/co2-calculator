@@ -60,7 +60,9 @@ async def _get_report_year_for_module(
     if row is None:
         return None
     year, reference_year = row
-    return year if year is not None else reference_year
+    # reference_year wins: Simulator Plan reports source factors from their
+    # baseline year (see DataEntryEmissionService._get_year_from_data_entry).
+    return reference_year if reference_year is not None else year
 
 
 class ProfessionalTravelBaseModuleHandler(BaseModuleHandler):
