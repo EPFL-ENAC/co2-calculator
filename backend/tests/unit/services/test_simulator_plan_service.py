@@ -7,6 +7,7 @@ from sqlmodel import SQLModel
 
 from app.models.user import User
 from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.simulator_plan import SimulatorPlanUpdate
 from app.services.carbon_report_service import CarbonReportService
 from app.services.simulator_plan_service import (
     SimulatorPlanService,
@@ -124,14 +125,16 @@ async def test_list_plans_scoped_to_unit(async_session, user):
     assert {p.name for p in plans} == {"a", "b"}
 
 
-# ── rename_plan ───────────────────────────────────────────────────────────────
+# ── update_plan (rename) ──────────────────────────────────────────────────────
 
 
 @pytest.mark.asyncio
 async def test_rename_plan(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="old-name")
-    renamed = await service.rename_plan(created.id, "new-name")
+    renamed = await service.update_plan(
+        created.id, SimulatorPlanUpdate(name="new-name")
+    )
 
     assert renamed is not None
     assert renamed.name == "new-name"
@@ -144,7 +147,7 @@ async def test_rename_plan(async_session, user):
 async def test_rename_plan_same_name_is_noop(async_session, user):
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="same")
-    renamed = await service.rename_plan(created.id, "same")
+    renamed = await service.update_plan(created.id, SimulatorPlanUpdate(name="same"))
     assert renamed is not None
     assert renamed.name == "same"
 
@@ -155,13 +158,13 @@ async def test_rename_plan_collision_raises(async_session, user):
     await service.create_plan(unit_id=1, user=user, name="taken")
     created = await service.create_plan(unit_id=1, user=user, name="mine")
     with pytest.raises(ValueError):
-        await service.rename_plan(created.id, "taken")
+        await service.update_plan(created.id, SimulatorPlanUpdate(name="taken"))
 
 
 @pytest.mark.asyncio
 async def test_rename_plan_missing_returns_none(async_session, user):
     service = SimulatorPlanService(async_session)
-    assert await service.rename_plan(9999, "whatever") is None
+    assert await service.update_plan(9999, SimulatorPlanUpdate(name="whatever")) is None
 
 
 # ── duplicate_plan ────────────────────────────────────────────────────────────
@@ -215,3 +218,100 @@ async def test_delete_plan_cascades_attached_reports(async_session, user):
     assert await report_service.get(report.id) is None
     modules = await report_service.module_service.list_modules(report.id)
     assert len(modules) == 0
+
+
+# ── update_plan (year range sync) ─────────────────────────────────────────────
+
+
+async def _plan_years(service, plan_id):
+    years = await service.list_plan_years(plan_id)
+    assert years is not None
+    return [y.year for y in years]
+
+
+@pytest.mark.asyncio
+async def test_setting_year_range_creates_reports_with_modules(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+
+    updated = await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
+    )
+    assert updated is not None
+    assert (updated.start_year, updated.end_year) == (2027, 2029)
+
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.year for y in years] == [2027, 2028, 2029]
+    # Each plan-year report gets its full module set.
+    assert all(len(y.modules) > 0 for y in years)
+    assert all(m.is_active for y in years for m in y.modules)
+
+
+@pytest.mark.asyncio
+async def test_shrinking_year_range_deletes_out_of_range_reports(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2030)
+    )
+
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2028, end_year=2029)
+    )
+    assert await _plan_years(service, created.id) == [2028, 2029]
+
+
+@pytest.mark.asyncio
+async def test_growing_year_range_keeps_existing_reports(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    first = await service.list_plan_years(created.id)
+    assert first is not None
+
+    await service.update_plan(created.id, SimulatorPlanUpdate(end_year=2028))
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert [y.year for y in years] == [2027, 2028]
+    # The pre-existing 2027 report survives (same id).
+    assert years[0].id == first[0].id
+
+
+@pytest.mark.asyncio
+async def test_inverted_year_range_raises(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    with pytest.raises(ValueError):
+        await service.update_plan(
+            created.id, SimulatorPlanUpdate(start_year=2030, end_year=2027)
+        )
+
+
+# ── set_reference_year ────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_set_reference_year(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+
+    result = await service.set_reference_year(created.id, 2027, 2024)
+    assert result is not None
+    assert result.reference_year == 2024
+
+    years = await service.list_plan_years(created.id)
+    assert years is not None
+    assert years[0].reference_year == 2024
+
+
+@pytest.mark.asyncio
+async def test_set_reference_year_missing_year_returns_none(async_session, user):
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    assert await service.set_reference_year(created.id, 2031, 2024) is None
