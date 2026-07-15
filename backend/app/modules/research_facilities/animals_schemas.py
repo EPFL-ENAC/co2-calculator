@@ -162,7 +162,7 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
                     # Source emissions are missing in the factor values
                     researchfacility_name = ctx.get("researchfacility_name", "Unknown")
                     researchfacility_type = ctx.get("researchfacility_type", "Unknown")
-                    logger.warning(
+                    raise ValueError(
                         f"Missing kg_co2eq_sum for source {source} in factor values "
                         f"for facility {researchfacility_name} "
                         f"({researchfacility_type})."

@@ -89,6 +89,11 @@ def test_zero_use_with_facility_specific_sum_yields_zero_not_none() -> None:
         "use_unit": "kg",
         "total_use": 100.0,
         "kg_co2eq_sum_processemissions": 50.0,
+        "kg_co2eq_sum_building_energycombustions": 20.0,
+        "kg_co2eq_sum_building_rooms": 0.0,
+        "kg_co2eq_sum_purchases_common": 10.0,
+        "kg_co2eq_sum_purchases_additional": 5.0,
+        "kg_co2eq_sum_equipments": 15.0,
     }
     assert _formula(_ctx(use=0.0), fv) == pytest.approx(0.0)
 
@@ -133,6 +138,37 @@ def test_missing_total_use_returns_none() -> None:
     assert _formula(_ctx(), fv) is None
 
 
-def test_zero_total_use_returns_zero() -> None:
-    fv = {"use_unit": "kg", "total_use": 0.0, "kg_co2eq_sum_processemissions": 50.0}
-    assert _formula(_ctx(), fv) == pytest.approx(0.0)
+# ---------------------------------------------------------------------------
+# Missing per-source kg_co2eq_sum in factor values
+# ---------------------------------------------------------------------------
+
+
+def test_missing_source_in_factor_values_raises_value_error() -> None:
+    # kg_co2eq_sum_building_energycombustions (and the remaining sources) are
+    # absent from factor_values, so the first missing source encountered
+    # should raise instead of silently skipping.
+    fv = {
+        "use_unit": "kg",
+        "total_use": 100.0,
+        "kg_co2eq_sum_processemissions": 50.0,
+    }
+    with pytest.raises(
+        ValueError,
+        match="Missing kg_co2eq_sum for source building_energycombustions",
+    ):
+        _formula(_ctx(), fv)
+
+
+def test_missing_source_error_includes_facility_name_and_type() -> None:
+    ctx = _ctx()
+    ctx["researchfacility_name"] = "Animal House"
+    ctx["researchfacility_type"] = "rodent"
+    fv = {"use_unit": "kg", "total_use": 100.0}
+    with pytest.raises(ValueError, match=r"facility Animal House \(rodent\)"):
+        _formula(ctx, fv)
+
+
+def test_missing_source_error_defaults_facility_name_and_type_to_unknown() -> None:
+    fv = {"use_unit": "kg", "total_use": 100.0}
+    with pytest.raises(ValueError, match=r"facility Unknown \(Unknown\)"):
+        _formula(_ctx(), fv)
