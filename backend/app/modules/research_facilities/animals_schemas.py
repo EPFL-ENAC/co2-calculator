@@ -130,7 +130,6 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             """
             use = ctx.get("use")
             use_unit = ctx.get("use_unit")
-            kg_co2eq = ctx.get("kg_co2eq")
             if use is None or use_unit is None:
                 return None
             # Must be same unit for the factor and the data entry to apply the formula
@@ -142,7 +141,7 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             total_use = factor_values.get("total_use")
             if total_use is None:
                 return None
-            use_share = use / total_use
+            use_share = use / total_use if total_use > 0 else 0.0
             sources = [
                 "processemissions",
                 "building_energycombustions",
@@ -153,21 +152,21 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             ]
             kg_co2eq_sum = None
             for source in sources:
-                source_share = factor_values.get(f"{source}_share")
                 kg_co2eq_sum_source = factor_values.get(f"kg_co2eq_sum_{source}")
-                if kg_co2eq_sum_source is None:
-                    # No provided facility emission, apply share to
-                    # total kg_co2eq if available
-                    if source_share is None or kg_co2eq is None:
-                        continue
-                    if kg_co2eq_sum is None:
-                        kg_co2eq_sum = 0
-                    kg_co2eq_sum += source_share * kg_co2eq
-                else:
+                if kg_co2eq_sum_source is not None:
                     # Add provided facility emissions modulo share of use
                     if kg_co2eq_sum is None:
                         kg_co2eq_sum = 0
                     kg_co2eq_sum += use_share * kg_co2eq_sum_source
+                else:
+                    # Source emissions are missing in the factor values
+                    researchfacility_name = ctx.get("researchfacility_name", "Unknown")
+                    researchfacility_type = ctx.get("researchfacility_type", "Unknown")
+                    raise ValueError(
+                        f"Missing kg_co2eq_sum for source {source} in factor values "
+                        f"for facility {researchfacility_name} "
+                        f"({researchfacility_type})."
+                    )
             return kg_co2eq_sum
 
         return [
