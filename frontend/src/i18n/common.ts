@@ -211,6 +211,10 @@ export default {
     en: 'subcategory',
     fr: 'sous-catégorie',
   },
+  csv_header_subcategory_2: {
+    en: 'subcategory 2',
+    fr: 'sous-catégorie 2',
+  },
   csv_header_co2: {
     en: 'co2 (t CO₂-eq)',
     fr: 'co2 (t CO₂-eq)',
