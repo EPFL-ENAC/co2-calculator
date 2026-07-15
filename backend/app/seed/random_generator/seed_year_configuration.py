@@ -20,6 +20,8 @@ from app.seed.random_generator.seed_carbon_reports import YEARS
 
 async def get_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 

@@ -4,8 +4,8 @@ import json
 from typing import AsyncGenerator
 
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -31,6 +31,8 @@ def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:
     }
 
 
+if settings.DB_URL is None:
+    raise ValueError("DB_URL must be set")
 url = make_url(settings.DB_URL)
 is_sqlite = False
 if (
@@ -63,7 +65,7 @@ engine = create_async_engine(
 )
 
 # Create SessionLocal class
-SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Create Base class for declarative models
 Base = declarative_base()

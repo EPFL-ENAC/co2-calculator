@@ -30,6 +30,8 @@ DataEntry.model_rebuild()
 DataEntryEmission.model_rebuild()
 
 # After model_rebuild()
+# Assigned dynamically to avoid circular imports; ty doesn't see these as
+# declared attributes the way the mypy pydantic plugin did.
 Unit.unit_users = Relationship(back_populates="unit")
 UnitUser.unit = Relationship(back_populates="unit_users")
 

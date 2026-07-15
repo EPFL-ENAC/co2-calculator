@@ -604,7 +604,7 @@ class CarbonReportModuleRepository:
 
             units_stmt = (
                 select(*units_stmt_columns)
-                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
                 .outerjoin(
                     User,
                     User.institutional_id == Unit.principal_user_institutional_id,
@@ -627,10 +627,10 @@ class CarbonReportModuleRepository:
 
             units_stmt = (
                 select(*units_stmt_columns)
-                .join(CarbonReport, CarbonReport.unit_id == Unit.id)
+                .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
                 .outerjoin(
                     User,
-                    User.institutional_id == Unit.principal_user_institutional_id,
+                    col(User.institutional_id) == Unit.principal_user_institutional_id,
                 )
                 .where(col(CarbonReport.year).in_(years))
             )
@@ -656,14 +656,14 @@ class CarbonReportModuleRepository:
         #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
 
         # Build order by clause
-        order_col: Any = Unit.name
+        order_col: Any = col(Unit.name)
         use_case_for_nulls = False
         null_value_for_sort = 0
 
         if sort_by == "unit_name":
-            order_col = Unit.name
+            order_col = col(Unit.name)
         elif sort_by == "affiliation":
-            order_col = Unit.path_name
+            order_col = col(Unit.path_name)
         elif sort_by == "validation_status":
             if is_multi_year:
                 order_col = func.sum(
@@ -684,9 +684,9 @@ class CarbonReportModuleRepository:
             use_case_for_nulls = True
             null_value_for_sort = 0
         elif sort_by == "principal_user":
-            order_col = User.display_name
+            order_col = col(User.display_name)
         elif sort_by == "last_update":
-            order_col = CarbonReport.last_updated
+            order_col = col(CarbonReport.last_updated)
             use_case_for_nulls = True
             null_value_for_sort = 0
         elif sort_by == "total_carbon_footprint":
@@ -705,7 +705,8 @@ class CarbonReportModuleRepository:
         # Apply sort order with NULL handling
         if use_case_for_nulls:
             order_col_for_sort = case(
-                (order_col.is_(None), null_value_for_sort), else_=order_col
+                (order_col.is_(None), null_value_for_sort),
+                else_=order_col,
             )
             if sort_order == "desc":
                 units_stmt = units_stmt.order_by(desc(order_col_for_sort))

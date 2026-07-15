@@ -173,10 +173,10 @@ async def _institutional_id_for_crm(
     """Resolve carbon_report_module_id → unit.institutional_id."""
     stmt = (
         select(Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == carbon_report_module_id)
     )
@@ -196,10 +196,10 @@ async def _institutional_ids_for_crms(
         return {}
     stmt = (
         select(CarbonReportModule.id, Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(col(CarbonReportModule.id).in_(carbon_report_module_ids))
     )
@@ -225,10 +225,10 @@ async def _institutional_id_for_job(
         # mypy: SQLAlchemy ``==`` between Column attrs returns a
         # ``BinaryExpression`` at runtime, but mypy without the SQLAlchemy
         # plugin sees ``bool``.  Standard project workaround.
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == job.entity_id)
     )

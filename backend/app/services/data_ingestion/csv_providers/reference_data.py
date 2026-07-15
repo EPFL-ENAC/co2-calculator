@@ -26,7 +26,7 @@ from typing import Any, Dict, List
 
 import psycopg
 from sqlalchemy.engine.url import make_url
-from sqlmodel import delete
+from sqlmodel import col, delete
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -419,9 +419,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
         # untouched by a train upload and vice-versa.
         target_mode = TransportModeEnum(det.name)
         await self.data_session.exec(
-            delete(Location).where(
-                Location.transport_mode == target_mode  # type: ignore[arg-type]
-            )
+            delete(Location).where(col(Location.transport_mode) == target_mode)
         )
 
         inserted = 0
@@ -456,9 +454,7 @@ class ReferenceDataCSVProvider(DataIngestionProvider):
             # ``bool``; at runtime it's a ``BinaryExpression``.  Same workaround
             # used elsewhere in the codebase (see app/api/v1/data_sync.py).
             existing = await self.data_session.execute(
-                select(Location).where(
-                    Location.natural_key == natural_key  # type: ignore[arg-type]
-                )
+                select(Location).where(col(Location.natural_key) == natural_key)
             )
             row_obj = existing.scalar_one_or_none()
             if row_obj is None:

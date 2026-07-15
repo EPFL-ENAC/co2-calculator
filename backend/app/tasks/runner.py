@@ -211,13 +211,8 @@ async def run_job(job_id: int) -> None:
                 reset_pending_dispatches()
                 try:
                     handler = get_handler(job_type)
-                    # mypy: handlers return ``Awaitable[dict]`` (registry-typed),
-                    # but ``asyncio.create_task`` expects ``Coroutine``.  All
-                    # registered handlers are async functions, so the runtime
-                    # value IS a coroutine — the registry's structural type just
-                    # widens it.
                     handler_task: asyncio.Task[dict] = asyncio.create_task(
-                        handler(job, job_session, data_session),  # type: ignore[arg-type]
+                        handler(job, job_session, data_session),
                         name=f"handler-{job_id}",
                     )
                     abort_waiter = asyncio.create_task(

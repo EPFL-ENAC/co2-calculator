@@ -544,7 +544,6 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     # ROLE_PROVIDER_TYPE/UNIT_PROVIDER_TYPE have no default (intentional —
-    # missing config must fail startup) so mypy sees them as required
-    # constructor args; pydantic-settings actually sources them from the
-    # environment/.env file at runtime.
-    return Settings()  # type: ignore[call-arg]
+    # missing config must fail startup); pydantic-settings actually sources
+    # them from the environment/.env file at runtime.
+    return Settings()

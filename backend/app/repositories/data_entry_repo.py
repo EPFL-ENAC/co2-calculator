@@ -637,7 +637,7 @@ class DataEntryRepository:
             RollupEmission = aliased(DataEntryEmission)
             entities = [
                 DataEntry,
-                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore[attr-defined]
+                col(RollupEmission.kg_co2eq).label("total_kg_co2eq"),
                 Factor,
             ]
             statement = (
@@ -746,7 +746,7 @@ class DataEntryRepository:
                     statement = statement.join(
                         OriginLocation,
                         (
-                            OriginLocation.name
+                            col(OriginLocation.name)
                             == DataEntry.data["origin_name"].as_string()
                         )
                         & (
@@ -757,7 +757,7 @@ class DataEntryRepository:
                     ).join(
                         DestLocation,
                         (
-                            DestLocation.name
+                            col(DestLocation.name)
                             == DataEntry.data["destination_name"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.train),
@@ -767,7 +767,7 @@ class DataEntryRepository:
                     statement = statement.join(
                         OriginLocation,
                         (
-                            OriginLocation.iata_code
+                            col(OriginLocation.iata_code)
                             == DataEntry.data["origin_iata"].as_string()
                         )
                         & (
@@ -778,7 +778,7 @@ class DataEntryRepository:
                     ).join(
                         DestLocation,
                         (
-                            DestLocation.iata_code
+                            col(DestLocation.iata_code)
                             == DataEntry.data["destination_iata"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
@@ -1043,12 +1043,12 @@ class DataEntryRepository:
                 )
                 .join(
                     OriginLocation,
-                    OriginLocation.natural_key == origin_key,
+                    col(OriginLocation.natural_key) == origin_key,
                     isouter=True,
                 )
                 .join(
                     DestLocation,
-                    DestLocation.natural_key == dest_key,
+                    col(DestLocation.natural_key) == dest_key,
                     isouter=True,
                 )
             )

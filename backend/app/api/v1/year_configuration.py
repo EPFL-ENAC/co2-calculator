@@ -1038,7 +1038,12 @@ async def upload_reduction_objective_file(
         ):
             ro.setdefault(key, None)
 
-    result.config["reduction_objectives"]["files"][config_key] = {
+    # `config` is a dynamic JSON blob (no fixed schema); ty narrows the
+    # nested-subscript type from the last assignment seen above, which is
+    # a false positive here, not a real type mismatch.
+    result.config["reduction_objectives"]["files"][  # ty: ignore[invalid-assignment]
+        config_key
+    ] = {
         "path": file_metadata.path,
         "filename": file_metadata.filename,
         "uploaded_at": file_metadata.uploaded_at,

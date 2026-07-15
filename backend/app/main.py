@@ -379,6 +379,10 @@ async def ready():
         or settings.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
     )
     if uses_accred and settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL:
+        # assert_accred_settings() above already guarantees these are set
+        # whenever Accred is in use; narrow locally so ty sees non-None types.
+        if settings.ACCRED_API_USERNAME is None or settings.ACCRED_API_KEY is None:
+            raise ValueError("ACCRED_API_USERNAME and ACCRED_API_KEY must be set")
         try:
             import httpx
 

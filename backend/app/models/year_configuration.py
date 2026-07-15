@@ -1,7 +1,7 @@
 """Year configuration model for annual administrative settings."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import Column
 from sqlalchemy import DateTime as SADateTime
@@ -26,7 +26,7 @@ class YearConfigurationBase(SQLModel):
             "this year/provider. NULL = not yet provisioned (uploads blocked)."
         ),
     )
-    config: dict = Field(
+    config: dict[str, Any] = Field(
         default_factory=dict,
         sa_column=Column(JSON, nullable=False, server_default="{}"),
         description="Deep configuration (thresholds, tags, goals) as JSON",

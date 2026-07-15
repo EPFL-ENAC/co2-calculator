@@ -13,6 +13,7 @@ import asyncio
 import json
 import random
 from datetime import date, datetime, timezone
+from typing import Callable
 
 import asyncpg
 from faker import Faker
@@ -71,6 +72,8 @@ BATCH_SIZE = 1000
 
 async def get_connection():
     settings = get_settings()
+    if settings.DB_URL is None:
+        raise ValueError("DB_URL must be set to run this seed script")
     db_url = settings.DB_URL.replace("postgresql+psycopg", "postgresql")
     return await asyncpg.connect(db_url)
 
@@ -426,7 +429,7 @@ def build_research_facility_animal() -> dict:
     return payload
 
 
-DTO_BUILDERS: dict[type, object] = {
+DTO_BUILDERS: dict[type, Callable[[], dict]] = {
     ProfessionalTravelPlaneHandlerCreate: build_plane_travel,
     ProfessionalTravelTrainHandlerCreate: build_train_travel,
     EquipmentHandlerCreate: build_equipment,
@@ -635,6 +638,8 @@ async def main():
 
             # Commit every COMMIT_EVERY batches
             if batch_number % COMMIT_EVERY == 0:
+                if transaction is None:
+                    raise RuntimeError(f"no open transaction at batch {batch_number}")
                 await transaction.commit()
                 print(f"✓ Committed up to batch {batch_number}\n")
                 transaction = None
