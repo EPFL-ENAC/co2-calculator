@@ -76,11 +76,13 @@ class CarbonReportBase(SQLModel):
             "Optional JSON field to store pre-calculated statistics for the report"
             " - aggregates stats from all child CarbonReportModule records"
             " - includes scope totals, by_emission_type, by_additional_value, "
-            "computed_at, and entry_count"
+            "quantities, computed_at, and entry_count"
             " - helps optimize frontend performance by avoiding on-the-fly calculations"
             ".e.g: { scope1: kg, scope2: kg, scope3: kg, total: kg, "
             "by_emission_type: { emission_type_id: kg, ... }, "
             "by_additional_value: { emission_type_id: value, ... }, "
+            "quantities: { bucket_key: { unit: km|kg, "
+            "by_emission_type: { emission_type_id: quantity, ... } }, ... }, "
             "computed_at: iso_timestamp, entry_count: int }"
         ),
     )

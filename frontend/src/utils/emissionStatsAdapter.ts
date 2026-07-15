@@ -29,6 +29,12 @@ export interface BucketStats {
   by_category?: EmbodiedEnergyCategoryEntry[];
 }
 
+/** Physical-quantity donut data, derived by the backend per bucket. */
+export interface QuantitySection {
+  unit: string;
+  by_emission_type: Record<string, number>;
+}
+
 export interface ItStats {
   total_kg: number;
   percentage_of_total: number;
@@ -46,6 +52,7 @@ export interface ItStats {
 export interface ReportStats {
   buckets: Record<string, BucketStats>;
   per_fte: Record<string, number>;
+  quantities?: Record<string, QuantitySection>;
   validated_buckets: string[];
   total: number;
   validated_total?: number;
@@ -67,14 +74,6 @@ const BUCKETS_BY_MODULE_TYPE_ID: Record<number, string[]> = {
   8: ['process_emissions'],
 };
 
-/** Unit of by_additional_value quantities, by taxonomy root segment. */
-const QUANTITY_UNIT_BY_ROOT: Record<string, string> = {
-  commuting: 'km',
-  professional_travel: 'km',
-  food: 'kg',
-  waste: 'kg',
-};
-
 const IT_CATEGORY_TO_BUCKET_KEY: Record<string, string> = {
   equipment_it: 'equipment',
   purchases_it: 'purchases',
@@ -92,14 +91,25 @@ function excludedBucketKeys(excludeModules: number[]): Set<string> {
   return keys;
 }
 
-/** Leaf entries of a bucket map: ids whose name prefixes no other id's name. */
+/**
+ * Leaf entries of a bucket map: ids whose name prefixes no other id's name.
+ *
+ * Ids are taken from both maps: a zero-emission type (walking) is absent from
+ * `by_emission_type` but still carries kilometres in the backend-derived
+ * `quantities` section.
+ */
 function leafEntries(
   byEmissionType: Record<string, number>,
+  byQuantity?: Record<string, number>,
 ): { id: number; name: string; kg: number }[] {
-  const entries = Object.entries(byEmissionType).map(([idStr, kg]) => ({
+  const ids = new Set([
+    ...Object.keys(byEmissionType),
+    ...Object.keys(byQuantity ?? {}),
+  ]);
+  const entries = [...ids].map((idStr) => ({
     id: Number(idStr),
     name: EMISSION_TYPE_NAMES[Number(idStr)] ?? idStr,
-    kg,
+    kg: byEmissionType[idStr] ?? 0,
   }));
   const names = new Set(entries.map((entry) => entry.name));
   return entries.filter((entry) => {
@@ -115,6 +125,7 @@ function leafEntries(
 function buildCategoryRow(
   bucketKey: string,
   bucket: BucketStats,
+  quantities?: QuantitySection,
 ): EmissionBreakdownCategoryRow {
   const row: EmissionBreakdownCategoryRow = {
     category: bucketKey,
@@ -128,13 +139,20 @@ function buildCategoryRow(
   const parentSums: Record<string, number> = {};
   const seenBarKeys = new Set<string>();
 
-  const leaves = leafEntries(bucket.by_emission_type).sort(
-    (a, b) => a.id - b.id,
-  );
+  const leaves = leafEntries(
+    bucket.by_emission_type,
+    quantities?.by_emission_type,
+  ).sort((a, b) => a.id - b.id);
   for (const leaf of leaves) {
-    if (leaf.kg <= 0) continue;
     const segments = leaf.name.split('__');
     const key = segments[segments.length - 1];
+    const quantity = quantities?.by_emission_type[String(leaf.id)];
+    const unit = quantities?.unit;
+    const hasQuantity = quantity != null && quantity > 0 && unit != null;
+    // A zero-emission mode (walking) still belongs in the physical-quantity
+    // charts, which read `emissions` and filter on quantity themselves.
+    if (leaf.kg <= 0 && !hasQuantity) continue;
+
     const value = leaf.kg / 1000.0;
     const emission: EmissionBreakdownValue = {
       emission_type: leaf.name,
@@ -144,14 +162,15 @@ function buildCategoryRow(
     if (segments.length >= 3) {
       emission.parent_key = segments[segments.length - 2];
     }
-    const quantity = bucket.by_additional_value?.[String(leaf.id)];
-    const unit = QUANTITY_UNIT_BY_ROOT[segments[0]];
     if (quantity != null && unit) {
       emission.quantity = quantity;
       emission.quantity_unit = unit;
     }
     emissions.push(emission);
 
+    // Numeric row keys feed the CO2 bar chart and the treemap: a zero-kg leaf
+    // contributes nothing there and would only add an empty bar.
+    if (leaf.kg <= 0) continue;
     row[key] = ((row[key] as number) ?? 0) + value;
     if (emission.parent_key) {
       parentSums[emission.parent_key] =
@@ -182,7 +201,11 @@ export function toEmissionBreakdown(
 
   for (const [bucketKey, bucket] of Object.entries(stats.buckets ?? {})) {
     if (excluded.has(bucketKey)) continue;
-    const row = buildCategoryRow(bucketKey, bucket);
+    const row = buildCategoryRow(
+      bucketKey,
+      bucket,
+      stats.quantities?.[bucketKey],
+    );
     (bucket.additional ? additionalRows : moduleRows).push(row);
     totalKg += bucket.total_kg ?? 0;
   }

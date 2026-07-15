@@ -1,18 +1,67 @@
 """Pure helpers over persisted carbon_report.stats dicts.
 
 ``derive_report_sections`` computes the display-derived sections (scope
-totals, per-FTE, IT rollup) from merged buckets; ``merge_report_stats``
+totals, per-FTE, quantity donuts, IT rollup) from merged buckets; ``merge_report_stats``
 combines several reports' stats into one aggregate of the same shape
 (backoffice multi-unit views); ``build_year_comparison`` reshapes one
 report's stats into the compare-years payload. None touch the database.
 """
 
 from app.modules.emissions.registry import ORDERED_STAT_BUCKETS
+from app.modules.emissions.taxonomy import resolve_emission_type
+from app.modules.emissions.units import additional_value_unit
 from app.utils.it_breakdown import (
     IT_CATEGORY_TO_BUCKET_KEY,
     build_cloud_ai_detail,
     build_it_category_totals,
 )
+
+
+def derive_quantity_sections(buckets: dict[str, dict]) -> dict[str, dict]:
+    """Per-bucket physical-quantity breakdowns for the quantity donuts.
+
+    Returns ``{bucket_key: {"unit": "km"|"kg", "by_emission_type":
+    {emission_type_id: quantity}}}`` for buckets whose emission types carry an
+    ``additional_value`` unit (commuting/professional_travel in km, food/waste
+    in kg); other buckets are omitted.
+
+    Ids are drawn from the union of ``by_emission_type`` and
+    ``by_additional_value``, because a zero-emission mode (walking) has no kg
+    entry but still carries kilometres. Only leaves are kept — an id whose
+    dotted name prefixes another present id's name is a rollup whose subtree
+    sum would double-count the donut.
+    """
+    sections: dict[str, dict] = {}
+    for bucket_key, bucket in buckets.items():
+        by_additional = bucket.get("by_additional_value") or {}
+        if not by_additional:
+            continue
+        ids = set(bucket.get("by_emission_type") or {}) | set(by_additional)
+        nodes = {
+            id_str: node
+            for id_str in ids
+            if (node := resolve_emission_type(int(id_str))) is not None
+        }
+        names = {node.name for node in nodes.values()}
+        unit: str | None = None
+        by_emission_type: dict[str, float] = {}
+        for id_str, node in nodes.items():
+            quantity = by_additional.get(id_str)
+            if not quantity or quantity <= 0:
+                continue
+            if any(name.startswith(f"{node.name}__") for name in names):
+                continue
+            node_unit = additional_value_unit(node)
+            if node_unit is None:
+                continue
+            unit = node_unit
+            by_emission_type[id_str] = float(quantity)
+        if unit is not None and by_emission_type:
+            sections[bucket_key] = {
+                "unit": unit,
+                "by_emission_type": by_emission_type,
+            }
+    return sections
 
 
 def derive_report_sections(
@@ -60,7 +109,12 @@ def derive_report_sections(
         ],
         "top_class_detail": top_class_detail,
     }
-    return {**scope_totals, "per_fte": per_fte, "it": it_stats}
+    return {
+        **scope_totals,
+        "per_fte": per_fte,
+        "quantities": derive_quantity_sections(buckets),
+        "it": it_stats,
+    }
 
 
 def build_year_comparison(stats: dict) -> dict:
