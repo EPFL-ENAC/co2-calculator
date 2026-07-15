@@ -9,10 +9,17 @@
  * Anything in this file MUST stay free of Vite-specific imports and
  * runtime side effects.
  */
+import { runtimeConfig } from 'src/config/runtime';
+
+export const isDevEnvironment =
+  runtimeConfig.environment === 'development' ||
+  runtimeConfig.environment === 'dev';
 
 export const LOGIN_ROUTE_NAME = 'login';
 export const LOGIN_TEST_ROUTE_NAME = 'login-test';
-export const LOGIN_ROUTES = [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME];
+export const LOGIN_ROUTES = isDevEnvironment
+  ? [LOGIN_ROUTE_NAME, LOGIN_TEST_ROUTE_NAME]
+  : [LOGIN_ROUTE_NAME];
 export const HOME_ROUTE_NAME = 'home';
 export const WORKSPACE_ROUTE_NAME = 'workspace-dashboard';
 export const UNAUTHORIZED_ROUTE_NAME = 'unauthorized';
