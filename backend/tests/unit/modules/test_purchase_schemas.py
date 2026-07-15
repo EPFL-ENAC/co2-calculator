@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.modules.purchase.schemas import (
+from app.modules.purchase import (
     PurchaseCommonFactorCreate,
     PurchaseHandlerUpdate,
 )

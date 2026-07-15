@@ -24,7 +24,7 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
-from app.modules.professional_travel.schemas import MemberEntry
+from app.modules.professional_travel import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (

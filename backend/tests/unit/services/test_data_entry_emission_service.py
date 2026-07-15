@@ -305,7 +305,7 @@ class TestMetaExtras:
                 "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
             ) as mock_handler_cls,
         ):
-            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+            from app.modules.headcount import HeadcountMemberModuleHandler
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})
@@ -360,7 +360,7 @@ class TestMetaExtras:
                 "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
             ) as mock_handler_cls,
         ):
-            from app.modules.headcount.schemas import HeadcountMemberModuleHandler
+            from app.modules.headcount import HeadcountMemberModuleHandler
 
             mock_handler = HeadcountMemberModuleHandler()
             mock_handler.pre_compute = AsyncMock(return_value={})

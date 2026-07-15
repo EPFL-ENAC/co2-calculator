@@ -31,7 +31,7 @@ from app.models.module_type import (
 from app.models.unit import Unit
 from app.models.user import GlobalScope, RoleName, User
 from app.modules.emissions.registry import is_additional_breakdown_emission
-from app.modules.headcount.schemas import (
+from app.modules.headcount import (
     HeadcountItemResponse,
     HeadcountMemberDropdownItem,
 )

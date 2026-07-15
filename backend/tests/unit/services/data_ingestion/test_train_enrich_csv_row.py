@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from app.modules.professional_travel.schemas import (
+from app.modules.professional_travel import (
     ProfessionalTravelTrainModuleHandler,
 )
 
@@ -80,7 +80,7 @@ async def test_train_enrich_normalizes_country_code_case_for_lookup(
         return _FakeStation(), "ok"
 
     monkeypatch.setattr(
-        "app.modules.professional_travel.schemas."
+        "app.modules.professional_travel.handlers."
         "LocationService.resolve_train_station_for_csv",
         _fake_resolve,
     )
