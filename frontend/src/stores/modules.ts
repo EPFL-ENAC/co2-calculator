@@ -25,9 +25,12 @@ import {
   type ReportStats,
 } from 'src/utils/emissionStatsAdapter';
 
-// Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
+// Maps route names to their carbon project type (0 = Calculator,
+// 1 = Simulator Explore, 2 = Simulator Plan). Drives how unit/year
+// resolve to a carbon report id in resolveCarbonReportId.
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
   'simulation-explore': 1,
+  'project-planner': 2,
 };
 
 /**
@@ -432,9 +435,49 @@ export const useModuleStore = defineStore('modules', () => {
     // submodule title counts are available without fetching full submodule data.
     moduleTotalsMap: reactive({} as Record<string, Record<number, number>>),
   });
-  // Backend expects /{unit_id}/{year}/{module_id}; buildModulePath throws on
-  // unresolved unit/year so we never fire a `modules/undefined/null/...` 422.
-  const modulePath = buildModulePath;
+  // ── Identity addressing ("lookup once, then identity") ────────────────
+  // unit/year resolve to a carbon report id once per context; every module
+  // operation then addresses /carbon-reports/{id}/modules/... directly.
+  const reportIdCache = reactive<Record<string, number>>({});
+  // Planner year → report id map, set by the Project Planner page from the
+  // plan-years payload — a unit can hold many plans with overlapping years,
+  // so unit/year lookup cannot apply there.
+  const plannerReportIdsByYear = ref<Record<number, number>>({});
+
+  function setPlannerReportIds(map: Record<number, number>) {
+    plannerReportIdsByYear.value = map;
+  }
+
+  async function resolveCarbonReportId(
+    unit: number | string,
+    year: number | string,
+  ): Promise<number> {
+    if (carbonProjectType.value === 2) {
+      const id = plannerReportIdsByYear.value[Number(year)];
+      if (!id) {
+        throw new Error(`No plan-year report registered for year ${year}`);
+      }
+      return id;
+    }
+    const key = `${unit}|${year}|${carbonProjectType.value}`;
+    const cached = reportIdCache[key];
+    if (cached) return cached;
+    const path =
+      carbonProjectType.value === 1
+        ? `carbon-reports/simulator/explore/unit/${encodeURIComponent(unit)}/reference-year/${encodeURIComponent(year)}/`
+        : `carbon-reports/unit/${encodeURIComponent(unit)}/year/${encodeURIComponent(year)}/`;
+    const report = await api.get(path).json<{ id: number }>();
+    reportIdCache[key] = report.id;
+    return report.id;
+  }
+
+  async function modulePath(
+    moduleType: Module,
+    unit: number | string,
+    year: number | string,
+  ): Promise<string> {
+    return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
+  }
 
   function initializeSubmoduleState(submoduleId: string) {
     if (!(submoduleId in state.expandedSubmodules)) {
@@ -473,9 +516,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.data = null;
     try {
       state.data = (await api
-        .get(modulePath(moduleType, unit, year), {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
+        .get(await modulePath(moduleType, unit, year))
         .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -502,12 +543,8 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.data = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}?preview_limit=0`;
-      state.data = (await api
-        .get(path, {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
-        .json()) as ModuleResponse;
+      const path = `${await modulePath(moduleType, unit, year)}?preview_limit=0`;
+      state.data = (await api.get(path).json()) as ModuleResponse;
       if (state.data?.data_entry_types_total_items) {
         state.moduleTotalsMap[moduleType] =
           state.data.data_entry_types_total_items;
@@ -579,11 +616,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
       }
-      queryParams.append(
-        'carbon_project_type',
-        String(carbonProjectType.value),
-      );
-      const url = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(
+      const url = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(
         submoduleType,
       )}?${queryParams.toString()}`;
 
@@ -700,7 +733,7 @@ export const useModuleStore = defineStore('modules', () => {
         year = year.toString();
       }
 
-      const path = `${modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}?carbon_project_type=${carbonProjectType.value}`;
+      const path = `${await modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}`;
       const normalized: Record<string, string | number | boolean | null> = {};
 
       Object.entries(payload).forEach(([key, raw]) => {
@@ -817,9 +850,9 @@ export const useModuleStore = defineStore('modules', () => {
   ) {
     state.error = null;
     try {
-      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}?carbon_project_type=${carbonProjectType.value}`;
+      )}`;
 
       // Normalize payload similar to postItem
       const normalized: Record<string, string | number | boolean | null> = {};
@@ -875,9 +908,9 @@ export const useModuleStore = defineStore('modules', () => {
     state.error = null;
     try {
       // Find affected submodule BEFORE deleting (item won't be in data after deletion)
-      const path = `${modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
-      )}?carbon_project_type=${carbonProjectType.value}`;
+      )}`;
       await api.delete(path);
 
       // Refresh module totals
@@ -908,7 +941,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTravelStatsByClass = true;
     state.errorTravelStatsByClass = null;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/stats-by-class`;
+      const path = `${await modulePath(MODULES.ProfessionalTravel, unit, year)}/stats-by-class`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.travelStatsByClass = data;
     } catch (err: unknown) {
@@ -943,12 +976,8 @@ export const useModuleStore = defineStore('modules', () => {
     state.loadingTripsMap = true;
     state.errorTripsMap = null;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/professional-travel/trips-map`;
-      const data = await api
-        .get(path, {
-          searchParams: { carbon_project_type: carbonProjectType.value },
-        })
-        .json<TripsMapResponse>();
+      const path = `${await modulePath(MODULES.ProfessionalTravel, unit, year)}/trips-map`;
+      const data = await api.get(path).json<TripsMapResponse>();
       state.tripsMap = data;
       tripsMapCacheKey.value = cacheKey;
     } catch (err: unknown) {
@@ -983,7 +1012,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.errorTopClassBreakdown = null;
     state.topClassBreakdown = [];
     try {
-      const basePath = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const basePath = `${await modulePath(moduleId as Module, unit, year)}/top-class-breakdown`;
       const searchParams = new URLSearchParams();
       for (const id of combineUnitIds) {
         searchParams.append('combine_unit_ids', String(id));
@@ -1017,7 +1046,7 @@ export const useModuleStore = defineStore('modules', () => {
     ];
     if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleType)}/top-class-breakdown`;
+      const path = `${await modulePath(moduleType, unit, year)}/top-class-breakdown`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch {
@@ -1229,12 +1258,8 @@ export const useModuleStore = defineStore('modules', () => {
     await Promise.allSettled(
       modules.map(async ({ type, unit, year }) => {
         try {
-          const path = `${modulePath(type, unit, year)}?preview_limit=0`;
-          const response = (await api
-            .get(path, {
-              searchParams: { carbon_project_type: carbonProjectType.value },
-            })
-            .json()) as ModuleResponse;
+          const path = `${await modulePath(type, unit, year)}?preview_limit=0`;
+          const response = (await api.get(path).json()) as ModuleResponse;
           state.moduleTotalsMap[type] = response.data_entry_types_total_items;
         } catch {
           // Non-fatal: counts will fall back to 0 in submoduleCount.
@@ -1268,6 +1293,8 @@ export const useModuleStore = defineStore('modules', () => {
     prefetchAllModuleCounts,
     validatedTotalsCarbonReportId,
     carbonProjectType,
+    resolveCarbonReportId,
+    setPlannerReportIds,
     state,
   };
 });
