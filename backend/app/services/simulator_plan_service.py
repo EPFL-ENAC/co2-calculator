@@ -40,8 +40,10 @@ def _next_suffixed_name(base: str, existing: set[str]) -> str:
 
 
 def _to_read(project: CarbonProject, creator_name: Optional[str]) -> SimulatorPlanRead:
+    if project.id is None:
+        raise ValueError("project must be persisted before use")
     return SimulatorPlanRead(
-        id=project.id,  # type: ignore[arg-type]
+        id=project.id,
         unit_id=project.unit_id,
         name=project.name or "",
         created_by=project.created_by,
