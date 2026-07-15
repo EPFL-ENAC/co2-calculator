@@ -331,6 +331,21 @@ class CarbonReportModuleService:
             return None
         return CarbonReportModuleRead.model_validate(carbon_report_module)
 
+    async def update_is_active(
+        self, carbon_report_id: int, module_type_id: int, is_active: bool
+    ) -> Optional[CarbonReportModuleRead]:
+        """Toggle a module's Active flag (Simulator Plan checkbox)."""
+        logger.info(
+            f"Setting report {sanitize(carbon_report_id)} module "
+            f"{sanitize(module_type_id)} is_active={sanitize(is_active)}"
+        )
+        carbon_report_module = await self.repo.update_is_active(
+            carbon_report_id, module_type_id, is_active
+        )
+        if carbon_report_module is None:
+            return None
+        return CarbonReportModuleRead.model_validate(carbon_report_module)
+
     async def recompute_stats_many(
         self, carbon_report_module_ids: list[int], *, bump_status: bool = True
     ) -> int:

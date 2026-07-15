@@ -66,6 +66,7 @@ class CarbonReportModuleRead(BaseModel):
     carbon_report_id: int
     module_type_id: int
     status: int
+    is_active: bool = True
     stats: Optional[dict] = None
 
     class Config:
@@ -81,3 +82,9 @@ class CarbonReportModuleUpdate(BaseModel):
         le=ModuleStatus.VALIDATED,
         description="Module status: 0=not_started, 1=in_progress, 2=validated",
     )
+
+
+class CarbonReportModuleActiveUpdate(BaseModel):
+    """Schema for toggling a module's Active flag (Simulator Plan)."""
+
+    is_active: bool

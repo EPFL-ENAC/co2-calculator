@@ -47,6 +47,7 @@ erDiagram
   carbon_report_modules {
     INTEGER carbon_report_id FK
     INTEGER id PK
+    BOOLEAN is_active
     INTEGER last_updated
     INTEGER module_type_id "indexed"
     JSON stats

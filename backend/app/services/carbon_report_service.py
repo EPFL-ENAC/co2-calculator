@@ -396,12 +396,15 @@ class CarbonReportService:
                     f"{sanitize(report.id)}, skipping"
                 )
                 continue
+            # Inactive modules (Simulator Plan 'Active' checkbox off) are
+            # excluded from sums, stats and completion alike.
+            active_modules = [m for m in modules if m.is_active]
             report.stats = _build_report_stats(
-                modules,
+                active_modules,
                 is_simulator=report_types.get(report.id)
                 == CarbonReportType.SIMULATOR_EXPLORE,
             )
-            progress, status = _build_report_progress(modules)
+            progress, status = _build_report_progress(active_modules)
             report.completion_progress = progress
             report.overall_status = status
             report.last_updated = now_ts
@@ -435,7 +438,11 @@ class CarbonReportService:
             )
             return
 
-        completion_progress, overall_status = _build_report_progress(modules)
+        # Inactive modules are excluded from completion, matching the
+        # stats recompute path.
+        completion_progress, overall_status = _build_report_progress(
+            [m for m in modules if m.is_active]
+        )
 
         report = await self.repo.get(carbon_report_id)
         report_id_sanitized = sanitize(carbon_report_id)
