@@ -1,6 +1,9 @@
 # This file is used to mark the directory as a Python package and
 # to import relevant modules for easier access. Importing it registers
 # every module and factor handler (metaclass side effect).
+# Simulator Plan handlers register through the same import side effect;
+# importing app.modules is the single registration point for both.
+import app.modules_planner  # noqa: E402, F401
 from app.modules.buildings import (
     BuildingRoomHandlerCreate,
     EnergyCombustionHandlerCreate,
