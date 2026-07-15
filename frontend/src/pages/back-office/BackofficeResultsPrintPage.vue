@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
@@ -8,10 +9,12 @@ import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonF
 import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart.vue';
 import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
 import { useBackofficeResultsPrintData } from 'src/composables/print/useBackofficeResultsPrintData';
+import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
+
+const { t } = useI18n();
 
 const {
   loading,
-  years,
   reportingEmissionBreakdown,
   validatedCount,
   tableTotal,
@@ -22,6 +25,7 @@ const {
   headcountValidated,
   availableModules,
   reportingItBreakdown,
+  scopeLabel,
   fetchData,
 } = useBackofficeResultsPrintData();
 
@@ -29,14 +33,17 @@ const hasData = computed(
   () => !loading.value && reportingEmissionBreakdown.value != null,
 );
 
-const yearsLabel = computed(() => years.value.join(', '));
-
 function printReport() {
   window.print();
 }
 
 onMounted(async () => {
   await fetchData();
+  // Chrome seeds the "Save as PDF" filename from the document title.
+  document.title = toPrintDocumentTitle(
+    scopeLabel.value,
+    t('backoffice_reporting_print_results_title'),
+  );
 });
 </script>
 
@@ -62,14 +69,15 @@ onMounted(async () => {
       <!-- Page 1: Title, scope, big numbers -->
       <ReportPage
         :title="$t('backoffice_reporting_print_results_title')"
+        :scope="scopeLabel"
         :page-number="1"
         :is-first="true"
       >
         <h2 class="text-h5 q-mt-none">
           {{ $t('backoffice_reporting_print_results_title') }}
         </h2>
-        <div v-if="yearsLabel" class="text-body2 text-secondary q-mb-lg">
-          {{ yearsLabel }}
+        <div v-if="scopeLabel" class="text-body2 text-secondary q-mb-lg">
+          {{ scopeLabel }}
         </div>
 
         <div class="q-mt-md">
@@ -128,7 +136,7 @@ onMounted(async () => {
         </section>
       </ReportPage>
 
-      <ReportPage>
+      <ReportPage :scope="scopeLabel">
         <section v-if="reportingItBreakdown" class="q-mt-md">
           <ItFocusBreakdownChart
             :data="reportingItBreakdown"

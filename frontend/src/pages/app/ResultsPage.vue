@@ -38,6 +38,7 @@ import ReductionObjectiveChart from 'src/components/charts/results/ReductionObje
 import { useRoute, useRouter } from 'vue-router';
 import { nOrDash } from 'src/utils/number';
 import { resolveLanguage } from 'src/utils/language';
+import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
 
 const yearConfigStore = useYearConfigStore();
 
@@ -352,17 +353,13 @@ const combinedUnitNames = computed(() =>
     .filter((name): name is string => Boolean(name)),
 );
 
-/** Up to two units in the perimeter are named; beyond that a counter is used. */
-const titleUnitLabel = computed(() => {
-  const currentName = workspaceStore.selectedUnit?.name ?? '';
-  const names = combinedUnitNames.value;
-  if (!names.length) return currentName;
-  if (names.length === 1) return `${currentName} + ${names[0]}`;
-  return t('results_combine_units_counter', {
-    unit: currentName,
-    count: names.length,
-  });
-});
+const titleUnitLabel = computed(() =>
+  buildUnitPerimeterLabel(
+    workspaceStore.selectedUnit?.name ?? '',
+    combinedUnitNames.value,
+    t,
+  ),
+);
 
 /**
  * The perimeter moves to a subtitle rather than sitting inside the heading:

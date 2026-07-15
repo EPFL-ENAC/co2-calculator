@@ -18,11 +18,13 @@ interface Props {
   currentYear: number;
   combineUnitIds?: number[];
   excludeModules?: number[];
+  scope?: string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   combineUnitIds: () => [],
   excludeModules: () => [],
+  scope: undefined,
 });
 
 const { t, te } = useI18n();
@@ -56,7 +58,7 @@ function getTotalModuleCarbonFootprintTitle(): string {
 </script>
 
 <template>
-  <ReportPage :title="$t(module)" :page-number="pageNumber">
+  <ReportPage :title="$t(module)" :scope="scope" :page-number="pageNumber">
     <h2 class="text-h5 q-mt-none report-h2">
       {{ $t(module) }}
     </h2>

@@ -1,4 +1,5 @@
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
 import {
@@ -16,9 +17,11 @@ import {
   type MergedUnitsContext,
 } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
 
 export function useResultsPrintData() {
   const route = useRoute();
+  const { t } = useI18n();
   const workspaceStore = useWorkspaceStore();
   const timelineStore = useTimelineStore();
   const moduleStore = useModuleStore();
@@ -73,6 +76,29 @@ export function useResultsPrintData() {
       year: currentYear.value,
     };
   });
+
+  const combinedUnitNames = computed(() =>
+    combinedUnitIds.value
+      .map((id) => workspaceStore.units.find((unit) => unit.id === id)?.name)
+      .filter((name): name is string => Boolean(name)),
+  );
+
+  /** Same perimeter label as the on-screen Results page. */
+  const perimeterLabel = computed(() =>
+    buildUnitPerimeterLabel(
+      workspaceStore.selectedUnit?.name ?? '',
+      combinedUnitNames.value,
+      t,
+    ),
+  );
+
+  /** Header line naming what this export covers: "SCI-STI-AB · 2025". */
+  const scopeLabel = computed(() =>
+    t('results_perimeter_subtitle', {
+      unit: perimeterLabel.value,
+      year: currentYear.value,
+    }),
+  );
 
   const co2PerKmKg = computed(() => resultsSummary.value?.co2_per_km_kg ?? 0);
   const hasCo2PerKmKg = computed(() => co2PerKmKg.value > 0);
@@ -269,6 +295,8 @@ export function useResultsPrintData() {
     resultsSummaryLoading,
     currentYear,
     combinedUnitIds,
+    perimeterLabel,
+    scopeLabel,
     excludedModules,
     viewAdditionalData,
     co2PerKmKg,
