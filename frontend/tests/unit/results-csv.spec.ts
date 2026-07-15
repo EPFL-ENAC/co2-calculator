@@ -16,14 +16,9 @@
 import { test, expect } from '@playwright/test';
 
 import { buildCarbonFootprintCsvRows } from '../../src/utils/results-csv';
-import { RESULTS_SUBCATEGORY_LABEL_KEYS } from '../../src/constant/charts';
-import resultsMessages from '../../src/i18n/results';
-import processEmissionsMessages from '../../src/i18n/process_emissions';
 
 /** Export everything; the validation guard has its own test below. */
 const allValidated = () => true;
-/** Identity labels keep the row assertions about structure, not translation. */
-const rawLabel = (key: string) => key;
 
 /**
  * A professional-travel row exactly as `datasetSource` yields it: the leaves in
@@ -46,7 +41,7 @@ const travelRow = {
 };
 
 test('travel leaves carry their mode in the subcategory column', () => {
-  const rows = buildCarbonFootprintCsvRows([travelRow], allValidated, rawLabel);
+  const rows = buildCarbonFootprintCsvRows([travelRow], allValidated);
 
   expect(rows).toEqual([
     {
@@ -73,7 +68,7 @@ test('travel leaves carry their mode in the subcategory column', () => {
 test('parent totals never become rows of their own', () => {
   // `train` and `plane` are flat keys on the fixture; the old export emitted
   // them as rows, double-counting their children.
-  const rows = buildCarbonFootprintCsvRows([travelRow], allValidated, rawLabel);
+  const rows = buildCarbonFootprintCsvRows([travelRow], allValidated);
   const bareParents = rows.filter((r) => r.subcategory2 === '');
   expect(bareParents).toEqual([]);
 });
@@ -89,7 +84,6 @@ test('a two-level category leaves the third column empty', () => {
       },
     ],
     allValidated,
-    rawLabel,
   );
 
   expect(rows).toEqual([
@@ -119,7 +113,6 @@ test("purchases' catch-all is exported as other_purchases", () => {
       },
     ],
     allValidated,
-    rawLabel,
   );
 
   expect(rows.map((r) => r.subcategory)).toEqual(['other_purchases', 'other']);
@@ -139,7 +132,6 @@ test('a non-validated category contributes no rows', () => {
       },
     ],
     (categoryKey) => categoryKey !== 'equipment',
-    rawLabel,
   );
 
   expect(rows).toEqual([]);
@@ -159,7 +151,6 @@ test('zero-valued and non-numeric emissions are dropped', () => {
       },
     ],
     allValidated,
-    rawLabel,
   );
 
   expect(rows).toEqual([
@@ -176,31 +167,6 @@ test('a row without emissions yields nothing', () => {
   const rows = buildCarbonFootprintCsvRows(
     [{ category: 'Déchets', category_key: 'waste' }],
     allValidated,
-    rawLabel,
   );
   expect(rows).toEqual([]);
-});
-
-test('labels are looked up through the label function', () => {
-  const rows = buildCarbonFootprintCsvRows([travelRow], allValidated, (key) =>
-    key === 'train' ? 'Train' : key === 'class_2' ? '2ème classe' : key,
-  );
-  expect(rows[0]?.subcategory).toBe('Train');
-  expect(rows[0]?.subcategory2).toBe('2ème classe');
-});
-
-// ---------------------------------------------------------------------------
-// The label map must resolve. A typo'd i18n key would silently print the raw
-// key instead — invisible until someone opens the CSV.
-// ---------------------------------------------------------------------------
-test('every subcategory label key exists in the i18n messages', () => {
-  const messages: Record<string, unknown> = {
-    ...resultsMessages,
-    ...processEmissionsMessages,
-  };
-  const missing = Object.entries(RESULTS_SUBCATEGORY_LABEL_KEYS)
-    .filter(([, i18nKey]) => messages[i18nKey] == null)
-    .map(([key, i18nKey]) => `${key} -> ${i18nKey}`);
-
-  expect(missing).toEqual([]);
 });

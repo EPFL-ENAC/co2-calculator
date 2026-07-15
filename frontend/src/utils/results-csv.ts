@@ -32,14 +32,15 @@ export interface CarbonFootprintCsvRow {
  * sibling flat keys — exporting those directly is what made the CSV read as a
  * jumble of same-level rows (#866). Only `emissions[]` carries `parent_key`.
  *
+ * Subcategory columns carry the raw emission keys (`train`, `class_2`), not
+ * localized labels — same as the flat keys the old export printed.
+ *
  * @param entries Dataset rows (`category`, `category_key`, `emissions`, …).
  * @param isValidated Whether a category's data may be exported at all.
- * @param labelFor Localizes an emission key; falls back to the raw key.
  */
 export function buildCarbonFootprintCsvRows(
   entries: Array<Record<string, unknown>>,
   isValidated: (categoryKey: string) => boolean,
-  labelFor: (key: string) => string,
 ): CarbonFootprintCsvRow[] {
   return entries.flatMap((entry) => {
     const categoryKey = String(entry.category_key ?? '');
@@ -63,10 +64,10 @@ export function buildCarbonFootprintCsvRows(
       return [
         {
           category,
-          subcategory: labelFor(
-            parentKey ? normalizeEmissionKey(categoryKey, parentKey) : key,
-          ),
-          subcategory2: parentKey ? labelFor(key) : '',
+          subcategory: parentKey
+            ? normalizeEmissionKey(categoryKey, parentKey)
+            : key,
+          subcategory2: parentKey ? key : '',
           co2,
         },
       ];
@@ -77,7 +78,7 @@ export function buildCarbonFootprintCsvRows(
 /**
  * Purchases name their catch-all bucket `other`, which is also equipment's
  * scientific/it/`other` key. Mirrors `normalizeCategoryRowKeys` in
- * `ModuleCarbonFootprintChart.vue` so both surfaces label it the same way.
+ * `ModuleCarbonFootprintChart.vue` so both surfaces name it the same way.
  */
 function normalizeEmissionKey(categoryKey: string, key: string): string {
   if (categoryKey === 'purchases' && key === 'other') return 'other_purchases';

@@ -11,7 +11,6 @@ import {
   getChartSubcategoryColor,
   getModuleForCategoryKey,
   RESULTS_CATEGORY_LABEL_KEYS,
-  RESULTS_SUBCATEGORY_LABEL_KEYS,
   ADDITIONAL_DATA_ICON,
 } from 'src/constant/charts';
 import { buildCarbonFootprintCsvRows } from 'src/utils/results-csv';
@@ -1440,11 +1439,6 @@ const onChartReady = async () => {
 const downloadPNG = () =>
   downloadEchartAsPng(chartRef.value?.chart, 'module-carbon-footprint');
 
-const subcategoryLabel = (key: string) => {
-  const i18nKey = RESULTS_SUBCATEGORY_LABEL_KEYS[key];
-  return i18nKey ? t(i18nKey) : key;
-};
-
 const downloadCSV = () => {
   const escape = (v: unknown) => {
     const s = String(v ?? '');
@@ -1454,7 +1448,6 @@ const downloadCSV = () => {
   const rows = buildCarbonFootprintCsvRows(
     datasetSource.value,
     isCategoryValidated,
-    subcategoryLabel,
   );
 
   const headers = [
