@@ -133,7 +133,8 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
                 if emission_type_id in valid_ids:
-                    source_totals[source] += kg
+                    source_share = factor.values.get(f"{source}_share", 0)
+                    source_totals[source] += kg * source_share
                     break  # each emission type belongs to exactly one source bucket
 
         # 5. Return only keys with actual data
