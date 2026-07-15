@@ -109,7 +109,7 @@ class AccredUnitProvider(UnitProvider):
         self.api_key = settings.ACCRED_API_KEY
 
     async def fetch_all_units(self) -> tuple[list[dict], list[dict]]:
-        if self.api_url is None or self.api_username is None or self.api_key is None:
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error("Cannot fetch units: Accred API not configured")
             return [], []
 
@@ -225,7 +225,7 @@ class AccredUnitProvider(UnitProvider):
         Returns:
             List of Unit objects with full metadata
         """
-        if self.api_url is None or self.api_username is None or self.api_key is None:
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error("Cannot fetch units: Accred API not configured")
             return []
 

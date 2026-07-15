@@ -908,7 +908,12 @@ class TestElasticsearchClient:
         assert result["success"] == 0
         assert result["failed"] == 1  # Length of audit_records
         assert len(result["errors"]) == 1
-        assert result["errors"][0] == "General exception in bulk operation"
+        # errors entries are always dicts (matches every other return path),
+        # not bare strings - this used to crash callers indexing item["id"]
+        assert result["errors"][0] == {
+            "id": None,
+            "error": "General exception in bulk operation",
+        }
         # Verify that error was logged
         mock_logger.error.assert_called_once()
 

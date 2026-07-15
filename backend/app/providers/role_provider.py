@@ -401,7 +401,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User info dict from Accred API
         """
-        if self.api_url is None or self.api_username is None or self.api_key is None:
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch user: Accred API not configured",
                 extra={"user_id": user_id},
@@ -499,7 +499,7 @@ class AccredRoleProvider(RoleProvider):
             List of role dicts derived from authorizations
         """
 
-        if self.api_url is None or self.api_username is None or self.api_key is None:
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
                 extra={"user_id": user_id},
