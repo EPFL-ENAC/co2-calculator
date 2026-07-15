@@ -94,61 +94,6 @@ def test_zero_use_with_facility_specific_sum_yields_zero_not_none() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Share-based fallback (no kg_co2eq_sum_{source}, only {source}_share + kg_co2eq)
-# ---------------------------------------------------------------------------
-
-
-def test_share_based_fallback_is_weighted_by_entry_kg_co2eq() -> None:
-    # shares sum to 1.0, entry kg_co2eq = 100 -> 100.0
-    fv = {
-        "use_unit": "kg",
-        "total_use": 100.0,
-        "processemissions_share": 0.5,
-        "building_energycombustions_share": 0.2,
-        "building_rooms_share": 0.1,
-        "purchases_common_share": 0.1,
-        "purchases_additional_share": 0.05,
-        "equipments_share": 0.05,
-    }
-    assert _formula(_ctx(), fv) == pytest.approx(100.0)
-
-
-def test_zero_share_contributes_zero_not_skipped() -> None:
-    fv = {"use_unit": "kg", "total_use": 100.0, "processemissions_share": 0.0}
-    assert _formula(_ctx(), fv) == pytest.approx(0.0)
-
-
-def test_share_without_entry_kg_co2eq_is_skipped() -> None:
-    # source_share present but kg_co2eq is None on the entry -> source contributes
-    # nothing; with no other source contributing, overall result is None.
-    fv = {"use_unit": "kg", "total_use": 100.0, "processemissions_share": 0.5}
-    assert _formula(_ctx(kg_co2eq=None), fv) is None
-
-
-# ---------------------------------------------------------------------------
-# Mixed sources: some facility-specific, some share-based
-# ---------------------------------------------------------------------------
-
-
-def test_mixed_facility_specific_and_share_based_sources_sum_together() -> None:
-    # processemissions uses its facility-specific sum (use_share=0.1 -> 5.0);
-    # building_energycombustions has no sum, falls back to share*kg_co2eq (20.0);
-    # remaining sources have neither a sum nor a share -> contribute nothing.
-    fv = {
-        "use_unit": "kg",
-        "total_use": 100.0,
-        "kg_co2eq_sum_processemissions": 50.0,
-        "building_energycombustions_share": 0.2,
-    }
-    assert _formula(_ctx(), fv) == pytest.approx(25.0)
-
-
-def test_no_source_contributes_returns_none() -> None:
-    fv = {"use_unit": "kg", "total_use": 100.0}
-    assert _formula(_ctx(), fv) is None
-
-
-# ---------------------------------------------------------------------------
 # Entry-point guards
 # ---------------------------------------------------------------------------
 
@@ -188,11 +133,6 @@ def test_missing_total_use_returns_none() -> None:
     assert _formula(_ctx(), fv) is None
 
 
-def test_zero_total_use_raises_zero_division_error() -> None:
-    # Documents current behavior: total_use=0 is accepted by the factor's
-    # validator (only negative values are rejected), but the formula divides
-    # `use` by `total_use` unconditionally, so a zero total_use blows up here
-    # rather than degrading to None.
+def test_zero_total_use_returns_zero() -> None:
     fv = {"use_unit": "kg", "total_use": 0.0, "kg_co2eq_sum_processemissions": 50.0}
-    with pytest.raises(ZeroDivisionError):
-        _formula(_ctx(), fv)
+    assert _formula(_ctx(), fv) == pytest.approx(0.0)

@@ -10,6 +10,8 @@ import {
 import type { ImportRow } from 'src/stores/backofficeDataManagement';
 import type { PipelineJob, PipelineProgress } from 'src/stores/pipelineStream';
 import UploadCard from './UploadCard.vue';
+import { MODULE_SUBMODULES } from 'src/constant/backoffice-module-config.js';
+import { MODULES } from 'src/constant/modules';
 
 interface Props {
   row: ImportRow;
@@ -63,7 +65,10 @@ const description = computed(() => {
 });
 
 const hasComputedFactor = computed(() => {
-  return props.module === 'research-facilities';
+  const modules = MODULE_SUBMODULES[MODULES.ResearchFacilities];
+  return modules
+    ?.map((submodule) => submodule.key)
+    .includes(props.module ?? '');
 });
 
 function handleUpload() {
