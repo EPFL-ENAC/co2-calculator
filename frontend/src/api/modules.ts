@@ -60,7 +60,8 @@ export interface ResultsSummary {
 }
 
 /**
- * Dropdown item returned by GET /modules/{unitId}/{year}/headcount/members.
+ * Dropdown item returned by
+ * GET /carbon-reports/{carbonReportId}/modules/headcount/members.
  */
 export interface HeadcountMemberDropdownItem {
   institutional_id: string;
@@ -70,23 +71,17 @@ export interface HeadcountMemberDropdownItem {
 /**
  * Fetch headcount members that have an institutional_id, for the traveler dropdown.
  *
- * @param unitId - Unit ID
- * @param year - Reporting year
- * @param carbonProjectType - 0 = Calculator, 1 = Simulator Explore. Scopes the
- *   lookup to the matching carbon report so the simulator reads its own members.
+ * @param carbonReportId - The addressed carbon report (pins unit and year;
+ *   resolve it via moduleStore.resolveCarbonReportId)
  * @returns Ordered list of members with institutional_id and name
  */
 export async function getHeadcountMembers(
-  unitId: number,
-  year: number | string,
-  carbonProjectType = 0,
+  carbonReportId: number,
 ): Promise<HeadcountMemberDropdownItem[]> {
-  const unitEncoded = encodeURIComponent(unitId);
-  const yearEncoded = encodeURIComponent(String(year));
   return api
-    .get(`modules/${unitEncoded}/${yearEncoded}/headcount/members`, {
-      searchParams: { carbon_project_type: carbonProjectType },
-    })
+    .get(
+      `carbon-reports/${encodeURIComponent(String(carbonReportId))}/modules/headcount/members`,
+    )
     .json<HeadcountMemberDropdownItem[]>();
 }
 

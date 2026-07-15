@@ -18,21 +18,19 @@ export function hasValidModuleParams(
 }
 
 /**
- * Single source of truth for `/modules/{unit}/{year}/{module}` paths.
- * Throws on missing/unresolved params so a doomed request is never fired
- * with `undefined`/`null` segments.
+ * Single source of truth for `/carbon-reports/{id}/modules/{module}` paths
+ * ("lookup once, then identity" — unit/year resolve to a report id once,
+ * every module operation addresses the report directly).
+ * Throws on a missing report id so a doomed request is never fired.
  */
 export function buildModulePath(
   moduleType: Module,
-  unit: number | string | null | undefined,
-  year: string | number | null | undefined,
+  carbonReportId: number | null | undefined,
 ): string {
-  if (!hasValidModuleParams(unit, year)) {
+  if (carbonReportId == null || !Number.isFinite(carbonReportId)) {
     throw new Error(
-      `buildModulePath: unresolved unit/year (unit=${unit}, year=${year})`,
+      `buildModulePath: unresolved carbonReportId (${carbonReportId})`,
     );
   }
-  return `modules/${encodeURIComponent(String(unit))}/${encodeURIComponent(
-    String(year),
-  )}/${encodeURIComponent(moduleType)}`;
+  return `carbon-reports/${encodeURIComponent(String(carbonReportId))}/modules/${encodeURIComponent(moduleType)}`;
 }
