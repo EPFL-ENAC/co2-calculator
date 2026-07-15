@@ -6,6 +6,7 @@ import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
 import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from 'src/stores/auth';
+import { isDevEnvironment } from './routeNames';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -153,15 +154,19 @@ const routes: RouteRecordRaw[] = [
               breadcrumb: false,
             },
           },
-          {
-            path: 'login-test',
-            name: LOGIN_TEST_ROUTE_NAME,
-            component: () => import('pages/app/LoginTestPage.vue'),
-            meta: {
-              note: 'Test User authentication - Login page',
-              breadcrumb: false,
-            },
-          },
+          ...(isDevEnvironment
+            ? [
+                {
+                  path: 'login-test',
+                  name: LOGIN_TEST_ROUTE_NAME,
+                  component: () => import('pages/app/LoginTestPage.vue'),
+                  meta: {
+                    note: 'Test User authentication - Login page',
+                    breadcrumb: false,
+                  },
+                },
+              ]
+            : []),
           {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
