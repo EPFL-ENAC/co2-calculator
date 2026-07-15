@@ -13,7 +13,9 @@ from app.models.user import User
 from app.schemas.simulator_plan import (
     SimulatorPlanCreate,
     SimulatorPlanRead,
+    SimulatorPlanReferenceYearUpdate,
     SimulatorPlanUpdate,
+    SimulatorPlanYearRead,
 )
 from app.services.simulator_plan_service import SimulatorPlanService
 
@@ -92,20 +94,60 @@ async def get_simulator_plan_by_name(
 
 
 @router.patch("/{plan_id}", response_model=SimulatorPlanRead)
-async def rename_simulator_plan(
+async def update_simulator_plan(
     plan_id: int,
     plan: SimulatorPlanUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Rename a simulator plan."""
+    """Update a simulator plan (name, year range, lab visibility).
+
+    Setting/changing the year range syncs the plan's per-year reports:
+    missing years are created with their modules, out-of-range years are
+    deleted together with their entries.
+    """
     service = await _require_plan_unit_access(db, current_user, plan_id)
     try:
-        result = await service.rename_plan(plan_id, plan.name)
+        result = await service.update_plan(plan_id, plan)
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="Plan not found")
+    await db.commit()
+    return result
+
+
+@router.get("/{plan_id}/years", response_model=List[SimulatorPlanYearRead])
+async def list_simulator_plan_years(
+    plan_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List the plan's per-year reports (with modules and stats), by year."""
+    service = await _require_plan_unit_access(db, current_user, plan_id)
+    result = await service.list_plan_years(plan_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return result
+
+
+@router.patch("/{plan_id}/years/{year}", response_model=SimulatorPlanYearRead)
+async def set_simulator_plan_reference_year(
+    plan_id: int,
+    year: int,
+    update: SimulatorPlanReferenceYearUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Set the reference (baseline) year of one plan-year report.
+
+    All factors and prefill data of the simulation year are sourced from
+    the reference year; existing entries get their emissions recomputed.
+    """
+    service = await _require_plan_unit_access(db, current_user, plan_id)
+    result = await service.set_reference_year(plan_id, year, update.reference_year)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Plan year not found")
     await db.commit()
     return result
 

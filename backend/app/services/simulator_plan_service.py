@@ -13,11 +13,19 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReportType
+from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
-from app.schemas.simulator_plan import SimulatorPlanRead
+from app.repositories.data_entry_repo import DataEntryRepository
+from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.data_entry import DataEntryResponse
+from app.schemas.simulator_plan import (
+    SimulatorPlanRead,
+    SimulatorPlanUpdate,
+    SimulatorPlanYearRead,
+)
 from app.services.carbon_report_service import CarbonReportService
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 logger = get_logger(__name__)
 
@@ -46,6 +54,9 @@ def _to_read(project: CarbonProject, creator_name: Optional[str]) -> SimulatorPl
         id=project.id,
         unit_id=project.unit_id,
         name=project.name or "",
+        start_year=project.start_year,
+        end_year=project.end_year,
+        is_viewable_by_unit_members=project.is_viewable_by_unit_members,
         created_by=project.created_by,
         created_at=project.created_at,
         creator_name=creator_name,
@@ -103,26 +114,137 @@ class SimulatorPlanService:
         project = await self._flush_guarded(self.repo.create(project))
         return _to_read(project, user.display_name)
 
-    async def rename_plan(
-        self, plan_id: int, new_name: str
+    async def update_plan(
+        self, plan_id: int, update: SimulatorPlanUpdate
     ) -> Optional[SimulatorPlanRead]:
-        """Rename a plan; returns None if the plan does not exist.
+        """Apply a PATCH to a plan; returns None if the plan does not exist.
 
         Renaming to the current name is a no-op; a collision with another
-        plan of the same unit raises ``ValueError``.
+        plan of the same unit raises ``ValueError``. When the plan ends up
+        with a complete year range, its per-year reports are synced to it.
         """
         project = await self.repo.get_plan(plan_id)
         if project is None:
             return None
-        if new_name != project.name:
+        if update.name is not None and update.name != project.name:
             existing_names = await self.repo.list_plan_names(project.unit_id)
-            if new_name in existing_names:
+            if update.name in existing_names:
                 raise ValueError(
-                    f"A plan named '{new_name}' already exists for this unit"
+                    f"A plan named '{update.name}' already exists for this unit"
                 )
-            project.name = new_name
-            project = await self._flush_guarded(self.repo.create(project))
+            project.name = update.name
+        if update.is_viewable_by_unit_members is not None:
+            project.is_viewable_by_unit_members = update.is_viewable_by_unit_members
+        if update.start_year is not None:
+            project.start_year = update.start_year
+        if update.end_year is not None:
+            project.end_year = update.end_year
+        if (
+            project.start_year is not None
+            and project.end_year is not None
+            and project.start_year > project.end_year
+        ):
+            raise ValueError("start_year must be <= end_year")
+        project = await self._flush_guarded(self.repo.create(project))
+        await self._sync_year_reports(project)
         return await self._read_with_creator(project)
+
+    async def _sync_year_reports(self, project: CarbonProject) -> None:
+        """Make the plan's reports match ``start_year..end_year``, one per year.
+
+        Out-of-range reports are deleted together with their entries
+        (destructive by design — the user shrank the range deliberately).
+        No-op until both bounds are set.
+        """
+        if project.start_year is None or project.end_year is None:
+            return
+        if project.id is None:
+            raise ValueError("project must be persisted before use")
+        target_years = set(range(project.start_year, project.end_year + 1))
+        existing_years: set[int] = set()
+        for report in await self.repo.list_reports_for_project(project.id):
+            if report.year in target_years:
+                existing_years.add(report.year)
+            elif report.id is not None:
+                await self.report_service.delete(report.id)
+        for year in sorted(target_years - existing_years):
+            await self.report_service.create(
+                CarbonReportCreate(
+                    unit_id=project.unit_id,
+                    year=year,
+                    carbon_project_id=project.id,
+                )
+            )
+
+    async def list_plan_years(
+        self, plan_id: int
+    ) -> Optional[list[SimulatorPlanYearRead]]:
+        """List the plan's per-year reports with their modules, by year.
+
+        Returns None when the plan does not exist (vs. [] for a plan whose
+        year range is not set yet).
+        """
+        project = await self.repo.get_plan(plan_id)
+        if project is None:
+            return None
+        if project.id is None:
+            raise ValueError("project must be persisted before use")
+        years: list[SimulatorPlanYearRead] = []
+        for report in await self.repo.list_reports_for_project(project.id):
+            years.append(await self._year_read(report))
+        return years
+
+    async def set_reference_year(
+        self, plan_id: int, year: int, reference_year: int
+    ) -> Optional[SimulatorPlanYearRead]:
+        """Set the baseline year of one plan-year report; None if missing.
+
+        Existing entries of the report get their emissions recomputed, since
+        factor lookup follows the reference year.
+        """
+        reports = await self.repo.list_reports_for_project(plan_id)
+        report = next((r for r in reports if r.year == year), None)
+        if report is None:
+            return None
+        if report.reference_year != reference_year:
+            report.reference_year = reference_year
+            self.session.add(report)
+            await self.session.flush()
+            await self._recalculate_report_emissions(report)
+        return await self._year_read(report)
+
+    async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
+        """Build the per-year DTO (report + its modules)."""
+        if report.id is None:
+            raise ValueError("report must be persisted before use")
+        modules = await self.report_service.module_service.list_modules(report.id)
+        return SimulatorPlanYearRead(
+            id=report.id,
+            year=report.year,
+            reference_year=report.reference_year,
+            stats=report.stats,
+            modules=modules,
+        )
+
+    async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
+        """Recompute emissions of every entry in a report + refresh stats."""
+        if report.id is None:
+            raise ValueError("report must be persisted before use")
+        entries = await DataEntryRepository(self.session).list_by_carbon_report(
+            report.id
+        )
+        emission_svc = DataEntryEmissionService(self.session)
+        module_ids: set[int] = set()
+        for entry in entries:
+            await emission_svc.upsert_by_data_entry(
+                DataEntryResponse.model_validate(entry)
+            )
+            module_ids.add(entry.carbon_report_module_id)
+        if module_ids:
+            await self.report_service.module_service.recompute_stats_many(
+                sorted(module_ids)
+            )
+        await self.report_service.recompute_report_stats(report.id)
 
     async def duplicate_plan(
         self, plan_id: int, user: User

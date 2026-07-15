@@ -312,6 +312,19 @@ class DataEntryRepository:
         result = await self.session.execute(statement)
         return list(result.scalars().all())
 
+    async def list_by_carbon_report(self, carbon_report_id: int) -> list[DataEntry]:
+        """Fetch all DataEntries belonging to one carbon report."""
+        statement = (
+            select(DataEntry)
+            .join(
+                CarbonReportModule,
+                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
+            )
+            .where(col(CarbonReportModule.carbon_report_id) == carbon_report_id)
+        )
+        result = await self.session.execute(statement)
+        return list(result.scalars().all())
+
     async def list_by_data_entry_type_and_year(
         self,
         data_entry_type_id: DataEntryTypeEnum,
