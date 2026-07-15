@@ -118,6 +118,7 @@ DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION: dict[DataEntryTypeEnum, EmissionType] = {
     DataEntryTypeEnum.building: EmissionType.buildings__rooms,
     DataEntryTypeEnum.member: EmissionType.headcount,
     DataEntryTypeEnum.student: EmissionType.headcount,
+    DataEntryTypeEnum.planner_headcount: EmissionType.headcount,
 }
 
 ROLLUP_EMISSION_TYPE_IDS: frozenset[int] = frozenset(
@@ -137,6 +138,13 @@ DATA_ENTRY_TO_EMISSION_TYPES: dict[DataEntryTypeEnum, list[EmissionType] | None]
         EmissionType.commuting,
     ],
     DataEntryTypeEnum.student: [
+        EmissionType.food,
+        EmissionType.waste,
+        EmissionType.commuting,
+    ],
+    # Simulator Plan manual headcount: aggregate FTE per SIUS category,
+    # same emission leaves as Calculator members (factors reused).
+    DataEntryTypeEnum.planner_headcount: [
         EmissionType.food,
         EmissionType.waste,
         EmissionType.commuting,
