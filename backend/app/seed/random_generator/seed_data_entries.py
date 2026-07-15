@@ -461,9 +461,14 @@ def generate_data_entries_for_module(module_id, module_type_id):
         ENTRIES_PER_MODULE_MIN, ENTRIES_PER_MODULE_MAX
     )
 
-    matching_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-        module_type_id, [DataEntryTypeEnum.member]
-    )
+    # Planner kinds never appear in randomly seeded Calculator modules.
+    matching_types = [
+        t
+        for t in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            module_type_id, [DataEntryTypeEnum.member]
+        )
+        if not t.is_planner_kind
+    ]
 
     for _ in range(num_entries):
         data_entry_type = random.choice(matching_types)  # nosec B311

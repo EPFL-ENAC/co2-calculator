@@ -15,6 +15,10 @@ from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
+from app.modules_planner.headcount import (
+    PlannerHeadCountCreate,
+    PlannerHeadcountModuleHandler,
+)
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 
@@ -1938,3 +1942,78 @@ class TestFactorYearResolution:
             new=AsyncMock(return_value=self._report(2025, None)),
         ):
             assert await service._get_year_from_data_entry(de) == 2025
+
+
+# ---------------------------------------------------------------------------
+# Planner headcount — full emissions from aggregate FTE via member factors
+# ---------------------------------------------------------------------------
+
+
+class TestPlannerHeadcountEmissions:
+    """Simulator Plan headcount rows compute fte × member factor."""
+
+    @pytest.mark.asyncio
+    async def test_planner_headcount_computes_from_member_factor(self):
+        service = _make_service()
+        factor = MagicMock(spec=Factor)
+        factor.id = 7
+        factor.emission_type_id = EmissionType.food__vegetarian.value
+        factor.values = {
+            "ef_kg_co2eq_per_unit": 2.0,
+            "number_of_unit_per_fte": 100.0,
+            "unit": "kg",
+        }
+        de = DataEntryResponse(
+            id=3,
+            data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+            carbon_report_module_id=10,
+            data={"sius_code": "51", "fte": 4.5},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=None),
+            ),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.food],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+            ) as mock_handler_cls,
+        ):
+            mock_handler = PlannerHeadcountModuleHandler()
+            mock_handler.pre_compute = AsyncMock(return_value={})
+            mock_handler_cls.return_value = mock_handler
+
+            results = await service.prepare_create(de)
+
+        assert len(results) == 1
+        # fte (4.5, aggregate > 1 allowed) × ef (2.0) × units/fte (100)
+        assert results[0].kg_co2eq == pytest.approx(900.0)
+
+    def test_planner_headcount_create_allows_aggregate_fte(self):
+        dto = PlannerHeadCountCreate(
+            data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+            carbon_report_module_id=1,
+            sius_code="51",
+            fte=12.5,
+        )
+        assert dto.data["fte"] == 12.5
+
+    def test_planner_headcount_create_rejects_unknown_sius_code(self):
+        with pytest.raises(ValueError):
+            PlannerHeadCountCreate(
+                data_entry_type_id=DataEntryTypeEnum.planner_headcount.value,
+                carbon_report_module_id=1,
+                sius_code="99",
+                fte=1.0,
+            )

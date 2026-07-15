@@ -43,6 +43,7 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
     ModuleTypeEnum.headcount: [
         DataEntryTypeEnum.member,
         DataEntryTypeEnum.student,
+        DataEntryTypeEnum.planner_headcount,
     ],
     ModuleTypeEnum.equipment: [
         DataEntryTypeEnum.scientific,
