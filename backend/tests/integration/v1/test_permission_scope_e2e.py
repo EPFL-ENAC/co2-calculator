@@ -140,13 +140,18 @@ def _wire(monkeypatch, user, unit_iid: str = UNIT_IID) -> None:
     monkeypatch.setattr(
         "app.api.v1.carbon_report_module.DataEntryService", lambda db: mock_service
     )
+    _resolved_report = MagicMock()
+    _resolved_report.unit_id = 1
+    _resolved_report.year = 2024
+    _resolved_module = MagicMock()
+    _resolved_module.id = 1
     monkeypatch.setattr(
-        "app.api.v1.carbon_report_module.get_carbon_report_id",
-        AsyncMock(return_value=1),
+        "app.api.v1.carbon_report_module.resolve_report_module",
+        AsyncMock(return_value=(_resolved_report, _resolved_module)),
     )
 
 
-URL = "/api/v1/modules/1/2024/headcount/members"
+URL = "/api/v1/carbon-reports/1/modules/headcount/members"
 
 
 class TestPermissionScopeEndToEnd:

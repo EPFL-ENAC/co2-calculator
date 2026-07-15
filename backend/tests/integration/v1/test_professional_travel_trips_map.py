@@ -29,7 +29,7 @@ def client():
 
 
 UNIT_IID = "10208"
-URL = "/api/v1/modules/1/2024/professional-travel/trips-map"
+URL = "/api/v1/carbon-reports/1/modules/professional-travel/trips-map"
 
 ALL_LEGS = [
     {
@@ -97,9 +97,14 @@ def _wire(monkeypatch, user, decision_fn):
     )
     mock_unit = MagicMock()
     mock_unit.institutional_id = UNIT_IID
+    _resolved_report = MagicMock()
+    _resolved_report.unit_id = 1
+    _resolved_report.year = 2024
+    _resolved_module = MagicMock()
+    _resolved_module.id = 1
     monkeypatch.setattr(
-        "app.api.v1.carbon_report_module.get_carbon_report_id",
-        AsyncMock(return_value=1),
+        "app.api.v1.carbon_report_module.resolve_report_module",
+        AsyncMock(return_value=(_resolved_report, _resolved_module)),
     )
 
     captured: dict = {}

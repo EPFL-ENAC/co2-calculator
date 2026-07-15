@@ -70,9 +70,14 @@ def _wire(monkeypatch, module, user, decision_fn, unit_institutional_id=UNIT_IID
 
     mock_unit = MagicMock()
     mock_unit.institutional_id = unit_institutional_id
+    _resolved_report = MagicMock()
+    _resolved_report.unit_id = 1
+    _resolved_report.year = 2024
+    _resolved_module = MagicMock()
+    _resolved_module.id = 1
     monkeypatch.setattr(
-        "app.api.v1.carbon_report_module.get_carbon_report_id",
-        AsyncMock(return_value=1),
+        "app.api.v1.carbon_report_module.resolve_report_module",
+        AsyncMock(return_value=(_resolved_report, _resolved_module)),
     )
 
     mock_service = MagicMock()
@@ -126,7 +131,7 @@ def test_403_when_no_relevant_permission(client, monkeypatch):
     user = _make_user("11111", [_std_role(UNIT_IID)])
     _wire(monkeypatch, module, user, _deny_all)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 403
         assert "Permission denied" in r.json()["detail"]
     finally:
@@ -144,7 +149,7 @@ def test_principal_for_this_unit_sees_all_members(client, monkeypatch):
     user = _make_user("11111", [_principal_role(UNIT_IID)])
     _wire(monkeypatch, module, user, _allow_headcount_only)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 200
         assert len(r.json()) == 2
     finally:
@@ -159,7 +164,7 @@ def test_std_for_this_unit_sees_only_own_record(client, monkeypatch):
     user = _make_user("11111", [_std_role(UNIT_IID)])
     _wire(monkeypatch, module, user, _allow_travel_only)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 200
         data = r.json()
         assert len(data) == 1
@@ -183,7 +188,7 @@ def test_principal_for_other_unit_sees_only_own_record(client, monkeypatch):
     # but data filter must use the unit-scoped role — which is STD here.
     _wire(monkeypatch, module, user, _allow_headcount_only)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 200
         data = r.json()
         assert len(data) == 1
@@ -199,7 +204,7 @@ def test_global_role_sees_all_members(client, monkeypatch):
     user = _make_user("11111", [_global_role()])
     _wire(monkeypatch, module, user, _allow_all)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 200
         assert len(r.json()) == 2
     finally:
@@ -214,7 +219,7 @@ def test_travel_user_not_in_headcount_gets_empty_list(client, monkeypatch):
     user = _make_user("99999", [_std_role(UNIT_IID)])
     _wire(monkeypatch, module, user, _allow_travel_only)
     try:
-        r = client.get("/api/v1/modules/1/2024/headcount/members")
+        r = client.get("/api/v1/carbon-reports/1/modules/headcount/members")
         assert r.status_code == 200
         assert r.json() == []
     finally:
