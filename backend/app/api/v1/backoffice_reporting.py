@@ -78,7 +78,7 @@ async def list_units(
     level: int | None = None,
     parent_id: str | None = None,
     unit_type_labels: Annotated[list[str] | None, Query()] = None,
-    parent_unit_type_label: str | None = None,
+    parent_unit_type_label: Annotated[list[str] | None, Query()] = None,
     name: Optional[str] = Query(
         None, description="Filter by unit name (partial match)"
     ),
@@ -117,7 +117,7 @@ async def list_units(
         query = query.join(
             parent_alias,
             col(Unit.parent_institutional_code) == parent_alias.institutional_code,
-        ).where(parent_alias.unit_type_label == parent_unit_type_label)
+        ).where(col(parent_alias.unit_type_label).in_(parent_unit_type_label))
 
     # 4. Affiliation scoping (#459)
     if not is_global:
