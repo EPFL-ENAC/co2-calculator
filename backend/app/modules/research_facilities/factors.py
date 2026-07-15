@@ -1,23 +1,11 @@
-"""Research Facilities module handler."""
+"""Research Facilities factor schemas and handlers (common + animal)."""
 
 from typing import Optional
 
 from pydantic import field_validator
 
-from app.core.logging import get_logger
-from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import (
-    DataEntryEmission,
-    EmissionComputation,
-)
-from app.models.module_type import ModuleTypeEnum
+from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions import EmissionType
-from app.schemas.data_entry import (
-    BaseModuleHandler,
-    DataEntryCreate,
-    DataEntryResponseGen,
-    DataEntryUpdate,
-)
 from app.schemas.factor import (
     BaseFactorHandler,
     FactorCreate,
@@ -25,157 +13,79 @@ from app.schemas.factor import (
     FactorUpdate,
 )
 
-logger = get_logger(__name__)
+## RESEARCH FACILITIES FACTOR HANDLERS
+
+# --- Common (research_facilities) ---
+
+research_facilities_common_classification_fields: list[str] = [
+    "researchfacility_id",
+    "researchfacility_name",
+]
+research_facilities_common_value_fields: list[str] = [
+    "use_unit",
+    "kg_co2eq_sum",
+    "total_use",
+]
 
 
-class ResearchFacilitiesAnimalHandlerResponse(DataEntryResponseGen):
-    researchfacility_id: Optional[str] = None
-    researchfacility_name: Optional[str] = None
-    researchfacility_type: Optional[str] = None
-    use: Optional[float] = None
-    use_unit: Optional[str] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-
-
-class ResearchFacilitiesAnimalHandlerCreate(DataEntryCreate):
+class ResearchFacilitiesCommonFactorCreate(FactorCreate):
     researchfacility_id: str
     researchfacility_name: str
-    researchfacility_type: str
-    use: float
+    kg_co2eq_sum: Optional[float] = None
+    total_use: float
     use_unit: str
-    note: Optional[str] = None
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
+
+    @field_validator("kg_co2eq_sum", mode="after")
+    @classmethod
+    def validate_kg_co2eq_sum(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("kg_co2eq_sum must be non-negative")
+        return v
 
 
-class ResearchFacilitiesAnimalHandlerUpdate(DataEntryUpdate):
+class ResearchFacilitiesCommonFactorUpdate(FactorUpdate):
     researchfacility_id: Optional[str] = None
     researchfacility_name: Optional[str] = None
-    researchfacility_type: Optional[str] = None
-    use: Optional[float] = None
     use_unit: Optional[str] = None
-    note: Optional[str] = None
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
+
+    @field_validator("total_use", mode="after")
+    @classmethod
+    def validate_total_use(cls, v: Optional[float]) -> Optional[float]:
+        if v is None:
+            return v
+        if v < 0:
+            raise ValueError("total_use must be non-negative")
+        return v
 
 
-class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
-    """Handler for research facilities data entries related
-    to mice and fish animal facilities.
-    """
+class ResearchFacilitiesCommonFactorResponse(FactorResponseGen):
+    researchfacility_id: Optional[str] = None
+    researchfacility_name: str
+    use_unit: str
+    kg_co2eq_sum: Optional[float] = None
+    total_use: Optional[float] = None
 
-    module_type: ModuleTypeEnum = ModuleTypeEnum.research_facilities
+
+class ResearchFacilitiesCommonFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [
-        DataEntryTypeEnum.mice_and_fish_animal_facilities,
-    ]
+    registration_keys = [DataEntryTypeEnum.research_facilities]
+    emission_type = EmissionType.research_facilities__facilities
 
-    create_dto = ResearchFacilitiesAnimalHandlerCreate
-    update_dto = ResearchFacilitiesAnimalHandlerUpdate
-    response_dto = ResearchFacilitiesAnimalHandlerResponse
+    create_dto = ResearchFacilitiesCommonFactorCreate
+    update_dto = ResearchFacilitiesCommonFactorUpdate
+    response_dto = ResearchFacilitiesCommonFactorResponse
 
-    kind_field: str = "researchfacility_id"
-    subkind_field: str = "researchfacility_type"
-    require_subkind_for_factor = False
-
-    sort_map = {
-        "id": DataEntry.id,
-        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
-        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
-        "researchfacility_type": DataEntry.data["researchfacility_type"].as_string(),
-        "use": DataEntry.data["use"].as_float(),
-        "use_unit": DataEntry.data["use_unit"].as_string(),
-        "kg_co2eq": DataEntryEmission.kg_co2eq,
-    }
-
-    filter_map: dict = {
-        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
-        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
-        "researchfacility_type": DataEntry.data["researchfacility_type"].as_string(),
-    }
-
-    def to_response(
-        self,
-        data_entry: DataEntry,
-        enriched_data: dict | None = None,
-    ) -> ResearchFacilitiesAnimalHandlerResponse:
-        data = enriched_data if enriched_data is not None else data_entry.data
-        return self.response_dto.model_validate(
-            {
-                "id": data_entry.id,
-                "data_entry_type_id": data_entry.data_entry_type_id,
-                "carbon_report_module_id": data_entry.carbon_report_module_id,
-                **data,
-            }
-        )
-
-    def validate_create(self, payload: dict) -> ResearchFacilitiesAnimalHandlerCreate:
-        return self.create_dto.model_validate(payload)
-
-    def validate_update(self, payload: dict) -> ResearchFacilitiesAnimalHandlerUpdate:
-        return self.update_dto.model_validate(payload)
-
-    def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
-        """Strategy A — primary_factor_id."""
-
-        factor_id = ctx.get("primary_factor_id")
-        if factor_id is None:
-            return []
-
-        def _research_facilities_formula(
-            ctx: dict, factor_values: dict
-        ) -> Optional[float]:
-            """
-            Compute emissions based on share of use of the facility compared
-            to total use.
-            Formula: (use / total_use) * kg_co2eq_sum, for each sources,
-            with unit check on use_unit.
-            """
-            use = ctx.get("use")
-            use_unit = ctx.get("use_unit")
-            if use is None or use_unit is None:
-                return None
-            # Must be same unit for the factor and the data entry to apply the formula
-            use_unit_factor = factor_values.get("use_unit")
-            if use_unit != use_unit_factor:
-                return None
-            # Compute share of use and apply to each source emissions
-            # and sum them up.
-            total_use = factor_values.get("total_use")
-            if total_use is None:
-                return None
-            use_share = use / total_use if total_use > 0 else 0.0
-            sources = [
-                "processemissions",
-                "building_energycombustions",
-                "building_rooms",
-                "purchases_common",
-                "purchases_additional",
-                "equipments",
-            ]
-            kg_co2eq_sum = None
-            for source in sources:
-                kg_co2eq_sum_source = factor_values.get(f"kg_co2eq_sum_{source}")
-                if kg_co2eq_sum_source is not None:
-                    # Add provided facility emissions modulo share of use
-                    if kg_co2eq_sum is None:
-                        kg_co2eq_sum = 0
-                    kg_co2eq_sum += use_share * kg_co2eq_sum_source
-                else:
-                    # Source emissions are missing in the factor values
-                    researchfacility_name = ctx.get("researchfacility_name", "Unknown")
-                    researchfacility_type = ctx.get("researchfacility_type", "Unknown")
-                    raise ValueError(
-                        f"Missing kg_co2eq_sum for source {source} in factor values "
-                        f"for facility {researchfacility_name} "
-                        f"({researchfacility_type})."
-                    )
-            return kg_co2eq_sum
-
-        return [
-            EmissionComputation(
-                emission_type=emission_type,
-                factor_id=factor_id,
-                formula_func=_research_facilities_formula,
-            )
-        ]
+    classification_fields: list[str] = research_facilities_common_classification_fields
+    value_fields: list[str] = research_facilities_common_value_fields
 
 
 ## RESEARCH FACILITIES FACTOR HANDLERS

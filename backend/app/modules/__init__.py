@@ -1,33 +1,32 @@
 # This file is used to mark the directory as a Python package and
-# to import relevant modules for easier access.
-from app.modules.buildings.schemas import (
+# to import relevant modules for easier access. Importing it registers
+# every module and factor handler (metaclass side effect).
+from app.modules.buildings import (
     BuildingRoomHandlerCreate,
     EnergyCombustionHandlerCreate,
 )
-from app.modules.equipment.schemas import EquipmentHandlerCreate
-from app.modules.external_cloud_and_ai.schemas import (
+from app.modules.equipment import EquipmentHandlerCreate
+from app.modules.external_cloud_and_ai import (
     ExternalAIHandlerCreate,
     ExternalCloudHandlerCreate,
 )
-from app.modules.headcount.schemas import (
+from app.modules.headcount import (
     HeadCountCreate,
     HeadCountStudentCreate,
     HeadCountStudentUpdate,
     HeadCountUpdate,
 )
-from app.modules.process_emissions.schemas import ProcessEmissionsHandlerCreate
-from app.modules.professional_travel.schemas import (
+from app.modules.process_emissions import ProcessEmissionsHandlerCreate
+from app.modules.professional_travel import (
     ProfessionalTravelPlaneHandlerCreate,
     ProfessionalTravelTrainHandlerCreate,
 )
-from app.modules.purchase.schemas import (
+from app.modules.purchase import (
     PurchaseCentralizedHandlerCreate,
     PurchaseHandlerCreate,
 )
-from app.modules.research_facilities.animals_schemas import (
+from app.modules.research_facilities import (
     ResearchFacilitiesAnimalHandlerCreate,
-)
-from app.modules.research_facilities.common_schemas import (
     ResearchFacilitiesCommonHandlerCreate,
 )
 

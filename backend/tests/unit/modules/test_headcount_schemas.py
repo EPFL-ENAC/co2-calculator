@@ -23,7 +23,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.modules.headcount.schemas import (
+from app.modules.headcount import (
     SIUS_CODE_VALUES,
     HeadCountCreate,
     HeadCountStudentCreate,

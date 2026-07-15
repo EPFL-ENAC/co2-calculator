@@ -1,11 +1,5 @@
 from typing import Any, Optional
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    ValidationInfo,
-    field_validator,
-)
 from sqlmodel import func
 
 from app.core.logging import get_logger
@@ -17,126 +11,22 @@ from app.models.data_entry_emission import (
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.buildings.data_entries import (
+    BuildingEmbodiedEnergyHandlerCreate,
+    BuildingEmbodiedEnergyHandlerResponse,
+    BuildingEmbodiedEnergyHandlerUpdate,
+    BuildingRoomHandlerCreate,
+    BuildingRoomHandlerResponse,
+    BuildingRoomHandlerUpdate,
+    EnergyCombustionHandlerCreate,
+    EnergyCombustionHandlerResponse,
+    EnergyCombustionHandlerUpdate,
+)
 from app.modules.emissions import EmissionType
-from app.schemas.data_entry import (
-    BaseModuleHandler,
-    DataEntryCreate,
-    DataEntryResponseGen,
-    DataEntryUpdate,
-)
-from app.schemas.factor import (
-    BaseFactorHandler,
-    FactorCreate,
-    FactorResponseGen,
-    FactorUpdate,
-)
+from app.schemas.data_entry import BaseModuleHandler
 from app.services.building_room_service import BuildingRoomService
 
 logger = get_logger(__name__)
-
-
-def _validate_non_negative_float(
-    v: Optional[float], field_name: str
-) -> Optional[float]:
-    if v is None:
-        return v
-    if v < 0:
-        raise ValueError(f"{field_name} must be non-negative")
-    return v
-
-
-class BuildingRoomBuildingResponse(BaseModel):
-    building_location: str
-    building_name: str
-
-
-class BuildingRoomResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    building_location: str
-    building_name: str
-    room_name: str
-    room_type: Optional[str]
-    room_surface_square_meter: Optional[float]
-
-
-class BuildingRoomEnergyDefaultsResponse(BaseModel):
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
-
-
-class BuildingRoomHandlerResponse(DataEntryResponseGen):
-    building_name: str
-    room_name: Optional[str] = None
-    room_type: Optional[str] = None
-    room_surface_square_meter: Optional[float] = None
-    room_allocation_ratio: Optional[float] = None
-    heating_kwh_per_square_meter: Optional[float] = None
-    cooling_kwh_per_square_meter: Optional[float] = None
-    ventilation_kwh_per_square_meter: Optional[float] = None
-    lighting_kwh_per_square_meter: Optional[float] = None
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-
-
-VALID_ROOM_TYPES: list[Optional[str]] = [
-    "office",
-    "miscellaneous",
-    "laboratories",
-    "archives",
-    "libraries",
-    "auditoriums",
-    None,
-]
-
-
-class BuildingRoomHandlerCreate(DataEntryCreate):
-    building_name: str
-    room_name: str
-    room_type: str
-    room_allocation_ratio: Optional[float] = None
-    note: Optional[str] = None
-
-    @field_validator("room_type", mode="after")
-    @classmethod
-    def validate_room_type(cls, v: str) -> str:
-        valid = [r for r in VALID_ROOM_TYPES if r]
-        if v not in valid:
-            raise ValueError(f"room_type must be one of: {valid}")
-        return v
-
-    @field_validator("room_allocation_ratio", mode="after")
-    @classmethod
-    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and (v < 0 or v > 1):
-            raise ValueError("room_allocation_ratio must be between 0 and 1")
-        return v
-
-
-class BuildingRoomHandlerUpdate(DataEntryUpdate):
-    building_name: Optional[str] = None
-    room_name: Optional[str] = None
-    room_type: Optional[str] = None
-    room_allocation_ratio: Optional[float] = None
-    note: Optional[str] = None
-
-    @field_validator("room_type", mode="after")
-    @classmethod
-    def validate_room_type(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and v not in VALID_ROOM_TYPES:
-            raise ValueError(
-                f"room_type must be one of: {[r for r in VALID_ROOM_TYPES if r]}"
-            )
-        return v
-
-    @field_validator("room_allocation_ratio", mode="after")
-    @classmethod
-    def validate_room_allocation_ratio(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and (v < 0 or v > 1):
-            raise ValueError("room_allocation_ratio must be between 0 and 1")
-        return v
 
 
 class BuildingRoomModuleHandler(BaseModuleHandler):
@@ -312,160 +202,6 @@ class BuildingRoomModuleHandler(BaseModuleHandler):
         return self.update_dto.model_validate(payload)
 
 
-## BUILDINGS FACTOR HANDLER
-
-
-## FACTORS for BUILDINGS
-
-buildings_classification_fields: list[str] = [
-    "building_name",
-    "room_type",
-    "energy_type",
-]
-buildings_value_fields: list[str] = [
-    "ef_kg_co2eq_per_kwh",
-    "heating_kwh_per_square_meter",
-    "cooling_kwh_per_square_meter",
-    "ventilation_kwh_per_square_meter",
-    "lighting_kwh_per_square_meter",
-    "conversion_factor",
-]
-
-
-class _BuildingsFactorValidationMixin:
-    @field_validator(
-        "ef_kg_co2eq_per_kwh",
-        "heating_kwh_per_square_meter",
-        "cooling_kwh_per_square_meter",
-        "ventilation_kwh_per_square_meter",
-        "lighting_kwh_per_square_meter",
-        mode="after",
-    )
-    @classmethod
-    def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-    @field_validator("room_type", mode="after")
-    @classmethod
-    def validate_room_type(cls, v: str) -> str:
-        valid_room_types = [
-            "office",
-            "miscellaneous",
-            "laboratories",
-            "archives",
-            "libraries",
-            "auditoriums",
-            None,
-        ]
-        if not v:
-            raise ValueError("Room type is required")
-        if v not in valid_room_types:
-            raise ValueError("Invalid room type")
-        return v
-
-    @field_validator("energy_type", mode="after")
-    @classmethod
-    def validate_energy_type(cls, v: str) -> str:
-        valid_energy_types = [
-            "electric",
-            "thermal",
-        ]
-        # Normalize aliases
-        normalized = v.lower() if v else v
-        if not normalized:
-            raise ValueError("Energy type is required")
-        if normalized not in valid_energy_types:
-            raise ValueError(
-                f"Invalid energy type: {v}. Must be one of: electric, thermal"
-            )
-        return normalized
-
-
-class BuildingBaseFactor:
-    building_name: str
-    room_type: str
-    heating_kwh_per_square_meter: float
-    cooling_kwh_per_square_meter: float
-    ventilation_kwh_per_square_meter: float
-    lighting_kwh_per_square_meter: float
-    ef_kg_co2eq_per_kwh: float
-    energy_type: str
-    conversion_factor: Optional[float] = 1
-
-
-class BuildingsFactorCreate(
-    _BuildingsFactorValidationMixin, FactorCreate, BuildingBaseFactor
-):
-    pass
-
-
-class BuildingsFactorUpdate(
-    _BuildingsFactorValidationMixin, FactorUpdate, BuildingBaseFactor
-):
-    pass
-
-
-class BuildingsFactorResponse(FactorResponseGen, BuildingBaseFactor):
-    pass
-
-
-class BuildingsFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [
-        DataEntryTypeEnum.building,
-    ]
-    emission_type: EmissionType = EmissionType.buildings__rooms
-
-    create_dto = BuildingsFactorCreate
-    update_dto = BuildingsFactorUpdate
-    response_dto = BuildingsFactorResponse
-
-    classification_fields: list[str] = buildings_classification_fields
-    value_fields: list[str] = buildings_value_fields
-
-    def to_response(self, factor: Factor) -> FactorResponseGen:
-        return self.response_dto.model_validate(factor.model_dump)
-
-
-### ENERGY COMBUSTION DATA_ENTRY_TYPE
-
-
-class EnergyCombustionHandlerResponse(DataEntryResponseGen):
-    name: str
-    unit: Optional[str] = None
-    quantity: float
-    note: Optional[str] = None
-    kg_co2eq: Optional[float] = None
-
-
-class EnergyCombustionHandlerCreate(DataEntryCreate):
-    name: str
-    quantity: float
-    note: Optional[str] = None
-
-    @field_validator("quantity", mode="after")
-    @classmethod
-    def validate_quantity(cls, v: float) -> float:
-        if v < 0:
-            raise ValueError("Quantity must be non-negative")
-        return v
-
-
-class EnergyCombustionHandlerUpdate(DataEntryUpdate):
-    name: Optional[str] = None
-    quantity: Optional[float] = None
-    note: Optional[str] = None
-
-    @field_validator("quantity", mode="after")
-    @classmethod
-    def validate_quantity(cls, v: Optional[float]) -> Optional[float]:
-        if v is not None and v < 0:
-            raise ValueError("Quantity must be non-negative")
-        return v
-
-
 class EnergyCombustionModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.buildings
     data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.energy_combustion
@@ -540,79 +276,6 @@ class EnergyCombustionModuleHandler(BaseModuleHandler):
 
     def validate_update(self, payload: dict) -> EnergyCombustionHandlerUpdate:
         return self.update_dto.model_validate(payload)
-
-
-## ENERGY COMBUSTION FACTOR HANDLER
-
-energy_combustion_classification_fields: list[str] = ["unit", "name"]
-energy_combustion_value_fields: list[str] = [
-    "ef_kg_co2eq_per_unit",
-]
-
-
-class _EnergyCombustionFactorValidationMixin:
-    @field_validator("ef_kg_co2eq_per_unit", mode="after")
-    @classmethod
-    def validate_factor_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-
-class EnergyCombustionFactorCreate(
-    _EnergyCombustionFactorValidationMixin, FactorCreate
-):
-    # data_entry_type: str #only for upload in datamanagement
-    unit: str
-    name: str
-    ef_kg_co2eq_per_unit: float
-
-
-class EnergyCombustionFactorUpdate(
-    _EnergyCombustionFactorValidationMixin, FactorUpdate
-):
-    unit: Optional[str] = None
-    name: Optional[str] = None
-    ef_kg_co2eq_per_unit: Optional[float] = None
-
-
-class EnergyCombustionFactorResponse(FactorResponseGen):
-    unit: str
-    name: str
-    ef_kg_co2eq_per_unit: float
-
-
-class EnergyCombustionFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [
-        DataEntryTypeEnum.energy_combustion,
-    ]
-    emission_type: EmissionType = EmissionType.buildings__combustion
-
-    create_dto = EnergyCombustionFactorCreate
-    update_dto = EnergyCombustionFactorUpdate
-    response_dto = EnergyCombustionFactorResponse
-
-    classification_fields: list[str] = energy_combustion_classification_fields
-    value_fields: list[str] = energy_combustion_value_fields
-
-    def to_response(self, factor: Factor) -> FactorResponseGen:
-        return self.response_dto.model_validate(factor.model_dump)
-
-
-## EMBODIED ENERGY FACTOR HANDLER
-
-
-class BuildingEmbodiedEnergyHandlerResponse(DataEntryResponseGen):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerCreate(DataEntryCreate):
-    building_name: str
-
-
-class BuildingEmbodiedEnergyHandlerUpdate(DataEntryUpdate):
-    building_name: Optional[str] = None
 
 
 class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
@@ -693,66 +356,3 @@ class BuildingEmbodiedEnergyModuleHandler(BaseModuleHandler):
                 formula_func=_building_embodied_energy_formula,
             )
         ]
-
-
-class BuildingEmbodiedEnergyFactorCreate(FactorCreate):
-    building_name: str
-    category: str
-    ef_kgco2eq_per_m2: float
-
-    @field_validator("ef_kgco2eq_per_m2", mode="after")
-    @classmethod
-    def validate_ef_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-
-class BuildingEmbodiedEnergyFactorUpdate(FactorUpdate):
-    building_name: Optional[str] = None
-    category: Optional[str] = None
-    ef_kgco2eq_per_m2: Optional[float] = None
-
-    @field_validator("ef_kgco2eq_per_m2", mode="after")
-    @classmethod
-    def validate_ef_non_negative(
-        cls, v: Optional[float], info: ValidationInfo
-    ) -> Optional[float]:
-        return _validate_non_negative_float(v, info.field_name or "")
-
-
-class BuildingEmbodiedEnergyFactorResponse(FactorResponseGen):
-    building_name: str
-    category: str
-    ef_kgco2eq_per_m2: float
-
-    @field_validator("category", mode="after")
-    @classmethod
-    def _non_empty(cls, v: str, info: ValidationInfo) -> str:
-        CATEGORY_VALUES = {"new-tech", "new-env", "ren-tech", "ren-env", "demolition"}
-        if not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty")
-        # should be amongst new-tech, new-env,ren-tech,ren-env,demolition
-        if v.strip() not in CATEGORY_VALUES:
-            raise ValueError(
-                f"{info.field_name} must be one of {sorted(CATEGORY_VALUES)}"
-            )
-        return v.strip()
-
-
-class BuildingEmbodiedEnergyFactorHandler(BaseFactorHandler):
-    data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [
-        DataEntryTypeEnum.building_embodied_energy,
-    ]
-    emission_type: EmissionType = EmissionType.buildings__construction_and_renovation
-
-    create_dto = BuildingEmbodiedEnergyFactorCreate
-    update_dto = BuildingEmbodiedEnergyFactorUpdate
-    response_dto = BuildingEmbodiedEnergyFactorResponse
-
-    classification_fields: list[str] = ["building_name", "category"]
-    value_fields: list[str] = ["ef_kgco2eq_per_m2"]
-
-    def to_response(self, factor: Factor) -> FactorResponseGen:
-        return self.response_dto.model_validate(factor.model_dump)
