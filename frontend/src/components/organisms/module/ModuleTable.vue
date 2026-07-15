@@ -1747,9 +1747,7 @@ onMounted(async () => {
   ) {
     try {
       const members: HeadcountMemberDropdownItem[] = await getHeadcountMembers(
-        props.unitId,
-        props.year,
-        moduleStore.carbonProjectType,
+        await moduleStore.resolveCarbonReportId(props.unitId, props.year),
       );
       headcountMembersMap.value = new Map(
         members.map((m) => [m.institutional_id, m.name]),

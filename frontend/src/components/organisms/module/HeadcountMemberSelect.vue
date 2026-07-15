@@ -94,9 +94,7 @@ async function fetchMembers() {
   loading.value = true;
   try {
     members.value = await getHeadcountMembers(
-      props.unitId,
-      props.year,
-      moduleStore.carbonProjectType,
+      await moduleStore.resolveCarbonReportId(props.unitId, props.year),
     );
     options.value = buildOptions(members.value);
     if (!canEditHeadcount.value && options.value.length > 0) {
