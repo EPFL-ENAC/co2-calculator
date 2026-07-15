@@ -130,6 +130,7 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             """
             use = ctx.get("use")
             use_unit = ctx.get("use_unit")
+            kg_co2eq = ctx.get("kg_co2eq")
             if use is None or use_unit is None:
                 return None
             # Must be same unit for the factor and the data entry to apply the formula
@@ -141,6 +142,7 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             total_use = factor_values.get("total_use")
             if total_use is None:
                 return None
+            use_share = use / total_use
             sources = [
                 "processemissions",
                 "building_energycombustions",
@@ -153,13 +155,19 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             for source in sources:
                 source_share = factor_values.get(f"{source}_share")
                 kg_co2eq_sum_source = factor_values.get(f"kg_co2eq_sum_{source}")
-                if source_share is None or kg_co2eq_sum_source is None:
-                    continue
-                if kg_co2eq_sum is None:
-                    kg_co2eq_sum = 0
-                kg_co2eq_sum += (
-                    use * source_share / total_use if total_use > 0 else 0
-                ) * kg_co2eq_sum_source
+                if kg_co2eq_sum_source is None:
+                    # No provided facility emission, apply share to
+                    # total kg_co2eq if available
+                    if source_share is None or kg_co2eq is None:
+                        continue
+                    if kg_co2eq_sum is None:
+                        kg_co2eq_sum = 0
+                    kg_co2eq_sum += source_share * kg_co2eq
+                else:
+                    # Add provided facility emissions modulo share of use
+                    if kg_co2eq_sum is None:
+                        kg_co2eq_sum = 0
+                    kg_co2eq_sum += use_share * kg_co2eq_sum_source
             return kg_co2eq_sum
 
         return [
