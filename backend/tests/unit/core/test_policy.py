@@ -9,9 +9,11 @@ from app.core.policy import (
     _get_module_permission_path,
     check_module_permission,
     is_module_permitted,
+    plan_is_visible_to,
     query_policy,
+    require_plan_access,
 )
-from app.models.user import Role, RoleName, UnitScope
+from app.models.user import GlobalScope, Role, RoleName, UnitScope
 
 
 class TestGetModulePermissionPath:
@@ -582,3 +584,55 @@ class TestQueryPolicyLegacy:
 
         assert result["allow"] is True
         assert result["filters"] == {}
+
+
+class TestRequirePlanAccess:
+    """Simulator Plan scoping: creator-only writes, shared plans read-only."""
+
+    @staticmethod
+    def _user(user_id: int, *, is_global: bool = False):
+        user = MagicMock()
+        user.id = user_id
+        role = MagicMock()
+        role.on = GlobalScope() if is_global else MagicMock()
+        user.roles = [role] if is_global else []
+        return user
+
+    @staticmethod
+    def _plan(created_by: int, *, shared: bool = False):
+        plan = MagicMock()
+        plan.created_by = created_by
+        plan.is_viewable_by_unit_members = shared
+        return plan
+
+    def test_creator_can_view_and_edit(self):
+        user = self._user(1)
+        plan = self._plan(created_by=1)
+        require_plan_access(user, plan, "view")
+        require_plan_access(user, plan, "edit")
+
+    def test_unshared_plan_is_invisible_to_other_members(self):
+        user = self._user(2)
+        plan = self._plan(created_by=1, shared=False)
+        with pytest.raises(HTTPException) as exc:
+            require_plan_access(user, plan, "view")
+        assert exc.value.status_code == 404
+
+    def test_shared_plan_is_read_only_for_other_members(self):
+        user = self._user(2)
+        plan = self._plan(created_by=1, shared=True)
+        require_plan_access(user, plan, "view")
+        with pytest.raises(HTTPException) as exc:
+            require_plan_access(user, plan, "edit")
+        assert exc.value.status_code == 403
+
+    def test_global_scope_bypasses_plan_scoping(self):
+        user = self._user(99, is_global=True)
+        plan = self._plan(created_by=1, shared=False)
+        require_plan_access(user, plan, "view")
+        require_plan_access(user, plan, "edit")
+
+    def test_plan_is_visible_to_matches_view_rule(self):
+        assert plan_is_visible_to(self._user(1), self._plan(created_by=1))
+        assert not plan_is_visible_to(self._user(2), self._plan(created_by=1))
+        assert plan_is_visible_to(self._user(2), self._plan(created_by=1, shared=True))

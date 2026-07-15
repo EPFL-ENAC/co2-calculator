@@ -26,8 +26,11 @@ from app.core.logging import get_logger
 from app.core.policy import (
     check_module_permission_for_unit,
     get_module_permission_decision,
+    require_plan_access,
 )
 from app.core.role_priority import pick_role_for_institutional_id
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
@@ -82,20 +85,30 @@ async def resolve_report_module(
     carbon_report_id: int,
     module_id: str,
     db: AsyncSession,
+    current_user: User,
+    action: str = "view",
 ) -> tuple[CarbonReportRead, CarbonReportModuleRead]:
     """Resolve identity addressing: the report and its module for a type.
+
+    When the report belongs to a Simulator Plan project, plan scoping is
+    enforced on top of the module permission checks the routes perform:
+    unshared plans are invisible to non-creators, shared plans are
+    read-only for them.
 
     Args:
         carbon_report_id: The addressed carbon report (any project type —
             Calculator, Explore or Plan; the report pins unit and year).
         module_id: URL module slug (e.g. 'headcount', 'professional-travel').
         db: Database session.
+        current_user: The authenticated user (for plan scoping).
+        action: ``"view"`` or ``"edit"`` — the intent of the calling route.
 
     Returns:
         The (CarbonReportRead, CarbonReportModuleRead) pair.
 
     Raises:
-        HTTPException: 404 when the report or module does not exist.
+        HTTPException: 404 when the report or module does not exist,
+            403 when plan scoping rejects the action.
     """
     report = await CarbonReportService(db).get(carbon_report_id)
     if report is None:
@@ -103,6 +116,13 @@ async def resolve_report_module(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Carbon report not found",
         )
+    if report.carbon_project_id is not None:
+        project = await db.get(CarbonProject, report.carbon_project_id)
+        if (
+            project is not None
+            and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
+        ):
+            require_plan_access(current_user, project, action)
     module_type = _module_type_from_slug(module_id)
     module = await CarbonReportModuleService(db).get_module(
         carbon_report_id, int(module_type)
@@ -242,7 +262,9 @@ async def get_module(
         f"preview_limit={sanitize(preview_limit)}"
     )
     module_key = module_id.replace("-", "_")
-    report, module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     unit = await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
@@ -329,7 +351,9 @@ async def get_stats_by_class(
 
     Returns treemap-format data for charts.
     """
-    report, module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
@@ -390,7 +414,9 @@ async def get_top_class_breakdown(
     combined-units view (Calculator only — other units resolve by the
     natural key (unit, report year)).
     """
-    report, module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     year = report.year
     await check_module_permission_for_unit(
         current_user=current_user,
@@ -497,7 +523,9 @@ async def list_headcount_members(
         Users with headcount access for this unit receive the full list;
         users with only professional_travel access receive only their own record.
     """
-    report, module = await resolve_report_module(carbon_report_id, "headcount", db)
+    report, module = await resolve_report_module(
+        carbon_report_id, "headcount", db, current_user
+    )
     # Load the unit up-front so we can scope the permission gate to its
     # institutional_id. Module permissions are stored as ``modules.X/{iid}``.
     unit = await db.get(Unit, report.unit_id)
@@ -584,7 +612,7 @@ async def get_professional_travel_trips_map(
     ``_get_professional_travel_institutional_id_filter``).
     """
     report, module = await resolve_report_module(
-        carbon_report_id, "professional-travel", db
+        carbon_report_id, "professional-travel", db, current_user
     )
     await check_module_permission_for_unit(
         current_user=current_user,
@@ -648,7 +676,9 @@ async def get_submodule(
     Returns:
         SubmoduleResponse with paginated items and summary
     """
-    report, module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
@@ -742,7 +772,9 @@ async def check_unique(
         ``{"unique": true}`` when the value is available,
         ``{"unique": false}`` when a conflict exists.
     """
-    report, module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
@@ -799,7 +831,7 @@ async def create(
             detail="Current user ID is required to create item",
         )
     report, carbon_report_module = await resolve_report_module(
-        carbon_report_id, module_id, db
+        carbon_report_id, module_id, db, current_user, action="edit"
     )
     await check_module_permission_for_unit(
         current_user=current_user,
@@ -853,7 +885,9 @@ async def get(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    report, _module = await resolve_report_module(carbon_report_id, module_id, db)
+    report, _module = await resolve_report_module(
+        carbon_report_id, module_id, db, current_user
+    )
     await check_module_permission_for_unit(
         current_user=current_user,
         module_id=module_id,
@@ -898,7 +932,7 @@ async def update(
     current_user: User = Depends(get_current_user),
 ):
     report, carbon_report_module = await resolve_report_module(
-        carbon_report_id, module_id, db
+        carbon_report_id, module_id, db, current_user, action="edit"
     )
     await check_module_permission_for_unit(
         current_user=current_user,
@@ -954,7 +988,7 @@ async def delete(
     current_user: User = Depends(get_current_user),
 ):
     report, carbon_report_module = await resolve_report_module(
-        carbon_report_id, module_id, db
+        carbon_report_id, module_id, db, current_user, action="edit"
     )
     await check_module_permission_for_unit(
         current_user=current_user,
