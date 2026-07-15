@@ -99,7 +99,7 @@ by the app Helm chart.
 | Unit                | What it is                                                                                                                         |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Frontend**        | Vue 3 + Quasar SPA served by unprivileged Nginx. One app with in-app sections `/app`, `/back-office`, `/system`. 2 replicas.       |
-| **Backend**         | FastAPI + Uvicorn (Python 3.12). Auth, business logic, persistence and background jobs in a single process. 2 replicas (HPA 2–10). |
+| **Backend**         | FastAPI + Uvicorn (Python 3.14). Auth, business logic, persistence and background jobs in a single process. 2 replicas (HPA 2–10). |
 | **Docs**            | This MkDocs site, static, served by Nginx. 1 replica.                                                                              |
 | **Migration Job**   | Helm hook running `alembic upgrade head` before each release (with a `wait-for-postgres` init).                                    |
 | **db-dump CronJob** | Scheduled `pg_dump` of the database to the `db-dumps` PVC (deployed via GitOps).                                                   |

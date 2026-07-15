@@ -16,6 +16,14 @@ from app.core.config import RoleProviderType, Settings, UnitProviderType
 from app.main import assert_accred_settings
 
 
+@pytest.fixture(autouse=True)
+def _no_local_dotenv(monkeypatch, tmp_path):
+    # Settings(env_file=".env") reads the real backend/.env when cwd points
+    # at it, so a developer's local Accred config can silently satisfy
+    # fields these tests expect to be missing. Run from an empty dir instead.
+    monkeypatch.chdir(tmp_path)
+
+
 def test_missing_role_provider_type_fails_startup(monkeypatch):
     monkeypatch.delenv("ROLE_PROVIDER_TYPE", raising=False)
     with pytest.raises(ValidationError):
