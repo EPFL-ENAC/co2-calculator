@@ -1,7 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { api } from 'src/api/http';
-import { useModuleStore } from 'src/stores/modules';
 
 /**
  * Hand-typed DTOs mirroring backend/app/schemas/simulator_plan.py; re-run
@@ -52,18 +51,6 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
   // Per-year reports of the currently open plan (Project Planner page).
   const planYears = ref<SimulatorPlanYear[]>([]);
   const planYearsLoading = ref(false);
-
-  /**
-   * Registers the plan-year report ids with the module store so
-   * identity-addressed module calls resolve year → carbon_report_id
-   * (a unit can hold many plans, unit/year lookup cannot apply).
-   */
-  function registerPlannerReports(years: SimulatorPlanYear[]) {
-    const moduleStore = useModuleStore();
-    moduleStore.setPlannerReportIds(
-      Object.fromEntries(years.map((y) => [y.year, y.id])),
-    );
-  }
 
   async function fetchPlans(unitId: number): Promise<void> {
     loading.value = true;
@@ -129,7 +116,6 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
       planYears.value = await api
         .get(`project-plans/${planId}/years`)
         .json<SimulatorPlanYear[]>();
-      registerPlannerReports(planYears.value);
       return planYears.value;
     } finally {
       planYearsLoading.value = false;

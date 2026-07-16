@@ -13,6 +13,7 @@
           :error="error"
           :unit-id="unitId"
           :year="year"
+          :carbon-report-id="carbonReportId"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
@@ -40,6 +41,12 @@ const props = defineProps<{
   unitId: number;
   year: string | number;
   disable: boolean;
+  /**
+   * Plan-year report id. When set (Simulator Plan), module calls address this
+   * report directly instead of resolving unit/year — a unit can hold several
+   * plans with overlapping years, so unit/year cannot identify the report.
+   */
+  carbonReportId?: number;
   /**
    * Replaces the Calculator MODULES_CONFIG entry — the Simulator Plan
    * renders planner-specific submodules (see constant/planner-module-config).

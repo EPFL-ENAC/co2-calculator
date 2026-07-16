@@ -439,26 +439,14 @@ export const useModuleStore = defineStore('modules', () => {
   // unit/year resolve to a carbon report id once per context; every module
   // operation then addresses /carbon-reports/{id}/modules/... directly.
   const reportIdCache = reactive<Record<string, number>>({});
-  // Planner year → report id map, set by the Project Planner page from the
-  // plan-years payload — a unit can hold many plans with overlapping years,
-  // so unit/year lookup cannot apply there.
-  const plannerReportIdsByYear = ref<Record<number, number>>({});
 
-  function setPlannerReportIds(map: Record<number, number>) {
-    plannerReportIdsByYear.value = map;
-  }
-
+  // The planner addresses reports by id directly (a unit can hold several
+  // plans with overlapping years, so unit/year cannot identify a report):
+  // planner callers pass `carbonReportId` to modulePath and never reach here.
   async function resolveCarbonReportId(
     unit: number | string,
     year: number | string,
   ): Promise<number> {
-    if (carbonProjectType.value === 2) {
-      const id = plannerReportIdsByYear.value[Number(year)];
-      if (!id) {
-        throw new Error(`No plan-year report registered for year ${year}`);
-      }
-      return id;
-    }
     const key = `${unit}|${year}|${carbonProjectType.value}`;
     const cached = reportIdCache[key];
     if (cached) return cached;
@@ -475,7 +463,16 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unit: number | string,
     year: number | string,
+    carbonReportId?: number,
   ): Promise<string> {
+    if (carbonReportId != null) {
+      return buildModulePath(moduleType, carbonReportId);
+    }
+    // No silent fallback to the Calculator report when a planner call forgot
+    // to pass its report id — fail loud instead of writing to the wrong report.
+    if (carbonProjectType.value === 2) {
+      throw new Error('Planner module calls must pass a carbonReportId');
+    }
     return buildModulePath(moduleType, await resolveCarbonReportId(unit, year));
   }
 
@@ -508,7 +505,12 @@ export const useModuleStore = defineStore('modules', () => {
     }
   }
 
-  async function getModuleData(moduleType: Module, unit: number, year: string) {
+  async function getModuleData(
+    moduleType: Module,
+    unit: number,
+    year: string,
+    carbonReportId?: number,
+  ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
     state.loading = true;
@@ -516,7 +518,7 @@ export const useModuleStore = defineStore('modules', () => {
     state.data = null;
     try {
       state.data = (await api
-        .get(await modulePath(moduleType, unit, year))
+        .get(await modulePath(moduleType, unit, year, carbonReportId))
         .json()) as ModuleResponse;
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -535,6 +537,7 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unit: number,
     year: string,
+    carbonReportId?: number,
   ) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -543,7 +546,7 @@ export const useModuleStore = defineStore('modules', () => {
 
     state.data = null;
     try {
-      const path = `${await modulePath(moduleType, unit, year)}?preview_limit=0`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}?preview_limit=0`;
       state.data = (await api.get(path).json()) as ModuleResponse;
       if (state.data?.data_entry_types_total_items) {
         state.moduleTotalsMap[moduleType] =
@@ -586,11 +589,13 @@ export const useModuleStore = defineStore('modules', () => {
     submoduleType,
     unit,
     year,
+    carbonReportId,
   }: {
     moduleType: Module;
     submoduleType: string;
     unit: number;
     year: string;
+    carbonReportId?: number;
   }) {
     // Skip until the workspace has resolved unit/year (avoids the 422).
     if (!hasValidModuleParams(unit, year)) return;
@@ -616,7 +621,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (filterTerm && filterTerm.trim().length > 0) {
         queryParams.append('filter', filterTerm.trim());
       }
-      const url = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(
+      const url = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(
         submoduleType,
       )}?${queryParams.toString()}`;
 
@@ -726,6 +731,7 @@ export const useModuleStore = defineStore('modules', () => {
     submoduleType: string,
     payload: Record<string, FieldValue>,
     onCreated?: () => void,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
@@ -733,7 +739,7 @@ export const useModuleStore = defineStore('modules', () => {
         year = year.toString();
       }
 
-      const path = `${await modulePath(moduleType, unitId, year)}/${encodeURIComponent(submoduleType)}`;
+      const path = `${await modulePath(moduleType, unitId, year, carbonReportId)}/${encodeURIComponent(submoduleType)}`;
       const normalized: Record<string, string | number | boolean | null> = {};
 
       Object.entries(payload).forEach(([key, raw]) => {
@@ -817,7 +823,7 @@ export const useModuleStore = defineStore('modules', () => {
       onCreated?.();
 
       // Refresh module totals (used by module page)
-      await getModuleTotals(moduleType, unitId, year);
+      await getModuleTotals(moduleType, unitId, year, carbonReportId);
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -825,13 +831,19 @@ export const useModuleStore = defineStore('modules', () => {
         unit: unitId,
         year,
         submoduleType: submoduleType,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unitId, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unitId, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unitId,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -847,10 +859,11 @@ export const useModuleStore = defineStore('modules', () => {
     year: string,
     itemId: number,
     payload: Record<string, FieldValue>,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
-      const path = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
       )}`;
 
@@ -876,20 +889,26 @@ export const useModuleStore = defineStore('modules', () => {
       await api.patch(path, { json: normalized }).json();
 
       // Refresh module totals (used by module page)
-      await getModuleTotals(moduleType, unit, year);
+      await getModuleTotals(moduleType, unit, year, carbonReportId);
 
       await getSubmoduleData({
         submoduleType,
         moduleType,
         unit,
         year,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unit,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -904,17 +923,18 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     itemId: number,
+    carbonReportId?: number,
   ) {
     state.error = null;
     try {
       // Find affected submodule BEFORE deleting (item won't be in data after deletion)
-      const path = `${await modulePath(moduleType, unit, year)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/${encodeURIComponent(submoduleType)}/${encodeURIComponent(
         String(itemId),
       )}`;
       await api.delete(path);
 
       // Refresh module totals
-      await getModuleTotals(moduleType, unit, year);
+      await getModuleTotals(moduleType, unit, year, carbonReportId);
 
       // Refetch the affected submodule with current pagination/sort state
       await getSubmoduleData({
@@ -922,13 +942,19 @@ export const useModuleStore = defineStore('modules', () => {
         submoduleType,
         unit,
         year,
+        carbonReportId,
       });
 
       await refreshProfessionalTravelTripsMap(moduleType, unit, year);
       invalidateValidatedTotals();
       invalidateEmissionBreakdown();
       await refreshEmissionBreakdownIfNeeded();
-      await refreshTopClassBreakdownIfNeeded(moduleType, unit, year);
+      await refreshTopClassBreakdownIfNeeded(
+        moduleType,
+        unit,
+        year,
+        carbonReportId,
+      );
       await refreshModuleStates();
     } catch (err: unknown) {
       if (err instanceof Error) state.error = err.message ?? 'Unknown error';
@@ -1038,6 +1064,7 @@ export const useModuleStore = defineStore('modules', () => {
     moduleType: Module,
     unit: number,
     year: string,
+    carbonReportId?: number,
   ) {
     const TOP_CLASS_MODULES = [
       MODULES.Equipment,
@@ -1046,7 +1073,7 @@ export const useModuleStore = defineStore('modules', () => {
     ];
     if (!(TOP_CLASS_MODULES as Module[]).includes(moduleType)) return;
     try {
-      const path = `${await modulePath(moduleType, unit, year)}/top-class-breakdown`;
+      const path = `${await modulePath(moduleType, unit, year, carbonReportId)}/top-class-breakdown`;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch {
@@ -1294,7 +1321,6 @@ export const useModuleStore = defineStore('modules', () => {
     validatedTotalsCarbonReportId,
     carbonProjectType,
     resolveCarbonReportId,
-    setPlannerReportIds,
     state,
   };
 });
