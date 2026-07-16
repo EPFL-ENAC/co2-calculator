@@ -1,9 +1,9 @@
 ---
-status: proposed
+status: in-progress
 issue: 1557
 last_updated: 2026-07-16
 title: "Simulator Plan — frontend follow-ups"
-summary: "Two remaining planner-frontend pieces that need the running app to verify: the type-2 prefilled slider table, and fixing the wrong-plan report resolution for units with overlapping-year plans."
+summary: "Two planner-frontend pieces: the type-2 prefilled slider table (delivered; ModuleTable decomposition deferred to its own plan) and the wrong-plan report resolution fix (delivered; overlapping-plans regression test outstanding)."
 ---
 
 # Simulator Plan — frontend follow-ups
@@ -33,25 +33,18 @@ Calculator year-1 fallback in `_get_percentage_override_kg`.
   editable (gas/subcategory selects) and gain two columns: reference
   kgCO₂eq + a **0–200%** "% of reference year" slider. Planner and
   Calculator render through the _same_ table.
-- **Prerequisite refactor:** `ModuleTable.vue` is 1889 lines — over the
-  repo's 500-line component limit. Decompose it via composition FIRST,
-  then the planner columns slot in as a small, clean addition.
+- **Decomposition reordered** (2026-07-16): the planner columns landed
+  first in the existing file; the `ModuleTable.vue` decomposition (~2020
+  lines vs the 500-line limit) is deferred to its own plan,
+  [1557-moduletable-decomposition.md](1557-moduletable-decomposition.md).
 - Type-2 rows **are the prefill copies of the reference-year data
   entries** (each carries `source_data_entry_id`), so the reference-kg
   column is the source entry's value — no separate reference fetch.
 - Slider PATCHes `percentage_of_reference_year` (renamed key) on the
   row's entry; the backend override recomputes `kg_co2eq = source × %`.
 
-**`ModuleTable.vue` decomposition (target < 500 lines each):** extract
-cohesive clusters, verifying the Calculator table renders after each step:
-
-- `useModuleTableColumns` — `qCols`, `getColumn*`, numeric rules.
-- `useInlineCellEditing` — `commitInline`, `inlineErrors`,
-  `setError`/`getError`, `renderCell`, usage-hours/trips validators.
-- `useModuleNoteDialog` + `ModuleNoteDialog.vue` — note add/edit/delete.
-- `ModuleEditDialog.vue`, `ModuleCsvUploadDialog.vue`,
-  `ModulePowerFeedbackDialog.vue` — dialog templates + their state.
-- Core `ModuleTable.vue` keeps the `q-table` + slot wiring only.
+**`ModuleTable.vue` decomposition:** fleshed out into its own ordered plan —
+see [1557-moduletable-decomposition.md](1557-moduletable-decomposition.md).
 
 **Reference-kg backend field:** add `reference_kg_co2eq` to the submodule
 item — sum the `source_data_entry_id` entry's emissions
@@ -64,13 +57,16 @@ add-form — no separate planner form.
 
 **Steps**
 
-- [ ] Refactor `ModuleTable.vue` to < 500 lines (composables +
-      sub-components above); Calculator verified unbroken after each step.
-- [ ] Backend: `reference_kg_co2eq` on the planner submodule item.
-- [ ] Add the reference-kg column + 0–200% slider to the shared table,
+- [ ] Refactor `ModuleTable.vue` to < 500 lines — deferred to
+      [1557-moduletable-decomposition.md](1557-moduletable-decomposition.md)
+      (reordered: the columns shipped first).
+- [x] Backend: `reference_kg_co2eq` on the planner submodule item.
+- [x] Add the reference-kg column + 0–200% slider to the shared table,
       shown only in planner (prefilled) context.
-- [ ] Planner renders prefilled modules through the shared table.
-- [ ] Verify: prefill → slider 40% → kg = 40% of reference; edit + add row.
+- [x] Planner renders prefilled modules through the shared table; setting a
+      section's reference year auto-prefills every prefilled module, and
+      prefilled tables no longer lock on the Calculator's validated state.
+- [x] Verify: prefill → slider 40% → kg = 40% of reference; edit + add row.
 
 ## B. Wrong-plan report resolution (overlapping-year plans)
 
@@ -82,24 +78,20 @@ module call racing a `fetchPlanYears` refetch) resolves a **year to the
 wrong plan's report id** — the operation lands on another plan — or throws
 `No plan-year report registered for year X` before the map is populated.
 
-**Fix — pass the report id, never re-derive it.** The planner already holds
-`yearData.id` (the plan-year report id) per section. Give planner module
-calls the report id directly instead of routing unit/year through the store
-map:
-
-- Add `getModuleTotalsByReport(moduleType, carbonReportId)` (and any sibling
-  fetchers the planner uses) that call `buildModulePath(moduleType,
-carbonReportId)` with no resolution step.
-- `PlannerYearSection` / `PlannerPrefilledTable` call the by-report variants
-  with `yearData.id`.
-- Delete `plannerReportIdsByYear`, `setPlannerReportIds`, and the
-  `carbonProjectType === 2` branch in `resolveCarbonReportId` (they exist
-  only to work around not having the id at the call site) — also a ponytail
-  win.
+**Fix — pass the report id, never re-derive it** (delivered 2026-07-16,
+shape differs slightly from the original spec): instead of by-report sibling
+fetchers, `stores/modules.ts::modulePath` grew an optional trailing
+`carbonReportId` param that short-circuits straight to
+`buildModulePath(moduleType, carbonReportId)`. Planner components pass
+`yearData.id` through it; a planner call (`carbonProjectType === 2`) that
+omits the id **throws** — no silent fallback to the Calculator report.
+`plannerReportIdsByYear`, `setPlannerReportIds`, and the type-2 branch in
+`resolveCarbonReportId` are deleted.
 
 **Steps**
 
-- [ ] `getModuleTotalsByReport` (+ submodule/data-entry variants as needed).
-- [ ] Planner components pass `yearData.id`; drop the year→id map + branch.
+- [x] Planner module calls address reports by id (`modulePath` optional
+      `carbonReportId` + fail-loud guard).
+- [x] Planner components pass `yearData.id`; drop the year→id map + branch.
 - [ ] Regression: two same-unit plans with overlapping years, edit each,
       confirm entries land on the addressed report only.
