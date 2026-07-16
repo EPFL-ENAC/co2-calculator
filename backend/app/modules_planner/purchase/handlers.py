@@ -1,0 +1,127 @@
+from typing import Any
+
+from pydantic import BaseModel
+
+from app.models.data_entry import DataEntry, DataEntryTypeEnum
+from app.models.data_entry_emission import EmissionComputation, FactorQuery
+from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
+from app.modules_planner.purchase.data_entries import (
+    PlannerPurchaseBudgetCreate,
+    PlannerPurchaseBudgetResponse,
+    PlannerPurchaseBudgetUpdate,
+    PlannerPurchaseCreate,
+    PlannerPurchaseResponse,
+    PlannerPurchaseUpdate,
+)
+from app.schemas.data_entry import BaseModuleHandler
+
+
+class _PlannerPurchaseBase(BaseModuleHandler):
+    """Shared behavior of the two planner purchase kinds.
+
+    Emissions are ``amount_chf × ef_kg_co2eq_per_chf`` from factors keyed
+    on the planner kind itself — the methodology (average EF per CHF)
+    ships as factor data, not code. Entries without a matching factor
+    simply carry no kg_co2eq yet.
+    """
+
+    module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
+    require_subkind_for_factor = False
+    require_factor_to_match = False
+    subkind_field = None
+
+    # Set by the two concrete kinds below.
+    create_dto: type[BaseModel]
+    update_dto: type[BaseModel]
+    response_dto: type[BaseModel]
+
+    def to_response(
+        self,
+        data_entry: DataEntry,
+        enriched_data: dict | None = None,
+    ):
+        data = enriched_data if enriched_data is not None else data_entry.data
+        return self.response_dto.model_validate(
+            {
+                "id": data_entry.id,
+                "data_entry_type_id": data_entry.data_entry_type_id,
+                "carbon_report_module_id": data_entry.carbon_report_module_id,
+                **data,
+            }
+        )
+
+    def validate_create(self, payload: dict):
+        return self.create_dto.model_validate(payload)
+
+    def validate_update(self, payload: dict):
+        return self.update_dto.model_validate(payload)
+
+
+class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
+    """Manual CHF total per purchase submodule."""
+
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase
+    create_dto = PlannerPurchaseCreate
+    update_dto = PlannerPurchaseUpdate
+    response_dto = PlannerPurchaseResponse
+
+    kind_field = "purchase_category"
+    filter_map: dict[str, Any] = {
+        "purchase_category": DataEntry.data["purchase_category"].as_string(),
+    }
+    sort_map = {
+        "id": DataEntry.id,
+        "purchase_category": DataEntry.data["purchase_category"].as_string(),
+        "amount_chf": DataEntry.data["amount_chf"].as_float(),
+    }
+
+    def resolve_computations(
+        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
+    ) -> list:
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.planner_purchase,
+                    emission_type=emission_type,
+                    kind=data_entry.data.get("purchase_category"),
+                    subkind=None,
+                ),
+                formula_key="ef_kg_co2eq_per_chf",
+                quantity_key="amount_chf",
+            )
+        ]
+
+
+class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
+    """Single global CHF budget (mutually exclusive with submodule totals)."""
+
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.planner_purchase_budget
+    create_dto = PlannerPurchaseBudgetCreate
+    update_dto = PlannerPurchaseBudgetUpdate
+    response_dto = PlannerPurchaseBudgetResponse
+
+    kind_field = None
+    filter_map: dict[str, Any] = {}
+    sort_map = {
+        "id": DataEntry.id,
+        "amount_chf": DataEntry.data["amount_chf"].as_float(),
+    }
+
+    def resolve_computations(
+        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
+    ) -> list:
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=DataEntryTypeEnum.planner_purchase_budget,
+                    emission_type=emission_type,
+                    kind=None,
+                    subkind=None,
+                ),
+                formula_key="ef_kg_co2eq_per_chf",
+                quantity_key="amount_chf",
+            )
+        ]

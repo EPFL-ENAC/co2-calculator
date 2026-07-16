@@ -5,6 +5,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportModuleRead
 from app.schemas.data_entry import (
     BaseModuleHandler,
@@ -28,6 +29,54 @@ class CarbonReportModuleWorkflow:
 
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def _check_planner_purchase_exclusivity(
+        self,
+        carbon_report_module_id: int,
+        data_entry_type: DataEntryTypeEnum,
+        data: dict,
+    ) -> None:
+        """PRD #1555: submodule CHF totals XOR one global budget.
+
+        Rejects a submodule total while a global budget exists (and vice
+        versa), a second global budget, and a duplicate submodule category.
+        """
+        rows = await DataEntryRepository(self.session).list_by_module(
+            carbon_report_module_id
+        )
+        budgets = [
+            r
+            for r in rows
+            if r.data_entry_type_id == DataEntryTypeEnum.planner_purchase_budget.value
+        ]
+        totals = [
+            r
+            for r in rows
+            if r.data_entry_type_id == DataEntryTypeEnum.planner_purchase.value
+        ]
+        if data_entry_type is DataEntryTypeEnum.planner_purchase:
+            if budgets:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="PURCHASES_GLOBAL_BUDGET_SET",
+                )
+            category = data.get("purchase_category")
+            if any(r.data.get("purchase_category") == category for r in totals):
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail="DUPLICATE_PURCHASE_CATEGORY",
+                )
+            return
+        if totals:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_SUBMODULE_TOTALS_SET",
+            )
+        if budgets:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="PURCHASES_GLOBAL_BUDGET_EXISTS",
+            )
 
     async def create(
         self,
@@ -82,6 +131,16 @@ class CarbonReportModuleWorkflow:
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="DUPLICATE_INSTITUTIONAL_ID",
                 )
+
+        if data_entry_type in (
+            DataEntryTypeEnum.planner_purchase,
+            DataEntryTypeEnum.planner_purchase_budget,
+        ):
+            await self._check_planner_purchase_exclusivity(
+                carbon_report_module.id,
+                data_entry_type,
+                validated_data.model_dump(),
+            )
 
         try:
             item = await DataEntryService(self.session).create(

@@ -97,8 +97,9 @@ at existing Calculator factors — no new factor rows.
   traveler dropdown sends a category token (`internal` / `external epfl` /
   `internal epfl`) in `user_institutional_id` instead of a person — frontend
   concern, backend unchanged.
-- **Purchases** (later slice): new manual kinds (CHF per submodule XOR
-  global budget, mutually exclusive — validation in the planner schema).
+- **Purchases** (delivered): `planner_purchase` / `planner_purchase_budget`
+  in `app/modules_planner/purchase/` — CHF per submodule XOR one global
+  budget, enforced at creation; average EFs arrive as factor rows.
 - Type-2 modules (Process Emissions, Buildings, Equipments, Research
   Facilities, External Clouds & AI): no new kinds — Calculator entries +
   snapshot prefill + `percentage_of_last_year`.
@@ -212,7 +213,7 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 
 - [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
       reference-year Calculator entries at `percentage_of_last_year =
-    100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+  100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
       (the slider matches its exact source row; deleted sources fall
       back to the snapshot data). Generic — works for every type-2
       module, no per-module code.
@@ -226,7 +227,15 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 - [ ] Buildings, Equipments, Research Facilities, External Clouds & AI
       (type-2): backend prefill is already generic — remaining work is
       frontend wiring only (planner-module-config marks them 'prefilled').
-- [ ] Purchases planner kinds (XOR validation).
+- [x] Purchases planner kinds (delivered 2026-07-16):
+      `planner_purchase = 81` (CHF total per submodule, emission type
+      resolved per category) and `planner_purchase_budget = 82` (one
+      global budget → `purchases__goods_and_services`). XOR + duplicate
+      rules enforced at entry creation (422 codes). Emissions compute
+      `amount_chf × ef_kg_co2eq_per_chf` from factors keyed on the
+      planner kinds — the average-EF methodology ships as factor data
+      (CSV upload), not code; entries carry no kg_co2eq until those
+      factors exist.
 - [ ] Results aggregation across active modules/years for the chart;
       exports (PDF/CSV) per #404 scope decision.
 
@@ -336,8 +345,9 @@ at existing Calculator factors — no new factor rows.
   traveler dropdown sends a category token (`internal` / `external epfl` /
   `internal epfl`) in `user_institutional_id` instead of a person — frontend
   concern, backend unchanged.
-- **Purchases** (later slice): new manual kinds (CHF per submodule XOR
-  global budget, mutually exclusive — validation in the planner schema).
+- **Purchases** (delivered): `planner_purchase` / `planner_purchase_budget`
+  in `app/modules_planner/purchase/` — CHF per submodule XOR one global
+  budget, enforced at creation; average EFs arrive as factor rows.
 - Type-2 modules (Process Emissions, Buildings, Equipments, Research
   Facilities, External Clouds & AI): no new kinds — Calculator entries +
   snapshot prefill + `percentage_of_last_year`.
@@ -449,7 +459,7 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 
 - [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
       reference-year Calculator entries at `percentage_of_last_year =
-    100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+  100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
       (the slider matches its exact source row; deleted sources fall
       back to the snapshot data). Generic — works for every type-2
       module, no per-module code.
@@ -463,7 +473,15 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 - [ ] Buildings, Equipments, Research Facilities, External Clouds & AI
       (type-2): backend prefill is already generic — remaining work is
       frontend wiring only (planner-module-config marks them 'prefilled').
-- [ ] Purchases planner kinds (XOR validation).
+- [x] Purchases planner kinds (delivered 2026-07-16):
+      `planner_purchase = 81` (CHF total per submodule, emission type
+      resolved per category) and `planner_purchase_budget = 82` (one
+      global budget → `purchases__goods_and_services`). XOR + duplicate
+      rules enforced at entry creation (422 codes). Emissions compute
+      `amount_chf × ef_kg_co2eq_per_chf` from factors keyed on the
+      planner kinds — the average-EF methodology ships as factor data
+      (CSV upload), not code; entries carry no kg_co2eq until those
+      factors exist.
 - [ ] Results aggregation across active modules/years for the chart;
       exports (PDF/CSV) per #404 scope decision.
 

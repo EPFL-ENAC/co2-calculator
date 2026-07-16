@@ -75,6 +75,9 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
         DataEntryTypeEnum.purchases_centralized,
+        # Planner kinds last so Calculator submodule ordering is untouched.
+        DataEntryTypeEnum.planner_purchase,
+        DataEntryTypeEnum.planner_purchase_budget,
     ],
     ModuleTypeEnum.research_facilities: [
         DataEntryTypeEnum.research_facilities,
