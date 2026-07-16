@@ -34,7 +34,7 @@
             outlined
             dense
             mask="####"
-            :rules="[yearRule]"
+            :rules="[yearRule, minYearRule]"
             @blur="saveIfDirty('start_year')"
           >
             <template #prepend>
@@ -81,12 +81,14 @@ import {
   type SimulatorPlan,
   type SimulatorPlanUpdatePayload,
 } from 'src/stores/simulatorPlans';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 
 const props = defineProps<{ plan: SimulatorPlan }>();
 const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
 
 const { t } = useI18n();
 const plansStore = useSimulatorPlansStore();
+const yearConfigStore = useYearConfigStore();
 
 const nameInput = ref(props.plan.name);
 const startYearInput = ref(props.plan.start_year?.toString() ?? '');
@@ -114,6 +116,18 @@ function yearRule(value: string): boolean | string {
   return parsedYear(value) !== null || t('planner_year_rule_four_digits');
 }
 
+// Start year cannot precede the earliest configurable Calculator year
+// (settings.MIN_CONFIGURABLE_YEAR) — there is no reference data before it.
+// When the bound isn't loaded yet, don't block.
+function minYearRule(value: string): boolean | string {
+  const year = parsedYear(value);
+  const min = yearConfigStore.minConfigurableYear;
+  if (year === null || min === null) return true;
+  return (
+    year >= min || t('planner_year_rule_min_year', { year: min })
+  );
+}
+
 function endAfterStartRule(value: string): boolean | string {
   const start = parsedYear(startYearInput.value);
   const end = parsedYear(value);
@@ -124,8 +138,10 @@ function endAfterStartRule(value: string): boolean | string {
 const rangeValid = computed(() => {
   const start = parsedYear(startYearInput.value);
   const end = parsedYear(endYearInput.value);
+  const min = yearConfigStore.minConfigurableYear;
   if (startYearInput.value && start === null) return false;
   if (endYearInput.value && end === null) return false;
+  if (start !== null && min !== null && start < min) return false;
   return start === null || end === null || end >= start;
 });
 
