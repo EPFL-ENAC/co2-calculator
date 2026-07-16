@@ -105,6 +105,7 @@
                 :error="moduleStore.state.error"
                 :unit-id="unitId"
                 :year="yearData.year"
+                :carbon-report-id="yearData.id"
                 :disable="entry.module?.is_active === false"
               />
             </div>
@@ -180,6 +181,7 @@ async function refreshExpandedModule(module: Module) {
     module,
     props.unitId,
     String(props.yearData.year),
+    props.yearData.id,
   );
 }
 
