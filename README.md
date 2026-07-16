@@ -16,7 +16,7 @@ for the dev / stage / pre-production URLs and deployment topology.
 
 - **Make** (build automation)
 - **Node.js** v24+ with npm
-- **Python** 3.12+ with **uv** (install: `brew install uv`)
+- **Python** 3.14+ with **uv** (install: `brew install uv`)
 - **Docker** (for database)
 
 ### Installation

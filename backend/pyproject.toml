@@ -72,7 +72,7 @@ filterwarnings = ["ignore::DeprecationWarning"]
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py312"
+target-version = "py314"
 fix = true
 lint.select = ["E", "F", "I"] # errors, flake8, imports
 exclude = ["migrations"]
