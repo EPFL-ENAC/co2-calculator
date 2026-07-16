@@ -1,4 +1,26 @@
 export default {
+  // Planner Headcount SIUS-category labels (EPFL role classes).
+  'planner_sius.51': { en: 'Professor', fr: 'Professeur' },
+  'planner_sius.52': {
+    en: 'Scientific Collaborator',
+    fr: 'Collaborateur scientifique',
+  },
+  'planner_sius.53': {
+    en: 'Postdoctoral Assistant',
+    fr: 'Assistant post-doctorant',
+  },
+  'planner_sius.54': { en: 'Doctoral Assistant', fr: 'Assistant doctorant' },
+  'planner_sius.56': { en: 'Trainee', fr: 'Stagiaire' },
+  'planner_sius.57': {
+    en: 'Technical/Administrative Staff',
+    fr: 'Personnel technique/administratif',
+  },
+  'planner_sius.58': { en: 'Student', fr: 'Étudiant' },
+  'planner_sius.59': { en: 'Other', fr: 'Autre' },
+  planner_headcount_save_error: {
+    en: 'Could not save the headcount value',
+    fr: "Impossible d'enregistrer la valeur d'effectif",
+  },
   documentation_editing_rows_simulation_topic: {
     en: 'Simulation',
     fr: 'Simulation',
@@ -202,10 +224,6 @@ export default {
   planner_prefill_error: {
     en: 'Prefill failed — check that the reference year has Calculator data',
     fr: "Échec du préremplissage — vérifiez que l'année de référence contient des données du Calculateur",
-  },
-  planner_headcount_table_title: {
-    en: 'FTE per function (SIUS code)',
-    fr: 'EPT par fonction (code SIUS)',
   },
   planner_purchase_totals_table_title: {
     en: 'CHF total per purchase submodule',

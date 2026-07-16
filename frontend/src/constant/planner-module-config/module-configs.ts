@@ -5,67 +5,22 @@ import type {
 } from 'src/constant/moduleConfig';
 import { MODULES, type Module } from 'src/constant/modules';
 import { MODULES_CONFIG } from 'src/constant/module-config';
-import { formatFTE } from 'src/utils/number';
 import { PLANNER_MODULE_CONFIG } from 'src/constant/planner-module-config';
 
 /**
- * ModuleConfig objects rendered inside the Simulator Plan.
+ * ModuleConfig objects rendered inside the Simulator Plan by
+ * ModuleTableSection.
  *
- * Modules whose planner entry shape differs from the Calculator (headcount,
- * purchases) get their own config; the others reuse the Calculator config
- * with two planner adaptations applied by `withPlannerAdaptations`:
+ * Purchases gets its own config (submodule CHF totals XOR one global
+ * budget); the others reuse the Calculator config with two planner
+ * adaptations applied by `withPlannerAdaptations`:
  * - no CSV top bar (bulk ingest pipelines are unit/year-scoped and would
  *   bypass the plan's report addressing)
  * - Travel's traveler dropdown offers categories instead of headcount names.
+ *
+ * Headcount is NOT here — it renders through PlannerHeadcountRows (fixed
+ * SIUS-category grid), not a data table.
  */
-
-const SIUS_OPTIONS = ['51', '52', '53', '54', '56', '57', '58', '59'].map(
-  (code) => ({ value: code, label: code }),
-);
-
-const plannerHeadcountFields: ModuleField[] = [
-  {
-    id: 'sius_code',
-    labelKey: 'headcount-member-form-field-function-label',
-    type: 'select',
-    sortable: true,
-    ratio: '1/2',
-    optionLabelsAreKeys: true,
-    columnSize: 'sm',
-    options: SIUS_OPTIONS,
-  },
-  {
-    id: 'fte',
-    labelKey: 'headcount-member-form-field-fte-label',
-    type: 'number',
-    min: 0,
-    step: 0.5,
-    sortable: true,
-    ratio: '1/2',
-  },
-];
-
-const plannerHeadcount: ModuleConfig = {
-  id: 'planner_module_headcount',
-  type: MODULES.Headcount as Module,
-  hasDescription: false,
-  hasSubmodules: true,
-  formStructure: 'perSubmodule',
-  totalFormatter: formatFTE,
-  numberFormatOptions: {
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 1,
-  },
-  submodules: [
-    {
-      id: 'planner_headcount',
-      type: 'planner_headcount',
-      tableNameKey: 'planner_headcount_table_title',
-      hasTableTopBar: false,
-      moduleFields: plannerHeadcountFields,
-    },
-  ],
-};
 
 const PURCHASE_CATEGORY_OPTIONS = [
   'scientific_equipment',
@@ -162,7 +117,6 @@ function withPlannerAdaptations(module: Module): ModuleConfig {
 }
 
 const plannerConfigs: Partial<Record<Module, ModuleConfig>> = {
-  [MODULES.Headcount]: plannerHeadcount,
   [MODULES.Purchase]: plannerPurchase,
 };
 

@@ -89,7 +89,15 @@
               v-if="expandedKey === expansionKey(entry.config.module)"
               class="q-pa-md"
             >
+              <!-- Headcount is a fixed SIUS-category grid, not an add-row
+                   table (design). Other modules reuse the Calculator tables. -->
+              <planner-headcount-rows
+                v-if="entry.config.module === MODULES.Headcount"
+                :carbon-report-id="yearData.id"
+                :disable="entry.module?.is_active === false"
+              />
               <module-table-section
+                v-else
                 :type="entry.config.module"
                 :config-override="getPlannerModuleConfig(entry.config.module)"
                 :data="moduleStore.state.data"
@@ -114,13 +122,14 @@ import { useI18n } from 'vue-i18n';
 
 import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
+import PlannerHeadcountRows from 'src/components/organisms/planner/PlannerHeadcountRows.vue';
 import {
   PLANNER_MODULES,
   type PlannerModuleConfig,
 } from 'src/constant/planner-module-config';
 import { getPlannerModuleConfig } from 'src/constant/planner-module-config/module-configs';
 import { getModuleTypeId } from 'src/constant/moduleStates';
-import type { Module } from 'src/constant/modules';
+import { MODULES, type Module } from 'src/constant/modules';
 import { useModuleStore } from 'src/stores/modules';
 import {
   useSimulatorPlansStore,
