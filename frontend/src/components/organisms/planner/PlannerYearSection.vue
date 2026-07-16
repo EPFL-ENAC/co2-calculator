@@ -1,99 +1,109 @@
 <template>
-  <q-card flat bordered class="q-pa-lg">
-    <div class="row items-center q-col-gutter-md q-mb-md">
-      <h2 class="text-h4 q-my-none col">
-        {{ $t('planner_year_section_title', { year: yearData.year }) }}
-      </h2>
-      <q-select
-        :model-value="yearData.reference_year"
-        :options="referenceYearOptions"
-        :label="$t('planner_reference_year_label')"
-        outlined
-        dense
-        emit-value
-        map-options
-        class="col-12 col-md-3"
-        :loading="settingReferenceYear"
-        @update:model-value="onReferenceYearChange"
-      />
-    </div>
-    <p v-if="!yearData.reference_year" class="text-body2 text-grey-8">
-      {{ $t('planner_reference_year_hint') }}
-    </p>
+  <q-card flat bordered>
+    <q-expansion-item v-model="yearOpen" header-class="text-h5 text-weight-bold">
+      <template #header>
+        <q-item-section>{{ yearData.year }}</q-item-section>
+      </template>
 
-    <q-list separator>
-      <q-expansion-item
-        v-for="entry in moduleEntries"
-        :key="entry.config.module"
-        :model-value="expandedKey === expansionKey(entry.config.module)"
-        @update:model-value="
-          (open: boolean) => onToggle(entry.config.module, open)
-        "
-      >
-        <template #header>
-          <q-item-section side @click.stop>
-            <q-checkbox
-              :model-value="entry.module?.is_active ?? true"
-              :disable="!entry.module || togglingModuleId === entry.module.id"
-              @update:model-value="
-                (active: boolean) => onToggleActive(entry, active)
-              "
-            >
-              <q-tooltip>{{ $t('planner_module_active_tooltip') }}</q-tooltip>
-            </q-checkbox>
-          </q-item-section>
-          <q-item-section>
-            <div class="row items-center q-gutter-sm">
-              <!-- The module slug itself is the i18n key for the short
-                   module name (same convention as the sidebar). -->
-              <span class="text-weight-medium">
+      <q-separator />
+      <q-card-section>
+        <div class="text-weight-bold q-mb-sm">
+          {{ $t('planner_reference_year_label') }}
+        </div>
+        <q-select
+          :model-value="yearData.reference_year"
+          :options="referenceYearOptions"
+          outlined
+          dense
+          emit-value
+          map-options
+          class="planner-reference-year"
+          :loading="settingReferenceYear"
+          @update:model-value="onReferenceYearChange"
+        >
+          <template #prepend>
+            <q-icon name="o_calendar_month" color="negative" />
+          </template>
+        </q-select>
+        <div v-if="!yearData.reference_year" class="text-body2 text-grey-7 q-mt-sm">
+          {{ $t('planner_reference_year_hint') }}
+        </div>
+      </q-card-section>
+
+      <!-- One bordered card per module, in Calculator order -->
+      <q-card-section class="q-gutter-md">
+        <q-card
+          v-for="entry in moduleEntries"
+          :key="entry.config.module"
+          flat
+          bordered
+        >
+          <q-expansion-item
+            :model-value="expandedKey === expansionKey(entry.config.module)"
+            @update:model-value="
+              (open: boolean) => onToggle(entry.config.module, open)
+            "
+          >
+            <template #header>
+              <q-item-section avatar>
+                <module-icon-box :name="entry.config.module" size="md" />
+              </q-item-section>
+              <q-item-section class="text-weight-medium">
                 {{ $t(entry.config.module) }}
-              </span>
-              <q-badge
-                v-if="entry.config.behavior === 'prefilled'"
-                outline
-                color="info"
-                :label="$t('planner_module_prefilled_badge')"
+              </q-item-section>
+              <q-item-section side @click.stop>
+                <div class="row items-center no-wrap q-gutter-sm">
+                  <q-btn
+                    v-if="entry.config.behavior === 'prefilled'"
+                    unelevated
+                    no-caps
+                    dense
+                    size="sm"
+                    color="negative"
+                    :label="$t('planner_module_prefill_button')"
+                    :disable="!yearData.reference_year || !entry.module"
+                    :loading="prefillingModule === entry.config.module"
+                    @click="onPrefill(entry.config.module)"
+                  >
+                    <q-tooltip v-if="!yearData.reference_year">
+                      {{ $t('planner_reference_year_hint') }}
+                    </q-tooltip>
+                  </q-btn>
+                  <q-checkbox
+                    :model-value="entry.module?.is_active ?? true"
+                    :label="$t('planner_module_active_label')"
+                    color="negative"
+                    :disable="!entry.module || togglingModuleId === entry.module.id"
+                    @update:model-value="
+                      (active: boolean) => onToggleActive(entry, active)
+                    "
+                  >
+                    <q-tooltip>{{ $t('planner_module_active_tooltip') }}</q-tooltip>
+                  </q-checkbox>
+                </div>
+              </q-item-section>
+            </template>
+
+            <q-separator />
+            <div
+              v-if="expandedKey === expansionKey(entry.config.module)"
+              class="q-pa-md"
+            >
+              <module-table-section
+                :type="entry.config.module"
+                :config-override="getPlannerModuleConfig(entry.config.module)"
+                :data="moduleStore.state.data"
+                :loading="moduleStore.state.loading"
+                :error="moduleStore.state.error"
+                :unit-id="unitId"
+                :year="yearData.year"
+                :disable="entry.module?.is_active === false"
               />
             </div>
-          </q-item-section>
-          <q-item-section side @click.stop>
-            <q-btn
-              v-if="entry.config.behavior === 'prefilled'"
-              unelevated
-              no-caps
-              dense
-              size="sm"
-              color="info"
-              :label="$t('planner_module_prefill_button')"
-              :disable="!yearData.reference_year || !entry.module"
-              :loading="prefillingModule === entry.config.module"
-              @click="onPrefill(entry.config.module)"
-            >
-              <q-tooltip v-if="!yearData.reference_year">
-                {{ $t('planner_reference_year_hint') }}
-              </q-tooltip>
-            </q-btn>
-          </q-item-section>
-        </template>
-
-        <div
-          v-if="expandedKey === expansionKey(entry.config.module)"
-          class="q-pa-md"
-        >
-          <module-table-section
-            :type="entry.config.module"
-            :config-override="getPlannerModuleConfig(entry.config.module)"
-            :data="moduleStore.state.data"
-            :loading="moduleStore.state.loading"
-            :error="moduleStore.state.error"
-            :unit-id="unitId"
-            :year="yearData.year"
-            :disable="entry.module?.is_active === false"
-          />
-        </div>
-      </q-expansion-item>
-    </q-list>
+          </q-expansion-item>
+        </q-card>
+      </q-card-section>
+    </q-expansion-item>
   </q-card>
 </template>
 
@@ -102,6 +112,7 @@ import { computed, ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { useI18n } from 'vue-i18n';
 
+import ModuleIconBox from 'src/components/atoms/ModuleIconBox.vue';
 import ModuleTableSection from 'src/components/organisms/module/ModuleTableSection.vue';
 import {
   PLANNER_MODULES,
@@ -137,6 +148,7 @@ const { t } = useI18n();
 const moduleStore = useModuleStore();
 const plansStore = useSimulatorPlansStore();
 
+const yearOpen = ref(true);
 const settingReferenceYear = ref(false);
 const prefillingModule = ref<Module | null>(null);
 const togglingModuleId = ref<number | null>(null);
@@ -211,3 +223,9 @@ async function onPrefill(module: Module) {
   }
 }
 </script>
+
+<style scoped lang="scss">
+.planner-reference-year {
+  max-width: 320px;
+}
+</style>

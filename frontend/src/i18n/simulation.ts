@@ -103,6 +103,26 @@ export default {
     en: 'Plan the carbon footprint of an upcoming project. Give your project a name; its content will appear here.',
     fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
   },
+  planner_page_title: {
+    en: 'CO₂ Simulator: Plan',
+    fr: 'Simulateur CO₂ : Planifier',
+  },
+  planner_page_intro: {
+    en: "Forecast your project's carbon footprint using your unit's previous year's data: save, review, and share with your team.",
+    fr: "Prévoyez l'empreinte carbone de votre projet à partir des données de l'année précédente de votre unité : enregistrez, consultez et partagez avec votre équipe.",
+  },
+  planner_project_label: {
+    en: 'Project',
+    fr: 'Projet',
+  },
+  planner_year_selection_label: {
+    en: 'Year Selection',
+    fr: 'Sélection des années',
+  },
+  planner_module_active_label: {
+    en: 'Active',
+    fr: 'Actif',
+  },
   project_planner_name_label: {
     en: 'Project name',
     fr: 'Nom du projet',
@@ -136,8 +156,8 @@ export default {
     fr: 'Année de fin',
   },
   planner_share_with_lab_label: {
-    en: 'Share with lab',
-    fr: 'Partager avec le laboratoire',
+    en: 'Visible to all lab members',
+    fr: 'Visible par tous les membres du laboratoire',
   },
   planner_project_info_save: {
     en: 'Save',
