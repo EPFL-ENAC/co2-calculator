@@ -1,52 +1,74 @@
 <template>
-  <q-card flat bordered class="q-pa-lg">
-    <h2 class="text-h4 q-mt-none q-mb-md">
-      {{ $t('planner_project_info_title') }}
-    </h2>
-    <div class="row q-col-gutter-md items-start">
+  <q-card flat bordered>
+    <q-card-section class="row items-center q-gutter-sm">
+      <q-icon name="o_folder_open" color="negative" size="24px" />
+      <span class="text-h5">{{ $t('planner_project_info_title') }}</span>
+    </q-card-section>
+    <q-separator />
+
+    <q-card-section>
+      <div class="text-weight-bold q-mb-sm">
+        {{ $t('planner_project_label') }}
+      </div>
       <q-input
         v-model="nameInput"
-        :label="$t('project_planner_name_label')"
+        :label="`${$t('project_planner_name_label')} *`"
         outlined
         dense
-        class="col-12 col-md-4"
+        :error="nameTouched && nameInput.trim().length === 0"
+        @blur="saveIfDirty('name')"
+        @keyup.enter="saveIfDirty('name')"
       />
-      <q-input
-        v-model="startYearInput"
-        :label="$t('planner_start_year_label')"
-        outlined
-        dense
-        mask="####"
-        class="col-6 col-md-2"
-        :rules="[yearRule]"
-      />
-      <q-input
-        v-model="endYearInput"
-        :label="$t('planner_end_year_label')"
-        outlined
-        dense
-        mask="####"
-        class="col-6 col-md-2"
-        :rules="[yearRule, endAfterStartRule]"
-      />
+    </q-card-section>
+    <q-separator />
+
+    <q-card-section>
+      <div class="text-weight-bold q-mb-sm">
+        {{ $t('planner_year_selection_label') }}
+      </div>
+      <div class="row q-col-gutter-md">
+        <div class="col-12 col-sm-6">
+          <q-input
+            v-model="startYearInput"
+            :label="$t('planner_start_year_label')"
+            outlined
+            dense
+            mask="####"
+            :rules="[yearRule]"
+            @blur="saveIfDirty('start_year')"
+          >
+            <template #prepend>
+              <q-icon name="o_calendar_month" color="negative" />
+            </template>
+          </q-input>
+        </div>
+        <div class="col-12 col-sm-6">
+          <q-input
+            v-model="endYearInput"
+            :label="$t('planner_end_year_label')"
+            outlined
+            dense
+            mask="####"
+            :rules="[yearRule, endAfterStartRule]"
+            @blur="saveIfDirty('end_year')"
+          >
+            <template #prepend>
+              <q-icon name="o_calendar_month" color="negative" />
+            </template>
+          </q-input>
+        </div>
+      </div>
+    </q-card-section>
+    <q-separator />
+
+    <q-card-section>
       <q-checkbox
         v-model="shareWithLab"
         :label="$t('planner_share_with_lab_label')"
-        class="col-12 col-md-3"
+        color="negative"
+        @update:model-value="saveIfDirty('is_viewable_by_unit_members')"
       />
-    </div>
-    <div class="row justify-end q-mt-sm">
-      <q-btn
-        unelevated
-        no-caps
-        color="info"
-        :label="$t('planner_project_info_save')"
-        :disable="!isDirty || !isValid"
-        :loading="saving"
-        class="text-weight-medium"
-        @click="save"
-      />
-    </div>
+    </q-card-section>
   </q-card>
 </template>
 
@@ -70,6 +92,7 @@ const nameInput = ref(props.plan.name);
 const startYearInput = ref(props.plan.start_year?.toString() ?? '');
 const endYearInput = ref(props.plan.end_year?.toString() ?? '');
 const shareWithLab = ref(props.plan.is_viewable_by_unit_members);
+const nameTouched = ref(false);
 const saving = ref(false);
 
 watch(
@@ -98,40 +121,50 @@ function endAfterStartRule(value: string): boolean | string {
   return end >= start || t('planner_year_rule_end_after_start');
 }
 
-const isValid = computed(() => {
+const rangeValid = computed(() => {
   const start = parsedYear(startYearInput.value);
   const end = parsedYear(endYearInput.value);
   if (startYearInput.value && start === null) return false;
   if (endYearInput.value && end === null) return false;
-  if (start !== null && end !== null && end < start) return false;
-  return nameInput.value.trim().length > 0;
+  return start === null || end === null || end >= start;
 });
 
-const isDirty = computed(
-  () =>
-    nameInput.value.trim() !== props.plan.name ||
-    parsedYear(startYearInput.value) !== props.plan.start_year ||
-    parsedYear(endYearInput.value) !== props.plan.end_year ||
-    shareWithLab.value !== props.plan.is_viewable_by_unit_members,
-);
+/**
+ * Persist a single field as soon as the user leaves it (the design has no
+ * explicit Save button). Each field only PATCHes when its own value changed
+ * and the whole form is valid, so a half-typed year never round-trips.
+ */
+async function saveIfDirty(
+  field: 'name' | 'start_year' | 'end_year' | 'is_viewable_by_unit_members',
+) {
+  if (field === 'name') nameTouched.value = true;
+  if (saving.value || !rangeValid.value) return;
 
-async function save() {
-  if (!isDirty.value || !isValid.value || saving.value) return;
   const payload: SimulatorPlanUpdatePayload = {};
   const trimmedName = nameInput.value.trim();
-  if (trimmedName !== props.plan.name) payload.name = trimmedName;
   const start = parsedYear(startYearInput.value);
   const end = parsedYear(endYearInput.value);
-  if (start !== null && start !== props.plan.start_year)
+
+  if (field === 'name' && trimmedName && trimmedName !== props.plan.name) {
+    payload.name = trimmedName;
+  }
+  if (field === 'start_year' && start !== null && start !== props.plan.start_year) {
     payload.start_year = start;
-  if (end !== null && end !== props.plan.end_year) payload.end_year = end;
-  if (shareWithLab.value !== props.plan.is_viewable_by_unit_members)
+  }
+  if (field === 'end_year' && end !== null && end !== props.plan.end_year) {
+    payload.end_year = end;
+  }
+  if (
+    field === 'is_viewable_by_unit_members' &&
+    shareWithLab.value !== props.plan.is_viewable_by_unit_members
+  ) {
     payload.is_viewable_by_unit_members = shareWithLab.value;
+  }
+  if (Object.keys(payload).length === 0) return;
 
   saving.value = true;
   try {
-    const updated = await plansStore.updatePlan(props.plan.id, payload);
-    emit('updated', updated);
+    emit('updated', await plansStore.updatePlan(props.plan.id, payload));
   } finally {
     saving.value = false;
   }
