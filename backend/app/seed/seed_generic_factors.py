@@ -39,15 +39,16 @@ class FactorSeedConfig:
 
 # building_energycombustions_factors.csv
 # building_rooms_factors.csv
+# buildings_construction_renovation_factors.csv
 # commuting_factors.csv
-# equipments_factors.csv
+# equipment_factors.csv
 # external_ai_factors.csv
 # external_clouds_factors.csv
 # food_factors.csv
 # headcount_member_factors.csv
 # headcount_students_factors.csv
 # processemissions_factors.csv
-# purchases_additional_factors.csv
+# purchases_centralized_factors.csv
 # purchases_common_factors.csv
 # researchfacilities_animals_factors.csv
 # researchfacilities_common_factors.csv
@@ -68,7 +69,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         ],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "buildings_greyenergy_factors.csv",
+        path=BACKEND_FOLDER / "buildings_construction_renovation_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.building_embodied_energy,
         ],
@@ -78,7 +79,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
     # ),
     # Multi data_entry_type CSV — column differentiates (other, it, scientific)
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "equipments_factors.csv",
+        path=BACKEND_FOLDER / "equipment_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.scientific,
             DataEntryTypeEnum.it,
@@ -112,7 +113,7 @@ FACTOR_SEEDS: list[FactorSeedConfig] = [
         data_entry_types=[DataEntryTypeEnum.process_emissions],
     ),
     FactorSeedConfig(
-        path=BACKEND_FOLDER / "purchases_additional_factors.csv",
+        path=BACKEND_FOLDER / "purchases_centralized_factors.csv",
         data_entry_types=[
             DataEntryTypeEnum.purchases_centralized,
         ],
