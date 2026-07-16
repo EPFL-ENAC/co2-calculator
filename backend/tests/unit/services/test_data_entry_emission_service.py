@@ -2044,7 +2044,7 @@ class TestPercentageOverrideSnapshotSource:
             carbon_report_module_id=10,
             data={
                 "quantity": 5.0,
-                "percentage_of_last_year": 40,
+                "percentage_of_reference_year": 40,
                 "source_data_entry_id": 123,
             },
         )
@@ -2075,7 +2075,7 @@ class TestPercentageOverrideSnapshotSource:
             carbon_report_module_id=10,
             data={
                 "quantity": 5.0,
-                "percentage_of_last_year": 40,
+                "percentage_of_reference_year": 40,
                 "source_data_entry_id": 123,
             },
         )
@@ -2096,7 +2096,7 @@ class TestPercentageOverrideSnapshotSource:
             carbon_report_module_id=10,
             data={
                 "quantity": 5.0,
-                "percentage_of_last_year": 40,
+                "percentage_of_reference_year": 40,
                 "source_data_entry_id": 999,
             },
         )
