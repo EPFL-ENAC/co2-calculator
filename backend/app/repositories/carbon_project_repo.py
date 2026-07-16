@@ -95,9 +95,9 @@ class CarbonProjectRepository:
                 col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
             )
             .where(
-                CarbonReport.unit_id == unit_id,
-                CarbonReport.year == year,
-                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+                col(CarbonReport.unit_id) == unit_id,
+                col(CarbonReport.year) == year,
+                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
             )
         )
         result = await self.session.execute(statement)
@@ -107,7 +107,7 @@ class CarbonProjectRepository:
         """Return the carbon reports of a project, ordered by year."""
         statement = (
             select(CarbonReport)
-            .where(CarbonReport.carbon_project_id == project_id)
+            .where(col(CarbonReport.carbon_project_id) == project_id)
             .order_by(col(CarbonReport.year))
         )
         result = await self.session.execute(statement)

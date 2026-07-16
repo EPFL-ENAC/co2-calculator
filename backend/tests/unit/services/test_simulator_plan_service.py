@@ -472,3 +472,22 @@ async def test_reference_year_change_resnapshots_prefilled_modules(async_session
     assert len(rows) == 1
     assert rows[0].data["quantity"] == 3.0
     assert rows[0].data["source_data_entry_id"] == entry_2025.id
+
+
+@pytest.mark.asyncio
+async def test_duplicate_plan_syncs_year_reports(async_session, user):
+    """A duplicated plan opens with the same year sections as its source."""
+    service = SimulatorPlanService(async_session)
+    source = await service.create_plan(unit_id=1, user=user, name="source")
+    await service.update_plan(
+        source.id, SimulatorPlanUpdate(start_year=2027, end_year=2029)
+    )
+
+    copy = await service.duplicate_plan(source.id, user)
+    assert copy is not None
+    assert (copy.start_year, copy.end_year) == (2027, 2029)
+
+    years = await service.list_plan_years(copy.id)
+    assert years is not None
+    assert [y.year for y in years] == [2027, 2028, 2029]
+    assert all(len(y.modules) > 0 for y in years)
