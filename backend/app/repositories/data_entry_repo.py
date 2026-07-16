@@ -913,6 +913,19 @@ class DataEntryRepository:
         rows = result.all()
         count = len(rows)
 
+        # Planner snapshot rows carry ``source_data_entry_id`` — the reference-
+        # year entry they were copied from. Expose that source's emissions as
+        # ``reference_kg_co2eq`` (the 100% baseline the "% of reference year"
+        # slider scales from), batched into one grouped query for the page.
+        # Calculator rows have no source id, so this is a no-op there.
+        reference_kg_by_source = await self._reference_kg_by_source_ids(
+            [
+                int(sid)
+                for row in rows
+                if (sid := row[0].data.get("source_data_entry_id")) is not None
+            ]
+        )
+
         items: list[BaseModel] = []
 
         for row in rows:
@@ -985,6 +998,12 @@ class DataEntryRepository:
                     building_room.room_surface_square_meter
                 )
 
+            source_entry_id = data_entry.data.get("source_data_entry_id")
+            if source_entry_id is not None:
+                enriched_data["reference_kg_co2eq"] = reference_kg_by_source.get(
+                    int(source_entry_id)
+                )
+
             items.append(handler.to_response(data_entry, enriched_data))
 
         response = SubmoduleResponse(
@@ -1000,6 +1019,28 @@ class DataEntryRepository:
             has_more=total_items > offset + count,
         )
         return response
+
+    async def _reference_kg_by_source_ids(
+        self, source_ids: list[int]
+    ) -> dict[int, float]:
+        """Sum persisted kg_co2eq per source data entry (planner snapshots).
+
+        One grouped query for the whole page; empty in → empty out. Mirrors
+        ``DataEntryEmissionService._sum_entry_emissions`` (raw kg over the
+        entry's leaves) so the reference column matches the % override base.
+        """
+        if not source_ids:
+            return {}
+        stmt = (
+            select(
+                DataEntryEmission.data_entry_id,
+                func.sum(DataEntryEmission.kg_co2eq),
+            )
+            .where(col(DataEntryEmission.data_entry_id).in_(source_ids))
+            .group_by(col(DataEntryEmission.data_entry_id))
+        )
+        rows = (await self.session.exec(stmt)).all()
+        return {int(entry_id): float(total or 0.0) for entry_id, total in rows}
 
     async def get_professional_travel_trip_legs(
         self,
