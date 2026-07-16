@@ -104,12 +104,16 @@ export default {
     fr: "Planifiez l'empreinte carbone d'un projet à venir. Donnez un nom à votre projet ; son contenu apparaîtra ici.",
   },
   planner_page_title: {
-    en: 'CO₂ Simulator: Plan',
-    fr: 'Simulateur CO₂ : Planifier',
+    en: 'Simulator',
+    fr: 'Simulateur',
+  },
+  planner_page_subtitle: {
+    en: 'Estimating the carbon footprint of a project or category of emissions.',
+    fr: "Estimer l'empreinte d'un projet ou d'une catégorie d'émission carbone.",
   },
   planner_page_intro: {
-    en: "Forecast your project's carbon footprint using your unit's previous year's data: save, review, and share with your team.",
-    fr: "Prévoyez l'empreinte carbone de votre projet à partir des données de l'année précédente de votre unité : enregistrez, consultez et partagez avec votre équipe.",
+    en: "Do you need to estimate the carbon footprint of a project, for example as part of a grant application, before, during, or after your project? Would you like to estimate the carbon footprint of a trip, a purchase, or the consumption of scientific equipment? This space gives you access to EPFL's carbon footprint simulator.",
+    fr: "Vous avez besoin d'estimer l'empreinte d'un projet par exemple dans le cadre d'une demande de grant, en amont, pendant ou après votre projet ? Vous souhaitez estimer l'empreinte d'un voyage, d'un achat ou de la consommation d'un équipement scientifique ? Cet espace vous permet d'accéder au simulateur d'empreinte carbone de l'EPFL.",
   },
   planner_project_label: {
     en: 'Project',
@@ -140,8 +144,8 @@ export default {
     fr: "Retour à l'accueil",
   },
   planner_methodology_tooltip: {
-    en: 'The methodology used to calculate the carbon footprint of this space is documented in the Documentation pages.',
-    fr: "La méthodologie utilisée pour calculer l'empreinte carbone de cet espace est documentée dans les pages Documentation.",
+    en: 'The methodology used to calculate the carbon footprint of this space is documented in the Documentation pages (link to the Documentation subpage).',
+    fr: "La méthodologie utilisée pour calculer de l'empreinte carbone de cet espace est documentée dans les pages Documentation (lien vers la sous-page de la Documentation).",
   },
   planner_project_info_title: {
     en: 'Project information',
