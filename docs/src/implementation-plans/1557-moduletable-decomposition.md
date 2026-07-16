@@ -9,9 +9,11 @@ summary: "Break the ~2017-line shared Calculator/planner data-entry table into c
 # ModuleTable.vue decomposition
 
 Follow-up to [#1557](1557-planner-frontend-followups.md) — this fleshes out the
-"`ModuleTable.vue` decomposition" section (A, prerequisite refactor) into an
-ordered, shippable sequence. Do this **before** the type-2 planner columns
-harden, so they land in a clean sub-component instead of a 2000-line file.
+"`ModuleTable.vue` decomposition" section (A) into an ordered, shippable
+sequence. The type-2 planner columns shipped first (2026-07-16, reordered from
+the original prerequisite plan), so the decomposition now also moves the
+reference/slider column wiring into a clean sub-component instead of the
+2000-line file.
 
 ## Goal / rationale
 
@@ -140,7 +142,7 @@ function useModuleNoteDialog(params: {
   noteDialogOpen: Ref<boolean>;
   powerFeedbackDialogOpen: Ref<boolean>;
   noteDialogCurrentNote: Ref<string>;
-  noteDialogMode: ComputedRef<'add' | 'edit'>;
+  noteDialogMode: ComputedRef<"add" | "edit">;
   powerFeedbackRow: Ref<PowerFeedbackRow>;
   openNoteDialog: (row: ModuleRow) => void;
   saveNote: (note: string) => Promise<void>;
@@ -166,7 +168,7 @@ New sub-component for the edit dialog (template lines ~281–318) + its state.
 
 ```ts
 defineProps<{
-  modelValue: boolean;            // v-model:open
+  modelValue: boolean; // v-model:open
   moduleType: Module;
   submoduleType: EnumSubmoduleType;
   unitId: number;
@@ -176,7 +178,7 @@ defineProps<{
   fields: ModuleField[] | null;
   rowData: Record<string, FieldValue> | null;
 }>();
-defineEmits<{ 'update:modelValue': [boolean] }>();
+defineEmits<{ "update:modelValue": [boolean] }>();
 ```
 
 Submit calls `postItem`/`patchItem` internally (moved from `onFormSubmit`), then
@@ -199,7 +201,7 @@ defineProps<{
   carbonReportId?: number;
   disable: boolean;
 }>();
-defineEmits<{ synced: [] }>();  // parent refetches submodule + module data
+defineEmits<{ synced: [] }>(); // parent refetches submodule + module data
 ```
 
 Keeps the `dataManagementStore` subscription local; unsubscribes on unmount.
@@ -225,14 +227,14 @@ cheapest next cut.
 
 ## Risks & de-risking
 
-| Area | Risk | De-risk |
-| --- | --- | --- |
-| Inline editing | `commitInline` closure over `props`/store breaks when moved | Pass reactive refs into the composable; screenshot + edit a numeric cell (comma → error, dot → save) after Step 2 |
-| Pagination | `@request` reads/writes `moduleStore.state.paginationSubmodule` by ref | Leave `onRequest` in the core (Step 6); it stays on the store, not the extracted pieces |
-| Expand watchers | `immediate: true` watcher on `expandedSubmodules` + `onMounted` double-fetch | Keep both in the core untouched; verify a collapsed→expanded fetch still fires once |
-| Note / power dialog | Equipment routes to the power dialog; shared note state | Reuse existing molecules; test note save on a non-Equipment module and the power dialog on Equipment |
-| Edit / CSV dialogs | Moving state out of core loses the reset-on-close watcher / SSE unsubscribe | Move the watcher into `ModuleEditDialog`, the `onUnmounted` unsubscribe into `ModuleCsvUploadDialog` |
-| Planner slider | `showReferenceColumns` injection + `onPercentageChange` PATCH | Column injection goes to Step 1, `onPercentageChange` stays with the slider wiring; verify slider 40% → kg recomputes in planner |
+| Area                | Risk                                                                         | De-risk                                                                                                                          |
+| ------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Inline editing      | `commitInline` closure over `props`/store breaks when moved                  | Pass reactive refs into the composable; screenshot + edit a numeric cell (comma → error, dot → save) after Step 2                |
+| Pagination          | `@request` reads/writes `moduleStore.state.paginationSubmodule` by ref       | Leave `onRequest` in the core (Step 6); it stays on the store, not the extracted pieces                                          |
+| Expand watchers     | `immediate: true` watcher on `expandedSubmodules` + `onMounted` double-fetch | Keep both in the core untouched; verify a collapsed→expanded fetch still fires once                                              |
+| Note / power dialog | Equipment routes to the power dialog; shared note state                      | Reuse existing molecules; test note save on a non-Equipment module and the power dialog on Equipment                             |
+| Edit / CSV dialogs  | Moving state out of core loses the reset-on-close watcher / SSE unsubscribe  | Move the watcher into `ModuleEditDialog`, the `onUnmounted` unsubscribe into `ModuleCsvUploadDialog`                             |
+| Planner slider      | `showReferenceColumns` injection + `onPercentageChange` PATCH                | Column injection goes to Step 1, `onPercentageChange` stays with the slider wiring; verify slider 40% → kg recomputes in planner |
 
 **Standing de-risk:** screenshot the Calculator table (Equipment + Travel, which
 exercise power dialog and `renderCell` name resolution) after **each** step and
