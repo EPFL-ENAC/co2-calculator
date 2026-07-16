@@ -103,8 +103,18 @@ const referenceYearOptions = computed(() =>
 );
 
 async function onPlanUpdated(updated: SimulatorPlan) {
-  const renamed = plan.value !== null && plan.value.name !== updated.name;
+  const previous = plan.value;
+  const renamed = previous !== null && previous.name !== updated.name;
+  const rangeChanged =
+    previous !== null &&
+    (previous.start_year !== updated.start_year ||
+      previous.end_year !== updated.end_year);
   plan.value = updated;
+  // The year range drives the backend year-report sync; refetch so the
+  // per-year sections reflect the new range without a page reload.
+  if (rangeChanged) {
+    await plansStore.fetchPlanYears(updated.id);
+  }
   if (renamed) {
     // Param-only replace keeps this component instance mounted.
     await router.replace({

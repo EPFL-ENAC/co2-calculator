@@ -28,35 +28,53 @@
       </div>
       <div class="row q-col-gutter-md">
         <div class="col-12 col-sm-6">
-          <q-input
+          <q-select
             v-model="startYearInput"
             :label="$t('planner_start_year_label')"
+            :options="startYearOptions"
             outlined
             dense
-            mask="####"
-            :rules="[yearRule, minYearRule]"
-            @blur="saveIfDirty('start_year')"
+            emit-value
+            map-options
           >
             <template #prepend>
               <q-icon name="o_calendar_month" color="negative" />
             </template>
-          </q-input>
+          </q-select>
         </div>
         <div class="col-12 col-sm-6">
-          <q-input
+          <q-select
             v-model="endYearInput"
             :label="$t('planner_end_year_label')"
+            :options="endYearOptions"
             outlined
             dense
-            mask="####"
-            :rules="[yearRule, endAfterStartRule]"
-            @blur="saveIfDirty('end_year')"
+            emit-value
+            map-options
           >
             <template #prepend>
               <q-icon name="o_calendar_month" color="negative" />
             </template>
-          </q-input>
+          </q-select>
         </div>
+      </div>
+
+      <!-- The per-year sections are created explicitly (not as a hidden
+           side-effect of picking a year), with visible progress. -->
+      <div class="row items-center q-gutter-sm q-mt-md">
+        <q-btn
+          unelevated
+          no-caps
+          color="negative"
+          icon="o_playlist_add"
+          :label="$t('planner_generate_years_button')"
+          :disable="!yearsDirty || !yearsValid"
+          :loading="generatingYears"
+          @click="generateYears"
+        />
+        <span class="text-body2 text-grey-7">
+          {{ $t('planner_generate_years_hint') }}
+        </span>
       </div>
     </q-card-section>
     <q-separator />
@@ -75,6 +93,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useQuasar } from 'quasar';
 
 import {
   useSimulatorPlansStore,
@@ -87,88 +106,112 @@ const props = defineProps<{ plan: SimulatorPlan }>();
 const emit = defineEmits<{ updated: [plan: SimulatorPlan] }>();
 
 const { t } = useI18n();
+const $q = useQuasar();
 const plansStore = useSimulatorPlansStore();
 const yearConfigStore = useYearConfigStore();
 
 const nameInput = ref(props.plan.name);
-const startYearInput = ref(props.plan.start_year?.toString() ?? '');
-const endYearInput = ref(props.plan.end_year?.toString() ?? '');
+const startYearInput = ref<number | null>(props.plan.start_year ?? null);
+const endYearInput = ref<number | null>(props.plan.end_year ?? null);
 const shareWithLab = ref(props.plan.is_viewable_by_unit_members);
 const nameTouched = ref(false);
 const saving = ref(false);
+const generatingYears = ref(false);
 
 watch(
   () => props.plan,
   (plan) => {
     nameInput.value = plan.name;
-    startYearInput.value = plan.start_year?.toString() ?? '';
-    endYearInput.value = plan.end_year?.toString() ?? '';
+    startYearInput.value = plan.start_year ?? null;
+    endYearInput.value = plan.end_year ?? null;
     shareWithLab.value = plan.is_viewable_by_unit_members;
   },
 );
 
-function parsedYear(value: string): number | null {
-  return /^\d{4}$/.test(value) ? Number(value) : null;
+// Plans span from the earliest configurable Calculator year
+// (settings.MIN_CONFIGURABLE_YEAR — no reference data before it) up to ten
+// years ahead. Bounded selects replace free-form validation entirely.
+const YEARS_AHEAD = 10;
+const maxYear = computed(() => new Date().getFullYear() + YEARS_AHEAD);
+const minYear = computed(
+  () => yearConfigStore.minConfigurableYear ?? new Date().getFullYear(),
+);
+
+function yearRange(from: number, to: number, ...include: (number | null)[]): number[] {
+  const years = new Set<number>();
+  for (let y = from; y <= to; y++) years.add(y);
+  // Keep a stored value that falls outside the range selectable, so editing
+  // an older/longer existing plan never silently drops its year.
+  for (const y of include) if (y !== null) years.add(y);
+  return [...years].sort((a, b) => b - a);
 }
 
-function yearRule(value: string): boolean | string {
-  if (!value) return true;
-  return parsedYear(value) !== null || t('planner_year_rule_four_digits');
-}
+const startYearOptions = computed(() =>
+  yearRange(minYear.value, maxYear.value, startYearInput.value),
+);
 
-// Start year cannot precede the earliest configurable Calculator year
-// (settings.MIN_CONFIGURABLE_YEAR) — there is no reference data before it.
-// When the bound isn't loaded yet, don't block.
-function minYearRule(value: string): boolean | string {
-  const year = parsedYear(value);
-  const min = yearConfigStore.minConfigurableYear;
-  if (year === null || min === null) return true;
-  return (
-    year >= min || t('planner_year_rule_min_year', { year: min })
-  );
-}
+// End year can't precede the chosen start year.
+const endYearOptions = computed(() =>
+  yearRange(
+    Math.max(minYear.value, startYearInput.value ?? minYear.value),
+    maxYear.value,
+    endYearInput.value,
+  ),
+);
 
-function endAfterStartRule(value: string): boolean | string {
-  const start = parsedYear(startYearInput.value);
-  const end = parsedYear(value);
-  if (start === null || end === null) return true;
-  return end >= start || t('planner_year_rule_end_after_start');
-}
+const yearsValid = computed(
+  () =>
+    startYearInput.value !== null &&
+    endYearInput.value !== null &&
+    endYearInput.value >= startYearInput.value,
+);
 
-const rangeValid = computed(() => {
-  const start = parsedYear(startYearInput.value);
-  const end = parsedYear(endYearInput.value);
-  const min = yearConfigStore.minConfigurableYear;
-  if (startYearInput.value && start === null) return false;
-  if (endYearInput.value && end === null) return false;
-  if (start !== null && min !== null && start < min) return false;
-  return start === null || end === null || end >= start;
-});
+// Dirty vs. the persisted range — the button is idle until the user changes
+// a year, and disables again once the sections match the selection.
+const yearsDirty = computed(
+  () =>
+    startYearInput.value !== (props.plan.start_year ?? null) ||
+    endYearInput.value !== (props.plan.end_year ?? null),
+);
 
 /**
- * Persist a single field as soon as the user leaves it (the design has no
- * explicit Save button). Each field only PATCHes when its own value changed
- * and the whole form is valid, so a half-typed year never round-trips.
+ * Create/update one CarbonReport per year in the selected range. Made an
+ * explicit, feedback-carrying action (button + spinner + notify) instead of a
+ * hidden side-effect of picking a year — the backend syncs the year reports.
  */
-async function saveIfDirty(
-  field: 'name' | 'start_year' | 'end_year' | 'is_viewable_by_unit_members',
-) {
+async function generateYears() {
+  const start = startYearInput.value;
+  const end = endYearInput.value;
+  if (start === null || end === null || generatingYears.value) return;
+
+  generatingYears.value = true;
+  try {
+    const updated = await plansStore.updatePlan(props.plan.id, {
+      start_year: start,
+      end_year: end,
+    });
+    emit('updated', updated);
+    $q.notify({ type: 'positive', message: t('planner_years_generated') });
+  } catch {
+    $q.notify({ type: 'negative', message: t('planner_years_generate_error') });
+  } finally {
+    generatingYears.value = false;
+  }
+}
+
+/**
+ * Persist name / lab-visibility as soon as the user leaves the field (the
+ * design has no explicit Save button). Years are handled by generateYears.
+ */
+async function saveIfDirty(field: 'name' | 'is_viewable_by_unit_members') {
   if (field === 'name') nameTouched.value = true;
-  if (saving.value || !rangeValid.value) return;
+  if (saving.value) return;
 
   const payload: SimulatorPlanUpdatePayload = {};
   const trimmedName = nameInput.value.trim();
-  const start = parsedYear(startYearInput.value);
-  const end = parsedYear(endYearInput.value);
 
   if (field === 'name' && trimmedName && trimmedName !== props.plan.name) {
     payload.name = trimmedName;
-  }
-  if (field === 'start_year' && start !== null && start !== props.plan.start_year) {
-    payload.start_year = start;
-  }
-  if (field === 'end_year' && end !== null && end !== props.plan.end_year) {
-    payload.end_year = end;
   }
   if (
     field === 'is_viewable_by_unit_members' &&
