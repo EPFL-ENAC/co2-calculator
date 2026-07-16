@@ -757,7 +757,7 @@ async def prefill_module_from_reference(
     """Snapshot-copy the reference-year entries into a plan module (type 2).
 
     Wipes previous snapshot rows and re-copies the reference-year
-    Calculator entries at ``percentage_of_last_year = 100``; user-added
+    Calculator entries at ``percentage_of_reference_year = 100``; user-added
     rows survive. Only meaningful for Simulator Plan reports — reports
     without a reference year are rejected.
     """

@@ -140,19 +140,19 @@ class DataEntryEmissionService:
         emission_type: EmissionType,
         report: CarbonReport,
     ) -> float | None:
-        """If percentage_of_last_year is present, compute kg_co2eq from base year.
+        """If percentage_of_reference_year is present, compute kg_co2eq from base year.
 
         The override matches the previous-year DataEntry within the same module type
         and data_entry_type, using stable identifiers when available.
         """
-        raw = data_entry.data.get("percentage_of_last_year")
+        raw = data_entry.data.get("percentage_of_reference_year")
         if raw is None:
             return None
         try:
             percentage = float(raw)
         except (TypeError, ValueError):
             logger.warning(
-                "Invalid percentage_of_last_year=%r for data_entry_id=%r",
+                "Invalid percentage_of_reference_year=%r for data_entry_id=%r",
                 raw,
                 data_entry.id,
             )
@@ -354,7 +354,7 @@ class DataEntryEmissionService:
         # _get_percentage_override_kg needs reference_year and unit_id.
         if (
             report is None
-            and data_entry.data.get("percentage_of_last_year") is not None
+            and data_entry.data.get("percentage_of_reference_year") is not None
         ):
             report = await self._get_report_for_data_entry(data_entry)
 
@@ -449,8 +449,8 @@ class DataEntryEmissionService:
                                 kg_co2eq=float(override_kg),
                                 meta={
                                     "factors_used": [],
-                                    "percentage_of_last_year": data_entry.data.get(
-                                        "percentage_of_last_year"
+                                    "percentage_of_reference_year": data_entry.data.get(
+                                        "percentage_of_reference_year"
                                     ),
                                     "reference_year": report.reference_year,
                                     **ctx,

@@ -376,7 +376,7 @@ async def test_prefill_copies_reference_entries_at_100_percent(async_session, us
     rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
     assert len(rows) == 2
     assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
-    assert all(r.data["percentage_of_last_year"] == 100 for r in rows)
+    assert all(r.data["percentage_of_reference_year"] == 100 for r in rows)
     assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
     # Snapshot keeps the reference quantities.
     assert {r.data["quantity"] for r in rows} == {5.0, 7.0}

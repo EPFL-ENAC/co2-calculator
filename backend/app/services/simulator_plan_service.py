@@ -258,7 +258,7 @@ class SimulatorPlanService:
         """Snapshot-copy the reference-year Calculator entries into a plan module.
 
         Idempotent: previous snapshot rows (source=PLANNER_SNAPSHOT) are wiped
-        and re-copied at ``percentage_of_last_year = 100``; user-added rows
+        and re-copied at ``percentage_of_reference_year = 100``; user-added rows
         survive. Each copy keeps ``source_data_entry_id`` so the % slider
         computes against the live reference entry. Returns the copied count.
 
@@ -303,7 +303,7 @@ class SimulatorPlanService:
                 source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
                 data={
                     **src.data,
-                    "percentage_of_last_year": 100,
+                    "percentage_of_reference_year": 100,
                     "source_data_entry_id": src.id,
                 },
             )
