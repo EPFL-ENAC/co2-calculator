@@ -14,11 +14,12 @@ export interface PlannerModuleConfig {
   module: Module;
   behavior: PlannerBehavior;
   /**
-   * Planner-specific submodule (backend DataEntryTypeEnum name) replacing
+   * Planner-specific submodules (backend DataEntryTypeEnum names) replacing
    * the Calculator's submodules, when the planner entry shape differs
-   * (e.g. headcount: aggregate FTE per SIUS code).
+   * (e.g. headcount: aggregate FTE per SIUS code; purchases: submodule CHF
+   * totals XOR one global budget).
    */
-  plannerSubmoduleType?: string;
+  plannerSubmoduleTypes?: string[];
   /**
    * Traveler dropdown categories replacing headcount names (the planner
    * has no per-person roster). Values land in `user_institutional_id`.
@@ -36,7 +37,7 @@ export const PLANNER_MODULE_CONFIG: Partial<
   [MODULES.Headcount]: {
     module: MODULES.Headcount,
     behavior: 'manual',
-    plannerSubmoduleType: 'planner_headcount',
+    plannerSubmoduleTypes: ['planner_headcount'],
   },
   [MODULES.ProfessionalTravel]: {
     module: MODULES.ProfessionalTravel,
@@ -58,6 +59,9 @@ export const PLANNER_MODULE_CONFIG: Partial<
   [MODULES.Purchase]: {
     module: MODULES.Purchase,
     behavior: 'manual',
+    // Mutually exclusive: per-submodule totals XOR one global budget
+    // (enforced backend-side with 422 codes).
+    plannerSubmoduleTypes: ['planner_purchase', 'planner_purchase_budget'],
   },
   [MODULES.ResearchFacilities]: {
     module: MODULES.ResearchFacilities,
