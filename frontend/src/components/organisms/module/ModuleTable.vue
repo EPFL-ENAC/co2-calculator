@@ -226,9 +226,7 @@
               "
             />
           </template>
-          <template
-            v-else-if="col.name === 'percentage_of_reference_year'"
-          >
+          <template v-else-if="col.name === 'percentage_of_reference_year'">
             <div
               v-if="slotProps.row.reference_kg_co2eq != null"
               class="row items-center no-wrap q-gutter-sm reference-slider"
@@ -248,7 +246,9 @@
                 "
               />
               <span class="reference-slider__value">
-                {{ (slotProps.row.percentage_of_reference_year as number) ?? 100 }}%
+                {{
+                  (slotProps.row.percentage_of_reference_year as number) ?? 100
+                }}%
               </span>
             </div>
             <span v-else>-</span>
@@ -904,9 +904,7 @@ const isDisabled = computed(() => {
   // many year-reports, so a Validated state leaking from the Calculator context
   // would spuriously lock editing (and the % slider) here.
   if (props.carbonReportId != null) return false;
-  return (
-    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated
-  );
+  return timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated;
 });
 
 const showTableRowActions = computed(

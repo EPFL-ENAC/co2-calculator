@@ -137,7 +137,11 @@ const minYear = computed(
   () => yearConfigStore.minConfigurableYear ?? new Date().getFullYear(),
 );
 
-function yearRange(from: number, to: number, ...include: (number | null)[]): number[] {
+function yearRange(
+  from: number,
+  to: number,
+  ...include: (number | null)[]
+): number[] {
   const years = new Set<number>();
   for (let y = from; y <= to; y++) years.add(y);
   // Keep a stored value that falls outside the range selectable, so editing
