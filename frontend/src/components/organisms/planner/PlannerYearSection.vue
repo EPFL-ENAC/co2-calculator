@@ -44,8 +44,10 @@
           </q-item-section>
           <q-item-section>
             <div class="row items-center q-gutter-sm">
+              <!-- The module slug itself is the i18n key for the short
+                   module name (same convention as the sidebar). -->
               <span class="text-weight-medium">
-                {{ $t(`module-${entry.config.module}-title`) }}
+                {{ $t(entry.config.module) }}
               </span>
               <q-badge
                 v-if="entry.config.behavior === 'prefilled'"
