@@ -35,15 +35,22 @@ class CarbonReportModuleWorkflow:
         carbon_report_module_id: int,
         data_entry_type: DataEntryTypeEnum,
         data: dict,
+        exclude_entry_id: int | None = None,
     ) -> None:
         """PRD #1555: submodule CHF totals XOR one global budget.
 
         Rejects a submodule total while a global budget exists (and vice
         versa), a second global budget, and a duplicate submodule category.
+        ``exclude_entry_id`` drops the row being edited from the scan so an
+        update that keeps its own category isn't flagged as a self-collision.
         """
-        rows = await DataEntryRepository(self.session).list_by_module(
-            carbon_report_module_id
-        )
+        rows = [
+            r
+            for r in await DataEntryRepository(self.session).list_by_module(
+                carbon_report_module_id
+            )
+            if r.id != exclude_entry_id
+        ]
         budgets = [
             r
             for r in rows
@@ -250,6 +257,18 @@ class CarbonReportModuleWorkflow:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid item_data for update: {str(e)}",
+            )
+        # Outside the validation try so its 422 code isn't swallowed into a
+        # generic 400 (matches the create() placement).
+        if data_entry_type in (
+            DataEntryTypeEnum.planner_purchase,
+            DataEntryTypeEnum.planner_purchase_budget,
+        ):
+            await self._check_planner_purchase_exclusivity(
+                carbon_report_module.id,
+                data_entry_type,
+                validated_data.model_dump(),
+                exclude_entry_id=item_id,
             )
         if current_user.id is None:
             raise HTTPException(

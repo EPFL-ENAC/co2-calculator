@@ -8,6 +8,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import _sanitize_for_log as sanitize
 from app.core.logging import get_logger
 from app.core.role_priority import pick_role_for_institutional_id
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import CarbonReportType
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import (
@@ -624,6 +626,25 @@ def plan_is_visible_to(current_user: User, project: Any) -> bool:
     if project.created_by == current_user.id:
         return True
     return bool(project.is_viewable_by_unit_members)
+
+
+async def require_plan_scope_for_report(
+    db: AsyncSession, current_user: User, report: Any, action: str
+) -> None:
+    """Enforce Simulator Plan scoping when ``report`` belongs to a plan.
+
+    No-op for Calculator/Explore reports (and reports with no project). The
+    single place every report-addressed write consults so plan read-only /
+    creator-only rules can't be forgotten on a new route.
+    """
+    if report.carbon_project_id is None:
+        return
+    project = await db.get(CarbonProject, report.carbon_project_id)
+    if (
+        project is not None
+        and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
+    ):
+        require_plan_access(current_user, project, action)
 
 
 def require_plan_access(current_user: User, project: Any, action: str) -> None:

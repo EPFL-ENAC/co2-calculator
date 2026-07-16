@@ -154,6 +154,25 @@ async def test_get_module_id_for_unit_year_returns_int():
     assert result == 7
 
 
+@pytest.mark.asyncio
+async def test_get_module_id_for_unit_year_maps_valueerror_to_http_404():
+    """The service raises ValueError when no module exists; the combine loop
+    catches only HTTPException, so this helper must translate it (else 500)."""
+    db = MagicMock()
+    service = MagicMock()
+    service.get_carbon_report_by_year_and_unit = AsyncMock(
+        side_effect=ValueError("no module")
+    )
+
+    with patch.object(crm, "CarbonReportModuleService", return_value=service):
+        with pytest.raises(HTTPException) as exc:
+            await crm.get_module_id_for_unit_year(
+                99, 2024, ModuleTypeEnum.headcount, db
+            )
+
+    assert exc.value.status_code == 404
+
+
 # ── list_headcount_members: permission gate ───────────────────────────────────
 
 

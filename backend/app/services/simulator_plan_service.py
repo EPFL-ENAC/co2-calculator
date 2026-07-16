@@ -342,8 +342,9 @@ class SimulatorPlanService:
     ) -> Optional[SimulatorPlanRead]:
         """Duplicate a plan as ``<name>-2`` (then ``-3``, ...); None if missing.
 
-        Only the project row is copied for now; plan contents (carbon reports)
-        will need copying once the planner page stores data.
+        The project row and its year range are copied, and the copy's per-year
+        reports are synced to that range so it opens with the same year
+        sections. Entry contents are not copied (empty per-year modules).
         """
         source = await self.repo.get_plan(plan_id)
         if source is None:
@@ -361,6 +362,7 @@ class SimulatorPlanService:
             created_at=datetime.now(timezone.utc),
         )
         copy = await self._flush_guarded(self.repo.create(copy))
+        await self._sync_year_reports(copy)
         return _to_read(copy, user.display_name)
 
     async def delete_plan(self, plan_id: int) -> bool:

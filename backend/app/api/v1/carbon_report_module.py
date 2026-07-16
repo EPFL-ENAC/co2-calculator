@@ -26,11 +26,9 @@ from app.core.logging import get_logger
 from app.core.policy import (
     check_module_permission_for_unit,
     get_module_permission_decision,
-    require_plan_access,
+    require_plan_scope_for_report,
 )
 from app.core.role_priority import pick_role_for_institutional_id
-from app.models.carbon_project import CarbonProject
-from app.models.carbon_report import CarbonReportType
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.module_type import (
     MODULE_TYPE_TO_DATA_ENTRY_TYPES,
@@ -117,13 +115,7 @@ async def resolve_report_module(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Carbon report not found",
         )
-    if report.carbon_project_id is not None:
-        project = await db.get(CarbonProject, report.carbon_project_id)
-        if (
-            project is not None
-            and project.carbon_report_type == CarbonReportType.SIMULATOR_PLAN
-        ):
-            require_plan_access(current_user, project, action)
+    await require_plan_scope_for_report(db, current_user, report, action)
     module_type = _module_type_from_slug(module_id)
     module = await CarbonReportModuleService(db).get_module(
         carbon_report_id, int(module_type)
@@ -213,16 +205,27 @@ async def get_module_id_for_unit_year(
 
     Only used where identity addressing cannot apply: aggregating OTHER
     units into a combined view (the caller's own module comes from the
-    addressed report).
+    addressed report). This is a Calculator-only Results feature, so the
+    other units resolve their Calculator module.
+
+    Raises HTTPException(404) when the unit has no such module — the service
+    signals this with ``ValueError``, which the combined-units loop expects
+    as an HTTPException so the unit drops out of the aggregate.
     """
-    carbon_report_module = await CarbonReportModuleService(
-        db
-    ).get_carbon_report_by_year_and_unit(
-        unit_id=unit_id,
-        year=year,
-        module_type_id=ModuleTypeEnum(module_type_id),
-    )
-    if carbon_report_module is None or carbon_report_module.id is None:
+    try:
+        carbon_report_module = await CarbonReportModuleService(
+            db
+        ).get_carbon_report_by_year_and_unit(
+            unit_id=unit_id,
+            year=year,
+            module_type_id=ModuleTypeEnum(module_type_id),
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
+        ) from exc
+    if carbon_report_module.id is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Carbon report module not found for unit_id={unit_id}, year={year}",
