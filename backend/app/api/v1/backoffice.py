@@ -21,7 +21,6 @@ from app.core.constants import (
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE_EXPORT,
     DEFAULT_PAGE_SIZE_UNITS,
-    DETAILED_EXPORT_FILE_NAMES,
     ERROR_AT_LEAST_ONE_YEAR,
     ERROR_INVALID_FORMAT,
     EXPORT_CSV_DATE_FORMAT,
@@ -546,9 +545,7 @@ async def report_detailed(
                 if data is None or len(data) == 0:
                     continue
 
-                file_path = (
-                    tmp_path / f"{DETAILED_EXPORT_FILE_NAMES[data_entry_type]}.{format}"
-                )
+                file_path = tmp_path / f"{data_entry_type.name}.{format}"
                 if format == "json":
                     file_path.write_text(
                         json.dumps(data, indent=2, default=str), encoding="utf-8"

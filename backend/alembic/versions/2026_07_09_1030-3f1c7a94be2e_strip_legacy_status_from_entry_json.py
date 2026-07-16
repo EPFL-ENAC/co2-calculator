@@ -2,7 +2,7 @@
 """strip legacy status from entry json
 
 Revision ID: 3f1c7a94be2e
-Revises: 954eac6c95da
+Revises: 89c3079e388d
 Create Date: 2026-07-09 10:30:00.000000
 
 Data-only migration (issue #589, same shape as 954eac6c95da):
@@ -31,7 +31,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "3f1c7a94be2e"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "954eac6c95da"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "89c3079e388d"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 

@@ -8,8 +8,6 @@ from app.api.v1.backoffice import (
     get_module_outlier_values,
     get_module_status,
 )
-from app.core.constants import DETAILED_EXPORT_FILE_NAMES
-from app.models.data_entry import DataEntryTypeEnum
 
 
 # ---------------------------------------------------------------------------
@@ -128,50 +126,3 @@ class TestGetCompletionForYears:
         completion = {"2024": "bad_data"}
         result = get_completion_for_years(completion)
         assert result == {}
-
-
-# ---------------------------------------------------------------------------
-# DETAILED_EXPORT_FILE_NAMES (#589)
-#
-# ``report_detailed`` indexes this map without a fallback, and the files land
-# flat in one archive. Coverage and uniqueness are what keep that safe.
-# ---------------------------------------------------------------------------
-class TestDetailedExportFileNames:
-    def test_covers_every_data_entry_type(self):
-        assert set(DETAILED_EXPORT_FILE_NAMES) == set(DataEntryTypeEnum)
-
-    def test_names_are_unique(self):
-        names = list(DETAILED_EXPORT_FILE_NAMES.values())
-        assert len(names) == len(set(names))
-
-    def test_uses_frontend_submodule_names_for_buildings(self):
-        # The example from the issue: `buildings_building` -> `building_rooms`.
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.building] == (
-            "building_rooms"
-        )
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.energy_combustion] == (
-            "building_energycombustions"
-        )
-
-    def test_matches_the_template_and_factor_seed_convention(self):
-        # Spot-check the submodules whose export name diverges from the old
-        # `f"{module_type.name}_{data_entry_type.name}"` derivation. Each value
-        # is the base name of the matching file in `frontend/public/templates`
-        # or `app/seed/seed_generic_factors.py`.
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.plane] == "travel_planes"
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.it] == "equipment_IT"
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.process_emissions] == (
-            "processemissions"
-        )
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.scientific_equipment] == (
-            "purchases_scientificequipment"
-        )
-        assert DETAILED_EXPORT_FILE_NAMES[DataEntryTypeEnum.research_facilities] == (
-            "researchfacilities_common"
-        )
-
-    def test_names_carry_no_extension(self):
-        # The endpoint appends `.csv` / `.json`.
-        for name in DETAILED_EXPORT_FILE_NAMES.values():
-            assert name
-            assert not name.endswith((".csv", ".json"))
