@@ -53,22 +53,6 @@
               </q-item-section>
               <q-item-section side @click.stop>
                 <div class="row items-center no-wrap q-gutter-sm">
-                  <q-btn
-                    v-if="entry.config.behavior === 'prefilled'"
-                    unelevated
-                    no-caps
-                    dense
-                    size="sm"
-                    color="negative"
-                    :label="$t('planner_module_prefill_button')"
-                    :disable="!yearData.reference_year || !entry.module"
-                    :loading="prefillingModule === entry.config.module"
-                    @click="onPrefill(entry.config.module)"
-                  >
-                    <q-tooltip v-if="!yearData.reference_year">
-                      {{ $t('planner_reference_year_hint') }}
-                    </q-tooltip>
-                  </q-btn>
                   <q-checkbox
                     :model-value="entry.module?.is_active ?? true"
                     :label="$t('planner_module_active_label')"
@@ -161,7 +145,6 @@ const plansStore = useSimulatorPlansStore();
 
 const yearOpen = ref(true);
 const settingReferenceYear = ref(false);
-const prefillingModule = ref<Module | null>(null);
 const togglingModuleId = ref<number | null>(null);
 
 const moduleEntries = computed<ModuleEntry[]>(() =>
@@ -199,6 +182,13 @@ async function onReferenceYearChange(referenceYear: number) {
       props.yearData.year,
       referenceYear,
     );
+    // Setting the reference year auto-prefills every prefilled module; refresh
+    // the open module so its snapshot rows appear without a manual reload.
+    const expanded = props.expandedKey?.startsWith(`${props.yearData.year}-`);
+    const module = props.expandedKey?.split('-').slice(1).join('-') as
+      | Module
+      | undefined;
+    if (expanded && module) await refreshExpandedModule(module);
   } catch {
     $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
   } finally {
@@ -217,21 +207,6 @@ async function onToggleActive(entry: ModuleEntry, active: boolean) {
     );
   } finally {
     togglingModuleId.value = null;
-  }
-}
-
-async function onPrefill(module: Module) {
-  prefillingModule.value = module;
-  try {
-    await plansStore.prefillModule(props.yearData.id, module);
-    if (props.expandedKey === expansionKey(module)) {
-      await refreshExpandedModule(module);
-    }
-    $q.notify({ type: 'positive', message: t('planner_prefill_done') });
-  } catch {
-    $q.notify({ type: 'negative', message: t('planner_prefill_error') });
-  } finally {
-    prefillingModule.value = null;
   }
 }
 </script>
