@@ -13,11 +13,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
-from sqlmodel import col, select
+from sqlmodel import col, delete, select
 
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import IngestionResult, IngestionState
+from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.services.data_ingestion.base_csv_provider import StatsDict
 from app.services.data_ingestion.base_factor_csv_provider import FactorStatsDict
@@ -64,6 +65,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
             data_session=data_session,
         )
         self._local_file_path: str | None = config.get("local_file_path")
+        self._seed_deleted_count = 0
         raw_ids: list[int] | None = config.get("explicit_entry_type_ids")
         self._explicit_types: list[DataEntryTypeEnum] | None = (
             [DataEntryTypeEnum(i) for i in raw_ids] if raw_ids is not None else None
@@ -107,6 +109,21 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
 
         logger.info("Validating CSV headers for local seed")
         self._validate_csv_headers(csv_text, expected_columns, required_columns)
+
+        # Delete-and-insert: Plan 310B moved production ingest to an
+        # identity-keyed upsert (needs a job_id seeds don't have), so
+        # the seed replaces its covered entry types wholesale — without
+        # this delete a re-seed trips ``uq_factor_identity``.
+        det_ids = [
+            int(t) for t in self._get_types_to_delete(entity_setup["valid_entry_types"])
+        ]
+        result = await self.data_session.execute(
+            delete(Factor).where(
+                col(Factor.year) == self.year,
+                col(Factor.data_entry_type_id).in_(det_ids),
+            )
+        )
+        self._seed_deleted_count = getattr(result, "rowcount", 0) or 0
 
         return {
             "csv_text": csv_text,
@@ -170,8 +187,8 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         stats: FactorStatsDict,
         setup_result: Dict[str, Any],
         factor_repo: Any,  # signature-compat with base; legacy seed path
-        # uses bulk_create and assumes the factor table starts empty
-        # (seed scripts run against a fresh DB).
+        # uses bulk_create — safe because _setup_and_validate cleared the
+        # covered (year, entry-type) factors first (delete-and-insert).
     ) -> Dict[str, Any]:
 
         if batch:
@@ -179,6 +196,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
 
         await self.data_session.flush()
 
+        stats["factors_deleted"] = self._seed_deleted_count
         result = self._compute_ingestion_result(stats)
 
         logger.info(

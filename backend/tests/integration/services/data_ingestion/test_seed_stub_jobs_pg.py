@@ -120,6 +120,44 @@ async def test_stub_meta_carries_card_display_fields(Sf):
 
 
 @pytest.mark.asyncio
+async def test_reseed_demotes_previous_current_stub(Sf):
+    """Re-running a seed over an existing DB MUST NOT trip the
+    ``ix_data_ingestion_jobs_is_current_unique`` partial unique
+    index — the helper demotes the previous current job for the
+    same combo (mirroring ``claim_job`` Step 1) before inserting.
+    Regression: second ``make seed`` run crashed with
+    ``UniqueViolation`` on every combo already seeded.
+    """
+
+    async def seed_once(s: AsyncSession) -> int:
+        return await create_seed_stub_job(
+            s,
+            module_type_id=int(ModuleTypeEnum.buildings),
+            data_entry_type_id=31,
+            year=2025,
+            target_type=TargetType.FACTORS,
+            job_type="factor_ingest",
+            file_path=Path("/repo/seed_data/building_energycombustions_factors.csv"),
+            rows_processed=7,
+        )
+
+    async with Sf() as s:
+        first_id = await seed_once(s)
+        await s.commit()
+
+    async with Sf() as s:
+        second_id = await seed_once(s)  # regression: raised IntegrityError
+        await s.commit()
+
+    async with Sf() as s:
+        first = await s.get(DataIngestionJob, first_id)
+        second = await s.get(DataIngestionJob, second_id)
+        assert first is not None and second is not None
+        assert first.is_current is False
+        assert second.is_current is True
+
+
+@pytest.mark.asyncio
 async def test_stub_orphan_no_pipeline_id(Sf):
     """Seeded stubs deliberately carry no ``pipeline_id`` — seeds
     bypass the dispatch chain and shouldn't pretend to belong to
