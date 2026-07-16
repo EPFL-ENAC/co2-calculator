@@ -84,6 +84,25 @@ class CarbonProjectRepository:
         result = await self.session.execute(statement)
         return [report_id for report_id in result.scalars().all()]
 
+    async def get_calculator_report(
+        self, unit_id: int, year: int
+    ) -> Optional[CarbonReport]:
+        """Return the unit's Calculator report for a year, or None."""
+        statement = (
+            select(CarbonReport)
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
+            .where(
+                CarbonReport.unit_id == unit_id,
+                CarbonReport.year == year,
+                CarbonProject.carbon_report_type == CarbonReportType.CALCULATOR,
+            )
+        )
+        result = await self.session.execute(statement)
+        return result.scalar_one_or_none()
+
     async def list_reports_for_project(self, project_id: int) -> list[CarbonReport]:
         """Return the carbon reports of a project, ordered by year."""
         statement = (

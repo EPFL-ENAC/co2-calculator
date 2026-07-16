@@ -208,16 +208,24 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 - [x] Tests: plan lifecycle sync, disambiguation, reference-year factor
       lookup, planner-headcount emissions, is_active exclusion.
 
-### Slice 2 — Process Emissions (first type-2 module)
+### Slice 2 — Snapshot prefill (delivered 2026-07-16, generic for all type-2 modules)
 
-- [ ] Snapshot-prefill endpoint + service (copy reference entries at 100%).
-- [ ] Re-snapshot on reference-year change (wipe + re-copy).
-- [ ] Verify slider override end-to-end on plan reports.
+- [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
+      reference-year Calculator entries at `percentage_of_last_year =
+    100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+      (the slider matches its exact source row; deleted sources fall
+      back to the snapshot data). Generic — works for every type-2
+      module, no per-module code.
+- [x] Re-snapshot on reference-year change (wipe snapshot rows +
+      re-copy from the new baseline; user-added rows survive).
+- [x] Slider override verified: `source_data_entry_id` matching unit
+      tests + SQLite prefill/re-snapshot lifecycle tests.
 
 ### Slice 3 — Remaining modules + results
 
 - [ ] Buildings, Equipments, Research Facilities, External Clouds & AI
-      (type-2 — should be config, not code, after slice 2).
+      (type-2): backend prefill is already generic — remaining work is
+      frontend wiring only (planner-module-config marks them 'prefilled').
 - [ ] Purchases planner kinds (XOR validation).
 - [ ] Results aggregation across active modules/years for the chart;
       exports (PDF/CSV) per #404 scope decision.
@@ -437,16 +445,24 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 - [ ] Tests: plan lifecycle sync, disambiguation, reference-year factor
       lookup, planner-headcount emissions, is_active exclusion.
 
-### Slice 2 — Process Emissions (first type-2 module)
+### Slice 2 — Snapshot prefill (delivered 2026-07-16, generic for all type-2 modules)
 
-- [ ] Snapshot-prefill endpoint + service (copy reference entries at 100%).
-- [ ] Re-snapshot on reference-year change (wipe + re-copy).
-- [ ] Verify slider override end-to-end on plan reports.
+- [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
+      reference-year Calculator entries at `percentage_of_last_year =
+    100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+      (the slider matches its exact source row; deleted sources fall
+      back to the snapshot data). Generic — works for every type-2
+      module, no per-module code.
+- [x] Re-snapshot on reference-year change (wipe snapshot rows +
+      re-copy from the new baseline; user-added rows survive).
+- [x] Slider override verified: `source_data_entry_id` matching unit
+      tests + SQLite prefill/re-snapshot lifecycle tests.
 
 ### Slice 3 — Remaining modules + results
 
 - [ ] Buildings, Equipments, Research Facilities, External Clouds & AI
-      (type-2 — should be config, not code, after slice 2).
+      (type-2): backend prefill is already generic — remaining work is
+      frontend wiring only (planner-module-config marks them 'prefilled').
 - [ ] Purchases planner kinds (XOR validation).
 - [ ] Results aggregation across active modules/years for the chart;
       exports (PDF/CSV) per #404 scope decision.

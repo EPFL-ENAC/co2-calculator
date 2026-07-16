@@ -14,10 +14,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
+from app.models.data_entry import DataEntry, DataEntrySourceEnum
+from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
-from app.schemas.carbon_report import CarbonReportCreate
+from app.schemas.carbon_report import CarbonReportCreate, CarbonReportRead
 from app.schemas.data_entry import DataEntryResponse
 from app.schemas.simulator_plan import (
     SimulatorPlanRead,
@@ -210,8 +212,32 @@ class SimulatorPlanService:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
+            await self._resnapshot_prefilled_modules(report)
             await self._recalculate_report_emissions(report)
         return await self._year_read(report)
+
+    async def _resnapshot_prefilled_modules(self, report: CarbonReport) -> None:
+        """Re-copy snapshot entries of already-prefilled modules.
+
+        Called on reference-year change: modules holding PLANNER_SNAPSHOT
+        entries get wiped and re-copied from the new baseline; user-added
+        rows are untouched (their emissions are recomputed separately).
+        """
+        if report.id is None:
+            raise ValueError("report must be persisted before use")
+        entry_repo = DataEntryRepository(self.session)
+        module_ids = await entry_repo.list_module_ids_with_source(
+            report.id, DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+        )
+        if not module_ids:
+            return
+        modules = await self.report_service.module_service.list_modules(report.id)
+        modules_by_id = {m.id: m for m in modules}
+        for module_id in module_ids:
+            module = modules_by_id.get(module_id)
+            if module is None:
+                continue
+            await self.prefill_module_from_reference(report, module.module_type_id)
 
     async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
         """Build the per-year DTO (report + its modules)."""
@@ -225,6 +251,71 @@ class SimulatorPlanService:
             stats=report.stats,
             modules=modules,
         )
+
+    async def prefill_module_from_reference(
+        self, report: CarbonReport | CarbonReportRead, module_type_id: int
+    ) -> int:
+        """Snapshot-copy the reference-year Calculator entries into a plan module.
+
+        Idempotent: previous snapshot rows (source=PLANNER_SNAPSHOT) are wiped
+        and re-copied at ``percentage_of_last_year = 100``; user-added rows
+        survive. Each copy keeps ``source_data_entry_id`` so the % slider
+        computes against the live reference entry. Returns the copied count.
+
+        Raises ValueError when the report has no reference year or the
+        reference year has no Calculator report/module for the unit.
+        """
+        if report.id is None:
+            raise ValueError("report must be persisted before use")
+        if report.reference_year is None:
+            raise ValueError("Set a reference year before prefilling")
+        module_service = self.report_service.module_service
+        plan_module = await module_service.get_module(report.id, module_type_id)
+        if plan_module is None or plan_module.id is None:
+            raise ValueError(f"Module {module_type_id} not found on the plan year")
+        ref_report = await self.repo.get_calculator_report(
+            report.unit_id, report.reference_year
+        )
+        if ref_report is None or ref_report.id is None:
+            raise ValueError(
+                f"No Calculator report for reference year {report.reference_year}"
+            )
+        ref_module = await module_service.get_module(ref_report.id, module_type_id)
+        if ref_module is None or ref_module.id is None:
+            raise ValueError(f"Module {module_type_id} not found on the reference year")
+
+        entry_repo = DataEntryRepository(self.session)
+        for det in MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            ModuleTypeEnum(module_type_id), []
+        ):
+            await entry_repo.bulk_delete_by_source(
+                plan_module.id, det, DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+            )
+
+        emission_svc = DataEntryEmissionService(self.session)
+        copied = 0
+        for src in await entry_repo.list_by_module(ref_module.id):
+            copy = DataEntry(
+                data_entry_type_id=src.data_entry_type_id,
+                carbon_report_module_id=plan_module.id,
+                unit_id=report.unit_id,
+                year=report.year,
+                source=DataEntrySourceEnum.PLANNER_SNAPSHOT.value,
+                data={
+                    **src.data,
+                    "percentage_of_last_year": 100,
+                    "source_data_entry_id": src.id,
+                },
+            )
+            self.session.add(copy)
+            await self.session.flush()
+            await emission_svc.upsert_by_data_entry(
+                DataEntryResponse.model_validate(copy)
+            )
+            copied += 1
+
+        await self.report_service.module_service.recompute_stats_many([plan_module.id])
+        return copied
 
     async def _recalculate_report_emissions(self, report: CarbonReport) -> None:
         """Recompute emissions of every entry in a report + refresh stats."""
