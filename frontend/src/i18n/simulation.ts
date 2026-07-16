@@ -185,6 +185,10 @@ export default {
     en: 'Enter a 4-digit year',
     fr: 'Saisissez une année à 4 chiffres',
   },
+  planner_year_rule_min_year: {
+    en: 'Start year cannot be earlier than {year}',
+    fr: "L'année de début ne peut pas être antérieure à {year}",
+  },
   planner_year_rule_end_after_start: {
     en: 'End year must be after the start year',
     fr: "L'année de fin doit suivre l'année de début",

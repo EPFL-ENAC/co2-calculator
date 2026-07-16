@@ -10,7 +10,12 @@ from sqlmodel import col, delete, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.constants import ModuleStatus
-from app.models.carbon_report import CarbonReport, CarbonReportModule
+from app.models.carbon_project import CarbonProject
+from app.models.carbon_report import (
+    CarbonReport,
+    CarbonReportModule,
+    CarbonReportType,
+)
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
@@ -327,8 +332,15 @@ class DataEntryEmissionRepository:
                 CarbonReport,
                 col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
             )
+            .join(
+                CarbonProject,
+                col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+            )
             .where(
                 CarbonReport.unit_id == unit_id,
+                # Unit totals are Calculator-only: exclude Simulator
+                # Explore/Plan reports of the same unit.
+                col(CarbonProject.carbon_report_type) == CarbonReportType.CALCULATOR,
                 *(
                     []
                     if not validated_only

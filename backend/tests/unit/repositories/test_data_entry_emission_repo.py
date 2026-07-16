@@ -901,7 +901,12 @@ async def test_get_validated_totals_by_unit_excludes_rollup_rows(
     db_session.add(unit)
     await db_session.flush()
 
-    report = CarbonReport(unit_id=unit.id, year=2024)
+    project = CarbonProject(
+        unit_id=unit.id, carbon_report_type=CarbonReportType.CALCULATOR
+    )
+    db_session.add(project)
+    await db_session.flush()
+    report = CarbonReport(unit_id=unit.id, year=2024, carbon_project_id=project.id)
     db_session.add(report)
     await db_session.flush()
 
@@ -922,3 +927,40 @@ async def test_get_validated_totals_by_unit_excludes_rollup_rows(
     assert len(result) == 1
     # Must be 2000 (leaves only), not 4000 (leaves + rollup)
     assert result[0]["kg_co2eq"] == pytest.approx(2000.0, rel=0.01)
+
+
+@pytest.mark.asyncio
+async def test_get_validated_totals_by_unit_excludes_non_calculator_projects(
+    db_session: AsyncSession,
+):
+    """Unit totals are Calculator-only: a Simulator Plan report of the same
+    unit, even with a validated module, must not leak into the totals."""
+    repo = DataEntryEmissionRepository(db_session)
+
+    unit = Unit(id=80002, institutional_code="MIX-TEST", name="Mixed Unit", level=1)
+    db_session.add(unit)
+    await db_session.flush()
+
+    async def _report(report_type: CarbonReportType, kg: float) -> None:
+        project = CarbonProject(unit_id=unit.id, carbon_report_type=report_type)
+        db_session.add(project)
+        await db_session.flush()
+        report = CarbonReport(unit_id=unit.id, year=2024, carbon_project_id=project.id)
+        db_session.add(report)
+        await db_session.flush()
+        module = CarbonReportModule(
+            carbon_report_id=report.id,
+            module_type_id=ModuleTypeEnum.equipment.value,
+            status=ModuleStatus.VALIDATED,
+        )
+        db_session.add(module)
+        await db_session.flush()
+        await _seed_emission(db_session, module, "item", kg)
+
+    await _report(CarbonReportType.CALCULATOR, 5000.0)
+    await _report(CarbonReportType.SIMULATOR_PLAN, 9999.0)
+
+    result = await repo.get_validated_totals_by_unit(unit.id)
+
+    assert len(result) == 1
+    assert result[0]["kg_co2eq"] == pytest.approx(5000.0)
