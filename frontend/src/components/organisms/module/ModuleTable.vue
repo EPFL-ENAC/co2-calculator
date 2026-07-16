@@ -895,13 +895,19 @@ const canEdit = computed(() => {
 });
 
 // Disable all table editing/deleting interactions when input is disabled in backoffice configuration.
-const isDisabled = computed(
-  () =>
-    !props.isSimulator &&
-    (props.disable ||
-      timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated ||
-      !canEdit.value),
-);
+const isDisabled = computed(() => {
+  if (props.isSimulator) return false;
+  if (props.disable || !canEdit.value) return true;
+  // Planner year-report tables are governed by their own Active toggle
+  // (props.disable) and plan access — NOT the global timeline's validated
+  // state. That store tracks a single report and can't represent the planner's
+  // many year-reports, so a Validated state leaking from the Calculator context
+  // would spuriously lock editing (and the % slider) here.
+  if (props.carbonReportId != null) return false;
+  return (
+    timelineStore.itemStates[props.moduleType] === MODULE_STATES.Validated
+  );
+});
 
 const showTableRowActions = computed(
   () => props.submoduleConfig?.hasTableAction !== false,
