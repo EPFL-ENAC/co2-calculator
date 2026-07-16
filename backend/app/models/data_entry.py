@@ -53,6 +53,10 @@ class DataEntryTypeEnum(int, Enum):
     # entry shape differs from the Calculator get their own types here;
     # their handlers live in app/modules_planner.
     planner_headcount = 80
+    # Purchases: manual CHF total per submodule XOR one global budget
+    # (mutually exclusive — enforced at entry creation).
+    planner_purchase = 81
+    planner_purchase_budget = 82
 
     @property
     def is_planner_kind(self) -> bool:

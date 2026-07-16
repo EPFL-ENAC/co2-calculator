@@ -8,3 +8,4 @@ no planner-specific factor rows exist.
 """
 
 import app.modules_planner.headcount  # noqa: F401  # registers the handlers
+import app.modules_planner.purchase  # noqa: F401  # registers the handlers
