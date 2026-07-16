@@ -56,7 +56,6 @@ from app.services.carbon_report_module_service import CarbonReportModuleService
 from app.services.carbon_report_service import CarbonReportService
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.services.data_entry_service import DataEntryService
-from app.services.simulator_plan_service import SimulatorPlanService
 from app.utils.request_context import extract_ip_address, extract_route_payload
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 from app.workflows.embodied_energy import EmbodiedEnergyWorkflow
@@ -742,51 +741,6 @@ async def get_submodule(
     )
 
     return submodule_data
-
-
-@router.post(
-    "/{carbon_report_id}/modules/{module_id}/prefill",
-    response_model=CarbonReportModuleRead,
-)
-async def prefill_module_from_reference(
-    carbon_report_id: int,
-    module_id: str,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Snapshot-copy the reference-year entries into a plan module (type 2).
-
-    Wipes previous snapshot rows and re-copies the reference-year
-    Calculator entries at ``percentage_of_reference_year = 100``; user-added
-    rows survive. Only meaningful for Simulator Plan reports — reports
-    without a reference year are rejected.
-    """
-    report, module = await resolve_report_module(
-        carbon_report_id, module_id, db, current_user, action="edit"
-    )
-    await check_module_permission_for_unit(
-        current_user=current_user,
-        module_id=module_id,
-        action="edit",
-        db=db,
-        unit_id=report.unit_id,
-    )
-    service = SimulatorPlanService(db)
-    try:
-        copied = await service.prefill_module_from_reference(
-            report, module.module_type_id
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-    await db.commit()
-    logger.info(
-        f"Prefilled module {sanitize(module_id)} of report "
-        f"{sanitize(carbon_report_id)} with {sanitize(copied)} snapshot entries"
-    )
-    refreshed = await CarbonReportModuleService(db).get_module(
-        carbon_report_id, module.module_type_id
-    )
-    return refreshed if refreshed is not None else module
 
 
 @router.get(

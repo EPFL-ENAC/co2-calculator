@@ -15,7 +15,11 @@ from app.core.logging import get_logger
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntrySourceEnum
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.models.module_type import (
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+    PLANNER_PREFILLED_MODULE_TYPES,
+    ModuleTypeEnum,
+)
 from app.models.user import User
 from app.repositories.carbon_project_repo import CarbonProjectRepository
 from app.repositories.data_entry_repo import DataEntryRepository
@@ -212,32 +216,36 @@ class SimulatorPlanService:
             report.reference_year = reference_year
             self.session.add(report)
             await self.session.flush()
-            await self._resnapshot_prefilled_modules(report)
+            await self._prefill_reference_modules(report)
             await self._recalculate_report_emissions(report)
         return await self._year_read(report)
 
-    async def _resnapshot_prefilled_modules(self, report: CarbonReport) -> None:
-        """Re-copy snapshot entries of already-prefilled modules.
+    async def _prefill_reference_modules(self, report: CarbonReport) -> None:
+        """Auto-prefill every prefilled-behavior module from the reference year.
 
-        Called on reference-year change: modules holding PLANNER_SNAPSHOT
-        entries get wiped and re-copied from the new baseline; user-added
-        rows are untouched (their emissions are recomputed separately).
+        Runs on reference-year set/change (there is no manual prefill trigger):
+        each prefilled module gets its PLANNER_SNAPSHOT rows wiped and re-copied
+        at 100% from the reference year's Calculator data; user-added rows
+        survive. No-op when the reference year has no Calculator report for the
+        unit — there is simply nothing to copy.
         """
         if report.id is None:
             raise ValueError("report must be persisted before use")
-        entry_repo = DataEntryRepository(self.session)
-        module_ids = await entry_repo.list_module_ids_with_source(
-            report.id, DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+        if report.reference_year is None:
+            return
+        ref_report = await self.repo.get_calculator_report(
+            report.unit_id, report.reference_year
         )
-        if not module_ids:
+        if ref_report is None:
             return
         modules = await self.report_service.module_service.list_modules(report.id)
-        modules_by_id = {m.id: m for m in modules}
-        for module_id in module_ids:
-            module = modules_by_id.get(module_id)
-            if module is None:
-                continue
-            await self.prefill_module_from_reference(report, module.module_type_id)
+        prefilled_ids = sorted(
+            m.module_type_id
+            for m in modules
+            if m.module_type_id in PLANNER_PREFILLED_MODULE_TYPES
+        )
+        for module_type_id in prefilled_ids:
+            await self.prefill_module_from_reference(report, module_type_id)
 
     async def _year_read(self, report: CarbonReport) -> SimulatorPlanYearRead:
         """Build the per-year DTO (report + its modules)."""

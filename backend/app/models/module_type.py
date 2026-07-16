@@ -36,6 +36,17 @@ ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
 TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
 DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
 
+# Simulator Plan "prefilled" (type-2) modules: snapshot-copied from the
+# reference year. Mirrors the frontend planner-module-config
+# ``behavior === 'prefilled'`` set.
+PLANNER_PREFILLED_MODULE_TYPES: set[ModuleTypeEnum] = {
+    ModuleTypeEnum.process_emissions,
+    ModuleTypeEnum.buildings,
+    ModuleTypeEnum.equipment,
+    ModuleTypeEnum.research_facilities,
+    ModuleTypeEnum.external_cloud_and_ai,
+}
+
 
 # corresponding data_entry_type enum for each module type
 
