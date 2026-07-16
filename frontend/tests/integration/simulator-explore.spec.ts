@@ -132,15 +132,16 @@ test.describe('simulation explore — reactive updates after adding entry', () =
     // Initially disabled — no members exist in the simulator report yet.
     await expect(travelerField).toHaveClass(/q-field--disabled/);
 
-    // The simulator must read its OWN report: every members request carries
-    // carbon_project_type=1.  Guards against the original bug where the
-    // dropdown read the calculator report (no carbon_project_type).
+    // The simulator must read its OWN report: with identity addressing the
+    // members request targets the explore report id (99), not the calculator
+    // report (42).  Guards against the original bug where the dropdown read
+    // the calculator report.
     await expect
       .poll(() =>
         requests.some(
           (r) =>
             r.url.includes('/headcount/members') &&
-            r.url.includes('carbon_project_type=1'),
+            r.url.includes('/carbon-reports/99/modules/'),
         ),
       )
       .toBe(true);
