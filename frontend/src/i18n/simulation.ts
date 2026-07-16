@@ -163,17 +163,21 @@ export default {
     en: 'Visible to all lab members',
     fr: 'Visible par tous les membres du laboratoire',
   },
-  planner_year_rule_four_digits: {
-    en: 'Enter a 4-digit year',
-    fr: 'Saisissez une année à 4 chiffres',
+  planner_generate_years_button: {
+    en: 'Create year sections',
+    fr: 'Créer les sections annuelles',
   },
-  planner_year_rule_min_year: {
-    en: 'Start year cannot be earlier than {year}',
-    fr: "L'année de début ne peut pas être antérieure à {year}",
+  planner_generate_years_hint: {
+    en: 'Creates one editable section per year between the start and end year.',
+    fr: 'Crée une section modifiable par année entre les années de début et de fin.',
   },
-  planner_year_rule_end_after_start: {
-    en: 'End year must be after the start year',
-    fr: "L'année de fin doit suivre l'année de début",
+  planner_years_generated: {
+    en: 'Year sections updated',
+    fr: 'Sections annuelles mises à jour',
+  },
+  planner_years_generate_error: {
+    en: 'Could not create the year sections',
+    fr: 'Impossible de créer les sections annuelles',
   },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
