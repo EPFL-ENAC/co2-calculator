@@ -65,6 +65,7 @@ class ExternalCloudModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **data,
                 "service_type": primary_factor.get("subkind")
                 or data.get("service_type"),
@@ -181,6 +182,7 @@ class ExternalAIModuleHandler(BaseModuleHandler):
                 "id": data_entry.id,
                 "data_entry_type_id": data_entry.data_entry_type_id,
                 "carbon_report_module_id": data_entry.carbon_report_module_id,
+                "source": data_entry.source,
                 **data,
                 "provider": primary_factor.get("provider") or data.get("provider"),
                 "usage_type": primary_factor.get("usage_type")
