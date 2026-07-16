@@ -1228,7 +1228,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if raw_kg is not None and raw_kg.strip() != "":
                 try:
                     kg_co2eq_override = float(raw_kg)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     # Surface unparseable overrides at WARNING so operators see
                     # the silent fallback to formula-based emissions in the log.
                     logger.warning(

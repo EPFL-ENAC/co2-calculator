@@ -2,6 +2,8 @@
 status: delivered
 last_updated: 2026-07-16
 summary: Engineering guardrails for maintainers shipping releases without the lead — architecture invariants, style rules, and what not to touch.
+description: Engineering guardrails — architecture invariants, style rules, and workflow for backend and frontend development.
+applyTo: "backend/**, frontend/**"
 ---
 
 # Engineering Guardrails
@@ -21,7 +23,13 @@ the [source-of-truth hierarchy](../llm-agent-guide.md).
 2. **No plan for your issue? Write one first.** Every issue ends with a
    delivered plan file in `implementation-plans/` — even small fixes get a
    short one, backfilled at worst. If your PR diverges from its plan, update
-   the plan in the same PR.
+   the plan in the same PR. Plan files are named
+   `<issue-id>-<kebab-slug>.md` with `status`/`issue`/`last_updated`/`summary`
+   frontmatter (see the [LLM agent guide](../llm-agent-guide.md)); abandoned
+   plans move to `implementation-plans/archive/`. Their location is settled
+   (#860) — do not propose moving plans out of `docs/src/`. Bot-review
+   feedback and code-review notes live in `docs/code-review/`, not with the
+   plans.
 3. **Mirror, don't invent.** New modules copy the travel-like dynamic-form
    shape; new endpoints copy a neighboring router. A new pattern needs a
    written reason (ADR) the existing one can't give. Do not introduce new
@@ -35,7 +43,8 @@ These are not preferences; they are load-bearing.
   transform lives server-side. The frontend renders backend output — never
   reimplement a computation client-side. Two implementations of a carbon
   formula will drift, and a drifted published number is the worst failure
-  this project can have.
+  this project can have. Keep factor resolution centralized, and don't store
+  derived values in entries when they resolve from factors/lookups.
 - **Respect the layering — no SQL in routes.** The call chain is
   `route → service → repo`, or `route → workflow → service → repo` for
   multi-step operations. Repos own the SQL, services own the logic, routes
@@ -82,7 +91,13 @@ These are not preferences; they are load-bearing.
   Don't wire a route straight to a one-off component — the page composes,
   the components carry the logic.
 - Minimize layers: no new wrappers, stores, or indirection a page can do
-  without.
+  without. Shared state that must exist goes in Pinia, strongly typed.
+- Form, table, and chart values stay consistent — same backend source,
+  stable keys and deterministic ordering. Creating or editing an entry
+  updates visible charts without leaving the page.
+- No hardcoded user-facing strings — every label goes through i18n.
+- Visual components show explicit loading/empty/error states — never a
+  silent blank.
 
 ## Style rules
 
@@ -106,11 +121,16 @@ These are not preferences; they are load-bearing.
   force-push `dev`, `stage`, or `main`.
 - Pipeline-related work merges into `fix/pipeline-debug`, not `dev`, until
   the lead says otherwise.
-- `make ci` (lint + type-check) must pass locally before pushing. For
-  frontend, run `make type-check` (vue-tsc) — a plain `tsc` pass is not
-  sufficient and the commit hook will block.
-- **Every bug fix ships with a regression test** that fails without the fix.
-  Backend tests run via `uv run pytest`.
+- `make ci` (lint + type-check: ruff + ty on backend, vue-tsc on frontend)
+  must pass locally before pushing. A plain `tsc` pass is not sufficient —
+  run `make type-check` or the commit hook will block.
+- Backend dependencies change via `uv add` / `uv remove`, never by
+  hand-editing `pyproject.toml`.
+- **Every bug fix ships with a regression test** that fails without the fix,
+  and every change ships with a test on the side it touches. Backend tests
+  run via `uv run pytest`. Frontend tests are Playwright: component tests in
+  `frontend/tests/unit` (`npm run test-ct`), integration tests in
+  `frontend/tests/integration` (`npm run test:e2e`).
 
 ## While the lead is away
 

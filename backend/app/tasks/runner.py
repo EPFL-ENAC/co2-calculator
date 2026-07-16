@@ -254,7 +254,7 @@ async def run_job(job_id: int) -> None:
                         handler_task.cancel()
                         try:
                             await handler_task
-                        except (asyncio.CancelledError, Exception):
+                        except asyncio.CancelledError, Exception:
                             # Swallow both cancellation and any exception the
                             # handler raised on the way out: we're already in
                             # the abort path and won't write its result.

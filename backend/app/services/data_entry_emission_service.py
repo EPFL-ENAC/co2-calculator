@@ -145,7 +145,7 @@ class DataEntryEmissionService:
             return None
         try:
             percentage = float(raw)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.warning(
                 "Invalid percentage_of_last_year=%r for data_entry_id=%r",
                 raw,
@@ -355,7 +355,7 @@ class DataEntryEmissionService:
             if persisted_override is not None:
                 try:
                     effective_override = float(persisted_override)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     logger.warning(
                         f"Invalid {KG_CO2EQ_OVERRIDE_KEY} value "
                         f"{persisted_override!r} on data_entry_id="

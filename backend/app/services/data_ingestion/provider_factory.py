@@ -206,7 +206,7 @@ class ProviderFactory:
 
         try:
             entity_type = EntityType(entity_type_value)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid entity_type value - return None to signal configuration error
             return None
 
