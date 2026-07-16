@@ -16,10 +16,18 @@ specified here for review before implementation rather than landed blind.
 
 **Goal (design):** for prefilled modules (Process Emissions, Buildings,
 Equipments, Research Facilities, External Clouds & AI) each snapshot row
-shows its Calculator key fields plus three planner columns — **Last year's
-kgCO₂eq**, current **kgCO₂eq**, and a **"% of last year" slider** — with an
-"Add …" form below. (The mockup labels the columns "tco2eq"; the codebase is
-kgCO₂eq everywhere, so use kgCO₂eq.)
+shows its Calculator key fields plus three planner columns — **Reference
+year kgCO₂eq**, current **kgCO₂eq**, and a **"% of reference year" slider**
+— with an "Add …" form below.
+
+Terminology (confirmed with PO/PM 2026-07-16): it is the **reference year**,
+not "last year", and the unit is **kgCO₂eq** — the mockup's "tco2eq" and
+"Percentage of last year" labels are both wrong. The backend JSON key is
+still `percentage_of_last_year` (legacy Calculator name; already computes
+against `report.reference_year`); rename it to
+`percentage_of_reference_year` as a small standalone follow-up (planner-only
+key, no production data, but `_get_percentage_override_kg` keeps a Calculator
+year-1 fallback to preserve — do it deliberately, not as a blind sed).
 
 **Component:** `PlannerPrefilledTable.vue`, rendered by `PlannerYearSection`
 for `behavior === 'prefilled'` modules (replacing the generic
@@ -33,7 +41,7 @@ already carries `percentage_of_last_year`, `kg_co2eq`, and
 `source_data_entry_id` (spread by the handler `to_response`). Display the
 module's key fields read-only-ish (from the module's `moduleFields`).
 
-**"Last year's kgCO₂eq":** NOT in the submodule response today. Two options —
+**"Reference year kgCO₂eq":** NOT in the submodule response today. Two options —
 
 - **(recommended) backend:** add `reference_kg_co2eq` to the planner
   submodule item — sum the `source_data_entry_id` entry's emissions
