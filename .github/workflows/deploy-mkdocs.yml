@@ -3,9 +3,9 @@ name: deploy-mkdocs
 # =============================================================================
 # IMPORTANT: DEPRECATED - FOR MAIN BRANCH FALLBACK ONLY (GITHUB PAGES)
 # =============================================================================
-# 
+#
 # ⚠️  THIS WORKFLOW IS DEPRECATED AND ONLY USED FOR MAIN BRANCH FALLBACK
-# 
+#
 # For ALL other branches (dev, stage, ci-test/*, tags):
 #   Documentation is deployed via deploy.yml and deploy-quay.yml
 #   Access docs at: https://co2-calculator-*.epfl.ch/docs
@@ -46,7 +46,7 @@ jobs:
       run:
         working-directory: ./docs
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 

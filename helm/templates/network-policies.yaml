@@ -1,0 +1,81 @@
+{{- if .Values.networkPolicies.enabled }}
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+
+  policyTypes:
+    - Ingress
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-route
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicies.ingressFromRoutes | nindent 8 }}
+
+      ports:
+        - protocol: TCP
+          port: {{ .Values.backend.service.targetPort }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-route
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicies.ingressFromRoutes | nindent 8 }}
+
+      ports:
+        - protocol: TCP
+          port: {{ .Values.frontend.service.targetPort }}
+
+{{- if .Values.docs.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-docs-route
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "co2-calculator.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: docs
+
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        {{- toYaml .Values.networkPolicies.ingressFromRoutes | nindent 8 }}
+
+      ports:
+        - protocol: TCP
+          port: {{ .Values.docs.service.targetPort }}
+{{- end }}
+
+{{- end }}

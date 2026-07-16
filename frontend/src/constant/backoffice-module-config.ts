@@ -28,6 +28,7 @@ export const MODULE_SUBMODULES: Partial<
       labelKey: `${MODULES.Headcount}-member`,
       moduleTypeId: 1,
       dataEntryTypeId: 1,
+      hasApi: true,
       noThreshold: true,
     },
     {
@@ -177,8 +178,8 @@ export const MODULE_SUBMODULES: Partial<
       noFactors: true,
     },
     {
-      key: 'additional_purchases',
-      labelKey: 'data_management_submodule_additional_purchases',
+      key: 'purchases_centralized',
+      labelKey: 'data_management_submodule_purchases_centralized',
       moduleTypeId: 5,
       dataEntryTypeId: 67,
     },

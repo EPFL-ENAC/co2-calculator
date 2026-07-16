@@ -21,6 +21,7 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.api.deps import get_current_user, get_db
+from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.core.security import is_permitted
 from app.core.submodule_mandatoriness import (
@@ -64,6 +65,7 @@ from app.tasks.runner import run_job
 
 logger = get_logger(__name__)
 router = APIRouter()
+settings = get_settings()
 
 
 def _build_job_lookup(
@@ -149,7 +151,7 @@ def _enrich_config_with_jobs(
             continue
         try:
             m_id = int(module_key)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         submodules = module_val.get("submodules", {})
         for sub_key, sub_val in submodules.items():
@@ -157,7 +159,7 @@ def _enrich_config_with_jobs(
                 continue
             try:
                 s_id = int(sub_key)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
             for target_val, field_name in target_type_map.items():
                 job = _pick_latest_job(job_lookup, m_id, s_id, target_val)
@@ -186,7 +188,7 @@ def _enrich_config_with_incomplete_flags(config: dict) -> dict:
             continue
         try:
             module_type_id = int(module_key)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         _annotate_module_incomplete(module_val, module_type_id)
     return config
@@ -207,7 +209,7 @@ def _annotate_module_incomplete(module_val: dict, module_type_id: int) -> None:
                 continue
             try:
                 data_entry_type_id = int(sub_key)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
             reasons = _submodule_incomplete_reasons(
                 sub_val, module_type_id, data_entry_type_id, common_factor_present
@@ -310,6 +312,7 @@ def _build_recalculation_status(
                 needs_recalculation=row["needs_recalculation"],
                 last_factor_job_id=row["last_factor_job_id"],
                 last_factor_job_result=row["last_factor_job_result"],
+                last_factor_job_error_count=row["last_factor_job_error_count"],
                 last_recalculation_job_id=row["last_recalculation_job_id"],
                 last_recalculation_job_result=row["last_recalculation_job_result"],
             )
@@ -480,6 +483,26 @@ async def create_audit_entry(
     session.add(audit_entry)
 
 
+async def list_configured_years(
+    db: AsyncSession, current_user: User
+) -> list[YearConfigurationListItem]:
+    """List opened year-configuration rows visible to ``current_user``.
+
+    Extracted from the ``GET /`` route so the enriched ``GET /session``
+    (bootstrap) can embed the workspace year selector's rows without a second
+    HTTP round trip. See ``list_year_configurations`` for the filtering rules.
+    """
+    stmt = (
+        select(YearConfiguration)
+        .where(col(YearConfiguration.provider) == current_user.provider)
+        .where(col(YearConfiguration.is_started).is_(True))
+        .order_by(col(YearConfiguration.year).desc())
+    )
+
+    rows = (await db.exec(stmt)).all()
+    return [YearConfigurationListItem.model_validate(r) for r in rows]
+
+
 @router.get(
     "/",
     response_model=list[YearConfigurationListItem],
@@ -489,28 +512,59 @@ async def list_year_configurations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List year configurations available to the caller.
+    """List opened year configurations available to the caller.
 
     Results are always scoped to ``current_user.provider`` — a TEST user
-    never sees ACCRED rows and vice versa. Backoffice data managers
-    additionally bypass the ``is_started`` filter (regular users only
-    see opened years). This is what drives the workspace year selector
-    — closed years stay hidden from regular users until backoffice
-    opens them.
+    never sees ACCRED rows and vice versa. Only ``is_started`` years are
+    returned, for every caller including backoffice data managers, since
+    this is what drives the workspace year selector — closed years stay
+    hidden until backoffice opens them.
 
     Sorted by year descending (latest first).
     """
-    is_admin = await is_permitted(current_user, "backoffice.configuration", "view")
+    return await list_configured_years(db, current_user)
 
+
+async def build_year_configuration_response(
+    db: AsyncSession, year: int, provider
+) -> YearConfigurationResponse | None:
+    """Build the enriched year-configuration response, or ``None`` if absent.
+
+    Extracted from the ``GET /{year}`` route so the workspace-home aggregate can
+    reuse the exact same enrichment (latest sync jobs, incomplete flags,
+    recalculation status) without a second HTTP round trip. Returns ``None`` when
+    no configuration row exists for ``(year, provider)`` — callers decide whether
+    that is a 404 (route) or a ``null`` field (aggregate).
+    """
     stmt = select(YearConfiguration).where(
-        col(YearConfiguration.provider) == current_user.provider
+        col(YearConfiguration.year) == year,
+        col(YearConfiguration.provider) == provider,
     )
-    if not is_admin:
-        stmt = stmt.where(col(YearConfiguration.is_started).is_(True))
-    stmt = stmt.order_by(col(YearConfiguration.year).desc())
+    result = (await db.exec(stmt)).first()
 
-    rows = (await db.exec(stmt)).all()
-    return [YearConfigurationListItem.model_validate(r) for r in rows]
+    if not result:
+        return None
+
+    repo = DataIngestionRepository(db)
+    latest_jobs = await repo.get_latest_jobs_by_year(year)
+    job_lookup = _build_job_lookup(latest_jobs)
+
+    enriched_config = copy.deepcopy(result.config)
+    _enrich_config_with_jobs(enriched_config, job_lookup)
+    _enrich_config_with_incomplete_flags(enriched_config)
+
+    recalc_rows = await repo.get_recalculation_status_by_year(year)
+    recalculation_status = _build_recalculation_status(recalc_rows)
+
+    return YearConfigurationResponse(
+        year=result.year,
+        is_started=result.is_started,
+        configuration_completed=result.configuration_completed,
+        config=enriched_config,
+        recalculation_status=recalculation_status,
+        updated_at=result.updated_at,
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
+    )
 
 
 @router.get(
@@ -541,37 +595,13 @@ async def get_year_configuration(
     Returns:
         Year configuration enriched with latest sync job per submodule.
     """
-    stmt = select(YearConfiguration).where(
-        col(YearConfiguration.year) == year,
-        col(YearConfiguration.provider) == current_user.provider,
-    )
-    result = (await db.exec(stmt)).first()
-
-    if not result:
+    response = await build_year_configuration_response(db, year, current_user.provider)
+    if response is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No configuration found for year {year}",
         )
-
-    repo = DataIngestionRepository(db)
-    latest_jobs = await repo.get_latest_jobs_by_year(year)
-    job_lookup = _build_job_lookup(latest_jobs)
-
-    enriched_config = copy.deepcopy(result.config)
-    _enrich_config_with_jobs(enriched_config, job_lookup)
-    _enrich_config_with_incomplete_flags(enriched_config)
-
-    recalc_rows = await repo.get_recalculation_status_by_year(year)
-    recalculation_status = _build_recalculation_status(recalc_rows)
-
-    return YearConfigurationResponse(
-        year=result.year,
-        is_started=result.is_started,
-        configuration_completed=result.configuration_completed,
-        config=enriched_config,
-        recalculation_status=recalculation_status,
-        updated_at=result.updated_at,
-    )
+    return response
 
 
 @router.post(
@@ -603,6 +633,14 @@ async def create_year_configuration(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only super administrators can create year configurations",
+        )
+
+    current_year = datetime.now().year
+    min_year = settings.MIN_CONFIGURABLE_YEAR
+    if year < min_year or year > current_year:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Year must be between {min_year} and {current_year}",
         )
 
     stmt = select(YearConfiguration).where(
@@ -743,6 +781,7 @@ async def create_year_configuration(
         recalculation_status=[],
         updated_at=new_config.updated_at,
         pipeline_id=str(pipeline_id),
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
     )
     return response
 
@@ -876,6 +915,7 @@ async def update_year_configuration(
         config=enriched_config,
         recalculation_status=recalculation_status,
         updated_at=result.updated_at,
+        min_configurable_year=settings.MIN_CONFIGURABLE_YEAR,
     )
 
 
@@ -998,7 +1038,12 @@ async def upload_reduction_objective_file(
         ):
             ro.setdefault(key, None)
 
-    result.config["reduction_objectives"]["files"][config_key] = {
+    # `config` is a dynamic JSON blob (no fixed schema); ty narrows the
+    # nested-subscript type from the last assignment seen above, which is
+    # a false positive here, not a real type mismatch.
+    result.config["reduction_objectives"]["files"][  # ty: ignore[invalid-assignment]
+        config_key
+    ] = {
         "path": file_metadata.path,
         "filename": file_metadata.filename,
         "uploaded_at": file_metadata.uploaded_at,

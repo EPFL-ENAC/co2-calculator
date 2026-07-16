@@ -256,6 +256,34 @@ def test_finalize_ingest_meta_success_path_preserved():
     assert meta["status_message"] == "Success"
 
 
+def test_finalize_ingest_meta_accepts_unwrapped_tableau_result():
+    """Tableau providers return their summary directly instead of under
+    ``data``. The runner must not silently downgrade their WARNING to SUCCESS
+    or discard nested row errors."""
+    result = {
+        "state": 3,
+        "result": IngestionResult.WARNING,
+        "status_message": "Processed 8468 member records, 56 skipped",
+        "inserted": 8468,
+        "skipped": 56,
+        "stats": {
+            "row_errors_count": 56,
+            "row_errors": [
+                {
+                    "row": 409,
+                    "reason": "No carbon_report_module_id for unit 1005",
+                }
+            ],
+        },
+    }
+
+    meta = ingest_mod.finalize_ingest_meta(result)
+
+    assert meta["result"] == IngestionResult.WARNING
+    assert meta["status_message"] == "Processed 8468 member records, 56 skipped"
+    assert meta["stats"]["row_errors_count"] == 56
+
+
 @pytest.mark.asyncio
 async def test_api_ingest_handler_uses_same_path():
     """``api_ingest_handler`` shares ``_run_ingest`` — same contract."""

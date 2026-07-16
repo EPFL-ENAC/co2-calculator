@@ -4,16 +4,35 @@ import json
 from typing import AsyncGenerator
 
 from sqlalchemy.engine.url import make_url
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
 from sqlmodel import SQLModel
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import models  # noqa: F401 to register models with Base
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 
 settings = get_settings()
 
+
+def _pool_kwargs(settings: Settings, is_sqlite: bool) -> dict:
+    """Explicit QueuePool sizing for ``create_async_engine`` (#1723).
+
+    Skipped for sqlite: its dialect uses ``NullPool``/``StaticPool``,
+    neither of which accepts ``pool_size``/``max_overflow``/
+    ``pool_timeout`` — passing them raises ``TypeError``.
+    """
+    if is_sqlite:
+        return {}
+    return {
+        "pool_size": settings.DB_POOL_SIZE,
+        "max_overflow": settings.DB_MAX_OVERFLOW,
+        "pool_timeout": settings.DB_POOL_TIMEOUT,
+    }
+
+
+if settings.DB_URL is None:
+    raise ValueError("DB_URL must be set")
 url = make_url(settings.DB_URL)
 is_sqlite = False
 if (
@@ -42,10 +61,11 @@ engine = create_async_engine(
     # echo=settings.DEBUG,  # Log SQL queries in debug mode
     connect_args={"check_same_thread": False} if is_sqlite else {},
     json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+    **_pool_kwargs(settings, is_sqlite),
 )
 
 # Create SessionLocal class
-SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # Create Base class for declarative models
 Base = declarative_base()

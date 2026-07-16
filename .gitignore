@@ -7,10 +7,11 @@ site
 *.csv
 storybook-static
 .serena
-AGENTS.md
 .worktrees
 .claude/scheduled_tasks.lock
 
 # Local DB dumps + secrets (never commit)
 *.pgdump
 app_dump*
+.agents
+.codex

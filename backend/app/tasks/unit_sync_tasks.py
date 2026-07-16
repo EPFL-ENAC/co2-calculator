@@ -93,7 +93,7 @@ async def unit_sync_handler(
     if job.provider == UserProvider.DEFAULT:
         raise ValueError(
             f"unit_sync job {job.id}: UserProvider.DEFAULT has no unit "
-            f"source; check PROVIDER_PLUGIN and current_user.provider"
+            f"source; check UNIT_PROVIDER_TYPE and current_user.provider"
         )
 
     # #1236 — TWO advisory locks for unit_sync, both transaction-scoped

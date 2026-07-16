@@ -1,11 +1,12 @@
 <template>
   <section class="page" :class="{ 'page--first': isFirst }">
-    <header v-if="title || pageNumber != null" class="page__header">
+    <header v-if="title || scope || pageNumber != null" class="page__header">
       <div class="page__title">
         <q-img src="/epfl-logo.svg" :alt="$t('logo_alt')" width="75px" />
         <span class="q-ml-md text-h5 text-weight-medium">{{
           $t('calculator_title')
         }}</span>
+        <span v-if="scope" class="page__scope">{{ scope }}</span>
       </div>
       <div class="page__number">
         <span v-if="pageNumber != null">{{ pageNumber }}</span>
@@ -21,12 +22,15 @@
 <script setup lang="ts">
 interface Props {
   title?: string;
+  /** What the report covers, e.g. "SCI-STI-AB · 2025". Shown on every sheet. */
+  scope?: string;
   pageNumber?: number;
   isFirst?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   title: undefined,
+  scope: undefined,
   pageNumber: undefined,
   isFirst: false,
 });
@@ -62,6 +66,13 @@ withDefaults(defineProps<Props>(), {
   font-size: 14px;
 }
 
+.page__scope {
+  margin-left: 12px;
+  font-weight: 400;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
 .page__number {
   font-size: 12px;
   opacity: 0.7;
@@ -79,8 +90,19 @@ withDefaults(defineProps<Props>(), {
 @media print {
   .page {
     margin: 0;
+    // The sheet is defined by @page (A4). Forcing the element to an exact
+    // 297mm height overflows onto a blank sheet due to sub-pixel rounding,
+    // so let content flow naturally in print and rely on the page breaks.
+    height: auto;
+    min-height: 0;
     page-break-after: always;
     break-after: page;
+  }
+
+  // Don't force a break after the final page — it emits a trailing blank sheet.
+  .page:last-child {
+    page-break-after: auto;
+    break-after: auto;
   }
 }
 </style>

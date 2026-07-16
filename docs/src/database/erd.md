@@ -25,13 +25,6 @@ erDiagram
     DATETIME synced_at
     INTEGER version "indexed"
   }
-  auth_exchange_code {
-    VARCHAR code PK
-    DATETIME consumed_at
-    DATETIME created_at
-    DATETIME expires_at
-    INTEGER user_id FK
-  }
   building_rooms {
     VARCHAR building_location "indexed"
     VARCHAR building_name "indexed"
@@ -67,6 +60,31 @@ erDiagram
     JSON stats
     INTEGER unit_id FK
     INTEGER year
+  }
+  connector_connections {
+    VARCHAR client_id
+    VARCHAR connector
+    DATETIME created_at
+    INTEGER id PK
+    BOOLEAN is_active
+    VARCHAR label
+    VARCHAR secret_id
+    VARCHAR secret_value_encrypted
+    VARCHAR server_url
+    VARCHAR site_content_url
+    DATETIME updated_at
+    VARCHAR username
+  }
+  connector_datasources {
+    INTEGER connection_id FK
+    VARCHAR connector_luid
+    DATETIME created_at
+    INTEGER data_entry_type_id
+    INTEGER id PK
+    BOOLEAN is_active
+    VARCHAR label
+    INTEGER module_type_id "indexed"
+    DATETIME updated_at
   }
   data_entries {
     INTEGER carbon_report_module_id FK
@@ -210,6 +228,7 @@ erDiagram
   carbon_projects ||--}o carbon_reports : "carbon_project_id"
   carbon_report_modules ||--}o data_entries : "carbon_report_module_id"
   carbon_reports ||--}o carbon_report_modules : "carbon_report_id"
+  connector_connections ||--}o connector_datasources : "connection_id"
   data_entries ||--}o data_entry_emissions : "data_entry_id"
   data_ingestion_jobs ||--}o factors : "last_seen_job_id"
   factors ||--}o data_entry_emissions : "primary_factor_id"
@@ -217,7 +236,6 @@ erDiagram
   units ||--}o carbon_projects : "unit_id"
   units ||--}o carbon_reports : "unit_id"
   units ||--}o unit_users : "unit_id"
-  users ||--}o auth_exchange_code : "user_id"
   users ||--}o unit_users : "user_id"
 ```
 

@@ -32,7 +32,8 @@ export interface EmissionTreemapCategory {
 const PURCHASES_PREFIX_MAP: Array<[string, string]> = [
   ['other_purchase', 'other_purchases'],
   ['other', 'other_purchases'],
-  ['additional', 'additional'],
+  ['centralized', 'centralized'],
+  ['additional', 'centralized'],
   ['scientific_equipment', 'scientific_equipment'],
   ['it_equipment', 'it_equipment'],
   ['consumable', 'consumable_accessories'],
@@ -61,7 +62,7 @@ export function normalizeParentKey(
 export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
   process_emissions: ['co2', 'ch4', 'n2o', 'refrigerants'],
   buildings_energy_combustion: ['combustion', 'heating_thermal'],
-  buildings_room: ['heating_elec', 'cooling', 'ventilation', 'lighting'],
+  buildings_room: ['heating_electric', 'cooling', 'ventilation', 'lighting'],
   equipment: ['scientific', 'it', 'other'],
   external_cloud_and_ai: ['clouds', 'ai'],
   purchases: [
@@ -72,7 +73,7 @@ export const CATEGORY_CHART_KEYS: Record<string, string[]> = {
     'services',
     'vehicles',
     'other_purchases',
-    'additional',
+    'centralized',
   ],
   research_facilities: ['facilities', 'it_facilities', 'animal'],
   professional_travel: ['plane', 'train'],

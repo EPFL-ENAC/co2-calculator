@@ -7,11 +7,15 @@ from app.core.constants import ModuleStatus
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import (
+    emission_type_scope,
+    is_additional_breakdown_emission,
+)
 from app.repositories.data_entry_emission_repo import DataEntryEmissionRepository
-from app.utils.emission_category import is_additional_breakdown_emission
 
 # ======================================================================
 # CRUD Operation Tests
@@ -47,7 +51,7 @@ async def test_create_emission(db_session: AsyncSession):
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
         additional_value=500.0,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
         meta={"distance_km": 500},
     )
 
@@ -86,7 +90,7 @@ async def test_update_emission(db_session: AsyncSession):
         data_entry_id=data_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
     await repo.create(emission)
 
@@ -124,7 +128,7 @@ async def test_get_by_data_entry_id(db_session: AsyncSession):
         data_entry_id=data_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
     await repo.create(emission)
 
@@ -172,7 +176,7 @@ async def test_delete_by_data_entry_id(db_session: AsyncSession):
         data_entry_id=data_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=250.5,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
     await repo.create(emission)
 
@@ -224,7 +228,9 @@ async def test_bulk_create_emissions(db_session: AsyncSession):
             data_entry_id=entry.id,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=100.0 * (i + 1),
-            scope=EmissionType.professional_travel__plane__business.scope,
+            scope=emission_type_scope(
+                EmissionType.professional_travel__plane__business
+            ),
         )
         for i, entry in enumerate(entries)
     ]
@@ -286,7 +292,9 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
             data_entry_id=entry.id,
             emission_type_id=EmissionType.professional_travel__plane__business,
             kg_co2eq=200.0,
-            scope=EmissionType.professional_travel__plane__business.scope,
+            scope=emission_type_scope(
+                EmissionType.professional_travel__plane__business
+            ),
         )
         for entry in plane_entries
     ]
@@ -296,7 +304,7 @@ async def test_get_stats_by_emission_type(db_session: AsyncSession):
             data_entry_id=entry.id,
             emission_type_id=EmissionType.professional_travel__train__class_2,
             kg_co2eq=50.0,
-            scope=EmissionType.professional_travel__train__class_2.scope,
+            scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
         )
         for entry in train_entries
     ]
@@ -374,7 +382,7 @@ async def test_buildings_banner_total_excludes_embodied_energy(
                 data_entry_id=entry.id,
                 emission_type_id=emission_type,
                 kg_co2eq=kg,
-                scope=emission_type.scope,
+                scope=emission_type_scope(emission_type),
             )
         )
     await db_session.flush()
@@ -395,142 +403,6 @@ async def test_buildings_banner_total_excludes_embodied_energy(
 
 # ======================================================================
 # Emission Breakdown Tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_get_emission_breakdown_empty(db_session: AsyncSession):
-    """No data returns empty list."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    result = await repo.get_emission_breakdown(carbon_report_id=99999)
-    assert result == []
-
-
-@pytest.mark.asyncio
-async def test_get_emission_breakdown_includes_non_validated_modules(
-    db_session: AsyncSession,
-):
-    """Breakdown includes both validated and in-progress modules."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    validated_module = CarbonReportModule(
-        carbon_report_id=42,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    in_progress_module = CarbonReportModule(
-        carbon_report_id=42,
-        module_type_id=ModuleTypeEnum.professional_travel.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add_all([validated_module, in_progress_module])
-    await db_session.flush()
-
-    validated_entry = DataEntry(
-        carbon_report_module_id=validated_module.id,
-        data_entry_type_id=DataEntryTypeEnum.scientific,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Equipment Item"},
-    )
-    in_progress_entry = DataEntry(
-        carbon_report_module_id=in_progress_module.id,
-        data_entry_type_id=DataEntryTypeEnum.plane,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Trip"},
-    )
-    db_session.add_all([validated_entry, in_progress_entry])
-    await db_session.flush()
-
-    db_session.add_all(
-        [
-            DataEntryEmission(
-                data_entry_id=validated_entry.id,
-                emission_type_id=EmissionType.equipment__scientific,
-                kg_co2eq=1200.0,
-                scope=EmissionType.equipment__scientific.scope,
-            ),
-            DataEntryEmission(
-                data_entry_id=in_progress_entry.id,
-                emission_type_id=EmissionType.professional_travel__plane__eco,
-                kg_co2eq=800.0,
-                scope=EmissionType.professional_travel__plane__eco.scope,
-            ),
-        ]
-    )
-    await db_session.flush()
-
-    result = await repo.get_emission_breakdown(carbon_report_id=42)
-
-    result_by_module = {row[0]: row for row in result}
-    assert ModuleTypeEnum.equipment.value in result_by_module
-    assert ModuleTypeEnum.professional_travel.value in result_by_module
-    assert result_by_module[ModuleTypeEnum.equipment.value][2] == pytest.approx(1200.0)
-    assert result_by_module[ModuleTypeEnum.professional_travel.value][
-        2
-    ] == pytest.approx(800.0)
-
-
-@pytest.mark.asyncio
-async def test_get_emission_breakdown_excludes_other_reports(db_session: AsyncSession):
-    """Breakdown is scoped to the requested carbon report."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module_target = CarbonReportModule(
-        carbon_report_id=100,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    module_other = CarbonReportModule(
-        carbon_report_id=101,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add_all([module_target, module_other])
-    await db_session.flush()
-
-    target_entry = DataEntry(
-        carbon_report_module_id=module_target.id,
-        data_entry_type_id=DataEntryTypeEnum.scientific,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Target"},
-    )
-    other_entry = DataEntry(
-        carbon_report_module_id=module_other.id,
-        data_entry_type_id=DataEntryTypeEnum.scientific,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Other"},
-    )
-    db_session.add_all([target_entry, other_entry])
-    await db_session.flush()
-
-    db_session.add_all(
-        [
-            DataEntryEmission(
-                data_entry_id=target_entry.id,
-                emission_type_id=EmissionType.equipment__scientific,
-                kg_co2eq=500.0,
-                scope=EmissionType.equipment__scientific.scope,
-            ),
-            DataEntryEmission(
-                data_entry_id=other_entry.id,
-                emission_type_id=EmissionType.equipment__scientific,
-                kg_co2eq=9999.0,
-                scope=EmissionType.equipment__scientific.scope,
-            ),
-        ]
-    )
-    await db_session.flush()
-
-    result = await repo.get_emission_breakdown(carbon_report_id=100)
-
-    assert len(result) == 1
-    assert result[0][0] == ModuleTypeEnum.equipment.value
-    assert result[0][2] == pytest.approx(500.0)
-
-
-# ======================================================================
-# Travel Stats by Class Tests (Treemap Data)
 # ======================================================================
 
 
@@ -571,14 +443,14 @@ async def test_get_travel_stats_by_class_basic(db_session: AsyncSession):
         data_entry_id=eco_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__eco,
         kg_co2eq=200.0,
-        scope=EmissionType.professional_travel__plane__eco.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__eco),
     )
 
     business_emission = DataEntryEmission(
         data_entry_id=business_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=600.0,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
     db_session.add_all([eco_emission, business_emission])
@@ -644,14 +516,14 @@ async def test_get_travel_stats_by_class_null_cabin(db_session: AsyncSession):
         data_entry_id=plane_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=300.0,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
     train_emission = DataEntryEmission(
         data_entry_id=train_entry.id,
         emission_type_id=EmissionType.professional_travel__train__class_2,
         kg_co2eq=50.0,
-        scope=EmissionType.professional_travel__train__class_2.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__train__class_2),
     )
 
     db_session.add_all([plane_emission, train_emission])
@@ -710,14 +582,14 @@ async def test_get_travel_stats_by_class_filters_zero_emissions(
         data_entry_id=valid_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=200.0,
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
     zero_emission = DataEntryEmission(
         data_entry_id=zero_entry.id,
         emission_type_id=EmissionType.professional_travel__plane__business,
         kg_co2eq=0.0,  # Zero emission
-        scope=EmissionType.professional_travel__plane__business.scope,
+        scope=emission_type_scope(EmissionType.professional_travel__plane__business),
     )
 
     db_session.add_all([valid_emission, zero_emission])
@@ -762,7 +634,7 @@ async def _seed_emission(db_session, module, name, kg):
             data_entry_id=entry.id,
             emission_type_id=EmissionType.equipment__scientific,
             kg_co2eq=kg,
-            scope=EmissionType.equipment__scientific.scope,
+            scope=emission_type_scope(EmissionType.equipment__scientific),
         )
     )
     await db_session.flush()
@@ -886,312 +758,6 @@ async def test_validated_totals_by_unit(
 
 
 @pytest.mark.asyncio
-async def test_emission_stats_single_validated(db_session: AsyncSession):
-    """Single validated module → dict with one key."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=1,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    await _seed_emission(db_session, module, "Item", 4200.0)
-
-    result = await repo.get_stats_by_carbon_report_id(1)
-    assert result == {str(ModuleTypeEnum.equipment.value): pytest.approx(4200.0)}
-
-
-@pytest.mark.asyncio
-async def test_emission_stats_multi_modules(db_session: AsyncSession):
-    """2 validated modules → 2 keys."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    equip = CarbonReportModule(
-        carbon_report_id=2,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    travel = CarbonReportModule(
-        carbon_report_id=2,
-        module_type_id=ModuleTypeEnum.professional_travel.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add_all([equip, travel])
-    await db_session.flush()
-
-    await _seed_emission(db_session, equip, "Equip", 3000.0)
-    await _seed_emission(db_session, travel, "Trip", 1500.0)
-
-    result = await repo.get_stats_by_carbon_report_id(2)
-    assert len(result) == 2
-    assert result[str(ModuleTypeEnum.equipment.value)] == pytest.approx(3000.0)
-    assert result[str(ModuleTypeEnum.professional_travel.value)] == pytest.approx(
-        1500.0
-    )
-
-
-@pytest.mark.asyncio
-async def test_emission_stats_excludes_in_progress(db_session: AsyncSession):
-    """IN_PROGRESS module → absent from dict."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=3,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    await _seed_emission(db_session, module, "WIP", 9999.0)
-
-    result = await repo.get_stats_by_carbon_report_id(3)
-    assert result == {}
-
-
-@pytest.mark.asyncio
-async def test_emission_stats_excludes_other_report(db_session: AsyncSession):
-    """No leakage between carbon reports."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    mod_a = CarbonReportModule(
-        carbon_report_id=10,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    mod_b = CarbonReportModule(
-        carbon_report_id=11,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add_all([mod_a, mod_b])
-    await db_session.flush()
-
-    await _seed_emission(db_session, mod_a, "Report 10", 1000.0)
-    await _seed_emission(db_session, mod_b, "Report 11", 9999.0)
-
-    result = await repo.get_stats_by_carbon_report_id(10)
-    assert len(result) == 1
-    assert list(result.values())[0] == pytest.approx(1000.0)
-
-
-@pytest.mark.asyncio
-async def test_emission_stats_empty(db_session: AsyncSession):
-    """No data → empty dict."""
-    repo = DataEntryEmissionRepository(db_session)
-    result = await repo.get_stats_by_carbon_report_id(99999)
-    assert result == {}
-
-
-# ======================================================================
-# _looks_like_purchase_institutional_code Tests
-# ======================================================================
-
-
-class TestLooksLikePurchaseInstitutionalCode:
-    """Tests for the static helper that filters out non-code names."""
-
-    def test_empty_string(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code("")
-            is False
-        )
-
-    def test_whitespace_only(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code("   ")
-            is False
-        )
-
-    def test_rest_lowercase(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code("rest")
-            is False
-        )
-
-    def test_rest_mixed_case(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code("Rest")
-            is False
-        )
-
-    def test_unknown_lowercase(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
-                "unknown"
-            )
-            is False
-        )
-
-    def test_unknown_uppercase(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
-                "UNKNOWN"
-            )
-            is False
-        )
-
-    def test_valid_code(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
-                "ABC-123"
-            )
-            is True
-        )
-
-    def test_valid_code_with_whitespace(self):
-        assert (
-            DataEntryEmissionRepository._looks_like_purchase_institutional_code(
-                "  ABC-123  "
-            )
-            is True
-        )
-
-
-# ======================================================================
-# get_emission_breakdown_with_quantity Tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
-async def test_emission_breakdown_with_quantity_empty(db_session: AsyncSession):
-    """No data returns empty list."""
-    repo = DataEntryEmissionRepository(db_session)
-    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=99999)
-    assert result == []
-
-
-@pytest.mark.asyncio
-async def test_emission_breakdown_with_quantity_basic(db_session: AsyncSession):
-    """Returns module_type_id, emission_type_id, sum_kg_co2eq, sum_quantity."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=200,
-        module_type_id=ModuleTypeEnum.equipment.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    entry = DataEntry(
-        carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.scientific,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Equip"},
-    )
-    db_session.add(entry)
-    await db_session.flush()
-
-    db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
-            emission_type_id=EmissionType.equipment__scientific,
-            kg_co2eq=1500.0,
-            scope=EmissionType.equipment__scientific.scope,
-            meta={"quantity": 3},
-        )
-    )
-    await db_session.flush()
-
-    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=200)
-    assert len(result) == 1
-    module_type_id, emission_type_id, kg, additional_value = result[0]
-    assert module_type_id == ModuleTypeEnum.equipment.value
-    assert emission_type_id == EmissionType.equipment__scientific.value
-    assert kg == pytest.approx(1500.0)
-    assert additional_value is None
-
-
-@pytest.mark.asyncio
-async def test_emission_breakdown_with_quantity_distance_km(db_session: AsyncSession):
-    """Commuting emission with additional_value → sum_additional_value is populated."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=201,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    entry = DataEntry(
-        carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.member,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Alice"},
-    )
-    db_session.add(entry)
-    await db_session.flush()
-
-    db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
-            emission_type_id=EmissionType.commuting__cycling,
-            kg_co2eq=10.0,
-            additional_value=4000.0,
-            meta={"quantity": 4000.0, "quantity_unit": "km"},
-        )
-    )
-    await db_session.flush()
-
-    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=201)
-    assert len(result) == 1
-    _, _, kg, additional_value = result[0]
-    assert kg == pytest.approx(10.0)
-    assert additional_value == pytest.approx(4000.0)
-
-
-@pytest.mark.asyncio
-async def test_emission_breakdown_with_quantity_weight_kg(db_session: AsyncSession):
-    """Food emission with additional_value → sum_additional_value is populated."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=202,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    entry = DataEntry(
-        carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.member,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Bob"},
-    )
-    db_session.add(entry)
-    await db_session.flush()
-
-    db_session.add(
-        DataEntryEmission(
-            data_entry_id=entry.id,
-            emission_type_id=EmissionType.food__vegetarian,
-            kg_co2eq=20.0,
-            additional_value=160.0,
-            meta={"quantity": 160.0, "quantity_unit": "kg"},
-        )
-    )
-    await db_session.flush()
-
-    result = await repo.get_emission_breakdown_with_quantity(carbon_report_id=202)
-    assert len(result) == 1
-    _, _, kg, additional_value = result[0]
-    assert kg == pytest.approx(20.0)
-    assert additional_value == pytest.approx(160.0)
-
-
-# ======================================================================
-# get_embodied_energy_by_building Tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
 async def test_embodied_energy_by_building_empty(db_session: AsyncSession):
     """No data returns empty list."""
     repo = DataEntryEmissionRepository(db_session)
@@ -1231,7 +797,9 @@ async def test_embodied_energy_by_building_groups_by_name(db_session: AsyncSessi
                 data_entry_id=entry.id,
                 emission_type_id=EmissionType.buildings__construction_and_renovation,
                 kg_co2eq=kg,
-                scope=EmissionType.buildings__construction_and_renovation.scope,
+                scope=emission_type_scope(
+                    EmissionType.buildings__construction_and_renovation
+                ),
             )
         )
         entries.append(entry)
@@ -1268,7 +836,7 @@ async def _seed_building_with_rollup(
         EmissionType.buildings__rooms__lighting,
         EmissionType.buildings__rooms__cooling,
         EmissionType.buildings__rooms__ventilation,
-        EmissionType.buildings__rooms__heating_elec,
+        EmissionType.buildings__rooms__heating_electric,
         EmissionType.buildings__rooms__heating_thermal,
     ]
     for et in leaf_types:
@@ -1277,7 +845,7 @@ async def _seed_building_with_rollup(
                 data_entry_id=entry.id,
                 emission_type_id=et,
                 kg_co2eq=kg_leaf / len(leaf_types),
-                scope=et.scope,
+                scope=emission_type_scope(et),
             )
         )
 
@@ -1354,55 +922,3 @@ async def test_get_validated_totals_by_unit_excludes_rollup_rows(
     assert len(result) == 1
     # Must be 2000 (leaves only), not 4000 (leaves + rollup)
     assert result[0]["kg_co2eq"] == pytest.approx(2000.0, rel=0.01)
-
-
-@pytest.mark.asyncio
-async def test_get_stats_by_carbon_report_id_excludes_rollup_rows(
-    db_session: AsyncSession,
-):
-    """get_stats_by_carbon_report_id() must not double-count building rollups."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=600,
-        module_type_id=ModuleTypeEnum.buildings.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    await _seed_building_with_rollup(
-        db_session, module, kg_leaf=3000.0, kg_rollup=3000.0
-    )
-
-    result = await repo.get_stats_by_carbon_report_id(600)
-
-    bldg_key = str(ModuleTypeEnum.buildings.value)
-    assert bldg_key in result
-    # Must be 3000 (leaves only), not 6000 (leaves + rollup)
-    assert result[bldg_key] == pytest.approx(3000.0, rel=0.01)
-
-
-@pytest.mark.asyncio
-async def test_get_emission_breakdown_excludes_rollup_rows(db_session: AsyncSession):
-    """get_emission_breakdown() must filter out the rollup row (60100)."""
-    repo = DataEntryEmissionRepository(db_session)
-
-    module = CarbonReportModule(
-        carbon_report_id=700,
-        module_type_id=ModuleTypeEnum.buildings.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    await _seed_building_with_rollup(db_session, module, kg_leaf=500.0, kg_rollup=500.0)
-
-    rows = await repo.get_emission_breakdown(700)
-
-    emission_type_ids = {r[1] for r in rows}
-    assert EmissionType.buildings__rooms.value not in emission_type_ids, (
-        "rollup emission_type_id must be excluded from get_emission_breakdown"
-    )
-    total = sum(r[2] for r in rows)
-    assert total == pytest.approx(500.0, rel=0.01)

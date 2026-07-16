@@ -9,6 +9,7 @@ import logging
 from datetime import datetime
 from ipaddress import ip_address
 from pathlib import Path
+from typing import TypedDict
 from zoneinfo import ZoneInfo
 
 from elasticsearch import Elasticsearch
@@ -18,6 +19,16 @@ from elasticsearch.exceptions import (
 )
 
 from app.core.config import get_settings
+
+
+class AuditSyncStats(TypedDict):
+    """Result of a bulk_sync_audit_records call."""
+
+    success: int
+    failed: int
+    errors: list[dict]
+    conflicts: list[dict]
+
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -313,7 +324,7 @@ class ElasticsearchClient:
             )
             return False
 
-    def bulk_sync_audit_records(self, audit_records: list[dict]) -> dict:
+    def bulk_sync_audit_records(self, audit_records: list[dict]) -> AuditSyncStats:
         """
         Bulk sync multiple audit records to Elasticsearch following OPDo contract.
 
@@ -447,6 +458,6 @@ class ElasticsearchClient:
             return {
                 "success": 0,
                 "failed": len(audit_records),
-                "errors": [str(e)],
+                "errors": [{"id": None, "error": str(e)}],
                 "conflicts": [],
             }

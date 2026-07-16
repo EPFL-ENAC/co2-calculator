@@ -3,7 +3,6 @@
 from enum import IntEnum
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 
 
 # enum - used in other files
@@ -33,6 +32,9 @@ class ModuleTypeEnum(IntEnum):
 
 
 ALL_MODULE_TYPE_IDS = [mt for mt in ModuleTypeEnum]
+
+TOTAL_MODULE_TYPES = len(ModuleTypeEnum)
+DEFAULT_COMPLETION_PROGRESS = f"0/{TOTAL_MODULE_TYPES}"
 
 
 # corresponding data_entry_type enum for each module type
@@ -71,43 +73,13 @@ MODULE_TYPE_TO_DATA_ENTRY_TYPES = {
         DataEntryTypeEnum.services,
         DataEntryTypeEnum.vehicles,
         DataEntryTypeEnum.other_purchases,
-        DataEntryTypeEnum.additional_purchases,
+        DataEntryTypeEnum.purchases_centralized,
     ],
     ModuleTypeEnum.research_facilities: [
         DataEntryTypeEnum.research_facilities,
         DataEntryTypeEnum.mice_and_fish_animal_facilities,
     ],
     # Add more if needed for other modules
-}
-
-
-# Maps each ModuleTypeEnum to the EmissionType root(s) whose subtree
-# covers all emission_type_ids that can appear under that module.
-# headcount is special: its 4 emission types are independent flat leaves.
-MODULE_TYPE_TO_EMISSION_ROOTS: dict[ModuleTypeEnum, list[EmissionType]] = {
-    ModuleTypeEnum.headcount: [
-        EmissionType.food,
-        EmissionType.waste,
-        EmissionType.commuting,
-    ],
-    ModuleTypeEnum.professional_travel: [EmissionType.professional_travel],
-    ModuleTypeEnum.buildings: [
-        EmissionType.buildings,
-        EmissionType.buildings__construction_and_renovation,
-    ],
-    ModuleTypeEnum.equipment: [EmissionType.equipment],
-    ModuleTypeEnum.purchase: [EmissionType.purchases],
-    ModuleTypeEnum.process_emissions: [EmissionType.process_emissions],
-    ModuleTypeEnum.external_cloud_and_ai: [EmissionType.external],
-    # Both research_facilities leaves
-    # (``research_facilities__facilities`` + ``research_facilities__animal``)
-    # roll up to ``EmissionType.research_facilities`` per the
-    # ``EMISSION_TYPE_PARENT_MAP`` declaration above.  Without this
-    # entry ``CarbonReportModuleService.recompute_stats`` early-returns
-    # for the module — stats stayed None on every research_facilities
-    # module, breaking the dashboard's per-module totals.  Reported by
-    # the past LLM-session review as item #1.
-    ModuleTypeEnum.research_facilities: [EmissionType.research_facilities],
 }
 
 

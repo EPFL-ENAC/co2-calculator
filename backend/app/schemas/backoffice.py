@@ -68,8 +68,9 @@ class PaginatedUnitReportingData(BaseModel):
 
     data: List[UnitReportingData]
     pagination: PaginationMeta
-    emission_breakdown: Optional[Dict[str, Any]] = None
-    it_breakdown: Optional[Dict[str, Any]] = None
+    # Merged per-report stats across the filtered units. The frontend reshapes
+    # this into the emission/IT breakdown rows the reporting charts consume.
+    stats: Optional[Dict[str, Any]] = None
     validated_units_count: int = 0
     in_progress_units_count: int = 0
     not_started_units_count: int = 0

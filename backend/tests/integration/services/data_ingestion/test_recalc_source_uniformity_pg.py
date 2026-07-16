@@ -46,9 +46,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -261,11 +262,10 @@ async def test_recalc_uniform_across_source_types(pg_dsn) -> None:
                 )
 
                 # 6b. ``data`` was NOT silently re-imported — same dict
-                #     before and after the recompute.  The workflow may
-                #     refresh ``primary_factor_id`` for handlers with
-                #     ``kind_field`` keys IN entry.data, but plane
-                #     derives ``category`` only in pre_compute so the
-                #     refresh gate is closed for this handler.
+                #     before and after the recompute.  Since #1661 the
+                #     recalc workflow never writes to entry.data for any
+                #     handler — ``FactorResolver`` resolves the matching
+                #     factor on demand instead of stamping an id back.
                 assert entry.data == snapshot, (
                     f"recalc must not mutate entry.data — entry_id={entry_id} "
                     f"diff: before={snapshot!r}, after={entry.data!r}.  "

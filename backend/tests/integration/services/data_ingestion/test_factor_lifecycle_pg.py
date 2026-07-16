@@ -32,11 +32,12 @@ Pins behaviour for the three factor lifecycle events:
     is exactly designed to dodge.
   * Effect: the dropped factor row is *kept-stale* — same id,
     ``last_seen_job_id`` still points at the OLD job (so
-    ``list_stale_for_year`` flags it for operator action), and dependent
+    the ingest provider's sweep deletes it — see
+    ``test_factor_replace_semantics_pg.py``), and dependent
     ``data_entry_emissions`` are NOT cleared by the next recalc because
     the in-DB factor still resolves the rematch.
   * Stale-cleanup is therefore a deliberate operator action (the
-    ``/factors/stale`` endpoint), not an automatic side-effect of the
+    ingest sweep), not an automatic side-effect of the
     next CSV reupload.
 
 If a future change shifts the behaviour (e.g. a "purge missing factors"
@@ -58,7 +59,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     EntityType,
@@ -72,6 +73,7 @@ from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import UserProvider
+from app.modules.emissions import EmissionType
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
@@ -178,18 +180,19 @@ async def _emissions_for_entry(
 async def test_new_factor_matches_unmatched_entries_strategy_a(
     pg_dsn,
 ):
-    """Strategy A (JSON-link): a DataEntry with ``primary_factor_id=None``
+    """Strategy A (JSON-link): a DataEntry with no matching factor yet,
     whose ``equipment_class`` matches a factor introduced by a fresh
-    ``upsert_factors`` call must pick that factor up on the next recalc
+    ``upsert_factors`` call, must pick that factor up on the next recalc
     and produce a non-zero emission.
 
     Mirrors the CSV reupload scenario: factors.csv has a new
     ``Laptop / Standard`` row that wasn't in the DB before; existing
     DataEntries that referenced ``Laptop / Standard`` were stranded with
-    ``primary_factor_id=None`` and no emission rows.  The recalc
-    workflow's bulk-prefetch path rewrites ``entry.data['primary_factor_id']``
-    to the new factor's id and ``upsert_by_data_entry`` produces fresh
-    emissions.
+    no resolvable factor and no emission rows.  The recalc workflow's
+    ``FactorResolver`` resolves the entry against the newly-inserted
+    factor on demand (#1661 — ``entry.data`` is never stamped) and
+    ``upsert_by_data_entry`` produces fresh emissions carrying the new
+    factor's id on ``DataEntryEmission.primary_factor_id``.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -212,14 +215,14 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
             assert job.id is not None
             job_id: int = job.id
 
-            # DataEntry seeded WITHOUT a matching factor in the DB —
-            # primary_factor_id starts as None (the un-rematched state a
-            # CSV ingest of data with no covering factor leaves behind).
+            # DataEntry seeded WITHOUT a matching factor in the DB — the
+            # unmatched state a CSV ingest of data with no covering factor
+            # leaves behind.  No ``primary_factor_id`` key: entries never
+            # store one (#1661).
             entry = DataEntry(
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 carbon_report_module_id=module_id,
                 data={
-                    "primary_factor_id": None,
                     "equipment_class": "Laptop",
                     "sub_class": "Standard",
                     "active_usage_hours_per_week": 40.0,
@@ -271,6 +274,21 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
             await s.commit()
             assert affected == 1, "fresh factor row should insert"
 
+            # ``upsert_factors`` writes via a COPY/staging path and never
+            # backfills ``id`` onto the passed-in instance — look the
+            # inserted row up to get its actual id for the exact-match
+            # assertion below.
+            inserted_factor: Factor = (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id) == DataEntryTypeEnum.it.value,
+                        col(Factor.year) == 2025,
+                    )
+                )
+            ).scalar_one()
+            assert inserted_factor.id is not None
+            new_factor_id: int = inserted_factor.id
+
         # Trigger the recalc the way ``factor_ingest`` would on success.
         async with Sf() as s:
             wf = EmissionRecalculationWorkflow(s)
@@ -281,15 +299,21 @@ async def test_new_factor_matches_unmatched_entries_strategy_a(
     finally:
         await engine.dispose()
 
-    # Verify on a fresh engine — entry's primary_factor_id rewritten,
-    # emissions present and non-zero.
+    # Verify on a fresh engine — entry.data untouched, emission rows
+    # carry the newly-resolved factor id and a non-zero total.
     async with _fresh_session(pg_dsn) as vs:
         refreshed_entry = (
             await vs.execute(select(DataEntry).where(col(DataEntry.id) == entry_id))
         ).scalar_one()
         new_rows = await _emissions_for_entry(vs, entry_id)
-    assert refreshed_entry.data.get("primary_factor_id") is not None, (
-        "Strategy A rematch must populate primary_factor_id from factor_lookup"
+    assert "primary_factor_id" not in refreshed_entry.data, (
+        "Strategy A rematch must not stamp primary_factor_id onto entry.data (#1661)"
+    )
+    assert new_rows, f"expected at least one emission row; got {new_rows}"
+    assert all(r.primary_factor_id == new_factor_id for r in new_rows), (
+        "Strategy A rematch must produce emission row(s) carrying exactly the "
+        f"newly-resolved factor id={new_factor_id}; got "
+        f"{[r.primary_factor_id for r in new_rows]}"
     )
     new_total = sum((r.kg_co2eq or 0.0) for r in new_rows)
     assert new_total > 0, (
@@ -425,6 +449,21 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
             await s.commit()
             assert affected == 1
 
+            # ``upsert_factors`` writes via a COPY/staging path and never
+            # backfills ``id`` onto the passed-in instance — look the
+            # inserted row up to get its actual id for the exact-match
+            # assertion below.
+            inserted_factor: Factor = (
+                await s.execute(
+                    select(Factor).where(
+                        col(Factor.data_entry_type_id) == DataEntryTypeEnum.plane.value,
+                        col(Factor.year) == 2025,
+                    )
+                )
+            ).scalar_one()
+            assert inserted_factor.id is not None
+            new_factor_id: int = inserted_factor.id
+
         # Trigger the recalc.
         async with Sf() as s:
             wf = EmissionRecalculationWorkflow(s)
@@ -445,6 +484,11 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
         "Strategy B: introducing the matching factor and recalculating must "
         f"produce a non-zero plane emission; got rows={new_rows}"
     )
+    assert new_rows and all(r.primary_factor_id == new_factor_id for r in new_rows), (
+        "Strategy B rematch must produce emission row(s) carrying exactly the "
+        f"seeded factor id={new_factor_id}; got "
+        f"{[r.primary_factor_id for r in new_rows]}"
+    )
 
 
 # ── 3. Upsert (existing factor's values change) ────────────────────────
@@ -453,8 +497,9 @@ async def test_new_factor_matches_unmatched_entries_strategy_b(
 @pytest.mark.asyncio
 async def test_factor_upsert_triggers_recompute(pg_dsn):
     """Existing factor's ``values`` change → ``upsert_factors`` updates
-    the row in place (preserving ``id`` and any ``DataEntry.primary_factor_id``
-    references) → recalc reflects the new value.
+    the row in place (preserving ``id`` and any dependent
+    ``DataEntryEmission.primary_factor_id`` references) → recalc
+    reflects the new value.
 
     This is the load-bearing regression gate for Plan 310-B's auto-recalc:
     if a future change ever stops upsert from updating in place (e.g. a
@@ -504,8 +549,8 @@ async def test_factor_upsert_triggers_recompute(pg_dsn):
             )
             await s.commit()
 
-            # Now resolve the freshly-inserted factor's id so we can pin
-            # primary_factor_id on the data entry below.
+            # Resolve the freshly-inserted factor's id — needed below to
+            # mutate its values in place via a second upsert.
             initial_factor: Factor = (
                 await s.execute(
                     select(Factor).where(
@@ -521,7 +566,6 @@ async def test_factor_upsert_triggers_recompute(pg_dsn):
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 carbon_report_module_id=module_id,
                 data={
-                    "primary_factor_id": factor_id,
                     "equipment_class": "Laptop",
                     "sub_class": "Standard",
                     "active_usage_hours_per_week": 40.0,
@@ -635,7 +679,7 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     -----
     1. factors.csv #1 has factor F (Laptop / Standard), upserted by
        job_v1 (FACTORS, is_current=False after step 2).
-    2. DataEntry seeded with ``primary_factor_id=F.id``; initial compute
+    2. DataEntry seeded matching F's classification; initial compute
        produces non-zero emissions.
     3. factors.csv #2 is uploaded as job_v2 (FACTORS, is_current=True)
        and contains a DIFFERENT factor (Tablet / Standard) — F is missing.
@@ -646,31 +690,26 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
     - ``factors.F`` is **NOT deleted**.  Its row is kept with the OLD
       ``last_seen_job_id`` (= job_v1_id).  A naive "upsert deletes
       missing rows" reading of the CSV reupload would clear F; the
-      production upsert path explicitly does not, to avoid dangling FKs
-      against ``DataEntry.data['primary_factor_id']``.
-    - ``list_stale_for_year(2025)`` flags F (its
-      ``last_seen_job_id < latest_id`` for the (det, year) — exactly
-      the operator-facing signal Plan 310-B's stale endpoint is
-      designed to surface).
-    - The ``DataEntry``'s ``primary_factor_id`` is preserved (still
-      points at F).  Strategy A's bulk-prefetch rematch reads from
-      ``factor_repo.list_by_data_entry_type`` (not "factors written by
-      the latest job"), so F is still in ``factor_lookup`` and the
-      rematch leaves the link alone.
+      production upsert path explicitly does not, to avoid dangling
+      ``DataEntryEmission.primary_factor_id`` FKs.
+    - The entry's emission rows still resolve to F (#1661:
+      ``FactorResolver`` resolves on demand from ``entry.data``'s
+      classification fields on every recalc — F's classification
+      still exists in the DB, just stale, so it keeps winning).
     - ``data_entry_emissions`` rows are kept and recomputed against F's
       OLD values — they are NOT cleared and NOT NULLed.
 
-    So a CSV reupload that omits a factor is a soft-deprecation: the
-    factor goes stale-but-functional, dependent emissions stay valid
-    against the old EF, and only the operator's explicit cleanup via
-    ``/factors/stale`` (or a manual Factor DELETE) actually removes the
-    row.
+    So a bare repo-level ``upsert_factors`` never deletes: the omitted
+    factor stays functional and dependent emissions stay valid against
+    the old EF.  Deletion is the CSV ingest provider's explicit sweep
+    (``_delete_stale_factors`` → ``delete_stale_for_year``), pinned by
+    ``test_factor_replace_semantics_pg.py`` and the reupload endpoint
+    test — not a side-effect of the upsert itself.
 
     If a future change shifts this — e.g. cascade-delete on missing
-    factors, NULL-out of dependent ``primary_factor_id``, eager
-    recomputation of emissions — these assertions will start failing
-    and the contract docstring above must be updated alongside the
-    code change.
+    factors, resolution no longer favoring F, eager recomputation of
+    emissions — these assertions will start failing and the contract
+    docstring above must be updated alongside the code change.
     """
     engine = create_async_engine(pg_dsn, future=True)
     Sf = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -730,7 +769,6 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
                 data_entry_type_id=DataEntryTypeEnum.it.value,
                 carbon_report_module_id=module_id,
                 data={
-                    "primary_factor_id": factor_F_id,
                     "equipment_class": "Laptop",
                     "sub_class": "Standard",
                     "active_usage_hours_per_week": 40.0,
@@ -819,41 +857,30 @@ async def test_factor_delete_via_reupload_observes_actual_behaviour(
         persisted_F = (
             await vs.execute(select(Factor).where(col(Factor.id) == factor_F_id))
         ).scalar_one_or_none()
-        stale = await FactorRepository(vs).list_stale_for_year(2025)
-        stale_ids = {f.id for f in stale}
-        refreshed_entry = (
-            await vs.execute(select(DataEntry).where(col(DataEntry.id) == entry_id))
-        ).scalar_one()
         new_rows = await _emissions_for_entry(vs, entry_id)
 
     # 1. F is NOT deleted — upsert path never deletes rows missing from
     #    the new batch.
     assert persisted_F is not None, (
         "Contract: factors.csv reupload omitting F must NOT delete the F "
-        "row (avoids dangling FKs in DataEntry.data['primary_factor_id'])."
+        "row (avoids dangling DataEntryEmission.primary_factor_id FKs)."
     )
     assert persisted_F.last_seen_job_id == job_v1_id, (
         "Contract: omitted-from-reupload factor keeps its OLD "
         f"last_seen_job_id (= {job_v1_id}); got {persisted_F.last_seen_job_id}.  "
-        "This is what makes ``list_stale_for_year`` flag it."
+        "This is what the ingest provider's delete sweep keys on."
     )
 
-    # 2. F is surfaced as stale to operators.
-    assert factor_F_id in stale_ids, (
-        f"Contract: F (id={factor_F_id}) must appear in list_stale_for_year(2025) "
-        f"after the reupload omits it; got stale_ids={stale_ids}"
+    # 2. The entry's emission rows still resolve to F (NOT unmatched).
+    got_factor_ids = [r.primary_factor_id for r in new_rows]
+    assert new_rows and all(r.primary_factor_id == factor_F_id for r in new_rows), (
+        "Contract: emission rows must still carry F's id after the reupload "
+        "— FactorResolver resolves on demand from factor_repo.list_by_"
+        "data_entry_type, which still includes F (it's in DB, just stale), "
+        f"so recalc keeps resolving to it.  got={got_factor_ids}"
     )
 
-    # 3. The DataEntry's ``primary_factor_id`` is preserved (NOT NULLed).
-    assert refreshed_entry.data.get("primary_factor_id") == factor_F_id, (
-        "Contract: DataEntry.data['primary_factor_id'] must still point at F "
-        "after the reupload — the bulk-prefetch reads from "
-        "``factor_repo.list_by_data_entry_type`` which still includes F (it's "
-        "in DB, just stale), so the rematch leaves the link alone.  "
-        f"Expected={factor_F_id}, got={refreshed_entry.data.get('primary_factor_id')}"
-    )
-
-    # 4. Emissions are kept and recomputed against F's OLD values — not
+    # 3. Emissions are kept and recomputed against F's OLD values — not
     #    cleared, not NULLed, not silently halved/doubled.
     assert new_rows != [], (
         "Contract: emissions must NOT be cleared just because F was missing "

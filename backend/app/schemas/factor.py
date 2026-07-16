@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional, Protocol, Type, TypeVar, get_args, get_o
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType
 
 FACTOR_META_FIELDS = {
     "id",

@@ -1,12 +1,12 @@
 import { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
 import { MODULES_PATTERN } from 'src/constant/modules';
-import { i18n } from 'src/boot/i18n';
+import { resolveLanguage } from 'src/utils/language';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
-import redirectToWorkspaceIfSelectedGuard from './guards/redirectToWorkspaceIfSelectedGuard';
-import validateUnitGuard from './guards/validateUnitGuard';
+import redirectToDefaultRoute from './guards/redirectToDefaultRoute';
 import { permissionGuard } from './guards/permissionGuard';
 import { moduleEnabledGuard } from './guards/moduleEnabledGuard';
 import { PermissionAction } from 'src/stores/auth';
+import { isDevEnvironment } from './routeNames';
 
 // Route parameter validation patterns
 const LANGUAGE_PATTERN = 'en|fr';
@@ -22,11 +22,9 @@ export {
   LOGIN_TEST_ROUTE_NAME,
   LOGIN_ROUTES,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
-  AUTH_COMPLETE_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
   ROUTES_WITHOUT_LANGUAGE,
 } from './routeNames';
@@ -34,11 +32,9 @@ import {
   LOGIN_ROUTE_NAME,
   LOGIN_TEST_ROUTE_NAME,
   HOME_ROUTE_NAME,
-  WORKSPACE_SETUP_ROUTE_NAME,
   WORKSPACE_ROUTE_NAME,
   UNAUTHORIZED_ROUTE_NAME,
   NOT_FOUND_ROUTE_NAME,
-  AUTH_COMPLETE_ROUTE_NAME,
   DEFAULT_ROUTE_NAME,
 } from './routeNames';
 
@@ -125,16 +121,30 @@ const routes: RouteRecordRaw[] = [
       {
         path: '',
         name: 'root-redirect',
-        redirect: {
+        redirect: (to) => ({
           name: DEFAULT_ROUTE_NAME,
-          params: { language: i18n.global.locale.value.split('-')[0] },
-        },
+          params: { language: resolveLanguage(to) },
+        }),
       },
       {
         path: `:language(${LANGUAGE_PATTERN})`,
         name: 'language',
-        redirect: { name: DEFAULT_ROUTE_NAME },
         children: [
+          {
+            // Parameterless landing (default route). It never renders: its
+            // `beforeEnter` resolves a default unit/year and forwards to the
+            // unified home page (or to /unauthorized when the account has no
+            // units).
+            path: '',
+            name: DEFAULT_ROUTE_NAME,
+            beforeEnter: redirectToDefaultRoute,
+            component: { render: () => null },
+            meta: {
+              requiresAuth: true,
+              note: 'Landing - resolves default workspace, forwards to home',
+              breadcrumb: false,
+            },
+          },
           {
             path: 'login',
             name: LOGIN_ROUTE_NAME,
@@ -144,30 +154,25 @@ const routes: RouteRecordRaw[] = [
               breadcrumb: false,
             },
           },
-          {
-            path: 'login-test',
-            name: LOGIN_TEST_ROUTE_NAME,
-            component: () => import('pages/app/LoginTestPage.vue'),
-            meta: {
-              note: 'Test User authentication - Login page',
-              breadcrumb: false,
-            },
-          },
-          {
-            path: 'workspace-setup',
-            name: WORKSPACE_SETUP_ROUTE_NAME,
-            beforeEnter: redirectToWorkspaceIfSelectedGuard,
-            component: () => import('pages/app/WorkspaceSetupPage.vue'),
-            meta: {
-              requiresAuth: true,
-              note: 'Workspace configuration - Year and lab selection',
-              breadcrumb: false,
-            },
-          },
+          ...(isDevEnvironment
+            ? [
+                {
+                  path: 'login-test',
+                  name: LOGIN_TEST_ROUTE_NAME,
+                  component: () => import('pages/app/LoginTestPage.vue'),
+                  meta: {
+                    note: 'Test User authentication - Login page',
+                    breadcrumb: false,
+                  },
+                },
+              ]
+            : []),
           {
             path: `:unit(${UNIT_PATTERN})/:year(${YEAR_PATTERN})`,
             name: WORKSPACE_ROUTE_NAME,
-            beforeEnter: validateUnitGuard,
+            // Pass-through layout: the workspace is loaded by the global
+            // `workspaceGuard`, so this parent only hosts the child
+            // <router-view>.
             component: () => import('pages/app/WorkspacePage.vue'),
             children: [
               {
@@ -208,12 +213,14 @@ const routes: RouteRecordRaw[] = [
                 },
               },
               {
-                path: 'simulation',
-                name: 'simulation',
-                component: () => import('pages/app/SimulationsPage.vue'),
+                // Reached from the "Start a project" button on the unified
+                // home page (CO2ProjectPlanner).
+                path: 'simulation/add',
+                name: 'project-planner',
+                component: () => import('pages/app/AddSimulationPage.vue'),
                 meta: {
                   requiresAuth: true,
-                  note: 'Simulations - Selection and management page',
+                  note: 'Project Planner - Add a new project simulation',
                   breadcrumb: true,
                 },
               },
@@ -387,23 +394,6 @@ const routes: RouteRecordRaw[] = [
     path: '/unauthorized',
     name: UNAUTHORIZED_ROUTE_NAME,
     component: () => import('pages/ErrorUnauthorized.vue'),
-  },
-  // BFF cookie-exchange landing (ADR-019). Backend redirects here with
-  // `#code=<single-use-token>`; component POSTs it to /session/exchange,
-  // strips the fragment, and routes to home. No auth required: the
-  // exchange call IS the act of authenticating.
-  {
-    path: '/auth/complete',
-    name: AUTH_COMPLETE_ROUTE_NAME,
-    component: () => import('pages/app/AuthCompletePage.vue'),
-    meta: {
-      note: 'BFF cookie-exchange landing page (no auth required)',
-      breadcrumb: false,
-      // The page itself POSTs the exchange code in onMounted, then calls
-      // getUser(). Skipping the guard's auto-probe avoids two redundant
-      // 401s (GET /session, then POST /session refresh) on every login.
-      skipAuthCheck: true,
-    },
   },
   // Catch-all: show 404
   {

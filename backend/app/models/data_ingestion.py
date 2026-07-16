@@ -69,12 +69,17 @@ class IngestionMethod(int, Enum):
     :vartype manual: Literal[2]
     :var computed: Recompute factor values from existing emission data
     :vartype computed: Literal[3]
+    :var copy_previous_year: Historical only — the factor-copy feature
+        (#740) was removed and no provider is registered for this method;
+        the value persists on old ingestion-job rows.
+    :vartype copy_previous_year: Literal[4]
     """
 
     api = 0
     csv = 1
     manual = 2
     computed = 3
+    copy_previous_year = 4
 
 
 class TargetType(int, Enum):

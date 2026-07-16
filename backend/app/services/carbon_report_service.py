@@ -15,6 +15,7 @@ from app.models.carbon_report import (
     CarbonReportModule,
     CarbonReportType,
 )
+from app.modules.emissions.registry import ORDERED_STAT_BUCKETS
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.schemas.carbon_report import (
     CarbonReportCreate,
@@ -22,59 +23,101 @@ from app.schemas.carbon_report import (
     CarbonReportUpdate,
 )
 from app.services.carbon_report_module_service import CarbonReportModuleService
-from app.utils.it_breakdown import IT_EMISSION_TYPES
+from app.utils.report_stats import derive_report_sections
 
 logger = get_logger(__name__)
 
 
-def _build_report_stats(modules) -> dict:
-    """Aggregate a report's stats JSON from its modules' stats dicts.
-
-    Pure function shared by the single-report and batched recompute
-    paths; ``modules`` only needs ``.stats``, ``.status`` and
-    ``.module_type_id`` attributes.
-    """
-    scope1_total = 0.0
-    scope2_total = 0.0
-    scope3_total = 0.0
+def _merge_module_stats(modules) -> dict:
+    """Merge child module stats into ordered report buckets + flat maps."""
+    buckets: dict[str, dict] = {}
     by_emission_type: dict[str, float] = {}
     by_additional_value: dict[str, float] = {}
+    it_top_classes: dict[str, list] = {}
+    total_kg = 0.0
+    total_fte = 0.0
     total_entry_count = 0
 
-    for module in modules:
-        module_stats = module.stats
+    stats_by_module_type = {
+        module.module_type_id: module.stats
+        for module in modules
+        if isinstance(module.stats, dict)
+    }
+    for module_type, bucket_nodes in ORDERED_STAT_BUCKETS:
+        module_stats = stats_by_module_type.get(module_type.value)
         if not module_stats:
             continue
+        bucket = module_stats.get("buckets", {}).get(bucket_nodes.bucket.key)
+        if bucket is None:
+            continue
+        buckets[bucket_nodes.bucket.key] = bucket
+        total_kg += bucket.get("total_kg", 0.0) or 0.0
+        for et_id_str, kg in bucket.get("by_emission_type", {}).items():
+            by_emission_type[et_id_str] = by_emission_type.get(et_id_str, 0.0) + kg
+        for et_id_str, add_val in bucket.get("by_additional_value", {}).items():
+            by_additional_value[et_id_str] = by_additional_value.get(
+                et_id_str, 0.0
+            ) + float(add_val)
 
-        scope1_total += module_stats.get("scope1", 0.0) or 0.0
-        scope2_total += module_stats.get("scope2", 0.0) or 0.0
-        scope3_total += module_stats.get("scope3", 0.0) or 0.0
-
-        module_by_et = module_stats.get("by_emission_type", {})
-        if isinstance(module_by_et, dict):
-            for et_id_str, kg_co2eq in module_by_et.items():
-                if kg_co2eq:
-                    current = by_emission_type.get(et_id_str, 0.0)
-                    by_emission_type[et_id_str] = current + kg_co2eq
-
-        module_by_add = module_stats.get("by_additional_value", {})
-        if isinstance(module_by_add, dict):
-            for et_id_str, add_val in module_by_add.items():
-                if add_val:
-                    current = by_additional_value.get(et_id_str, 0.0)
-                    by_additional_value[et_id_str] = current + float(add_val)
-
+    for module_stats in stats_by_module_type.values():
+        total_fte += module_stats.get("total_fte", 0.0) or 0.0
         total_entry_count += module_stats.get("entry_count", 0) or 0
+        it_top_classes.update(module_stats.get("it_top_classes", {}))
 
-    total = scope1_total + scope2_total + scope3_total
+    return {
+        "buckets": buckets,
+        "by_emission_type": by_emission_type,
+        "by_additional_value": by_additional_value,
+        "it_top_classes": it_top_classes,
+        "total": total_kg,
+        "total_fte": total_fte,
+        "entry_count": total_entry_count,
+    }
 
-    _it_et_id_strs = {str(et.value) for et in IT_EMISSION_TYPES}
-    it_total_kg = sum(v for k, v in by_emission_type.items() if k in _it_et_id_strs)
+
+def _build_report_stats(modules, is_simulator: bool = False) -> dict:
+    """Aggregate a report's stats JSON from its modules' stats dicts.
+
+    Pure function shared by the single-report and batched recompute paths;
+    ``modules`` only needs ``.stats``, ``.status`` and ``.module_type_id``
+    attributes. Simulator Explore reports have no validation step, so every
+    module counts as validated there.
+    """
+    merged = _merge_module_stats(modules)
+    buckets: dict[str, dict] = merged["buckets"]
+    total_kg: float = merged["total"]
+    total_fte: float = merged["total_fte"]
+
+    validated_module_type_ids = {
+        module.module_type_id
+        for module in modules
+        if is_simulator or module.status == ModuleStatus.VALIDATED
+    }
+    validated_buckets = [
+        bucket_nodes.bucket.key
+        for module_type, bucket_nodes in ORDERED_STAT_BUCKETS
+        if module_type.value in validated_module_type_ids
+        and bucket_nodes.bucket.key in buckets
+    ]
+    validated_total_kg = sum(
+        (module.stats or {}).get("total", 0.0) or 0.0
+        for module in modules
+        if module.module_type_id in validated_module_type_ids
+    )
+
+    derived = derive_report_sections(
+        buckets,
+        merged["by_emission_type"],
+        total_kg,
+        total_fte,
+        top_class_detail=merged["it_top_classes"],
+        validated_buckets=validated_buckets,
+    )
 
     highest_category_module_id: Optional[int] = None
     highest_category_total = 0.0
     for module in modules:
-        if module.status != ModuleStatus.VALIDATED:
+        if module.module_type_id not in validated_module_type_ids:
             continue
         module_total = module.stats.get("total", 0) if module.stats else 0
         if module_total and module_total > highest_category_total:
@@ -82,15 +125,16 @@ def _build_report_stats(modules) -> dict:
             highest_category_module_id = module.module_type_id
 
     return {
-        "scope1": scope1_total,
-        "scope2": scope2_total,
-        "scope3": scope3_total,
-        "total": total,
-        "it_total_kg": it_total_kg,
-        "by_emission_type": by_emission_type,
-        "by_additional_value": by_additional_value,
+        "buckets": buckets,
+        "validated_buckets": validated_buckets,
+        **derived,
+        "total": total_kg,
+        "validated_total": validated_total_kg,
+        "total_fte": total_fte,
+        "by_emission_type": merged["by_emission_type"],
+        "by_additional_value": merged["by_additional_value"],
         "computed_at": datetime.now(timezone.utc).isoformat(),
-        "entry_count": total_entry_count,
+        "entry_count": merged["entry_count"],
         "highest_category_module_id": highest_category_module_id,
     }
 
@@ -220,7 +264,9 @@ class CarbonReportService:
                 ) or await self._create_project(
                     item.unit_id, CarbonReportType.CALCULATOR
                 )
-                unit_project[item.unit_id] = project.id  # type: ignore[assignment]
+                if project.id is None:
+                    raise ValueError("project must be persisted before use")
+                unit_project[item.unit_id] = project.id
             enriched.append(
                 item.model_copy(
                     update={"carbon_project_id": unit_project[item.unit_id]}
@@ -321,6 +367,19 @@ class CarbonReportService:
             .scalars()
             .all()
         )
+        type_rows = (
+            await self.session.execute(
+                select(col(CarbonReport.id), col(CarbonProject.carbon_report_type))
+                .join(
+                    CarbonProject,
+                    col(CarbonReport.carbon_project_id) == col(CarbonProject.id),
+                )
+                .where(col(CarbonReport.id).in_(carbon_report_ids))
+            )
+        ).all()
+        report_types: dict[int, CarbonReportType] = {
+            report_id: report_type for report_id, report_type in type_rows
+        }
 
         now_ts = int(datetime.now(timezone.utc).timestamp())
         updated = 0
@@ -332,7 +391,11 @@ class CarbonReportService:
                     f"{sanitize(report.id)}, skipping"
                 )
                 continue
-            report.stats = _build_report_stats(modules)
+            report.stats = _build_report_stats(
+                modules,
+                is_simulator=report_types.get(report.id)
+                == CarbonReportType.SIMULATOR_EXPLORE,
+            )
             progress, status = _build_report_progress(modules)
             report.completion_progress = progress
             report.overall_status = status

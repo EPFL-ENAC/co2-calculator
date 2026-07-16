@@ -41,10 +41,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.core.constants import ModuleStatus
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import EmissionType
 from app.models.data_ingestion import EntityType
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
     DataEntryEmissionService,
@@ -151,7 +151,6 @@ async def test_process_batch_carrier_keeps_kg_co2eq_out_of_data_entry(
                 "cabin_class": raw_row["cabin_class"],
                 "user_institutional_id": raw_row["user_institutional_id"],
                 "number_of_trips": int(raw_row["number_of_trips"]),
-                "primary_factor_id": None,
             }
             # Mirror _process_row: persist the override under the carrier key
             # so the async recalc chain can read it via prepare_create.

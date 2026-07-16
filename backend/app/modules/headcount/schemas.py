@@ -6,11 +6,11 @@ from app.core.logging import get_logger
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     EmissionComputation,
-    EmissionType,
     FactorQuery,
 )
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
@@ -326,12 +326,12 @@ class HeadcountFactorUpdate(
 ):
     """Schema for updating a headcount factor."""
 
-    headcount_category: Optional[str] = None  # type: ignore[assignment]
-    headcount_class: Optional[str] = None  # type: ignore[assignment]
+    headcount_category: Optional[str] = None
+    headcount_class: Optional[str] = None
     headcount_subclass: Optional[str] = None
-    number_of_unit_per_fte: Optional[float] = None  # type: ignore[assignment]
-    ef_kg_co2eq_per_unit: Optional[float] = None  # type: ignore[assignment]
-    unit: Optional[str] = None  # type: ignore[assignment]
+    number_of_unit_per_fte: Optional[float] = None
+    ef_kg_co2eq_per_unit: Optional[float] = None
+    unit: Optional[str] = None
 
 
 class HeadcountFactorResponse(FactorResponseGen, HeadcountBaseFactor):

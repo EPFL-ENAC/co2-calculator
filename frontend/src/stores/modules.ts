@@ -19,6 +19,11 @@ import type {
 import { useRoute } from 'vue-router';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { buildModulePath, hasValidModuleParams } from 'src/utils/modulePath';
+import {
+  toEmissionBreakdown,
+  toItBreakdown,
+  type ReportStats,
+} from 'src/utils/emissionStatsAdapter';
 
 // Maps route names to their carbon_project_type integer (0 = Calculator, 1 = Simulator Explore)
 const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
@@ -30,10 +35,19 @@ const SIMULATION_ROUTE_CARBON_PROJECT_TYPE: Record<string, number> = {
  * `modules` maps module_type_id to its display value
  * (FTE for headcount, tonnes CO₂eq for others).
  */
-interface ValidatedTotalsResponse {
+export interface ValidatedTotalsResponse {
   modules: Record<number, number>;
   total_tonnes_co2eq: number;
   total_fte: number;
+}
+
+/**
+ * The units whose carbon reports are summed on the Results page, and the year
+ * they are summed for. `unitIds` includes the unit currently being viewed.
+ */
+export interface MergedUnitsContext {
+  unitIds: number[];
+  year: number;
 }
 
 export interface EmbodiedEnergyCategoryEntry {
@@ -69,12 +83,43 @@ export interface EmissionBreakdownResponse {
   headcount_validated: boolean;
   buildings_validated: boolean;
   total_tonnes_co2eq: number;
+  /**
+   * Validated-only total (headline figure), merged in by the workspace-home
+   * aggregate. Distinct from `total_tonnes_co2eq`, which covers all modules.
+   * Absent when the breakdown comes from the plain /emission-breakdown route.
+   */
+  total_tonnes_validated_co2eq?: number;
   total_fte: number;
   it_summary?: {
     total_tonnes_co2eq: number;
     percentage_of_total: number;
   };
   embodied_energy_by_category?: EmbodiedEnergyCategoryEntry[];
+  embodied_energy_by_building?: {
+    building_name: string;
+    kg_co2eq: number;
+    tonnes_co2eq: number;
+  }[];
+  /**
+   * Per-module status map, merged in by the workspace-home aggregate so the
+   * guard can hydrate the sidebar timeline without a separate module-states
+   * fetch. Absent on the plain /emission-breakdown route only when the report
+   * has no modules.
+   */
+  module_states?: { module_type_id: number; status: number }[];
+}
+
+export interface MultiYearReportStatsEntry {
+  year: number;
+  total_tonnes_co2eq: number;
+  /** Category key (RESULTS_CATEGORY_ORDER) → tonnes CO2eq. */
+  modules: Record<string, number>;
+  /** Scope number ("1" | "2" | "3") → tonnes CO2eq. */
+  scopes: Record<string, number>;
+}
+
+export interface MultiYearReportStatsResponse {
+  years: MultiYearReportStatsEntry[];
 }
 
 export interface ItBreakdownEmission {
@@ -122,6 +167,10 @@ export interface EmissionBreakdownValue {
 export interface EmissionBreakdownCategoryRow {
   category: string;
   category_key: string;
+  /** GHG scope band (1|2|3) of the stat bucket this row renders. */
+  scope?: number;
+  /** True for informative rows excluded from the organisational total. */
+  additional?: boolean;
   emissions: EmissionBreakdownValue[];
   parent_keys_order: string[];
   [key: string]: unknown;
@@ -135,7 +184,7 @@ export interface EmissionBreakdownCategoryRow {
  * ``GET /v1/sync/active-pipelines``) is the single source of truth
  * for "is there an active pipeline for this module/year?".
  */
-interface CarbonReportModuleResponse {
+export interface CarbonReportModuleResponse {
   id: number;
   inventory_id: number;
   module_type_id: number;
@@ -179,6 +228,24 @@ export const useTimelineStore = defineStore('timeline', () => {
    * Fetch module statuses from the API for a given carbon report.
    * This should be called when a carbon report is selected.
    */
+  /**
+   * Apply already-fetched module states (e.g. from the workspace-home
+   * aggregate) without hitting the API. Same effect as a successful
+   * `fetchModuleStates`, so callers that pre-loaded the data skip the round trip.
+   */
+  function setModuleStates(
+    carbonReportId: number,
+    response: CarbonReportModuleResponse[],
+  ) {
+    currentCarbonReportId.value = carbonReportId;
+    for (const mod of response) {
+      const moduleKey = getModuleFromTypeId(mod.module_type_id);
+      if (moduleKey) {
+        itemStates[moduleKey] = mod.status as ModuleState;
+      }
+    }
+  }
+
   async function fetchModuleStates(carbonReportId: number) {
     loading.value = true;
     error.value = null;
@@ -190,12 +257,7 @@ export const useTimelineStore = defineStore('timeline', () => {
         .json()) as CarbonReportModuleResponse[];
 
       // Update itemStates from API response.
-      for (const mod of response) {
-        const moduleKey = getModuleFromTypeId(mod.module_type_id);
-        if (moduleKey) {
-          itemStates[moduleKey] = mod.status as ModuleState;
-        }
-      }
+      setModuleStates(carbonReportId, response);
     } catch (err: unknown) {
       if (err instanceof Error) {
         error.value = err.message ?? 'Failed to fetch module states';
@@ -235,8 +297,16 @@ export const useTimelineStore = defineStore('timeline', () => {
         )
         .json();
       await fetchModuleStates(currentCarbonReportId.value);
-      useModuleStore().invalidateValidatedTotals();
-      useModuleStore().invalidateEmissionBreakdown();
+      const moduleStore = useModuleStore();
+      moduleStore.invalidateValidatedTotals();
+      moduleStore.invalidateEmissionBreakdown();
+      // Unlike postItem/patchItem/deleteItem, this used to only invalidate
+      // the cache key without refetching — nothing else refetches on a pure
+      // validate/unvalidate (no item CRUD, no carbon-report-id change), so
+      // moduleStore.state.emissionBreakdown (what Home reads for the chart
+      // and validated_categories) stayed stale until an unrelated refetch
+      // happened to fire, or the user hard-refreshed.
+      await moduleStore.refreshEmissionBreakdownIfNeeded();
     } catch (err: unknown) {
       // Revert on error
       itemStates[id] = previousState;
@@ -266,6 +336,7 @@ export const useTimelineStore = defineStore('timeline', () => {
     error,
     currentCarbonReportId,
     fetchModuleStates,
+    setModuleStates,
     setState,
     reset,
     currentState: currentCarbonReportModuleState,
@@ -621,6 +692,7 @@ export const useModuleStore = defineStore('modules', () => {
     year: string | number,
     submoduleType: string,
     payload: Record<string, FieldValue>,
+    onCreated?: () => void,
   ) {
     state.error = null;
     try {
@@ -704,6 +776,12 @@ export const useModuleStore = defineStore('modules', () => {
           throw error;
         }
       }
+
+      // The create POST(s) above succeeded — the item exists server-side.
+      // Notify the caller now, before the unrelated refresh chain below,
+      // so a failure there can't suppress feedback for a create that
+      // already succeeded (#1463).
+      onCreated?.();
 
       // Refresh module totals (used by module page)
       await getModuleTotals(moduleType, unitId, year);
@@ -899,12 +977,19 @@ export const useModuleStore = defineStore('modules', () => {
     unit: number,
     year: string,
     moduleId: string,
+    combineUnitIds: number[] = [],
   ) {
     state.loadingTopClassBreakdown = true;
     state.errorTopClassBreakdown = null;
     state.topClassBreakdown = [];
     try {
-      const path = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const basePath = `modules/${encodeURIComponent(unit)}/${encodeURIComponent(year)}/${encodeURIComponent(moduleId)}/top-class-breakdown`;
+      const searchParams = new URLSearchParams();
+      for (const id of combineUnitIds) {
+        searchParams.append('combine_unit_ids', String(id));
+      }
+      const query = searchParams.toString();
+      const path = query ? `${basePath}?${query}` : basePath;
       const data = await api.get(path).json<Array<Record<string, unknown>>>();
       state.topClassBreakdown = data;
     } catch (err: unknown) {
@@ -946,15 +1031,55 @@ export const useModuleStore = defineStore('modules', () => {
   const emissionBreakdownInFlightToken = ref(0);
   let emissionBreakdownInFlight: Promise<void> | null = null;
 
+  /**
+   * In combined mode the same carbonReportId maps to different data depending
+   * on which units are summed, so the unit set has to be part of the key.
+   */
   function makeBreakdownCacheKey(
     carbonReportId: number,
     excludeModules: number[],
+    merged: MergedUnitsContext | null = null,
   ): string {
-    return `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    const base = `${carbonReportId}::${[...excludeModules].sort((a, b) => a - b).join(',')}`;
+    if (!merged) return base;
+    const units = [...merged.unitIds].sort((a, b) => a - b).join(',');
+    return `${base}::m=${units}@${merged.year}`;
+  }
+
+  function reportStatsPath(
+    carbonReportId: number,
+    merged: MergedUnitsContext | null,
+  ): string {
+    if (!merged) {
+      return `modules-stats/${encodeURIComponent(carbonReportId)}/report-stats`;
+    }
+    const searchParams = new URLSearchParams();
+    searchParams.append('year', String(merged.year));
+    for (const id of merged.unitIds) {
+      searchParams.append('unit_ids', String(id));
+    }
+    return `modules-stats/merged/report-stats?${searchParams.toString()}`;
   }
 
   function invalidateEmissionBreakdown() {
     emissionBreakdownCacheKey.value = null;
+  }
+
+  /**
+   * Apply an already-fetched emission breakdown (e.g. from the workspace-home
+   * aggregate) and prime the cache key so a subsequent `getEmissionBreakdown`
+   * for the same report/exclude-set short-circuits instead of refetching.
+   */
+  function setEmissionBreakdown(
+    carbonReportId: number,
+    data: EmissionBreakdownResponse,
+    excludeModules: number[] = [],
+  ) {
+    state.emissionBreakdown = data;
+    emissionBreakdownCacheKey.value = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+    );
   }
 
   async function refreshEmissionBreakdownIfNeeded(): Promise<void> {
@@ -963,7 +1088,8 @@ export const useModuleStore = defineStore('modules', () => {
 
     // Always refetch after mutations so that ResultsPage, ModuleCharts, and
     // simulation pages all reflect the latest data without requiring a report
-    // or year change to bust the cache.
+    // or year change to bust the cache. The report-stats payload already
+    // carries `total_tonnes_validated_co2eq`.
     invalidateEmissionBreakdown();
     await getEmissionBreakdown(carbonReportId, []);
   }
@@ -971,8 +1097,13 @@ export const useModuleStore = defineStore('modules', () => {
   async function getEmissionBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
-    const cacheKey = makeBreakdownCacheKey(carbonReportId, excludeModules);
+    const cacheKey = makeBreakdownCacheKey(
+      carbonReportId,
+      excludeModules,
+      merged,
+    );
     if (emissionBreakdownCacheKey.value === cacheKey) return;
     if (
       emissionBreakdownInFlight &&
@@ -993,17 +1124,15 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value === cacheKey;
 
       try {
-        const params = new URLSearchParams();
-        excludeModules.forEach((id) =>
-          params.append('exclude_modules', String(id)),
-        );
-        const qs = params.toString() ? `?${params.toString()}` : '';
-        const path = `modules-stats/${encodeURIComponent(carbonReportId)}/emission-breakdown${qs}`;
-        const data = await api.get(path).json<EmissionBreakdownResponse>();
+        const stats = await api
+          .get(reportStatsPath(carbonReportId, merged))
+          .json<ReportStats>();
         if (!isLatestRequest()) {
           return;
         }
-        state.emissionBreakdown = data;
+        // exclude_modules is a display filter: drop the excluded buckets
+        // client-side instead of re-aggregating server-side.
+        state.emissionBreakdown = toEmissionBreakdown(stats, excludeModules);
         emissionBreakdownCacheKey.value = cacheKey;
       } catch (err: unknown) {
         if (!isLatestRequest()) {
@@ -1030,6 +1159,13 @@ export const useModuleStore = defineStore('modules', () => {
         emissionBreakdownInFlightCacheKey.value = null;
       }
     }
+  }
+
+  async function getMultiYearReportStats(
+    unitId: number,
+  ): Promise<MultiYearReportStatsResponse> {
+    const path = `modules-stats/unit/${encodeURIComponent(unitId)}/multi-year-report-stats`;
+    return api.get(path).json<MultiYearReportStatsResponse>();
   }
 
   // Track which carbon report the cached validated totals belong to
@@ -1064,18 +1200,15 @@ export const useModuleStore = defineStore('modules', () => {
   async function getItBreakdown(
     carbonReportId: number,
     excludeModules: number[] = [],
+    merged: MergedUnitsContext | null = null,
   ) {
     state.loadingItBreakdown = true;
     state.errorItBreakdown = null;
     try {
-      const params = new URLSearchParams();
-      excludeModules.forEach((id) =>
-        params.append('exclude_modules', String(id)),
-      );
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      const path = `modules-stats/${encodeURIComponent(carbonReportId)}/it-breakdown${qs}`;
-      const data = await api.get(path).json<ItBreakdownResponse>();
-      state.itBreakdown = data;
+      const stats = await api
+        .get(reportStatsPath(carbonReportId, merged))
+        .json<ReportStats>();
+      state.itBreakdown = toItBreakdown(stats, excludeModules);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : String(e);
       state.errorItBreakdown = message;
@@ -1127,7 +1260,9 @@ export const useModuleStore = defineStore('modules', () => {
     getValidatedTotals,
     invalidateValidatedTotals,
     getEmissionBreakdown,
+    getMultiYearReportStats,
     invalidateEmissionBreakdown,
+    setEmissionBreakdown,
     refreshEmissionBreakdownIfNeeded,
     getItBreakdown,
     prefetchAllModuleCounts,

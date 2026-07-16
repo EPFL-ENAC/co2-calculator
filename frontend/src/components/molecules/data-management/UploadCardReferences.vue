@@ -229,8 +229,7 @@ async function uploadSelectedFile(file: File) {
       (payload?: JobUpdatePayload) => {
         const result = payload?.result;
         const rowsProcessed = payload?.meta?.rows_processed as
-          | number
-          | undefined;
+          number | undefined;
 
         let color: string;
         let message: string;
@@ -414,7 +413,7 @@ function isErrorOrWarning(): boolean {
             {{ getJobInfo().rowsProcessed }}
             {{ $t('data_management_rows_imported') }}
             <span v-if="getJobInfo().timestamp">
-              • {{ getJobInfo().timestamp.toLocaleDateString() }}
+              · {{ getJobInfo().timestamp.toLocaleDateString() }}
             </span>
           </div>
         </div>

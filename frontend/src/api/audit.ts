@@ -3,12 +3,7 @@ import { api } from 'src/api/http';
 // ── Types ───────────────────────────────────────────────────────────
 
 export type AuditAction =
-  | 'CREATE'
-  | 'READ'
-  | 'UPDATE'
-  | 'DELETE'
-  | 'ROLLBACK'
-  | 'TRANSFER';
+  'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ROLLBACK' | 'TRANSFER';
 
 export interface AuditLogEntry {
   id: number;

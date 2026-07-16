@@ -46,7 +46,6 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -66,7 +65,7 @@ from app.models.data_entry import (
     DataEntrySourceEnum,
     DataEntryTypeEnum,
 )
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.data_ingestion import (
     DataIngestionJob,
     IngestionMethod,
@@ -80,6 +79,7 @@ from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
 from app.models.user import UserProvider
 from app.models.year_configuration import YearConfiguration
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import (
     KG_CO2EQ_OVERRIDE_KEY,
@@ -911,36 +911,15 @@ def _make_api_provider(
         "module_type_id": int(ModuleTypeEnum.professional_travel),
         "year": YEAR,
     }
-    # Stub the Tableau settings only during __init__.  ``_load_data``
-    # later calls ``get_settings().BULK_PATH_PURE_ASYNC`` against the
-    # real settings — that's intentional, since the production default
-    # (True) IS the path under test.  If the default ever flips this
-    # test will silently change branches; the assertions still pin the
-    # source enum and override carrier on whichever path runs.
-    with patch(
-        "app.services.data_ingestion.api_providers.professional_travel_api_provider"
-        ".get_settings"
-    ) as mock_settings:
-        mock_settings.return_value = MagicMock(
-            TABLEAU_SERVER_URL="https://stub",
-            TABLEAU_SITE_CONTENT_URL="stub",
-            TABLEAU_DS_FLIGHTS_LUID="stub",
-            TABLEAU_CONNECTED_APP_CLIENT_ID="stub",
-            TABLEAU_CONNECTED_APP_SECRET_ID="stub",
-            TABLEAU_CONNECTED_APP_SECRET_VALUE="stub",
-            TABLEAU_REQUEST_TIMEOUT_SECONDS=10,
-            TABLEAU_VERIFY_SSL="false",
-            TABLEAU_REST_MIN_API_VERSION="3.20",
-            TABLEAU_MAX_FIELDS=200,
-            TABLEAU_USERNAME="stub",
-            BULK_PATH_PURE_ASYNC=True,
-        )
-        provider = ProfessionalTravelApiProvider(
-            config=config,
-            user=user,
-            job_session=job_session,
-            data_session=data_session,
-        )
+    # Credentials now load from the DB via ``_ensure_credentials``; this test
+    # drives ``_load_data`` directly (no fetch/sign-in), so no connection
+    # seeding or Tableau settings stub is needed.
+    provider = ProfessionalTravelApiProvider(
+        config=config,
+        user=user,
+        job_session=job_session,
+        data_session=data_session,
+    )
     # Job id is set by ``set_job_id`` in production; stash a sentinel so
     # ``bulk_create`` has something for ``created_by_id`` / ``job_id``.
     provider.job_id = 1
@@ -1084,13 +1063,12 @@ async def test_kg_co2eq_zero_int_override_survives_async_recalc_path(
             institutional_id=f"OVR-INT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-0",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",
@@ -1167,13 +1145,12 @@ async def test_kg_co2eq_zero_float_override_survives_async_recalc_path(
             institutional_id=f"OVR-FLOAT-{uuid4().hex[:6]}",
         )
         await _seed_plane_locations(s)
-        factor_id = await _seed_plane_factor(s)
+        await _seed_plane_factor(s)
 
         entry = DataEntry(
             data_entry_type_id=DataEntryTypeEnum.plane.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "user_institutional_id": "U-API-1",
                 "origin_iata": "GVA",
                 "destination_iata": "CDG",

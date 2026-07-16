@@ -18,7 +18,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.api.deps import get_db
 from app.core.constants import (
     DEFAULT_CARBON_FOOTPRINT,
-    DEFAULT_COMPLETION_PROGRESS,
     DEFAULT_PAGE,
     DEFAULT_PAGE_SIZE_EXPORT,
     DEFAULT_PAGE_SIZE_UNITS,
@@ -47,7 +46,10 @@ from app.core.security import get_current_active_user
 from app.models.carbon_report import (
     CarbonReport,
 )
-from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES
+from app.models.module_type import (
+    DEFAULT_COMPLETION_PROGRESS,
+    MODULE_TYPE_TO_DATA_ENTRY_TYPES,
+)
 from app.models.unit import Unit
 from app.models.user import User
 from app.repositories.carbon_report_module_repo import (
@@ -319,8 +321,7 @@ async def list_backoffice_units(
     return PaginatedUnitReportingData(
         data=unit_reporting_data,
         pagination=PaginationMeta(**result),
-        emission_breakdown=result.get("emission_breakdown"),
-        it_breakdown=result.get("it_breakdown"),
+        stats=result.get("stats"),
         validated_units_count=result.get("validated_units_count", 0),
         in_progress_units_count=result.get("in_progress_units_count", 0),
         not_started_units_count=result.get("not_started_units_count", 0),

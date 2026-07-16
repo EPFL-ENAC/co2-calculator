@@ -3,10 +3,10 @@
 from sqlmodel import Relationship
 
 from .audit import AuditDocument
-from .auth_exchange_code import AuthExchangeCode
 from .building_room import BuildingRoom
 from .carbon_project import CarbonProject
 from .carbon_report import CarbonReport, CarbonReportModule
+from .connector import ConnectorConnection, ConnectorDatasource, ConnectorType
 from .data_entry import DataEntry
 from .data_entry_emission import DataEntryEmission
 from .data_ingestion import DataIngestionJob
@@ -30,6 +30,8 @@ DataEntry.model_rebuild()
 DataEntryEmission.model_rebuild()
 
 # After model_rebuild()
+# Assigned dynamically to avoid circular imports; ty doesn't see these as
+# declared attributes the way the mypy pydantic plugin did.
 Unit.unit_users = Relationship(back_populates="unit")
 UnitUser.unit = Relationship(back_populates="unit_users")
 
@@ -52,7 +54,6 @@ DataEntryEmission.data_entry = Relationship()
 __all__ = [
     "BuildingRoom",
     "AuditDocument",
-    "AuthExchangeCode",
     "Unit",
     "User",
     "UnitUser",
@@ -61,6 +62,9 @@ __all__ = [
     "CarbonProject",
     "CarbonReport",
     "CarbonReportModule",
+    "ConnectorConnection",
+    "ConnectorDatasource",
+    "ConnectorType",
     "Location",
     "DataEntry",
     "DataEntryEmission",

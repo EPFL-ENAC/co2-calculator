@@ -1,5 +1,6 @@
 """Unit tests for DataEntryRepository."""
 
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,7 +9,10 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.models.carbon_project import CarbonProject
 from app.models.carbon_report import CarbonReport, CarbonReportModule, CarbonReportType
 from app.models.data_entry import DataEntry, DataEntryStatusEnum, DataEntryTypeEnum
+from app.models.data_entry_emission import DataEntryEmission
+from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.repositories.data_entry_repo import DEFAULT_FILTER_MAP, DataEntryRepository
 from app.schemas.data_entry import DataEntryUpdate
 
@@ -599,134 +603,6 @@ def test_default_filter_map():
 
 
 @pytest.mark.asyncio
-async def test_fte_stats_basic(db_session: AsyncSession):
-    """DataEntry.data["fte"]=25.5 → {"1": 25.5}."""
-    from app.core.constants import ModuleStatus
-
-    repo = DataEntryRepository(db_session)
-    module = CarbonReportModule(
-        carbon_report_id=100,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    entry = DataEntry(
-        carbon_report_module_id=module.id,
-        data_entry_type_id=DataEntryTypeEnum.member,
-        status=DataEntryStatusEnum.PENDING,
-        data={"name": "Alice", "fte": 25.5},
-    )
-    db_session.add(entry)
-    await db_session.flush()
-
-    result = await repo.get_stats_by_carbon_report_id(100)
-    assert result == {str(ModuleTypeEnum.headcount.value): pytest.approx(25.5)}
-
-
-@pytest.mark.asyncio
-async def test_fte_stats_multiple_entries_summed(db_session: AsyncSession):
-    """Multiple FTE entries summed."""
-    from app.core.constants import ModuleStatus
-
-    repo = DataEntryRepository(db_session)
-    module = CarbonReportModule(
-        carbon_report_id=101,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    for fte_val in [10.0, 15.5, 4.5]:
-        db_session.add(
-            DataEntry(
-                carbon_report_module_id=module.id,
-                data_entry_type_id=DataEntryTypeEnum.member,
-                status=DataEntryStatusEnum.PENDING,
-                data={"name": "Person", "fte": fte_val},
-            )
-        )
-    await db_session.flush()
-
-    result = await repo.get_stats_by_carbon_report_id(101)
-    assert result[str(ModuleTypeEnum.headcount.value)] == pytest.approx(30.0)
-
-
-@pytest.mark.asyncio
-async def test_fte_stats_non_validated_excluded(db_session: AsyncSession):
-    """Non-validated module → {}."""
-    from app.core.constants import ModuleStatus
-
-    repo = DataEntryRepository(db_session)
-    module = CarbonReportModule(
-        carbon_report_id=102,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.IN_PROGRESS,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    db_session.add(
-        DataEntry(
-            carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.member,
-            status=DataEntryStatusEnum.PENDING,
-            data={"name": "Bob", "fte": 50.0},
-        )
-    )
-    await db_session.flush()
-
-    result = await repo.get_stats_by_carbon_report_id(102)
-    assert result == {}
-
-
-@pytest.mark.asyncio
-async def test_fte_stats_no_fte_key(db_session: AsyncSession):
-    """Data without 'fte' key → absent from result (NULL sum → 0.0)."""
-    from app.core.constants import ModuleStatus
-
-    repo = DataEntryRepository(db_session)
-    module = CarbonReportModule(
-        carbon_report_id=103,
-        module_type_id=ModuleTypeEnum.headcount.value,
-        status=ModuleStatus.VALIDATED,
-    )
-    db_session.add(module)
-    await db_session.flush()
-
-    db_session.add(
-        DataEntry(
-            carbon_report_module_id=module.id,
-            data_entry_type_id=DataEntryTypeEnum.member,
-            status=DataEntryStatusEnum.PENDING,
-            data={"name": "Carol"},
-        )
-    )
-    await db_session.flush()
-
-    result = await repo.get_stats_by_carbon_report_id(103)
-    if result:
-        assert result.get(str(ModuleTypeEnum.headcount.value), 0.0) == pytest.approx(
-            0.0
-        )
-
-
-@pytest.mark.asyncio
-async def test_fte_stats_empty(db_session: AsyncSession):
-    """No data → empty dict."""
-    repo = DataEntryRepository(db_session)
-    result = await repo.get_stats_by_carbon_report_id(99999)
-    assert result == {}
-
-
-# ======================================================================
-# Headcount Member Lookup Tests
-# ======================================================================
-
-
-@pytest.mark.asyncio
 async def test_get_headcount_members_returns_members_with_institutional_id(
     db_session: AsyncSession,
 ):
@@ -1182,6 +1058,335 @@ async def test_get_submodule_data_does_not_persist_computed_fields(
         assert forbidden_key not in refreshed.data, (
             f"computed key {forbidden_key!r} leaked into DataEntry.data"
         )
+
+
+# ======================================================================
+# Enrichment fallback: FactorResolver replaces the stored-id dereference
+# (plan 1661) — the entry's classification is the source of truth, not a
+# legacy ``data["primary_factor_id"]`` value.
+# ======================================================================
+
+
+async def _make_equipment_entry(
+    db_session: AsyncSession,
+    *,
+    extra_data: Optional[dict] = None,
+    year: Optional[int] = 2025,
+) -> DataEntry:
+    """Build an equipment entry with no emission rows, so
+    ``get_submodule_data`` always falls through to the resolver."""
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.equipment.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    data = {"name": "Laptop", "equipment_class": "laptop", "sub_class": "13-inch"}
+    if extra_data:
+        data.update(extra_data)
+
+    entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.scientific,
+        status=DataEntryStatusEnum.PENDING,
+        data=data,
+        year=year,
+    )
+    db_session.add(entry)
+    await db_session.commit()
+    return entry
+
+
+async def _make_factor(
+    db_session: AsyncSession,
+    *,
+    classification: dict,
+    values: dict,
+    year: int = 2025,
+) -> Factor:
+    factor = Factor(
+        emission_type_id=EmissionType.equipment__scientific.value,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        classification=classification,
+        values=values,
+        year=year,
+    )
+    db_session.add(factor)
+    await db_session.commit()
+    return factor
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_resolves_factor_from_classification_in_sql(
+    db_session: AsyncSession,
+):
+    """An entry with a classification but NO emission rows gets its factor
+    from the correlated SQL subquery — sort/filter/display all see it."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="active_power_w",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 42.0
+    assert item.standby_power_w == 3.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_ignores_legacy_stored_id_pointing_at_deleted_factor(
+    db_session: AsyncSession,
+):
+    """A legacy ``data["primary_factor_id"]`` pointing at a deleted factor
+    must never be dereferenced — the classification join wins, and no 500
+    is raised chasing the stale id."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(
+        db_session, extra_data={"primary_factor_id": 999999}
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 99.0, "standby_power_w": 9.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 99.0
+    assert item.standby_power_w == 9.0
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_year_none_yields_no_factor(
+    db_session: AsyncSession,
+):
+    """An entry with ``year=None`` matches no factor (the join is
+    year-equality-scoped), so factor-backed columns stay empty instead of
+    resolving against the wrong year."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session, year=None)
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w is None
+    assert item.standby_power_w is None
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_subkind_preference_ordering(
+    db_session: AsyncSession,
+):
+    """The SQL join mirrors FactorResolver's chain: an exact
+    ``(kind, subkind)`` row beats the subkind-less fallback row even when
+    the fallback has a lower id; an unknown subkind falls back to the
+    subkind-less row."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)  # sub_class "13-inch"
+    # Lower id: the kind-only fallback row. Higher id: the exact match.
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop"},
+        values={"active_power_w": 1.0, "standby_power_w": 1.0},
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+    unknown_sub = await _make_equipment_entry(
+        db_session, extra_data={"name": "Unknown", "sub_class": "17-inch"}
+    )
+
+    for module_id, expected_power, expected_name in (
+        (entry.carbon_report_module_id, 42.0, "Laptop"),
+        (unknown_sub.carbon_report_module_id, 1.0, "Unknown"),
+    ):
+        response = await repo.get_submodule_data(
+            carbon_report_module_id=module_id,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            limit=10,
+            offset=0,
+            sort_by="id",
+            sort_order="asc",
+        )
+        assert len(response.items) == 1
+        item = response.items[0]
+        assert item.name == expected_name
+        assert item.active_power_w == expected_power
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_duplicate_factor_rows_resolve_deterministically(
+    db_session: AsyncSession,
+):
+    """Duplicate factor generations (impossible in prod post-sweep, but
+    seedable) must not 500 the page: the join picks the lowest id
+    deterministically; other rows are unaffected."""
+    repo = DataEntryRepository(db_session)
+    entry = await _make_equipment_entry(db_session)
+    first = await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 42.0, "standby_power_w": 3.0},
+    )
+    await _make_factor(
+        db_session,
+        classification={"equipment_class": "laptop", "sub_class": "13-inch"},
+        values={"active_power_w": 777.0, "standby_power_w": 77.0},
+    )
+    assert first.id is not None
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=entry.carbon_report_module_id,
+        data_entry_type_id=DataEntryTypeEnum.scientific.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1
+    item = response.items[0]
+    assert item.active_power_w == 42.0, "lowest factor id must win deterministically"
+
+
+# ======================================================================
+# Regression #1564 Part 2: travel<->headcount join must not fan out for a
+# member holding multiple roles (sius_code) in the same unit.
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_get_submodule_data_travel_not_duplicated_for_multi_role_member(
+    db_session: AsyncSession,
+):
+    """A person can now legitimately have two headcount rows in the same
+    unit (different sius_code, issue #1564 Part 1). The MemberEntry join
+    used to fetch the traveler's display name must pick exactly one of
+    those rows deterministically — not fan out and duplicate the travel
+    entry once per matching role."""
+    repo = DataEntryRepository(db_session)
+
+    report = CarbonReport(year=2025, unit_id=1, overall_status=0)
+    db_session.add(report)
+    await db_session.flush()
+
+    module = CarbonReportModule(
+        carbon_report_id=report.id,
+        module_type_id=ModuleTypeEnum.professional_travel.value,
+        status="in_progress",
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    # Two headcount roles for the same person, same unit/module.
+    db_session.add_all(
+        [
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={
+                    "name": "X X",
+                    "user_institutional_id": "123456",
+                    "sius_code": "53",
+                },
+            ),
+            DataEntry(
+                carbon_report_module_id=module.id,
+                data_entry_type_id=DataEntryTypeEnum.member,
+                data={
+                    "name": "X X",
+                    "user_institutional_id": "123456",
+                    "sius_code": "54",
+                },
+            ),
+        ]
+    )
+    await db_session.flush()
+
+    travel_entry = DataEntry(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane,
+        status=DataEntryStatusEnum.PENDING,
+        data={
+            "origin_iata": "GVA",
+            "destination_iata": "ZRH",
+            "cabin_class": "economy",
+            "user_institutional_id": "123456",
+            "number_of_trips": 1,
+        },
+    )
+    db_session.add(travel_entry)
+    await db_session.flush()
+    assert travel_entry.id is not None
+    db_session.add(
+        DataEntryEmission(
+            data_entry_id=travel_entry.id,
+            emission_type_id=EmissionType.professional_travel__plane.value,
+            kg_co2eq=100.0,
+        )
+    )
+    await db_session.flush()
+
+    response = await repo.get_submodule_data(
+        carbon_report_module_id=module.id,
+        data_entry_type_id=DataEntryTypeEnum.plane.value,
+        limit=10,
+        offset=0,
+        sort_by="id",
+        sort_order="asc",
+    )
+
+    assert len(response.items) == 1, (
+        "a multi-role member's travel entry must appear exactly once, not "
+        "once per matching headcount role"
+    )
+    assert response.summary.total_items == 1
+    total_kg_co2eq = sum(item.kg_co2eq or 0 for item in response.items)
+    assert total_kg_co2eq == pytest.approx(100.0), (
+        "kg_co2eq must not be double-counted by the join fan-out"
+    )
 
 
 # ======================================================================

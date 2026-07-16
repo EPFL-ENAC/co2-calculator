@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { nOrDash } from 'src/utils/number';
+import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
 import BigNumber from 'src/components/molecules/BigNumber.vue';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import CarbonFootPrintPerPersonChart from 'src/components/charts/results/CarbonFootPrintPerPersonChart.vue';
@@ -16,6 +17,9 @@ const {
   resultsSummary,
   resultsSummaryLoading,
   currentYear,
+  combinedUnitIds,
+  scopeLabel,
+  excludedModules,
   viewAdditionalData,
   co2PerKmKg,
   hasCo2PerKmKg,
@@ -123,6 +127,12 @@ onMounted(async () => {
 
   await loadModulesConfig();
   await fetchAllData(carbonReportId);
+
+  // Chrome seeds the "Save as PDF" filename from the document title.
+  document.title = toPrintDocumentTitle(
+    scopeLabel.value,
+    t('results_print_title'),
+  );
 });
 </script>
 
@@ -146,6 +156,7 @@ onMounted(async () => {
     >
       <ReportPage
         :title="$t('results_print_title')"
+        :scope="scopeLabel"
         :page-number="1"
         :is-first="true"
       >
@@ -153,7 +164,7 @@ onMounted(async () => {
           {{ $t('results_print_title') }}
         </h2>
         <div class="text-body2 text-secondary report-subtitle">
-          {{ $t('results_subtitle', { year: currentYear }) }}
+          {{ scopeLabel }}
         </div>
 
         <div class="grid-3-col q-mt-lg">
@@ -256,11 +267,15 @@ onMounted(async () => {
         :has-co2-per-km-kg="hasCo2PerKmKg"
         :co2-per-km-kg="co2PerKmKg"
         :current-year="currentYear"
+        :combine-unit-ids="combinedUnitIds"
+        :exclude-modules="excludedModules"
+        :scope="scopeLabel"
       />
 
       <ReportPage
         v-if="showItFocusSection"
         :title="$t('it-focus-title')"
+        :scope="scopeLabel"
         :page-number="itPageNumber"
       >
         <h2 class="text-h5 q-mt-none">
@@ -286,6 +301,7 @@ onMounted(async () => {
           additionalChartsValidated
         "
         :title="$t('results_additional_title')"
+        :scope="scopeLabel"
         :page-number="additionalPageNumber"
       >
         <h2 class="text-h5 q-mt-none">
@@ -421,6 +437,47 @@ onMounted(async () => {
   :deep(a) {
     color: var(--title-color) !important;
     text-decoration: underline !important;
+  }
+}
+</style>
+
+<!-- Not scoped: print rules hide layout chrome (.q-header/.q-footer/.q-drawer)
+     that lives outside this page's template, and reach into rendered .q-card. -->
+<style lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.report-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: tokens.$print-report-container-padding;
+  color: tokens.$color-text;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--half-muted-color);
+  z-index: tokens.$print-toolbar-z-index;
+}
+
+@media print {
+  .print-hide,
+  .q-header,
+  .q-footer,
+  .q-drawer {
+    display: none;
+  }
+
+  .report-container {
+    display: block;
+    width: 100%;
+    padding: 0;
+  }
+
+  .print-report .q-card,
+  .print-report .q-card-section {
+    box-shadow: none;
   }
 }
 </style>

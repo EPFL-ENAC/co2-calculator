@@ -452,9 +452,24 @@ class TestGetResultsReport:
                 "scope2": 200,
                 "scope3": 300,
                 "total": 600,
-                # Includes a category root rollup (10000), a sub-type leaf
-                # (50100, professional_travel__train) and its root (50000).
-                "by_emission_type": {"10000": 50, "50000": 150, "50100": 150},
+                "buckets": {
+                    "food": {"scope": 3, "additional": True, "total_kg": 50},
+                    "professional_travel": {
+                        "scope": 3,
+                        "additional": False,
+                        "total_kg": 150,
+                    },
+                    "buildings_room": {
+                        "scope": 2,
+                        "additional": False,
+                        "total_kg": 30,
+                    },
+                    "embodied_energy": {
+                        "scope": 3,
+                        "additional": True,
+                        "total_kg": 7,
+                    },
+                },
             },
         )
         repo = CarbonReportModuleRepository(db_session)
@@ -463,7 +478,7 @@ class TestGetResultsReport:
         row = results[0]
         assert row["scope1"] == 100
         assert row["total"] == 600
-        # Only the top-level category scope totals are exposed, in module order.
+        # Only the per-column bucket sums are exposed, in module order.
         assert list(row.keys()) == [
             "year",
             "unit_institutional_id",
@@ -486,10 +501,11 @@ class TestGetResultsReport:
         ]
         assert row["food"] == 50
         assert row["professional_travel"] == 150
-        # Categories without data default to 0; sub-type leaves are dropped.
-        assert row["buildings"] == 0
-        assert row["buildings__construction_and_renovation"] == 0
-        assert "professional_travel__train" not in row
+        # buildings keeps its historical meaning: rooms + combustion + embodied.
+        assert row["buildings"] == 37
+        assert row["buildings__construction_and_renovation"] == 7
+        # Categories without data default to 0.
+        assert row["equipment"] == 0
 
     async def test_empty_stats(self, db_session, make_unit, make_carbon_report):
         unit = await make_unit(db_session, name="LAB-E")

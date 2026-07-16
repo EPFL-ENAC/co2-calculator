@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional, TypedDict
 
+from pydantic import ValidationError
 from sqlmodel import col, select
 
 from app.api.v1.files import make_files_store
@@ -45,7 +46,6 @@ from app.services.data_entry_emission_service import (
 )
 from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
-from app.services.module_handler_service import ModuleHandlerService
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
 
@@ -56,6 +56,16 @@ logger = get_logger(__name__)
 # line only fire this often, so a long CPU phase shows motion without
 # hammering the session.
 PROGRESS_REPORT_INTERVAL_S = 2.0
+
+# Issue #1398 — appended to a job's terminal ``status_message`` whenever it
+# finishes without every CSV row landing (WARNING, or an ERROR/mid-stream
+# crash before ``_finalize_and_commit`` runs). Recalculation only
+# recomputes emissions for rows already committed to the DB — it cannot add
+# rows that were never ingested, so the message has to say so explicitly.
+REUPLOAD_HINT = (
+    "Re-upload the file to import the missing rows — recalculation alone "
+    "will not add them."
+)
 
 
 def _is_blank_data_row(row: Dict[str, str], required_columns: set[str]) -> bool:
@@ -101,6 +111,26 @@ class StatsDict(TypedDict):
     row_errors_count: int
 
 
+def _format_pydantic_validation_error(validation_error: ValidationError) -> str:
+    """Turn a ``handler.validate_create()`` ``ValidationError`` into a short,
+    readable message.
+
+    Pydantic's own ``str(validation_error)`` is a multi-line technical dump
+    (one paragraph per failing field, plus ``type=...``/``input_type=...``
+    noise) — unreadable to an operator uploading a CSV. Walk
+    ``.errors()`` instead and build one line per field, e.g.
+    ``co2_factor: Input should be a valid number, unable to parse string as
+    a number (got 'abc')``, joined with ``; `` for rows with more than one
+    bad field. Still pydantic's own wording (no new i18n/custom-copy layer
+    — deliberately out of scope), just on one line and free of the
+    ``type=...`` noise.
+    """
+    return "; ".join(
+        f"{err['loc'][-1]}: {err['msg']} (got {err['input']!r})"
+        for err in validation_error.errors()
+    )
+
+
 def _get_expected_columns_from_handlers(handlers: list[Any]) -> set[str]:
     expected_columns: set[str] = set()
     for handler in handlers:
@@ -127,9 +157,9 @@ def _guard_factors_required(
     """Fail-fast when an ingest needs factors but the map is empty.
 
     For modules whose handler declares ``require_factor_to_match=True``
-    (e.g. equipment), every row's emission record needs a matched
-    ``Factor`` to populate ``primary_factor_id``.  When the factors
-    table has nothing for this (module, year) tuple the row-level loop
+    (e.g. equipment), every row needs a matched ``Factor`` to compute
+    its emission.  When the factors table has nothing for this
+    (module, year) tuple the row-level loop
     would record one "no matching factor" error per row — a 50 000-row
     CSV produces 50 000 identical messages and the operator has to
     scroll past them to find out the real issue is that they forgot to
@@ -150,7 +180,7 @@ def _guard_factors_required(
     raise ValueError(
         f"No factors available for module={module_label} {year_str}. "
         "Upload factors for this module/year before ingesting data — "
-        "every row needs a matched Factor for primary_factor_id."
+        "every row needs a matched Factor to compute its emission."
     )
 
 
@@ -364,8 +394,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         Year is required: factor lookups during row processing key on
         ``{type}:{year}:{kind}:{subkind}``, so a missing year would
-        silently miss every factor and import rows with
-        primary_factor_id=None.
+        silently miss every factor and import rows with no matched
+        factor.
         """
         if not self.year:
             raise ValueError(
@@ -421,17 +451,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         expected_columns = _get_expected_columns_from_handlers(handlers)
 
-        factor_id_to_factor: Dict[int, Any] = {}
-        for factor in factors_map.values():
-            factor_id = getattr(factor, "id", None)
-            if factor_id is not None:
-                factor_id_to_factor[factor_id] = factor
-
         logger.info(
             f"Setup complete for {self.entity_type.name}: "
             f"handlers={len(handlers)}, "
             f"factors={len(factors_map)}, "
-            f"factor_id_to_factor={len(factor_id_to_factor)}, "
             f"expected_columns={len(expected_columns)}, "
             f"required_columns={len(required_columns)}"
         )
@@ -439,7 +462,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         return {
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
         }
@@ -716,8 +738,12 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 "data": result,
             }
         except Exception as e:
+            # Job died before _finalize_and_commit ran (mid-stream crash,
+            # timeout, setup/header validation failure...) — whatever rows
+            # made it in are all that exist; re-upload is the only way to
+            # get the rest (issue #1398).
             await self._update_job(
-                status_message=f"failed: {str(e)}",
+                status_message=f"failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -806,11 +832,11 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         """
         seg = self._seg
         row_t = seg.get("row", 0.0)
-        inner = ("resolve", "validate", "enrich", "populate")
+        inner = ("resolve", "validate", "enrich")
         per_row_ms = (parse_elapsed / rows * 1000) if rows else 0.0
         logger.info(
             "Row-loop profile: %d rows in %.1fs (%.2f ms/row) | row=%.1fs "
-            "[resolve=%.1f validate=%.1f enrich=%.1f populate=%.1f row_other=%.1f] "
+            "[resolve=%.1f validate=%.1f enrich=%.1f row_other=%.1f] "
             "loop_overhead=%.1fs",
             rows,
             parse_elapsed,
@@ -819,7 +845,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             seg.get("resolve", 0.0),
             seg.get("validate", 0.0),
             seg.get("enrich", 0.0),
-            seg.get("populate", 0.0),
             row_t - sum(seg.get(k, 0.0) for k in inner),
             parse_elapsed - row_t,
         )
@@ -929,8 +954,10 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Parallel list of kg_co2eq overrides aligned with `batch` by index.
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
             batch_kg_co2eq_overrides: List[float | None] = []
-            # Track seen user_institutional_ids per module to catch intra-CSV duplicates
-            seen_institutional_ids: Dict[int, set] = {}
+            # Track seen (user_institutional_id, sius_code) pairs per module to
+            # catch intra-CSV duplicates. A person can legitimately hold two
+            # roles (different sius_code) in the same unit.
+            seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -989,7 +1016,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 if data_entry is None:
                     raise ValueError("Data entry is None without error message")
 
-                # Check institutional ID uniqueness for member entries
+                # Check (user_institutional_id, sius_code) role uniqueness for
+                # member entries.
                 # TODO: refactor, should not be done in base_csv_provider but elsewhere
                 # process or task or sql
                 if (
@@ -998,17 +1026,20 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     and data_entry.data.get("user_institutional_id")
                 ):
                     uid = str(data_entry.data["user_institutional_id"])
+                    sius_code = str(data_entry.data["sius_code"])
                     module_id = data_entry.carbon_report_module_id
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
-                    if uid in module_seen:
+                    role_key = (uid, sius_code)
+                    if role_key in module_seen:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    is_unique = await data_entry_service.check_institutional_id_unique(
+                    is_unique = await data_entry_service.check_member_role_unique(
                         carbon_report_module_id=module_id,
                         uid=uid,
+                        sius_code=sius_code,
                     )
                     if not is_unique:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
@@ -1016,7 +1047,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                             stats, row_idx, error_msg, max_row_errors
                         )
                         continue
-                    module_seen.add(uid)
+                    module_seen.add(role_key)
 
                 # Row processed successfully
                 batch.append(data_entry)
@@ -1071,10 +1102,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             )
 
         except Exception as e:
+            # Mid-stream crash/timeout before _finalize_and_commit — same
+            # re-upload wording as the ingest()-level handler below, in
+            # case a caller drives process_csv_in_batches() directly
+            # (issue #1398).
             logger.error(f"CSV processing failed: {str(e)}", exc_info=True)
             await self.data_session.rollback()
             await self._update_job(
-                status_message=f"Processing failed: {str(e)}",
+                status_message=f"Processing failed: {str(e)} {REUPLOAD_HINT}",
                 state=IngestionState.FINISHED,
                 result=IngestionResult.ERROR,
                 extra_metadata={"error": str(e)},
@@ -1107,13 +1142,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)  # Extra safety check
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise Exception(f"Failed to move file from {tmp_path} to {processing_path}")
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download and decode CSV content
         logger.info(f"Downloading CSV from {processing_path}")
@@ -1125,7 +1155,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         entity_setup = await self._setup_handlers_and_factors()
         handlers = entity_setup["handlers"]
         factors_map = entity_setup["factors_map"]
-        factor_id_to_factor = entity_setup["factor_id_to_factor"]
         expected_columns = entity_setup["expected_columns"]
         required_columns = entity_setup["required_columns"]
 
@@ -1152,7 +1181,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             "entity_type": self.entity_type,
             "handlers": handlers,
             "factors_map": factors_map,
-            "factor_id_to_factor": factor_id_to_factor,
             "expected_columns": expected_columns,
             "required_columns": required_columns,
             "processing_path": processing_path,
@@ -1183,7 +1211,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                                for MODULE_PER_YEAR imports
         """
         try:
-            handlers = setup_result["handlers"]
             expected_columns = setup_result["expected_columns"]
             required_columns = setup_result.get("required_columns", set())
 
@@ -1201,7 +1228,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if raw_kg is not None and raw_kg.strip() != "":
                 try:
                     kg_co2eq_override = float(raw_kg)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     # Surface unparseable overrides at WARNING so operators see
                     # the silent fallback to formula-based emissions in the log.
                     logger.warning(
@@ -1215,11 +1242,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 for k, v in row.items()
                 if k in expected_columns and v is not None and v.strip() != ""
             }
-
-            # Extract kind/subkind values (entity-specific extraction)
-            kind_value, subkind_value = self._extract_kind_subkind_values(
-                filtered_row, handlers
-            )
 
             # Resolve handler and data_entry_type first (needed for factor lookup)
             with self._timed("resolve"):
@@ -1238,46 +1260,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 error_msg = "Failed to resolve handler and data_entry_type"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
-
-            # Resolve primary_factor_id from in-memory factors_map (NOT DB query!)
-            # This avoids 100k+ DB queries - factors already loaded in setup phase
-            primary_factor_id: int | None = None
-            if "factors_map" in setup_result and handler.kind_field:
-                kind_value, subkind_value = self._extract_kind_subkind_values(
-                    filtered_row, handlers
-                )
-                # Defense in depth: the setup-time guard in
-                # _load_handlers_and_factors raises before any row
-                # reaches this method,
-                # so reaching this branch with a falsy year would mean a
-                # future caller bypassed setup. Use the same `not self.year`
-                # check the setup-time guard uses so both layers reject the
-                # same set of values (None and 0); a stricter `is None` check
-                # would let `year=0` rebuild the `:0:` silent-miss key.
-                if not self.year:
-                    raise ValueError(
-                        "year must be set (and non-zero) before processing "
-                        "rows; setup-time guard was bypassed"
-                    )
-                year_value = self.year
-                # Build lookup key same way as load_factors_map does
-                key_full = (
-                    f"{data_entry_type.value}:"
-                    f"{year_value}:"
-                    f"{(kind_value or '').lower()}:"
-                    f"{(subkind_value or '').lower()}"
-                )
-                factor = setup_result["factors_map"].get(key_full)
-                # Fallback: try without subkind
-                if not factor and subkind_value:
-                    key_kind = (
-                        f"{data_entry_type.value}:"
-                        f"{year_value}:"
-                        f"{(kind_value or '').lower()}"
-                    )
-                    factor = setup_result["factors_map"].get(key_kind)
-                if factor:
-                    primary_factor_id = factor.id
 
             # Resolve carbon_report_module_id
             carbon_report_module_id = None
@@ -1325,17 +1307,19 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
                 return None, error_msg, None, None
 
-            # Validate payload with handler (primary_factor_id already
-            # set by ModuleHandlerService)
+            # Validate payload with handler
             payload: Dict[str, str | int | None] = dict(filtered_row)
             payload["data_entry_type_id"] = data_entry_type.value
             payload["carbon_report_module_id"] = carbon_report_module_id
             payload["status"] = DataEntryStatusEnum.VALIDATED.value
-            payload["primary_factor_id"] = primary_factor_id
 
             try:
                 with self._timed("validate"):
                     validated = handler.validate_create(payload)
+            except ValidationError as validation_error:
+                error_msg = _format_pydantic_validation_error(validation_error)
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg, None, None
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -1355,15 +1339,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if enrich_error is not None:
                 self._record_row_error(stats, row_idx, enrich_error, max_row_errors)
                 return None, enrich_error, None, None
-
-            with self._timed("populate"):
-                handler_service = ModuleHandlerService(self.data_session)
-                if primary_factor_id and "factor_id_to_factor" in setup_result:
-                    factor = setup_result["factor_id_to_factor"].get(primary_factor_id)
-                    if factor is not None:
-                        data = await handler_service.populate_defaults(
-                            handler, data, factor
-                        )
 
             # Persist the override on the data
             # entry under the reserved ``KG_CO2EQ_OVERRIDE_KEY`` carrier so
@@ -1446,18 +1421,9 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Move file from processing/ to processed/
         processing_path = setup_result["processing_path"]
-        filename = setup_result["filename"]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        metadata_update = {}
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
-            metadata_update["processed_file_path"] = processing_path
-        else:
-            metadata_update = {"processed_file_path": processed_path}
+        metadata_update = {
+            "processed_file_path": await self._move_to_processed(processing_path)
+        }
 
         # Flush all changes
         await self.data_session.flush()
@@ -1469,15 +1435,21 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         # Recompute stats for affected carbon report modules
         await self._recompute_module_stats()
 
-        # Update job status to COMPLETED with summary
+        # Compute result dynamically based on success rate
+        result = self._compute_ingestion_result(stats)
+
+        # Update job status to COMPLETED with summary. Only SUCCESS (every
+        # row processed) stays silent on re-upload — WARNING/ERROR here
+        # both mean at least one row was skipped, and recalculating alone
+        # can't bring those rows back (issue #1398).
         status_message = (
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_with_factors']} with factors, "
             f"{stats['rows_without_factors']} without factors, "
             f"{stats['rows_skipped']} skipped"
         )
-        # Compute result dynamically based on success rate
-        result = self._compute_ingestion_result(stats)
+        if result != IngestionResult.SUCCESS:
+            status_message = f"{status_message}. {REUPLOAD_HINT}"
 
         # Prepare metadata: exclude row_errors from root level to avoid duplication
         # (row_errors remain in stats for detailed error reporting)
@@ -1532,7 +1504,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 select(CarbonReportModule, CarbonReport)
                 .join(
                     CarbonReport,
-                    CarbonReport.id == CarbonReportModule.carbon_report_id,  # type: ignore[arg-type]
+                    col(CarbonReport.id) == CarbonReportModule.carbon_report_id,
                 )
                 .where(col(CarbonReportModule.id).in_(list(module_ids)))
             )

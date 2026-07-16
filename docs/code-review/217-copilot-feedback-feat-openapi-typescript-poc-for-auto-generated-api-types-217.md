@@ -46,6 +46,7 @@ Copilot reviewed 8 out of 11 changed files in this pull request and generated 2 
 <summary>Files not reviewed (1)</summary>
 
 - **frontend/package-lock.json**: Language not supported
+
 </details>
 
 ---

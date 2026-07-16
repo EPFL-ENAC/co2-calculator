@@ -284,18 +284,25 @@ class ReductionObjectiveGoal(BaseModel):
     )
 
 
+ReductionObjectiveFiles = Dict[
+    Literal["institutional_footprint", "population_projections", "unit_scenarios"],
+    Optional[FileMetadata],
+]
+
+
+def _default_reduction_objective_files() -> ReductionObjectiveFiles:
+    return {
+        "institutional_footprint": None,
+        "population_projections": None,
+        "unit_scenarios": None,
+    }
+
+
 class ReductionObjectives(BaseModel):
     """Reduction objectives configuration."""
 
-    files: Dict[
-        Literal["institutional_footprint", "population_projections", "unit_scenarios"],
-        Optional[FileMetadata],
-    ] = Field(
-        default_factory=lambda: {  # type: ignore
-            "institutional_footprint": None,
-            "population_projections": None,
-            "unit_scenarios": None,
-        },
+    files: ReductionObjectiveFiles = Field(
+        default_factory=_default_reduction_objective_files,
         description="File metadata for reduction objective references",
     )
 
@@ -354,6 +361,12 @@ class SubmoduleConfig(BaseModel):
     inputs_deactivated: bool = Field(
         default=False,
         description="When True, the data-entry input form is hidden for end-users",
+    )
+    csv_deactivated: bool = Field(
+        default=False,
+        description=(
+            "When True, CSV upload & template download are hidden for end-users"
+        ),
     )
     latest_data_job: Optional[SyncJobSummary] = Field(
         default=None,
@@ -484,6 +497,15 @@ class RecalculationStatusEntry(BaseModel):
     needs_recalculation: bool
     last_factor_job_id: Optional[int] = None
     last_factor_job_result: Optional[IngestionResult] = None
+    # Issue #1591 — count of per-factor failures recorded on the last
+    # factor job (``stats.errors``), so the UI can show "N factors could
+    # not be recomputed" without a second round trip.  ``None`` when the
+    # last factor job had no errors (or none is known).  Deliberately a
+    # COUNT only — never the per-row ``stats.error_details`` (factor_id +
+    # raw exception), which can name a Unit/CarbonReport belonging to a
+    # different unit than the one viewing this status (research
+    # facilities "common" factors are shared across units).
+    last_factor_job_error_count: Optional[int] = None
     last_recalculation_job_id: Optional[int] = None
     last_recalculation_job_result: Optional[IngestionResult] = None
 
@@ -527,6 +549,12 @@ class YearConfigurationResponse(BaseModel):
             "UUID of the unit_sync pipeline kicked off by the create endpoint "
             "(populated only on POST; None elsewhere)."
         ),
+    )
+    # Issue #1204 follow-up — echoes ``settings.MIN_CONFIGURABLE_YEAR`` so the
+    # backoffice year dropdown (frontend/src/stores/yearConfig.ts) can derive
+    # its lower bound from the backend instead of hardcoding its own copy.
+    min_configurable_year: int = Field(
+        description="Earliest year backoffice can create a configuration for."
     )
 
     class Config:

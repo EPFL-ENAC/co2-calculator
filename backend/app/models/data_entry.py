@@ -42,7 +42,7 @@ class DataEntryTypeEnum(int, Enum):
     services = 64
     vehicles = 65
     other_purchases = 66
-    additional_purchases = 67
+    purchases_centralized = 67
 
     # Research facilities: Was internal services
     # Implementation of the module "Research facilities" and its sub-modules:

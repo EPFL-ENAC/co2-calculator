@@ -1,7 +1,7 @@
 # ==============================================================================
 # Build Stage: Compile and build the application
 # ==============================================================================
-FROM node:24.15.0-alpine AS base
+FROM node:26.5.0-alpine AS base
 
 # Git SHA passed by CI via --build-arg. .git is not in the build context, so
 # quasar.config.js can't run `git rev-parse` itself; it reads this env var
@@ -13,11 +13,6 @@ WORKDIR /app
 
 # Copy package files for dependency installation
 COPY package.json ./
-
-# Enable Corepack
-RUN corepack enable \
- && corepack prepare --activate \
- && npm --version
 
 # ---- Dependencies ----
 FROM base AS deps
@@ -45,7 +40,7 @@ RUN npm run build
 # ==============================================================================
 # Production Stage: Serve with unprivileged Nginx
 # ==============================================================================
-FROM nginxinc/nginx-unprivileged:stable
+FROM nginxinc/nginx-unprivileged:stable-alpine-slim
 
 # Remove default nginx config
 RUN rm /etc/nginx/conf.d/default.conf

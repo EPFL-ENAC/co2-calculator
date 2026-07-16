@@ -364,6 +364,9 @@ export const CHART_CATEGORY_COLOR_SCHEMES = computed(() => ({
 }));
 
 /** Category ordering shared across Results charts (Reduction objectives, tooltips, sliders). */
+/** Module-icon name used for the "additional data" category (no real module). */
+export const ADDITIONAL_DATA_ICON = 'addition-datas';
+
 export const RESULTS_CATEGORY_ORDER = [
   'process_emissions',
   'buildings_energy_combustion',
@@ -419,7 +422,7 @@ export const CHART_CATEGORY_COLOR_SCALES = computed(() => ({
 export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
   (): Record<string, Record<string, string>> => ({
     buildings_room: {
-      heating_elec: colors.value.lilac.dark,
+      heating_electric: colors.value.lilac.dark,
       cooling: colors.value.lilac.default,
       ventilation: colors.value.lilac.light,
       lighting: colors.value.lilac.lighter,
@@ -435,6 +438,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
       combustion: colors.value.apricot.darker,
       heating_thermal: colors.value.apricot.dark,
       natural_gas: colors.value.apricot.default,
+      propane: colors.value.apricot.dark,
       heating_oil: colors.value.apricot.light,
       biomethane: colors.value.apricot.default,
       pellets: colors.value.apricot.light,
@@ -481,7 +485,7 @@ export const CHART_SUBCATEGORY_COLOR_SCHEMES = computed(
         'services',
         'vehicles',
         'other_purchases',
-        'additional',
+        'centralized',
       ];
       const { darker, lighter } = colors.value.lightGreen;
       const shade = (i: number) =>
@@ -552,18 +556,16 @@ export function getChartSubcategoryColor(
 }
 
 // Maps Module enum value → category names present in module_breakdown
-export const MODULE_TO_CATEGORIES = computed(
-  (): Record<string, string[]> => ({
-    [MODULES.Headcount]: ['headcount'],
-    [MODULES.ProcessEmissions]: ['process_emissions'],
-    [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
-    [MODULES.Equipment]: ['equipment'],
-    [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
-    [MODULES.Purchase]: ['purchases'],
-    [MODULES.ProfessionalTravel]: ['professional_travel'],
-    [MODULES.ResearchFacilities]: ['research_facilities'],
-  }),
-);
+export const MODULE_TO_CATEGORIES = computed((): Record<string, string[]> => ({
+  [MODULES.Headcount]: ['headcount'],
+  [MODULES.ProcessEmissions]: ['process_emissions'],
+  [MODULES.Buildings]: ['buildings_room', 'buildings_energy_combustion'],
+  [MODULES.Equipment]: ['equipment'],
+  [MODULES.ExternalCloudAndAI]: ['external_cloud_and_ai'],
+  [MODULES.Purchase]: ['purchases'],
+  [MODULES.ProfessionalTravel]: ['professional_travel'],
+  [MODULES.ResearchFacilities]: ['research_facilities'],
+}));
 
 export function getModuleForCategoryKey(categoryKey: string): Module | null {
   for (const [mod, categories] of Object.entries(MODULE_TO_CATEGORIES.value)) {

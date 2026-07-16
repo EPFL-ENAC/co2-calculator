@@ -29,7 +29,6 @@ clean: ## Clean up generated files
 	rm -rf .ruff_cache
 	rm -rf htmlcov
 	rm -rf .coverage
-	find . -type d -name '.mypy_cache' -exec rm -rf {} +
 	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name "*.pyc" -delete 2>/dev/null || true
 
@@ -95,9 +94,9 @@ audit: ## Run security audits with uv-audit and bandit
 	uvx bandit -r ./app/ -x tests,.venv
 
 .PHONY: type-check
-type-check: ## Run type checking with mypy
+type-check: ## Run type checking with ty
 	@set -e; \
-	uv run mypy app/
+	uv run ty check
 
 .PHONY: test
 test: ## Run tests
@@ -200,3 +199,7 @@ formula-version: ## Update formula version (SHA1) in .env and .env.example
 .PHONY: erd
 erd: ## Generate Mermaid ERD diagram from SQLAlchemy models
 	uv run -m  app.generate_mermaid_erd > ../docs/src/database/erd.md ## Generate Mermaid ERD diagram from SQLAlchemy models
+
+.PHONY: gen-emission-taxonomy
+gen-emission-taxonomy: ## Generate frontend emission-taxonomy constant from EmissionType
+	uv run -m app.generate_emission_taxonomy_ts > ../frontend/src/types/emission-taxonomy.gen.ts

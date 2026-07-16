@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
+from app.core.config import RoleProviderType, UnitProviderType
 
 client = TestClient(main.app)
 
@@ -41,7 +42,8 @@ async def test_ready_db_ok(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.JWT)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
     resp = await main.ready()
     assert resp.status_code == 200
     assert resp.body
@@ -55,7 +57,8 @@ async def test_ready_db_error(monkeypatch):
         raise Exception("db fail")
 
     monkeypatch.setattr("app.db.get_db_session", raise_exc)
-    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.JWT)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
     resp = await main.ready()
     assert resp.status_code == 503
     assert b"unhealthy" in resp.body
@@ -63,16 +66,17 @@ async def test_ready_db_error(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ready_role_provider_skipped(monkeypatch):
-    # PROVIDER_PLUGIN != "accred"
+    # neither ROLE_PROVIDER_TYPE nor UNIT_PROVIDER_TYPE is "accred"
     monkeypatch.setattr("app.db.get_db_session", AsyncMock())
-    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "other")
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.JWT)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
     resp = await main.ready()
     assert b"skipped" in resp.body
 
 
 @pytest.mark.asyncio
 async def test_ready_role_provider_ok(monkeypatch):
-    # PROVIDER_PLUGIN == "accred" and health returns 200
+    # ROLE_PROVIDER_TYPE == "accred" and health returns 200
     class DummySession:
         async def __aenter__(self):
             return self
@@ -84,8 +88,11 @@ async def test_ready_role_provider_ok(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "accred")
-    monkeypatch.setattr(main.settings, "ACCRED_API_HEALTH_URL", "http://fake")
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.ACCRED)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
+    monkeypatch.setattr(
+        main.settings, "ACCRED_AUTHORIZATION_HEALTHCHECK_URL", "http://fake"
+    )
     monkeypatch.setattr(main.settings, "ACCRED_API_USERNAME", "u")
     monkeypatch.setattr(main.settings, "ACCRED_API_KEY", "k")
 
@@ -101,7 +108,7 @@ async def test_ready_role_provider_ok(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_ready_role_provider_error(monkeypatch):
-    # PROVIDER_PLUGIN == "accred" and health raises error
+    # ROLE_PROVIDER_TYPE == "accred" and health raises error
     class DummySession:
         async def __aenter__(self):
             return self
@@ -113,8 +120,11 @@ async def test_ready_role_provider_error(monkeypatch):
             return None
 
     monkeypatch.setattr("app.db.get_db_session", AsyncMock(return_value=DummySession()))
-    monkeypatch.setattr(main.settings, "PROVIDER_PLUGIN", "accred")
-    monkeypatch.setattr(main.settings, "ACCRED_API_HEALTH_URL", "http://fake")
+    monkeypatch.setattr(main.settings, "ROLE_PROVIDER_TYPE", RoleProviderType.ACCRED)
+    monkeypatch.setattr(main.settings, "UNIT_PROVIDER_TYPE", UnitProviderType.DATABASE)
+    monkeypatch.setattr(
+        main.settings, "ACCRED_AUTHORIZATION_HEALTHCHECK_URL", "http://fake"
+    )
     monkeypatch.setattr(main.settings, "ACCRED_API_USERNAME", "u")
     monkeypatch.setattr(main.settings, "ACCRED_API_KEY", "k")
 

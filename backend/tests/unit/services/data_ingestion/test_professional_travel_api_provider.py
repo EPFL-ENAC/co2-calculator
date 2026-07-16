@@ -10,12 +10,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.models.data_entry import DataEntryTypeEnum
-from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
-    ProfessionalTravelApiProvider,
+from app.modules.emissions.registry import resolve_emission_types
+from app.services.data_ingestion.api_providers.base_tableau_api_provider import (
     normalize_vds_payload,
     to_bool,
 )
-from app.utils.data_entry_emission_type_map import resolve_emission_types
+from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
+    ProfessionalTravelApiProvider,
+)
 
 # ---------------------------------------------------------------------------
 # to_bool
@@ -77,33 +79,35 @@ class TestNormalizeVdsPayload:
 
 
 def _make_provider(**config_overrides):
-    """Build a ProfessionalTravelApiProvider with mocked dependencies."""
+    """Build a ProfessionalTravelApiProvider with credentials pre-loaded.
+
+    Credentials now come from the DB via ``_ensure_credentials``; these
+    pure-unit tests never hit the DB, so we set the same instance attrs the
+    loader would set and mark them loaded, then exercise the real methods.
+    """
     config = {"year": 2024, "module_type_id": 2, **config_overrides}
     user = MagicMock()
     user.id = 1
 
-    with patch(
-        "app.services.data_ingestion.api_providers.professional_travel_api_provider.get_settings"
-    ) as mock_settings:
-        s = mock_settings.return_value
-        s.TABLEAU_SERVER_URL = "https://tableau.test"
-        s.TABLEAU_SITE_CONTENT_URL = "site"
-        s.TABLEAU_DS_FLIGHTS_LUID = "ds-luid"
-        s.TABLEAU_CONNECTED_APP_CLIENT_ID = "client-id"
-        s.TABLEAU_CONNECTED_APP_SECRET_ID = "secret-id"
-        s.TABLEAU_CONNECTED_APP_SECRET_VALUE = "secretvalue1234567890123456789012"
-        s.TABLEAU_REQUEST_TIMEOUT_SECONDS = "30"
-        s.TABLEAU_VERIFY_SSL = "false"
-        s.TABLEAU_REST_MIN_API_VERSION = "3.21"
-        s.TABLEAU_MAX_FIELDS = 50
-        s.TABLEAU_USERNAME = "testuser"
-
-        provider = ProfessionalTravelApiProvider(
-            config,
-            user,
-            job_session=None,
-            data_session=AsyncMock(),
-        )
+    provider = ProfessionalTravelApiProvider(
+        config,
+        user,
+        job_session=None,
+        data_session=AsyncMock(),
+    )
+    # Mirror the attributes ``_ensure_credentials`` sets from the connection.
+    provider.server_url = "https://tableau.test"
+    provider.site_content_url = "site"
+    provider.datasource_luid = "ds-luid"
+    provider.client_id = "client-id"
+    provider.secret_id = "secret-id"
+    provider.secret_value = "secretvalue1234567890123456789012"
+    provider.username = "testuser"
+    provider.timeout = 30
+    provider.verify_ssl = False
+    provider.min_api_version = "3.21"
+    provider.module_type_id = config.get("module_type_id")
+    provider._credentials_loaded = True
     return provider
 
 

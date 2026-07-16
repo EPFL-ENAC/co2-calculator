@@ -127,6 +127,18 @@ export default defineConfig(function () {
         // Default to OSM tile.openstreetmap.org; override per-pod via
         // /injectEnv.js if a paid/internal tile source is provisioned.
         APP_MAP_TILE_STYLE_URL: process.env.APP_MAP_TILE_STYLE_URL || '',
+        // Access-management provider (label + portal URL) shown in the
+        // calculator's access popover (see src/config/runtime.ts). No code
+        // default; set per-pod via /injectEnv.js to rebrand for an institution.
+        APP_ACCESS_MANAGEMENT_PROVIDER_NAME:
+          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME || '',
+        APP_ACCESS_MANAGEMENT_PROVIDER_URL:
+          process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL || '',
+        // Recipient for the Equipment power-feedback mailto (see
+        // src/config/runtime.ts). Empty string in dev falls back to the default
+        // in runtimeConfig; in production it comes from /injectEnv.js.
+        APP_EQUIPMENT_POWER_FEEDBACK_EMAIL:
+          process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL || '',
       },
       // rawDefine: {}
       // ignorePublicFolder: true,

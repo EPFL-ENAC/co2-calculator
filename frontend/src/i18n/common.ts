@@ -37,9 +37,9 @@ export default {
     en: 'Simulations',
     fr: 'Simulations',
   },
-  'simulation-add': {
-    en: 'Add Simulation',
-    fr: 'Ajouter une Simulation',
+  'project-planner': {
+    en: 'Project Planner',
+    fr: 'Planificateur de projet',
   },
   'simulation-edit': {
     en: 'Edit Simulation',
@@ -211,6 +211,10 @@ export default {
     en: 'subcategory',
     fr: 'sous-catégorie',
   },
+  csv_header_subcategory_2: {
+    en: 'subcategory 2',
+    fr: 'sous-catégorie 2',
+  },
   csv_header_co2: {
     en: 'co2 (t CO₂-eq)',
     fr: 'co2 (t CO₂-eq)',
@@ -230,6 +234,10 @@ export default {
   common_export_as_csv: {
     en: 'Export as CSV',
     fr: 'Exporter en CSV',
+  },
+  home_btn: {
+    en: 'Home',
+    fr: 'Accueil',
   },
   documentation_button_label: {
     en: 'Documentation',
@@ -274,6 +282,10 @@ export default {
   common_save_error: {
     en: 'Failed to save. Please try again.',
     fr: 'Échec de la sauvegarde. Veuillez réessayer.',
+  },
+  common_post_create_refresh_error: {
+    en: 'Item added, but some data may be out of date. Please refresh the page.',
+    fr: 'Élément ajouté, mais certaines données peuvent être obsolètes. Veuillez rafraîchir la page.',
   },
   common_actions: {
     en: 'Actions',
@@ -494,10 +506,6 @@ export default {
   carbon_footprint_title_equipment: {
     en: 'Equipment usage carbon footprint',
     fr: "Empreinte carbone liée à l'utilisation des équipements",
-  },
-  carbon_footprint_tooltip_equipment: {
-    en: 'The emissions considered here are those related to the energy required to operate the equipment (scientific, IT, etc.).',
-    fr: "Les émissions considérées ici sont celles liées à l'énergie nécessaire à l'utilisation des équipements (scientifiques, informatiques, etc.).",
   },
   carbon_footprint_title_purchase: {
     en: 'Purchases carbon footprint',

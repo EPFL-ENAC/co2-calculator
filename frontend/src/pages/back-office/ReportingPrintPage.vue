@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import ReportPage from 'src/components/organisms/ReportPage.vue';
 import CompletionRateBar from 'src/components/organisms/backoffice/reporting/CompletionRateBar.vue';
 import ReportingStatCards from 'src/components/organisms/backoffice/reporting/ReportingStatCards.vue';
@@ -10,6 +11,9 @@ import EmissionBreakdownChart from 'src/components/charts/EmissionBreakdownChart
 import ItFocusBreakdownChart from 'src/components/charts/results/ItFocusBreakdownChart.vue';
 import { useBackofficeReportingPrintData } from 'src/composables/print/useBackofficeReportingPrintData';
 import { MODULE_STATES } from 'src/constant/moduleStates';
+import { toPrintDocumentTitle } from 'src/utils/unitPerimeterLabel';
+
+const { t } = useI18n();
 
 const {
   loading,
@@ -22,6 +26,7 @@ const {
   totalModules,
   availableModules,
   reportingItBreakdown,
+  scopeLabel,
   fetchData,
 } = useBackofficeReportingPrintData();
 
@@ -34,6 +39,11 @@ function printReport() {
 
 onMounted(async () => {
   await fetchData();
+  // Chrome seeds the "Save as PDF" filename from the document title.
+  document.title = toPrintDocumentTitle(
+    scopeLabel.value,
+    t('backoffice_reporting_print_combined_title'),
+  );
 });
 </script>
 
@@ -59,12 +69,14 @@ onMounted(async () => {
       <!-- Page 1: Title, completion rate, usage stats + aggregate charts -->
       <ReportPage
         :title="$t('backoffice_reporting_print_combined_title')"
+        :scope="scopeLabel"
         :page-number="1"
         :is-first="true"
       >
         <h2 class="text-h5 q-mt-none">
           {{ $t('backoffice_reporting_print_combined_title') }}
         </h2>
+        <div class="text-body2 text-secondary">{{ scopeLabel }}</div>
 
         <div class="q-mt-md">
           <CompletionRateBar
@@ -109,7 +121,7 @@ onMounted(async () => {
         </section>
       </ReportPage>
 
-      <ReportPage>
+      <ReportPage :scope="scopeLabel">
         <section v-if="reportingItBreakdown" class="q-mt-md">
           <ItFocusBreakdownChart
             :data="reportingItBreakdown"
@@ -125,6 +137,7 @@ onMounted(async () => {
         v-for="(mod, i) in availableModules"
         :key="mod"
         :title="$t('backoffice_reporting_print_combined_title')"
+        :scope="scopeLabel"
         :page-number="2 + i"
       >
         <h2 class="text-h5 q-mt-none">{{ $t(mod) }}</h2>
@@ -139,3 +152,44 @@ onMounted(async () => {
     </div>
   </div>
 </template>
+
+<!-- Not scoped: print rules hide layout chrome (.q-header/.q-footer/.q-drawer)
+     that lives outside this page's template, and reach into rendered .q-card. -->
+<style lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.report-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: tokens.$print-report-container-padding;
+  color: tokens.$color-text;
+}
+
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--half-muted-color);
+  z-index: tokens.$print-toolbar-z-index;
+}
+
+@media print {
+  .print-hide,
+  .q-header,
+  .q-footer,
+  .q-drawer {
+    display: none;
+  }
+
+  .report-container {
+    display: block;
+    width: 100%;
+    padding: 0;
+  }
+
+  .print-report .q-card,
+  .print-report .q-card-section {
+    box-shadow: none;
+  }
+}
+</style>

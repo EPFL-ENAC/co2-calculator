@@ -234,9 +234,9 @@ export const purchase: ModuleConfig = {
       moduleFields: purchaseFields,
     },
     {
-      id: SUBMODULE_PURCHASE_TYPES.AdditionalPurchases,
-      type: SUBMODULE_PURCHASE_TYPES.AdditionalPurchases as PurchaseSubType,
-      tableNameKey: `${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.AdditionalPurchases}-table-title`,
+      id: SUBMODULE_PURCHASE_TYPES.PurchasesCentralized,
+      type: SUBMODULE_PURCHASE_TYPES.PurchasesCentralized as PurchaseSubType,
+      tableNameKey: `${MODULES.Purchase}.${SUBMODULE_PURCHASE_TYPES.PurchasesCentralized}-table-title`,
       moduleFields: additionalPurchaseFields,
     },
   ],

@@ -1,6 +1,6 @@
 import { useAuthStore } from 'src/stores/auth';
 import { RouteLocationNormalized } from 'vue-router';
-import { LOGIN_ROUTES } from '../routeNames';
+import { LOGIN_ROUTES, DEFAULT_ROUTE_NAME } from '../routeNames';
 // Authentication guard for protected routes
 
 export async function authGuard(to: RouteLocationNormalized) {
@@ -8,22 +8,12 @@ export async function authGuard(to: RouteLocationNormalized) {
   // protected pages without a backend. All auth checks are skipped.
   if (window.__LIGHTHOUSE_BYPASS__) return true;
 
-  // Skip the auto-getUser() probe on routes that handle their own auth
-  // bootstrap. Otherwise the BFF cookie-exchange landing (/auth/complete)
-  // races: the guard probes /session, gets 401 (cookies don't exist yet),
-  // triggers the 401-interceptor refresh which also 401s — and only THEN
-  // does the page's onMounted POST /session/exchange. Two noisy 401s
-  // every login. Routes opt out via `meta.skipAuthCheck: true`. Placed
-  // BEFORE useAuthStore() so the short-circuit works without Pinia
-  // (lets the guard be unit-tested without a store fixture, too).
-  if (to.meta.skipAuthCheck) return true;
-
   const auth = useAuthStore();
 
-  // Load user if needed
+  // Load user (+ units + configured years) if needed, in a single bootstrap call.
   if (!auth.hasChecked && !auth.loading) {
     try {
-      await auth.getUser();
+      await auth.bootstrap();
     } catch (e) {
       console.error('Failed to load user:', e);
       // No need to do anything else: the guard logic below will redirect if needed
@@ -38,7 +28,7 @@ export async function authGuard(to: RouteLocationNormalized) {
 
   // Redirect authenticated users away from login
   if (LOGIN_ROUTES.includes(to.name as string) && auth.isAuthenticated) {
-    return { name: 'workspace-setup', ...redirectTo };
+    return { name: DEFAULT_ROUTE_NAME, ...redirectTo };
   }
 
   return true;

@@ -12,7 +12,6 @@ from sqlalchemy.orm import aliased
 from sqlmodel import col, delete, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.constants import ModuleStatus
 from app.core.logging import get_logger
 from app.models.building_room import BuildingRoom
 from app.models.carbon_report import CarbonReport, CarbonReportModule
@@ -21,17 +20,16 @@ from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import MODULE_TYPE_TO_DATA_ENTRY_TYPES, ModuleTypeEnum
+from app.modules.emissions.registry import (
+    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
+    ROLLUP_EMISSION_TYPE_IDS,
+)
 from app.modules.professional_travel.schemas import MemberEntry
 from app.repositories.carbon_report_module_repo import CarbonReportModuleRepository
 from app.schemas.carbon_report_response import SubmoduleResponse, SubmoduleSummary
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryUpdate,
-    ModuleHandler,
-)
-from app.utils.data_entry_emission_type_map import (
-    DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
-    ROLLUP_EMISSION_TYPE_IDS,
 )
 
 logger = get_logger(__name__)
@@ -254,28 +252,32 @@ class DataEntryRepository:
         self,
         carbon_report_module_id: int,
         data_entry_type_id: int,
-        field: str,
-        value: str,
+        fields: dict[str, str],
         exclude_id: Optional[int] = None,
     ) -> bool:
-        """Check whether a JSON data field value is unique within a submodule.
+        """Check whether a set of JSON data field values is unique within a submodule.
 
         Args:
             carbon_report_module_id: The module to scope the check to.
             data_entry_type_id: The submodule type.
-            field: The JSON key inside ``DataEntry.data`` to check.
-            value: The value that must be unique.
+            fields: JSON keys inside ``DataEntry.data`` mapped to the values that
+                must be unique together (ANDed). A single-entry dict reproduces
+                the previous single-field check.
             exclude_id: Optional entry ID to exclude (for PATCH uniqueness checks).
 
         Returns:
-            True if the value is unique (no conflicting row found), False otherwise.
+            True if the combination is unique (no conflicting row found), False
+            otherwise.
         """
         statement = (
             select(DataEntry)
             .where(
                 col(DataEntry.carbon_report_module_id) == carbon_report_module_id,
                 col(DataEntry.data_entry_type_id) == data_entry_type_id,
-                DataEntry.data[field].as_string() == value,
+                *[
+                    DataEntry.data[key].as_string() == val
+                    for key, val in fields.items()
+                ],
             )
             .limit(1)
         )
@@ -431,12 +433,10 @@ class DataEntryRepository:
 
         return aggregation
 
-    def _apply_name_filter(
-        self, statement, filter: Optional[str], handler: ModuleHandler
-    ):
+    def _apply_name_filter(self, statement, filter: Optional[str], filter_map: dict):
         """
-        Applies a filter to the given SQLAlchemy statement based on
-        the handler's filter_map if a valid filter is provided.
+        Applies a filter to the given SQLAlchemy statement using the
+        caller-prepared (possibly lateral-adapted) filter_map.
         """
         filter_pattern = ""
         if filter:
@@ -450,15 +450,62 @@ class DataEntryRepository:
 
         if filter:
             filter_pattern = f"%{filter}%"
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
             # Build OR conditions for all filter fields
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
             statement = statement.where(or_(*conditions))
         return statement, filter_pattern
+
+    def _resolved_factor_id(self, handler: Any, data_entry_type_id: int) -> Any:
+        """SQL twin of ``FactorResolver`` for list queries.
+
+        Correlated scalar subquery returning, per entry row, the id of the
+        factor the resolver would pick — deterministic because the reupload
+        sweep keeps a single factor generation per
+        ``(det, year, classification)``.  Joining ``Factor`` on this id
+        makes factor-backed sort/filter/pagination work for every row,
+        including entries whose emissions are not computed yet.
+
+        Chain parity: exact ``(kind, subkind)`` beats the subkind-less row;
+        for override handlers an override-code match beats the code-less
+        average row.  Divergences (display-only, accepted): matching is
+        kind-anchored — a code match under a *different* kind is not
+        considered — and ambiguity resolves to the lowest id instead of
+        raising; compute/update paths keep the loud semantics.
+        """
+        f = aliased(Factor)
+        kind_field: str = handler.kind_field
+        entry_kind = DataEntry.data[kind_field].as_string()
+        conditions = [
+            col(f.data_entry_type_id) == data_entry_type_id,
+            col(f.year) == col(DataEntry.year),
+            f.classification[kind_field].as_string() == entry_kind,
+        ]
+        ordering: list[Any] = []
+        override_field = handler.kind_field_override
+        subkind_field = handler.subkind_field
+        # Preference ordering must not reference outer columns (sqlite
+        # rejects correlated ORDER BY): within the WHERE-filtered candidate
+        # set, carrying a subkind/override code IS the exact match, so
+        # "specific first" reduces to a non-correlated IS NOT NULL sort.
+        if override_field is not None:
+            f_code = f.classification[override_field].as_string()
+            d_code = DataEntry.data[override_field].as_string()
+            conditions.append(or_(f_code == d_code, f_code.is_(None)))
+            ordering = [f_code.isnot(None).desc()]
+        elif subkind_field is not None:
+            f_sub = f.classification[subkind_field].as_string()
+            d_sub = DataEntry.data[subkind_field].as_string()
+            conditions.append(or_(f_sub == d_sub, f_sub.is_(None)))
+            ordering = [f_sub.isnot(None).desc()]
+        return (
+            sa_select(col(f.id))
+            .where(*conditions)
+            .order_by(*ordering, col(f.id))
+            .limit(1)
+            .scalar_subquery()
+        )
 
     def _apply_sort(self, statement, sort_by: str, sort_order: str, sort_map: dict):
         sort_expr = sort_map.get(sort_by)
@@ -488,11 +535,30 @@ class DataEntryRepository:
         is_plane_entry = data_entry_type_id == DataEntryTypeEnum.plane.value
         OriginLocation: Any = None
         DestLocation: Any = None
+        traveler_name_subq: Any = None
         is_buildings_entry = data_entry_type_id in (DataEntryTypeEnum.building.value,)
         is_headcount_entry = data_entry_type_id in (
             DataEntryTypeEnum.member.value,
             DataEntryTypeEnum.student.value,
         )
+        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
+
+        # Classification-resolved factor in SQL (plan 1661-sql-factor-resolution):
+        # used for every handler whose kind lives in entry.data. Travel and
+        # headcount derive their kind at compute time, so their factor display
+        # keeps coming from the computed emission rows below.
+        resolved_factor_id: Any = None
+        # Filter conditions may reference Factor columns; the count query
+        # must join Factor exactly like the page query or it degenerates to
+        # an implicit cross join (0 or inflated counts). Each branch records
+        # its join chain here.
+        count_factor_joins: list[tuple[Any, Any]] = []
+        if (
+            not is_travel_entry
+            and not is_headcount_entry
+            and handler.kind_field is not None
+        ):
+            resolved_factor_id = self._resolved_factor_id(handler, data_entry_type_id)
 
         if is_buildings_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
@@ -536,7 +602,7 @@ class DataEntryRepository:
                 )
                 .join(
                     Factor,
-                    col(RollupEmission.primary_factor_id) == col(Factor.id),
+                    col(Factor.id) == resolved_factor_id,
                     isouter=True,
                 )
                 .join(
@@ -552,6 +618,14 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = building_total_kg_expr
+            count_factor_joins = [
+                (Factor, col(Factor.id) == resolved_factor_id),
+                (
+                    BuildingRoom,
+                    DataEntry.data["room_name"].as_string()
+                    == col(BuildingRoom.room_name),
+                ),
+            ]
         elif is_headcount_entry:
             # --- Direct JOIN on rollup row (avoids GROUP BY, prevents double-count) ---
             # Headcount entries (member/student) produce multiple leaf emissions
@@ -563,7 +637,7 @@ class DataEntryRepository:
             RollupEmission = aliased(DataEntryEmission)
             entities = [
                 DataEntry,
-                RollupEmission.kg_co2eq.label("total_kg_co2eq"),  # type: ignore[attr-defined]
+                col(RollupEmission.kg_co2eq).label("total_kg_co2eq"),
                 Factor,
             ]
             statement = (
@@ -582,6 +656,15 @@ class DataEntryRepository:
                 )
             )
             kg_sort_expr = RollupEmission.kg_co2eq
+            count_factor_joins = [
+                (
+                    RollupEmission,
+                    (col(RollupEmission.data_entry_id) == col(DataEntry.id))
+                    & (col(RollupEmission.emission_type_id) == rollup_et_id)
+                    & (col(RollupEmission.scope).is_(None)),
+                ),
+                (Factor, col(RollupEmission.primary_factor_id) == col(Factor.id)),
+            ]
         else:
             # --- Aggregation subquery for multi-emission entries ---
             # Exclude rollup rows so future rollup types are never double-counted.
@@ -602,42 +685,59 @@ class DataEntryRepository:
 
             entities = [DataEntry, emission_agg.c.total_kg_co2eq, Factor]
             if is_travel_entry:
-                entities.extend([MemberEntry, DataEntryEmission])
+                # A person can hold multiple headcount roles (sius_code) in the
+                # same unit, so a plain JOIN on (uid, module) can match >1
+                # MemberEntry row and fan out/duplicate every travel row for
+                # that person. traveler_name is identical across roles, so pick
+                # one match deterministically via a correlated scalar subquery
+                # (same pattern as list_units's latest_stats_subq; LATERAL
+                # JOIN is avoided — unsupported on SQLite, used in unit tests).
+                # Tie-break on lowest id: always present, unlike sius_code
+                # which can be null on legacy rows.
+                traveler_name_subq = (
+                    select(MemberEntry.data["name"].as_string())
+                    .where(
+                        MemberEntry.data["user_institutional_id"].as_string()
+                        == DataEntry.data["user_institutional_id"].as_string(),
+                        col(MemberEntry.carbon_report_module_id)
+                        == col(DataEntry.carbon_report_module_id),
+                        col(MemberEntry.data_entry_type_id)
+                        == DataEntryTypeEnum.member.value,
+                    )
+                    .order_by(asc(col(MemberEntry.id)))
+                    .limit(1)
+                    .correlate(DataEntry)
+                    .scalar_subquery()
+                )
+                entities.extend(
+                    [traveler_name_subq.label("traveler_name"), DataEntryEmission]
+                )
                 if is_train_entry or is_plane_entry:
                     OriginLocation = aliased(Location)
                     DestLocation = aliased(Location)
                     entities.extend([OriginLocation, DestLocation])
-            statement = (
-                sa_select(*entities)
-                .join(
-                    emission_agg,
-                    col(DataEntry.id) == emission_agg.c.data_entry_id,
-                    isouter=True,
-                )
-                .join(
-                    Factor,
-                    emission_agg.c.primary_factor_id == col(Factor.id),
-                    isouter=True,
-                )
+            statement = sa_select(*entities).join(
+                emission_agg,
+                col(DataEntry.id) == emission_agg.c.data_entry_id,
+                isouter=True,
+            )
+            factor_on = (
+                col(Factor.id) == resolved_factor_id
+                if resolved_factor_id is not None
+                else emission_agg.c.primary_factor_id == col(Factor.id)
+            )
+            statement = statement.join(Factor, factor_on, isouter=True)
+            count_factor_joins = (
+                [(Factor, factor_on)]
+                if resolved_factor_id is not None
+                else [
+                    (emission_agg, col(DataEntry.id) == emission_agg.c.data_entry_id),
+                    (Factor, factor_on),
+                ]
             )
 
             if is_travel_entry:
                 statement = statement.join(
-                    MemberEntry,
-                    (
-                        MemberEntry.data["user_institutional_id"].as_string()
-                        == DataEntry.data["user_institutional_id"].as_string()
-                    )
-                    & (
-                        col(MemberEntry.carbon_report_module_id)
-                        == col(DataEntry.carbon_report_module_id)
-                    )
-                    & (
-                        col(MemberEntry.data_entry_type_id)
-                        == DataEntryTypeEnum.member.value
-                    ),
-                    isouter=True,
-                ).join(
                     DataEntryEmission,
                     col(DataEntryEmission.data_entry_id) == DataEntry.id,
                     isouter=True,
@@ -646,7 +746,7 @@ class DataEntryRepository:
                     statement = statement.join(
                         OriginLocation,
                         (
-                            OriginLocation.name
+                            col(OriginLocation.name)
                             == DataEntry.data["origin_name"].as_string()
                         )
                         & (
@@ -657,7 +757,7 @@ class DataEntryRepository:
                     ).join(
                         DestLocation,
                         (
-                            DestLocation.name
+                            col(DestLocation.name)
                             == DataEntry.data["destination_name"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.train),
@@ -667,7 +767,7 @@ class DataEntryRepository:
                     statement = statement.join(
                         OriginLocation,
                         (
-                            OriginLocation.iata_code
+                            col(OriginLocation.iata_code)
                             == DataEntry.data["origin_iata"].as_string()
                         )
                         & (
@@ -678,7 +778,7 @@ class DataEntryRepository:
                     ).join(
                         DestLocation,
                         (
-                            DestLocation.iata_code
+                            col(DestLocation.iata_code)
                             == DataEntry.data["destination_iata"].as_string()
                         )
                         & (col(DestLocation.transport_mode) == TransportModeEnum.plane),
@@ -697,21 +797,38 @@ class DataEntryRepository:
                 == institutional_id_filter
             )
 
-        handler = BaseModuleHandler.get_by_type(DataEntryTypeEnum(data_entry_type_id))
         handler_default = getattr(handler, "default_where", [])
         if handler_default:
             statement = statement.where(*handler_default)
-        statement, filter_pattern = self._apply_name_filter(statement, filter, handler)
+        filter_map = dict(getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP)
+        statement, filter_pattern = self._apply_name_filter(
+            statement, filter, filter_map
+        )
 
         sort_map = dict(
             handler.sort_map
         )  # shallow copy — don't mutate the class-level dict
         sort_map["kg_co2eq"] = kg_sort_expr
+        if is_buildings_entry:
+            # Surface lives on the joined building_rooms row (synced from the
+            # buildings source), not in entry data — the class-level map entry
+            # would sort all-NULL. Entry data stays as fallback for rows
+            # carrying an inline value.
+            sort_map["room_surface_square_meter"] = func.coalesce(
+                col(BuildingRoom.room_surface_square_meter),
+                DataEntry.data["room_surface_square_meter"].as_float(),
+            )
         if is_travel_entry:
             sort_map["distance_km"] = func.coalesce(
                 DataEntryEmission.additional_value,
                 DataEntry.data["distance_km"].as_float(),
             )
+            # The class-level sort_map's "traveler_name" references MemberEntry
+            # directly, which relied on the (now-removed) plain JOIN. Point it at
+            # the same correlated subquery used for enrichment above, or sorting
+            # by traveler_name would silently reintroduce an unjoined MemberEntry
+            # reference (implicit cross join).
+            sort_map["traveler_name"] = traveler_name_subq
         if (is_train_entry or is_plane_entry) and OriginLocation is not None:
             sort_map["origin_name"] = OriginLocation.name
             sort_map["destination_name"] = DestLocation.name
@@ -733,10 +850,21 @@ class DataEntryRepository:
         if handler_default:
             count_stmt = count_stmt.where(*handler_default)
         if filter_pattern != "":
-            # Get filter map from handler, default to filtering by name
-            filter_map = getattr(handler, "filter_map", {}) or DEFAULT_FILTER_MAP
-
-            # Build OR conditions for all filter fields
+            # Only pay for the factor join chain when a filter expression
+            # actually reads it — buildings/purchase/RF filters are pure
+            # entry-data and skip the per-row factor subquery entirely.
+            filter_reads_factor = any(
+                "factors" in str(expr) or "building_rooms" in str(expr)
+                for expr in filter_map.values()
+            )
+            if count_factor_joins and filter_reads_factor:
+                # Join Factor (and whatever it hangs off) exactly like the
+                # page query so the count sees the same rows — without this
+                # a Factor-referencing filter degenerates into an implicit
+                # cross join (0 or inflated counts).
+                count_stmt = count_stmt.select_from(DataEntry)
+                for target, onclause in count_factor_joins:
+                    count_stmt = count_stmt.join(target, onclause, isouter=True)
             conditions = [
                 filter_expr.ilike(filter_pattern) for filter_expr in filter_map.values()
             ]
@@ -750,9 +878,7 @@ class DataEntryRepository:
         for row in rows:
             # Pre-bind conditionally-unpacked variables so static type checkers
             # see them as definitely-bound (T | None) on every branch path.
-            # MemberEntry is a SQLAlchemy alias of DataEntry, so the runtime
-            # type is DataEntry.
-            member_entry: DataEntry | None = None
+            traveler_name: str | None = None
             _emission: DataEntryEmission | None = None
             building_room: BuildingRoom | None = None
             _origin_loc: Location | None = None
@@ -764,9 +890,9 @@ class DataEntryRepository:
             # 2. Unpack only the remaining tail fields
             if is_travel_entry:
                 if is_train_entry or is_plane_entry:
-                    member_entry, _emission, _origin_loc, _dest_loc = row[3:]
+                    traveler_name, _emission, _origin_loc, _dest_loc = row[3:]
                 else:
-                    member_entry, _emission = row[3:]
+                    traveler_name, _emission = row[3:]
             elif is_buildings_entry:
                 building_room = row[3]
 
@@ -774,25 +900,13 @@ class DataEntryRepository:
             # accidental mutation (here or downstream) cannot be flushed back to
             # the DB. This method only reads scalar columns and the JSON `data`
             # field after unpack — no lazy relationships — so expunge is safe.
+            # traveler_name is a plain scalar (from a subquery), not an ORM row,
+            # so it needs no detaching.
             self._detach(data_entry, primary_factor)
             if is_travel_entry:
-                self._detach(member_entry, _emission, _origin_loc, _dest_loc)
+                self._detach(_emission, _origin_loc, _dest_loc)
             elif is_buildings_entry:
                 self._detach(building_room)
-
-            handler = BaseModuleHandler.get_by_type(
-                DataEntryTypeEnum(data_entry.data_entry_type_id)
-            )
-            # If primary_factor is None, try to fetch it
-            # from DataEntry.data["primary_factor_id"]
-            if primary_factor is None:
-                primary_factor_id = data_entry.data.get("primary_factor_id")
-                if primary_factor_id:
-                    factor_stmt = select(Factor).where(Factor.id == primary_factor_id)
-                    factor_result = await self.session.execute(factor_stmt)
-                    primary_factor = factor_result.scalar_one_or_none()
-                    if primary_factor is not None:
-                        self._detach(primary_factor)
 
             primary_factor_values = primary_factor.values if primary_factor else {}
             primary_factor_classification = (
@@ -817,8 +931,8 @@ class DataEntryRepository:
                     if _emission is not None and _emission.additional_value is not None
                     else enriched_data.get("distance_km")
                 )
-                if member_entry is not None:
-                    enriched_data["traveler_name"] = member_entry.data.get("name")
+                if traveler_name is not None:
+                    enriched_data["traveler_name"] = traveler_name
                 if distance_km is not None:
                     enriched_data["distance_km"] = distance_km
                 if is_train_entry or is_plane_entry:
@@ -929,12 +1043,12 @@ class DataEntryRepository:
                 )
                 .join(
                     OriginLocation,
-                    OriginLocation.natural_key == origin_key,
+                    col(OriginLocation.natural_key) == origin_key,
                     isouter=True,
                 )
                 .join(
                     DestLocation,
-                    DestLocation.natural_key == dest_key,
+                    col(DestLocation.natural_key) == dest_key,
                     isouter=True,
                 )
             )
@@ -1087,67 +1201,6 @@ class DataEntryRepository:
                 aggregation[label] = None
             if total_count is not None:
                 aggregation[label] = (aggregation[label] or 0.0) + total_count
-
-        return aggregation
-
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        aggregate_by: str = "module_type_id",
-        aggregate_field: str = "fte",
-        *,
-        validated_only: bool = True,
-    ) -> Dict[str, float]:
-        """Aggregate DataEntry data by module_type_id for a whole carbon report.
-
-        Joins DataEntry → CarbonReportModule.
-        Filters: carbon_report_id, module status == VALIDATED.
-        Default aggregation: SUM(fte) grouped by module_type_id.
-
-        Returns:
-            {"1": 4532.0}  (headcount module FTE)
-        """
-        # Resolve group field
-        if aggregate_by == "module_type_id":
-            group_field = col(CarbonReportModule.module_type_id)
-        elif hasattr(DataEntry, aggregate_by):
-            group_field = getattr(DataEntry, aggregate_by)
-        else:
-            group_field = DataEntry.data[aggregate_by].as_string()
-
-        # Resolve sum field
-        if hasattr(DataEntry, aggregate_field):
-            sum_field = getattr(DataEntry, aggregate_field)
-        else:
-            sum_field = DataEntry.data[aggregate_field].as_float()
-
-        query = (
-            select(
-                group_field,
-                func.sum(sum_field).label("total"),
-            )
-            .join(
-                CarbonReportModule,
-                col(DataEntry.carbon_report_module_id) == col(CarbonReportModule.id),
-            )
-            .where(
-                CarbonReportModule.carbon_report_id == carbon_report_id,
-                *(
-                    []
-                    if not validated_only
-                    else [CarbonReportModule.status == ModuleStatus.VALIDATED]
-                ),
-            )
-            .group_by(group_field)
-        )
-
-        result = await self.session.execute(query)
-        rows = result.all()
-
-        aggregation: Dict[str, float] = {}
-        for key, total in rows:
-            label = str(key) if key is not None else "unknown"
-            aggregation[label] = float(total) if total is not None else 0.0
 
         return aggregation
 

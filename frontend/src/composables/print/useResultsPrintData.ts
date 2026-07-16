@@ -1,19 +1,27 @@
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 
 import {
   getResultsSummary,
+  getMergedResultsSummary,
   type ResultsSummary,
   type ModuleResult,
 } from 'src/api/modules';
 import { MODULES, MODULES_LIST, type Module } from 'src/constant/modules';
 import { IT_FOCUS_SOURCE_MODULES } from 'src/constant/itFocus';
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
-import { useModuleStore, useTimelineStore } from 'src/stores/modules';
+import {
+  useModuleStore,
+  useTimelineStore,
+  type MergedUnitsContext,
+} from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
+import { buildUnitPerimeterLabel } from 'src/utils/unitPerimeterLabel';
 
 export function useResultsPrintData() {
   const route = useRoute();
+  const { t } = useI18n();
   const workspaceStore = useWorkspaceStore();
   const timelineStore = useTimelineStore();
   const moduleStore = useModuleStore();
@@ -46,6 +54,51 @@ export function useResultsPrintData() {
     }
     return ids;
   });
+
+  /** Combined units carried over from the Results page's `?combineUnits=`. */
+  const combinedUnitIds = computed(() => {
+    const raw = route.query.combineUnits;
+    const value = Array.isArray(raw) ? raw.join(',') : raw;
+    if (!value) return [];
+    const currentUnitId = workspaceStore.selectedUnit?.id;
+    const reachable = new Set(workspaceStore.units.map((unit) => unit.id));
+    return value
+      .split(',')
+      .map((id) => Number(id))
+      .filter((id) => id !== currentUnitId && reachable.has(id));
+  });
+
+  const mergedContext = computed<MergedUnitsContext | null>(() => {
+    const currentUnitId = workspaceStore.selectedUnit?.id;
+    if (!combinedUnitIds.value.length || !currentUnitId) return null;
+    return {
+      unitIds: [currentUnitId, ...combinedUnitIds.value],
+      year: currentYear.value,
+    };
+  });
+
+  const combinedUnitNames = computed(() =>
+    combinedUnitIds.value
+      .map((id) => workspaceStore.units.find((unit) => unit.id === id)?.name)
+      .filter((name): name is string => Boolean(name)),
+  );
+
+  /** Same perimeter label as the on-screen Results page. */
+  const perimeterLabel = computed(() =>
+    buildUnitPerimeterLabel(
+      workspaceStore.selectedUnit?.name ?? '',
+      combinedUnitNames.value,
+      t,
+    ),
+  );
+
+  /** Header line naming what this export covers: "SCI-STI-AB · 2025". */
+  const scopeLabel = computed(() =>
+    t('results_perimeter_subtitle', {
+      unit: perimeterLabel.value,
+      year: currentYear.value,
+    }),
+  );
 
   const co2PerKmKg = computed(() => resultsSummary.value?.co2_per_km_kg ?? 0);
   const hasCo2PerKmKg = computed(() => co2PerKmKg.value > 0);
@@ -209,12 +262,16 @@ export function useResultsPrintData() {
   }
 
   async function fetchAllData(carbonReportId: number) {
+    const merged = mergedContext.value;
     try {
       resultsSummaryLoading.value = true;
-      resultsSummary.value = await getResultsSummary(
-        carbonReportId,
-        excludedModules.value,
-      );
+      resultsSummary.value = merged
+        ? await getMergedResultsSummary(
+            merged.unitIds,
+            merged.year,
+            excludedModules.value,
+          )
+        : await getResultsSummary(carbonReportId, excludedModules.value);
     } catch {
       resultsSummary.value = null;
     } finally {
@@ -224,14 +281,23 @@ export function useResultsPrintData() {
     await moduleStore.getEmissionBreakdown(
       carbonReportId,
       excludedModules.value,
+      merged,
     );
-    await moduleStore.getItBreakdown(carbonReportId, excludedModules.value);
+    await moduleStore.getItBreakdown(
+      carbonReportId,
+      excludedModules.value,
+      merged,
+    );
   }
 
   return {
     resultsSummary,
     resultsSummaryLoading,
     currentYear,
+    combinedUnitIds,
+    perimeterLabel,
+    scopeLabel,
+    excludedModules,
     viewAdditionalData,
     co2PerKmKg,
     hasCo2PerKmKg,

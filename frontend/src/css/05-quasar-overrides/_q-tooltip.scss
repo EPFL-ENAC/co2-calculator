@@ -1,0 +1,24 @@
+@use '../02-tokens' as tokens;
+
+.q-tooltip {
+  box-shadow: tokens.$tooltip-box-shadow;
+  max-width: tokens.$tooltip-max-width;
+  line-height: tokens.$tooltip-line-height;
+}
+
+.sidebar-tooltip {
+  padding: tokens.$sidebar-tooltip-padding-y tokens.$sidebar-tooltip-padding-x;
+  font-size: tokens.$sidebar-tooltip-font-size;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: tokens.$sidebar-tooltip-arrow-offset-x;
+    top: 50%;
+    transform: translateY(-50%);
+    border: tokens.$sidebar-tooltip-arrow-size solid transparent;
+    border-left: none;
+    border-right-color: tokens.$tooltip-background;
+  }
+}

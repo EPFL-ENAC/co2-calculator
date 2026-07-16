@@ -183,12 +183,19 @@ async def aggregation_handler(
             f"in scope module_type_id={job.module_type_id}/year={job.year}"
         )
 
+    # The admin recompute-stats backfill trigger (create_root_aggregation_job)
+    # sets this so a bulk re-derive of stats under current code doesn't stale
+    # out every module's validation — no underlying data changed, unlike the
+    # recalc-chained path (real upload/factor change), which always bumps.
+    skip_status_update = bool(own_config.get("skip_module_status_update"))
+
     # Set-based recompute: 3 grouped queries for the module level + 2
     # for the report rollup, instead of ~8 queries per module (a 137-
     # module scope was ~1.1k sequential statements; a full 2.2k-module
     # slice was minutes).
     refreshed = await svc.recompute_stats_many(
-        [m.id for m in affected if m.id is not None]
+        [m.id for m in affected if m.id is not None],
+        bump_status=not skip_status_update,
     )
 
     return {

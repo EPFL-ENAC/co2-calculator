@@ -20,10 +20,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -90,7 +91,6 @@ async def test_factor_reupload_recomputes_emission_in_db(pg_dsn):
             data_entry_type_id=DataEntryTypeEnum.it.value,
             carbon_report_module_id=module_id,
             data={
-                "primary_factor_id": factor_id,
                 "equipment_class": "Laptop",
                 "sub_class": "Standard",
                 "active_usage_hours_per_week": 40.0,

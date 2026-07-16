@@ -39,11 +39,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import DataEntry, DataEntryTypeEnum
-from app.models.data_entry_emission import DataEntryEmission, EmissionType
+from app.models.data_entry_emission import DataEntryEmission
 from app.models.factor import Factor
 from app.models.location import Location, TransportModeEnum
 from app.models.module_type import ModuleTypeEnum
 from app.models.unit import Unit
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import DataEntryResponse
 from app.services.data_entry_emission_service import DataEntryEmissionService
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
@@ -830,11 +831,11 @@ async def test_building_room_factor_values_change_propagates_all_5_emissions(
     pg_dsn,
 ):
     """Building room is technically JSON-link (``kind_field='building_name'``
-    is on entry.data) but emits 5 leaf emissions per entry (one per
-    energy type: lighting, cooling, ventilation, heating_elec,
-    heating_thermal).  This regression net asserts that doubling
-    ``ef_kg_co2eq_per_kwh`` doubles **every** kg_co2eq leaf and that the
-    rollup row sums correctly.
+    is on entry.data) but emits 4 leaf emissions per entry: lighting,
+    cooling, ventilation, and a single heating leaf chosen by the factor's
+    ``energy_type`` (here electric → heating_electric; #1575).  This
+    regression net asserts that doubling ``ef_kg_co2eq_per_kwh`` doubles
+    **every** kg_co2eq leaf and that the rollup row sums correctly.
 
     The plan doc originally classified rooms as Strategy B; in fact the
     Strategy A bulk-prefetch covers it, because both ``kind_field`` and
@@ -890,7 +891,6 @@ async def test_building_room_factor_values_change_propagates_all_5_emissions(
                 "room_name": "BC-150",
                 "room_type": "office",
                 "room_allocation_ratio": 1.0,
-                "primary_factor_id": factor_id,
             },
         )
         s.add(entry)

@@ -42,4 +42,23 @@ export const runtimeConfig = {
     injected.APP_MAP_TILE_STYLE_URL ||
     process.env.APP_MAP_TILE_STYLE_URL ||
     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // Access-management provider (display label + portal URL) shown in the
+  // calculator's access popover for role delegation. Free text — unrelated to
+  // the backend PROVIDER_PLUGIN role provider. No default: when unset the
+  // popover CTA/label is hidden. Set per-pod to rebrand for another institution.
+  accessManagementProviderName:
+    injected.APP_ACCESS_MANAGEMENT_PROVIDER_NAME ||
+    process.env.APP_ACCESS_MANAGEMENT_PROVIDER_NAME ||
+    '',
+  accessManagementProviderUrl:
+    injected.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
+    process.env.APP_ACCESS_MANAGEMENT_PROVIDER_URL ||
+    '',
+  // Recipient for the Equipment "power feedback" mailto (issue #266). The address
+  // can depend on the institution, so it is configurable per-pod via
+  // APP_EQUIPMENT_POWER_FEEDBACK_EMAIL on /injectEnv.js rather than hardcoded.
+  equipmentPowerFeedbackEmail:
+    injected.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
+    process.env.APP_EQUIPMENT_POWER_FEEDBACK_EMAIL ||
+    '',
 } as const;

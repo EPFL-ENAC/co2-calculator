@@ -263,15 +263,8 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise ValueError(
-                f"Failed to move file from {tmp_path} to {processing_path}"
-            )
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         # Download & decode
         logger.info(f"Downloading CSV from {processing_path}")
@@ -405,8 +398,12 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
         # Store parsed rows
         result.config["reduction_objectives"][config_key] = validated_rows
 
-        # Store file metadata
-        result.config["reduction_objectives"]["files"][config_key] = {
+        # Store file metadata. `config` is a dynamic JSON blob (no fixed
+        # schema); ty narrows the nested-subscript type from the last
+        # assignment seen above, which is a false positive here.
+        result.config["reduction_objectives"]["files"][  # ty: ignore[invalid-assignment]
+            config_key
+        ] = {
             "path": processed_path or "",
             "filename": filename,
             "uploaded_at": datetime.now(timezone.utc).isoformat(),
@@ -442,14 +439,7 @@ class BaseReductionObjectiveCSVProvider(DataIngestionProvider, ABC):
     ) -> Dict[str, Any]:
         """Move file to processed/, update job to FINISHED."""
         processing_path = setup["processing_path"]
-        processed_path = setup["processed_path"]
-
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
+        await self._move_to_processed(processing_path)
 
         await self.data_session.flush()
 

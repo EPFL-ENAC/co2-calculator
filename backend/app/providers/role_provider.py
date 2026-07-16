@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 
 import httpx
 
-from app.core.config import get_settings
+from app.core.config import RoleProviderType, get_settings
 from app.core.logging import get_logger
 from app.models.user import (
     AffiliationScope,
@@ -108,8 +108,8 @@ class RoleProvider(ABC):
         pass
 
 
-class DefaultRoleProvider(RoleProvider):
-    """Default role provider that extracts roles from JWT claims.
+class JwtClaimsRoleProvider(RoleProvider):
+    """Role provider that extracts roles from JWT claims.
 
     Expects roles in flat string format from JWT claims:
     - "calco2.user.standard@unit:12345" →
@@ -123,7 +123,7 @@ class DefaultRoleProvider(RoleProvider):
     type: UserProvider = UserProvider.DEFAULT
 
     async def get_user_by_user_id(self, user_id: str) -> Dict[str, Any]:
-        """Not implemented for DefaultRoleProvider."""
+        """Not implemented for JwtClaimsRoleProvider."""
         # You can return an empty dict or raise an error
         return {}
 
@@ -245,7 +245,7 @@ class DefaultRoleProvider(RoleProvider):
         return parsed_roles
 
     async def get_roles_by_user_id(self, user_id: str) -> List[Role]:
-        """Not implemented for DefaultRoleProvider.
+        """Not implemented for JwtClaimsRoleProvider.
 
         Args:
             user_id: User ID of the user
@@ -253,7 +253,7 @@ class DefaultRoleProvider(RoleProvider):
             Empty list as this provider does not support fetching by user ID
         """
         logger.warning(
-            "get_roles_by_user_id not implemented for DefaultRoleProvider",
+            "get_roles_by_user_id not implemented for JwtClaimsRoleProvider",
             extra={"user_id": user_id},
         )
         return []
@@ -349,16 +349,15 @@ class AccredRoleProvider(RoleProvider):
     type: UserProvider = UserProvider.ACCRED
 
     def __init__(self):
-        """Initialize the Accred provider with API credentials."""
-        self.api_url = settings.ACCRED_API_URL
+        """Initialize the Accred provider with API credentials.
+
+        Credential completeness is enforced at app boot by
+        assert_accred_settings (app/main.py) — this constructor does not
+        re-check it.
+        """
+        self.api_url = settings.ACCRED_API_BASE_URL
         self.api_username = settings.ACCRED_API_USERNAME
         self.api_key = settings.ACCRED_API_KEY
-
-        if not all([self.api_url, self.api_username, self.api_key]):
-            logger.warning(
-                "Accred API credentials not fully configured. "
-                "Set ACCRED_API_URL, ACCRED_API_USERNAME, and ACCRED_API_KEY."
-            )
 
     def get_user_id(self, userinfo: Dict[str, Any]) -> str:
         """Get institutional ID for a user.
@@ -402,7 +401,7 @@ class AccredRoleProvider(RoleProvider):
         Returns:
             User info dict from Accred API
         """
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch user: Accred API not configured",
                 extra={"user_id": user_id},
@@ -500,7 +499,7 @@ class AccredRoleProvider(RoleProvider):
             List of role dicts derived from authorizations
         """
 
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error(
                 "Cannot fetch roles: Accred API not configured",
                 extra={"user_id": user_id},
@@ -644,14 +643,21 @@ class AccredRoleProvider(RoleProvider):
             raise
 
 
-def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider:
+def get_role_provider(
+    provider_type: RoleProviderType | UserProvider | None = None,
+) -> RoleProvider:
     """Factory function to get the configured role provider.
 
-    Returns the appropriate role provider based on the
-    PROVIDER_PLUGIN setting.
+    Returns the appropriate role provider based on the ROLE_PROVIDER_TYPE
+    setting, unless overridden by ``provider_type``. Callers that need to
+    re-resolve roles from an entity's original source (e.g. background sync
+    reading a persisted ``User.provider``/``DataIngestionJob.provider``)
+    pass that persisted ``UserProvider`` value directly as the override.
 
     Args:
-        provider_type: Optional provider type override
+        provider_type: Optional provider type override — either a
+            ``RoleProviderType`` (config selection) or a ``UserProvider``
+            (persisted source metadata).
 
     Returns:
         RoleProvider instance
@@ -660,18 +666,20 @@ def get_role_provider(provider_type: UserProvider | None = None) -> RoleProvider
         ValueError: If an unknown provider type is configured
     """
     if provider_type is None:
-        provider_type = settings.PROVIDER_PLUGIN
+        provider_type = settings.ROLE_PROVIDER_TYPE
 
-    if provider_type == UserProvider.DEFAULT:
-        logger.info("Using DefaultRoleProvider (JWT claims)")
-        return DefaultRoleProvider()
-    elif provider_type == UserProvider.ACCRED:
-        logger.info("Using AccredRoleProvider (EPFL Accred API)")
-        return AccredRoleProvider()
-    elif provider_type == UserProvider.TEST:
-        logger.info("Using TestRoleProvider (for testing)")
-        return TestRoleProvider()
-    raise ValueError(f"Unknown role provider type: {provider_type!r}")
+    match provider_type:
+        case RoleProviderType.JWT | UserProvider.DEFAULT:
+            logger.info("Using JwtClaimsRoleProvider (JWT claims)")
+            return JwtClaimsRoleProvider()
+        case RoleProviderType.ACCRED | UserProvider.ACCRED:
+            logger.info("Using AccredRoleProvider (EPFL Accred API)")
+            return AccredRoleProvider()
+        case RoleProviderType.TEST | UserProvider.TEST:
+            logger.info("Using TestRoleProvider (for testing)")
+            return TestRoleProvider()
+        case _:
+            raise ValueError(f"Unknown role provider type: {provider_type!r}")
 
 
 class RoleProviderNetworkError(Exception):

@@ -4,7 +4,7 @@ from math import ceil
 from typing import Any, List, Optional, Union
 
 from attr import dataclass
-from sqlalchemy import asc, desc
+from sqlalchemy import asc, desc, inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlmodel import col, func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -226,10 +226,10 @@ class UnitRepository:
 
         # Build value dicts.  ``id`` is excluded (auto-assigned for new
         # rows; preserved for existing via the conflict-update returning
-        # the same row).  SQLModel exposes the SQLAlchemy Table via
-        # ``__table__``; mypy doesn't see it through the metaclass so
-        # access it via a typing escape hatch on the row type.
-        table = Unit.__table__  # type: ignore[attr-defined]
+        # the same row).  SQLModel exposes the mapped SQLAlchemy Table
+        # through the metaclass, invisible to static type checkers, so
+        # go through ``inspect()`` instead of ``Unit.__table__``.
+        table = inspect(Unit).local_table
         value_dicts = [
             {c.name: getattr(unit, c.name) for c in table.columns if c.name != "id"}
             for unit in units

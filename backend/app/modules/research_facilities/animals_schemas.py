@@ -9,9 +9,9 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
 )
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
@@ -77,10 +77,19 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
 
     sort_map = {
         "id": DataEntry.id,
+        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
+        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
+        "researchfacility_type": DataEntry.data["researchfacility_type"].as_string(),
+        "use": DataEntry.data["use"].as_float(),
+        "use_unit": DataEntry.data["use_unit"].as_string(),
         "kg_co2eq": DataEntryEmission.kg_co2eq,
     }
 
-    filter_map: dict = {}
+    filter_map: dict = {
+        "researchfacility_id": DataEntry.data["researchfacility_id"].as_string(),
+        "researchfacility_name": DataEntry.data["researchfacility_name"].as_string(),
+        "researchfacility_type": DataEntry.data["researchfacility_type"].as_string(),
+    }
 
     def to_response(
         self,
@@ -132,6 +141,7 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             total_use = factor_values.get("total_use")
             if total_use is None:
                 return None
+            use_share = use / total_use if total_use > 0 else 0.0
             sources = [
                 "processemissions",
                 "building_energycombustions",
@@ -142,21 +152,27 @@ class ResearchFacilitiesAnimalModuleHandler(BaseModuleHandler):
             ]
             kg_co2eq_sum = None
             for source in sources:
-                source_share = factor_values.get(f"{source}_share")
                 kg_co2eq_sum_source = factor_values.get(f"kg_co2eq_sum_{source}")
-                if source_share is None or kg_co2eq_sum_source is None:
-                    continue
-                if kg_co2eq_sum is None:
-                    kg_co2eq_sum = 0
-                kg_co2eq_sum += (
-                    use * source_share / total_use if total_use > 0 else 0
-                ) * kg_co2eq_sum_source
+                if kg_co2eq_sum_source is not None:
+                    # Add provided facility emissions modulo share of use
+                    if kg_co2eq_sum is None:
+                        kg_co2eq_sum = 0
+                    kg_co2eq_sum += use_share * kg_co2eq_sum_source
+                else:
+                    # Source emissions are missing in the factor values
+                    researchfacility_name = ctx.get("researchfacility_name", "Unknown")
+                    researchfacility_type = ctx.get("researchfacility_type", "Unknown")
+                    raise ValueError(
+                        f"Missing kg_co2eq_sum for source {source} in factor values "
+                        f"for facility {researchfacility_name} "
+                        f"({researchfacility_type})."
+                    )
             return kg_co2eq_sum
 
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_research_facilities_formula,
             )
         ]

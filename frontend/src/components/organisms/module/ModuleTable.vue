@@ -1,7 +1,12 @@
 <template>
   <div v-if="hasTopBar" class="q-mb-md flex justify-between items-center wrap">
     <div
-      v-if="hasModuleUpload && !isInputDeactivated && canUseCsvTools"
+      v-if="
+        hasModuleUpload &&
+        !isInputDeactivated &&
+        canUseCsvTools &&
+        !isCsvDeactivated
+      "
       class="q-gutter-sm"
     >
       <q-btn
@@ -295,6 +300,24 @@
     @delete="deleteNote"
   />
 
+  <EquipmentPowerFeedbackDialog
+    v-model="powerFeedbackDialogOpen"
+    :note="noteDialogCurrentNote"
+    :mode="noteDialogMode"
+    :equipment-name="powerFeedbackRow.equipmentName"
+    :equipment-class="powerFeedbackRow.equipmentClass"
+    :sub-class="powerFeedbackRow.subClass"
+    :current-active-power-w="powerFeedbackRow.currentActivePowerW"
+    :current-standby-power-w="powerFeedbackRow.currentStandbyPowerW"
+    :unit-name="powerFeedbackUnitName"
+    :year="year"
+    :module-color="moduleColors.bgColorLighter"
+    :module-text-color="moduleColors.buttonTextColor"
+    :module-accent-color="moduleColors.borderColor"
+    @save="saveNote"
+    @delete="deleteNote"
+  />
+
   <q-dialog v-model="confirmDelete" class="modal modal--md" persistent>
     <q-card class="column">
       <q-card-section class="flex justify-between items-center">
@@ -375,6 +398,8 @@ import { useI18n } from 'vue-i18n';
 import ModuleForm from './ModuleForm.vue';
 import ModuleInlineSelect from './ModuleInlineSelect.vue';
 import NoteDialog from 'src/components/molecules/NoteDialog.vue';
+import EquipmentPowerFeedbackDialog from 'src/components/molecules/EquipmentPowerFeedbackDialog.vue';
+import { useWorkspaceStore } from 'src/stores/workspace';
 import { QInput, QSelect, useQuasar } from 'quasar';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
@@ -407,6 +432,7 @@ import {
 import { getModuleTypeId, MODULE_STATES } from 'src/constant/moduleStates';
 import { nOrDash } from 'src/utils/number';
 import { getModuleIconColors } from 'src/composables/useModuleIconColors';
+import { formatRowErrorLines } from 'src/utils/rowErrors';
 
 function getNumericRules(col: TableViewColumn) {
   const rules = [];
@@ -451,9 +477,47 @@ const noteDialogOpen = ref(false);
 const noteDialogCurrentNote = ref('');
 const noteDialogRowId = ref<number | null>(null);
 
+// The per-row Comment button. For Equipment (issue #266) it opens a 2-tab dialog
+// (Comment + "Demande de modification de puissance") that can email a power-change
+// request to the business admin, who edits the reference Factor manually. Other
+// modules keep the plain NoteDialog. Both share the same note state so saving a
+// comment persists identically.
+const workspaceStore = useWorkspaceStore();
+const isEquipmentModule = computed(
+  () => props.moduleType === MODULES.Equipment,
+);
+const powerFeedbackDialogOpen = ref(false);
+const powerFeedbackRow = ref<{
+  equipmentName: string;
+  equipmentClass: string;
+  subClass: string | null;
+  currentActivePowerW: number | null;
+  currentStandbyPowerW: number | null;
+}>({
+  equipmentName: '',
+  equipmentClass: '',
+  subClass: null,
+  currentActivePowerW: null,
+  currentStandbyPowerW: null,
+});
+const powerFeedbackUnitName = computed(
+  () => workspaceStore.selectedUnit?.name ?? String(props.unitId),
+);
+
 function openNoteDialog(row: ModuleRow) {
   noteDialogRowId.value = getRowId(row);
   noteDialogCurrentNote.value = (row.note as string) ?? '';
+  if (isEquipmentModule.value) {
+    powerFeedbackRow.value = {
+      equipmentName: (row.name as string) ?? '',
+      equipmentClass: (row.equipment_class as string) ?? '',
+      subClass: (row.sub_class as string) ?? null,
+      currentActivePowerW: (row.active_power_w as number) ?? null,
+      currentStandbyPowerW: (row.standby_power_w as number) ?? null,
+    };
+    powerFeedbackDialogOpen.value = true;
+    return;
+  }
   noteDialogOpen.value = true;
 }
 
@@ -504,34 +568,13 @@ const ROWS_PER_PAGE_OPTIONS = [10, 20, 50, 100, 200, 1000];
 
 const showUploadDialog = ref<boolean>(false);
 
-const MAX_DISPLAYED_ROW_ERRORS = 5;
-
 const formatRowErrors = (payload?: JobUpdatePayload): string | undefined => {
-  const rowErrors = payload?.meta?.row_errors ?? [];
-  if (rowErrors.length === 0) return undefined;
-  const totalErrorCount = payload?.meta?.row_errors_count ?? rowErrors.length;
-  const lines = rowErrors.slice(0, MAX_DISPLAYED_ROW_ERRORS).map((e) => {
-    let reason = e.reason;
-
-    // Special handling for headcount duplicate institutional ID error to provide a more user-friendly message
-    if (reason === 'DUPLICATE_INSTITUTIONAL_ID') {
-      reason = $t('headcount-member-error-duplicate-uid', {
-        label:
-          typeof INSTITUTIONAL_ID_LABEL !== 'undefined'
-            ? INSTITUTIONAL_ID_LABEL
-            : '',
-      });
-    }
-    return $t('csv_sync_row_error', { row: e.row, reason });
-  });
-  if (totalErrorCount > MAX_DISPLAYED_ROW_ERRORS) {
-    lines.push(
-      $t('csv_sync_and_more_errors', {
-        count: totalErrorCount - MAX_DISPLAYED_ROW_ERRORS,
-      }),
-    );
-  }
-  return lines.join('\n');
+  const lines = formatRowErrorLines(
+    payload?.meta?.row_errors,
+    payload?.meta?.row_errors_count,
+    $t,
+  );
+  return lines.length === 0 ? undefined : lines.join('\n');
 };
 
 const onFilesUploaded = async (filePaths: string[]) => {
@@ -727,6 +770,13 @@ const isInputDeactivated = computed(() => {
   if (!unifiedConfig) return false;
   const subConfig = unifiedConfig.submodules[props.submoduleType as string];
   return subConfig?.inputs_deactivated ?? false;
+});
+
+const isCsvDeactivated = computed(() => {
+  const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
+  if (!unifiedConfig) return false;
+  const subConfig = unifiedConfig.submodules[props.submoduleType as string];
+  return subConfig?.csv_deactivated ?? false;
 });
 
 const moduleColors = computed(() =>
@@ -1056,11 +1106,20 @@ function renderCell(
     optionsId?: string;
   },
 ) {
+  if (col.field === 'origin_name') {
+    const name = row['origin_name'] as string | undefined;
+    const iata = row['origin_iata'] as string | undefined;
+    return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
+  }
+  if (col.field === 'destination_name') {
+    const name = row['destination_name'] as string | undefined;
+    const iata = row['destination_iata'] as string | undefined;
+    return iata ? `${name ?? iata} (${iata})` : (name ?? '-');
+  }
   // Resolve traveler name from loaded headcount members (user_institutional_id is the source of truth)
   if (col.field === 'traveler_name') {
     const user_institutional_id = row['user_institutional_id'] as
-      | string
-      | undefined;
+      string | undefined;
     if (user_institutional_id != null) {
       return headcountMembersMap.value.get(user_institutional_id) ?? '-';
     }
@@ -1428,7 +1487,7 @@ function isComplete(row: ModuleRow) {
     return isCompleteExternalAI(row);
   }
   if (props.moduleType === MODULES.Purchase) {
-    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.AdditionalPurchases) {
+    if (props.submoduleType === SUBMODULE_PURCHASE_TYPES.PurchasesCentralized) {
       return isCompletePurchaseAdditional(row);
     }
     return isCompletePurchase(row);
@@ -1759,5 +1818,74 @@ onUnmounted(() => {
 
 .co2-table :deep(tbody tr:nth-child(even)) {
   background-color: var(--row-alt-color, transparent);
+}
+</style>
+
+<!-- Not scoped: .co2-table's rules reach into Quasar's rendered table internals
+     (thead/tbody/td/tr), which do not receive scoped style attributes. -->
+<style lang="scss">
+@use 'src/css/02-tokens' as tokens;
+
+.co2-table {
+  border: 1px solid tokens.$container-default-border;
+  border-radius: tokens.$table-border-radius;
+  font-size: tokens.$text-size-sm;
+
+  /* height or max-height is important for sticky header */
+  max-height: tokens.$table-max-height;
+  overflow-y: auto;
+
+  th {
+    font-size: tokens.$text-size-sm;
+  }
+
+  thead tr th {
+    position: sticky;
+    z-index: tokens.$table-header-z-index;
+    background-color: tokens.$table-bg-odd;
+  }
+
+  thead tr:first-child th {
+    top: 0;
+  }
+
+  .q-table td {
+    border: none;
+  }
+
+  tbody .q-tr:nth-child(even) {
+    background-color: tokens.$table-bg-even;
+  }
+
+  tr {
+    &::before {
+      display: none !important;
+    }
+  }
+
+  &--selectable {
+    tbody tr {
+      cursor: pointer;
+
+      &.selected > td {
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:first-child > td {
+        border-top: none !important;
+        border-bottom: 1px solid tokens.$container-selected-hover-border !important;
+      }
+
+      &.selected:last-child > td {
+        border-top: 1px solid tokens.$container-selected-hover-border !important;
+        border-bottom: none !important;
+      }
+    }
+  }
+
+  .square-button {
+    padding: tokens.$spacing-sm tokens.$spacing-sm;
+  }
 }
 </style>

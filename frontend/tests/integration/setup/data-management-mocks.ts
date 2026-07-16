@@ -16,7 +16,7 @@
 import type { BrowserContext, Page, Route } from '@playwright/test';
 
 /** Default backoffice landing URL with explicit year. */
-export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2024';
+export const DATA_MANAGEMENT_URL = '/en/back-office/data-management?year=2025';
 
 /**
  * Issue #867 — fixed pipeline_id returned by the create-year mock so
@@ -49,13 +49,20 @@ export interface YearConfigBuilderOptions {
    * fine — the tests target Headcount specifically.
    */
   modulesOverride?: Record<string, unknown>;
+  /**
+   * Issue #1204 follow-up — ``min_configurable_year`` echoed by the
+   * backend. Defaults to the production floor (2025); tests proving the
+   * frontend actually reacts to the backend value (rather than a
+   * hardcoded copy) override this.
+   */
+  minConfigurableYear?: number;
 }
 
 const SUCCESS_FACTOR_JOB = {
   job_id: 1001,
   module_type_id: 1,
   data_entry_type_id: 1,
-  year: 2024,
+  year: 2025,
   ingestion_method: 1,
   target_type: 1,
   state: 3,
@@ -68,7 +75,7 @@ const SUCCESS_DATA_JOB = {
   job_id: 1002,
   module_type_id: 1,
   data_entry_type_id: 1,
-  year: 2024,
+  year: 2025,
   ingestion_method: 1,
   target_type: 0,
   state: 3,
@@ -122,7 +129,7 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
     // satisfies the gate so upload/dispatch happy-path tests aren't
     // blocked; tests that want to exercise the unprovisioned state
     // can pass an explicit override via ``onGetYearConfig``.
-    configuration_completed: '2024-01-01T00:00:00Z',
+    configuration_completed: '2025-01-01T00:00:00Z',
     config: {
       modules: options.modulesOverride ?? { '1': baseHeadcount },
       reduction_objectives: {
@@ -138,7 +145,8 @@ export function buildYearConfig(options: YearConfigBuilderOptions) {
       },
     },
     recalculation_status: options.recalculationStatus ?? [],
-    updated_at: '2024-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
+    min_configurable_year: options.minConfigurableYear ?? 2025,
   };
 }
 
@@ -174,9 +182,16 @@ export async function installInitScripts(
     // can drive ``pipeline-update`` events deterministically via
     // ``window.__sse.emit(pipelineId, payload)`` instead of waiting on
     // a real SSE socket.
+    //
+    // Issue #1523 — also matches ``/sync/jobs/{id}/stream`` (the
+    // per-job stream ``useRecalculation.ts`` subscribes to) keyed by
+    // the numeric job id, so tests can drive ``onerror`` via
+    // ``window.__sse.emitError(jobId)`` to cover the "SSE connection
+    // dropped" path distinct from a job finishing with an ERROR result.
     interface FakeSseRegistry {
       sources: Map<string, FakeEventSource>;
-      emit: (pipelineId: string, payload: unknown) => void;
+      emit: (id: string, payload: unknown) => void;
+      emitError: (id: string) => void;
     }
 
     class FakeEventSource extends EventTarget {
@@ -192,8 +207,9 @@ export async function installInitScripts(
       constructor(url: string) {
         super();
         this.url = url;
-        // ``/api/v1/sync/pipelines/{id}/stream`` → extract id segment.
-        const match = url.match(/\/sync\/pipelines\/([^/]+)\/stream/);
+        // ``/api/v1/sync/pipelines/{id}/stream`` or
+        // ``/api/v1/sync/jobs/{id}/stream`` → extract id segment.
+        const match = url.match(/\/sync\/(?:pipelines|jobs)\/([^/]+)\/stream/);
         if (match) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const reg = (window as any).__sse as FakeSseRegistry | undefined;
@@ -217,13 +233,18 @@ export async function installInitScripts(
 
     const registry: FakeSseRegistry = {
       sources: new Map(),
-      emit(pipelineId, payload) {
-        const source = this.sources.get(pipelineId);
+      emit(id, payload) {
+        const source = this.sources.get(id);
         if (!source) return;
         const evt = new MessageEvent('pipeline-update', {
           data: JSON.stringify(payload),
         });
         source.dispatchEvent(evt);
+      },
+      emitError(id) {
+        const source = this.sources.get(id);
+        if (!source) return;
+        source.onerror?.(new Event('error'));
       },
     };
 
@@ -362,7 +383,7 @@ export async function mockBackend(
   // active-pipelines/year/{year} — empty list by default (no live
   // year-level pipeline).  Issue #867 reload-rehydrate path.
   // Registered BEFORE the module-scoped catch-all so this more
-  // specific URL pattern wins for ``…/active-pipelines/year/2025``.
+  // specific URL pattern wins for ``…/active-pipelines/year/2026``.
   await page.route(
     /.*\/api\/v1\/sync\/active-pipelines\/year\/(\d+)$/,
     async (route) => {
@@ -378,6 +399,16 @@ export async function mockBackend(
         body: '[]',
       });
     },
+  );
+
+  // connectors — none configured, so ConnectorsCard mounts silently
+  // (an unmocked 404 here trips the global negative-toast hook).
+  await page.route('**/api/v1/connectors', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '[]',
+    }),
   );
 
   // active-pipelines — empty by default (no recalculating badge).

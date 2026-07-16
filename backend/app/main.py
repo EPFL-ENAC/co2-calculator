@@ -6,10 +6,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.router import api_router
-from app.core.config import get_settings
+from app.core.config import RoleProviderType, UnitProviderType, get_settings
 from app.core.exception_handlers import permission_denied_handler
 from app.core.exceptions import (
     InsufficientScopeError,
@@ -26,9 +25,51 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 
+def assert_security_settings(settings) -> None:
+    """Fail closed at boot outside local/dev when security settings are missing."""
+    if settings.LOCAL_ENVIRONMENT:
+        return
+    missing = [
+        name
+        for name in (
+            "CREDENTIALS_ENCRYPTION_KEY",
+            "CREDENTIALS_ENCRYPTION_SALT",
+            "CONNECTOR_ALLOWED_HOST_SUFFIXES",
+        )
+        if not getattr(settings, name)
+    ]
+    if missing:
+        raise RuntimeError(f"Missing required security settings: {missing}")
+
+
+def assert_accred_settings(settings) -> None:
+    """Require Accred credentials at boot whenever a provider selects Accred.
+
+    Enforced here rather than in Settings construction so non-app contexts
+    that build Settings but never call Accred (alembic migrations) don't
+    need the credentials.
+    """
+    uses_accred = (
+        settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
+        or settings.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
+    )
+    if not uses_accred:
+        return
+    missing = [
+        name
+        for name in ("ACCRED_API_BASE_URL", "ACCRED_API_USERNAME", "ACCRED_API_KEY")
+        if getattr(settings, name) is None
+    ]
+    if missing:
+        raise RuntimeError("Missing required Accred config: " + ", ".join(missing))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Run on application startup."""
+    assert_security_settings(settings)
+    assert_accred_settings(settings)
+
     logger.info(
         "Starting application",
         extra={
@@ -274,11 +315,6 @@ app.add_middleware(
     https_only=not settings.DEBUG,
 )
 
-# Add Forwarded Headers Middleware to handle X-Forwarded-* headers
-# because of load balancer / reverse proxy in front of the app that
-# handles TLS termination
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
-
 # Register exception handlers for permission-based access control
 app.add_exception_handler(PermissionDeniedError, permission_denied_handler)
 app.add_exception_handler(InsufficientScopeError, permission_denied_handler)
@@ -334,15 +370,25 @@ async def ready():
         db_status = "error"
         details["db_error"] = str(e)
 
-    # Role provider health check
+    # Role/unit provider health check — runs whenever either provider is
+    # configured to use Accred, since ACCRED_AUTHORIZATION_HEALTHCHECK_URL
+    # covers the shared Accred integration, not one provider specifically.
     role_provider_status = "skipped"
-    if (settings.PROVIDER_PLUGIN == "accred") and settings.ACCRED_API_HEALTH_URL:
+    uses_accred = (
+        settings.ROLE_PROVIDER_TYPE == RoleProviderType.ACCRED
+        or settings.UNIT_PROVIDER_TYPE == UnitProviderType.ACCRED
+    )
+    if uses_accred and settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL:
+        # assert_accred_settings() above already guarantees these are set
+        # whenever Accred is in use; narrow locally so ty sees non-None types.
+        if settings.ACCRED_API_USERNAME is None or settings.ACCRED_API_KEY is None:
+            raise ValueError("ACCRED_API_USERNAME and ACCRED_API_KEY must be set")
         try:
             import httpx
 
             async with httpx.AsyncClient(timeout=2) as client:
                 resp = await client.get(
-                    settings.ACCRED_API_HEALTH_URL,
+                    settings.ACCRED_AUTHORIZATION_HEALTHCHECK_URL,
                     auth=(settings.ACCRED_API_USERNAME, settings.ACCRED_API_KEY),
                 )
                 if resp.status_code == 200:

@@ -202,6 +202,7 @@ class LocationService:
         # Create corrected location objects
         origin_corrected = Location(
             id=origin_location.id,
+            natural_key=origin_location.natural_key,
             name=origin_location.name,
             transport_mode=origin_location.transport_mode,
             latitude=origin_lat,
@@ -209,6 +210,7 @@ class LocationService:
         )
         dest_corrected = Location(
             id=destination_location.id,
+            natural_key=destination_location.natural_key,
             name=destination_location.name,
             transport_mode=destination_location.transport_mode,
             latitude=dest_lat,

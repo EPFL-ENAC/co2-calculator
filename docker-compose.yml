@@ -35,6 +35,7 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: co2-calculator-postgres
+    restart: unless-stopped
     env_file:
       - ./backend/.env
       - ./.database.env

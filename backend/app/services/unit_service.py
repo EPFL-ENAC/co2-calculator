@@ -87,7 +87,6 @@ class UnitService:
                 "user_id": sanitize(user.id),
                 "action": "list_user_units",
                 "decision": sanitize(decision),
-                "input_data": sanitize(input_data),
             },
         )
 

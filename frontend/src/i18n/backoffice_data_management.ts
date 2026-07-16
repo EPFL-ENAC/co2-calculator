@@ -122,10 +122,6 @@ export default {
     en: 'Connect API',
     fr: "Connecter l'API",
   },
-  data_management_copy_previous_year: {
-    en: 'Copy Previous Year',
-    fr: "Copier l'année précédente",
-  },
   data_management_no_data: {
     en: 'No data available for this year.',
     fr: 'Aucune donnée disponible pour cette année.',
@@ -235,13 +231,21 @@ export default {
     en: 'Connect API',
     fr: 'Connecter API',
   },
-  data_management_tab_copy_previous: {
-    en: 'Copy from Previous Year',
-    fr: "Copier de l'année précédente",
+  data_management_api_connector: {
+    en: 'Connector',
+    fr: 'Connecteur',
   },
   data_management_api_server_url: {
     en: 'Server URL',
     fr: 'URL du serveur',
+  },
+  data_management_api_site_content_url: {
+    en: 'Site Content URL',
+    fr: 'URL du contenu du site',
+  },
+  data_management_api_username: {
+    en: 'Username',
+    fr: "Nom d'utilisateur",
   },
   data_management_api_client_id: {
     en: 'Client ID',
@@ -255,6 +259,14 @@ export default {
     en: 'Secret Value',
     fr: 'Valeur du secret',
   },
+  data_management_api_secret_kept: {
+    en: 'Secret set — leave blank to keep',
+    fr: 'Secret défini — laisser vide pour le conserver',
+  },
+  data_management_api_luid: {
+    en: 'Datasource LUID',
+    fr: 'LUID de la source de données',
+  },
   data_management_api_test_connection: {
     en: 'Test Connection',
     fr: 'Tester la connexion',
@@ -263,21 +275,37 @@ export default {
     en: 'Connect & Sync',
     fr: 'Connecter et synchroniser',
   },
-  data_management_copy_from_year: {
-    en: 'Copy from {year}',
-    fr: 'Copier de {year}',
+  data_management_connection_not_configured_hint: {
+    en: 'No connection configured for this connector yet — set it up in the "API Connectors" card above.',
+    fr: 'Aucune connexion configurée pour ce connecteur — configurez-la dans la section « Connecteurs API » ci-dessus.',
   },
-  data_management_select_import: {
-    en: 'Select import to copy',
-    fr: "Sélectionner l'import à copier",
+  data_management_connectors_title: {
+    en: 'API Connectors',
+    fr: 'Connecteurs API',
   },
-  data_management_copy_start: {
-    en: 'Start Copy',
-    fr: 'Démarrer la copie',
+  data_management_connectors_hint: {
+    en: 'Configure the credentials each API-connected module uses to pull data. One connection per connector, shared across every module that uses it.',
+    fr: "Configurez les identifiants utilisés par chaque module connecté à une API pour récupérer des données. Une connexion par connecteur, partagée par tous les modules qui l'utilisent.",
   },
-  data_management_no_previous_jobs: {
-    en: 'No successful imports from previous year',
-    fr: "Aucune importation réussie de l'année précédente",
+  data_management_connector_configured: {
+    en: 'Configured',
+    fr: 'Configuré',
+  },
+  data_management_connector_not_configured: {
+    en: 'Not configured',
+    fr: 'Non configuré',
+  },
+  data_management_configure_connection: {
+    en: 'Configure',
+    fr: 'Configurer',
+  },
+  data_management_configure_connector_title: {
+    en: 'Configure {connector}',
+    fr: 'Configurer {connector}',
+  },
+  data_management_connection_saved: {
+    en: 'Connection saved',
+    fr: 'Connexion enregistrée',
   },
   data_management_connection_success: {
     en: 'Connection successful',
@@ -286,10 +314,6 @@ export default {
   data_management_connection_failed: {
     en: 'Connection failed',
     fr: 'Connexion échouée',
-  },
-  data_management_copy_failed: {
-    en: 'Failed to copy from previous year',
-    fr: "Échec de la copie de l'année précédente",
   },
   data_management_last_import_date: {
     en: 'Last import',
@@ -302,6 +326,22 @@ export default {
   data_management_api_ingestion: {
     en: 'API ingestion',
     fr: 'Ingestion API',
+  },
+  data_management_missing_synced_units: {
+    en: '{rows} rows skipped: no matching synced unit',
+    fr: '{rows} lignes ignorées : aucune unité synchronisée correspondante',
+  },
+  data_management_distinct_unit_ids: {
+    en: '{count} distinct unit IDs',
+    fr: '{count} identifiants d’unité distincts',
+  },
+  data_management_unit_row_count: {
+    en: '{unit} ({count} row)',
+    fr: '{unit} ({count} ligne)',
+  },
+  data_management_unit_rows_count: {
+    en: '{unit} ({count} rows)',
+    fr: '{unit} ({count} lignes)',
   },
   data_management_download_last_csv: {
     en: 'Download last CSV',
@@ -403,6 +443,10 @@ export default {
   data_management_submodule_inputs_deactivation_label: {
     en: 'Deactivate input form',
     fr: 'Désactiver le formulaire de saisie',
+  },
+  data_management_submodule_csv_deactivation_label: {
+    en: 'Deactivate CSV upload & template',
+    fr: "Désactiver l'import CSV et le modèle",
   },
   data_management_uncertainty_title: {
     en: 'Uncertainty',
@@ -533,7 +577,7 @@ export default {
     en: 'Other Purchases',
     fr: 'Autres achats',
   },
-  data_management_submodule_additional_purchases: {
+  data_management_submodule_purchases_centralized: {
     en: 'Centralized Purchases',
     fr: 'Achats Centralisés',
   },
@@ -605,6 +649,14 @@ export default {
     en: 'Missing factors computation failed',
     fr: 'Le calcul des facteurs manquants a échoué',
   },
+  data_management_compute_factors_error_count: {
+    en: 'No factor could not be recomputed | One factor could not be recomputed | {count} factors could not be recomputed',
+    fr: "Aucun facteur n'a pu être recalculé | Un facteur n'a pas pu être recalculé | {count} facteurs n'ont pas pu être recalculés",
+  },
+  data_management_view_pipeline_details: {
+    en: 'View details in Pipeline Operations',
+    fr: 'Voir les détails dans Pipeline Operations',
+  },
   data_management_recalculation_needed: {
     en: 'Recalculation Needed',
     fr: 'Recalcul nécessaire',
@@ -628,6 +680,10 @@ export default {
   data_management_pipeline_phase_aggregation: {
     en: 'Step 3/3 · Aggregating…',
     fr: 'Étape 3/3 · Agrégation…',
+  },
+  data_management_pipeline_phase_recalculating: {
+    en: 'Recalculating emissions…',
+    fr: 'Recalcul des émissions…',
   },
   data_management_pipeline_running_tooltip: {
     en: 'Upload accepted — recalculation still in progress',
@@ -694,8 +750,8 @@ export default {
     fr: 'Recalculer les émissions',
   },
   data_management_recalculate_emissions_description: {
-    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage.',
-    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil.",
+    en: 'Recalculate all emissions based on the current data and factors. This will overwrite all previous carbon reports. This action cannot be undone and may take some time. Please update users via the Calculator Update section on the homepage. This only recomputes emissions for rows already imported — if an upload was skipped or incomplete, re-upload the file first to add the missing rows.',
+    fr: "Recalculez toutes les émissions en fonction des données et facteurs actuels. Cela écrasera tous les rapports carbone précédents. Cette action est irréversible et peut prendre du temps. Veuillez informer les utilisateurs via la section Mise à jour du calculateur sur la page d'accueil. Cela ne recalcule que les émissions des lignes déjà importées — si un import a été partiel ou incomplet, re-téléversez d'abord le fichier pour ajouter les lignes manquantes.",
   },
   data_management_recalculation_success: {
     en: 'Emissions recalculation successful',
@@ -708,6 +764,10 @@ export default {
   data_management_recalculation_warning: {
     en: 'Emissions recalculated with warnings',
     fr: 'Le recalcul des émissions a été effectué avec des avertissements',
+  },
+  data_management_recalculation_connection_lost: {
+    en: 'Connection lost while waiting for the result. The job may still be running — check back shortly.',
+    fr: 'Connexion perdue en attendant le résultat. Le traitement est peut-être toujours en cours — vérifiez à nouveau dans quelques instants.',
   },
   data_management_recalculate_only_stale: {
     en: 'Recalculate only stale emissions',

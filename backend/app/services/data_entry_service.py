@@ -63,32 +63,23 @@ class DataEntryService:
             data_entry_type_id=data_entry_type_id,
         )
 
-    async def check_institutional_id_unique(
-        self, carbon_report_module_id: int, uid: str, exclude_id: Optional[int] = None
+    async def check_member_role_unique(
+        self,
+        carbon_report_module_id: int,
+        uid: str,
+        sius_code: str,
+        exclude_id: Optional[int] = None,
     ) -> bool:
-        """Check whether user_institutional_id is unique in member submodule."""
+        """Check whether (user_institutional_id, sius_code) is unique.
+
+        A person can legitimately hold multiple roles (``sius_code``) in the
+        same unit, so the uniqueness key is the role, not just the person.
+        """
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=DataEntryTypeEnum.member.value,
-            field="user_institutional_id",
-            value=uid,
+            fields={"user_institutional_id": uid, "sius_code": sius_code},
             exclude_id=exclude_id,
-        )
-
-    async def get_stats_by_carbon_report_id(
-        self,
-        carbon_report_id: int,
-        aggregate_by: str = "data_entry_type_id",
-        aggregate_field: str = "fte",
-        *,
-        validated_only: bool = True,
-    ) -> dict[str, float]:
-        """Get DataEntry totals across modules for a carbon report."""
-        return await self.repo.get_stats_by_carbon_report_id(
-            carbon_report_id=carbon_report_id,
-            aggregate_by=aggregate_by,
-            aggregate_field=aggregate_field,
-            validated_only=validated_only,
         )
 
     async def check_json_field_unique(
@@ -114,8 +105,7 @@ class DataEntryService:
         return await self.repo.check_json_field_unique(
             carbon_report_module_id=carbon_report_module_id,
             data_entry_type_id=data_entry_type_id,
-            field=field,
-            value=value,
+            fields={field: value},
             exclude_id=exclude_id,
         )
 
@@ -214,8 +204,7 @@ class DataEntryService:
         if source is not None or created_by_id is not None:
             for entry in data_entries:
                 if source is not None:
-                    # Convert enum to integer value for database
-                    entry.source = source.value if hasattr(source, "value") else source
+                    entry.source = source
                 if created_by_id is not None:
                     entry.created_by_id = created_by_id
 
@@ -289,7 +278,7 @@ class DataEntryService:
         """
         for entry in data_entries:
             if source is not None:
-                entry.source = source.value if hasattr(source, "value") else source
+                entry.source = source
             if created_by_id is not None:
                 entry.created_by_id = created_by_id
         count = await self.repo.bulk_copy(data_entries)

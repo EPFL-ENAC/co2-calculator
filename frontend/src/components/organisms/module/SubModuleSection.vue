@@ -179,6 +179,7 @@ import { enumSubmodule, MODULES_THRESHOLD_TYPES } from 'src/constant/modules';
 import { useModuleStore, useTimelineStore } from 'src/stores/modules';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { INSTITUTIONAL_ID_LABEL } from 'src/constant/institutionalId';
+import { submitCreateItem } from 'src/utils/submitCreateItem';
 import { Notify } from 'quasar';
 import {
   getSubmoduleIconColor,
@@ -371,33 +372,49 @@ async function submitForm(payload: Record<string, FieldValue>) {
       payload,
     );
   } else {
-    try {
-      await moduleStore.postItem(
-        props.moduleType,
-        props.unitId,
-        props.year,
-        props.submoduleType,
-        payload,
-      );
-      if (props.submodule.notifyInfoOnAddKey) {
-        Notify.create({
-          type: 'info',
-          message: t(props.submodule.notifyInfoOnAddKey),
-        });
-      }
-    } catch (err: unknown) {
-      // Replace generic "user institutional id" in server error messages with
-      // the institution-specific label (SCIPER for EPFL).
-      const raw = err instanceof Error ? err.message : 'Unexpected error';
-      const message =
-        raw === 'DUPLICATE_INSTITUTIONAL_ID'
-          ? t('headcount-member-error-duplicate-uid', {
-              label: INSTITUTIONAL_ID_LABEL,
-            })
-          : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
+    await submitCreateItem(
+      (onCreated) =>
+        moduleStore.postItem(
+          props.moduleType,
+          props.unitId,
+          props.year,
+          props.submoduleType,
+          payload,
+          onCreated,
+        ),
+      {
+        onCreated: () => {
+          if (props.submodule.notifyInfoOnAddKey) {
+            Notify.create({
+              type: 'info',
+              message: t(props.submodule.notifyInfoOnAddKey),
+            });
+          }
+        },
+        // The item was already created server-side; this failure comes from
+        // an unrelated post-create refresh (totals/breakdown/state), not
+        // from the submitted data — don't misattribute it to a form field.
+        onRefreshFailed: () => {
+          Notify.create({
+            type: 'warning',
+            message: t('common_post_create_refresh_error'),
+          });
+        },
+        onCreateFailed: (err: unknown) => {
+          // Replace generic "user institutional id" in server error messages
+          // with the institution-specific label (SCIPER for EPFL).
+          const raw = err instanceof Error ? err.message : 'Unexpected error';
+          const message =
+            raw === 'DUPLICATE_INSTITUTIONAL_ID'
+              ? t('headcount-member-error-duplicate-uid', {
+                  label: INSTITUTIONAL_ID_LABEL,
+                })
+              : raw.replace(/user institutional id/gi, INSTITUTIONAL_ID_LABEL);
 
-      formRef.value?.setFieldError('user_institutional_id', message);
-    }
+          formRef.value?.setFieldError('user_institutional_id', message);
+        },
+      },
+    );
   }
 }
 </script>

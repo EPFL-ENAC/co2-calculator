@@ -34,29 +34,91 @@ test.describe('back-office data-management — happy paths', () => {
 
     await page.goto(DATA_MANAGEMENT_URL);
 
-    // Initial load fires GET for 2024 (URL query param).  Wait for
+    // Initial load fires GET for 2025 (URL query param).  Wait for
     // the year-config card to render so we know the watcher ran.
     await expect(page.getByText(/year configuration/i).first()).toBeVisible();
 
     const initialGets = requests.filter(
-      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+      (r) => r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
     );
     expect(initialGets.length).toBeGreaterThanOrEqual(1);
 
-    // Switch the q-select to 2025.  Quasar renders the popup outside
+    // Switch the q-select to 2026.  Quasar renders the popup outside
     // the page in ``document.body``; ``getByRole('option')`` finds it.
     await page.locator('.q-select').first().click();
-    await page.getByRole('option', { name: '2025' }).click();
+    await page.getByRole('option', { name: '2026' }).click();
 
     await expect
       .poll(
         () =>
           requests.filter(
             (r) =>
-              r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
+              r.method === 'GET' && /year-configuration\/2026$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
+  });
+
+  test('1b — year selector shows a loading skeleton until min_configurable_year resolves, never a guessed range', async ({
+    page,
+  }) => {
+    // Issue #1204 follow-up — the selectable range is no longer a
+    // hardcoded frontend constant; it comes from the year-configuration
+    // response. Gate the GET response so we can observe the
+    // pre-resolution state deterministically.
+    let releaseGet: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseGet = resolve;
+    });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await gate;
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(buildYearConfig({ year })),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+
+    // Before the response resolves, the loading skeleton stands in for
+    // the selector — no `.q-select` rendered with a guessed range.
+    await expect(page.getByTestId('year-selector-loading')).toBeVisible();
+    await expect(page.locator('.q-select').first()).toHaveCount(0);
+
+    releaseGet();
+
+    await expect(page.getByTestId('year-selector-loading')).toHaveCount(0);
+    await expect(page.locator('.q-select').first()).toBeVisible();
+  });
+
+  test('1c — year selector range reacts to a non-default min_configurable_year', async ({
+    page,
+  }) => {
+    // Issue #1204 follow-up — mock a floor that moved to 2026 and
+    // confirm 2025 drops out of the dropdown. Proves the frontend reads
+    // the backend value instead of a hardcoded copy that could drift.
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({ year, minConfigurableYear: 2026 }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expect(page.getByText(/year configuration/i).first()).toBeVisible();
+
+    await page.locator('.q-select').first().click();
+    await expect(page.getByRole('option', { name: '2025' })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: '2026' })).toBeVisible();
   });
 
   test('2 — create year happy path: POST /year-configuration/{year} on missing config', async ({
@@ -89,7 +151,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'POST' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBe(1);
@@ -144,7 +206,7 @@ test.describe('back-office data-management — happy paths', () => {
     // response and the page subscribes to its SSE stream.  Verify the
     // full chain end-to-end:
     //
-    //   1. POST /year-configuration/2024 fires once.
+    //   1. POST /year-configuration/2025 fires once.
     //   2. The page opens an EventSource against the pipeline_id.
     //   3. Module config is gated (``inert``) while the pipeline is
     //      in flight.
@@ -167,7 +229,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'POST' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'POST' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBe(1);
@@ -208,7 +270,7 @@ test.describe('back-office data-management — happy paths', () => {
     // can assert it grows on completion (not just the count from
     // the create-then-watch flow).
     const getsBefore = requests.filter(
-      (r) => r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+      (r) => r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
     ).length;
 
     // (4) Drive the FINISHED event.  Single job, FINISHED+SUCCESS;
@@ -226,8 +288,8 @@ test.describe('back-office data-management — happy paths', () => {
               state: 'FINISHED',
               result: 'SUCCESS',
               status_message: 'ok',
-              started_at: '2024-01-01T00:00:00Z',
-              finished_at: '2024-01-01T00:01:00Z',
+              started_at: '2025-01-01T00:00:00Z',
+              finished_at: '2025-01-01T00:01:00Z',
             },
           ],
           stream_closed: true,
@@ -252,7 +314,7 @@ test.describe('back-office data-management — happy paths', () => {
         () =>
           requests.filter(
             (r) =>
-              r.method === 'GET' && /year-configuration\/2024$/.test(r.url),
+              r.method === 'GET' && /year-configuration\/2025$/.test(r.url),
           ).length,
       )
       .toBeGreaterThan(getsBefore);
@@ -458,6 +520,86 @@ test.describe('back-office data-management — happy paths', () => {
       .toBeTruthy();
   });
 
+  test('6b — recalculate emissions: SSE connection drop surfaces a negative notification (#1523)', async ({
+    page,
+  }) => {
+    // Regression for issue #1523: ``useRecalculation.ts`` previously only
+    // reset the running/loading flag when the job-stream ``EventSource``
+    // itself errored (dropped connection, backend crash mid-stream) —
+    // distinct from a job finishing with an explicit ERROR result, which
+    // already showed a toast. A dropped connection left the spinner
+    // silently stopping with zero feedback.
+    const { requests } = await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              recalculationStatus: [
+                {
+                  module_type_id: 1,
+                  needs_recalculation: true,
+                  data_entry_types: [
+                    {
+                      data_entry_type_id: 1,
+                      needs_recalculation: true,
+                    },
+                  ],
+                },
+              ],
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expect(page.locator('text=/headcount/i').first()).toBeVisible();
+
+    const recalcBtn = page
+      .getByRole('button', { name: /recalculate emissions/i })
+      .first();
+    await expect(recalcBtn).toBeVisible({ timeout: 10000 });
+    await recalcBtn.click();
+    await page
+      .getByRole('button', { name: /^confirm$/i })
+      .first()
+      .click();
+
+    // Default ``onRecalculateEmissions`` mock returns ``job_id: 9100`` —
+    // wait for the request so the page has opened the job-stream
+    // EventSource before we drive its ``onerror``.
+    await expect
+      .poll(() =>
+        requests.find(
+          (r) =>
+            r.method === 'POST' &&
+            /sync\/recalculate-emissions\/1(\?|$)/.test(r.url),
+        ),
+      )
+      .toBeTruthy();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          () => (window as any).__sse?.sources.has('9100') === true,
+        ),
+      )
+      .toBe(true);
+
+    await page.evaluate(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__sse.emitError('9100');
+    });
+
+    await expect(
+      page.getByText(/failed to recalculate emissions/i),
+    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/connection lost/i)).toBeVisible();
+  });
+
   test.fixme('7 — computed factors trigger: nested SubmoduleItem button — covered by component test', async () => {
     // The ``compute-factors`` button lives 4 levels deep inside
     // ``ModuleUploadsSection > submodules slot > SubmoduleConfig
@@ -481,7 +623,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 100,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 1,
       target_type: 0,
       state: 3,
@@ -493,7 +635,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 200,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0,
       target_type: 0,
       state: 3,
@@ -567,13 +709,13 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 300,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0, // API
       target_type: 0,
       state: 3,
       result: 0,
       status_message: 'Success',
-      meta: { rows_processed: 10475, timestamp: '2024-01-15T00:00:00Z' },
+      meta: { rows_processed: 10475, timestamp: '2025-01-15T00:00:00Z' },
     };
 
     const yearConfigApiOnly = (year: number) => ({
@@ -630,6 +772,296 @@ test.describe('back-office data-management — happy paths', () => {
     );
   });
 
+  test('9c — API ingestion surfaces stored messages and row errors', async ({
+    page,
+  }) => {
+    const apiSuccessWithRowErrors = {
+      job_id: 301,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 0,
+      status_message: 'Success',
+      meta: {
+        rows_processed: 8468,
+        rows_skipped: 56,
+        row_errors_count: 56,
+        status_history: [
+          { message: 'processing', ts: '2025-01-15T00:00:00Z' },
+          {
+            message: 'Processed 8468 member records, 56 skipped',
+            ts: '2025-01-15T00:01:00Z',
+          },
+        ],
+        stats: {
+          row_errors_count: 56,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+            },
+          ],
+        },
+      },
+    };
+
+    const yearConfigApiOnly = (year: number) =>
+      buildYearConfig({
+        year,
+        modulesOverride: {
+          '1': {
+            enabled: true,
+            uncertainty_tag: 'medium',
+            incomplete: false,
+            submodules: {
+              '1': {
+                enabled: true,
+                threshold: null,
+                latest_factor_job: apiSuccessWithRowErrors,
+                latest_api_data_job: apiSuccessWithRowErrors,
+                incomplete: false,
+                incomplete_reasons: [],
+              },
+            },
+          },
+        },
+      });
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(yearConfigApiOnly(year)),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    await expect(page.getByTestId('api-status-success').first()).toContainText(
+      /8468/,
+    );
+    const apiDetails = page.getByTestId('api-status-error').first();
+    await expect(apiDetails).toBeVisible({ timeout: 10000 });
+    await expect(apiDetails).toContainText(
+      /Processed 8468 member records, 56 skipped/i,
+    );
+    await expect(apiDetails).toContainText(
+      /Row 409: No unit with unit_institutional_id 1005 found after unit sync/i,
+    );
+    await expect(apiDetails).toContainText(/55 more error/i);
+  });
+
+  test('9d — API ingestion hides stale API status while a new API sync runs', async ({
+    page,
+  }) => {
+    const previousApiJob = {
+      job_id: 302,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 1,
+      status_message: 'Processed 8468 member records, 56 skipped',
+      meta: {
+        rows_processed: 8468,
+        stats: {
+          row_errors_count: 1,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+            },
+          ],
+        },
+      },
+    };
+
+    await mockBackend(page, {
+      onActivePipelines: async (route, moduleIds) => {
+        const body: Record<string, string | null> = {};
+        for (const id of moduleIds) {
+          body[String(id)] = id === 1 ? TEST_PIPELINE_ID : null;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(body),
+        });
+      },
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              modulesOverride: {
+                '1': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  incomplete: false,
+                  submodules: {
+                    '1': {
+                      enabled: true,
+                      threshold: null,
+                      latest_factor_job: previousApiJob,
+                      latest_api_data_job: previousApiJob,
+                      incomplete: false,
+                      incomplete_reasons: [],
+                    },
+                  },
+                },
+              },
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    await expect(page.getByTestId('api-status-success').first()).toBeVisible();
+    await expect(page.getByTestId('api-status-error').first()).toBeVisible();
+
+    await page.evaluate(
+      ({ id }) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).__sse.emit(id, {
+          pipeline_id: id,
+          jobs: [
+            {
+              id: 1,
+              job_type: 'api_ingest',
+              data_entry_type_id: 1,
+              state: 'RUNNING',
+              result: null,
+              status_message: null,
+              started_at: '2025-01-15T00:00:00Z',
+              finished_at: null,
+            },
+          ],
+          progress: {
+            phase: 1,
+            phases_total: 3,
+            phase_label: 'data',
+            done: false,
+            has_error: false,
+            kind: 'api_ingest',
+          },
+          stream_closed: false,
+        });
+      },
+      { id: TEST_PIPELINE_ID },
+    );
+
+    await expect(page.getByTestId('pipeline-phase')).toHaveText(
+      /Step 1\/3 · Inserting data/,
+    );
+    await expect(page.getByTestId('api-status-success')).toHaveCount(0);
+    await expect(page.getByTestId('api-status-error')).toHaveCount(0);
+  });
+
+  test('9e — API ingestion groups missing synced units behind an expander', async ({
+    page,
+  }) => {
+    const apiWarning = {
+      job_id: 303,
+      module_type_id: 1,
+      data_entry_type_id: 1,
+      year: 2025,
+      ingestion_method: 0,
+      target_type: 0,
+      state: 3,
+      result: 1,
+      status_message: 'Processed 8468 member records, 3 skipped',
+      meta: {
+        rows_processed: 8468,
+        rows_skipped: 3,
+        stats: {
+          row_errors_count: 3,
+          row_errors: [
+            {
+              row: 409,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '1005',
+            },
+            {
+              row: 493,
+              reason:
+                'No unit with unit_institutional_id 1005 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '1005',
+            },
+            {
+              row: 519,
+              reason:
+                'No unit with unit_institutional_id 0173 found after unit sync; no carbon report module could be resolved',
+              type: 'missing_synced_unit',
+              unit_institutional_id: '0173',
+            },
+          ],
+        },
+      },
+    };
+
+    await mockBackend(page, {
+      onGetYearConfig: async (route, year) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            buildYearConfig({
+              year,
+              modulesOverride: {
+                '1': {
+                  enabled: true,
+                  uncertainty_tag: 'medium',
+                  incomplete: false,
+                  submodules: {
+                    '1': {
+                      enabled: true,
+                      threshold: null,
+                      latest_factor_job: apiWarning,
+                      latest_api_data_job: apiWarning,
+                      incomplete: false,
+                      incomplete_reasons: [],
+                    },
+                  },
+                },
+              },
+            }),
+          ),
+        });
+      },
+    });
+
+    await page.goto(DATA_MANAGEMENT_URL);
+    await expandHeadcountAndMember(page);
+
+    const group = page.getByTestId('api-error-group-missing-synced-unit');
+    await expect(group).toContainText(/3 rows skipped/i);
+    await expect(group).toContainText(/2 distinct unit IDs/i);
+    const unit1005 = group.getByText('1005 (2 rows)');
+    await expect(unit1005).toBeHidden();
+
+    await group.click();
+    await expect(unit1005).toBeVisible();
+    await expect(group.getByText('0173 (1 row)')).toBeVisible();
+  });
+
   test('1216a — successful API ingestion (no CSV) turns the data card button green', async ({
     page,
   }) => {
@@ -644,13 +1076,13 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 301,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 0, // API
       target_type: 0,
       state: 3,
       result: 0,
       status_message: 'Success',
-      meta: { rows_processed: 42, timestamp: '2024-01-15T00:00:00Z' },
+      meta: { rows_processed: 42, timestamp: '2025-01-15T00:00:00Z' },
     };
 
     const yearConfigApiOnly = (year: number) => ({
@@ -899,7 +1331,7 @@ test.describe('back-office data-management — happy paths', () => {
       job_id: 999,
       module_type_id: 1,
       data_entry_type_id: 1,
-      year: 2024,
+      year: 2025,
       ingestion_method: 1,
       target_type: 1,
       state: 3,
@@ -912,7 +1344,7 @@ test.describe('back-office data-management — happy paths', () => {
     const fileMeta = {
       path: '/uploads/x.csv',
       filename: 'x.csv',
-      uploaded_at: '2024-01-01T00:00:00Z',
+      uploaded_at: '2025-01-01T00:00:00Z',
     };
     const yearConfigStaleErroredJob = (year: number) => ({
       ...buildYearConfig({ year }),
@@ -944,7 +1376,7 @@ test.describe('back-office data-management — happy paths', () => {
             {
               target_year: 2030,
               reduction_percentage: 50,
-              reference_year: 2024,
+              reference_year: 2025,
             },
           ],
           institutional_footprint: [],
@@ -992,7 +1424,7 @@ test.describe('back-office data-management — happy paths', () => {
     // resolves a tick later.
     await expect(page.getByText(/year configuration/i).first()).toBeVisible();
 
-    // Initial year (2024 — URL query param) must trigger one
+    // Initial year (2025 — URL query param) must trigger one
     // year-level fetch.  Without this fetch the SSE watcher has no
     // way to discover an in-flight unit-sync after a hard reload.
     await expect
@@ -1001,7 +1433,7 @@ test.describe('back-office data-management — happy paths', () => {
           requests.filter(
             (r) =>
               r.method === 'GET' &&
-              /\/sync\/active-pipelines\/year\/2024$/.test(r.url),
+              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
@@ -1010,7 +1442,7 @@ test.describe('back-office data-management — happy paths', () => {
     // year-config fetch pattern (test 1) but for the year-level
     // pipeline channel.
     await page.locator('.q-select').first().click();
-    await page.getByRole('option', { name: '2025' }).click();
+    await page.getByRole('option', { name: '2026' }).click();
 
     await expect
       .poll(
@@ -1018,7 +1450,7 @@ test.describe('back-office data-management — happy paths', () => {
           requests.filter(
             (r) =>
               r.method === 'GET' &&
-              /\/sync\/active-pipelines\/year\/2025$/.test(r.url),
+              /\/sync\/active-pipelines\/year\/2026$/.test(r.url),
           ).length,
       )
       .toBeGreaterThanOrEqual(1);
@@ -1143,7 +1575,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
   const fileMeta = {
     path: '/uploads/x.csv',
     filename: 'x.csv',
-    uploaded_at: '2024-01-01T00:00:00Z',
+    uploaded_at: '2025-01-01T00:00:00Z',
   };
   return {
     year,
@@ -1155,7 +1587,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
     // signal).  These tests assume the year is fully provisioned —
     // the button should be present, just enabled/disabled depending
     // on ``is_started`` — so stamp the field.
-    configuration_completed: '2024-01-01T00:00:00Z',
+    configuration_completed: '2025-01-01T00:00:00Z',
     config: {
       modules: {
         '1': disabledModule,
@@ -1174,7 +1606,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
           unit_scenarios: fileMeta,
         },
         goals: [
-          { target_year: 2030, reduction_percentage: 50, reference_year: 2024 },
+          { target_year: 2030, reduction_percentage: 50, reference_year: 2025 },
         ],
         institutional_footprint: [],
         population_projections: [],
@@ -1182,7 +1614,7 @@ function readyToOpenYearConfig(year: number, isStarted: boolean) {
       },
     },
     recalculation_status: [],
-    updated_at: '2024-01-01T00:00:00Z',
+    updated_at: '2025-01-01T00:00:00Z',
   };
 }
 

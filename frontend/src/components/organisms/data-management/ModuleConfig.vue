@@ -3,6 +3,7 @@ import { computed, ref, provide, watch } from 'vue';
 import ModuleIcon from 'src/components/atoms/ModuleIcon.vue';
 import { useModuleConfig } from 'src/composables/useModuleConfig';
 import { useRecalculation } from 'src/composables/useRecalculation';
+import { resolvePipelinePhaseLabelKey } from 'src/composables/pipelinePhaseLabel';
 import { useYearConfigStore } from 'src/stores/yearConfig';
 import { usePipelineStateStore } from 'src/stores/pipelineState';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
@@ -93,13 +94,10 @@ const hasRecalcFailure = computed<boolean>(() => {
 
 // Issue #1219 — the badge now shows which of the 3 pipeline phases is
 // running (Data → Emissions → Aggregation) instead of a bare
-// "Recalculating…".  Falls back to the generic label in the brief
-// window before the first authoritative ``progress`` payload lands.
-const PHASE_LABEL_KEYS: Record<string, string> = {
-  data: 'data_management_pipeline_phase_data',
-  emissions: 'data_management_pipeline_phase_emissions',
-  aggregation: 'data_management_pipeline_phase_aggregation',
-};
+// "Recalculating…", or a single collapsed label for recalc-kind
+// pipelines (Issue #1523 — see ``resolvePipelinePhaseLabelKey``).
+// Falls back to the generic label in the brief window before the first
+// authoritative ``progress`` payload lands.
 
 // Issue #1219 — the module owns the single pipeline SSE subscription;
 // expose its authoritative progress to the per-upload cards (provided
@@ -113,7 +111,10 @@ const pipelineProgress = computed<PipelineProgress | null>(() => {
 const recalcBadgeLabelKey = computed<string>(
   () =>
     (pipelineProgress.value &&
-      PHASE_LABEL_KEYS[pipelineProgress.value.phase_label]) ??
+      resolvePipelinePhaseLabelKey(
+        pipelineProgress.value.phase_label,
+        pipelineProgress.value.kind,
+      )) ??
     'data_management_pipeline_recalculating',
 );
 

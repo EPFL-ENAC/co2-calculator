@@ -23,9 +23,7 @@ Please fill in the following columns:
 
 - Active use and standby use: Please enter the number of hours each piece of equipment is used per week. It is recommended to make a conservative estimate (not underestimated) to minimize the time required for this task.
 
-If your equipement active or standby power is different from the one used by default, please contact the administrator.
-
-For more information: [equipment](https://epfl-enac.github.io/co2-calculator-user-doc/equipment/)`,
+If your equipement active or standby power is different from the one used by default, please contact the administrator.`,
     fr: `Ce module permet d'estimer la consommation électrique de vos équipements scientifiques, IT et autres. La liste de équipements vient de l'inventaire effectué par votre unité pour la faculté.
 
 Veuillez remplir les colonnes suivantes:
@@ -34,9 +32,15 @@ Veuillez remplir les colonnes suivantes:
 
 - Usage actif et usage standby: veuillez mettre à jour les heures d'utilisation de chaque équipement par semaine. Il est recommandé de faire une estimation conservatrice (qui n'est pas sous-estimée) pour limiter le temps dédié à cette tâche.
 
-Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.
-
-Pour plus d'information : [équipments](https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/)`,
+Si la puissance moyenne active ou standby de votre équipement est différente de celle utilisée par défaut, merci de contacter l'administrateur.`,
+  },
+  [`${MODULES.Equipment}-documentation-title`]: {
+    en: 'For more information',
+    fr: "Pour plus d'information",
+  },
+  [`${MODULES.Equipment}-documentation-link`]: {
+    en: 'https://epfl-enac.github.io/co2-calculator-user-doc/equipment/',
+    fr: 'https://epfl-enac.github.io/co2-calculator-user-doc/fr/equipment/',
   },
   [`${MODULES.Equipment}-charts-title`]: {
     en: 'Charts',
@@ -133,6 +137,73 @@ Pour plus d'information : [équipments](https://epfl-enac.github.io/co2-calculat
   equipment_edit_disclaimer: {
     en: `Remember to update your inventory: if you add an item manually this year, it will not be carried over next year unless you have included it in your inventory.`,
     fr: `Pensez à mettre à jour votre inventaire : si vous ajoutez un élément manuellement cette année, il ne sera pas repris l’année prochaine, sauf si vous l’avez intégré dans votre inventaire.`,
+  },
+  // Equipment power-change request (issue #266): the per-row Comment dialog gains
+  // a second tab with a pre-filled, editable request text; "Envoyer demande"
+  // opens a mailto to the business admin, who edits the reference Factor manually.
+  'equipment-power-feedback-title': {
+    en: 'Power change request',
+    fr: 'Demande de modification de puissance',
+  },
+  'equipment-power-feedback-tab-comment': {
+    en: 'Comment',
+    fr: 'Commentaire',
+  },
+  'equipment-power-feedback-tab-power': {
+    en: 'Power change request',
+    fr: 'Demande de modification de puissance',
+  },
+  'equipment-power-feedback-send': {
+    en: 'Send request',
+    fr: 'Envoyer demande',
+  },
+  'equipment-power-feedback-email-subject': {
+    en: 'Equipment power change request — {equipmentName}',
+    fr: 'Demande de modification de puissance — {equipmentName}',
+  },
+  // Pre-filled body of the Tab-2 textarea. Equipment context is filled in; the
+  // suggested-value lines are intentionally left blank for the user to complete.
+  'equipment-power-feedback-request-template': {
+    en: `Hello,
+
+I believe the estimated power for the following equipment is not representative and should be reviewed:
+
+Unit: {unitName}
+Year: {year}
+Equipment: {equipmentName}
+Class: {equipmentClass}
+Sub-class: {subClass}
+
+Current estimated active power (W): {currentActivePowerW}
+Current estimated standby power (W): {currentStandbyPowerW}
+
+Suggested active power (W):
+Suggested standby power (W):
+Data source:
+
+Additional comment:
+
+Thank you.`,
+    fr: `Bonjour,
+
+Je pense que la puissance estimée pour l'équipement suivant n'est pas représentative et devrait être revue :
+
+Unité : {unitName}
+Année : {year}
+Équipement : {equipmentName}
+Classe : {equipmentClass}
+Sous-classe : {subClass}
+
+Puissance active estimée actuelle (W) : {currentActivePowerW}
+Puissance standby estimée actuelle (W) : {currentStandbyPowerW}
+
+Puissance active suggérée (W) :
+Puissance standby suggérée (W) :
+Source de donnée :
+
+Commentaire additionnel :
+
+Merci.`,
   },
   [`${MODULES.Equipment}-results-total-electricity-use`]: {
     en: 'Total Electricity Use',

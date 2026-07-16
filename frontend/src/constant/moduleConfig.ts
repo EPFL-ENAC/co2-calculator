@@ -51,8 +51,7 @@ export interface ConditionalOptions {
 
 // Support multiple conditional options - first matching condition wins
 export type ConditionalOptionsConfig =
-  | ConditionalOptions
-  | ConditionalOptions[];
+  ConditionalOptions | ConditionalOptions[];
 
 export interface ModuleField {
   id: string;
@@ -82,6 +81,9 @@ export interface ModuleField {
   editableInline?: boolean;
   readOnly?: boolean;
   readOnlyWhenFilled?: boolean;
+  // Display-only: round read-only number inputs to at most N decimals in the form.
+  // The underlying form value (and the submitted payload) keeps full precision.
+  displayPrecision?: number;
   align?: 'left' | 'right' | 'center';
   ratio?: string;
   icon?: string;

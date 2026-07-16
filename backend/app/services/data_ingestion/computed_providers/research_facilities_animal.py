@@ -9,8 +9,8 @@ from typing import Any, Dict, Optional
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.logging import get_logger
-from app.models.data_entry_emission import EmissionType, get_all_nodes
 from app.models.factor import Factor
+from app.modules.emissions import EmissionType, get_subtree_leaves
 from app.repositories.carbon_report_repo import CarbonReportRepository
 from app.repositories.unit_repo import UnitRepository
 from app.services.data_ingestion.factor_update_provider import BaseFactorUpdateProvider
@@ -19,31 +19,27 @@ logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Build a frozen mapping from source name → set of valid emission_type_id ints.
-# This covers every node in each sub-tree (root + intermediates + leaves) so
-# that emissions stored at any granularity level are correctly classified.
+# Leaves only: the stats by_emission_type map also carries subtree rollups,
+# and counting those would double the source totals.
 # ---------------------------------------------------------------------------
 _purchases_additional_ids: frozenset[int] = frozenset(
-    e.value for e in get_all_nodes(EmissionType.purchases__additional)
+    get_subtree_leaves(EmissionType.purchases__centralized)
 )
 _purchases_all_ids: frozenset[int] = frozenset(
-    e.value for e in get_all_nodes(EmissionType.purchases)
+    get_subtree_leaves(EmissionType.purchases)
 )
 
 # Mapping: factor value-field source name → frozenset of valid emission_type_ids
 SOURCE_EMISSION_MAP: Dict[str, frozenset[int]] = {
-    "processemissions": frozenset(
-        e.value for e in get_all_nodes(EmissionType.process_emissions)
-    ),
+    "processemissions": frozenset(get_subtree_leaves(EmissionType.process_emissions)),
     "building_energycombustions": frozenset(
-        e.value for e in get_all_nodes(EmissionType.buildings__combustion)
+        get_subtree_leaves(EmissionType.buildings__combustion)
     ),
-    "building_rooms": frozenset(
-        e.value for e in get_all_nodes(EmissionType.buildings__rooms)
-    ),
+    "building_rooms": frozenset(get_subtree_leaves(EmissionType.buildings__rooms)),
     # purchases_additional is a sub-tree of purchases; common = all - additional
     "purchases_common": _purchases_all_ids - _purchases_additional_ids,
     "purchases_additional": _purchases_additional_ids,
-    "equipments": frozenset(e.value for e in get_all_nodes(EmissionType.equipment)),
+    "equipments": frozenset(get_subtree_leaves(EmissionType.equipment)),
 }
 
 
@@ -137,7 +133,8 @@ class ResearchFacilitiesAnimalFactorUpdateProvider(BaseFactorUpdateProvider):
         for emission_type_id, kg in breakdown:
             for source, valid_ids in SOURCE_EMISSION_MAP.items():
                 if emission_type_id in valid_ids:
-                    source_totals[source] += kg
+                    source_share = factor.values.get(f"{source}_share", 0)
+                    source_totals[source] += kg * source_share
                     break  # each emission type belongs to exactly one source bucket
 
         # 5. Return only keys with actual data

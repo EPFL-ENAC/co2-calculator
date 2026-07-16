@@ -1,12 +1,14 @@
 # ty.toml
 
 [environment]
-python-version = "3.12"
+python-version = "3.14"
 root = ["./"]
 
 [rules]
 # mypy's warn_redundant_casts equivalent
 redundant-cast = "warn"
+# matches the old mypy.ini: deprecated-call checking (PEP 702) was never enabled
+deprecated = "ignore"
 
 # Silence missing stubs/imports for third-party libs (pydantic, passlib, sqlalchemy, sqlmodel, etc.)
 # ty handles unresolved imports more gracefully by default, but you can tune per-module below
@@ -20,6 +22,17 @@ exclude = [
     "scripts",
     "alembic"
 ]
+
+# app/models/__init__.py assigns SQLModel Relationship() fields dynamically
+# after model_rebuild() to avoid circular imports between model modules;
+# ty (unlike mypy's pydantic plugin) doesn't see these as declared
+# attributes. Same single systemic cause for every attribute assigned
+# there, so it's suppressed once here instead of per-line.
+[[overrides]]
+include = ["app/models/__init__.py"]
+
+[overrides.rules]
+unresolved-attribute = "ignore"
 
 
 [terminal]

@@ -1,8 +1,6 @@
 import asyncio
 import enum
-import io
 import json
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional, TypeVar
 from uuid import UUID, uuid4
@@ -14,7 +12,6 @@ from fastapi import (
     HTTPException,
     Query,
     Request,
-    UploadFile,
     status,
 )
 from fastapi.responses import StreamingResponse
@@ -25,7 +22,6 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app import db as db_module
 from app.api.deps import get_current_user, get_db
-from app.api.v1.files import make_files_store
 from app.core.config import get_settings
 from app.core.policy import check_module_permission
 from app.core.security import is_permitted, require_permission
@@ -47,6 +43,7 @@ from app.models.unit import Unit
 from app.models.user import User
 from app.models.year_configuration import YearConfiguration
 from app.repositories.data_ingestion import DataIngestionRepository, WhyStaleLiteral
+from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.data_ingestion.provider_factory import ProviderFactory
 from app.services.pipeline_progress import PhaseLabel, compute_pipeline_progress
 from app.tasks._background import fire_and_forget
@@ -146,123 +143,27 @@ async def _stamp_job_type_and_meta(
     db.add(row)
 
 
-async def _resolve_source_job_to_file_path(
-    db: AsyncSession,
-    source_job_id: int,
-    *,
-    requested_target_type: TargetType,
-    requested_module_type_id: Optional[ModuleTypeEnum],
-) -> str:
-    """Resolve a ``source_job_id`` (copy-from-previous-year flow) to a
-    fresh ``tmp/copy-*`` ``file_path`` the CSV provider can consume.
-
-    The frontend's ``copyFromPreviousYear`` flow sends ``config.source_job_id``
-    instead of ``file_path`` so the operator doesn't have to re-upload an
-    identical CSV.  This helper looks up the source job, validates that
-    copying it makes sense, and stages a fresh copy of the source's
-    ``meta.processed_file_path`` under ``tmp/`` so the existing CSV
-    provider path-validation
-    (``base_csv_provider._validate_file_path``) accepts it as a normal
-    upload.
-
-    Validation:
-
-    - Source job exists (else 404).
-    - Source job is ``FINISHED + SUCCESS`` — failed/in-flight jobs may
-      not have run far enough to stamp ``processed_file_path``; API
-      providers never do.  Surface 422 with a clear message rather than
-      a confusing 503 down the line.
-    - ``target_type`` matches — copying a factors CSV into a
-      data-entries dispatch (or vice-versa) would silently
-      mis-process every row.
-    - ``module_type_id`` matches when both sides set one — defense in
-      depth against the operator picking a job from the wrong module
-      in the dropdown.
-    - ``meta.processed_file_path`` is set (else 422).
-
-    The fresh path is ``tmp/copy-{source_job_id}-{ms_epoch}/{filename}``.
-    The source file is read via ``files_store.get_file`` and written
-    via ``files_store.write_file`` so the operation works against both
-    ``LocalFilesStore`` and ``S3FilesStore`` (no backend-specific copy
-    API).  The original processed file is left in place — subsequent
-    copies must still be able to read it.
-    """
-    src = await DataIngestionRepository(db).get_job_by_id(source_job_id)
-    if src is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Source job {source_job_id} not found",
-        )
-    if src.state != IngestionState.FINISHED or src.result != IngestionResult.SUCCESS:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} is not in a copyable state "
-                f"(state={src.state}, result={src.result}); only "
-                "FINISHED+SUCCESS jobs can be copied."
-            ),
-        )
-    if src.target_type != requested_target_type:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Source job {source_job_id} target_type={src.target_type} "
-                f"does not match request target_type={requested_target_type}"
-            ),
-        )
-    # ``module_type_id`` on the request comes from ``SyncRequestConfig``
-    # as ``ModuleTypeEnum``; on the job as a raw ``int``.  Normalise
-    # before comparing to avoid a false mismatch from enum vs int.
-    if (
-        requested_module_type_id is not None
-        and src.module_type_id is not None
-        and int(src.module_type_id) != int(requested_module_type_id)
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Source job {source_job_id} module_type_id={src.module_type_id} "
-                f"does not match request module_type_id={int(requested_module_type_id)}"
-            ),
-        )
-    src_meta = src.meta or {}
-    src_path = src_meta.get("processed_file_path")
-    if not src_path:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} has no processed file to "
-                "copy (failed before the processed/ move, or used an "
-                "API provider that doesn't stage a CSV)."
-            ),
-        )
-    files_store = make_files_store()
+async def _validate_provider_connection_or_503(
+    provider: DataIngestionProvider, ingestion_method: IngestionMethod
+) -> None:
+    """Call ``provider.validate_connection()``, mapping both a config-gap
+    ``ValueError`` and a plain "not connected" result to a clean 503 instead
+    of letting either escape as (or resemble) a bare 500."""
     try:
-        content, _mime = await files_store.get_file(src_path)
-    except Exception as exc:  # noqa: BLE001 — surface storage failures as 422
+        connected = await provider.validate_connection()
+    except ValueError as exc:
+        # Provider config gaps — no connection / no datasource configured —
+        # are the normal post-deploy state and raise a ValueError with an
+        # operator-actionable message. Surface it as a clean 503 instead of
+        # letting it escape as a bare 500 (no traceback in the response).
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=(
-                f"Source job {source_job_id} processed file is no longer "
-                f"available at {src_path!r}: {exc}"
-            ),
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
         ) from exc
-    # ``processed_file_path`` is ``processed/{src_job_id}/{filename}`` —
-    # keep the leaf so the new tmp upload reads naturally in logs and
-    # in the new job's own ``processed_file_path`` after fan-out.
-    filename = src_path.rsplit("/", 1)[-1] or "copied.csv"
-    folder = f"tmp/copy-{source_job_id}-{int(time.time() * 1000)}"
-    # ``LocalFilesStore.write_file`` only reads ``.filename`` and
-    # ``await .read()`` — it derives mime_type via
-    # ``mimetypes.guess_type`` itself, so we don't need to construct
-    # ``Headers`` on the upload.  Keep it minimal.
-    upload = UploadFile(
-        file=io.BytesIO(content),
-        size=len(content),
-        filename=filename,
-    )
-    await files_store.write_file(upload, folder=folder)
-    return f"{folder}/{filename}"
+    if not connected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Cannot connect to {ingestion_method}",
+        )
 
 
 async def _institutional_id_for_crm(
@@ -272,10 +173,10 @@ async def _institutional_id_for_crm(
     """Resolve carbon_report_module_id → unit.institutional_id."""
     stmt = (
         select(Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == carbon_report_module_id)
     )
@@ -295,10 +196,10 @@ async def _institutional_ids_for_crms(
         return {}
     stmt = (
         select(CarbonReportModule.id, Unit.institutional_id)
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(col(CarbonReportModule.id).in_(carbon_report_module_ids))
     )
@@ -324,10 +225,10 @@ async def _institutional_id_for_job(
         # mypy: SQLAlchemy ``==`` between Column attrs returns a
         # ``BinaryExpression`` at runtime, but mypy without the SQLAlchemy
         # plugin sees ``bool``.  Standard project workaround.
-        .join(CarbonReport, CarbonReport.unit_id == Unit.id)  # type: ignore[arg-type]
+        .join(CarbonReport, col(CarbonReport.unit_id) == Unit.id)
         .join(
             CarbonReportModule,
-            CarbonReportModule.carbon_report_id == CarbonReport.id,  # type: ignore[arg-type]
+            col(CarbonReportModule.carbon_report_id) == CarbonReport.id,
         )
         .where(CarbonReportModule.id == job.entity_id)
     )
@@ -427,13 +328,6 @@ class SyncRequestConfig(BaseModel):
     data_entry_type_id: Optional[int] = None
     reduction_objective_type_id: Optional[int] = None
     module_type_id: Optional[ModuleTypeEnum] = None
-    # "Copy from previous year" flow: when set, the dispatch endpoint
-    # looks up the source job's ``meta.processed_file_path``, copies
-    # that file into a fresh ``tmp/copy-*`` location, and injects the
-    # new path as ``file_path`` so the CSV provider re-processes the
-    # same payload under the requested year.  No source_job_id ⇒
-    # normal upload path.  See ``_resolve_source_job_to_file_path``.
-    source_job_id: Optional[int] = None
 
 
 class SyncRequest(BaseModel):
@@ -564,8 +458,8 @@ class PipelineResponse(BaseModel):
 
 # Issue #1234 — meta keys the pipeline-ops console is allowed to ship.
 # Everything else (esp. ``error_details`` / ``affected_module_ids``,
-# which are KB-scale per row) is stripped server-side so the list
-# payload stays small.
+# which are KB-scale per row for a bulk data-entry recalc) is stripped
+# server-side so the list payload stays small.
 #
 # Phase 5B (#1236) retired three keys from this list:
 # ``parent_job_id``, ``recalc_jobs_chained``, ``aggregation_job_id``.
@@ -586,9 +480,28 @@ _PIPELINE_META_ALLOW = (
 )
 
 
-def _project_pipeline_meta(meta: Optional[dict]) -> dict:
+def _project_pipeline_meta(
+    meta: Optional[dict], *, include_factor_errors: bool = False
+) -> dict:
+    """Allow-list a job's ``meta`` for the ops-console list payload.
+
+    Issue #1591 — ``include_factor_errors`` opts a FACTORS-target job
+    into shipping ``stats.error_details`` (factor_id + raw exception,
+    which may name a Unit/CarbonReport belonging to a different unit —
+    fine here since this list is gated by ``backoffice.pipeline_operations``,
+    unlike the unit-facing recalc status).  Bounded by the factor table
+    size (curated reference data), unlike the blanket-excluded
+    ``error_details``/``affected_module_ids`` a bulk data-entry recalc
+    can produce, which is why this stays opt-in per call site rather
+    than joining ``_PIPELINE_META_ALLOW``.
+    """
     m = meta or {}
-    return {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    projected = {k: m[k] for k in _PIPELINE_META_ALLOW if k in m}
+    if include_factor_errors:
+        error_details = (m.get("stats") or {}).get("error_details")
+        if error_details:
+            projected["error_details"] = error_details
+    return projected
 
 
 def _pipeline_author(meta: Optional[dict]) -> Optional[str]:
@@ -677,7 +590,8 @@ class PipelineJobListEntry(BaseModel):
 
     Slimmer than the pipeline read endpoint's ``PipelineJobResponse``:
     carries timing for per-step duration and an **allow-listed** ``meta``
-    (never the big ``error_details`` / ``affected_module_ids`` arrays).
+    (never the big ``affected_module_ids`` array; ``error_details`` only
+    for FACTORS-target jobs — see ``_project_pipeline_meta``, #1591).
 
     ``state`` and ``result`` serialize as the enum NAME (string), not
     the int value — Pydantic's int-enum default would ship ``3`` for
@@ -881,34 +795,6 @@ async def sync_module_data_entries(
     if syncRequest.file_path:
         config["file_path"] = syncRequest.file_path
 
-    # Copy-from-previous-year resolution.  ``copyFromPreviousYear`` in
-    # the frontend sends ``config.source_job_id`` (not ``file_path``);
-    # without this step the CSV provider sees no source file and
-    # ``validate_connection`` returns False, producing a misleading 503
-    # ("Cannot connect to IngestionMethod.csv").  Resolve the source
-    # job's processed file into a fresh ``tmp/copy-*`` upload so the
-    # rest of the dispatch path is identical to a normal re-upload.
-    # Gated to CSV ingestion because only CSV providers consume
-    # ``file_path``; API/computed providers don't.
-    source_job_id = config.get("source_job_id")
-    if (
-        source_job_id is not None
-        and not config.get("file_path")
-        and syncRequest.ingestion_method == IngestionMethod.csv
-    ):
-        resolved_path = await _resolve_source_job_to_file_path(
-            db,
-            source_job_id,
-            requested_target_type=syncRequest.target_type,
-            requested_module_type_id=(
-                syncRequest.config.module_type_id if syncRequest.config else None
-            ),
-        )
-        config["file_path"] = resolved_path
-        # Provenance trail — surfaces in the new job's meta so support
-        # can answer "where did this row of numbers come from?".
-        config["copied_from_job_id"] = source_job_id
-
     # Determine entity_type early based on carbon_report_module_id presence
     entity_type = (
         EntityType.MODULE_UNIT_SPECIFIC
@@ -934,11 +820,7 @@ async def sync_module_data_entries(
                 not supported""",
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     factor_type_id = getattr(syncRequest, "factor_type_id", None)
     if factor_type_id is not None:
@@ -1051,11 +933,7 @@ async def sync_module_factors(
             ),
         )
 
-    if not await provider.validate_connection():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Cannot connect to {syncRequest.ingestion_method}",
-        )
+    await _validate_provider_connection_or_503(provider, syncRequest.ingestion_method)
 
     job_id = await provider.create_job(
         module_type_id=ModuleTypeEnum(module_type_id),
@@ -1744,7 +1622,10 @@ async def list_pipelines(
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
-                        meta=_project_pipeline_meta(j.meta),
+                        meta=_project_pipeline_meta(
+                            j.meta,
+                            include_factor_errors=j.target_type == TargetType.FACTORS,
+                        ),
                     )
                     for j in jobs
                     if j.id is not None
@@ -2288,3 +2169,91 @@ async def get_stale_stats(
     """
     rows = await DataIngestionRepository(db).find_stale_aggregations(older_than_minutes)
     return [StaleStatsEntry(**row) for row in rows]
+
+
+class RecomputeStatsResponse(BaseModel):
+    """Result of the admin bulk stats-recompute trigger."""
+
+    dispatched: int
+    skipped: int
+    skipped_no_factors: int = 0
+    job_ids: list[int]
+
+
+async def _run_jobs_sequentially(job_ids: list[int]) -> None:
+    """Run a batch of aggregation jobs one at a time.
+
+    Jobs for the same year serialize on ``aggregation_handler``'s
+    ``pg_advisory_xact_lock(1236, year)`` regardless of dispatch order, so
+    firing them all concurrently only means every job but one sits blocked
+    on that lock while still holding its DB connections. Awaiting them in
+    sequence means only the currently-running job ever holds one.
+    """
+    for job_id in job_ids:
+        await run_job(job_id)
+
+
+@router.post("/admin/recompute-stats", response_model=RecomputeStatsResponse)
+async def recompute_stats(
+    year: Optional[int] = Query(
+        None, description="Limit to a single year; omit to recompute every year."
+    ),
+    module_type_id: Optional[int] = Query(
+        None, description="Limit to a single module type; omit for every module type."
+    ),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(
+        require_permission("backoffice.pipeline_operations", "edit")
+    ),
+) -> RecomputeStatsResponse:
+    """Force a full stats recompute for every ``(module_type_id, year)`` scope.
+
+    Dispatches one root ``aggregation`` job per scope — the same handler the
+    recalc chain uses to write ``carbon_report_module.stats`` /
+    ``carbon_report.stats``, but with no ``affected_module_ids`` scoping, so
+    every module in the scope is recomputed rather than just the ones a
+    recalc flagged as touched.
+
+    Scopes with no current, successful FACTORS job are skipped outright
+    (counted in ``skipped_no_factors``): recomputing stats against missing
+    reference data just writes zeros, so there's nothing worth spending a
+    job — or a pooled DB connection — on.
+
+    Jobs for the same year are chained to run one at a time rather than
+    fired concurrently, since they'd only queue up behind each other's
+    Postgres advisory lock anyway; different years still dispatch in
+    parallel.
+
+    Needed after any change to what recompute_stats persists (e.g. a stats
+    JSON shape change): existing rows keep whatever an older deploy wrote
+    until something re-triggers their aggregation, and most reports won't
+    naturally get one soon.  The dedup index makes re-triggering a safe
+    no-op for scopes still in flight.
+    """
+    repo = DataIngestionRepository(db)
+    scopes = await repo.list_module_type_year_scopes(year, module_type_id)
+    scopes_with_factors = await repo.filter_scopes_with_current_factors(scopes)
+    skipped_no_factors = len(scopes) - len(scopes_with_factors)
+
+    jobs_by_year: dict[int, list[int]] = {}
+    job_ids: list[int] = []
+    for scope_module_type_id, scope_year in scopes_with_factors:
+        job_id = await repo.create_root_aggregation_job(
+            scope_module_type_id, scope_year, current_user.provider
+        )
+        if job_id is not None:
+            job_ids.append(job_id)
+            jobs_by_year.setdefault(scope_year, []).append(job_id)
+
+    for scope_year, year_job_ids in jobs_by_year.items():
+        fire_and_forget(
+            _run_jobs_sequentially(year_job_ids),
+            name=f"recompute-stats-{scope_year}",
+        )
+
+    return RecomputeStatsResponse(
+        dispatched=len(job_ids),
+        skipped=len(scopes_with_factors) - len(job_ids),
+        skipped_no_factors=skipped_no_factors,
+        job_ids=job_ids,
+    )

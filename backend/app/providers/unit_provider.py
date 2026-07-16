@@ -5,7 +5,7 @@ import httpx
 from sqlmodel import Session, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.core.config import get_settings
+from app.core.config import UnitProviderType, get_settings
 from app.core.logging import get_logger
 from app.models.unit import Unit
 from app.models.user import RoleName, UserProvider
@@ -68,9 +68,9 @@ class UnitProvider(ABC):
         return units[0] if units else None
 
 
-class DefaultUnitProvider(UnitProvider):
+class DatabaseUnitProvider(UnitProvider):
     type: UserProvider = UserProvider.DEFAULT
-    """Default unit provider that reads from the database."""
+    """Unit provider that reads from the database."""
 
     def __init__(self, db_session: Session | AsyncSession):
         self.db_session = db_session
@@ -98,19 +98,18 @@ class AccredUnitProvider(UnitProvider):
     """
 
     def __init__(self):
-        """Initialize the Accred provider with API credentials."""
-        self.api_url = settings.ACCRED_API_URL
+        """Initialize the Accred provider with API credentials.
+
+        Credential completeness is enforced at app boot by
+        assert_accred_settings (app/main.py) — this constructor does not
+        re-check it.
+        """
+        self.api_url = settings.ACCRED_API_BASE_URL
         self.api_username = settings.ACCRED_API_USERNAME
         self.api_key = settings.ACCRED_API_KEY
 
-        if not all([self.api_url, self.api_username, self.api_key]):
-            logger.warning(
-                "Accred API credentials not fully configured. "
-                "Set ACCRED_API_URL, ACCRED_API_USERNAME, and ACCRED_API_KEY."
-            )
-
     async def fetch_all_units(self) -> tuple[list[dict], list[dict]]:
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error("Cannot fetch units: Accred API not configured")
             return [], []
 
@@ -226,7 +225,7 @@ class AccredUnitProvider(UnitProvider):
         Returns:
             List of Unit objects with full metadata
         """
-        if not all([self.api_url, self.api_username, self.api_key]):
+        if not self.api_url or not self.api_username or not self.api_key:
             logger.error("Cannot fetch units: Accred API not configured")
             return []
 
@@ -340,37 +339,46 @@ class TestUnitProvider(UnitProvider):
 
 
 def get_unit_provider(
-    provider_type: UserProvider | None = None,
+    provider_type: UnitProviderType | UserProvider | None = None,
     db_session: Session | AsyncSession | None = None,
 ) -> UnitProvider:
     """Factory function to get the configured unit provider.
 
+    Returns the appropriate unit provider based on the UNIT_PROVIDER_TYPE
+    setting, unless overridden by ``provider_type``. Callers that need to
+    re-resolve units from an entity's original source (e.g. background sync
+    reading a persisted ``DataIngestionJob.provider``) pass that persisted
+    ``UserProvider`` value directly as the override.
+
     Args:
-        provider_type: Optional provider type override
-        db_session: Database session for DefaultUnitProvider
+        provider_type: Optional provider type override — either a
+            ``UnitProviderType`` (config selection) or a ``UserProvider``
+            (persisted source metadata).
+        db_session: Database session for DatabaseUnitProvider
 
     Returns:
         UnitProvider instance
     """
     if provider_type is None:
-        provider_type = settings.PROVIDER_PLUGIN
+        provider_type = settings.UNIT_PROVIDER_TYPE
 
-    if provider_type == UserProvider.DEFAULT:
-        logger.info("Using DefaultUnitProvider (Database)")
-        if not db_session:
-            raise ValueError("DefaultUnitProvider requires a database session")
-        return DefaultUnitProvider(db_session)
-    elif provider_type == UserProvider.ACCRED:
-        logger.info("Using AccredUnitProvider (EPFL Accred API)")
-        return AccredUnitProvider()
-    elif provider_type == UserProvider.TEST:
-        logger.info("Using TestUnitProvider (for testing)")
-        return TestUnitProvider()
-    else:
-        logger.error(
-            "Unknown unit provider type, falling back to default",
-            extra={"provider_type": provider_type},
-        )
-        if not db_session:
-            raise ValueError("DefaultUnitProvider requires a database session")
-        return DefaultUnitProvider(db_session)
+    match provider_type:
+        case UnitProviderType.DATABASE | UserProvider.DEFAULT:
+            logger.info("Using DatabaseUnitProvider (Database)")
+            if not db_session:
+                raise ValueError("DatabaseUnitProvider requires a database session")
+            return DatabaseUnitProvider(db_session)
+        case UnitProviderType.ACCRED | UserProvider.ACCRED:
+            logger.info("Using AccredUnitProvider (EPFL Accred API)")
+            return AccredUnitProvider()
+        case UnitProviderType.TEST | UserProvider.TEST:
+            logger.info("Using TestUnitProvider (for testing)")
+            return TestUnitProvider()
+        case _:
+            logger.error(
+                "Unknown unit provider type, falling back to database",
+                extra={"provider_type": provider_type},
+            )
+            if not db_session:
+                raise ValueError("DatabaseUnitProvider requires a database session")
+            return DatabaseUnitProvider(db_session)

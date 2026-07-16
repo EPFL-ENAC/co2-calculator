@@ -52,7 +52,7 @@ class LocalFactorCSVProvider(ModulePerYearFactorCSVProvider):
         When provided, deletion before seeding is scoped to exactly these
         DataEntryTypeEnum values.  Useful when a CSV covers only a subset of
         the module's types (e.g. purchases_common does not cover
-        additional_purchases).
+        purchases_centralized).
     """
 
     def __init__(self, config: Dict[str, Any], data_session: Any):
@@ -250,8 +250,10 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             job_session=None,
             data_session=data_session,
         )
-        # Fake job object — never persisted, satisfies base-class attribute access.
-        self.job = SimpleNamespace(  # type: ignore[assignment]
+        # Fake job object — never persisted, satisfies base-class attribute
+        # access (.module_type_id/.data_entry_type_id) without a real
+        # DataIngestionJob; deliberately duck-typed, not a real DataIngestionJob.
+        self.job = SimpleNamespace(  # ty: ignore[invalid-assignment]
             module_type_id=config.get("module_type_id"),
             data_entry_type_id=config.get("data_entry_type_id"),
         )
@@ -315,7 +317,6 @@ class LocalDataEntryCSVProvider(ModulePerYearCSVProvider):
             "entity_type": self.entity_type,
             "handlers": entity_setup["handlers"],
             "factors_map": entity_setup["factors_map"],
-            "factor_id_to_factor": entity_setup["factor_id_to_factor"],
             "expected_columns": entity_setup["expected_columns"],
             "required_columns": entity_setup["required_columns"],
             # Dummy value — _finalize_and_commit skips file-store operations

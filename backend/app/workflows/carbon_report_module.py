@@ -37,7 +37,6 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
         try:
             create_payload = {
@@ -47,10 +46,6 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            create_payload, factor = await handler_service.resolve_primary_factor_id(
-                handler, create_payload, data_entry_type, year=year
-            )
 
             validated_data = handler.validate_create(create_payload)
 
@@ -74,12 +69,13 @@ class CarbonReportModuleWorkflow:
             data_entry_type == DataEntryTypeEnum.member
             and validated_data.model_dump().get("user_institutional_id")
         ):
-            uid = validated_data.model_dump()["user_institutional_id"]
-            is_unique = await DataEntryService(
-                self.session
-            ).check_institutional_id_unique(
+            member_data = validated_data.model_dump()
+            uid = member_data["user_institutional_id"]
+            sius_code = member_data["sius_code"]
+            is_unique = await DataEntryService(self.session).check_member_role_unique(
                 carbon_report_module_id=carbon_report_module.id,
                 uid=uid,
+                sius_code=sius_code,
             )
             if not is_unique:
                 raise HTTPException(
@@ -103,7 +99,7 @@ class CarbonReportModuleWorkflow:
                 )
 
             await DataEntryEmissionService(self.session).upsert_by_data_entry(
-                data_entry_response=item,
+                data_entry_response=item
             )
             await CarbonReportModuleService(self.session).recompute_stats(
                 carbon_report_module.id
@@ -111,12 +107,6 @@ class CarbonReportModuleWorkflow:
             await self.session.commit()
         except IntegrityError as e:
             await self.session.rollback()
-
-            if "data_entries_unique_member_uid_per_module_idx" in str(e.orig):
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail="This user institutional id already exists in this module.",
-                )
 
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -157,7 +147,6 @@ class CarbonReportModuleWorkflow:
         current_user: UserRead,
         request_context: dict,
         background_tasks: BackgroundTasks,
-        year: int,
     ) -> DataEntryResponse:
         try:
             existing_entry = await DataEntryService(self.session).get(id=item_id)
@@ -175,14 +164,14 @@ class CarbonReportModuleWorkflow:
             }
             data_entry_type = DataEntryTypeEnum(data_entry_type_id)
             handler = BaseModuleHandler.get_by_type(data_entry_type)
-            handler_service = ModuleHandlerService(self.session)
-            update_payload, _ = await handler_service.resolve_primary_factor_if_changed(
+            # No factor resolution on update: subkind/override code that
+            # belonged to the old kind are cleared, everything else is the
+            # emission compute's job (it resolves on its own).
+            update_payload = ModuleHandlerService.clear_dependent_fields_on_kind_change(
                 handler,
                 update_payload,
-                data_entry_type,
                 item_data,
                 existing_data,
-                year=year,
             )
 
             # For equipment partial PATCH, validate against merged persisted+incoming

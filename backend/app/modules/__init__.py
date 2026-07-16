@@ -21,7 +21,7 @@ from app.modules.professional_travel.schemas import (
     ProfessionalTravelTrainHandlerCreate,
 )
 from app.modules.purchase.schemas import (
-    PurchaseAdditionalHandlerCreate,
+    PurchaseCentralizedHandlerCreate,
     PurchaseHandlerCreate,
 )
 from app.modules.research_facilities.animals_schemas import (
@@ -45,7 +45,7 @@ __all__ = [
     "ProfessionalTravelPlaneHandlerCreate",
     "ProfessionalTravelTrainHandlerCreate",
     "PurchaseHandlerCreate",
-    "PurchaseAdditionalHandlerCreate",
+    "PurchaseCentralizedHandlerCreate",
     "ResearchFacilitiesCommonHandlerCreate",
     "ResearchFacilitiesAnimalHandlerCreate",
 ]

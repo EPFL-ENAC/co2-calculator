@@ -176,7 +176,7 @@ function downloadReport() {
   window.open(url, '_blank');
 }
 
-// validateUnitGuard ensures selectedUnit and selectedYear are always set before
+// workspaceGuard ensures selectedUnit and selectedYear are always set before
 // this route renders. The non-null assertions are safe here; the ready guard
 // below prevents the template from rendering if that invariant is ever broken.
 const unitId = computed(() => workspaceStore.selectedUnit!.id);

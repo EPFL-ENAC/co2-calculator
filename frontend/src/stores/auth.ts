@@ -2,7 +2,6 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import {
   api,
-  API_EXCHANGE_URL,
   API_LOGIN_URL,
   API_LOGOUT_URL,
   API_LOGIN_TEST_URL,
@@ -21,7 +20,12 @@ import {
 } from 'src/utils/permission';
 import { Module } from 'src/constant/modules';
 import type { components } from 'src/types/api/openapi';
-import { useWorkspaceStore } from './workspace';
+import { currentLanguage } from 'src/utils/language';
+import { useWorkspaceStore, type Unit } from './workspace';
+import {
+  useYearConfigStore,
+  type YearConfigurationListItem,
+} from './yearConfig';
 
 // Re-export the action enum so the auth store is the single entry point
 // callers import from (check functions AND the action enum).
@@ -37,7 +41,7 @@ type User = Omit<
   'permissions' | 'roles_raw' | 'institutional_id'
 > & {
   permissions?: FlatUserPermissions;
-  // `roles_raw` is normalized to `[]` at the API boundary in `getUser()`, so
+  // `roles_raw` is normalized to `[]` at the API boundary in `bootstrap()`, so
   // callers can safely `.map()` without an optional guard.
   roles_raw: Array<{
     role: string;
@@ -68,18 +72,39 @@ export const useAuthStore = defineStore('auth', () => {
   const hasChecked = ref(false);
   let inflight: Promise<User | null> | null = null;
 
-  async function getUser(): Promise<User | null> {
+  /** Enriched `GET /session` payload — user + workspace bootstrap context. */
+  interface SessionPayload {
+    user: User;
+    units: Unit[];
+    configured_years: YearConfigurationListItem[];
+    min_configurable_year: number;
+  }
+
+  /**
+   * Single app-init call: fetch the enriched session and hydrate the auth,
+   * workspace (units) and year-config (configured years) stores in one go.
+   * Deduped via `inflight` so concurrent guards share the same request.
+   */
+  async function bootstrap(): Promise<User | null> {
     if (inflight) return inflight;
 
     inflight = (async () => {
       try {
         loading.value = true;
-        const raw = await api.get(API_ME_URL).json<User>();
+        const raw = await api.get(API_ME_URL).json<SessionPayload>();
         // Backend serializes roles as `[]` or omits the field under
         // `response_model_exclude_none=True`. Normalize once here so
         // every call site can treat `roles_raw` as a non-optional array.
-        const u: User = { ...raw, roles_raw: raw.roles_raw ?? [] };
+        const u: User = { ...raw.user, roles_raw: raw.user.roles_raw ?? [] };
         user.value = u;
+        // Hydrate the workspace context that used to come from separate
+        // `/users/units` and `/year-configuration/` calls.
+        workspaceStore.setUnits(raw.units ?? []);
+        const yearConfigStore = useYearConfigStore();
+        yearConfigStore.setConfiguredYears(raw.configured_years ?? []);
+        if (typeof raw.min_configurable_year === 'number') {
+          yearConfigStore.setMinConfigurableYear(raw.min_configurable_year);
+        }
         return u;
       } catch {
         user.value = null;
@@ -102,20 +127,6 @@ export const useAuthStore = defineStore('auth', () => {
     window.location.replace(API_LOGIN_URL);
   }
 
-  /**
-   * Trade the single-use OAuth-callback code for session cookies (BFF
-   * leg 2; ADR-019). Run from the /auth/complete landing page after the
-   * IdP redirect lands there with a `#code=<...>` fragment.
-   */
-  async function exchange(code: string): Promise<User | null> {
-    await api
-      .post(API_EXCHANGE_URL, { json: { code }, retry: { limit: 0 } })
-      .json<{ id: number; email: string }>();
-    // The backend already wrote the cookies; hydrate the full user
-    // profile (roles, permissions, display_name) via /session.
-    return await getUser();
-  }
-
   async function logout(router: Router) {
     try {
       loading.value = true;
@@ -123,16 +134,21 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error) {
       console.error('Error logging out:', error);
     } finally {
+      // The login routes live under the `:language` segment, so the redirect
+      // must carry a language param. Pass it explicitly rather than relying on
+      // the current route's params — logout can fire from /unauthorized, which
+      // sits outside `:language` and has none to inherit.
+      const language = currentLanguage();
       // Check server-issued is_user_test flag to determine routing.
       if (user.value?.is_user_test) {
         // For test users, just go to home login-test page
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login-test' });
+        router.replace({ name: 'login-test', params: { language } });
       } else {
         user.value = null;
         loading.value = false;
-        router.replace({ name: 'login' });
+        router.replace({ name: 'login', params: { language } });
       }
     }
   }
@@ -208,8 +224,8 @@ export const useAuthStore = defineStore('auth', () => {
     const path = getModulePermissionPath(module);
     if (!path) return true; // Unprotected module, accessible to all users
     return (
-      hasUserAnyScopePermission(path, PermissionAction.VIEW) ||
-      hasUserAnyScopePermission(path, PermissionAction.EDIT)
+      hasUserPermission(path, PermissionAction.VIEW) ||
+      hasUserPermission(path, PermissionAction.EDIT)
     );
   }
 
@@ -245,11 +261,10 @@ export const useAuthStore = defineStore('auth', () => {
     loading,
     hasChecked,
     displayName,
-    getUser,
+    bootstrap,
     login,
     login_test,
     logout,
-    exchange,
     isAuthenticated,
     hasUserPermission,
     hasUserModulePermission,

@@ -1,12 +1,27 @@
 """Application configuration using Pydantic settings."""
 
+from enum import Enum
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, computed_field, field_validator
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.models.user import UserProvider
+
+class RoleProviderType(str, Enum):
+    """Backend implementation selection for where app roles come from."""
+
+    JWT = "jwt"
+    ACCRED = "accred"
+    TEST = "test"
+
+
+class UnitProviderType(str, Enum):
+    """Backend implementation selection for where institutional units come from."""
+
+    DATABASE = "database"
+    ACCRED = "accred"
+    TEST = "test"
 
 
 class Settings(BaseSettings):
@@ -30,7 +45,14 @@ class Settings(BaseSettings):
     # (dev=true, stage/prod=false). Never flip this default to True.
     DEBUG: bool = False
     LOCAL_ENVIRONMENT: bool = Field(
-        default=False, description="Set to True for local development environment"
+        default=False,
+        description=(
+            "Set to True for local development environment. Double-duty: also "
+            "gates the boot-time security check (`assert_security_settings` in "
+            "app/main.py) that fails closed when credential-encryption/SSRF "
+            "settings are missing. Forced true for the whole test suite via "
+            "pytest-env in pyproject.toml."
+        ),
     )
     API_DOCS_PREFIX: str = "/api"
     API_VERSION: str = "/v1"
@@ -43,6 +65,37 @@ class Settings(BaseSettings):
             Full database URL. If not set, defaults to SQLite.
             Example: sqlite+aiosqlite:///./co2_calculator.db
             """,
+    )
+    # #1723 — explicit pool sizing (skipped for sqlite, see app/db.py).
+    # Without these SQLAlchemy defaults to pool_size=5/max_overflow=10,
+    # which is the exact "QueuePool limit of size 5 overflow 10 reached"
+    # error a factor CSV upload's emission_recalc fan-out used to hit.
+    DB_POOL_SIZE: int = Field(
+        default=10,
+        ge=1,
+        description=(
+            "Base number of pooled async DB connections per pod (ignored "
+            "for sqlite). Sized alongside MAX_CONCURRENT_JOBS: each "
+            "running job holds 1-2 connections (runner job_session + "
+            "handler data_session) for its whole runtime."
+        ),
+    )
+    DB_MAX_OVERFLOW: int = Field(
+        default=10,
+        ge=0,
+        description=(
+            "Extra connections allowed beyond DB_POOL_SIZE under burst "
+            "load (ignored for sqlite). DB_POOL_SIZE + DB_MAX_OVERFLOW is "
+            "the hard cap on connections one pod can open."
+        ),
+    )
+    DB_POOL_TIMEOUT: int = Field(
+        default=30,
+        ge=1,
+        description=(
+            "Seconds a request waits for a pooled connection before "
+            "raising QueuePool timeout (ignored for sqlite)."
+        ),
     )
 
     # Files Storage Configuration
@@ -151,53 +204,62 @@ class Settings(BaseSettings):
     LOKI_LABEL_ENV: Optional[str] = None  # e.g. dev|staging|prod
 
     # TRAVEL API TABLEAU CONFIGURATION
-    TABLEAU_SERVER_URL: str = ""
-    TABLEAU_SITE_CONTENT_URL: Optional[str] = None
-    TABLEAU_DS_FLIGHTS_LUID: str = ""
-    TABLEAU_CONNECTED_APP_CLIENT_ID: str = ""
-    TABLEAU_CONNECTED_APP_SECRET_ID: str = ""
-    TABLEAU_CONNECTED_APP_SECRET_VALUE: str = ""
-    TABLEAU_USERNAME: str = ""
+    # Connection credentials (server_url, site, username, connected-app) are
+    # stored per-connector in the DB (ConnectorConnection, #1552); only the
+    # operational knobs below stay in settings.
     TABLEAU_VERIFY_SSL: str = "true"
     TABLEAU_REQUEST_TIMEOUT_SECONDS: str = "300"
     TABLEAU_REST_MIN_API_VERSION: str = "2.4"
     TABLEAU_MAX_FIELDS: int = 50
 
-    # Role Provider Plugin Configuration
-    PROVIDER_PLUGIN: UserProvider = Field(
-        default=UserProvider.DEFAULT,
+    # Credential encryption (required to store connection secrets)
+    CREDENTIALS_ENCRYPTION_KEY: str = Field(
+        default="",
         description=(
-            "Role provider plugin to use for fetching user roles. "
-            "Options:"
-            "   'default' (parse from JWT claims)"
-            "   'accred' (EPFL Accred API)."
-            "   'test' (for testing/development)."
-            "The 'default' provider expects roles in JWT claims as flat strings like "
-            "'co2.user.std@unit:12345'. The 'accred' provider calls the EPFL Accred API"
-            "to fetch authorizations and maps them to roles based on accredunitid."
+            "URL-safe base64 secret (>=32 bytes) used to derive the Fernet "
+            "key that encrypts stored connection secrets. Provide via env or "
+            "a secret manager only; never commit."
+        ),
+    )
+    CREDENTIALS_ENCRYPTION_SALT: str = Field(
+        default="",
+        description=(
+            "URL-safe base64 salt (>=16 bytes) for credential key derivation. "
+            "Keep stable for the lifetime of the encrypted data."
+        ),
+    )
+    # SSRF guard: host suffixes a connection server_url may target.
+    CONNECTOR_ALLOWED_HOST_SUFFIXES: str = Field(
+        default="",
+        description=(
+            "Comma-separated host suffixes an API-connection server_url may "
+            "target (e.g. 'epfl.ch'). SSRF guard; empty fails closed."
         ),
     )
 
-    @field_validator("PROVIDER_PLUGIN", mode="before")
-    @classmethod
-    def provider_plugin_coerce(cls, v):
-        if isinstance(v, UserProvider):
-            return v
-        if isinstance(v, int):
-            return UserProvider(v)
-        if isinstance(v, str):
-            try:
-                return UserProvider[v.upper()]
-            except KeyError:
-                # Try by value
-                for member in UserProvider:
-                    if member.name == v.upper() or str(member.value) == v:
-                        return member
-                raise ValueError(f"Invalid provider: {v}")
-        raise ValueError(f"Invalid provider: {v}")
+    # Role/Unit provider selection — where do app roles / institutional units
+    # come from. No default: invalid or missing config fails at startup
+    # rather than silently picking a provider.
+    ROLE_PROVIDER_TYPE: RoleProviderType = Field(
+        description=(
+            "Where app roles come from: 'jwt' (parse from JWT claims), "
+            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
+        ),
+    )
+    UNIT_PROVIDER_TYPE: UnitProviderType = Field(
+        description=(
+            "Where institutional units come from: 'database' (local DB), "
+            "'accred' (EPFL Accred API), or 'test' (for testing/development)."
+        ),
+    )
 
-    # EPFL Accred API Configuration (for 'accred' role provider)
-    ACCRED_API_URL: Optional[str] = Field(
+    # EPFL Accred API Configuration — required whenever ROLE_PROVIDER_TYPE
+    # and/or UNIT_PROVIDER_TYPE is 'accred', enforced at app boot by
+    # assert_accred_settings (app/main.py), NOT here: Settings is also
+    # built by non-app contexts (alembic migrations) that never call Accred.
+    # Shared by both RoleProvider and UnitProvider — Accred is one API
+    # serving both concerns, so the config is not role- or unit-specific.
+    ACCRED_API_BASE_URL: Optional[str] = Field(
         default=None,
         description="EPFL Accred API base URL (e.g., https://api.epfl.ch/v1/accreds)",
     )
@@ -209,9 +271,13 @@ class Settings(BaseSettings):
         default=None,
         description="EPFL Accred API key/password for Basic Auth",
     )
-    ACCRED_API_HEALTH_URL: Optional[str] = Field(
+    ACCRED_AUTHORIZATION_HEALTHCHECK_URL: Optional[str] = Field(
         default=None,
-        description="EPFL Accred API health check URL",
+        description=(
+            "Accred authorization-readiness check URL for /ready — confirms "
+            "backend credentials can reach Accred and read the expected "
+            "authorization data. Not a generic API health URL."
+        ),
     )
 
     # OAuth/OIDC Configuration (supports Keycloak, Entra ID, or other OIDC providers)
@@ -347,6 +413,22 @@ class Settings(BaseSettings):
             "raise if a specific job type is expected to run longer."
         ),
     )
+    # #1723 — bounds every run_job dispatch path (poller sweep, chain_job
+    # fan-out, and endpoint-triggered fire_and_forget), not just the
+    # poller. One asyncio.Semaphore in app.tasks.runner, acquired BEFORE
+    # the DB claim: a queued job holds no claim, so an idle replica's
+    # poller can pick it up instead of it sitting stuck behind a busy
+    # pod. Fixes the QueuePool exhaustion a factor CSV upload's
+    # emission_recalc fan-out used to trigger.
+    MAX_CONCURRENT_JOBS: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Max background jobs this pod runs at once, across every "
+            "dispatch path (poller, chain_job, endpoint fire-and-forget). "
+            "At 2-3 replicas this caps fleet-wide running jobs at 8-12."
+        ),
+    )
     RUN_BACKGROUND_POLLER: bool = Field(
         default=True,
         description="Whether to run the in-process safety poller",
@@ -446,8 +528,22 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Year Configuration Bounds (issue #1204)
+    MIN_CONFIGURABLE_YEAR: int = Field(
+        default=2025,
+        description=(
+            "Earliest year backoffice can create a YearConfiguration for. "
+            "``POST /year-configuration/{year}`` rejects anything below this "
+            "floor; the GET response also echoes it so the frontend year "
+            "dropdown stays in sync without a hardcoded copy of its own."
+        ),
+    )
+
 
 @lru_cache()
 def get_settings() -> Settings:
     """Get cached settings instance."""
+    # ROLE_PROVIDER_TYPE/UNIT_PROVIDER_TYPE have no default (intentional —
+    # missing config must fail startup); pydantic-settings actually sources
+    # them from the environment/.env file at runtime.
     return Settings()

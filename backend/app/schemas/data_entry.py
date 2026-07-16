@@ -130,7 +130,6 @@ class ModuleHandler(Protocol[T]):
     subkind_field: Optional[str] = None
     kind_label_field: Optional[str] = None
     subkind_label_field: Optional[str] = None
-    factor_value_fields: Optional[list[str]] = None
 
     def to_response(
         self,
@@ -199,7 +198,7 @@ class ModuleHandlerMeta(type):
             # Register for all keys
             if keys:
                 for key in keys:
-                    MODULE_HANDLERS[key] = cls()
+                    MODULE_HANDLERS[DataEntryTypeEnum(key)] = cls()
 
         return cls
 
@@ -244,7 +243,6 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
     # Used during CSV seeding to populate mandatory fields with factor
     # defaults (e.g. ["active_usage_hours_per_week",
     # "standby_usage_hours_per_week"] for equipment).
-    factor_value_fields: Optional[list[str]] = None
 
     # -- Registration --
     # The DataEntryTypeEnum this handler serves. For handlers that cover
@@ -341,8 +339,10 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         that must be applied for this emission type.
 
         The default implementation looks for a ``primary_factor_id`` in *ctx*
-        (Strategy A).  Handlers that use classification queries (Strategy B)
-        must override this method.
+        (Strategy A).  This key is injected by
+        ``DataEntryEmissionService.prepare_create`` from ``FactorResolver``
+        results — it is never persisted on the data entry.  Handlers that use
+        classification queries (Strategy B) must override this method.
 
         Args:
             data_entry: The data entry being processed.
@@ -359,7 +359,7 @@ class BaseModuleHandler(metaclass=ModuleHandlerMeta):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
             )
         ]
 

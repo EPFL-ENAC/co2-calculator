@@ -6,6 +6,9 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionMethod, TargetType
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
+from app.services.data_ingestion.api_providers.headcount_members_api_provider import (
+    HeadcountMembersApiProvider,
+)
 from app.services.data_ingestion.api_providers.professional_travel_api_provider import (
     ProfessionalTravelApiProvider,
 )
@@ -92,6 +95,12 @@ class ProviderFactory:
             TargetType.DATA_ENTRIES,
             EntityType.MODULE_PER_YEAR,
         ): ProfessionalTravelApiProvider,
+        (
+            ModuleTypeEnum.headcount,
+            IngestionMethod.api,
+            TargetType.DATA_ENTRIES,
+            EntityType.MODULE_PER_YEAR,
+        ): HeadcountMembersApiProvider,
     }
 
     # WHAT IS THAT?
@@ -197,7 +206,7 @@ class ProviderFactory:
 
         try:
             entity_type = EntityType(entity_type_value)
-        except (ValueError, KeyError):
+        except ValueError, KeyError:
             # Invalid entity_type value - return None to signal configuration error
             return None
 

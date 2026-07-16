@@ -8,14 +8,15 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
 )
-from app.schemas.data_entry import DataEntryResponse
-from app.services.data_entry_emission_service import DataEntryEmissionService
-from app.utils.data_entry_emission_type_map import (
+from app.models.factor import Factor
+from app.modules.emissions import EmissionType
+from app.modules.emissions.registry import (
     DATA_ENTRY_TYPE_TO_ROLLUP_EMISSION,
     ROLLUP_EMISSION_TYPE_IDS,
 )
+from app.schemas.data_entry import DataEntryResponse
+from app.services.data_entry_emission_service import DataEntryEmissionService
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -145,7 +146,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
     """When kg_co2eq_override is set, the formula path is bypassed and a
     single emission with the override value (and primary_factor_id=None) is
     returned — even when the data dict has no kg_co2eq key."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -170,6 +170,7 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
         ) as mock_handler_cls,
     ):
         mock_handler = MagicMock()
+        mock_handler.kind_field = None
         mock_handler.pre_compute = AsyncMock(return_value={})
         mock_handler.resolve_computations = MagicMock(
             return_value=[
@@ -192,7 +193,6 @@ async def test_prepare_create_with_kg_co2eq_override_short_circuits_formula():
 async def test_prepare_create_does_not_read_kg_co2eq_from_data():
     """A kg_co2eq value sitting in data_entry.data must NOT be picked up as
     an override — the channel is exclusively the kg_co2eq_override param."""
-    from app.models.factor import Factor
 
     service = _make_service()
 
@@ -218,6 +218,7 @@ async def test_prepare_create_does_not_read_kg_co2eq_from_data():
         ) as mock_handler_cls,
     ):
         mock_handler = MagicMock()
+        mock_handler.kind_field = None
         mock_handler.pre_compute = AsyncMock(return_value={})
         mock_handler.resolve_computations = MagicMock(
             return_value=[
@@ -254,7 +255,6 @@ class TestMetaExtras:
         return DataEntryEmissionService(session)
 
     def _make_factor(self, emission_type_value: int, factor_values: dict):
-        from app.models.factor import Factor
 
         f = MagicMock(spec=Factor)
         f.id = 99
@@ -265,7 +265,7 @@ class TestMetaExtras:
     @pytest.mark.asyncio
     async def test_commuting_emission_has_distance_km(self):
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -321,7 +321,7 @@ class TestMetaExtras:
     @pytest.mark.asyncio
     async def test_food_emission_has_weight_kg(self):
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -377,7 +377,7 @@ class TestMetaExtras:
     async def test_non_headcount_emission_has_no_named_quantity_key(self):
         """Professional travel (plane) should not duplicate quantity keys into meta."""
         from app.models.data_entry import DataEntryTypeEnum
-        from app.models.data_entry_emission import EmissionType
+        from app.modules.emissions import EmissionType
         from app.schemas.data_entry import DataEntryResponse
 
         service = self._make_service()
@@ -416,6 +416,7 @@ class TestMetaExtras:
             ) as mock_handler_cls,
         ):
             mock_handler = MagicMock()
+            mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
             mock_handler.resolve_computations.return_value = [
                 __import__(
@@ -452,7 +453,8 @@ class TestApplyFormula:
         return DataEntryEmissionService(MagicMock())
 
     def test_key_based_simple(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -466,7 +468,8 @@ class TestApplyFormula:
         assert result == pytest.approx(336.0)
 
     def test_key_based_with_multiplier(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -482,7 +485,8 @@ class TestApplyFormula:
         assert result == pytest.approx(300.0)
 
     def test_multiplier_key_missing_uses_default(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -498,7 +502,8 @@ class TestApplyFormula:
         assert result == pytest.approx(200.0)
 
     def test_missing_quantity_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -511,7 +516,8 @@ class TestApplyFormula:
         assert service._apply_formula(ctx, factor_values, comp) is None
 
     def test_missing_formula_key_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -524,7 +530,8 @@ class TestApplyFormula:
         assert service._apply_formula(ctx, factor_values, comp) is None
 
     def test_no_keys_returns_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -534,7 +541,8 @@ class TestApplyFormula:
         assert service._apply_formula({}, {}, comp) is None
 
     def test_formula_func_takes_precedence(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
 
@@ -553,7 +561,8 @@ class TestApplyFormula:
         assert result == pytest.approx(15.0)
 
     def test_formula_func_can_return_none(self):
-        from app.models.data_entry_emission import EmissionComputation, EmissionType
+        from app.models.data_entry_emission import EmissionComputation
+        from app.modules.emissions import EmissionType
 
         service = self._make_service()
         comp = EmissionComputation(
@@ -630,12 +639,6 @@ class TestDelegationMethods:
         result = await service.get_stats(1)
         assert result == {"total": 100}
         service.repo.get_stats.assert_awaited_once()
-
-    async def test_get_stats_by_carbon_report_id_delegates(self):
-        service = _make_service()
-        service.repo.get_stats_by_carbon_report_id = AsyncMock(return_value={"a": 1})
-        result = await service.get_stats_by_carbon_report_id(1)
-        assert result == {"a": 1}
 
     async def test_create_with_no_emissions(self):
         service = _make_service()
@@ -1208,7 +1211,7 @@ class TestDelegationMethods:
 #     service = DataEntryEmissionService(mock_session)
 
 #     data_entry = MagicMock()
-#     data_entry.data_entry_type = DataEntryTypeEnum.additional_purchases
+#     data_entry.data_entry_type = DataEntryTypeEnum.purchases_centralized
 #     data_entry.data = {
 #         "name": "Liquid Nitrogen",
 #         "annual_consumption": 1000,
@@ -1218,7 +1221,7 @@ class TestDelegationMethods:
 
 #     factor = Factor(
 #         id=1,
-#         data_entry_type_id=DataEntryTypeEnum.additional_purchases,
+#         data_entry_type_id=DataEntryTypeEnum.purchases_centralized,
 #         values={"ef_kg_co2eq_per_kg": 0.001},
 #         classification={
 #             "name": "Liquid Nitrogen",
@@ -1463,6 +1466,7 @@ class TestPrepareCreateRollup:
             ) as mock_handler_cls,
         ):
             mock_handler = MagicMock()
+            mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
@@ -1525,6 +1529,7 @@ class TestPrepareCreateRollup:
             ) as mock_handler_cls,
         ):
             mock_handler = MagicMock()
+            mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
@@ -1588,6 +1593,7 @@ class TestPrepareCreateRollup:
             ) as mock_handler_cls,
         ):
             mock_handler = MagicMock()
+            mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
@@ -1640,6 +1646,7 @@ class TestPrepareCreateRollup:
             ) as mock_handler_cls,
         ):
             mock_handler = MagicMock()
+            mock_handler.kind_field = None
             mock_handler.pre_compute = AsyncMock(return_value={})
             mock_handler.resolve_computations = MagicMock(return_value=[fake_comp])
             mock_handler_cls.return_value = mock_handler
@@ -1658,6 +1665,180 @@ class TestPrepareCreateRollup:
 
 
 # ---------------------------------------------------------------------------
+# prepare_create — dynamic factor resolution (plan 1661)
+#
+# ``primary_factor_id`` is no longer read off the stored entry: the matching
+# Factor is resolved on demand from the entry's classification fields via
+# ``FactorResolver``, and the result — never the stored value — is what
+# flows into the produced emission rows' ``primary_factor_id``.
+# ---------------------------------------------------------------------------
+
+
+class TestPrepareCreateResolvesFactorDynamically:
+    @staticmethod
+    def _mock_handler(kind_field: str) -> MagicMock:
+        handler = MagicMock()
+        handler.kind_field = kind_field
+        handler.pre_compute = AsyncMock(return_value={})
+        handler.resolve_computations = MagicMock(
+            side_effect=lambda de, et, ctx: [
+                EmissionComputation(
+                    emission_type=et,
+                    factor_id=ctx.get("primary_factor_id"),
+                )
+            ]
+        )
+        return handler
+
+    @pytest.mark.asyncio
+    async def test_prepare_create_resolves_factor_from_classification(self):
+        """No primary_factor_id in data — the classification fields
+        (kind/subkind) resolve the factor via FactorResolver, and its id is
+        what the produced emission rows carry."""
+        service = _make_service()
+
+        factor = MagicMock(spec=Factor)
+        factor.id = 42
+        factor.emission_type_id = EmissionType.equipment__scientific.value
+        factor.values = {"factor_kgco2eq": 1.5}
+
+        resolver = MagicMock()
+        resolver.resolve = AsyncMock(return_value=factor)
+
+        de = DataEntryResponse(
+            id=1,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={"equipment_class": "microscope", "units": 2.0},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(service, "_apply_formula", return_value=75.0),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+                return_value=self._mock_handler("equipment_class"),
+            ),
+        ):
+            results = await service.prepare_create(de, factor_resolver=resolver)
+
+        assert len(results) == 1
+        assert results[0].primary_factor_id == 42
+        resolver.resolve.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_prepare_create_ignores_stale_stored_id(self):
+        """A legacy row's stored primary_factor_id (999) must never win over
+        the resolver's classification-based match (7) — the resolver result
+        always wins, the stored value is dead weight."""
+        service = _make_service()
+
+        factor = MagicMock(spec=Factor)
+        factor.id = 7
+        factor.emission_type_id = EmissionType.equipment__scientific.value
+        factor.values = {"factor_kgco2eq": 1.0}
+
+        resolver = MagicMock()
+        resolver.resolve = AsyncMock(return_value=factor)
+
+        de = DataEntryResponse(
+            id=2,
+            data_entry_type_id=DataEntryTypeEnum.scientific.value,
+            carbon_report_module_id=10,
+            data={
+                "equipment_class": "microscope",
+                "units": 2.0,
+                "primary_factor_id": 999,  # stale legacy value — must be ignored
+            },
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(service, "_apply_formula", return_value=50.0),
+            patch(
+                "app.services.data_entry_emission_service.resolve_emission_types",
+                return_value=[EmissionType.equipment__scientific],
+            ),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+                return_value=self._mock_handler("equipment_class"),
+            ),
+        ):
+            results = await service.prepare_create(de, factor_resolver=resolver)
+
+        assert len(results) == 1
+        assert results[0].primary_factor_id == 7
+        assert results[0].primary_factor_id != 999
+
+    @pytest.mark.asyncio
+    async def test_building_energy_type_from_resolved_factor(self):
+        """Building entry with no stored id: the resolver-matched factor's
+        classification.energy_type selects the single heating leaf (#1575)
+        end to end through resolve -> _get_building_energy_type ->
+        resolve_emission_types (mirrors the #1575 rollup test, minus the
+        stored id)."""
+        service = _make_service()
+
+        factor = MagicMock(spec=Factor)
+        factor.id = 5
+        factor.classification = {"energy_type": "electric"}
+        factor.emission_type_id = EmissionType.buildings__rooms__heating_electric.value
+        factor.values = {}
+
+        resolver = MagicMock()
+        resolver.resolve = AsyncMock(return_value=factor)
+
+        de = DataEntryResponse(
+            id=3,
+            data_entry_type_id=DataEntryTypeEnum.building.value,
+            carbon_report_module_id=10,
+            data={"building_name": "B1", "room_type": "office"},
+        )
+
+        with (
+            patch.object(
+                service, "_fetch_factors", new=AsyncMock(return_value=[factor])
+            ),
+            patch.object(
+                service, "_get_year_from_data_entry", new=AsyncMock(return_value=2024)
+            ),
+            patch.object(service, "_apply_formula", return_value=100.0),
+            patch(
+                "app.services.data_entry_emission_service.BaseModuleHandler.get_by_type",
+                return_value=self._mock_handler("building_name"),
+            ),
+        ):
+            results = await service.prepare_create(de, factor_resolver=resolver)
+
+        heating_leaf_ids = {
+            EmissionType.buildings__rooms__heating_electric__office.value,
+            EmissionType.buildings__rooms__heating_thermal__office.value,
+        }
+        produced_heating = {
+            r.emission_type_id
+            for r in results
+            if r.emission_type_id in heating_leaf_ids
+        }
+        assert produced_heating == {
+            EmissionType.buildings__rooms__heating_electric__office.value
+        }
+
+
+# ---------------------------------------------------------------------------
 # _fetch_factors — Strategy B query cache (recalc N+1 fix)
 # ---------------------------------------------------------------------------
 
@@ -1669,9 +1850,9 @@ class TestFetchFactorsStrategyBCache:
     def _comp(self):
         from app.models.data_entry_emission import (
             EmissionComputation,
-            EmissionType,
             FactorQuery,
         )
+        from app.modules.emissions import EmissionType
 
         return EmissionComputation(
             emission_type=EmissionType.food,

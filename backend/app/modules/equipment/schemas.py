@@ -95,7 +95,6 @@ class EquipmentHandlerResponse(DataEntryResponseGen):
     sub_class: Optional[str] = None
     active_usage_hours_per_week: Optional[int] = None
     standby_usage_hours_per_week: Optional[int] = None
-    primary_factor_id: Optional[int] = None
     note: Optional[str] = None
     kg_co2eq: Optional[float] = None
     active_power_w: Optional[int] = None
@@ -148,29 +147,27 @@ class EquipmentModuleHandler(BaseModuleHandler):
 
     kind_field: str = "equipment_class"
     subkind_field: str = "sub_class"
-    factor_value_fields: list[str] = [
-        "active_usage_hours_per_week",
-        "standby_usage_hours_per_week",
-    ]
 
     # Sort/filter keys MUST read from the same source `to_response` displays,
     # or the visible column won't match the ordering. equipment_class is shown
     # from DataEntry.data (the factor `class` lookup is a dead key); sub_class is
     # factor-preferred-then-data. Factor-only keys (active/standby_power_w) leave
-    # CSV rows with no matched factor (primary_factor_id NULL) with a NULL sort
-    # key — which is correct, since those rows display NULL for those fields too.
+    # rows with no matched emission-row factor id with a NULL sort key — which
+    # is correct, since those rows display NULL for those fields too.
     sub_class_expr = func.coalesce(
         Factor.classification["sub_class"].as_string(),
         DataEntry.data["sub_class"].as_string(),
     )
     sort_map = {
         "id": DataEntry.id,
-        "active_usage_hours_per_week": DataEntry.data[
-            "active_usage_hours_per_week"
-        ].as_float(),
-        "standby_usage_hours_per_week": DataEntry.data[
-            "standby_usage_hours_per_week"
-        ].as_float(),
+        "active_usage_hours_per_week": func.coalesce(
+            DataEntry.data["active_usage_hours_per_week"].as_float(),
+            Factor.values["active_usage_hours_per_week"].as_float(),
+        ),
+        "standby_usage_hours_per_week": func.coalesce(
+            DataEntry.data["standby_usage_hours_per_week"].as_float(),
+            Factor.values["standby_usage_hours_per_week"].as_float(),
+        ),
         "name": DataEntry.data["name"].as_string(),
         "active_power_w": Factor.values["active_power_w"].as_float(),
         "standby_power_w": Factor.values["standby_power_w"].as_float(),
@@ -211,15 +208,15 @@ class EquipmentModuleHandler(BaseModuleHandler):
             return []
 
         def _equipment_formula(ctx: dict, factor_values: dict) -> Optional[float]:
+            # Usage hours are a live default: the user's value wins, an
+            # unset field tracks the factor's current suggestion (nothing
+            # is seeded into entry.data any more).
             active_hours = ctx.get("active_usage_hours_per_week")
+            if active_hours is None:
+                active_hours = factor_values.get("active_usage_hours_per_week")
             standby_hours = ctx.get("standby_usage_hours_per_week")
-            # default active_hours and standby_hours should be retrieved from the factor
-            #  if not provided by the user
-            # in fine it should never happened
-            # if active_hours is None:
-            #     active_hours = factor_values.get("active_usage_hours_per_week")
-            # if standby_hours is None:
-            #     standby_hours = factor_values.get("standby_usage_hours_per_week")
+            if standby_hours is None:
+                standby_hours = factor_values.get("standby_usage_hours_per_week")
             if active_hours is None or standby_hours is None:
                 return None
             active_power_w = factor_values.get("active_power_w")
@@ -237,7 +234,7 @@ class EquipmentModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_equipment_formula,
             )
         ]
@@ -256,6 +253,16 @@ class EquipmentModuleHandler(BaseModuleHandler):
             **data,
             "active_power_w": primary_factor.get("active_power_w", None),
             "standby_power_w": primary_factor.get("standby_power_w", None),
+            "active_usage_hours_per_week": (
+                data.get("active_usage_hours_per_week")
+                if data.get("active_usage_hours_per_week") is not None
+                else primary_factor.get("active_usage_hours_per_week")
+            ),
+            "standby_usage_hours_per_week": (
+                data.get("standby_usage_hours_per_week")
+                if data.get("standby_usage_hours_per_week") is not None
+                else primary_factor.get("standby_usage_hours_per_week")
+            ),
             "equipment_class": primary_factor.get("class")
             or data.get("equipment_class"),
             "sub_class": primary_factor.get("sub_class") or data.get("sub_class"),

@@ -99,15 +99,26 @@ function buildMembersDropdown(memberPosted: boolean) {
     : [];
 }
 
-function buildEmissionBreakdown(totalTonnesCo2eq: number) {
+// Raw persisted-stats shape (`ReportStats` in emissionStatsAdapter.ts) — the
+// backend contract since 0bc63cd1 replaced the plain /emission-breakdown
+// route with /report-stats + client-side toEmissionBreakdown(). A single
+// `food` bucket carries the whole total so toEmissionBreakdown's totalKg sum
+// resolves to totalTonnesCo2eq without needing per-emission-type detail.
+function buildReportStats(totalTonnesCo2eq: number) {
   return {
-    module_breakdown: [],
-    total_tonnes_co2eq: totalTonnesCo2eq,
-    additional_breakdown: [],
-    per_person_breakdown: {},
-    validated_categories: [],
-    headcount_validated: false,
-    buildings_validated: false,
+    buckets:
+      totalTonnesCo2eq > 0
+        ? {
+            food: {
+              scope: 3,
+              additional: false,
+              total_kg: totalTonnesCo2eq * 1000,
+              by_emission_type: {},
+            },
+          }
+        : {},
+    per_fte: {},
+    validated_buckets: [],
     total_fte: 0,
   };
 }
@@ -174,17 +185,16 @@ export async function mockSimulatorBackend(page: Page): Promise<{
     },
   );
 
-  // Emission breakdown for the simulator report (id=99) — stateful.
-  await page.route(
-    /.*\/api\/v1\/modules-stats\/99\/emission-breakdown/,
-    (route) => {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(buildEmissionBreakdown(memberPosted ? 5 : 0)),
-      });
-    },
-  );
+  // Report stats for the simulator report (id=99) — stateful. Backs
+  // moduleStore.getEmissionBreakdown(), which fetches raw buckets and
+  // adapts them client-side via toEmissionBreakdown().
+  await page.route(/.*\/api\/v1\/modules-stats\/99\/report-stats/, (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(buildReportStats(memberPosted ? 5 : 0)),
+    });
+  });
 
   // Headcount module totals (preview_limit=0) — stateful.
   // \? ensures this only matches the module endpoint, NOT /headcount/member.
@@ -291,14 +301,37 @@ export async function mockSimulatorBackend(page: Page): Promise<{
     });
   });
 
-  // Session — authGuard calls getUser() on /session.
+  // Workspace-home aggregate — workspaceGuard calls fetchWorkspaceHome().
+  // Minimal payload: report id + year config + raw stats (workspaceGuard
+  // adapts it via toEmissionBreakdown() itself). SimulationExplorePage
+  // overwrites this with its own report-stats fetch for report id=99 right
+  // after mount, so the exact values here don't matter — only that the
+  // shape doesn't throw inside toEmissionBreakdown().
+  await page.route(/.*\/api\/v1\/workspace\/10\/2024\/home$/, (route) => {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        carbon_report_id: MOCK_CARBON_REPORT.id,
+        year_config: null,
+        stats: buildReportStats(0),
+      }),
+    });
+  });
+
+  // Session — authGuard calls bootstrap() on /session, which now returns the
+  // user plus workspace context (units + configured years).
   // Registered LAST = highest priority (first evaluated in LIFO).
   await page.route(/.*\/api\/v1\/session$/, (route) => {
     if (route.request().method() === 'GET') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(MOCK_USER),
+        body: JSON.stringify({
+          user: MOCK_USER,
+          units: [MOCK_UNIT],
+          configured_years: [],
+        }),
       });
     }
     return route.continue();

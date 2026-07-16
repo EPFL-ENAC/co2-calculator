@@ -26,26 +26,23 @@
     <template v-else>
       <template v-if="!isPrintMode">
         <div class="flex w-full items-center justify-between q-mx-lg">
-          <div class="text-body1 text-weight-medium q-ml-sm q-mb-md text-black">
-            {{ carbonFootprintTitle }}
-          </div>
           <div
-            v-if="showControls"
-            class="flex items-center no-wrap q-gutter-xs"
+            class="flex items-center no-wrap q-ml-sm q-mb-md text-body1 text-weight-medium text-black"
           >
+            {{ carbonFootprintTitle }}
             <q-btn
-              v-if="emissionTypeInfoKey && moduleChartView === 'type'"
+              v-if="emissionTypeInfoKey"
               flat
               round
               dense
               icon="info_outline"
               size="sm"
-              class="text-grey-7"
+              class="text-grey-7 q-ml-xs"
               :aria-label="t('emission-type-breakdown-info-aria')"
             >
               <q-tooltip
-                anchor="bottom right"
-                self="top right"
+                anchor="bottom left"
+                self="top left"
                 :offset="[0, 8]"
                 max-width="320px"
                 class="text-body2"
@@ -53,6 +50,11 @@
                 {{ t(emissionTypeInfoKey) }}
               </q-tooltip>
             </q-btn>
+          </div>
+          <div
+            v-if="showControls"
+            class="flex items-center no-wrap q-gutter-xs"
+          >
             <div class="chart-view-toggle">
               <q-btn
                 unelevated
@@ -176,7 +178,7 @@ import HeadCountBarChart from 'src/components/molecules/HeadCountBarChart.vue';
 import TripsMap from 'src/components/molecules/TripsMap.vue';
 import GenericEmissionTreeMapChart from 'src/components/charts/GenericEmissionTreeMapChart.vue';
 import EmissionTypeBreakdownChart from 'src/components/charts/results/EmissionTypeBreakdownChart.vue';
-import { useModuleStore } from 'src/stores/modules';
+import { useModuleStore, type MergedUnitsContext } from 'src/stores/modules';
 import { useWorkspaceStore } from 'src/stores/workspace';
 import { useAuthStore } from 'src/stores/auth';
 import { PermissionAction } from 'src/utils/permission';
@@ -202,10 +204,20 @@ const props = withDefaults(
     forcedView?: 'breakdown' | 'type';
     showControls?: boolean;
     printMode?: boolean;
+    /** Extra units whose entries are ranked together with the current unit's. */
+    combineUnitIds?: number[];
+    /**
+     * Module type ids the parent has filtered out. Must match what the parent
+     * passed to `getEmissionBreakdown`, or the refetch below misses the shared
+     * cache and overwrites the parent's breakdown with an unfiltered one.
+     */
+    excludeModules?: number[];
   }>(),
   {
     showControls: true,
     forcedView: 'breakdown',
+    combineUnitIds: () => [],
+    excludeModules: () => [],
   },
 );
 
@@ -248,9 +260,12 @@ watch(
   },
 );
 
-const emissionTypeInfoKey = computed(() =>
-  getEmissionTypeBreakdownInfoKey(props.type),
-);
+const emissionTypeInfoKey = computed(() => {
+  const key = getEmissionTypeBreakdownInfoKey(props.type);
+  // Honor the tooltips.ts convention: empty copy hides the icon.
+  if (!key || !te(key) || !t(key)) return null;
+  return key;
+});
 
 const carbonFootprintTitle = computed(() => {
   const moduleKey = `carbon_footprint_title_${props.type}`;
@@ -316,6 +331,17 @@ const supportsTopClassBreakdown = computed(() =>
   TOP_CLASS_MODULES.includes(props.type),
 );
 
+/**
+ * Mirrors the Results page's combined-units context. Without it the breakdown
+ * refetch below would overwrite the combined data with this unit's alone.
+ */
+const mergedUnitsContext = computed<MergedUnitsContext | null>(() => {
+  const unitId = workspaceStore.selectedUnit?.id;
+  const year = workspaceStore.selectedYear;
+  if (!props.combineUnitIds.length || !unitId || !year) return null;
+  return { unitIds: [unitId, ...props.combineUnitIds], year };
+});
+
 function fetchTopClassBreakdownIfNeeded() {
   const unitId = workspaceStore.selectedUnit?.id;
   const year = workspaceStore.selectedYear;
@@ -324,7 +350,12 @@ function fetchTopClassBreakdownIfNeeded() {
     return;
   }
   if (unitId && year && supportsTopClassBreakdown.value) {
-    void moduleStore.getTopClassBreakdown(unitId, String(year), props.type);
+    void moduleStore.getTopClassBreakdown(
+      unitId,
+      String(year),
+      props.type,
+      props.combineUnitIds,
+    );
   }
 }
 
@@ -359,10 +390,19 @@ function fetchTripsMapIfNeeded() {
 }
 
 watch(
-  () => workspaceStore.selectedCarbonReport?.id,
-  (carbonReportId) => {
+  () => [
+    workspaceStore.selectedCarbonReport?.id,
+    props.combineUnitIds.join(','),
+    props.excludeModules.join(','),
+  ],
+  () => {
+    const carbonReportId = workspaceStore.selectedCarbonReport?.id;
     if (carbonReportId) {
-      void moduleStore.getEmissionBreakdown(carbonReportId);
+      void moduleStore.getEmissionBreakdown(
+        carbonReportId,
+        props.excludeModules,
+        mergedUnitsContext.value,
+      );
       fetchTopClassBreakdownIfNeeded();
       fetchTripsMapIfNeeded();
     }

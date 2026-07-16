@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime, timedelta, timezone
-from typing import List, Literal, Optional, TypedDict
-from uuid import UUID
+from typing import List, Literal, Optional, TypedDict, cast
+from uuid import UUID, uuid4
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.exc import IntegrityError
@@ -20,6 +20,7 @@ from app.models.data_ingestion import (
     PipelineStatus,
     TargetType,
 )
+from app.models.user import UserProvider
 
 logger = get_logger(__name__)
 
@@ -275,7 +276,7 @@ class DataIngestionRepository:
         # the UPDATE driver — Pyright's stubs don't expose it, so guard
         # via ``hasattr`` (matches the pattern in ``mark_job_as_current``).
         if result is not None and hasattr(result, "rowcount"):
-            return int(result.rowcount or 0)
+            return int(cast(int, result.rowcount) or 0)
         return 0
 
     async def set_started_at(self, job_id: int) -> None:
@@ -1323,6 +1324,19 @@ class DataIngestionRepository:
             )
             return
 
+        # Issue #1578 — a FINISHED+ERROR job (e.g. a failed CSV
+        # re-upload) must not evict the last good job from the
+        # "current" slot the backoffice config UI reads
+        # (latest_data_job / latest_common_data_job). An ERROR job's
+        # meta never carries processed_file_path/rows_processed (only
+        # written on the success path), so promoting it blanked the
+        # prior upload's filename/rows/download summary even though
+        # its DataEntry rows were untouched. WARNING/SUCCESS still
+        # promote — their meta is usable and they ARE the latest
+        # attempt worth showing.
+        if job.state == IngestionState.FINISHED and job.result == IngestionResult.ERROR:
+            return
+
         # MODULE_UNIT_SPECIFIC uploads live on the per-unit module page,
         # not the per-year backoffice config — and nothing reads their
         # is_current flag (year-config skips them; recalc-status + factor
@@ -1578,38 +1592,56 @@ class DataIngestionRepository:
         )
 
         # LEFT JOIN: factor combos left-join recalculation combos
-        # SQLAlchemy stubs only define up to 4 positional args for select()
-        stmt = select(  # type: ignore[call-overload]
-            factor_jobs_sub.c.module_type_id,
-            factor_jobs_sub.c.data_entry_type_id,
-            factor_jobs_sub.c.max_factor_job_id,
-            recalc_jobs_sub.c.recalc_job_id,
-            recalc_jobs_sub.c.recalc_job_result,
-        ).join(
-            recalc_jobs_sub,
-            and_(
-                factor_jobs_sub.c.module_type_id == recalc_jobs_sub.c.module_type_id,
-                factor_jobs_sub.c.data_entry_type_id
-                == recalc_jobs_sub.c.data_entry_type_id,
-            ),
-            isouter=True,
+        # SQLAlchemy/SQLModel `select()` stubs only define overloads up to 4
+        # positional args; `.add_columns()` has no such arity limit.
+        stmt = (
+            select(
+                factor_jobs_sub.c.module_type_id,
+                factor_jobs_sub.c.data_entry_type_id,
+                factor_jobs_sub.c.max_factor_job_id,
+                recalc_jobs_sub.c.recalc_job_id,
+            )
+            .add_columns(
+                recalc_jobs_sub.c.recalc_job_result,
+            )
+            .join(
+                recalc_jobs_sub,
+                and_(
+                    factor_jobs_sub.c.module_type_id
+                    == recalc_jobs_sub.c.module_type_id,
+                    factor_jobs_sub.c.data_entry_type_id
+                    == recalc_jobs_sub.c.data_entry_type_id,
+                ),
+                isouter=True,
+            )
         )
 
         exec_result = await self.session.execute(stmt)
         rows = exec_result.all()
 
-        # Fetch only id + result for factor jobs — avoids loading the meta JSON field.
+        # Fetch id + result + meta for factor jobs.  ``meta`` used to be
+        # skipped here to avoid loading the JSON column; Issue #1591 needs
+        # ``stats.errors`` (a plain int count) surfaced to the UI, and the
+        # factor table is small (curated reference data, not per-row CSV
+        # data), so loading meta for just these jobs stays cheap.
         factor_job_ids = [r.max_factor_job_id for r in rows]
         factor_job_result_by_id: dict[int, Optional[IngestionResult]] = {}
+        factor_job_error_count_by_id: dict[int, Optional[int]] = {}
         if factor_job_ids:
             fj_stmt = select(
                 col(DataIngestionJob.id),
                 col(DataIngestionJob.result),
+                col(DataIngestionJob.meta),
             ).where(col(DataIngestionJob.id).in_(factor_job_ids))
             fj_result = await self.session.execute(fj_stmt)
             for fj_row in fj_result.all():
                 if fj_row.id is not None:
                     factor_job_result_by_id[fj_row.id] = fj_row.result
+                    stats = (fj_row.meta or {}).get("stats") or {}
+                    errors = stats.get("errors")
+                    factor_job_error_count_by_id[fj_row.id] = (
+                        errors if isinstance(errors, int) and errors > 0 else None
+                    )
 
         status_rows: list[RecalculationStatusRow] = []
         for row in rows:
@@ -1626,6 +1658,9 @@ class DataIngestionRepository:
                     needs_recalculation=needs_recalculation,
                     last_factor_job_id=row.max_factor_job_id,
                     last_factor_job_result=factor_job_result_by_id.get(
+                        row.max_factor_job_id
+                    ),
+                    last_factor_job_error_count=factor_job_error_count_by_id.get(
                         row.max_factor_job_id
                     ),
                     last_recalculation_job_id=row.recalc_job_id,
@@ -1807,6 +1842,142 @@ class DataIngestionRepository:
 
         return out
 
+    async def list_module_type_year_scopes(
+        self, year: Optional[int] = None, module_type_id: Optional[int] = None
+    ) -> list[tuple[int, int]]:
+        """Distinct ``(module_type_id, year)`` pairs that have at least one
+        ``carbon_report_module``.
+
+        Same seed query as ``find_stale_aggregations`` (source-of-truth for
+        "what has stats"), without the staleness join — used by the admin
+        recompute-stats trigger to fan out one full-recompute aggregation
+        job per scope, regardless of whether the last aggregation looked
+        fresh (a stats-shape change makes even a fresh row wrong).
+        """
+        stmt = (
+            select(
+                col(CarbonReportModule.module_type_id),
+                col(CarbonReport.year),
+            )
+            .join(
+                CarbonReport,
+                col(CarbonReportModule.carbon_report_id) == col(CarbonReport.id),
+            )
+            .distinct()
+        )
+        if year is not None:
+            stmt = stmt.where(col(CarbonReport.year) == year)
+        if module_type_id is not None:
+            stmt = stmt.where(col(CarbonReportModule.module_type_id) == module_type_id)
+        rows = (await self.session.execute(stmt)).all()
+        return [(r[0], r[1]) for r in rows]
+
+    async def filter_scopes_with_current_factors(
+        self, scopes: list[tuple[int, int]]
+    ) -> list[tuple[int, int]]:
+        """Keep only ``(module_type_id, year)`` scopes with at least one
+        successful, ``is_current`` FACTORS job.
+
+        A scope with no reference/factor data uploaded has nothing to
+        compute emissions against — ``aggregation_handler`` would just
+        write zeroed-out stats. Same factor-availability lookup
+        ``get_recalculation_status_by_year`` already uses, reused here so
+        the admin recompute-stats trigger doesn't spend a job (and a
+        pooled DB connection) on scopes that can't produce real numbers.
+        """
+        if not scopes:
+            return []
+        years = {scope_year for _module_type_id, scope_year in scopes}
+        stmt = (
+            select(
+                col(DataIngestionJob.module_type_id),
+                col(DataIngestionJob.year),
+            )
+            .where(
+                col(DataIngestionJob.is_current).is_(True),
+                col(DataIngestionJob.year).in_(years),
+                col(DataIngestionJob.state) == IngestionState.FINISHED,
+                col(DataIngestionJob.target_type) == TargetType.FACTORS,
+                col(DataIngestionJob.result) != IngestionResult.ERROR,
+            )
+            .distinct()
+        )
+        rows = (await self.session.execute(stmt)).all()
+        have_factors = {(r[0], r[1]) for r in rows}
+        return [scope for scope in scopes if scope in have_factors]
+
+    async def create_root_aggregation_job(
+        self, module_type_id: int, year: int, provider: UserProvider
+    ) -> Optional[int]:
+        """Dispatch a parentless, full-recompute ``aggregation`` job.
+
+        Unlike the recalc-chained aggregation (``chain_job`` with
+        ``AGGREGATION_DEDUP``), this has no ``affected_module_ids`` scoping
+        in its ``meta.config``, so ``aggregation_handler`` recomputes every
+        module in the ``(module_type_id, year)`` scope — what the admin
+        recompute-stats trigger needs to backfill existing data after a
+        stats-shape change.
+
+        ``meta.config.skip_module_status_update`` tells ``aggregation_handler``
+        not to bump each module back to IN_PROGRESS: this path re-derives
+        stats from data that hasn't changed, so it shouldn't stale-out an
+        operator's prior validation the way a real recalc (actual data
+        change) should.
+
+        Guarded by the same ``uq_aggregation_active`` partial unique index
+        ``chain_job`` relies on: a pre-check skips the common case, and a
+        losing concurrent INSERT's ``IntegrityError`` is treated as the same
+        "already pending" no-op. Returns ``None`` on dedup skip, the new
+        job's id otherwise.
+        """
+        existing = await self.session.execute(
+            select(DataIngestionJob.id).where(
+                col(DataIngestionJob.job_type) == "aggregation",
+                col(DataIngestionJob.module_type_id) == module_type_id,
+                col(DataIngestionJob.year) == year,
+                col(DataIngestionJob.state).in_(
+                    [
+                        IngestionState.NOT_STARTED,
+                        IngestionState.QUEUED,
+                        IngestionState.RUNNING,
+                    ]
+                ),
+            )
+        )
+        if existing.first() is not None:
+            return None
+
+        pipeline_id = uuid4()
+        await self.ensure_pipeline_exists(
+            pipeline_id,
+            kind="aggregation",
+            entity_type=EntityType.MODULE_PER_YEAR.value,
+            ingestion_method=IngestionMethod.computed.value,
+            module_type_id=module_type_id,
+            year=year,
+        )
+        job = DataIngestionJob(
+            job_type="aggregation",
+            module_type_id=module_type_id,
+            year=year,
+            target_type=TargetType.DATA_ENTRIES,
+            ingestion_method=IngestionMethod.computed,
+            entity_type=EntityType.MODULE_PER_YEAR,
+            state=IngestionState.NOT_STARTED,
+            is_current=False,
+            provider=provider,
+            pipeline_id=pipeline_id,
+            run_after=None,
+            meta={"config": {"skip_module_status_update": True}},
+        )
+        try:
+            created = await self.create_ingestion_job(job)
+        except IntegrityError:
+            await self.session.rollback()
+            return None
+        await self.session.commit()
+        return created.id
+
 
 class RecalculationStatusRow(TypedDict):
     """Lightweight status row returned by get_recalculation_status_by_year."""
@@ -1817,6 +1988,7 @@ class RecalculationStatusRow(TypedDict):
     needs_recalculation: bool
     last_factor_job_id: Optional[int]
     last_factor_job_result: Optional[IngestionResult]
+    last_factor_job_error_count: Optional[int]
     last_recalculation_job_id: Optional[int]
     last_recalculation_job_result: Optional[IngestionResult]
 

@@ -5,9 +5,11 @@ import { useI18n } from 'vue-i18n';
 import { api } from 'src/api/http';
 import { BACKOFFICE_NAV } from 'src/constant/navigation';
 import NavigationHeader from 'src/components/organisms/backoffice/NavigationHeader.vue';
+import RecomputeStatsCard from 'src/components/molecules/backoffice/RecomputeStatsCard.vue';
 import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
+import { useYearConfigStore } from 'src/stores/yearConfig';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
@@ -34,6 +36,14 @@ const { t } = useI18n();
 
 const store = usePipelineOperationsConsole();
 const backofficeStore = useBackofficeDataManagement();
+const yearConfigStore = useYearConfigStore();
+
+// Only years with a year-configuration row are valid filter/recompute
+// targets — filtering by an arbitrary typed year could silently show
+// zero rows with no indication why.
+const yearOptions = computed(() =>
+  [...yearConfigStore.configuredYears].map((y) => y.year).sort((a, b) => b - a),
+);
 
 // Abort dialog — one-step confirmation so an accidental click on a
 // row doesn't kill a long-running chain mid-flight.  Mirrors the
@@ -381,6 +391,9 @@ function fmtTs(s: string | null | undefined): string {
 onMounted(() => {
   void store.fetch();
   void fetchWorkers();
+  if (yearConfigStore.configuredYears.length === 0) {
+    void yearConfigStore.fetchConfiguredYears();
+  }
 });
 
 // 🐞#3 (Guilbert 2026-05-20) — SSE live-update on the ops page.
@@ -440,6 +453,8 @@ onUnmounted(() => {
     <div class="q-my-xl q-px-xl">
       <div class="container full-width">
         <div class="text-body1 q-mb-lg">{{ $t('pipeops_subtitle') }}</div>
+
+        <recompute-stats-card />
 
         <!-- Workers panel — surfaces "who's actually polling jobs right
              now" so an operator can spot a two-pods-on-different-code
@@ -590,16 +605,15 @@ onUnmounted(() => {
             :options="jobTypeOptions"
             @update:model-value="(v) => store.applyFilters({ job_type: v })"
           />
-          <q-input
+          <q-select
             class="col-6 col-md-1"
             dense
             outlined
-            type="number"
+            clearable
             :label="$t('pipeops_filter_year')"
             :model-value="store.filters.year"
-            @update:model-value="
-              (v) => store.applyFilters({ year: v ? Number(v) : null })
-            "
+            :options="yearOptions"
+            @update:model-value="(v) => store.applyFilters({ year: v })"
           />
           <q-input
             class="col-12 col-md-3"
@@ -962,8 +976,7 @@ onUnmounted(() => {
               overflow: auto;
               margin: 0;
             "
-            >{{ msgText }}</pre
-          >
+            >{{ msgText }}</pre>
         </q-card-section>
         <q-card-actions class="q-px-md q-pb-md">
           <q-btn

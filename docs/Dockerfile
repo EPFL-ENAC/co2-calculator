@@ -1,5 +1,5 @@
 # Stage 1: Build MkDocs site
-FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim AS builder
 
 # Install git (required for mkdocs-git-authors-plugin)
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
@@ -30,8 +30,9 @@ ENV GIT_PYTHON_REFRESH=quiet
 # Build documentation site
 RUN uv run mkdocs build --strict --site-dir /dist
 
-# Stage 2: Serve with nginx
-FROM nginxinc/nginx-unprivileged:stable
+# Stage 2: Serve with nginx (alpine: the debian variant ships ~100 OS
+# packages that dominate CVE scans and are unused for serving static files)
+FROM nginxinc/nginx-unprivileged:stable-alpine-slim
 
 # Copy built documentation from builder stage
 COPY --from=builder /dist /usr/share/nginx/html

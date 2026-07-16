@@ -109,3 +109,29 @@ export async function getResultsSummary(
   const query = searchParams.toString();
   return api.get(query ? `${path}?${query}` : path).json<ResultsSummary>();
 }
+
+/**
+ * Fetch the results summary summed over several units for one year.
+ *
+ * @param unitIds - Units to combine, including the one currently viewed
+ * @param year - Report year
+ * @param excludeModules - Optional list of module_type_ids to exclude from totals
+ * @returns Combined totals and per-module breakdowns, same shape as the single-unit call
+ */
+export async function getMergedResultsSummary(
+  unitIds: number[],
+  year: number,
+  excludeModules: number[] = [],
+): Promise<ResultsSummary> {
+  const searchParams = new URLSearchParams();
+  searchParams.append('year', String(year));
+  for (const id of unitIds) {
+    searchParams.append('unit_ids', String(id));
+  }
+  for (const id of excludeModules) {
+    searchParams.append('exclude_modules', String(id));
+  }
+  return api
+    .get(`modules-stats/merged/results-summary?${searchParams.toString()}`)
+    .json<ResultsSummary>();
+}

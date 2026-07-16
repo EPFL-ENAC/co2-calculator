@@ -7,9 +7,9 @@ from app.models.data_entry import DataEntry, DataEntryTypeEnum
 from app.models.data_entry_emission import (
     DataEntryEmission,
     EmissionComputation,
-    EmissionType,
 )
 from app.models.module_type import ModuleTypeEnum
+from app.modules.emissions import EmissionType
 from app.schemas.data_entry import (
     BaseModuleHandler,
     DataEntryCreate,
@@ -38,7 +38,7 @@ class PurchaseHandlerResponse(DataEntryResponseGen):
     kg_co2eq: Optional[float] = None
 
 
-class PurchaseAdditionalHandlerResponse(DataEntryResponseGen):
+class PurchaseCentralizedHandlerResponse(DataEntryResponseGen):
     name: str
     unit: Optional[str] = None
     annual_consumption: float
@@ -119,7 +119,7 @@ class PurchaseHandlerCreate(DataEntryCreate):
         return normalized_v
 
 
-class PurchaseAdditionalHandlerCreate(DataEntryCreate):
+class PurchaseCentralizedHandlerCreate(DataEntryCreate):
     name: str
     unit: str
     annual_consumption: float
@@ -183,8 +183,41 @@ class PurchaseHandlerUpdate(DataEntryUpdate):
             raise ValueError(f"Currency must be one of: {valid_currencies}")
         return normalized_v
 
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_institutional_code(cls, values: Any) -> Any:
+        # Key absent = "not updating" (PATCH semantics). An explicit null would
+        # silently clear the code, resolve no factor, and delete the entry's
+        # emissions. The payload mixin may carry the field top-level and/or
+        # under "data", so guard both shapes.
+        if not isinstance(values, dict):
+            return values
+        payloads = [values]
+        if isinstance(values.get("data"), dict):
+            payloads.append(values["data"])
+        for payload in payloads:
+            if (
+                "purchase_institutional_code" in payload
+                and payload["purchase_institutional_code"] is None
+            ):
+                raise ValueError("purchase_institutional_code cannot be null")
+        return values
 
-class PurchaseAdditionalHandlerUpdate(DataEntryUpdate):
+    @field_validator("purchase_institutional_code", mode="after")
+    @classmethod
+    def validate_purchase_institutional_code(cls, v: Optional[str]) -> Optional[str]:
+        # None here can only be the key-absent default (explicit null is
+        # rejected in the before-validator above); a blank/whitespace value
+        # provided on purpose must fail loudly here rather than silently
+        # resolving to no factor further down the pipeline.
+        if v is None:
+            return v
+        if not v.strip():
+            raise ValueError("purchase_institutional_code cannot be empty")
+        return v
+
+
+class PurchaseCentralizedHandlerUpdate(DataEntryUpdate):
     name: Optional[str] = None
     unit: Optional[str] = None
     annual_consumption: Optional[float] = None
@@ -223,10 +256,9 @@ class PurchaseModuleHandler(BaseModuleHandler):
     # factor key when present: it overrides the institutional-code match.
     kind_field_override: Optional[str] = "purchase_additional_code"
     subkind_field: Optional[str] = ""
-    # purchase_institutional_code is not always present, so we can't 100% rely on it
-    # for matching entries to factors
-    # it's Optional in create_dto and update_dto, and some entries
-    # may have it missing or null in csv
+    # Required non-empty on create; update rejects present-but-blank/null
+    # (key-absent means "not updating"). CSV omits the key entirely when the
+    # cell is empty, so entries can still lack it — matching stays optional.
     require_factor_to_match = False
 
     sort_map = {
@@ -235,6 +267,7 @@ class PurchaseModuleHandler(BaseModuleHandler):
         "supplier": DataEntry.data["supplier"].as_string(),
         "quantity": DataEntry.data["quantity"].as_float(),
         "total_spent_amount": DataEntry.data["total_spent_amount"].as_float(),
+        "currency": DataEntry.data["currency"].as_string(),
         "purchase_institutional_code": DataEntry.data[
             "purchase_institutional_code"
         ].as_string(),
@@ -323,19 +356,19 @@ class PurchaseModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_purchase_formula,
             )
         ]
 
 
-class PurchaseAdditionalModuleHandler(BaseModuleHandler):
+class PurchaseCentralizedModuleHandler(BaseModuleHandler):
     module_type: ModuleTypeEnum = ModuleTypeEnum.purchase
-    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.additional_purchases
+    data_entry_type: DataEntryTypeEnum = DataEntryTypeEnum.purchases_centralized
 
-    create_dto = PurchaseAdditionalHandlerCreate
-    update_dto = PurchaseAdditionalHandlerUpdate
-    response_dto = PurchaseAdditionalHandlerResponse
+    create_dto = PurchaseCentralizedHandlerCreate
+    update_dto = PurchaseCentralizedHandlerUpdate
+    response_dto = PurchaseCentralizedHandlerResponse
 
     kind_field: str = "name"
     subkind_field: Optional[str] = ""
@@ -358,7 +391,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         self,
         data_entry: DataEntry,
         enriched_data: dict | None = None,
-    ) -> PurchaseAdditionalHandlerResponse:
+    ) -> PurchaseCentralizedHandlerResponse:
         data = enriched_data if enriched_data is not None else data_entry.data
         return self.response_dto.model_validate(
             {
@@ -369,10 +402,10 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
             }
         )
 
-    def validate_create(self, payload: dict) -> PurchaseAdditionalHandlerCreate:
+    def validate_create(self, payload: dict) -> PurchaseCentralizedHandlerCreate:
         return self.create_dto.model_validate(payload)
 
-    def validate_update(self, payload: dict) -> PurchaseAdditionalHandlerUpdate:
+    def validate_update(self, payload: dict) -> PurchaseCentralizedHandlerUpdate:
         return self.update_dto.model_validate(payload)
 
     def resolve_computations(self, data_entry, emission_type, ctx: dict) -> list:
@@ -396,7 +429,7 @@ class PurchaseAdditionalModuleHandler(BaseModuleHandler):
         return [
             EmissionComputation(
                 emission_type=emission_type,
-                factor_id=int(factor_id),
+                factor_id=factor_id,
                 formula_func=_additional_purchase_formula,
             )
         ]
@@ -410,7 +443,7 @@ purchase_additional_classification_fields: list[str] = ["name"]
 purchase_additional_value_fields: list[str] = ["ef_kg_co2eq_per_kg"]
 
 
-class PurchaseAdditionalFactorCreate(FactorCreate):
+class PurchaseCentralizedFactorCreate(FactorCreate):
     name: str
     ef_kg_co2eq_per_kg: float
 
@@ -422,7 +455,7 @@ class PurchaseAdditionalFactorCreate(FactorCreate):
         return v
 
 
-class PurchaseAdditionalFactorUpdate(FactorUpdate):
+class PurchaseCentralizedFactorUpdate(FactorUpdate):
     name: Optional[str] = None
     ef_kg_co2eq_per_kg: Optional[float] = None
 
@@ -436,19 +469,19 @@ class PurchaseAdditionalFactorUpdate(FactorUpdate):
         return v
 
 
-class PurchaseAdditionalFactorResponse(FactorResponseGen):
+class PurchaseCentralizedFactorResponse(FactorResponseGen):
     name: str
     ef_kg_co2eq_per_kg: float
 
 
-class PurchaseAdditionalFactorHandler(BaseFactorHandler):
+class PurchaseCentralizedFactorHandler(BaseFactorHandler):
     data_entry_type: DataEntryTypeEnum | None = None
-    registration_keys = [DataEntryTypeEnum.additional_purchases]
-    emission_type = EmissionType.purchases__additional
+    registration_keys = [DataEntryTypeEnum.purchases_centralized]
+    emission_type = EmissionType.purchases__centralized
 
-    create_dto = PurchaseAdditionalFactorCreate
-    update_dto = PurchaseAdditionalFactorUpdate
-    response_dto = PurchaseAdditionalFactorResponse
+    create_dto = PurchaseCentralizedFactorCreate
+    update_dto = PurchaseCentralizedFactorUpdate
+    response_dto = PurchaseCentralizedFactorResponse
 
     classification_fields: list[str] = purchase_additional_classification_fields
     value_fields: list[str] = purchase_additional_value_fields

@@ -5,6 +5,8 @@ import urllib.parse
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, TypedDict
 
+from pydantic import ValidationError
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.data_entry import DataEntryTypeEnum
@@ -21,7 +23,10 @@ from app.models.user import User
 from app.repositories.factor_repo import FactorRepository
 from app.schemas.factor import BaseFactorHandler
 from app.seed.seed_helper import get_factor_emission_type_id
-from app.services.data_ingestion.base_csv_provider import _validate_file_path
+from app.services.data_ingestion.base_csv_provider import (
+    _format_pydantic_validation_error,
+    _validate_file_path,
+)
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.factor_service import FactorService
 
@@ -34,7 +39,8 @@ class FactorStatsDict(TypedDict):
     batches_processed: int
     row_errors: list[dict[str, Any]]
     row_errors_count: int
-    factors_deleted: int  # set by local-seed delete-and-insert path; 0 in upsert path
+    # stale rows superseded by this upload; see _delete_stale_factors
+    factors_deleted: int
     factors_upserted: int
 
 
@@ -71,6 +77,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.source_file_path:
             _validate_file_path(self.source_file_path)
         self._files_store: Any = None
+        # dets actually written by this job's upserts — the stale sweep is
+        # scoped to exactly these ("you replace what you upload"), so a
+        # partial module CSV can never wipe sibling dets it didn't carry.
+        self._upserted_det_ids: set[int] = set()
         logger.info(
             f"Initializing {self.__class__.__name__} for job_id={self.job_id}, "
             f"file_path={self.source_file_path}"
@@ -171,9 +181,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             factor_service = FactorService(self.data_session)
             factor_repo = FactorRepository(self.data_session)
             # Plan 310B: upsert in place (preserves factor.id so existing
-            # DataEntry.primary_factor_id FKs stay valid).  No bulk delete:
-            # factors absent from the new CSV are kept and surfaced as stale
-            # via last_seen_job_id.
+            # DataEntryEmission.primary_factor_id FKs stay valid).  No bulk
+            # delete: factors absent from the new CSV are kept and surfaced
+            # as stale via last_seen_job_id.
 
             copy_batch_size = get_settings().INGEST_COPY_BATCH_SIZE
             batch: List[Factor] = []
@@ -253,13 +263,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if not tmp_path:
             raise ValueError("Missing file_path in config")
         _validate_file_path(tmp_path)
-        filename = tmp_path.split("/")[-1]
-        processing_path = f"processing/{self.job_id}/{filename}"
-
-        logger.info(f"Moving file from {tmp_path} to {processing_path}")
-        move_result = await self.files_store.move_file(tmp_path, processing_path)
-        if not move_result:
-            raise ValueError("Failed to move file to processing path")
+        processing_path = await self._move_to_processing(tmp_path)
+        filename = processing_path.split("/")[-1]
 
         logger.info(f"Downloading CSV from {processing_path}")
         file_content, mime_type = await self.files_store.get_file(processing_path)
@@ -387,6 +392,10 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
 
             try:
                 handler.validate_create(validation_payload)
+            except ValidationError as validation_error:
+                error_msg = _format_pydantic_validation_error(validation_error)
+                self._record_row_error(stats, row_idx, error_msg, max_row_errors)
+                return None, error_msg
             except Exception as validation_error:
                 error_msg = f"Validation error: {validation_error}"
                 self._record_row_error(stats, row_idx, error_msg, max_row_errors)
@@ -485,6 +494,7 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
         if self.job_id is None:
             raise ValueError("job_id is required for factor upsert")
         affected = await factor_repo.upsert_factors(batch, current_job_id=self.job_id)
+        self._upserted_det_ids.update(f.data_entry_type_id for f in batch)
         # asyncpg can return rowcount=-1 for executemany ON CONFLICT
         # statements where it can't tally the result reliably.  Fall back
         # to the input batch size for stats so the operator-visible count
@@ -531,19 +541,18 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             upserted = await self._upsert_batch(batch, factor_repo)
             stats["factors_upserted"] += upserted
 
+        result = self._compute_ingestion_result(stats)
+        # Sweep only on full SUCCESS: a partial upload (WARNING) failed to
+        # re-ingest some rows, and deleting the factors those rows would
+        # have refreshed silently destroys data on operator error. The
+        # operator re-uploads a corrected CSV; that SUCCESS run sweeps.
+        if result == IngestionResult.SUCCESS:
+            stats["factors_deleted"] = await self._delete_stale_factors(factor_repo)
+
         processing_path = setup_result["processing_path"]
-        filename = setup_result["filename"]
-        processed_path = f"processed/{self.job_id}/{filename}"
-        logger.info(f"Moving file from {processing_path} to {processed_path}")
-        move_result = await self.files_store.move_file(processing_path, processed_path)
-        metadata_update: Dict[str, Any] = {}
-        if not move_result:
-            logger.warning(
-                f"Failed to move file from {processing_path} to {processed_path}"
-            )
-            metadata_update["processed_file_path"] = processing_path
-        else:
-            metadata_update = {"processed_file_path": processed_path}
+        metadata_update: Dict[str, Any] = {
+            "processed_file_path": await self._move_to_processed(processing_path)
+        }
 
         await self.data_session.flush()
 
@@ -551,9 +560,9 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             f"Processed {stats['rows_processed']} rows: "
             f"{stats['rows_skipped']} skipped, "
             f"{stats['row_errors_count']} errors, "
-            f"{stats['factors_upserted']} factors upserted"
+            f"{stats['factors_upserted']} factors upserted, "
+            f"{stats['factors_deleted']} factors deleted"
         )
-        result = self._compute_ingestion_result(stats)
 
         metadata_for_job = {k: v for k, v in stats.items() if k != "row_errors"}
         metadata_for_job["stats"] = stats
@@ -569,7 +578,8 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             f"CSV processing completed: {stats['rows_processed']} rows processed, "
             f"{stats['rows_skipped']} skipped, "
             f"{stats['row_errors_count']} errors, "
-            f"{stats['factors_upserted']} factors upserted"
+            f"{stats['factors_upserted']} factors upserted, "
+            f"{stats['factors_deleted']} factors deleted"
         )
         return {
             "state": IngestionState.FINISHED,
@@ -578,6 +588,33 @@ class BaseFactorCSVProvider(DataIngestionProvider, ABC):
             "skipped": stats["rows_skipped"],
             "stats": stats,
         }
+
+    async def _delete_stale_factors(self, factor_repo: FactorRepository) -> int:
+        """Delete factors this job's upsert just superseded.
+
+        Runs in the same transaction as the upsert, before the handler's
+        stale-recalc fan-out (``_chain_recalc_for_stale`` in
+        ``ingestion_tasks.py``) dispatches — so the cascade-deleted
+        emission rows are part of the same commit the fan-out reads
+        from.  Scope is the dets this job actually upserted, not the
+        module's full coverage — an upload replaces exactly what it
+        carries.
+
+        See ``delete_stale_for_year`` for why the threshold is this
+        job's id rather than a job-state lookup.
+        """
+        if self.year is None or self.job_id is None:
+            raise ValueError(
+                "_delete_stale_factors requires year and job_id; "
+                "run() assigns both before any row is processed"
+            )
+        if not self._upserted_det_ids:
+            return 0
+        return await factor_repo.delete_stale_for_year(
+            self.year,
+            det_ids=sorted(self._upserted_det_ids),
+            threshold_job_id=self.job_id,
+        )
 
     @abstractmethod
     async def _setup_handlers_and_context(self) -> Dict[str, Any]:

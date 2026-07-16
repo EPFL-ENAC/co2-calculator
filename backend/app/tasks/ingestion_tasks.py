@@ -224,7 +224,10 @@ def finalize_ingest_meta(result: dict) -> dict:
     ``reference_ingest_handler`` — they had two identical copies of
     this join; the duplication is what let the bug exist in one.
     """
-    data = result.get("data", {}) or {}
+    # CSV/factor providers wrap their summary under ``data`` while the
+    # Tableau API providers return the same summary directly. Normalize both
+    # shapes before deriving the runner-owned FINISHED result.
+    data = (result.get("data") or {}) if "data" in result else result
     ingestion_result = data.get("result", IngestionResult.SUCCESS)
     status_message = result.get("status_message", "Success")
     if ingestion_result != IngestionResult.SUCCESS and (
@@ -235,7 +238,10 @@ def finalize_ingest_meta(result: dict) -> dict:
             f"{rec}: {data.get('inserted', 0)} inserted, "
             f"{data.get('skipped', 0)} skipped"
         )
-        sample_reason = _sample_row_error_reason(data.get("row_errors") or [])
+        stats = data.get("stats") or {}
+        sample_reason = _sample_row_error_reason(
+            data.get("row_errors") or stats.get("row_errors") or []
+        )
         if sample_reason:
             status_message += f" — first error: {sample_reason}"
     return {
@@ -280,9 +286,11 @@ async def _run_ingest(
         )
 
     job_config = job_meta.get("config") or {}
+    # DataIngestionJob carries no user/created_by field — background jobs
+    # are never attributed to a user (audit falls back to job_id/handler_id).
     provider = provider_class(
         config={**job.__dict__, **job_config, "job_id": job.id},
-        user=job.user if hasattr(job, "user") else None,
+        user=None,
         job_session=job_session,
         data_session=data_session,
     )
@@ -540,7 +548,7 @@ async def _chain_emission_recalc_for_data_ingest(
     if raw_module_id is not None:
         try:
             child_config = {"carbon_report_module_ids": [int(raw_module_id)]}
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             logger.warning(
                 f"data ingest job {job.id}: non-int carbon_report_module_id="
                 f"{raw_module_id!r} in config — chaining unscoped recalc"

@@ -26,7 +26,7 @@ def mock_es_client():
     es_instance = MagicMock()
     es_instance.sync_audit_record = MagicMock(return_value=True)
     es_instance.bulk_sync_audit_records = MagicMock(
-        return_value={"success": [], "errors": []}
+        return_value={"success": [], "errors": [], "conflicts": []}
     )
     return es_instance
 
@@ -284,6 +284,7 @@ class TestAuditSyncService:
         audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
             "success": [{"id": 1}, {"id": 2}, {"id": 3}],
             "errors": [],
+            "conflicts": [],
         }
 
         # Execute
@@ -338,6 +339,7 @@ class TestAuditSyncService:
         audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
             "success": [{"id": 1}, {"id": 3}],  # Records 1 and 3 succeed
             "errors": [{"id": 2}],  # Record 2 fails
+            "conflicts": [],
         }
 
         # Execute
@@ -411,6 +413,7 @@ class TestAuditSyncService:
         audit_sync_service.es_client.bulk_sync_audit_records.return_value = {
             "success": [],
             "errors": [{"id": 1}, {"id": 2}],
+            "conflicts": [],
         }
 
         # Execute

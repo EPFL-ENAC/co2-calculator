@@ -1,15 +1,21 @@
 """Unit tests for BaseCSVProvider."""
 
+import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
-from app.models.data_entry import DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.carbon_report import CarbonReportModule
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
 from app.models.data_ingestion import EntityType, IngestionResult
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
 from app.services.data_ingestion.base_csv_provider import (
+    REUPLOAD_HINT,
     BaseCSVProvider,
     StatsDict,
     _get_expected_columns_from_handlers,
@@ -17,6 +23,16 @@ from app.services.data_ingestion.base_csv_provider import (
     _is_blank_data_row,
     _validate_file_path,
 )
+
+
+class _DummyDataEntryPayload(BaseModel):
+    """Minimal model used to trigger a real ``pydantic.ValidationError``
+    (float/date parsing failures) the same way a real handler's
+    ``create_dto`` would, without depending on a concrete handler."""
+
+    amount: float
+    date: datetime.date
+
 
 # ======================================================================
 # File Path Validation Tests - Security Critical
@@ -216,9 +232,7 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
 
     # 3. Mock handlers and setup results so _process_row works for valid rows
     handler = MagicMock()
-    handler.validate_create.return_value = SimpleNamespace(
-        data={"head1": "val", "primary_factor_id": 1}
-    )
+    handler.validate_create.return_value = SimpleNamespace(data={"head1": "val"})
     handler.kind_field = "head1"
     handler.subkind_field = None
     handler.enrich_csv_row = AsyncMock(side_effect=lambda d, s: (d, None))
@@ -227,7 +241,6 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
         return {
             "handlers": [handler],
             "factors_map": {},
-            "factor_id_to_factor": {},
             "expected_columns": {"head1", "head2", "head3"},
             "required_columns": {"head1"},
         }
@@ -250,6 +263,107 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
 
     # 5. Assertions: check execution runs without completely failing out
     assert result is not None
+
+
+# ======================================================================
+# Issue #1564 — member (uid, sius_code) composite uniqueness in the row loop
+# ======================================================================
+
+
+def _drive_member_csv(
+    db_session: AsyncSession, module_id: int, rows_data: list[dict]
+) -> "ConcreteCSVProvider":
+    """Build a provider that feeds ``rows_data`` through the real row loop.
+
+    ``_process_row`` is stubbed to skip CSV parsing/validation (out of scope
+    here) but returns a real ``member`` DataEntry per row, so the composite
+    (user_institutional_id, sius_code) uniqueness check in
+    ``process_csv_in_batches`` — the code under test — runs for real against
+    ``db_session``. ``_process_batch`` is stubbed to skip factor/emission
+    computation, which is irrelevant to the uniqueness check.
+    """
+    config = {
+        "file_path": "tmp/test.csv",
+        "carbon_report_module_id": module_id,
+        "year": 2025,
+    }
+    provider = ConcreteCSVProvider(config, data_session=db_session)
+
+    mock_files_store = MagicMock()
+    mock_files_store.move_file = AsyncMock(return_value="processing/test.csv")
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    csv_content = ("\n".join(["header"] + ["row"] * len(rows_data))).encode()
+    mock_files_store.get_file = AsyncMock(return_value=(csv_content, "text/csv"))
+    provider._files_store = mock_files_store
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"header"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    async def fake_process_row(row, row_idx, setup_result, stats, max_row_errors, _map):
+        entry = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module_id,
+            data=dict(rows_data[row_idx - 1]),
+        )
+        return entry, None, None, None
+
+    provider._process_row = fake_process_row
+    provider._process_batch = AsyncMock(return_value=len(rows_data))
+    return provider
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_accepts_same_member_different_sius_code(
+    db_session: AsyncSession,
+):
+    """Same unit + user_institutional_id, different sius_code (multi-role
+    member) — both rows must be ingested, no DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "54"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 0
+    assert result["stats"]["rows_processed"] == 2
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSession):
+    """Same unit + user_institutional_id + sius_code (true duplicate) — the
+    second row is rejected with DUPLICATE_INSTITUTIONAL_ID."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
 
 
 @pytest.mark.asyncio
@@ -322,7 +436,7 @@ async def test_validate_csv_headers_malformed_csv():
     # So we'll just verify it doesn't crash
     try:
         await provider._validate_csv_headers(csv_text, set(), set())
-    except (ValueError, Exception):
+    except ValueError, Exception:
         pass  # Either outcome is acceptable
 
 
@@ -524,13 +638,15 @@ def _build_stats() -> StatsDict:
 
 @pytest.mark.asyncio
 async def test_process_row_success_with_unit_mapping(monkeypatch):
-    """Test _process_row builds data entry when mapping is present."""
+    """_process_row builds the data entry from the row alone: no factor is
+    matched, seeded, or stamped at ingest — factor defaults are derived at
+    compute/display time."""
     config = {"file_path": "tmp/test.csv", "year": 2025}
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     handler = MagicMock()
     handler.validate_create.return_value = SimpleNamespace(
-        data={"amount": 10, "label": "x", "primary_factor_id": 77}
+        data={"amount": 10, "label": "x"}
     )
     handler.kind_field = "kind"
     handler.subkind_field = None
@@ -548,13 +664,10 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
 
     provider._extract_kind_subkind_values = extract_kind_subkind
 
-    # Setup factors_map with matching key
     setup_result = {
         "handlers": [handler],
         "factors_map": {
-            f"{DataEntryTypeEnum.student.value}:x:": SimpleNamespace(
-                id=77, values={"active_hours": 10}
-            )
+            f"{DataEntryTypeEnum.student.value}:2025:x:": SimpleNamespace(id=77)
         },
         "expected_columns": {"unit_institutional_id", "amount", "label"},
     }
@@ -576,75 +689,12 @@ async def test_process_row_success_with_unit_mapping(monkeypatch):
     )
 
     assert error_msg is None
-    assert result_factor is None  # No longer returns factor
+    assert result_factor is None  # ingest never resolves a factor
     assert data_entry is not None
     assert data_entry.carbon_report_module_id == 123
-    assert data_entry.data.get("primary_factor_id") == 77
-
-
-@pytest.mark.asyncio
-async def test_process_row_rejects_falsy_year_after_setup_bypass():
-    """Defense-in-depth row-level guard must reject ``year=0`` the same way
-    ``_setup_handlers_and_factors`` does.
-
-    Regression for the asymmetry caught in the PR review: the row-level
-    check originally used ``if self.year is None`` while the setup-time
-    check uses ``if not self.year``, so a caller that bypassed setup with
-    ``year=0`` would slip past the backstop and rebuild the
-    ``{type}:0:...`` silent-miss key — exactly the bug this PR is meant to
-    close. Both layers now use the same falsy check.
-    """
-    config = {"file_path": "tmp/test.csv", "year": 2025}
-    provider = ConcreteCSVProvider(config, data_session=MagicMock())
-    # Simulate a future caller that bypassed setup and left year unset/zero.
-    # The setup-time guard would have raised; the row-level guard must too.
-    provider.year = 0
-
-    handler = MagicMock()
-    handler.kind_field = "kind"
-    handler.subkind_field = None
-
-    async def resolve_handler(*_args, **_kwargs):
-        return (DataEntryTypeEnum.student, handler, None)
-
-    provider._resolve_handler_and_validate = resolve_handler
-    provider._extract_kind_subkind_values = lambda filtered_row, handlers: (
-        "x",
-        None,
-    )
-
-    setup_result = {
-        "handlers": [handler],
-        "factors_map": {"unused_key": SimpleNamespace(id=1)},
-        "expected_columns": {"unit_institutional_id"},
-    }
-    row = {"unit_institutional_id": "U1"}
-    stats = _build_stats()
-
-    # The row-level ValueError is caught by `_process_row`'s broad
-    # try/except (same path every row-validation failure takes) and
-    # recorded as a per-row error. The desired outcome is "this row is
-    # rejected" — not "process_csv_in_batches aborts" — so assert the
-    # per-row error path, not a propagated exception.
-    (
-        data_entry,
-        error_msg,
-        result_factor,
-        kg_co2eq_override,
-    ) = await provider._process_row(
-        row,
-        row_idx=1,
-        setup_result=setup_result,
-        stats=stats,
-        max_row_errors=5,
-        unit_to_module_map={"U1": 123},
-    )
-
-    assert data_entry is None
-    assert error_msg is not None and "year must be set" in error_msg
-    assert kg_co2eq_override is None
-    assert stats["rows_skipped"] == 1
-    assert stats["row_errors_count"] == 1
+    assert "primary_factor_id" not in data_entry.data
+    # No seeding: the entry carries exactly what the row provided.
+    assert set(data_entry.data) == {"amount", "label"}
 
 
 @pytest.mark.asyncio
@@ -732,11 +782,6 @@ async def test_process_row_validation_error_records_error(monkeypatch):
     handler.kind_field = "kind"
     handler.subkind_field = None
 
-    # Mock ModuleHandlerService directly in base_csv_provider module
-    mock_handler_service_instance = MagicMock()
-    mock_handler_service_instance.resolve_primary_factor_id = AsyncMock(
-        return_value={"primary_factor_id": None}
-    )
     setup_result = {
         "handlers": [handler],
         "factors_map": {},
@@ -761,6 +806,108 @@ async def test_process_row_validation_error_records_error(monkeypatch):
 
     assert data_entry is None
     assert result_factor is None
+    assert stats["rows_skipped"] == 1
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_float():
+    """A bad-float CSV value produces a readable ``field: reason (got
+    value)`` message instead of pydantic's raw multi-line dump (issue
+    #659), for the data-entry CSV path."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    def fake_validate_create(payload):
+        return _DummyDataEntryPayload(amount="abc", date=datetime.date(2026, 1, 1))
+
+    handler.validate_create.side_effect = fake_validate_create
+    # Bypass handler resolution (covered by other tests) so this test
+    # exercises the validate_create/ValidationError path directly.
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.member, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"amount"},
+    }
+    row = {"amount": "abc"}
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=4,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg == (
+        "amount: Input should be a valid number, unable to parse "
+        "string as a number (got 'abc')"
+    )
+    assert stats["rows_skipped"] == 1
+    assert stats["row_errors"][0]["reason"] == error_msg
+
+
+@pytest.mark.asyncio
+async def test_process_row_pydantic_validation_error_bad_date():
+    """An invalid date CSV value produces a readable per-field message
+    (issue #659), for the data-entry CSV path."""
+    config = {"file_path": "tmp/test.csv", "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    handler = MagicMock()
+    handler.kind_field = "kind"
+    handler.subkind_field = None
+
+    def fake_validate_create(payload):
+        return _DummyDataEntryPayload(amount=1.0, date="2026-13-40")
+
+    handler.validate_create.side_effect = fake_validate_create
+    # Bypass handler resolution (covered by other tests) so this test
+    # exercises the validate_create/ValidationError path directly.
+    provider._resolve_handler_and_validate = AsyncMock(
+        return_value=(DataEntryTypeEnum.member, handler, None)
+    )
+
+    setup_result = {
+        "handlers": [handler],
+        "factors_map": {},
+        "expected_columns": {"amount"},
+    }
+    row = {"amount": "10"}
+    stats = _build_stats()
+
+    (
+        data_entry,
+        error_msg,
+        result_factor,
+        kg_co2eq_override,
+    ) = await provider._process_row(
+        row,
+        row_idx=5,
+        setup_result=setup_result,
+        stats=stats,
+        max_row_errors=2,
+        unit_to_module_map=None,
+    )
+
+    assert data_entry is None
+    assert error_msg.startswith("date: Input should be a valid date or datetime")
+    assert "(got '2026-13-40')" in error_msg
     assert stats["rows_skipped"] == 1
 
 
@@ -796,7 +943,6 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
                 "origin_iata": "GVA",
                 "destination_iata": "ZRH",
                 "cabin_class": "first",
-                "primary_factor_id": None,
             }
         )
 
@@ -862,6 +1008,11 @@ async def test_process_row_extracts_kg_co2eq_out_of_band():
     assert len(captured_validation_payload) == 1
     assert "kg_co2eq" not in captured_validation_payload[0]
 
+    # 3b. Ingest no longer stamps primary_factor_id onto the payload —
+    # emission compute resolves the Factor dynamically at recalc time.
+    assert "primary_factor_id" not in captured_validation_payload[0]
+    assert "primary_factor_id" not in data_entry.data
+
     # 4. B-H1 — the override is also persisted under the reserved
     #    ``__kg_co2eq_override__`` carrier so the async recalc path
     #    (``upsert_by_data_entry`` → ``prepare_create``) still honors it
@@ -881,7 +1032,6 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
         data={
             "origin_iata": "GVA",
             "destination_iata": "ZRH",
-            "primary_factor_id": None,
         }
     )
     handler.kind_field = "category"
@@ -902,7 +1052,7 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
     row = {"origin_iata": "GVA", "destination_iata": "ZRH"}
     stats = _build_stats()
 
-    _data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
+    data_entry, error_msg, _factor, kg_co2eq_override = await provider._process_row(
         row,
         row_idx=1,
         setup_result=setup_result,
@@ -913,6 +1063,8 @@ async def test_process_row_with_no_kg_co2eq_returns_none_override():
 
     assert error_msg is None
     assert kg_co2eq_override is None
+    assert data_entry is not None
+    assert "primary_factor_id" not in data_entry.data
 
 
 @pytest.mark.asyncio
@@ -931,7 +1083,6 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
         data={
             "origin_iata": "GVA",
             "destination_iata": "ZRH",
-            "primary_factor_id": None,
         }
     )
     handler.kind_field = "category"
@@ -972,6 +1123,7 @@ async def test_process_row_warns_on_unparseable_kg_co2eq(caplog):
     assert error_msg is None
     assert data_entry is not None
     assert kg_co2eq_override is None
+    assert "primary_factor_id" not in data_entry.data
 
     # The parse failure is visible at WARNING level, not debug.
     warnings = [
@@ -1141,6 +1293,50 @@ async def test_recompute_module_stats_skips_when_pure_async():
 
 
 # ======================================================================
+# Setup / Idempotent Move Tests (#1559)
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_setup_and_validate_skips_move_when_already_in_processing():
+    """Regression #1559: a retry after a prior successful tmp->processing
+    move (job crashed/restarted before FINISHED, sweep_stuck_running_jobs
+    reset it to NOT_STARTED) must succeed by reading the file that is
+    already at processing/<job_id>/, not fail with "Failed to move file"
+    just because the tmp/ source is gone.
+    """
+    config = {"file_path": "tmp/test.csv", "job_id": 7, "carbon_report_module_id": 99}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    # Short-circuit the DB lookup at the top of _setup_and_validate.
+    provider.job = SimpleNamespace(id=7)
+
+    async def mock_setup():
+        return {
+            "handlers": [],
+            "factors_map": {},
+            "expected_columns": {"col1"},
+            "required_columns": set(),
+        }
+
+    provider._setup_handlers_and_factors = mock_setup
+
+    mock_files_store = MagicMock()
+    # Destination already present (prior attempt); tmp/ source is gone —
+    # move_file would fail if called, proving the retry never touches it.
+    mock_files_store.file_exists = AsyncMock(return_value=True)
+    mock_files_store.move_file = AsyncMock(
+        side_effect=AssertionError("move_file must not be called on retry")
+    )
+    mock_files_store.get_file = AsyncMock(return_value=(b"col1\nval1\n", "text/csv"))
+    provider._files_store = mock_files_store
+
+    result = await provider._setup_and_validate()
+
+    mock_files_store.move_file.assert_not_awaited()
+    assert result["processing_path"] == "processing/7/test.csv"
+
+
+# ======================================================================
 # Finalization Tests
 # ======================================================================
 
@@ -1154,6 +1350,7 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     provider = ConcreteCSVProvider(config, data_session=MagicMock())
 
     provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
     provider._files_store.move_file = AsyncMock(return_value=True)
     provider.data_session.flush = AsyncMock()
     provider._update_job = AsyncMock()
@@ -1191,6 +1388,8 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
     assert call_args.kwargs["state"] == IngestionState.FINISHED
     assert call_args.kwargs["result"] == IngestionResult.SUCCESS
+    # Issue #1398 — an all-rows-succeeded job stays silent on re-upload.
+    assert REUPLOAD_HINT not in call_args.kwargs["status_message"]
     assert "rows_processed" in call_args.kwargs["extra_metadata"]
     assert "stats" in call_args.kwargs["extra_metadata"]
     # Check processed_file_path is in metadata
@@ -1200,6 +1399,138 @@ async def test_finalize_and_commit_moves_file_and_updates_job():
     )
 
     assert result["inserted"] == 2
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_warning_includes_reupload_hint():
+    """Issue #1398 — a partial ingestion (rows_skipped > 0, e.g. the job
+    stopped early) must explicitly tell the user to re-upload the file.
+    Recalculating only recomputes emissions for rows already committed —
+    it cannot add rows that were never ingested.
+    """
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 7
+    stats["rows_skipped"] = 3
+    stats["batches_processed"] = 1
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[MagicMock()],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[None],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.WARNING
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    # The original summary is preserved, not replaced.
+    assert "3 skipped" in call_args.kwargs["status_message"]
+
+
+@pytest.mark.asyncio
+async def test_finalize_and_commit_all_skipped_error_includes_reupload_hint():
+    """Issue #1398 — the ERROR case reachable through _finalize_and_commit
+    (every row skipped, nothing processed) also needs the re-upload hint,
+    not just WARNING."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+
+    provider._files_store = MagicMock()
+    provider._files_store.file_exists = AsyncMock(return_value=False)
+    provider._files_store.move_file = AsyncMock(return_value=True)
+    provider.data_session.flush = AsyncMock()
+    provider._update_job = AsyncMock()
+    provider._process_batch = AsyncMock()
+    provider._recompute_module_stats = AsyncMock()
+
+    stats = _build_stats()
+    stats["rows_processed"] = 0
+    stats["rows_skipped"] = 5
+    setup_result = {"processing_path": "processing/7/test.csv", "filename": "test.csv"}
+
+    await provider._finalize_and_commit(
+        batch=[],
+        data_entry_service=MagicMock(),
+        emission_service=MagicMock(),
+        stats=stats,
+        setup_result=setup_result,
+        batch_kg_co2eq_overrides=[],
+    )
+
+    call_args = provider._update_job.call_args
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+
+
+# ======================================================================
+# Issue #1398 — mid-stream failure (before _finalize_and_commit) messaging
+# ======================================================================
+
+
+@pytest.mark.asyncio
+async def test_process_csv_in_batches_failure_includes_reupload_hint():
+    """A hard stop before _finalize_and_commit (crash/timeout during setup
+    or row processing) must still tell the user to re-upload — not leave a
+    bare exception string that implies recalculation would help."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.data_session.rollback = AsyncMock()
+    provider._setup_and_validate = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.process_csv_in_batches()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
+
+
+@pytest.mark.asyncio
+async def test_ingest_mid_stream_failure_includes_reupload_hint():
+    """The terminal message actually persisted for a mid-stream failure is
+    written by ingest()'s exception handler (it runs after, and overwrites,
+    process_csv_in_batches()'s own handler) — it must carry the same
+    re-upload wording."""
+    from app.models.data_ingestion import IngestionResult
+
+    config = {"file_path": "tmp/test.csv", "job_id": 7}
+    provider = ConcreteCSVProvider(config, data_session=MagicMock())
+    provider._update_job = AsyncMock()
+    provider.process_csv_in_batches = AsyncMock(
+        side_effect=RuntimeError("crashed at row 3000")
+    )
+
+    with pytest.raises(RuntimeError):
+        await provider.ingest()
+
+    call_args = provider._update_job.call_args
+    assert REUPLOAD_HINT in call_args.kwargs["status_message"]
+    assert "crashed at row 3000" in call_args.kwargs["status_message"]
+    assert call_args.kwargs["result"] == IngestionResult.ERROR
 
 
 # ======================================================================

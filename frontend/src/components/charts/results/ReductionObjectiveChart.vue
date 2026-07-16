@@ -160,4 +160,29 @@ const chartTitle = computed(() =>
     font-size: tokens.$text-size-base;
   }
 }
+
+.link {
+  color: tokens.$link-color;
+  text-decoration: underline;
+  text-decoration-color: tokens.$link-underline-color;
+  text-underline-offset: tokens.$link-underline-offset;
+  transition:
+    color tokens.$transition-default,
+    text-decoration-color tokens.$transition-default;
+
+  &:hover {
+    color: tokens.$link-hover-color;
+    text-decoration-color: tokens.$link-hover-underline-color;
+  }
+
+  &:visited {
+    color: tokens.$link-visited-color;
+    text-decoration-color: tokens.$link-underline-color;
+  }
+
+  &:active {
+    color: tokens.$link-active-color;
+    text-decoration-color: tokens.$link-underline-color;
+  }
+}
 </style>
