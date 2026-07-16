@@ -1,22 +1,4 @@
 export default {
-  // Planner Headcount SIUS-category labels (EPFL role classes).
-  'planner_sius.51': { en: 'Professor', fr: 'Professeur' },
-  'planner_sius.52': {
-    en: 'Scientific Collaborator',
-    fr: 'Collaborateur scientifique',
-  },
-  'planner_sius.53': {
-    en: 'Postdoctoral Assistant',
-    fr: 'Assistant post-doctorant',
-  },
-  'planner_sius.54': { en: 'Doctoral Assistant', fr: 'Assistant doctorant' },
-  'planner_sius.56': { en: 'Trainee', fr: 'Stagiaire' },
-  'planner_sius.57': {
-    en: 'Technical/Administrative Staff',
-    fr: 'Personnel technique/administratif',
-  },
-  'planner_sius.58': { en: 'Student', fr: 'Étudiant' },
-  'planner_sius.59': { en: 'Other', fr: 'Autre' },
   planner_headcount_save_error: {
     en: 'Could not save the headcount value',
     fr: "Impossible d'enregistrer la valeur d'effectif",
