@@ -7,7 +7,6 @@ site
 *.csv
 storybook-static
 .serena
-AGENTS.md
 .worktrees
 .claude/scheduled_tasks.lock
 
