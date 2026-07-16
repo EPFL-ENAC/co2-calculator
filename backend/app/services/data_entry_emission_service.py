@@ -176,6 +176,17 @@ class DataEntryEmissionService:
             source_entry = await self.session.get(DataEntry, int(source_entry_id))
             if source_entry is None:
                 return None
+            # Ownership gate: the source must belong to the same unit as this
+            # report. Without it, a crafted source_data_entry_id could scale
+            # another unit's emissions into this report (cross-tenant read).
+            source_report = await self._get_report_for_data_entry(source_entry)
+            if source_report is None or source_report.unit_id != report.unit_id:
+                logger.warning(
+                    "Ignoring cross-unit source_data_entry_id=%r on data_entry_id=%r",
+                    source_entry_id,
+                    data_entry.id,
+                )
+                return None
             return await self._sum_entry_emissions(source_entry, emission_type) * (
                 percentage / 100.0
             )

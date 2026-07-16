@@ -211,8 +211,8 @@ class CarbonReportModuleRepository:
     ) -> Optional[CarbonReportModule]:
         """Toggle the Active flag of a carbon report module."""
         statement = select(CarbonReportModule).where(
-            CarbonReportModule.carbon_report_id == carbon_report_id,
-            CarbonReportModule.module_type_id == module_type_id,
+            col(CarbonReportModule.carbon_report_id) == carbon_report_id,
+            col(CarbonReportModule.module_type_id) == module_type_id,
         )
         result = await self.session.execute(statement)
         db_obj = result.scalar_one_or_none()

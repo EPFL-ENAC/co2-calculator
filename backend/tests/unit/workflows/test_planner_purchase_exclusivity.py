@@ -13,8 +13,9 @@ from app.models.data_entry import DataEntryTypeEnum
 from app.workflows.carbon_report_module import CarbonReportModuleWorkflow
 
 
-def _row(data_entry_type: DataEntryTypeEnum, data: dict) -> MagicMock:
+def _row(data_entry_type: DataEntryTypeEnum, data: dict, row_id: int = 1) -> MagicMock:
     row = MagicMock()
+    row.id = row_id
     row.data_entry_type_id = data_entry_type.value
     row.data = data
     return row
@@ -100,3 +101,51 @@ async def test_second_budget_rejected():
             1, DataEntryTypeEnum.planner_purchase_budget, {"amount_chf": 2000.0}
         )
     assert exc.value.detail == "PURCHASES_GLOBAL_BUDGET_EXISTS"
+
+
+@pytest.mark.asyncio
+async def test_update_excludes_edited_row_from_duplicate_scan():
+    """Editing a row's own category (self) must not self-collide."""
+    workflow = _workflow_with_rows(
+        [
+            _row(
+                DataEntryTypeEnum.planner_purchase,
+                {"purchase_category": "services", "amount_chf": 5.0},
+                row_id=7,
+            )
+        ]
+    )
+    # Re-saving row 7 as 'services' is fine because it is excluded from the scan.
+    await workflow._check_planner_purchase_exclusivity(
+        1,
+        DataEntryTypeEnum.planner_purchase,
+        {"purchase_category": "services"},
+        exclude_entry_id=7,
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_rejects_change_to_existing_category():
+    """PATCHing a row's category to one another row already uses is rejected."""
+    workflow = _workflow_with_rows(
+        [
+            _row(
+                DataEntryTypeEnum.planner_purchase,
+                {"purchase_category": "services", "amount_chf": 5.0},
+                row_id=7,
+            ),
+            _row(
+                DataEntryTypeEnum.planner_purchase,
+                {"purchase_category": "vehicles", "amount_chf": 9.0},
+                row_id=8,
+            ),
+        ]
+    )
+    with pytest.raises(HTTPException) as exc:
+        await workflow._check_planner_purchase_exclusivity(
+            1,
+            DataEntryTypeEnum.planner_purchase,
+            {"purchase_category": "services"},
+            exclude_entry_id=8,
+        )
+    assert exc.value.detail == "DUPLICATE_PURCHASE_CATEGORY"

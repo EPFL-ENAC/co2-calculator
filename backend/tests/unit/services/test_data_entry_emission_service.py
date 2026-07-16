@@ -2049,8 +2049,16 @@ class TestPercentageOverrideSnapshotSource:
             },
         )
         service.session.get = AsyncMock(return_value=MagicMock(id=123))
-        with patch.object(
-            service, "_sum_entry_emissions", new=AsyncMock(return_value=200.0)
+        # Source resolves to a report of the same unit (ownership gate passes).
+        with (
+            patch.object(
+                service, "_sum_entry_emissions", new=AsyncMock(return_value=200.0)
+            ),
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                new=AsyncMock(return_value=MagicMock(unit_id=1)),
+            ),
         ):
             result = await service._get_percentage_override_kg(
                 de, EmissionType.process_emissions, self._report()
@@ -2077,3 +2085,35 @@ class TestPercentageOverrideSnapshotSource:
         )
         # None → prepare_create computes from the snapshot data instead.
         assert result is None
+
+    @pytest.mark.asyncio
+    async def test_cross_unit_source_is_rejected(self):
+        """A crafted source_data_entry_id pointing at another unit is ignored."""
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_last_year": 40,
+                "source_data_entry_id": 999,
+            },
+        )
+        service.session.get = AsyncMock(return_value=MagicMock(id=999))
+        with (
+            patch.object(
+                service, "_sum_entry_emissions", new=AsyncMock(return_value=1_000.0)
+            ) as sum_mock,
+            patch.object(
+                service,
+                "_get_report_for_data_entry",
+                # Source belongs to unit 2, report is unit 1 → rejected.
+                new=AsyncMock(return_value=MagicMock(unit_id=2)),
+            ),
+        ):
+            result = await service._get_percentage_override_kg(
+                de, EmissionType.process_emissions, self._report()
+            )
+        assert result is None
+        sum_mock.assert_not_awaited()
