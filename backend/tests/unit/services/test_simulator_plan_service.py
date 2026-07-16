@@ -1,11 +1,14 @@
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession as SAAsyncSession
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlmodel import SQLModel
+from sqlmodel.ext.asyncio.session import AsyncSession as SQLModelAsyncSession
 
+from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.module_type import ModuleTypeEnum
 from app.models.user import User
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.schemas.carbon_report import CarbonReportCreate
 from app.schemas.simulator_plan import SimulatorPlanUpdate
 from app.services.carbon_report_service import CarbonReportService
@@ -23,7 +26,9 @@ async def async_session():
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.drop_all)  # Ensure a clean slate
         await conn.run_sync(SQLModel.metadata.create_all)
-    async_session = sessionmaker(engine, class_=SAAsyncSession, expire_on_commit=False)
+    async_session = sessionmaker(
+        engine, class_=SQLModelAsyncSession, expire_on_commit=False
+    )
     async with async_session() as session:
         yield session
     await engine.dispose()
@@ -315,3 +320,155 @@ async def test_set_reference_year_missing_year_returns_none(async_session, user)
     service = SimulatorPlanService(async_session)
     created = await service.create_plan(unit_id=1, user=user, name="proj")
     assert await service.set_reference_year(created.id, 2031, 2024) is None
+
+
+# ── prefill_module_from_reference (snapshot copy) ─────────────────────────────
+
+
+async def _calculator_report_with_process_entries(service, async_session, year=2024):
+    """Calculator report for unit 1 with two process-emissions entries."""
+    report = await service.report_service.create(
+        CarbonReportCreate(year=year, unit_id=1)
+    )
+    modules = await service.report_service.module_service.list_modules(report.id)
+    module = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entries = []
+    for quantity in (5.0, 7.0):
+        entry = DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=module.id,
+            data={"category": "co2", "quantity": quantity},
+        )
+        async_session.add(entry)
+        entries.append(entry)
+    await async_session.flush()
+    return report, module, entries
+
+
+async def _plan_year_report(service, plan_id, year=2027, reference_year=2024):
+    await service.update_plan(
+        plan_id, SimulatorPlanUpdate(start_year=year, end_year=year)
+    )
+    await service.set_reference_year(plan_id, year, reference_year)
+    reports = await service.repo.list_reports_for_project(plan_id)
+    return next(r for r in reports if r.year == year)
+
+
+@pytest.mark.asyncio
+async def test_prefill_copies_reference_entries_at_100_percent(async_session, user):
+    service = SimulatorPlanService(async_session)
+    _, _, src_entries = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id)
+
+    copied = await service.prefill_module_from_reference(
+        report, int(ModuleTypeEnum.process_emissions)
+    )
+    assert copied == 2
+
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert len(rows) == 2
+    assert all(r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in rows)
+    assert all(r.data["percentage_of_last_year"] == 100 for r in rows)
+    assert {r.data["source_data_entry_id"] for r in rows} == {e.id for e in src_entries}
+    # Snapshot keeps the reference quantities.
+    assert {r.data["quantity"] for r in rows} == {5.0, 7.0}
+
+
+@pytest.mark.asyncio
+async def test_prefill_is_idempotent_and_keeps_user_rows(async_session, user):
+    service = SimulatorPlanService(async_session)
+    await _calculator_report_with_process_entries(service, async_session)
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id)
+    await service.prefill_module_from_reference(
+        report, int(ModuleTypeEnum.process_emissions)
+    )
+
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    user_row = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+        carbon_report_module_id=plan_module.id,
+        source=DataEntrySourceEnum.USER_MANUAL.value,
+        data={"category": "ch4", "quantity": 1.0},
+    )
+    async_session.add(user_row)
+    await async_session.flush()
+
+    copied = await service.prefill_module_from_reference(
+        report, int(ModuleTypeEnum.process_emissions)
+    )
+    assert copied == 2
+
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    snapshots = [
+        r for r in rows if r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value
+    ]
+    manuals = [r for r in rows if r.source == DataEntrySourceEnum.USER_MANUAL.value]
+    assert len(snapshots) == 2  # replaced, not accumulated
+    assert len(manuals) == 1  # user rows survive
+
+
+@pytest.mark.asyncio
+async def test_prefill_without_reference_year_raises(async_session, user):
+    service = SimulatorPlanService(async_session)
+    await _calculator_report_with_process_entries(service, async_session)
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        plan.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    reports = await service.repo.list_reports_for_project(plan.id)
+    with pytest.raises(ValueError, match="reference year"):
+        await service.prefill_module_from_reference(
+            reports[0], int(ModuleTypeEnum.process_emissions)
+        )
+
+
+@pytest.mark.asyncio
+async def test_reference_year_change_resnapshots_prefilled_modules(async_session, user):
+    service = SimulatorPlanService(async_session)
+    await _calculator_report_with_process_entries(service, async_session, year=2024)
+    # Second Calculator year with a single, different entry.
+    report_2025 = await service.report_service.create(
+        CarbonReportCreate(year=2025, unit_id=1)
+    )
+    modules_2025 = await service.report_service.module_service.list_modules(
+        report_2025.id
+    )
+    module_2025 = next(
+        m
+        for m in modules_2025
+        if m.module_type_id == int(ModuleTypeEnum.process_emissions)
+    )
+    entry_2025 = DataEntry(
+        data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+        carbon_report_module_id=module_2025.id,
+        data={"category": "n2o", "quantity": 3.0},
+    )
+    async_session.add(entry_2025)
+    await async_session.flush()
+
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    report = await _plan_year_report(service, plan.id, reference_year=2024)
+    await service.prefill_module_from_reference(
+        report, int(ModuleTypeEnum.process_emissions)
+    )
+
+    await service.set_reference_year(plan.id, 2027, 2025)
+
+    plan_module = await service.report_service.module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    rows = await DataEntryRepository(async_session).list_by_module(plan_module.id)
+    assert len(rows) == 1
+    assert rows[0].data["quantity"] == 3.0
+    assert rows[0].data["source_data_entry_id"] == entry_2025.id

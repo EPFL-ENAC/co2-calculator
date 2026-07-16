@@ -74,6 +74,7 @@ class DataEntrySourceEnum(int, Enum):
     API_MODULE_PER_YEAR = 3  # API upload for module per year
     API_MODULE_UNIT_SPECIFIC = 4  # API upload for unit specific module
     EXTERNAL_INTEGRATION = 5  # Third-party integration or import
+    PLANNER_SNAPSHOT = 6  # Simulator Plan prefill copy of a reference-year entry
 
 
 ## Will be renamed to data_entries later

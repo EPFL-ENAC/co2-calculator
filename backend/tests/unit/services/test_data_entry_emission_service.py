@@ -2017,3 +2017,63 @@ class TestPlannerHeadcountEmissions:
                 sius_code="99",
                 fte=1.0,
             )
+
+
+# ---------------------------------------------------------------------------
+# Percentage override — planner snapshot source_data_entry_id matching
+# ---------------------------------------------------------------------------
+
+
+class TestPercentageOverrideSnapshotSource:
+    """Snapshot entries match their exact source entry, not name heuristics."""
+
+    @staticmethod
+    def _report():
+        report = MagicMock()
+        report.year = 2027
+        report.reference_year = 2024
+        report.unit_id = 1
+        return report
+
+    @pytest.mark.asyncio
+    async def test_source_entry_id_scales_source_emissions(self):
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_last_year": 40,
+                "source_data_entry_id": 123,
+            },
+        )
+        service.session.get = AsyncMock(return_value=MagicMock(id=123))
+        with patch.object(
+            service, "_sum_entry_emissions", new=AsyncMock(return_value=200.0)
+        ):
+            result = await service._get_percentage_override_kg(
+                de, EmissionType.process_emissions, self._report()
+            )
+        assert result == pytest.approx(80.0)
+        service.session.get.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_deleted_source_falls_back_to_normal_compute(self):
+        service = _make_service()
+        de = DataEntryResponse(
+            id=9,
+            data_entry_type_id=DataEntryTypeEnum.process_emissions.value,
+            carbon_report_module_id=10,
+            data={
+                "quantity": 5.0,
+                "percentage_of_last_year": 40,
+                "source_data_entry_id": 123,
+            },
+        )
+        service.session.get = AsyncMock(return_value=None)
+        result = await service._get_percentage_override_kg(
+            de, EmissionType.process_emissions, self._report()
+        )
+        # None → prepare_create computes from the snapshot data instead.
+        assert result is None
