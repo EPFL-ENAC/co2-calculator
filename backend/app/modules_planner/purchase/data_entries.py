@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from app.modules_planner.purchase.emissions import PLANNER_PURCHASE_EMISSIONS
 from app.schemas.data_entry import (
@@ -19,12 +19,6 @@ def _validate_category(v: str) -> str:
     return v
 
 
-def _validate_amount(v: float) -> float:
-    if v < 0:
-        raise ValueError("amount_chf must be non-negative")
-    return v
-
-
 class PlannerPurchaseResponse(DataEntryResponseGen):
     purchase_category: str
     amount_chf: float
@@ -34,7 +28,7 @@ class PlannerPurchaseResponse(DataEntryResponseGen):
 
 class PlannerPurchaseCreate(DataEntryCreate):
     purchase_category: str
-    amount_chf: float
+    amount_chf: float = Field(ge=0)
     note: Optional[str] = None
 
     @field_validator("purchase_category", mode="after")
@@ -42,15 +36,10 @@ class PlannerPurchaseCreate(DataEntryCreate):
     def validate_category(cls, v: str) -> str:
         return _validate_category(v)
 
-    @field_validator("amount_chf", mode="after")
-    @classmethod
-    def validate_amount(cls, v: float) -> float:
-        return _validate_amount(v)
-
 
 class PlannerPurchaseUpdate(DataEntryUpdate):
     purchase_category: Optional[str] = None
-    amount_chf: Optional[float] = None
+    amount_chf: Optional[float] = Field(default=None, ge=0)
     note: Optional[str] = None
 
     @field_validator("purchase_category", mode="after")
@@ -60,13 +49,6 @@ class PlannerPurchaseUpdate(DataEntryUpdate):
             return v
         return _validate_category(v)
 
-    @field_validator("amount_chf", mode="after")
-    @classmethod
-    def validate_amount(cls, v: Optional[float]) -> Optional[float]:
-        if v is None:
-            return v
-        return _validate_amount(v)
-
 
 class PlannerPurchaseBudgetResponse(DataEntryResponseGen):
     amount_chf: float
@@ -75,22 +57,10 @@ class PlannerPurchaseBudgetResponse(DataEntryResponseGen):
 
 
 class PlannerPurchaseBudgetCreate(DataEntryCreate):
-    amount_chf: float
+    amount_chf: float = Field(ge=0)
     note: Optional[str] = None
-
-    @field_validator("amount_chf", mode="after")
-    @classmethod
-    def validate_amount(cls, v: float) -> float:
-        return _validate_amount(v)
 
 
 class PlannerPurchaseBudgetUpdate(DataEntryUpdate):
-    amount_chf: Optional[float] = None
+    amount_chf: Optional[float] = Field(default=None, ge=0)
     note: Optional[str] = None
-
-    @field_validator("amount_chf", mode="after")
-    @classmethod
-    def validate_amount(cls, v: Optional[float]) -> Optional[float]:
-        if v is None:
-            return v
-        return _validate_amount(v)

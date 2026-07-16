@@ -131,10 +131,6 @@ export default {
     en: 'Project name',
     fr: 'Nom du projet',
   },
-  project_planner_name_save: {
-    en: 'Save',
-    fr: 'Enregistrer',
-  },
   project_planner_not_found: {
     en: 'This project does not exist or has been deleted.',
     fr: "Ce projet n'existe pas ou a été supprimé.",
@@ -163,10 +159,6 @@ export default {
     en: 'Visible to all lab members',
     fr: 'Visible par tous les membres du laboratoire',
   },
-  planner_project_info_save: {
-    en: 'Save',
-    fr: 'Enregistrer',
-  },
   planner_year_rule_four_digits: {
     en: 'Enter a 4-digit year',
     fr: 'Saisissez une année à 4 chiffres',
@@ -178,10 +170,6 @@ export default {
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
     fr: 'Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.',
-  },
-  planner_year_section_title: {
-    en: 'Year {year}',
-    fr: 'Année {year}',
   },
   planner_reference_year_label: {
     en: 'Reference year',

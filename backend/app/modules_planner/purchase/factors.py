@@ -1,6 +1,6 @@
 from typing import Optional
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 
 from app.models.data_entry import DataEntryTypeEnum
 from app.modules.emissions import EmissionType
@@ -13,36 +13,19 @@ from app.schemas.factor import (
 )
 
 
-def _validate_ef(v: Optional[float]) -> Optional[float]:
-    if v is not None and v < 0:
-        raise ValueError("ef_kg_co2eq_per_chf must be non-negative")
-    return v
-
-
 class PlannerPurchaseFactorCreate(FactorCreate):
     purchase_category: str
-    ef_kg_co2eq_per_chf: float
+    ef_kg_co2eq_per_chf: float = Field(ge=0)
 
     @field_validator("purchase_category", mode="after")
     @classmethod
     def validate_category(cls, v: str) -> str:
         return _validate_category(v)
 
-    @field_validator("ef_kg_co2eq_per_chf", mode="after")
-    @classmethod
-    def validate_ef(cls, v: float) -> float:
-        _validate_ef(v)
-        return v
-
 
 class PlannerPurchaseFactorUpdate(FactorUpdate):
     purchase_category: Optional[str] = None
-    ef_kg_co2eq_per_chf: Optional[float] = None
-
-    @field_validator("ef_kg_co2eq_per_chf", mode="after")
-    @classmethod
-    def validate_ef(cls, v: Optional[float]) -> Optional[float]:
-        return _validate_ef(v)
+    ef_kg_co2eq_per_chf: Optional[float] = Field(default=None, ge=0)
 
 
 class PlannerPurchaseFactorResponse(FactorResponseGen):
@@ -66,22 +49,11 @@ class PlannerPurchaseFactorHandler(BaseFactorHandler):
 
 
 class PlannerPurchaseBudgetFactorCreate(FactorCreate):
-    ef_kg_co2eq_per_chf: float
-
-    @field_validator("ef_kg_co2eq_per_chf", mode="after")
-    @classmethod
-    def validate_ef(cls, v: float) -> float:
-        _validate_ef(v)
-        return v
+    ef_kg_co2eq_per_chf: float = Field(ge=0)
 
 
 class PlannerPurchaseBudgetFactorUpdate(FactorUpdate):
-    ef_kg_co2eq_per_chf: Optional[float] = None
-
-    @field_validator("ef_kg_co2eq_per_chf", mode="after")
-    @classmethod
-    def validate_ef(cls, v: Optional[float]) -> Optional[float]:
-        return _validate_ef(v)
+    ef_kg_co2eq_per_chf: Optional[float] = Field(default=None, ge=0)
 
 
 class PlannerPurchaseBudgetFactorResponse(FactorResponseGen):

@@ -31,7 +31,8 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     require_factor_to_match = False
     subkind_field = None
 
-    # Set by the two concrete kinds below.
+    # Set by the two concrete kinds below (always non-None there).
+    data_entry_type: DataEntryTypeEnum
     create_dto: type[BaseModel]
     update_dto: type[BaseModel]
     response_dto: type[BaseModel]
@@ -57,6 +58,26 @@ class _PlannerPurchaseBase(BaseModuleHandler):
     def validate_update(self, payload: dict):
         return self.update_dto.model_validate(payload)
 
+    def resolve_computations(
+        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
+    ) -> list:
+        # kind = the row's category for the submodule kind, None for the
+        # single global budget (both driven by ``kind_field``).
+        kind = data_entry.data.get(self.kind_field) if self.kind_field else None
+        return [
+            EmissionComputation(
+                emission_type=emission_type,
+                factor_query=FactorQuery(
+                    data_entry_type=self.data_entry_type,
+                    emission_type=emission_type,
+                    kind=kind,
+                    subkind=None,
+                ),
+                formula_key="ef_kg_co2eq_per_chf",
+                quantity_key="amount_chf",
+            )
+        ]
+
 
 class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
     """Manual CHF total per purchase submodule."""
@@ -76,23 +97,6 @@ class PlannerPurchaseModuleHandler(_PlannerPurchaseBase):
         "amount_chf": DataEntry.data["amount_chf"].as_float(),
     }
 
-    def resolve_computations(
-        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
-    ) -> list:
-        return [
-            EmissionComputation(
-                emission_type=emission_type,
-                factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.planner_purchase,
-                    emission_type=emission_type,
-                    kind=data_entry.data.get("purchase_category"),
-                    subkind=None,
-                ),
-                formula_key="ef_kg_co2eq_per_chf",
-                quantity_key="amount_chf",
-            )
-        ]
-
 
 class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
     """Single global CHF budget (mutually exclusive with submodule totals)."""
@@ -108,20 +112,3 @@ class PlannerPurchaseBudgetModuleHandler(_PlannerPurchaseBase):
         "id": DataEntry.id,
         "amount_chf": DataEntry.data["amount_chf"].as_float(),
     }
-
-    def resolve_computations(
-        self, data_entry: DataEntry, emission_type: EmissionType, ctx: dict
-    ) -> list:
-        return [
-            EmissionComputation(
-                emission_type=emission_type,
-                factor_query=FactorQuery(
-                    data_entry_type=DataEntryTypeEnum.planner_purchase_budget,
-                    emission_type=emission_type,
-                    kind=None,
-                    subkind=None,
-                ),
-                formula_key="ef_kg_co2eq_per_chf",
-                quantity_key="amount_chf",
-            )
-        ]

@@ -153,6 +153,23 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return updated;
   }
 
+  /** Replace one module inside its plan-year, immutably, in local state. */
+  function replaceModuleInYear(
+    carbonReportId: number,
+    updated: SimulatorPlanModule,
+  ) {
+    planYears.value = planYears.value.map((y) =>
+      y.id === carbonReportId
+        ? {
+            ...y,
+            modules: y.modules.map((m) =>
+              m.module_type_id === updated.module_type_id ? updated : m,
+            ),
+          }
+        : y,
+    );
+  }
+
   /**
    * Snapshot-prefill a type-2 module from the plan-year's reference year
    * (wipes previous snapshot rows, keeps user-added rows). Returns the
@@ -167,16 +184,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
         `carbon-reports/${carbonReportId}/modules/${encodeURIComponent(moduleType)}/prefill`,
       )
       .json<SimulatorPlanModule>();
-    planYears.value = planYears.value.map((y) =>
-      y.id === carbonReportId
-        ? {
-            ...y,
-            modules: y.modules.map((m) =>
-              m.module_type_id === updated.module_type_id ? updated : m,
-            ),
-          }
-        : y,
-    );
+    replaceModuleInYear(carbonReportId, updated);
     return updated;
   }
 
@@ -192,16 +200,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
         { json: { is_active: isActive } },
       )
       .json<SimulatorPlanModule>();
-    planYears.value = planYears.value.map((y) =>
-      y.id === carbonReportId
-        ? {
-            ...y,
-            modules: y.modules.map((m) =>
-              m.module_type_id === moduleTypeId ? updated : m,
-            ),
-          }
-        : y,
-    );
+    replaceModuleInYear(carbonReportId, updated);
     return updated;
   }
 
