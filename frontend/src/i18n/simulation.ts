@@ -153,7 +153,7 @@ export default {
   },
   planner_no_years_hint: {
     en: 'Set a start and end year to plan your project — one section per year will appear here.',
-    fr: "Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.",
+    fr: 'Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.',
   },
   planner_year_section_title: {
     en: 'Year {year}',
@@ -165,7 +165,7 @@ export default {
   },
   planner_reference_year_hint: {
     en: 'Select a reference year: all factors and prefilled data for this simulation year come from it.',
-    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent.",
+    fr: 'Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent.',
   },
   planner_reference_year_error: {
     en: 'Could not set the reference year',

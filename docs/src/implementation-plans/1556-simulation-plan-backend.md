@@ -213,7 +213,7 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 
 - [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
       reference-year Calculator entries at `percentage_of_last_year =
-  100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
       (the slider matches its exact source row; deleted sources fall
       back to the snapshot data). Generic — works for every type-2
       module, no per-module code.
@@ -459,7 +459,7 @@ backoffice) mutates. Enforced in `_require_plan_unit_access`.
 
 - [x] Snapshot-prefill endpoint + service: `POST /carbon-reports/{id}/modules/{module}/prefill` copies the
       reference-year Calculator entries at `percentage_of_last_year =
-  100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
+100` with `source = PLANNER_SNAPSHOT` and `source_data_entry_id`
       (the slider matches its exact source row; deleted sources fall
       back to the snapshot data). Generic — works for every type-2
       module, no per-module code.
