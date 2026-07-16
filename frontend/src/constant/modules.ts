@@ -117,6 +117,10 @@ export const enumSubmodule = {
   // research facilities
   [SUBMODULE_RESEARCH_FACILITIES_TYPES.ResearchFacilities]: 70,
   [SUBMODULE_RESEARCH_FACILITIES_TYPES.AnimalFacilities]: 71,
+  // Simulator Plan (planner) kinds — mirror backend DataEntryTypeEnum 80+
+  planner_headcount: 80,
+  planner_purchase: 81,
+  planner_purchase_budget: 82,
   // not a module per se
   energy_mix: 100,
 } as const;
