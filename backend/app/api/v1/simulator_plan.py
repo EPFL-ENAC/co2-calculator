@@ -159,7 +159,12 @@ async def set_simulator_plan_reference_year(
     the reference year; existing entries get their emissions recomputed.
     """
     service = await _require_plan_unit_access(db, current_user, plan_id, "edit")
-    result = await service.set_reference_year(plan_id, year, update.reference_year)
+    try:
+        result = await service.set_reference_year(plan_id, year, update.reference_year)
+    except ValueError as exc:
+        # Re-snapshot of prefilled modules can fail when the new reference
+        # year has no Calculator report for the unit.
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if result is None:
         raise HTTPException(status_code=404, detail="Plan year not found")
     await db.commit()

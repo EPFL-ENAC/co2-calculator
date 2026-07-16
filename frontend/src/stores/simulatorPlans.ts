@@ -153,6 +153,33 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     return updated;
   }
 
+  /**
+   * Snapshot-prefill a type-2 module from the plan-year's reference year
+   * (wipes previous snapshot rows, keeps user-added rows). Returns the
+   * refreshed module.
+   */
+  async function prefillModule(
+    carbonReportId: number,
+    moduleType: string,
+  ): Promise<SimulatorPlanModule> {
+    const updated = await api
+      .post(
+        `carbon-reports/${carbonReportId}/modules/${encodeURIComponent(moduleType)}/prefill`,
+      )
+      .json<SimulatorPlanModule>();
+    planYears.value = planYears.value.map((y) =>
+      y.id === carbonReportId
+        ? {
+            ...y,
+            modules: y.modules.map((m) =>
+              m.module_type_id === updated.module_type_id ? updated : m,
+            ),
+          }
+        : y,
+    );
+    return updated;
+  }
+
   /** Toggle a module's Active checkbox on one plan-year report. */
   async function setModuleActive(
     carbonReportId: number,
@@ -198,6 +225,7 @@ export const useSimulatorPlansStore = defineStore('simulatorPlans', () => {
     renamePlan,
     fetchPlanYears,
     setReferenceYear,
+    prefillModule,
     setModuleActive,
     duplicatePlan,
     deletePlan,

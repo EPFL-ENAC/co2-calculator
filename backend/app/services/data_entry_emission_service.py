@@ -167,6 +167,19 @@ class DataEntryEmissionService:
         if report.unit_id is None:
             return None
 
+        # Planner snapshot entries carry the exact source entry id — match it
+        # directly instead of walking the prior-year report tree. A deleted
+        # source falls back to the normal compute path (snapshot data at its
+        # stored quantities), as documented in the #1556 plan.
+        source_entry_id = data_entry.data.get("source_data_entry_id")
+        if source_entry_id is not None:
+            source_entry = await self.session.get(DataEntry, int(source_entry_id))
+            if source_entry is None:
+                return None
+            return await self._sum_entry_emissions(source_entry, emission_type) * (
+                percentage / 100.0
+            )
+
         # Resolve current module_type_id so we can match the prior-year module.
         stmt_mod = select(CarbonReportModule).where(
             col(CarbonReportModule.id) == data_entry.carbon_report_module_id
@@ -223,16 +236,19 @@ class DataEntryEmissionService:
         if prev_entry is None:
             return None
 
+        prev_kg = await self._sum_entry_emissions(prev_entry, emission_type)
+        return prev_kg * (percentage / 100.0)
+
+    async def _sum_entry_emissions(
+        self, entry: DataEntry, emission_type: EmissionType
+    ) -> float:
+        """Sum an entry's persisted kg_co2eq over the emission type's leaves."""
         leaf_ids = get_subtree_leaves(emission_type)
-        stmt_prev_em = select(
-            func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)
-        ).where(
-            col(DataEntryEmission.data_entry_id) == prev_entry.id,
+        stmt = select(func.coalesce(func.sum(DataEntryEmission.kg_co2eq), 0.0)).where(
+            col(DataEntryEmission.data_entry_id) == entry.id,
             col(DataEntryEmission.emission_type_id).in_(leaf_ids),
         )
-        prev_kg = float((await self.session.exec(stmt_prev_em)).one())
-
-        return prev_kg * (percentage / 100.0)
+        return float((await self.session.exec(stmt)).one())
 
     async def prepare_create(
         self,
