@@ -531,6 +531,7 @@ async function saveNote(note: string) {
       String(props.year),
       noteDialogRowId.value,
       { note },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -553,6 +554,7 @@ async function deleteNote() {
       String(props.year),
       noteDialogRowId.value,
       { note: null },
+      props.carbonReportId,
     );
   } catch {
     $q.notify({
@@ -622,11 +624,13 @@ const onFilesUploaded = async (filePaths: string[]) => {
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getModuleData(
           props.moduleType as Module,
           props.unitId,
           String(props.year),
+          props.carbonReportId,
         );
 
         const errorCaption = formatRowErrors(payload);
@@ -744,6 +748,8 @@ type CommonProps = {
   moduleFields: ModuleField[] | null;
   unitId: number;
   year: string | number;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -758,6 +764,7 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
+  carbonReportId: undefined,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -1314,6 +1321,7 @@ async function commitInline(
       {
         [col.field]: valueToSave,
       },
+      props.carbonReportId,
     );
   } catch (err) {
     let msg = err instanceof Error ? err.message : $t('validation_save_failed');
@@ -1579,6 +1587,7 @@ function onFormSubmit(
           year,
           equipmentId,
           basePayload,
+          props.carbonReportId,
         )
       : store.postItem(
           moduleType,
@@ -1586,6 +1595,8 @@ function onFormSubmit(
           year,
           props.submoduleType,
           basePayload,
+          undefined,
+          props.carbonReportId,
         );
 
     await p.finally(() => {
@@ -1633,7 +1644,14 @@ function onConfirmDelete() {
   const unit = props.unitId;
   const year = String(props.year);
   store
-    .deleteItem(moduleType, submoduleType, unit, year, deleteRowId.value)
+    .deleteItem(
+      moduleType,
+      submoduleType,
+      unit,
+      year,
+      deleteRowId.value,
+      props.carbonReportId,
+    )
     .finally(() => {
       confirmDelete.value = false;
       deleteRowId.value = null;
@@ -1672,6 +1690,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   } else {
     // Only change page if sort didn't change
@@ -1680,6 +1699,7 @@ async function onRequest(request: {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
   }
 }
@@ -1703,6 +1723,7 @@ watch(
           moduleType: props.moduleType,
           unit: props.unitId,
           year: String(props.year),
+          carbonReportId: props.carbonReportId,
         });
         moduleStore.getSubmoduleTaxonomy(
           props.moduleType,
@@ -1731,6 +1752,7 @@ onMounted(async () => {
       moduleType: props.moduleType,
       unit: props.unitId,
       year: String(props.year),
+      carbonReportId: props.carbonReportId,
     });
     moduleStore.getSubmoduleTaxonomy(
       props.moduleType,

@@ -36,6 +36,7 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :carbon-report-id="carbonReportId"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -117,6 +118,7 @@
           :module-fields="submodule.moduleFields"
           :unit-id="unitId"
           :year="year"
+          :carbon-report-id="carbonReportId"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -228,6 +230,8 @@ type CommonProps = {
   data?: ModuleResponse | null;
   unitId: number;
   year: string | number;
+  /** Plan-year report id; when set, module calls address it directly. */
+  carbonReportId?: number;
   threshold: Threshold;
   disable: boolean;
   isSimulator?: boolean;
@@ -248,6 +252,7 @@ const props = withDefaults(
     error: null,
     data: null,
     submoduleType: undefined,
+    carbonReportId: undefined,
   },
 );
 const authStore = useAuthStore();
@@ -372,6 +377,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
       String(props.year),
       item.value.id,
       payload,
+      props.carbonReportId,
     );
   } else {
     await submitCreateItem(
@@ -383,6 +389,7 @@ async function submitForm(payload: Record<string, FieldValue>) {
           props.submoduleType,
           payload,
           onCreated,
+          props.carbonReportId,
         ),
       {
         onCreated: () => {
