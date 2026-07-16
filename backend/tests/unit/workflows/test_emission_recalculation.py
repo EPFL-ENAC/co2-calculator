@@ -389,9 +389,7 @@ async def test_recalculate_reports_progress_at_interval(monkeypatch):
     """Every PROGRESS_INTERVAL computed entries, the workflow logs and
     invokes the caller's progress callback (the handlers stamp it onto
     the job row so SSE/UI can track long recalcs)."""
-    import app.workflows.emission_recalculation as wf_mod
-
-    monkeypatch.setattr(wf_mod, "PROGRESS_INTERVAL", 1)
+    monkeypatch.setattr("app.workflows.emission_recalculation.PROGRESS_INTERVAL", 1)
     mock_session = MagicMock()
     svc = EmissionRecalculationWorkflow(mock_session)
 

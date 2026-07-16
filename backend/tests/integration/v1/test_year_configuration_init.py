@@ -66,7 +66,7 @@ def _wire(monkeypatch, factory, *, is_admin: bool) -> None:
     dispatch — the job ROW is the assertion target, not the sync handler's
     actual Accred call (out of scope: slow integration, per #1403's design
     doc)."""
-    app.dependency_overrides[deps_module.get_current_user] = lambda: _user()
+    app.dependency_overrides[deps_module.get_current_user] = _user
 
     async def override_get_db():
         async with factory() as session:

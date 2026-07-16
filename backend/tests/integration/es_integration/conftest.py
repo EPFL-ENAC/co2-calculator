@@ -35,6 +35,7 @@ def elasticsearch_container(docker_client):
             old_container = docker_client.containers.get(container_name)
             old_container.remove(force=True)
         except docker.errors.NotFound:
+            # No stale container to clean up
             pass
 
         # Pull the image if not present
@@ -68,6 +69,7 @@ def elasticsearch_container(docker_client):
                         print("Elasticsearch container is ready!")
                         break
             except Exception:
+                # ES not accepting connections yet — keep polling until timeout
                 pass
             time.sleep(1)
         else:
@@ -81,6 +83,7 @@ def elasticsearch_container(docker_client):
             container = docker_client.containers.get(container_name)
             container.stop(timeout=10)
         except docker.errors.NotFound:
+            # Container already gone — nothing to stop
             pass
         except Exception as e:
             print(f"Error stopping container: {e}")
@@ -107,6 +110,7 @@ def elasticsearch(elasticsearch_container):
             if client.ping():
                 break
         except Exception:
+            # ES not accepting connections yet — keep polling until timeout
             pass
         time.sleep(1)
     else:

@@ -330,8 +330,6 @@ class PurchaseModuleHandler(BaseModuleHandler):
             if ef is None:
                 return None
             ef_currency = (factor_values.get("currency", "eur") or "eur").lower()
-            if total_spent_amount is None or ef is None:
-                return None
 
             # Use the exchange rate service to convert the total
             # spent amount to the eur currency

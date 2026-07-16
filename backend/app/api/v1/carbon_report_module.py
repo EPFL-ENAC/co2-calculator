@@ -897,8 +897,6 @@ async def create(
 
     module_key = module_id.replace("-", "_")
     module_type_id = ModuleTypeEnum[module_key].value
-    submodule_key = submodule_id.replace("-", "_")
-    data_entry_type_id = DataEntryTypeEnum[submodule_key].value
     carbon_report_module = await get_carbon_report(
         unit_id=unit_id,
         year=year,

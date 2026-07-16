@@ -652,9 +652,6 @@ class CarbonReportModuleRepository:
         filtered_report_ids_subq = filtered_report_ids_stmt.subquery()
         filtered_report_ids_in = select(filtered_report_ids_subq.c.id)
 
-        # if unit_ids:
-        #     units_stmt = units_stmt.where(col(Unit.id).in_(unit_ids))
-
         # Build order by clause
         order_col: Any = col(Unit.name)
         use_case_for_nulls = False

@@ -414,13 +414,14 @@ async def ready():
             },
         )
 
+    # Exception details stay in the log above — returning them would leak
+    # stack traces / connection strings to unauthenticated callers.
     return JSONResponse(
         status_code=status_code,
         content={
             "status": "healthy" if healthy else "unhealthy",
             "database": db_status,
             "role_provider": role_provider_status,
-            "details": details,
         },
     )
 
