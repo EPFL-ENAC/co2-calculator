@@ -14,6 +14,7 @@
           :unit-id="unitId"
           :year="year"
           :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="currentModuleConfig.threshold || defaultThreshold"
         />
       </template>
@@ -47,6 +48,8 @@ const props = defineProps<{
    * plans with overlapping years, so unit/year cannot identify the report.
    */
   carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
   /**
    * Replaces the Calculator MODULES_CONFIG entry — the Simulator Plan
    * renders planner-specific submodules (see constant/planner-module-config).

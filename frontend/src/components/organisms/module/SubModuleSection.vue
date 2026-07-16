@@ -37,6 +37,7 @@
           :unit-id="unitId"
           :year="year"
           :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -119,6 +120,7 @@
           :unit-id="unitId"
           :year="year"
           :carbon-report-id="carbonReportId"
+          :show-reference-columns="showReferenceColumns"
           :threshold="effectiveThreshold"
           :has-top-bar="submodule.hasTableTopBar"
           :module-type="moduleType"
@@ -232,6 +234,8 @@ type CommonProps = {
   year: string | number;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
+  /** Planner prefilled: show the reference-kg column + % slider. */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   disable: boolean;
   isSimulator?: boolean;
@@ -253,6 +257,7 @@ const props = withDefaults(
     data: null,
     submoduleType: undefined,
     carbonReportId: undefined,
+    showReferenceColumns: undefined,
   },
 );
 const authStore = useAuthStore();

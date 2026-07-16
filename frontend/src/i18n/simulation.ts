@@ -199,6 +199,14 @@ export default {
     en: 'Inactive modules are excluded from sums, graphs and results.',
     fr: 'Les modules inactifs sont exclus des sommes, graphiques et résultats.',
   },
+  planner_reference_kg_col: {
+    en: 'Reference year kgCO₂eq',
+    fr: 'kgCO₂eq année de référence',
+  },
+  planner_percentage_col: {
+    en: '% of reference year',
+    fr: '% de l’année de référence',
+  },
   planner_module_prefilled_badge: {
     en: 'Prefilled from reference year',
     fr: "Prérempli depuis l'année de référence",
