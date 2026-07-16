@@ -1154,6 +1154,9 @@ async def test_get_submodule_data_populates_reference_kg_for_snapshot_rows(
     by_id = {item.id: item for item in response.items}
     assert by_id[snapshot_entry.id].reference_kg_co2eq == 1000.0
     assert by_id[plain_entry.id].reference_kg_co2eq is None
+    # The stored slider value is surfaced so the table reflects it on refetch.
+    assert by_id[snapshot_entry.id].percentage_of_reference_year == 40
+    assert by_id[plain_entry.id].percentage_of_reference_year is None
 
 
 # ======================================================================
