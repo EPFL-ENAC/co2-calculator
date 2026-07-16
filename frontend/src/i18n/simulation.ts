@@ -119,4 +119,108 @@ export default {
     en: 'Back to home',
     fr: "Retour à l'accueil",
   },
+  planner_methodology_tooltip: {
+    en: 'The methodology used to calculate the carbon footprint of this space is documented in the Documentation pages.',
+    fr: "La méthodologie utilisée pour calculer l'empreinte carbone de cet espace est documentée dans les pages Documentation.",
+  },
+  planner_project_info_title: {
+    en: 'Project information',
+    fr: 'Informations du projet',
+  },
+  planner_start_year_label: {
+    en: 'Start year',
+    fr: 'Année de début',
+  },
+  planner_end_year_label: {
+    en: 'End year',
+    fr: 'Année de fin',
+  },
+  planner_share_with_lab_label: {
+    en: 'Share with lab',
+    fr: 'Partager avec le laboratoire',
+  },
+  planner_project_info_save: {
+    en: 'Save',
+    fr: 'Enregistrer',
+  },
+  planner_year_rule_four_digits: {
+    en: 'Enter a 4-digit year',
+    fr: 'Saisissez une année à 4 chiffres',
+  },
+  planner_year_rule_end_after_start: {
+    en: 'End year must be after the start year',
+    fr: "L'année de fin doit suivre l'année de début",
+  },
+  planner_no_years_hint: {
+    en: 'Set a start and end year to plan your project — one section per year will appear here.',
+    fr: "Définissez une année de début et de fin pour planifier votre projet — une section par année apparaîtra ici.",
+  },
+  planner_year_section_title: {
+    en: 'Year {year}',
+    fr: 'Année {year}',
+  },
+  planner_reference_year_label: {
+    en: 'Reference year',
+    fr: 'Année de référence',
+  },
+  planner_reference_year_hint: {
+    en: 'Select a reference year: all factors and prefilled data for this simulation year come from it.',
+    fr: "Sélectionnez une année de référence : tous les facteurs et données préremplies de cette année de simulation en proviennent.",
+  },
+  planner_reference_year_error: {
+    en: 'Could not set the reference year',
+    fr: "Impossible de définir l'année de référence",
+  },
+  planner_module_active_tooltip: {
+    en: 'Inactive modules are excluded from sums, graphs and results.',
+    fr: 'Les modules inactifs sont exclus des sommes, graphiques et résultats.',
+  },
+  planner_module_prefilled_badge: {
+    en: 'Prefilled from reference year',
+    fr: "Prérempli depuis l'année de référence",
+  },
+  planner_module_prefill_button: {
+    en: 'Prefill',
+    fr: 'Préremplir',
+  },
+  planner_prefill_done: {
+    en: 'Module prefilled from the reference year',
+    fr: "Module prérempli depuis l'année de référence",
+  },
+  planner_prefill_error: {
+    en: 'Prefill failed — check that the reference year has Calculator data',
+    fr: "Échec du préremplissage — vérifiez que l'année de référence contient des données du Calculateur",
+  },
+  planner_headcount_table_title: {
+    en: 'FTE per function (SIUS code)',
+    fr: 'EPT par fonction (code SIUS)',
+  },
+  planner_purchase_totals_table_title: {
+    en: 'CHF total per purchase submodule',
+    fr: "Total CHF par sous-module d'achats",
+  },
+  planner_purchase_budget_table_title: {
+    en: 'Global budget (mutually exclusive with submodule totals)',
+    fr: 'Budget global (exclusif avec les totaux par sous-module)',
+  },
+  planner_purchase_category_label: {
+    en: 'Purchase submodule',
+    fr: "Sous-module d'achats",
+  },
+  planner_purchase_amount_label: {
+    en: 'Amount (CHF)',
+    fr: 'Montant (CHF)',
+  },
+  'planner_traveler_category.internal': {
+    en: 'Internal',
+    fr: 'Interne',
+  },
+  'planner_traveler_category.external_epfl': {
+    en: 'External EPFL',
+    fr: 'Externe EPFL',
+  },
+  'planner_traveler_category.internal_epfl': {
+    en: 'Internal EPFL',
+    fr: 'Interne EPFL',
+  },
 };
