@@ -279,8 +279,10 @@ const backendThreshold = computed<Threshold | null>(() => {
   const unifiedConfig = yearConfigStore.getModule(props.moduleType as Module);
   if (!unifiedConfig) return null;
 
+  // `== null` covers a missing subConfig too — planner submodules
+  // (planner_headcount, ...) have no unified year-config entry.
   const subConfig = unifiedConfig.submodules[submoduleKey.value];
-  if (subConfig?.threshold === null || subConfig.threshold === undefined) {
+  if (subConfig?.threshold == null) {
     return null;
   }
 
