@@ -5,7 +5,9 @@
       :key="row.sius_code"
       class="row items-center justify-between q-py-xs"
     >
-      <div class="text-body1">{{ $t(`planner_sius.${row.sius_code}`) }}</div>
+      <!-- Canonical SIUS-category labels from i18n/headcount_factor.ts
+           (keyed by the bare code) — same source the Calculator uses. -->
+      <div class="text-body1">{{ $t(row.sius_code) }}</div>
       <q-input
         v-model.number="row.fte"
         type="number"
