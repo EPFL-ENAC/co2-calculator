@@ -205,13 +205,14 @@ export async function mockSimulatorBackend(page: Page): Promise<{
   await page.route(
     /.*\/api\/v1\/carbon-reports\/99\/modules\/headcount\?/,
     (route) => {
-    const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
-    });
-  });
+      const totals = memberPosted ? { 1: 1, 2: 0 } : { 1: 0, 2: 0 };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(buildModuleTotalsResponse('headcount', totals)),
+      });
+    },
+  );
 
   // headcount/member submodule — POST (create entry) + GET (list items).
   await page.route(

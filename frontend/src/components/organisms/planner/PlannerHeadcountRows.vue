@@ -88,7 +88,8 @@ async function load() {
 }
 
 async function save(row: HeadcountRow) {
-  const fte = typeof row.fte === 'number' && !Number.isNaN(row.fte) ? row.fte : null;
+  const fte =
+    typeof row.fte === 'number' && !Number.isNaN(row.fte) ? row.fte : null;
   // Nothing to persist: still-empty row.
   if (fte === null && row.entryId === null) return;
   savingCode.value = row.sius_code;

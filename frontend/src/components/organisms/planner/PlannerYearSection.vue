@@ -1,6 +1,9 @@
 <template>
   <q-card flat bordered>
-    <q-expansion-item v-model="yearOpen" header-class="text-h5 text-weight-bold">
+    <q-expansion-item
+      v-model="yearOpen"
+      header-class="text-h5 text-weight-bold"
+    >
       <template #header>
         <q-item-section>{{ yearData.year }}</q-item-section>
       </template>
@@ -25,7 +28,10 @@
             <q-icon name="o_calendar_month" color="negative" />
           </template>
         </q-select>
-        <div v-if="!yearData.reference_year" class="text-body2 text-grey-7 q-mt-sm">
+        <div
+          v-if="!yearData.reference_year"
+          class="text-body2 text-grey-7 q-mt-sm"
+        >
           {{ $t('planner_reference_year_hint') }}
         </div>
       </q-card-section>
@@ -57,12 +63,16 @@
                     :model-value="entry.module?.is_active ?? true"
                     :label="$t('planner_module_active_label')"
                     color="negative"
-                    :disable="!entry.module || togglingModuleId === entry.module.id"
+                    :disable="
+                      !entry.module || togglingModuleId === entry.module.id
+                    "
                     @update:model-value="
                       (active: boolean) => onToggleActive(entry, active)
                     "
                   >
-                    <q-tooltip>{{ $t('planner_module_active_tooltip') }}</q-tooltip>
+                    <q-tooltip>{{
+                      $t('planner_module_active_tooltip')
+                    }}</q-tooltip>
                   </q-checkbox>
                 </div>
               </q-item-section>
@@ -186,8 +196,7 @@ async function onReferenceYearChange(referenceYear: number) {
     // the open module so its snapshot rows appear without a manual reload.
     const expanded = props.expandedKey?.startsWith(`${props.yearData.year}-`);
     const module = props.expandedKey?.split('-').slice(1).join('-') as
-      | Module
-      | undefined;
+      Module | undefined;
     if (expanded && module) await refreshExpandedModule(module);
   } catch {
     $q.notify({ type: 'negative', message: t('planner_reference_year_error') });
