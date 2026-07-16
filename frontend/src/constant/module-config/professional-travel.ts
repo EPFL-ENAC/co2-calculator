@@ -137,7 +137,6 @@ const planeCabinClassField: ModuleField = {
   editableInline: true,
   optionLabelsAreKeys: true,
   options: [
-    { value: 'first', label: 'charts-first-class-subcategory' },
     { value: 'business', label: 'charts-business-class-subcategory' },
     { value: 'economy', label: 'charts-eco-class-subcategory' },
   ],

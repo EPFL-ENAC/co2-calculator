@@ -36,7 +36,6 @@ export const EMISSION_TYPE_NAMES: Record<number, string> = {
   50101: 'professional_travel__train__class_1',
   50102: 'professional_travel__train__class_2',
   50200: 'professional_travel__plane',
-  50201: 'professional_travel__plane__first',
   50202: 'professional_travel__plane__business',
   50203: 'professional_travel__plane__eco',
   60000: 'buildings',

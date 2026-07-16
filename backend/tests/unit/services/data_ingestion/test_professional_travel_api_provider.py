@@ -152,12 +152,9 @@ class TestNormalizeClass:
         p = _make_provider()
         assert p._normalize_class("AIR BUSINESS CLASS") == "business"
 
-    def test_first(self):
-        p = _make_provider()
-        assert p._normalize_class("AIR FIRST CLASS") == "first"
-
     def test_unknown_defaults_to_economy(self):
         p = _make_provider()
+        assert p._normalize_class("AIR FIRST CLASS") == "economy"
         assert p._normalize_class("SOMETHING ELSE") == "economy"
         assert p._normalize_class("") == "economy"
 
