@@ -226,6 +226,33 @@
               "
             />
           </template>
+          <template
+            v-else-if="col.name === 'percentage_of_reference_year'"
+          >
+            <div
+              v-if="slotProps.row.reference_kg_co2eq != null"
+              class="row items-center no-wrap q-gutter-sm reference-slider"
+            >
+              <q-slider
+                :model-value="
+                  (slotProps.row.percentage_of_reference_year as number) ?? 100
+                "
+                :min="0"
+                :max="200"
+                :step="5"
+                :disable="isDisabled"
+                color="negative"
+                class="col"
+                @change="
+                  (val: number) => onPercentageChange(slotProps.row, val)
+                "
+              />
+              <span class="reference-slider__value">
+                {{ (slotProps.row.percentage_of_reference_year as number) ?? 100 }}%
+              </span>
+            </div>
+            <span v-else>-</span>
+          </template>
           <template v-else>
             <div class="cell-content">
               <span>{{ renderCell(slotProps.row, col) }}</span>
@@ -750,6 +777,12 @@ type CommonProps = {
   year: string | number;
   /** Plan-year report id; when set, module calls address it directly. */
   carbonReportId?: number;
+  /**
+   * Planner prefilled context: add the reference-year kgCO₂eq column and the
+   * 0–200% "% of reference year" slider (snapshot rows only). Off for the
+   * Calculator and non-prefilled planner modules.
+   */
+  showReferenceColumns?: boolean;
   threshold: Threshold;
   hasTopBar?: boolean;
   moduleConfig: ModuleConfig;
@@ -765,6 +798,7 @@ type ModuleTableProps = ConditionalSubmoduleProps & CommonProps;
 const props = withDefaults(defineProps<ModuleTableProps>(), {
   hasTopBar: true,
   carbonReportId: undefined,
+  showReferenceColumns: false,
   moduleColor: undefined,
   moduleColorLighter: undefined,
 });
@@ -1026,6 +1060,40 @@ const qCols = computed<TableViewColumn[]>(() => {
       }
     });
 
+  // Planner prefilled tables gain a reference-year kgCO₂eq column (before the
+  // current kgCO₂eq) and a "% of reference year" slider (after it). Snapshot
+  // rows carry the values; other rows render blank/no slider.
+  if (props.showReferenceColumns) {
+    const kgIdx = baseCols.findIndex((c) => c.name === 'kg_co2eq');
+    const referenceCol: TableViewColumn = {
+      name: 'reference_kg_co2eq',
+      label: $t('planner_reference_kg_col'),
+      field: 'reference_kg_co2eq',
+      sortable: false,
+      align: 'right',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+    };
+    const sliderCol: TableViewColumn = {
+      name: 'percentage_of_reference_year',
+      label: $t('planner_percentage_col'),
+      field: 'percentage_of_reference_year',
+      sortable: false,
+      align: 'left',
+      inputComponent: QInput,
+      editableInline: false,
+      type: 'number',
+      minColumnWidth: 180,
+    };
+    if (kgIdx >= 0) {
+      baseCols.splice(kgIdx, 0, referenceCol);
+      baseCols.splice(kgIdx + 2, 0, sliderCol);
+    } else {
+      baseCols.push(referenceCol, sliderCol);
+    }
+  }
+
   if (showTableActions.value) {
     baseCols.push({
       name: 'action',
@@ -1134,7 +1202,11 @@ function renderCell(
   }
   const val = row[col.field];
   if (val === undefined || val === null || val === '') return '-';
-  if (col.name === 'kg_co2eq' || col.name === 't_co2eq') {
+  if (
+    col.name === 'kg_co2eq' ||
+    col.name === 't_co2eq' ||
+    col.name === 'reference_kg_co2eq'
+  ) {
     return nOrDash(val as number, {
       options: {
         minimumFractionDigits: 0,
@@ -1178,6 +1250,30 @@ function getItemName(row: ModuleRow): string {
 function getRowId(row: ModuleRow): number | null {
   const n = Number(row.id);
   return Number.isFinite(n) ? n : null;
+}
+
+// Planner slider: PATCH the snapshot row's percentage; the backend recomputes
+// kg_co2eq = reference × %, and patchItem refetches so the kg cell updates.
+async function onPercentageChange(row: ModuleRow, value: number) {
+  const id = getRowId(row);
+  if (id == null) return;
+  try {
+    await moduleStore.patchItem(
+      props.moduleType as Module,
+      props.submoduleType,
+      props.unitId,
+      String(props.year),
+      id,
+      { percentage_of_reference_year: value },
+      props.carbonReportId,
+    );
+  } catch {
+    $q.notify({
+      color: 'negative',
+      message: $t('common_save_error'),
+      position: 'top',
+    });
+  }
 }
 
 const inlineErrors = ref<Record<string, string>>({});
@@ -1825,6 +1921,16 @@ onUnmounted(() => {
 .cell-content {
   display: inline-flex;
   align-items: center;
+}
+
+.reference-slider {
+  min-width: 160px;
+}
+
+.reference-slider__value {
+  min-width: 3rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .tooltip {

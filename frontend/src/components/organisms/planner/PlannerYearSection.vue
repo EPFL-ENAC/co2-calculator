@@ -106,6 +106,7 @@
                 :unit-id="unitId"
                 :year="yearData.year"
                 :carbon-report-id="yearData.id"
+                :show-reference-columns="entry.config.behavior === 'prefilled'"
                 :disable="entry.module?.is_active === false"
               />
             </div>
