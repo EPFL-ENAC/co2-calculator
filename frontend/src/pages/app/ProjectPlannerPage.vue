@@ -25,13 +25,16 @@
       <!-- Title box -->
       <q-card flat bordered class="container q-pa-lg">
         <q-icon name="o_tune" color="negative" size="32px" class="q-mb-md" />
-        <h1 class="text-h3 q-mt-none q-mb-sm">
+        <h1 class="text-h3 q-mt-none q-mb-xs">
           {{ $t('planner_page_title') }}
         </h1>
+        <p class="text-subtitle1 text-weight-medium q-mb-md">
+          {{ $t('planner_page_subtitle') }}
+        </p>
         <p class="text-body1 q-mb-none text-grey-8">
           {{ $t('planner_page_intro') }}
           <q-icon name="o_info" size="18px" class="q-ml-xs cursor-pointer">
-            <q-tooltip max-width="320px">
+            <q-tooltip max-width="360px">
               {{ $t('planner_methodology_tooltip') }}
             </q-tooltip>
           </q-icon>
