@@ -22,54 +22,55 @@ year kgCO₂eq**, current **kgCO₂eq**, and a **"% of reference year" slider**
 
 Terminology (confirmed with PO/PM 2026-07-16): it is the **reference year**,
 not "last year", and the unit is **kgCO₂eq** — the mockup's "tco2eq" and
-"Percentage of last year" labels are both wrong. The backend JSON key is
-still `percentage_of_last_year` (legacy Calculator name; already computes
-against `report.reference_year`); rename it to
-`percentage_of_reference_year` as a small standalone follow-up (planner-only
-key, no production data, but `_get_percentage_override_kg` keeps a Calculator
-year-1 fallback to preserve — do it deliberately, not as a blind sed).
+"Percentage of last year" labels are both wrong. The backend JSON key was renamed
+`percentage_of_last_year` → `percentage_of_reference_year` (done
+2026-07-16); it computes against `report.reference_year` and preserves the
+Calculator year-1 fallback in `_get_percentage_override_kg`.
 
-**Component:** `PlannerPrefilledTable.vue`, rendered by `PlannerYearSection`
-for `behavior === 'prefilled'` modules (replacing the generic
-`ModuleTableSection` for those). Props: `carbonReportId` (the plan-year
-report id), `moduleType`, `disable`, and the submodule list from
-`getPlannerModuleConfig`.
+**Decisions (2026-07-16):**
 
-**Rows:** fetch each submodule via
-`carbon-reports/{reportId}/modules/{module}/{submodule}`. Each item's `data`
-already carries `percentage_of_last_year`, `kg_co2eq`, and
-`source_data_entry_id` (spread by the handler `to_response`). Display the
-module's key fields read-only-ish (from the module's `moduleFields`).
+- **Extend the shared table, don't fork it.** Prefilled rows stay fully
+  editable (gas/subcategory selects) and gain two columns: reference
+  kgCO₂eq + a **0–200%** "% of reference year" slider. Planner and
+  Calculator render through the _same_ table.
+- **Prerequisite refactor:** `ModuleTable.vue` is 1889 lines — over the
+  repo's 500-line component limit. Decompose it via composition FIRST,
+  then the planner columns slot in as a small, clean addition.
+- Type-2 rows **are the prefill copies of the reference-year data
+  entries** (each carries `source_data_entry_id`), so the reference-kg
+  column is the source entry's value — no separate reference fetch.
+- Slider PATCHes `percentage_of_reference_year` (renamed key) on the
+  row's entry; the backend override recomputes `kg_co2eq = source × %`.
 
-**"Reference year kgCO₂eq":** NOT in the submodule response today. Two options —
+**`ModuleTable.vue` decomposition (target < 500 lines each):** extract
+cohesive clusters, verifying the Calculator table renders after each step:
 
-- **(recommended) backend:** add `reference_kg_co2eq` to the planner
-  submodule item — sum the `source_data_entry_id` entry's emissions
-  (`_sum_entry_emissions`) when the row has one. One extra query per snapshot
-  row on GET; scope it to plan reports only. Correct and reload-stable.
-- (rejected) derive client-side `last = kg / (pct/100)` — breaks at
-  `pct = 0` and after a reload where only `kg` is known.
+- `useModuleTableColumns` — `qCols`, `getColumn*`, numeric rules.
+- `useInlineCellEditing` — `commitInline`, `inlineErrors`,
+  `setError`/`getError`, `renderCell`, usage-hours/trips validators.
+- `useModuleNoteDialog` + `ModuleNoteDialog.vue` — note add/edit/delete.
+- `ModuleEditDialog.vue`, `ModuleCsvUploadDialog.vue`,
+  `ModulePowerFeedbackDialog.vue` — dialog templates + their state.
+- Core `ModuleTable.vue` keeps the `q-table` + slot wiring only.
 
-**Slider:** q-slider 0–100 (confirm max with product; PRD says "% of each
-data entry"), bound to the row's `percentage_of_last_year`, debounced PATCH
-to `carbon-reports/{reportId}/modules/{module}/{submodule}/{itemId}` with
-`{percentage_of_last_year}`; on success refetch the row so `kg_co2eq`
-reflects the recompute (backend already honours the override —
-`_get_percentage_override_kg`).
+**Reference-kg backend field:** add `reference_kg_co2eq` to the submodule
+item — sum the `source_data_entry_id` entry's emissions
+(`_sum_entry_emissions`) for snapshot rows; scope to plan reports (one
+extra query per snapshot row on GET). Deriving `kg / (pct/100)`
+client-side is rejected (breaks at 0% and after reload).
 
-**Add form:** reuse the Calculator `SubModuleSection` add-form for the
-module (it already builds the correct fields and POSTs through the identity
-route with CSV upload disabled via `configOverride`), OR a compact
-planner-only add form. **Decision needed** — leaning on reusing
-`SubModuleSection`'s form only (not its table) to avoid a second field
-definition.
+**Add form:** the extended shared table already carries the module's
+add-form — no separate planner form.
 
 **Steps**
 
+- [ ] Refactor `ModuleTable.vue` to < 500 lines (composables +
+      sub-components above); Calculator verified unbroken after each step.
 - [ ] Backend: `reference_kg_co2eq` on the planner submodule item.
-- [ ] `PlannerPrefilledTable.vue` (rows + 3 columns + slider + add form).
-- [ ] Wire into `PlannerYearSection` for prefilled modules.
-- [ ] Verify end-to-end (prefill → slider 40% → kg halves-to-40%; add row).
+- [ ] Add the reference-kg column + 0–200% slider to the shared table,
+      shown only in planner (prefilled) context.
+- [ ] Planner renders prefilled modules through the shared table.
+- [ ] Verify: prefill → slider 40% → kg = 40% of reference; edit + add row.
 
 ## B. Wrong-plan report resolution (overlapping-year plans)
 
