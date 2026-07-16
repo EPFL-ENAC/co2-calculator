@@ -322,6 +322,65 @@ async def test_set_reference_year_missing_year_returns_none(async_session, user)
     assert await service.set_reference_year(created.id, 2031, 2024) is None
 
 
+@pytest.mark.asyncio
+async def test_set_reference_year_auto_prefills_prefilled_modules(async_session, user):
+    """Setting the reference year auto-prefills prefilled modules; others stay empty.
+
+    There is no manual prefill trigger anymore — set_reference_year is the only
+    entry point, and it must snapshot every prefilled-behavior module.
+    """
+    service = SimulatorPlanService(async_session)
+    ref_report, _, _ = await _calculator_report_with_process_entries(
+        service, async_session
+    )
+    # A non-prefilled module (purchase) with a reference entry that must NOT copy.
+    modules = await service.report_service.module_service.list_modules(ref_report.id)
+    purchase_module = next(
+        m for m in modules if m.module_type_id == int(ModuleTypeEnum.purchase)
+    )
+    async_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.scientific_equipment.value,
+            carbon_report_module_id=purchase_module.id,
+            data={"amount": 10.0},
+        )
+    )
+    await async_session.flush()
+
+    plan = await service.create_plan(unit_id=1, user=user, name="proj")
+    # No manual prefill call: the reference-year set is the only trigger.
+    report = await _plan_year_report(service, plan.id, reference_year=2024)
+
+    module_service = service.report_service.module_service
+    entry_repo = DataEntryRepository(async_session)
+
+    process_module = await module_service.get_module(
+        report.id, int(ModuleTypeEnum.process_emissions)
+    )
+    process_rows = await entry_repo.list_by_module(process_module.id)
+    assert len(process_rows) == 2
+    assert all(
+        r.source == DataEntrySourceEnum.PLANNER_SNAPSHOT.value for r in process_rows
+    )
+
+    plan_purchase = await module_service.get_module(
+        report.id, int(ModuleTypeEnum.purchase)
+    )
+    assert await entry_repo.list_by_module(plan_purchase.id) == []
+
+
+@pytest.mark.asyncio
+async def test_set_reference_year_without_calc_report_is_noop(async_session, user):
+    """A reference year with no Calculator report still sets, prefilling nothing."""
+    service = SimulatorPlanService(async_session)
+    created = await service.create_plan(unit_id=1, user=user, name="proj")
+    await service.update_plan(
+        created.id, SimulatorPlanUpdate(start_year=2027, end_year=2027)
+    )
+    result = await service.set_reference_year(created.id, 2027, 2024)
+    assert result is not None and result.reference_year == 2024
+
+
 # ── prefill_module_from_reference (snapshot copy) ─────────────────────────────
 
 

@@ -211,18 +211,6 @@ export default {
     en: 'Prefilled from reference year',
     fr: "Prérempli depuis l'année de référence",
   },
-  planner_module_prefill_button: {
-    en: 'Prefill',
-    fr: 'Préremplir',
-  },
-  planner_prefill_done: {
-    en: 'Module prefilled from the reference year',
-    fr: "Module prérempli depuis l'année de référence",
-  },
-  planner_prefill_error: {
-    en: 'Prefill failed — check that the reference year has Calculator data',
-    fr: "Échec du préremplissage — vérifiez que l'année de référence contient des données du Calculateur",
-  },
   planner_purchase_totals_table_title: {
     en: 'CHF total per purchase submodule',
     fr: "Total CHF par sous-module d'achats",
