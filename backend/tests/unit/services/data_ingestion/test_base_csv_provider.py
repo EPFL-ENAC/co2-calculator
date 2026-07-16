@@ -436,7 +436,7 @@ async def test_validate_csv_headers_malformed_csv():
     # So we'll just verify it doesn't crash
     try:
         await provider._validate_csv_headers(csv_text, set(), set())
-    except (ValueError, Exception):
+    except ValueError, Exception:
         pass  # Either outcome is acceptable
 
 

@@ -485,7 +485,7 @@ class DataEntryEmissionRepository:
                 continue
             try:
                 surface_f = float(surface)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 continue
             if surface_f <= 0:
                 continue

@@ -151,7 +151,7 @@ def _enrich_config_with_jobs(
             continue
         try:
             m_id = int(module_key)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         submodules = module_val.get("submodules", {})
         for sub_key, sub_val in submodules.items():
@@ -159,7 +159,7 @@ def _enrich_config_with_jobs(
                 continue
             try:
                 s_id = int(sub_key)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
             for target_val, field_name in target_type_map.items():
                 job = _pick_latest_job(job_lookup, m_id, s_id, target_val)
@@ -188,7 +188,7 @@ def _enrich_config_with_incomplete_flags(config: dict) -> dict:
             continue
         try:
             module_type_id = int(module_key)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         _annotate_module_incomplete(module_val, module_type_id)
     return config
@@ -209,7 +209,7 @@ def _annotate_module_incomplete(module_val: dict, module_type_id: int) -> None:
                 continue
             try:
                 data_entry_type_id = int(sub_key)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 continue
             reasons = _submodule_incomplete_reasons(
                 sub_val, module_type_id, data_entry_type_id, common_factor_present
