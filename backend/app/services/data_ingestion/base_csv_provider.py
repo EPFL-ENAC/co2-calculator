@@ -808,6 +808,22 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
+    def _ingests_member_entries(self) -> bool:
+        """Whether this ingest can produce ``member`` entries (headcount).
+
+        Gates the member-role duplicate-set prefetch so non-headcount
+        uploads never pay the extra query.
+        """
+        module_type_ref = self.module_type_id
+        if module_type_ref is None and self.job is not None:
+            module_type_ref = self.job.module_type_id
+        if module_type_ref is None:
+            return False
+        entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
+            ModuleTypeEnum(module_type_ref), []
+        )
+        return DataEntryTypeEnum.member in entry_types
+
     def _enter_phase(self, phase: str) -> None:
         """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
         self._phase = phase
@@ -958,9 +974,25 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # Carried out-of-band so kg_co2eq never lands in DataEntry.data.
             batch_kg_co2eq_overrides: List[float | None] = []
             # Track seen (user_institutional_id, sius_code) pairs per module to
-            # catch intra-CSV duplicates. A person can legitimately hold two
-            # roles (different sius_code) in the same unit.
+            # catch duplicates. A person can legitimately hold two roles
+            # (different sius_code) in the same unit. Seeded with the DB's
+            # surviving member rows (post-delete: manual/unit-specific ones)
+            # in ONE bulk query — a per-row uniqueness SELECT at stage
+            # latencies turned an 8.5k-row parse into ~10 min (2026-07-17).
             seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
+            if self._ingests_member_entries():
+                member_module_ids: list[int] = (
+                    list(unit_to_module_map.values())
+                    if unit_to_module_map
+                    else [self.carbon_report_module_id]
+                    if self.carbon_report_module_id
+                    else []
+                )
+                existing_keys = await data_entry_service.repo.get_member_role_keys(
+                    member_module_ids
+                )
+                for mod_id, uid, sius in existing_keys:
+                    seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -1023,9 +1055,8 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     raise ValueError("Data entry is None without error message")
 
                 # Check (user_institutional_id, sius_code) role uniqueness for
-                # member entries.
-                # TODO: refactor, should not be done in base_csv_provider but elsewhere
-                # process or task or sql
+                # member entries — pure set lookup: intra-CSV dupes and
+                # pre-existing DB rows are both in the seeded set above.
                 if (
                     data_entry.data_entry_type_id == DataEntryTypeEnum.member
                     and data_entry.data
@@ -1037,17 +1068,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                     module_seen = seen_institutional_ids.setdefault(module_id, set())
                     role_key = (uid, sius_code)
                     if role_key in module_seen:
-                        error_msg = "DUPLICATE_INSTITUTIONAL_ID"
-                        self._record_row_error(
-                            stats, row_idx, error_msg, max_row_errors
-                        )
-                        continue
-                    is_unique = await data_entry_service.check_member_role_unique(
-                        carbon_report_module_id=module_id,
-                        uid=uid,
-                        sius_code=sius_code,
-                    )
-                    if not is_unique:
                         error_msg = "DUPLICATE_INSTITUTIONAL_ID"
                         self._record_row_error(
                             stats, row_idx, error_msg, max_row_errors

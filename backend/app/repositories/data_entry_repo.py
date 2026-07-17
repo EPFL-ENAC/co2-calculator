@@ -249,6 +249,34 @@ class DataEntryRepository:
         await self.session.flush()
         return bool(deleted)
 
+    async def get_member_role_keys(
+        self, carbon_report_module_ids: list[int]
+    ) -> set[tuple[int, str, str]]:
+        """Bulk-fetch existing member (module, uid, sius_code) role keys.
+
+        Seeds the CSV ingest's in-memory duplicate set in ONE query so the
+        row loop never round-trips per row — the per-row
+        ``check_member_role_unique`` SELECT at stage latencies turned an
+        8.5k-row parse into ~10 minutes (14 rows/s, 2026-07-17), the same
+        N+1 shape the COPY batching already removed on the write side.
+        """
+        if not carbon_report_module_ids:
+            return set()
+        stmt = select(
+            col(DataEntry.carbon_report_module_id),
+            DataEntry.data["user_institutional_id"].as_string(),
+            DataEntry.data["sius_code"].as_string(),
+        ).where(
+            col(DataEntry.carbon_report_module_id).in_(carbon_report_module_ids),
+            col(DataEntry.data_entry_type_id) == DataEntryTypeEnum.member.value,
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {
+            (module_id, uid, sius)
+            for module_id, uid, sius in rows
+            if uid is not None and sius is not None
+        }
+
     async def check_json_field_unique(
         self,
         carbon_report_module_id: int,

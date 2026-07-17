@@ -290,6 +290,7 @@ def _drive_member_csv(
     config = {
         "file_path": "tmp/test.csv",
         "carbon_report_module_id": module_id,
+        "module_type_id": ModuleTypeEnum.headcount.value,
         "year": 2025,
     }
     provider = ConcreteCSVProvider(config, data_session=db_session)
@@ -361,6 +362,40 @@ async def test_csv_batch_rejects_true_duplicate_member_role(db_session: AsyncSes
     rows_data = [
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
         {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+    ]
+    provider = _drive_member_csv(db_session, module.id, rows_data)
+
+    result = await provider.process_csv_in_batches()
+
+    assert result["stats"]["row_errors_count"] == 1
+    assert result["stats"]["row_errors"][0]["reason"] == "DUPLICATE_INSTITUTIONAL_ID"
+    assert result["stats"]["rows_processed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_csv_batch_rejects_role_already_persisted(db_session: AsyncSession):
+    """A (user_institutional_id, sius_code) already in the DB for the module
+    (e.g. a manual entry surviving the bulk replace) rejects the CSV row via
+    the pre-seeded set — ONE bulk prefetch instead of a per-row SELECT
+    (stage 2026-07-17: the per-row check ran at 14 rows/s)."""
+    module = CarbonReportModule(
+        carbon_report_id=1, module_type_id=ModuleTypeEnum.headcount.value, status=0
+    )
+    db_session.add(module)
+    await db_session.flush()
+
+    db_session.add(
+        DataEntry(
+            data_entry_type_id=DataEntryTypeEnum.member.value,
+            carbon_report_module_id=module.id,
+            data={"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        )
+    )
+    await db_session.flush()
+
+    rows_data = [
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "53"},
+        {"name": "X X", "user_institutional_id": "123456", "sius_code": "54"},
     ]
     provider = _drive_member_csv(db_session, module.id, rows_data)
 

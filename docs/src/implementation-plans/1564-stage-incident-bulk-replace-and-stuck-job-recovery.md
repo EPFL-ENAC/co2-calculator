@@ -45,6 +45,25 @@ carbon report. The data card also treats an API sync as existing data
 (re-upload label + same ERROR/WARNING/SUCCESS color mapping as CSV, with
 CSV precedence — a WARNING sync previously rendered as red "Add Data").
 
+**Follow-up (performance):** the row loop ran ONE uniqueness SELECT per
+row — at stage latencies an 8.5k-row parse dropped to 14 rows/s (~10
+min), the same N+1 shape COPY batching had already removed on the write
+side. The in-memory duplicate set is now seeded with all existing
+`(module, uid, sius_code)` member tuples in one bulk query
+(`get_member_role_keys`), gated to headcount ingests; the per-row check
+is a set lookup. The manual-entry path keeps its single-row
+`check_member_role_unique`.
+
+**Deferred (schema change on validated data — proposal for the lead):**
+DB-enforced member-role uniqueness as defense-in-depth: a partial unique
+index on `(carbon_report_module_id, data->>'user_institutional_id',
+data->>'sius_code') WHERE data_entry_type_id = <member>`, with the bulk
+path COPYing into a staging table and `INSERT … ON CONFLICT DO NOTHING`.
+Only variant airtight under concurrent writers; today the per-year
+advisory locks already serialize bulk ingests, so this is belt-and-braces.
+Costs: staging-table refactor of the COPY path and loss of per-row
+"Row N: DUPLICATE" reporting.
+
 Note: the test file itself carried 760 intra-file `(uid, sius_code)`
 duplicate rows — those still skip by design; whether the key needs a third
 component is an open data question, not covered here.
