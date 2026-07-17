@@ -37,11 +37,12 @@ complete yearly export and replaces all machine-owned bulk sources.
 **Follow-up (same incident, second layer):** the replace DELETE keys on
 the denormalized `data_entries.year`, but the API providers built their
 entries **without** `year`/`unit_id` — so the cross-source delete matched
-zero API rows and re-uploads still mass-collided. Both API providers now
-stamp the scope columns (module→unit map built during resolution;
-`_ingest_year` property fails loudly without a configured year), and
-migration `8eeff0a9fa26` backfills existing NULL rows from each entry's
-carbon report. The data card also treats an API sync as existing data
+zero API rows and re-uploads still mass-collided. The stamp now lives
+centrally in `DataEntryService.fill_denormalized_scope` (called by
+create / bulk_create / bulk_copy — post-review altitude fix, replacing
+the initial per-provider stamping), so no write path can omit it; manual
+entries are stamped too. Migration `8eeff0a9fa26` backfills existing
+NULL rows from each entry's carbon report. The data card also treats an API sync as existing data
 (re-upload label + same ERROR/WARNING/SUCCESS color mapping as CSV, with
 CSV precedence — a WARNING sync previously rendered as red "Add Data").
 
