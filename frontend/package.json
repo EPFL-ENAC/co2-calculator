@@ -52,7 +52,7 @@
     "openapi-typescript": "=7.13.0",
     "postcss-html": "=1.8.1",
     "postcss-rtlcss": "=5.7.1",
-    "prettier": "=3.9.4",
+    "prettier": "=3.9.5",
     "sass": "=1.101.0",
     "stylelint": "=17.14.0",
     "stylelint-config-recommended-vue": "=1.6.1",
