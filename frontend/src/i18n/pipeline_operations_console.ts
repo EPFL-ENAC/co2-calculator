@@ -93,6 +93,25 @@ export default {
   pipeops_status_partial: { en: 'Partial', fr: 'Partiel' },
   pipeops_status_warning: { en: 'Warning', fr: 'Avertissement' },
 
+  // Queue wait (created → started) shown next to the run duration, so a
+  // sub-second job that waited long in the chain doesn't read as "<1s".
+  pipeops_queued: { en: 'queued {d}', fr: 'en file {d}' },
+
+  // Stale RUNNING job (owning pod died) + manual recovery.
+  pipeops_stale: { en: 'stale', fr: 'bloqué' },
+  pipeops_recover: {
+    en: 'Restart this stuck job now',
+    fr: 'Relancer cette tâche bloquée maintenant',
+  },
+  pipeops_recover_success: {
+    en: 'Job requeued — it will restart shortly',
+    fr: 'Tâche remise en file — elle redémarre sous peu',
+  },
+  pipeops_recover_failed: {
+    en: 'Failed to recover the job',
+    fr: 'Échec de la relance de la tâche',
+  },
+
   pipeops_msg_click_hint: {
     en: 'Click to view the full message',
     fr: 'Cliquer pour voir le message complet',

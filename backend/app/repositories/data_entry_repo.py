@@ -190,22 +190,23 @@ class DataEntryRepository:
         self,
         year: int,
         data_entry_type_ids: list[int],
-        source: int,  # DataEntrySourceEnum value
+        sources: list[int],  # DataEntrySourceEnum values
     ) -> int:
         """Full-year replace delete for MODULE_PER_YEAR ingest.
 
-        Per-year CSVs are complete exports: a new upload replaces ALL
-        prior rows of that (year, type, source) regardless of unit, so
-        the delete keys on the denormalized ``data_entries.year`` column
-        — no module-tree resolution, one indexed statement.  Returns
-        the number of rows deleted.
+        Per-year feeds (CSV or API) are complete exports: a new ingest
+        replaces ALL prior rows of that (year, type) across the given
+        sources regardless of unit, so the delete keys on the
+        denormalized ``data_entries.year`` column — no module-tree
+        resolution, one indexed statement.  Returns the number of rows
+        deleted.
         """
-        if not data_entry_type_ids:
+        if not data_entry_type_ids or not sources:
             return 0
         statement = delete(DataEntry).where(
             col(DataEntry.year) == year,
             col(DataEntry.data_entry_type_id).in_(data_entry_type_ids),
-            col(DataEntry.source) == source,
+            col(DataEntry.source).in_(sources),
         )
         result = await self.session.execute(statement)
         await self.session.flush()

@@ -85,6 +85,33 @@ async function confirmAbort(): Promise<void> {
   }
 }
 
+// Manual recovery of a stale RUNNING job (owning pod died mid-job).
+// The button only renders on ``is_stale`` rows, matching the endpoint's
+// own 409 rule; success requeues the job (state → NOT_STARTED) and the
+// safety poller re-dispatches it within one sweep.
+const recovering = ref<Set<number>>(new Set());
+
+async function recoverJob(j: PipelineJobListEntry): Promise<void> {
+  recovering.value = new Set(recovering.value).add(j.job_id);
+  try {
+    await api.post(`sync/jobs/${j.job_id}/recover`);
+    Notify.create({
+      type: 'positive',
+      message: t('pipeops_recover_success'),
+      timeout: 1800,
+    });
+    await store.fetch();
+  } catch (err: unknown) {
+    const msg =
+      err instanceof Error ? err.message : t('pipeops_recover_failed');
+    Notify.create({ type: 'negative', message: msg });
+  } finally {
+    const next = new Set(recovering.value);
+    next.delete(j.job_id);
+    recovering.value = next;
+  }
+}
+
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
 // or failed chain can grab the source CSV in one click.  Mirrors
@@ -256,6 +283,20 @@ function fmtDuration(a: string | null, b: string | null): string {
   const m = Math.floor(s / 60);
   if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
   return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`;
+}
+
+/**
+ * Queue wait (created → started), or null when it isn't worth showing
+ * (missing timestamps, or under 2s — chain/poller latency noise).
+ */
+function fmtQueued(
+  created: string | null,
+  started: string | null,
+): string | null {
+  if (!created || !started) return null;
+  const ms = new Date(started).getTime() - new Date(created).getTime();
+  if (ms < 2000) return null;
+  return fmtDuration(created, started);
 }
 
 function fmtWhen(s: string | null): string {
@@ -807,6 +848,26 @@ onUnmounted(() => {
                           {{ j.state ?? '?'
                           }}{{ j.result ? ' · ' + j.result : '' }}
                         </q-badge>
+                        <q-badge
+                          v-if="j.is_stale"
+                          color="deep-orange"
+                          text-color="white"
+                          class="q-mr-sm"
+                        >
+                          {{ $t('pipeops_stale') }}
+                        </q-badge>
+                        <q-btn
+                          v-if="j.is_stale"
+                          dense
+                          flat
+                          size="sm"
+                          icon="restart_alt"
+                          color="deep-orange"
+                          class="q-mr-sm"
+                          :loading="recovering.has(j.job_id)"
+                          :title="$t('pipeops_recover')"
+                          @click.stop="recoverJob(j)"
+                        />
                         <span class="text-weight-medium q-mr-sm">
                           #{{ j.job_id }} {{ j.job_type ?? '—' }}
                         </span>
@@ -818,6 +879,16 @@ onUnmounted(() => {
                               : '—')
                           }}
                           · {{ fmtDuration(j.started_at, j.finished_at) }}
+                          <template
+                            v-if="fmtQueued(j.created_at, j.started_at)"
+                          >
+                            ·
+                            {{
+                              $t('pipeops_queued', {
+                                d: fmtQueued(j.created_at, j.started_at),
+                              })
+                            }}
+                          </template>
                         </span>
                         <span
                           v-if="j.status_message"

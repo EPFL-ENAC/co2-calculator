@@ -585,6 +585,24 @@ def _resolve_enum_name(
     )
 
 
+def _job_is_stale(job: DataIngestionJob, cutoff: datetime) -> bool:
+    """RUNNING with a lock heartbeat older than the stale window.
+
+    Mirrors ``sweep_stuck_running_jobs``'s predicate so the console badge
+    and the auto-recovery sweep agree on what "stuck" means.
+    """
+    if job.state != IngestionState.RUNNING:
+        return False
+    if job.locked_at is None:
+        return True
+    locked_at = job.locked_at
+    # SQLite test DBs return tz-naive datetimes for tz-aware columns
+    # (same quirk handled in ``recover_job``); Postgres is always aware.
+    if locked_at.tzinfo is None:
+        locked_at = locked_at.replace(tzinfo=timezone.utc)
+    return locked_at < cutoff
+
+
 class PipelineJobListEntry(BaseModel):
     """One job inside a pipeline, as shown in the ops-console DAG (#1234).
 
@@ -611,9 +629,20 @@ class PipelineJobListEntry(BaseModel):
     # the table shows names, not integers, with no frontend drift).
     data_entry_type_label: Optional[str] = None
     year: Optional[int] = None
+    # created_at → started_at is queue wait (chain/lock/poller latency);
+    # started_at → finished_at is execution. The console shows both so a
+    # sub-second aggregation that waited 20s behind its recalc sibling
+    # doesn't read as "<1s total".
+    created_at: Optional[datetime] = None
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     attempts: Optional[int] = None
+    # Derived server-side (backend owns the staleness rule): RUNNING with a
+    # lock heartbeat older than STALE_JOB_TIMEOUT_MINUTES — the owning pod
+    # died mid-job. The console renders a badge + the manual Recover button
+    # (POST /jobs/{id}/recover only accepts stale rows, so gating the button
+    # on this flag mirrors the endpoint's own 409 rule).
+    is_stale: bool = False
     meta: dict = {}
 
     @field_serializer("state")
@@ -1559,6 +1588,9 @@ async def list_pipelines(
                 crm_ids.add(crm)
     inst_by_crm = await _institutional_ids_for_crms(db, list(crm_ids))
 
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(
+        minutes=get_settings().STALE_JOB_TIMEOUT_MINUTES
+    )
     items: list[PipelineListItem] = []
     for group in groups:
         jobs = group["jobs"]
@@ -1619,9 +1651,11 @@ async def list_pipelines(
                         data_entry_type_id=j.data_entry_type_id,
                         data_entry_type_label=_det_label(j.data_entry_type_id),
                         year=j.year,
+                        created_at=j.created_at,
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
+                        is_stale=_job_is_stale(j, stale_cutoff),
                         meta=_project_pipeline_meta(
                             j.meta,
                             include_factor_errors=j.target_type == TargetType.FACTORS,

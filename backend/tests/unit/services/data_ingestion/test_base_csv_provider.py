@@ -10,7 +10,12 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import get_settings
 from app.models.carbon_report import CarbonReportModule
-from app.models.data_entry import DataEntry, DataEntrySourceEnum, DataEntryTypeEnum
+from app.models.data_entry import (
+    BULK_PER_YEAR_SOURCES,
+    DataEntry,
+    DataEntrySourceEnum,
+    DataEntryTypeEnum,
+)
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
@@ -1780,7 +1785,15 @@ async def test_delete_scoped_to_specific_data_entry_type():
     assert call_kwargs["data_entry_type_ids"] == [
         DataEntryTypeEnum.research_facilities.value
     ]
-    assert call_kwargs["source"] == DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value
+    # Cross-source replace: a per-year CSV upload also replaces prior API
+    # syncs — otherwise their surviving rows mass-skip the upload as
+    # DUPLICATE_INSTITUTIONAL_ID (stage incident, 2026-07-17).
+    assert call_kwargs["sources"] == [s.value for s in BULK_PER_YEAR_SOURCES]
+    assert DataEntrySourceEnum.EXTERNAL_INTEGRATION.value in call_kwargs["sources"]
+    assert DataEntrySourceEnum.USER_MANUAL.value not in call_kwargs["sources"]
+    assert (
+        DataEntrySourceEnum.CSV_MODULE_UNIT_SPECIFIC.value not in call_kwargs["sources"]
+    )
 
 
 @pytest.mark.asyncio

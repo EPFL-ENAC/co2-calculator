@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.models.carbon_report import CarbonReport, CarbonReportModule
 from app.models.data_entry import (
+    BULK_PER_YEAR_SOURCES,
     DataEntry,
     DataEntrySourceEnum,
     DataEntryTypeEnum,
@@ -757,11 +758,14 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         data_entry_service: DataEntryService,
     ) -> None:
         """
-        Delete existing entries from previous CSV_MODULE_PER_YEAR uploads.
+        Delete existing entries from previous bulk per-year ingests.
 
-        This ensures that MODULE_PER_YEAR uploads replace only the data
-        that was uploaded through the same mechanism, preserving manual
-        entries and unit-specific uploads.
+        A per-year upload is a complete yearly export, so it replaces every
+        machine-owned bulk source (prior CSV uploads AND API syncs — see
+        ``BULK_PER_YEAR_SOURCES``), preserving manual entries and
+        unit-specific uploads. Without the cross-source delete, uploading a
+        CSV after an API sync mass-skips rows as DUPLICATE_INSTITUTIONAL_ID
+        against the surviving API copies.
 
         Note: MODULE_UNIT_SPECIFIC uses append-only strategy (no deletion).
 
@@ -790,17 +794,17 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
 
         # Full-year replace: per-year CSVs are complete exports, so ONE
         # indexed DELETE on the denormalized ``data_entries.year`` column
-        # replaces every prior row of (year, types, source) — no module
+        # replaces every prior row of (year, types, bulk sources) — no module
         # resolution, no audit trail (the bulk path skips audit on insert
         # too; the job row is the operator-facing record).
         deleted_rows = await data_entry_service.repo.bulk_delete_by_source_year(
             year=self.year,
             data_entry_type_ids=[t.value for t in valid_entry_types],
-            source=DataEntrySourceEnum.CSV_MODULE_PER_YEAR.value,
+            sources=[s.value for s in BULK_PER_YEAR_SOURCES],
         )
 
         logger.info(
-            f"Deleted {deleted_rows} data entries from previous CSV uploads "
+            f"Deleted {deleted_rows} data entries from previous bulk ingests "
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 

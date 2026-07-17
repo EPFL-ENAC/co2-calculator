@@ -25,9 +25,13 @@ export interface PipelineJobListEntry {
   data_entry_type_id: number | null;
   data_entry_type_label: string | null;
   year: number | null;
+  created_at: string | null;
   started_at: string | null;
   finished_at: string | null;
   attempts: number | null;
+  // Derived server-side: RUNNING with a stale lock heartbeat (owning pod
+  // died). Gates the stale badge + manual Recover button.
+  is_stale: boolean;
   meta: Record<string, unknown>;
 }
 

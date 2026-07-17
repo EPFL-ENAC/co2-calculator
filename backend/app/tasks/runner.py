@@ -393,7 +393,7 @@ async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
     """Refresh ``locked_at`` on the active job until cancelled.
 
     Wake every ``STALE_JOB_TIMEOUT_MINUTES / 4`` (default: every
-    15 min for a 60 min timeout) and call ``repo.heartbeat``.  If
+    75s for a 5 min timeout) and call ``repo.heartbeat``.  If
     the heartbeat returns 0 rows updated, our lock has been preempted
     — exit the loop so the runner's preemption check can take over
     on its next pass.

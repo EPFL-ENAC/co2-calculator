@@ -8833,6 +8833,19 @@
             "title": "Locked At",
             "description": "Timestamp of the most recent successful claim"
           },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At",
+            "description": "Timestamp the job row was created.  created_at \u2192 started_at is queue wait (chain/lock/poller latency); started_at \u2192 finished_at is execution \u2014 the ops console shows both."
+          },
           "started_at": {
             "anyOf": [
               {
@@ -9760,6 +9773,18 @@
             ],
             "title": "Year"
           },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
           "started_at": {
             "anyOf": [
               {
@@ -9794,6 +9819,11 @@
               }
             ],
             "title": "Attempts"
+          },
+          "is_stale": {
+            "type": "boolean",
+            "title": "Is Stale",
+            "default": false
           },
           "meta": {
             "additionalProperties": true,
