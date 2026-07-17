@@ -889,6 +889,12 @@ onUnmounted(() => {
                               })
                             }}
                           </template>
+                          <template v-if="j.worker">
+                            ·
+                            <span :title="$t('pipeops_worker_hint')">
+                              ⚙ {{ j.worker }}
+                            </span>
+                          </template>
                         </span>
                         <span
                           v-if="j.status_message"

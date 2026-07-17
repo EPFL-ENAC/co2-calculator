@@ -637,6 +637,11 @@ class PipelineJobListEntry(BaseModel):
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
     attempts: Optional[int] = None
+    # Pod that claimed this job (``locked_by``). With a shared DB, a local
+    # dev process and cluster pods compete for the same NOT_STARTED rows —
+    # showing the owner makes mixed-ownership chains diagnosable at a
+    # glance (the local+dev-DB scenario, 2026-07-17).
+    worker: Optional[str] = None
     # Derived server-side (backend owns the staleness rule): RUNNING with a
     # lock heartbeat older than STALE_JOB_TIMEOUT_MINUTES — the owning pod
     # died mid-job. The console renders a badge + the manual Recover button
@@ -1655,6 +1660,7 @@ async def list_pipelines(
                         started_at=j.started_at,
                         finished_at=j.finished_at,
                         attempts=j.attempts,
+                        worker=j.locked_by,
                         is_stale=_job_is_stale(j, stale_cutoff),
                         meta=_project_pipeline_meta(
                             j.meta,

@@ -97,6 +97,13 @@ export default {
   // sub-second job that waited long in the chain doesn't read as "<1s".
   pipeops_queued: { en: 'queued {d}', fr: 'en file {d}' },
 
+  // Worker (pod / local process) that claimed the job — mixed ownership
+  // across a chain means several processes share the same DB.
+  pipeops_worker_hint: {
+    en: 'Worker (pod or local process) that executed this job',
+    fr: 'Worker (pod ou processus local) qui a exécuté cette tâche',
+  },
+
   // Stale RUNNING job (owning pod died) + manual recovery.
   pipeops_stale: { en: 'stale', fr: 'bloqué' },
   pipeops_recover: {

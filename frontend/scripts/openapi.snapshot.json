@@ -9820,6 +9820,17 @@
             ],
             "title": "Attempts"
           },
+          "worker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worker"
+          },
           "is_stale": {
             "type": "boolean",
             "title": "Is Stale",

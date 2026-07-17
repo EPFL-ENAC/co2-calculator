@@ -29,6 +29,9 @@ export interface PipelineJobListEntry {
   started_at: string | null;
   finished_at: string | null;
   attempts: number | null;
+  // Pod that claimed the job — surfaces which worker (local dev process
+  // vs cluster pod) actually executed it when several share one DB.
+  worker: string | null;
   // Derived server-side: RUNNING with a stale lock heartbeat (owning pod
   // died). Gates the stale badge + manual Recover button.
   is_stale: boolean;

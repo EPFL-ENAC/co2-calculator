@@ -3360,6 +3360,8 @@ export interface components {
             finished_at?: string | null;
             /** Attempts */
             attempts?: number | null;
+            /** Worker */
+            worker?: string | null;
             /**
              * Is Stale
              * @default false
