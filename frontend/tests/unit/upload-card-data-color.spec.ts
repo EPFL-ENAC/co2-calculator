@@ -10,12 +10,14 @@
  * Pure ``(dataResult?, apiResult?) => color`` function — a
  * pure-function test is the cheapest regression guard the existing
  * test infra (Playwright, no Vitest) supports; ``useUploadCard`` itself
- * needs a component mount for ``useI18n``.
+ * needs a component mount for ``useI18n``. Imports stay on leaf modules
+ * (uploadCardColor, constant/ingestion) — importing the store chain
+ * drags src/i18n's Vite-only import.meta.glob into the node runner.
  */
 
 import { test, expect } from '@playwright/test';
-import { resolveDataButtonColor } from '../../src/composables/useUploadCard';
-import { IngestionResult } from '../../src/stores/backofficeDataManagement';
+import { resolveDataButtonColor } from '../../src/composables/uploadCardColor';
+import { IngestionResult } from '../../src/constant/ingestion';
 
 test('no jobs at all stays accent (Add Data state)', () => {
   expect(resolveDataButtonColor(undefined, undefined)).toBe('accent');

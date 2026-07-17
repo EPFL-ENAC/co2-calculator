@@ -1,4 +1,8 @@
 import { defineStore } from 'pinia';
+// Moved to a leaf module so pure-function Playwright specs can import the
+// enums without dragging api/i18n (import.meta.glob) into the node runner;
+// re-exported here so existing importers keep one canonical path.
+import { IngestionState, IngestionResult } from 'src/constant/ingestion';
 import { computed, ref } from 'vue';
 import { api } from 'src/api/http';
 import { Module } from 'src/constant/modules';
@@ -135,18 +139,7 @@ export enum FactorType {
 // that file or the per-row spinner rehydrate on page reload will
 // silently mis-map states — the unit test mirrors the literals so it
 // won't catch you either.
-export enum IngestionState {
-  NOT_STARTED = 0,
-  QUEUED = 1,
-  RUNNING = 2,
-  FINISHED = 3,
-}
-
-export enum IngestionResult {
-  SUCCESS = 0,
-  WARNING = 1,
-  ERROR = 2,
-}
+export { IngestionState, IngestionResult };
 
 export type InitiateSyncParams = {
   module_type_id: number;
