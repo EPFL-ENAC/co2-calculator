@@ -159,17 +159,18 @@ const baseModuleFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     hideIn: {
       form: true,
     },
     sortable: true,
-    align: 'left',
     tooltip: 'module-equipment-submodule-scientific-table-kg_co2eq',
   },
   {
     id: 't_co2eq',
+    align: 'right',
     label: 't CO₂-eq',
     type: 'number',
     hideIn: {
@@ -177,7 +178,6 @@ const baseModuleFields: ModuleField[] = [
       table: true,
     },
     sortable: true,
-    align: 'left',
     tooltip: 'module-equipment-submodule-scientific-table-t_co2eq',
   },
 ];

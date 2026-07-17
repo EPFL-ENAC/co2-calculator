@@ -60,6 +60,7 @@ const processEmissionsFields: ModuleField[] = [
   },
   {
     id: 'kg_co2eq',
+    align: 'right',
     labelKey: 'results_units_kg',
     type: 'number',
     readOnly: true,
