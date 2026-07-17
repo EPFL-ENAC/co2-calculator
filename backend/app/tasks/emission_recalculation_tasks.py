@@ -12,6 +12,7 @@ preemption check, and the FINISHED-state write — these handlers
 only contain the work itself.
 """
 
+import time
 from typing import Optional
 from uuid import UUID
 
@@ -340,13 +341,21 @@ async def emission_recalc_handler(
 
     job_id = job.id
 
+    progress_started = time.monotonic()
+
     async def _progress(done: int, total: int) -> None:
         # Committed on job_session immediately so SSE subscribers see
         # live progress while the workflow keeps computing on
         # data_session (the two sessions are independent by design).
+        elapsed = max(time.monotonic() - progress_started, 1e-3)
+        rate = done / elapsed
+        eta = (total - done) / rate if rate > 0 else 0.0
         await job_repo.update_ingestion_job(
             job_id=job_id,
-            status_message=f"Recalculating emissions... {done}/{total}",
+            status_message=(
+                f"Recalculating emissions: {done}/{total} entries "
+                f"({rate:.0f}/s, ~{eta:.0f}s left)"
+            ),
             metadata={},
         )
         await job_session.commit()

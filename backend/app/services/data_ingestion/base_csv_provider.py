@@ -965,15 +965,18 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                 io.StringIO(setup_result["csv_text"], newline="")
             )
 
+            last_yield = time.perf_counter()
             for row_idx, row in enumerate(csv_reader, start=1):
                 # Row processing is mostly CPU (parse/validate, cached
                 # lookups) — with 50k-row COPY batches nothing else
                 # would run on the event loop for the whole file.
-                # Yield every 100 rows so /healthz & /ready stay under the
-                # liveness/readiness probe timeout even on a CPU-tight pod;
-                # a 1000-row stretch could exceed 2s and trigger a restart.
-                if row_idx % 100 == 0:
+                # Yield on wall time so /healthz & /ready stay under the
+                # k8s probe timeout (2s on stage) regardless of per-row
+                # cost — a fixed row count stretches with a slow DB.
+                if time.perf_counter() - last_yield > 0.05:
                     await asyncio.sleep(0)
+                    last_yield = time.perf_counter()
+                if row_idx % 100 == 0:
                     # Throttled internally to PROGRESS_REPORT_INTERVAL_S, so the
                     # long parse/validate phase shows live throughput + ETA
                     # instead of going silent for tens of seconds.

@@ -40,12 +40,25 @@ component is an open data question, not covered here.
 
 ## 2. Stuck-job recovery latency
 
-The pod was SIGTERMed mid-job (readiness "connection refused" was a
-_consequence_ — the likely cause is node-pressure eviction: 128Mi request
-vs 512Mi limit; confirm via the pod's `lastState.terminated`). Nothing
-marks a cancelled job, so the row stayed `RUNNING` until the stale sweep —
-whose window was 60 min, a default from before the 310-C per-job heartbeat
-existed.
+The pod was SIGTERMed mid-job. **Root cause confirmed by probe-latency
+measurement on stage:** the recalc loop yielded the event loop only every
+1000 entries, so `/healthz` (a no-op endpoint) couldn't get a slot within
+the kubelet's 2s probe timeout during pure-CPU stretches — three straight
+liveness failures at 20s period killed the pod exactly 60s after
+`Recalc member/2025` started. (Memory was fine: 798Mi of 1000Mi.
+Readiness "connection refused" events were the restart gap, not the
+cause.) Nothing marks a cancelled job, so the row stayed `RUNNING` until
+the stale sweep — whose window was 60 min, a default from before the
+310-C per-job heartbeat existed.
+
+**Fix (event-loop starvation):** both CPU loops now yield on wall time
+(~50ms) instead of entry count — recalc (`emission_recalculation.py`,
+was every 1000 entries) and CSV row loop (`base_csv_provider.py`, was
+every 100 rows). Recalc progress reporting also went time-based (every
+2s, was every 5000 entries) with a terminal N/N update, and the job
+status line carries rate + ETA. **Ops action (cluster config, not this
+repo):** stage's probe overrides set `timeoutSeconds: 2` — raise to 5
+(the chart default) for liveness and readiness.
 
 - `STALE_JOB_TIMEOUT_MINUTES` 60 → **5** (config default, helm,
   .env.example): heartbeats every 75s, dead-pod recovery ≤ ~6 min. The
