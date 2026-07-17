@@ -30,7 +30,7 @@ __all__ = [
 
 # revision identifiers, used by Alembic.
 revision: str = "f9d210343448"  # noqa: F841
-down_revision: Union[str, Sequence[str], None] = "89c3079e388d"  # noqa: F841
+down_revision: Union[str, Sequence[str], None] = "3f1c7a94be2e"  # noqa: F841
 branch_labels: Union[str, Sequence[str], None] = None  # noqa: F841
 depends_on: Union[str, Sequence[str], None] = None  # noqa: F841
 
