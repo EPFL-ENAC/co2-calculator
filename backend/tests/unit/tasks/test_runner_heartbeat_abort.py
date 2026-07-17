@@ -132,6 +132,40 @@ async def test_heartbeat_loop_sets_abort_event_after_threshold_failures(
 
 
 @pytest.mark.asyncio
+async def test_heartbeat_loop_arms_abort_on_lost_lock(monkeypatch):
+    """A heartbeat returning 0 rows (lock preempted / state left RUNNING)
+    must ARM the abort, not just stop heartbeating — otherwise the handler
+    runs to completion and its pre-CAS data commits + chained children
+    duplicate the new owner's work (code-review finding, 2026-07-17)."""
+    settings_mock = MagicMock()
+    settings_mock.STALE_JOB_TIMEOUT_MINUTES = 1
+    monkeypatch.setattr(runner_mod, "get_settings", lambda: settings_mock)
+
+    real_sleep = asyncio.sleep
+
+    async def _fast_sleep(_secs: float) -> None:
+        await real_sleep(0)
+
+    monkeypatch.setattr(runner_mod.asyncio, "sleep", _fast_sleep)
+
+    preempted_repo = MagicMock()
+    preempted_repo.heartbeat = AsyncMock(return_value=0)
+    monkeypatch.setattr(
+        runner_mod, "DataIngestionRepository", lambda _s: preempted_repo
+    )
+    monkeypatch.setattr(runner_mod, "SessionLocal", _mock_session_ctx)
+
+    abort_event = asyncio.Event()
+    await asyncio.wait_for(
+        runner_mod._heartbeat_loop(job_id=42, abort_event=abort_event),
+        timeout=5.0,
+    )
+
+    assert abort_event.is_set(), "lost lock must arm the abort_event"
+    assert preempted_repo.heartbeat.await_count == 1
+
+
+@pytest.mark.asyncio
 async def test_heartbeat_loop_resets_counter_on_success(monkeypatch):
     """A successful heartbeat between failures resets the counter,
     so the loop tolerates intermittent DB blips below the threshold."""
@@ -156,7 +190,7 @@ async def test_heartbeat_loop_resets_counter_on_success(monkeypatch):
         1,  # success — resets counter
         RuntimeError("blip 4"),
         RuntimeError("blip 5"),
-        0,  # preemption (updated == 0) — clean exit, NOT abort
+        0,  # preemption (updated == 0) — exits AND arms the abort
     ]
     repo_mock = MagicMock()
     repo_mock.heartbeat = AsyncMock(side_effect=side_effects)
@@ -169,10 +203,13 @@ async def test_heartbeat_loop_resets_counter_on_success(monkeypatch):
         timeout=5.0,
     )
 
-    # The counter reset means we never reach the threshold even though
-    # there were five failure exceptions in total.
-    assert not abort_event.is_set()
+    # The counter reset means the failure threshold was never reached even
+    # though there were five failure exceptions in total — proven by the
+    # loop surviving to the 7th call. The final 0-update (lost lock) then
+    # arms the abort so the runner cancels the handler instead of letting
+    # it finish work another pod now owns.
     assert repo_mock.heartbeat.await_count == 7
+    assert abort_event.is_set()
 
 
 # ---------------------------------------------------------------------------

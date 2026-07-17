@@ -35,6 +35,7 @@ from app.repositories.data_ingestion import DataIngestionRepository
 from app.tasks._chain import AGGREGATION_DEDUP, chain_job
 from app.tasks._locks import acquire_factor_recalc_lock
 from app.tasks.registry import register
+from app.utils.progress import format_progress
 from app.workflows.emission_recalculation import EmissionRecalculationWorkflow
 
 logger = get_logger(__name__)
@@ -347,14 +348,14 @@ async def emission_recalc_handler(
         # Committed on job_session immediately so SSE subscribers see
         # live progress while the workflow keeps computing on
         # data_session (the two sessions are independent by design).
-        elapsed = max(time.monotonic() - progress_started, 1e-3)
-        rate = done / elapsed
-        eta = (total - done) / rate if rate > 0 else 0.0
         await job_repo.update_ingestion_job(
             job_id=job_id,
-            status_message=(
-                f"Recalculating emissions: {done}/{total} entries "
-                f"({rate:.0f}/s, ~{eta:.0f}s left)"
+            status_message=format_progress(
+                "Recalculating emissions",
+                done,
+                total,
+                time.monotonic() - progress_started,
+                unit="entries",
             ),
             metadata={},
         )

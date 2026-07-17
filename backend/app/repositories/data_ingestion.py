@@ -21,8 +21,43 @@ from app.models.data_ingestion import (
     TargetType,
 )
 from app.models.user import UserProvider
+from app.utils.datetime_utc import as_utc
 
 logger = get_logger(__name__)
+
+
+def stale_job_cutoff(stale_timeout_minutes: int) -> datetime:
+    """The instant before which an unrefreshed lock heartbeat counts as stale."""
+    return datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
+
+
+def stale_running_clause(cutoff: datetime):
+    """SQL predicate for a stuck job: RUNNING with a heartbeat older than cutoff.
+
+    Single source of truth for "stuck" — the auto-recovery sweep, the manual
+    ``recover_job`` gate, and the ops-console stale badge (``is_job_stale``)
+    all derive from here so they can never disagree on when Recover works.
+    """
+    return and_(
+        col(DataIngestionJob.state) == IngestionState.RUNNING,
+        or_(
+            col(DataIngestionJob.locked_at).is_(None),
+            col(DataIngestionJob.locked_at) < cutoff,
+        ),
+    )
+
+
+def is_job_stale(job: DataIngestionJob, cutoff: datetime) -> bool:
+    """Python twin of ``stale_running_clause`` for already-loaded rows.
+
+    Used by the ops-console listing to derive the stale badge without a
+    second query. ``test_stale_predicate_parity`` locks the two together.
+    """
+    if job.state != IngestionState.RUNNING:
+        return False
+    if job.locked_at is None:
+        return True
+    return as_utc(job.locked_at) < cutoff
 
 
 class _ClaimUnavailable(Exception):
@@ -1162,14 +1197,7 @@ class DataIngestionRepository:
         here means the owning pod stopped heartbeating: crashed, was
         evicted, or was SIGTERMed mid-job (stage incident 2026-07-17).
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
-        stale_filter = and_(
-            col(DataIngestionJob.state) == IngestionState.RUNNING,
-            or_(
-                col(DataIngestionJob.locked_at).is_(None),
-                col(DataIngestionJob.locked_at) < cutoff,
-            ),
-        )
+        stale_filter = stale_running_clause(stale_job_cutoff(stale_timeout_minutes))
 
         # Bucket 1: still has retries left → unlock and let claim_job pick
         # it up next cycle.  Preserve ``attempts`` so claim_job's
@@ -1226,16 +1254,11 @@ class DataIngestionRepository:
         Atomic UPDATE — safe under concurrent claim/recover.  Only succeeds
         when locked_at is older than ``stale_timeout_minutes`` (or NULL).
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_timeout_minutes)
         result = await self.session.execute(
             update(DataIngestionJob)
             .where(
                 col(DataIngestionJob.id) == job_id,
-                col(DataIngestionJob.state) == IngestionState.RUNNING,
-                or_(
-                    col(DataIngestionJob.locked_at).is_(None),
-                    col(DataIngestionJob.locked_at) < cutoff,
-                ),
+                stale_running_clause(stale_job_cutoff(stale_timeout_minutes)),
             )
             .values(
                 state=IngestionState.NOT_STARTED,

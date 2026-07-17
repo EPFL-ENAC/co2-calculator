@@ -10,6 +10,8 @@ import { usePipelineStream } from 'src/composables/usePipelineStream';
 import { usePipelineStreamStore } from 'src/stores/pipelineStream';
 import { useBackofficeDataManagement } from 'src/stores/backofficeDataManagement';
 import { useYearConfigStore } from 'src/stores/yearConfig';
+import { usePipelineJobRecovery } from 'src/composables/usePipelineJobRecovery';
+import { fmtDuration, fmtQueued, fmtWhen } from 'src/utils/pipelineFormat';
 import {
   usePipelineOperationsConsole,
   type PipelineListItem,
@@ -85,32 +87,7 @@ async function confirmAbort(): Promise<void> {
   }
 }
 
-// Manual recovery of a stale RUNNING job (owning pod died mid-job).
-// The button only renders on ``is_stale`` rows, matching the endpoint's
-// own 409 rule; success requeues the job (state → NOT_STARTED) and the
-// safety poller re-dispatches it within one sweep.
-const recovering = ref<Set<number>>(new Set());
-
-async function recoverJob(j: PipelineJobListEntry): Promise<void> {
-  recovering.value = new Set(recovering.value).add(j.job_id);
-  try {
-    await api.post(`sync/jobs/${j.job_id}/recover`);
-    Notify.create({
-      type: 'positive',
-      message: t('pipeops_recover_success'),
-      timeout: 1800,
-    });
-    await store.fetch();
-  } catch (err: unknown) {
-    const msg =
-      err instanceof Error ? err.message : t('pipeops_recover_failed');
-    Notify.create({ type: 'negative', message: msg });
-  } finally {
-    const next = new Set(recovering.value);
-    next.delete(j.job_id);
-    recovering.value = next;
-  }
-}
+const { recovering, recoverJob } = usePipelineJobRecovery(() => store.fetch());
 
 // Processed-CSV download — surfaces ``meta.processed_file_path``
 // straight from the pipeline row so an operator triaging a stalled
@@ -266,42 +243,6 @@ function pipelineMessage(p: PipelineListItem): string | null {
     return `${t('pipeops_phase_prefix')} ${p.progress.phase}/${p.progress.phases_total} · ${label}`;
   }
   return null;
-}
-
-function fmtDuration(a: string | null, b: string | null): string {
-  if (!a) return '—';
-  const start = new Date(a).getTime();
-  const end = b ? new Date(b).getTime() : Date.now();
-  const ms = Math.max(0, end - start);
-  // Sub-second jobs render "<1s" instead of "0s" — common for the
-  // trailing aggregation after 4A.3 scoped the write set down to just
-  // the affected modules.  "0s" read as "didn't run"; "<1s" says
-  // "ran, was just fast".
-  if (ms < 1000) return ms === 0 && !b ? '—' : '<1s';
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`;
-}
-
-/**
- * Queue wait (created → started), or null when it isn't worth showing
- * (missing timestamps, or under 2s — chain/poller latency noise).
- */
-function fmtQueued(
-  created: string | null,
-  started: string | null,
-): string | null {
-  if (!created || !started) return null;
-  const ms = new Date(started).getTime() - new Date(created).getTime();
-  if (ms < 2000) return null;
-  return fmtDuration(created, started);
-}
-
-function fmtWhen(s: string | null): string {
-  if (!s) return '—';
-  return new Date(s).toLocaleString();
 }
 
 // Scope label for the "Type" column.  Backend sends the entity_type

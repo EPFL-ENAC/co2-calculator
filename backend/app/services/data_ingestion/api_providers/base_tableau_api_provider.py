@@ -97,27 +97,6 @@ class BaseTableauApiProvider(DataIngestionProvider):
     INGEST_NOUN: str = "data"
     MISSING_UNIT_REASON: str = "Missing unit (Centre financier)"
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        # module_id → unit_id, filled by _resolve_carbon_report_modules;
-        # stamps the denormalized DataEntry.unit_id at entry build time.
-        self._module_to_unit_id: dict[int, int] = {}
-
-    @property
-    def _ingest_year(self) -> int:
-        """Denormalized ``DataEntry.year`` for the entries this ingest builds.
-
-        The per-year cross-source replace DELETE keys on
-        ``data_entries.year``, so API rows must carry it exactly like CSV
-        rows do (stage incident 2026-07-17: NULL-year API rows survived
-        every replace and mass-collided re-uploads on
-        DUPLICATE_INSTITUTIONAL_ID).
-        """
-        year = self.config.get("year")
-        if year is None:
-            raise ValueError(f"year is required for {self.INGEST_NOUN} data import")
-        return int(year)
-
     @staticmethod
     def _strip_unit_prefix(unit_id: str | None) -> str | None:
         """Strip a single leading letter from unit IDs like 'F0828'."""
@@ -545,7 +524,6 @@ class BaseTableauApiProvider(DataIngestionProvider):
         year = self.config.get("year")
         if not year:
             raise ValueError(f"year is required for {self.INGEST_NOUN} data import")
-        self._module_to_unit_id = {}
 
         module_type_id = self.module_type_id
         if not module_type_id and self.job and self.job.module_type_id:
@@ -643,7 +621,6 @@ class BaseTableauApiProvider(DataIngestionProvider):
 
             # Map institutional_id to carbon_report_module_id
             code_to_module_map[unit_institutional_id] = carbon_report_module.id
-            self._module_to_unit_id[carbon_report_module.id] = unit_id
 
         logger.info(
             f"Resolved carbon_report_module_ids for {len(code_to_module_map)} units"

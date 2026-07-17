@@ -429,8 +429,14 @@ async def _heartbeat_loop(job_id: int, abort_event: asyncio.Event) -> None:
                     logger.warning(
                         f"_heartbeat_loop: lost lock on job {job_id} "
                         "(preempted or state moved out of RUNNING) — "
-                        "stopping heartbeat"
+                        "aborting handler"
                     )
+                    # Arm the abort, don't just stop heartbeating: the
+                    # row is owned elsewhere now, and letting the handler
+                    # run to completion commits its data_session writes
+                    # and chains children BEFORE the finish CAS can drop
+                    # them — duplicate work the new owner also performs.
+                    abort_event.set()
                     return
             consecutive_failures = 0
         except asyncio.CancelledError:

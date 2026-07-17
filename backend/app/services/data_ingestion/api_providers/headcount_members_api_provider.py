@@ -124,10 +124,6 @@ class HeadcountMembersApiProvider(BaseTableauApiProvider):
                 "fte": record["fte"],
                 "note": record.get("note"),
             },
-            # Denormalized scope columns, mirroring the CSV path — the
-            # per-year cross-source replace DELETE keys on ``year``.
-            year=self._ingest_year,
-            unit_id=self._module_to_unit_id.get(carbon_report_module_id),
         )
 
     async def _load_data(self, data: List[Dict[str, Any]]) -> Dict[str, Any]:

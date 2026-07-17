@@ -48,6 +48,7 @@ from app.services.data_entry_service import DataEntryService
 from app.services.data_ingestion.base_provider import DataIngestionProvider
 from app.services.unit_service import UnitService
 from app.services.user_service import UserService
+from app.utils.progress import format_progress
 
 logger = get_logger(__name__)
 
@@ -218,9 +219,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
         self._missing_unit_codes: set[str] = set()
         # Track which missing units we've already warned about (deduplication)
         self._missing_units_logged: set[str] = set()
-        # module_id → unit_id, filled by _resolve_carbon_report_modules;
-        # used to stamp the denormalized DataEntry.unit_id at row build.
-        self._module_to_unit_id: Dict[int, int] = {}
         # Cache for carbon_report_module_id -> year mapping (avoid per-row DB queries)
         self._year_cache: Dict[int, int] = {}
         # Progress reporting: current phase label + throttle/rate bookkeeping.
@@ -613,7 +611,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if institutional_id is None:
                 continue
             full_map[institutional_id] = module_id
-            self._module_to_unit_id[module_id] = unit_db_id
         logger.info(
             f"Bulk-resolved {len(full_map)} existing "
             f"carbon_report_modules for year={self.year}, "
@@ -709,7 +706,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
                         f"module_type_id={module_type_id}"
                     )
                 code_to_module_map[unit_institutional_id] = carbon_report_module.id
-                self._module_to_unit_id[carbon_report_module.id] = unit_id
 
         logger.info(
             f"Resolved carbon_report_module_ids: "
@@ -808,22 +804,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             f"(year={self.year}, {len(valid_entry_types)} types, full replace)"
         )
 
-    def _ingests_member_entries(self) -> bool:
-        """Whether this ingest can produce ``member`` entries (headcount).
-
-        Gates the member-role duplicate-set prefetch so non-headcount
-        uploads never pay the extra query.
-        """
-        module_type_ref = self.module_type_id
-        if module_type_ref is None and self.job is not None:
-            module_type_ref = self.job.module_type_id
-        if module_type_ref is None:
-            return False
-        entry_types = MODULE_TYPE_TO_DATA_ENTRY_TYPES.get(
-            ModuleTypeEnum(module_type_ref), []
-        )
-        return DataEntryTypeEnum.member in entry_types
-
     def _enter_phase(self, phase: str) -> None:
         """Mark the start of a pipeline phase (resets the rate/ETA baseline)."""
         self._phase = phase
@@ -868,17 +848,6 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             parse_elapsed - row_t,
         )
 
-    @staticmethod
-    def _format_progress(
-        phase: str, processed: int | None, total: int | None, elapsed: float
-    ) -> str:
-        """Human-readable progress line with throughput + rough ETA."""
-        if not processed or not total:
-            return phase
-        rate = processed / max(elapsed, 1e-3)
-        eta = (total - processed) / rate if rate > 0 else 0.0
-        return f"{phase}: {processed}/{total} rows ({rate:.0f}/s, ~{eta:.0f}s left)"
-
     async def _report(
         self,
         phase: str,
@@ -898,9 +867,7 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             return
         self._last_report_at = now
 
-        msg = self._format_progress(
-            phase, processed, total, now - self._phase_started_at
-        )
+        msg = format_progress(phase, processed, total, now - self._phase_started_at)
         meta: Dict[str, Any] = dict(stats) if stats else {}
         meta["progress"] = {"phase": phase, "processed": processed, "total": total}
         logger.info(msg)
@@ -980,19 +947,20 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             # in ONE bulk query — a per-row uniqueness SELECT at stage
             # latencies turned an 8.5k-row parse into ~10 min (2026-07-17).
             seen_institutional_ids: Dict[int, set[tuple[str, str]]] = {}
-            if self._ingests_member_entries():
-                member_module_ids: list[int] = (
-                    list(unit_to_module_map.values())
-                    if unit_to_module_map
-                    else [self.carbon_report_module_id]
-                    if self.carbon_report_module_id
-                    else []
-                )
-                existing_keys = await data_entry_service.repo.get_member_role_keys(
-                    member_module_ids
-                )
-                for mod_id, uid, sius in existing_keys:
-                    seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
+            # Unconditional on purpose: the query is one indexed round trip
+            # that returns nothing for non-member modules, and gating it on
+            # a resolvable module_type_id would silently skip DB-level
+            # dedup for member uploads that omit it (raw-API dispatch).
+            member_module_ids: list[int] = []
+            if unit_to_module_map:
+                member_module_ids = list(unit_to_module_map.values())
+            elif self.carbon_report_module_id:
+                member_module_ids = [self.carbon_report_module_id]
+            existing_keys = await data_entry_service.repo.get_member_role_keys(
+                member_module_ids
+            )
+            for mod_id, uid, sius in existing_keys:
+                seen_institutional_ids.setdefault(mod_id, set()).add((uid, sius))
             csv_reader = csv.DictReader(
                 io.StringIO(setup_result["csv_text"], newline="")
             )
@@ -1373,14 +1341,13 @@ class BaseCSVProvider(DataIngestionProvider, ABC):
             if kg_co2eq_override is not None:
                 data[KG_CO2EQ_OVERRIDE_KEY] = kg_co2eq_override
 
+            # Denormalized scope columns (year/unit_id) are stamped
+            # centrally by DataEntryService.fill_denormalized_scope on
+            # every write path — no per-provider stamping to forget.
             data_entry = DataEntry(
                 data_entry_type_id=data_entry_type,
                 carbon_report_module_id=carbon_report_module_id,
                 data=data,
-                # Denormalized scope columns — back the per-year
-                # full-replace delete without module resolution.
-                year=self.year,
-                unit_id=self._module_to_unit_id.get(carbon_report_module_id),
             )
 
             return data_entry, None, None, kg_co2eq_override

@@ -259,6 +259,14 @@ class DataEntryRepository:
         ``check_member_role_unique`` SELECT at stage latencies turned an
         8.5k-row parse into ~10 minutes (14 rows/s, 2026-07-17), the same
         N+1 shape the COPY batching already removed on the write side.
+
+        Snapshot semantics: concurrent bulk writers are serialized by the
+        per-(module_type, year) advisory lock at dispatch, but that lock is
+        transaction-scoped and drops at each batch commit, so a writer
+        committing mid-file is invisible to an already-taken snapshot. The
+        airtight guard is the DB-enforced partial unique index deferred in
+        the 1564 incident plan; until then this is no weaker than the old
+        per-row check-then-COPY, just a wider read-to-write window.
         """
         if not carbon_report_module_ids:
             return set()

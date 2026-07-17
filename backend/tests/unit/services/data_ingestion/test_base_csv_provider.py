@@ -19,6 +19,7 @@ from app.models.data_entry import (
 from app.models.data_ingestion import EntityType, IngestionResult
 from app.models.module_type import ModuleTypeEnum
 from app.models.user import UserProvider
+from app.repositories.data_entry_repo import DataEntryRepository
 from app.services.data_ingestion.base_csv_provider import (
     REUPLOAD_HINT,
     BaseCSVProvider,
@@ -207,7 +208,7 @@ async def test_validate_csv_headers_empty_file():
 
 
 @pytest.mark.asyncio
-async def test_process_csv_with_blank_rows_does_not_raise_value_error():
+async def test_process_csv_with_blank_rows_does_not_raise_value_error(monkeypatch):
     """Regression test: Verifies that intermittent and trailing structural
     blank rows (like ',,') are skipped by the loop guard and do not cause
     the batch processor to raise a 'Data entry is None without error message'
@@ -222,6 +223,11 @@ async def test_process_csv_with_blank_rows_does_not_raise_value_error():
     # Mock out the batch-saving step completely to avoid database repository
     # dependencies
     provider._process_batch = AsyncMock(return_value=2)
+    # The unconditional duplicate-set prefetch hits the repo; the mocked
+    # session can't answer SQL, so stub it to an empty seed.
+    monkeypatch.setattr(
+        DataEntryRepository, "get_member_role_keys", AsyncMock(return_value=set())
+    )
 
     # 2. Mock the async files_store layer
     mock_files_store = MagicMock()
@@ -287,10 +293,12 @@ def _drive_member_csv(
     ``db_session``. ``_process_batch`` is stubbed to skip factor/emission
     computation, which is irrelevant to the uniqueness check.
     """
+    # Deliberately NO module_type_id: the duplicate-set seeding must be
+    # unconditional — a raw-API dispatch can omit it, and gating the seed
+    # on it silently dropped DB-level dedup (code-review finding).
     config = {
         "file_path": "tmp/test.csv",
         "carbon_report_module_id": module_id,
-        "module_type_id": ModuleTypeEnum.headcount.value,
         "year": 2025,
     }
     provider = ConcreteCSVProvider(config, data_session=db_session)
