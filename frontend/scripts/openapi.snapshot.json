@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "CO2 Calculator API",
+    "title": "CO2 Calculator API - LOCAL",
     "description": "\n    CO2 Calculator API with permission-based authorization using Open Policy Agent.\n\n    ## Features\n\n    * **JWT Authentication** - Secure token-based authentication\n    * **Permission-Based Authorization** - Fine-grained access control with\n      calculated permissions\n    * **OPA Policies** - Policy-based resource filtering and access control\n    * **Multi-tenancy** - Support for multiple EPFL units with scope-based\n      data filtering\n    * **RESTful API** - Clean and consistent API design\n\n    ## Permission-Based Authorization\n\n    The API uses a permission-based authorization model where:\n\n    - **Roles are assigned** to users (e.g., principal, backoffice metier, super admin)\n    - **Permissions are calculated** dynamically from roles at authentication\n    - **Access control** is enforced at the route level using permissions\n    - **Data filtering** is applied based on user scope (global, unit, own)\n\n    ### Permission Structure\n\n    Permissions follow a hierarchical dot-notation structure:\n\n    * **backoffice.*** - One permission per backoffice page\n        * `backoffice.reporting` (view, export) - Reporting (affiliation-scoped)\n        * `backoffice.users` (view, edit, export) - User management\n        * `backoffice.documentation` / `backoffice.ui_texts` (view, edit)\n        * `backoffice.configuration` / `backoffice.pipeline_operations`\n          (view, edit) - super admin only\n        * `backoffice.logs` (view) - super admin only\n\n    * **modules.*** - CO2 calculation modules (unit-scoped `\u2026/<unit>`, or\n      own-scoped `\u2026/<unit>/own` for standard users)\n        * `modules.headcount`, `modules.professional_travel`, `modules.equipment`,\n          \u2026 (view, edit, sync)\n\n    ### Permission Actions\n\n    Each permission supports different actions:\n    - **view** - Read access to resources\n    - **edit** - Create, update, and delete operations\n    - **export** - Data export capabilities\n\n    ### How Permissions Work\n\n    1. User authenticates via `/api/v1/auth/login` and receives JWT token\n    2. JWT token contains user information and assigned roles\n    3. On each request, permissions are calculated from roles\n    4. Routes use `require_permission(\"path.resource\", \"action\")` decorator\n    5. If permission denied, returns 403 with specific error message\n    6. Data queries are filtered by user scope (global/unit/own)\n\n    ### Example Permission Check\n\n    ```python\n    @router.get(\"/headcounts\")\n    async def get_headcounts(\n        user: User = Depends(require_permission(\"modules.headcount\", \"view\"))\n    ):\n        # Only users with modules.headcount.view permission can access\n        # Data is filtered by scope: global, unit, or own\n    ```\n\n    ## Authorization Model with OPA\n\n    The API uses OPA (Open Policy Agent) patterns for authorization decisions:\n\n    1. **Route-level permission checks** - Enforced via `require_permission()`\n       decorator\n    2. **Service-level data filtering** - Applied via `get_data_filters()`\n       based on scope\n    3. **Resource-level access control** - Checked via `check_resource_access()`\n       for individual resources\n\n    ### Scope-Based Data Filtering\n\n    Data access is automatically filtered based on user scope:\n\n    * **Global scope** (super admin) - See all data\n    * **Unit scope** (principals) - See data for their assigned units\n    * **Own scope** (standard users) - See only their own data\n\n    ## Assigned Roles\n\n    Users are assigned one or more of these roles. Permissions are calculated\n    from role assignments:\n\n    * **calco2.user.std** - Basic user with own-scope access\n    * **calco2.user.principal** - Unit-level manager with unit-scope access\n    * **calco2.backoffice.metier** - Backoffice administrator with reporting and\n      data access\n    * **calco2.backoffice.admin** - Super administrator with full system and backoffice\n    See permission documentation for detailed role-to-permission mapping.\n\n    ## 403 Error Responses\n\n    When a user lacks required permissions, the API returns a 403 Forbidden response:\n\n    ```json\n    {\n        \"detail\": \"Permission denied: modules.headcount.edit required\"\n    }\n    ```\n\n    ### Common Causes\n\n    * **Missing permission** - User's roles don't grant the required permission\n    * **Insufficient scope** - User has permission but wrong scope\n      (e.g., different unit)\n    * **Resource restrictions** - Business rules prevent access\n      (e.g., API trips are read-only)\n\n    ### Requesting Access\n\n    To gain additional permissions:\n    1. Contact your unit principal or backoffice administrator\n    2. Request the specific permission needed (shown in error message)\n    3. Administrator can assign appropriate role via\n       `/api/v1/backoffice/users` endpoints\n\n    ",
     "version": "0.1.0"
   },
@@ -46,13 +46,55 @@
         }
       }
     },
+    "/v1/auth/login-test": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login Test",
+        "description": "Test login endpoint for development.\n\nRegistered on the router only when ``settings.DEBUG`` is true (see\nbottom of this module). In a production build the route does not\nexist \u2014 clients see 404 rather than 403, and the handler code is\nunreachable.",
+        "operationId": "login_test_v1_auth_login_test_get",
+        "parameters": [
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "co2.user.std",
+              "title": "Role"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/session": {
       "get": {
         "tags": [
           "session"
         ],
         "summary": "Get Session",
-        "description": "Return the current session's user (whoami).\n\nRequires a valid ``auth_token`` cookie. Resolves user by stable\nidentity (institutional_id, provider) from JWT. Uses cached DB\nroles \u2014 does not sync from the role provider synchronously.",
+        "description": "Return the current session bootstrap payload (whoami + workspace context).\n\nRequires a valid ``auth_token`` cookie. Resolves user by stable\nidentity (institutional_id, provider) from JWT. Uses cached DB\nroles \u2014 does not sync from the role provider synchronously.\n\nBeyond the user, the response bundles the units the caller can access and\nthe globally-configured years, so the frontend hydrates its whole auth/\nworkspace context in a single request instead of three.",
         "operationId": "get_session_v1_session_get",
         "parameters": [
           {
@@ -78,7 +120,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserRead"
+                  "$ref": "#/components/schemas/SessionRead"
                 }
               }
             }
@@ -1616,7 +1658,10 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
                 },
                 {
                   "type": "null"
@@ -1888,7 +1933,7 @@
           "modules"
         ],
         "summary": "Get Top Class Breakdown",
-        "description": "Get emissions aggregated by subcategory with top 3 items per subcategory.\n\nReturns a list per subcategory, each containing the top 3 items (by\nemission) and a \"rest\" bucket. Works for any module configured in\n``_MODULE_TOP_CLASS_GROUP_FIELD``.",
+        "description": "Get emissions aggregated by subcategory with top 3 items per subcategory.\n\nReturns a list per subcategory, each containing the top 3 items (by\nemission) and a \"rest\" bucket. Works for any module configured in\n``_MODULE_TOP_CLASS_GROUP_FIELD``.\n\n``combine_unit_ids`` re-ranks the classes over the union of those units'\nentries plus ``unit_id``'s, for the Results page's combined-units view.",
         "operationId": "get_top_class_breakdown_v1_modules__unit_id___year___module_id__top_class_breakdown_get",
         "parameters": [
           {
@@ -1928,6 +1973,18 @@
               "minimum": 0,
               "default": 0,
               "title": "Carbon Project Type"
+            }
+          },
+          {
+            "name": "combine_unit_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "title": "Combine Unit Ids"
             }
           },
           {
@@ -2897,60 +2954,6 @@
         }
       }
     },
-    "/v1/modules-stats/{carbon_report_id}/validated-totals": {
-      "get": {
-        "tags": [
-          "modules-stats"
-        ],
-        "summary": "Get Validated Totals",
-        "description": "Get validated totals for a carbon report.\n\nAggregates emissions (kg \u2192 tonnes CO2eq) and FTE across all validated\nmodules in the given carbon report. Both are keyed by module_type_id so\nheadcount appears with total_fte while other modules show total_tonnes_co2eq.\n\nReturns:\n    {\n        \"modules\": {1: 25.5, 2: 15.0, 4: 41.7, 7: 5.0},\n        \"total_tonnes_co2eq\": 61.7,\n        \"total_fte\": 25.5\n    }",
-        "operationId": "get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get",
-        "parameters": [
-          {
-            "name": "carbon_report_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Carbon Report Id"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Validated Totals V1 Modules Stats  Carbon Report Id  Validated Totals Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/modules-stats/{unit_id}/{year}/{module_id}/stats": {
       "get": {
         "tags": [
@@ -3032,6 +3035,312 @@
         }
       }
     },
+    "/v1/modules-stats/unit/{unit_id}/multi-year-report-stats": {
+      "get": {
+        "tags": [
+          "modules-stats"
+        ],
+        "summary": "Get Multi Year Breakdown",
+        "description": "Return per-year emission breakdown (by module and by scope) for a unit.\n\nFeeds the \"Compare Years\" pop-up: one entry per year with stat-bucket\ntotals (``modules``) and scope totals (``scopes``) in tonnes CO2eq, read\nstraight off each report's persisted stats.\n\nReturns:\n    {\"years\": [{\"year\": 2023, \"total_tonnes_co2eq\": 61.7,\n                \"modules\": {...}, \"scopes\": {...}}, ...]}",
+        "operationId": "get_multi_year_breakdown_v1_modules_stats_unit__unit_id__multi_year_report_stats_get",
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Multi Year Breakdown V1 Modules Stats Unit  Unit Id  Multi Year Report Stats Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/modules-stats/merged/report-stats": {
+      "get": {
+        "tags": [
+          "modules-stats"
+        ],
+        "summary": "Get Merged Report Stats",
+        "description": "Sum several units' persisted report stats into one payload.\n\nSame shape as ``/{carbon_report_id}/report-stats``, so the frontend derives\nits charts from it unchanged. ``merge_report_stats`` drops per-unit\ntop-class detail on purpose, so the IT section's is re-ranked across all\nthe reports here rather than unioned.",
+        "operationId": "get_merged_report_stats_v1_modules_stats_merged_report_stats_get",
+        "parameters": [
+          {
+            "name": "unit_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "title": "Unit Ids"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Merged Report Stats V1 Modules Stats Merged Report Stats Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/modules-stats/merged/results-summary": {
+      "get": {
+        "tags": [
+          "modules-stats"
+        ],
+        "summary": "Get Merged Results Summary",
+        "description": "Results summary over several units, summed per module.\n\nEach unit contributes its own validated module totals and its own\nprevious-year comparison basis, so the year-over-year figure stays\nmeaningful for a combined perimeter.",
+        "operationId": "get_merged_results_summary_v1_modules_stats_merged_results_summary_get",
+        "parameters": [
+          {
+            "name": "unit_ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "title": "Unit Ids"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "exclude_modules",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "title": "Exclude Modules"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Merged Results Summary V1 Modules Stats Merged Results Summary Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/modules-stats/{carbon_report_id}/report-stats": {
+      "get": {
+        "tags": [
+          "modules-stats"
+        ],
+        "summary": "Get Report Stats",
+        "description": "Return the persisted report stats with the validated headline merged in.\n\nSame payload as the ``stats`` field of the workspace-home aggregate; used\nby the frontend to refresh charts after mutations without refetching the\nwhole home bundle.",
+        "operationId": "get_report_stats_v1_modules_stats__carbon_report_id__report_stats_get",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Report Stats V1 Modules Stats  Carbon Report Id  Report Stats Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/modules-stats/{carbon_report_id}/validated-totals": {
+      "get": {
+        "tags": [
+          "modules-stats"
+        ],
+        "summary": "Get Validated Totals",
+        "description": "Validated-only totals per module (tonnes; FTE for headcount).",
+        "operationId": "get_validated_totals_v1_modules_stats__carbon_report_id__validated_totals_get",
+        "parameters": [
+          {
+            "name": "carbon_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Carbon Report Id"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Validated Totals V1 Modules Stats  Carbon Report Id  Validated Totals Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/modules-stats/{carbon_report_id}/results-summary": {
       "get": {
         "tags": [
@@ -3081,138 +3390,6 @@
                   "type": "object",
                   "additionalProperties": true,
                   "title": "Response Get Results Summary V1 Modules Stats  Carbon Report Id  Results Summary Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/modules-stats/{carbon_report_id}/emission-breakdown": {
-      "get": {
-        "tags": [
-          "modules-stats"
-        ],
-        "summary": "Get Emission Breakdown",
-        "description": "Return chart-ready emission breakdown for a carbon report.\n\nServes both ModuleCarbonFootprintChart (module_breakdown +\nadditional_breakdown) and CarbonFootPrintPerPersonChart\n(per_person_breakdown).",
-        "operationId": "get_emission_breakdown_v1_modules_stats__carbon_report_id__emission_breakdown_get",
-        "parameters": [
-          {
-            "name": "carbon_report_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Carbon Report Id"
-            }
-          },
-          {
-            "name": "exclude_modules",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "integer"
-              },
-              "title": "Exclude Modules"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Emission Breakdown V1 Modules Stats  Carbon Report Id  Emission Breakdown Get"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/modules-stats/{carbon_report_id}/it-breakdown": {
-      "get": {
-        "tags": [
-          "modules-stats"
-        ],
-        "summary": "Get It Breakdown",
-        "description": "Return IT-focused emission breakdown for a carbon report.\n\nAggregates IT-related emissions from Equipment (IT electricity),\nPurchases (IT hardware), and External Cloud & AI into a single view.\nIncludes top-class breakdown per IT category.\n\n``exclude_modules`` matches emission-breakdown / results-summary filtering\n(e.g. hide research facilities).",
-        "operationId": "get_it_breakdown_v1_modules_stats__carbon_report_id__it_breakdown_get",
-        "parameters": [
-          {
-            "name": "carbon_report_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Carbon Report Id"
-            }
-          },
-          {
-            "name": "exclude_modules",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "array",
-              "items": {
-                "type": "integer"
-              },
-              "title": "Exclude Modules"
-            }
-          },
-          {
-            "name": "auth_token",
-            "in": "cookie",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "title": "Auth Token"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get It Breakdown V1 Modules Stats  Carbon Report Id  It Breakdown Get"
                 }
               }
             }
@@ -5934,6 +6111,360 @@
         }
       }
     },
+    "/v1/sync/admin/recompute-stats": {
+      "post": {
+        "tags": [
+          "data-sync"
+        ],
+        "summary": "Recompute Stats",
+        "description": "Force a full stats recompute for every ``(module_type_id, year)`` scope.\n\nDispatches one root ``aggregation`` job per scope \u2014 the same handler the\nrecalc chain uses to write ``carbon_report_module.stats`` /\n``carbon_report.stats``, but with no ``affected_module_ids`` scoping, so\nevery module in the scope is recomputed rather than just the ones a\nrecalc flagged as touched.\n\nScopes with no current, successful FACTORS job are skipped outright\n(counted in ``skipped_no_factors``): recomputing stats against missing\nreference data just writes zeros, so there's nothing worth spending a\njob \u2014 or a pooled DB connection \u2014 on.\n\nJobs for the same year are chained to run one at a time rather than\nfired concurrently, since they'd only queue up behind each other's\nPostgres advisory lock anyway; different years still dispatch in\nparallel.\n\nNeeded after any change to what recompute_stats persists (e.g. a stats\nJSON shape change): existing rows keep whatever an older deploy wrote\nuntil something re-triggers their aggregation, and most reports won't\nnaturally get one soon.  The dedup index makes re-triggering a safe\nno-op for scopes still in flight.",
+        "operationId": "recompute_stats_v1_sync_admin_recompute_stats_post",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Limit to a single year; omit to recompute every year.",
+              "title": "Year"
+            },
+            "description": "Limit to a single year; omit to recompute every year."
+          },
+          {
+            "name": "module_type_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Limit to a single module type; omit for every module type.",
+              "title": "Module Type Id"
+            },
+            "description": "Limit to a single module type; omit for every module type."
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecomputeStatsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Get Connectors",
+        "operationId": "get_connectors_v1_connectors_get",
+        "parameters": [
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ConnectorSpecRead"
+                  },
+                  "title": "Response Get Connectors V1 Connectors Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/{connector}/connection": {
+      "get": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Get Connection",
+        "operationId": "get_connection_v1_connectors__connector__connection_get",
+        "parameters": [
+          {
+            "name": "connector",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConnectorType"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ConnectorConnectionRead"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Connection V1 Connectors  Connector  Connection Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Upsert Connection",
+        "operationId": "upsert_connection_v1_connectors__connector__connection_put",
+        "parameters": [
+          {
+            "name": "connector",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConnectorType"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorConnectionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorConnectionRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/{connector}/datasources": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Upsert Datasource",
+        "operationId": "upsert_datasource_v1_connectors__connector__datasources_post",
+        "parameters": [
+          {
+            "name": "connector",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConnectorType"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorDatasourceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectorDatasourceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/connectors/{connector}/test": {
+      "post": {
+        "tags": [
+          "connectors"
+        ],
+        "summary": "Test Connection",
+        "description": "Trigger a live connection test.\n\nEnforces a per-user cooldown so the outbound call is rate-limited, then\nruns the provider's JWT sign-in probe. ``detail`` is always a generic\nstring \u2014 never a raw exception, stack trace, or provider response body\n(A06/A10).\n\nThe test itself is audited (PRD): who + when + connector + the boolean\noutcome \u2014 never the secret, never a raw error. Rate-limited (429) calls\nraise before this point, so they leave no audit row.",
+        "operationId": "test_connection_v1_connectors__connector__test_post",
+        "parameters": [
+          {
+            "name": "connector",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ConnectorType"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Connection V1 Connectors  Connector  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/audit/activity": {
       "get": {
         "tags": [
@@ -6630,7 +7161,7 @@
           "year-configuration"
         ],
         "summary": "List Year Configurations",
-        "description": "List year configurations available to the caller.\n\nResults are always scoped to ``current_user.provider`` \u2014 a TEST user\nnever sees ACCRED rows and vice versa. Backoffice data managers\nadditionally bypass the ``is_started`` filter (regular users only\nsee opened years). This is what drives the workspace year selector\n\u2014 closed years stay hidden from regular users until backoffice\nopens them.\n\nSorted by year descending (latest first).",
+        "description": "List opened year configurations available to the caller.\n\nResults are always scoped to ``current_user.provider`` \u2014 a TEST user\nnever sees ACCRED rows and vice versa. Only ``is_started`` years are\nreturned, for every caller including backoffice data managers, since\nthis is what drives the workspace year selector \u2014 closed years stay\nhidden until backoffice opens them.\n\nSorted by year descending (latest first).",
         "operationId": "list_year_configurations_v1_year_configuration__get",
         "parameters": [
           {
@@ -6973,6 +7504,67 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/workspace/{unit_id}/{year}/home": {
+      "get": {
+        "tags": [
+          "workspace"
+        ],
+        "summary": "Get Workspace Home",
+        "description": "Resolve the full workspace + home dashboard payload in one call.\n\nGets the carbon report for ``unit_id``/``year``, then bundles the year\nconfiguration, the persisted report stats (with the validated-only total\nmerged in) and the per-module states.",
+        "operationId": "get_workspace_home_v1_workspace__unit_id___year__home_get",
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          },
+          {
+            "name": "auth_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Auth Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceHomeResponse"
+                }
               }
             }
           },
@@ -7739,6 +8331,262 @@
         "title": "CarbonReportRead",
         "description": "Schema for reading a carbon report."
       },
+      "ConnectorConnectionCreate": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Label"
+          },
+          "server_url": {
+            "type": "string",
+            "maxLength": 2048,
+            "title": "Server Url"
+          },
+          "site_content_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Content Url"
+          },
+          "username": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Username"
+          },
+          "client_id": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Client Id"
+          },
+          "secret_id": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Secret Id"
+          },
+          "secret_value": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Secret Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "server_url",
+          "username",
+          "client_id",
+          "secret_id"
+        ],
+        "title": "ConnectorConnectionCreate"
+      },
+      "ConnectorConnectionRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "connector": {
+            "$ref": "#/components/schemas/ConnectorType"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "server_url": {
+            "type": "string",
+            "title": "Server Url"
+          },
+          "site_content_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Content Url"
+          },
+          "username": {
+            "type": "string",
+            "title": "Username"
+          },
+          "client_id": {
+            "type": "string",
+            "title": "Client Id"
+          },
+          "secret_id": {
+            "type": "string",
+            "title": "Secret Id"
+          },
+          "has_secret": {
+            "type": "boolean",
+            "title": "Has Secret"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "connector",
+          "label",
+          "server_url",
+          "site_content_url",
+          "username",
+          "client_id",
+          "secret_id",
+          "has_secret",
+          "is_active",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConnectorConnectionRead"
+      },
+      "ConnectorDatasourceCreate": {
+        "properties": {
+          "module_type_id": {
+            "type": "integer",
+            "title": "Module Type Id"
+          },
+          "data_entry_type_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Entry Type Id"
+          },
+          "connector_luid": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Connector Luid"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 255,
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "module_type_id",
+          "connector_luid",
+          "label"
+        ],
+        "title": "ConnectorDatasourceCreate"
+      },
+      "ConnectorDatasourceRead": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "connection_id": {
+            "type": "integer",
+            "title": "Connection Id"
+          },
+          "module_type_id": {
+            "type": "integer",
+            "title": "Module Type Id"
+          },
+          "data_entry_type_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Entry Type Id"
+          },
+          "connector_luid": {
+            "type": "string",
+            "title": "Connector Luid"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "connection_id",
+          "module_type_id",
+          "data_entry_type_id",
+          "connector_luid",
+          "label",
+          "is_active"
+        ],
+        "title": "ConnectorDatasourceRead"
+      },
+      "ConnectorSpecRead": {
+        "properties": {
+          "connector": {
+            "$ref": "#/components/schemas/ConnectorType"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "form_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Form Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "connector",
+          "label",
+          "form_fields"
+        ],
+        "title": "ConnectorSpecRead"
+      },
+      "ConnectorType": {
+        "type": "string",
+        "enum": [
+          "EPFL_TABLEAU"
+        ],
+        "title": "ConnectorType"
+      },
       "DataEntryResponse": {
         "properties": {
           "data_entry_type_id": {
@@ -8367,16 +9215,42 @@
         "title": "HeadcountMemberDropdownItem",
         "description": "Lightweight member record used to populate traveler dropdowns."
       },
+      "HomeYearConfiguration": {
+        "properties": {
+          "year": {
+            "type": "integer",
+            "title": "Year"
+          },
+          "config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Config"
+          },
+          "min_configurable_year": {
+            "type": "integer",
+            "title": "Min Configurable Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "year",
+          "config",
+          "min_configurable_year"
+        ],
+        "title": "HomeYearConfiguration",
+        "description": "Slim year-config for the home aggregate \u2014 only what workspace pages read.\n\nThe workspace pages (home / module / results / sidebar) read module\n``enabled``/``uncertainty_tag`` and submodule\n``enabled``/``threshold``/``inputs_deactivated``/``csv_deactivated`` (plus\n``reduction_objectives``) \u2014 all of which live under ``config``. Every other\nfield of the full ``YearConfigurationResponse`` (``is_started``,\n``updated_at``, ``configuration_completed``, ``pipeline_id``,\n``recalculation_status``) is read only on the backoffice data-management page,\nwhich refetches the full config via ``GET /year-configuration/{year}``. So\nhome omits them entirely."
+      },
       "IngestionMethod": {
         "type": "integer",
         "enum": [
           0,
           1,
           2,
-          3
+          3,
+          4
         ],
         "title": "IngestionMethod",
-        "description": "Docstring for IngestionMethod\n\n:var api: Description\n:vartype api: Literal[0]\n:var csv: Description\n:vartype csv: Literal[1]\n:var manual: Description\n:vartype manual: Literal[2]\n:var computed: Recompute factor values from existing emission data\n:vartype computed: Literal[3]"
+        "description": "Docstring for IngestionMethod\n\n:var api: Description\n:vartype api: Literal[0]\n:var csv: Description\n:vartype csv: Literal[1]\n:var manual: Description\n:vartype manual: Literal[2]\n:var computed: Recompute factor values from existing emission data\n:vartype computed: Literal[3]\n:var copy_previous_year: Historical only \u2014 the factor-copy feature\n    (#740) was removed and no provider is registered for this method;\n    the value persists on old ingestion-job rows.\n:vartype copy_previous_year: Literal[4]"
       },
       "IngestionResult": {
         "type": "integer",
@@ -8739,7 +9613,7 @@
           "pagination": {
             "$ref": "#/components/schemas/app__schemas__backoffice__PaginationMeta"
           },
-          "emission_breakdown": {
+          "stats": {
             "anyOf": [
               {
                 "additionalProperties": true,
@@ -8749,19 +9623,7 @@
                 "type": "null"
               }
             ],
-            "title": "Emission Breakdown"
-          },
-          "it_breakdown": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "It Breakdown"
+            "title": "Stats"
           },
           "validated_units_count": {
             "type": "integer",
@@ -8945,7 +9807,7 @@
           "job_id"
         ],
         "title": "PipelineJobListEntry",
-        "description": "One job inside a pipeline, as shown in the ops-console DAG (#1234).\n\nSlimmer than the pipeline read endpoint's ``PipelineJobResponse``:\ncarries timing for per-step duration and an **allow-listed** ``meta``\n(never the big ``error_details`` / ``affected_module_ids`` arrays).\n\n``state`` and ``result`` serialize as the enum NAME (string), not\nthe int value \u2014 Pydantic's int-enum default would ship ``3`` for\n``FINISHED`` which mismatches every frontend consumer (the TS\ninterface declares ``string | null`` and renders comparisons like\n``j.state === 'FINISHED'``).  The field_serializers below pin the\ncontract."
+        "description": "One job inside a pipeline, as shown in the ops-console DAG (#1234).\n\nSlimmer than the pipeline read endpoint's ``PipelineJobResponse``:\ncarries timing for per-step duration and an **allow-listed** ``meta``\n(never the big ``affected_module_ids`` array; ``error_details`` only\nfor FACTORS-target jobs \u2014 see ``_project_pipeline_meta``, #1591).\n\n``state`` and ``result`` serialize as the enum NAME (string), not\nthe int value \u2014 Pydantic's int-enum default would ship ``3`` for\n``FINISHED`` which mismatches every frontend consumer (the TS\ninterface declares ``string | null`` and renders comparisons like\n``j.state === 'FINISHED'``).  The field_serializers below pin the\ncontract."
       },
       "PipelineJobResponse": {
         "properties": {
@@ -9441,6 +10303,17 @@
               }
             ]
           },
+          "last_factor_job_error_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Factor Job Error Count"
+          },
           "last_recalculation_job_id": {
             "anyOf": [
               {
@@ -9472,6 +10345,72 @@
         ],
         "title": "RecalculationStatusEntry",
         "description": "Per-(module_type_id, data_entry_type_id) recalculation status."
+      },
+      "RecomputeStatsResponse": {
+        "properties": {
+          "dispatched": {
+            "type": "integer",
+            "title": "Dispatched"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "skipped_no_factors": {
+            "type": "integer",
+            "title": "Skipped No Factors",
+            "default": 0
+          },
+          "job_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Job Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dispatched",
+          "skipped",
+          "job_ids"
+        ],
+        "title": "RecomputeStatsResponse",
+        "description": "Result of the admin bulk stats-recompute trigger."
+      },
+      "SessionRead": {
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/UserRead"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/UnitWithUserRole"
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "configured_years": {
+            "items": {
+              "$ref": "#/components/schemas/YearConfigurationListItem"
+            },
+            "type": "array",
+            "title": "Configured Years"
+          },
+          "min_configurable_year": {
+            "type": "integer",
+            "title": "Min Configurable Year"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user",
+          "units",
+          "configured_years",
+          "min_configurable_year"
+        ],
+        "title": "SessionRead",
+        "description": "Bootstrap payload for ``GET /v1/session``.\n\nBundles everything the frontend needs at app-init in a single call: the\ncurrent user (unchanged ``UserRead`` shape), the units the user can access,\nand the globally-configured years for the workspace year selector. This\ncollapses what used to be three separate calls (``/session`` + ``/users/units``\n+ ``/year-configuration/``) into one.\n\n``min_configurable_year`` is also echoed on the single-year\n``YearConfigurationResponse``, but that one only exists once a row has\nbeen created for the requested year. Bundling it here too gives the\nfrontend a source that doesn't depend on any particular year existing \u2014\ne.g. the backoffice year selector can seed its lower bound even when the\ncurrent real-world year has no ``YearConfiguration`` row yet."
       },
       "StaleStatsEntry": {
         "properties": {
@@ -9848,17 +10787,6 @@
                 "type": "null"
               }
             ]
-          },
-          "source_job_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Source Job Id"
           }
         },
         "type": "object",
@@ -10692,6 +11620,45 @@
         "title": "WorkerResponse",
         "description": "One live pod entry for the workers view.\n\nReturned by ``GET /v1/sync/workers``.  Joins ``pods`` with a\ncheap count over ``data_ingestion_jobs.locked_by`` so the\noperator can see \"this pod has 3 claimed jobs right now\"."
       },
+      "WorkspaceHomeResponse": {
+        "properties": {
+          "carbon_report_id": {
+            "type": "integer",
+            "title": "Carbon Report Id"
+          },
+          "year_config": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HomeYearConfiguration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stats": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Stats"
+          },
+          "module_states": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Module States"
+          }
+        },
+        "type": "object",
+        "required": [
+          "carbon_report_id",
+          "stats",
+          "module_states"
+        ],
+        "title": "WorkspaceHomeResponse",
+        "description": "Minimal aggregate payload the frontend fans out across its stores."
+      },
       "YearConfigurationCreate": {
         "properties": {
           "is_started": {
@@ -10806,6 +11773,11 @@
             ],
             "title": "Pipeline Id",
             "description": "UUID of the unit_sync pipeline kicked off by the create endpoint (populated only on POST; None elsewhere)."
+          },
+          "min_configurable_year": {
+            "type": "integer",
+            "title": "Min Configurable Year",
+            "description": "Earliest year backoffice can create a configuration for."
           }
         },
         "type": "object",
@@ -10813,7 +11785,8 @@
           "year",
           "is_started",
           "config",
-          "updated_at"
+          "updated_at",
+          "min_configurable_year"
         ],
         "title": "YearConfigurationResponse",
         "description": "Schema for year configuration response with enriched submodule data."
@@ -10902,5 +11875,10 @@
         "description": "Pagination metadata."
       }
     }
-  }
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ]
 }

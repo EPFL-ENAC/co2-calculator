@@ -3071,6 +3071,8 @@ export interface components {
             config: {
                 [key: string]: unknown;
             };
+            /** Min Configurable Year */
+            min_configurable_year: number;
         };
         /**
          * IngestionMethod
@@ -3283,12 +3285,8 @@ export interface components {
             /** Data */
             data: components["schemas"]["UnitReportingData"][];
             pagination: components["schemas"]["app__schemas__backoffice__PaginationMeta"];
-            /** Emission Breakdown */
-            emission_breakdown?: {
-                [key: string]: unknown;
-            } | null;
-            /** It Breakdown */
-            it_breakdown?: {
+            /** Stats */
+            stats?: {
                 [key: string]: unknown;
             } | null;
             /**
@@ -4843,7 +4841,7 @@ export interface operations {
                 level?: number | null;
                 parent_id?: string | null;
                 unit_type_labels?: string[] | null;
-                parent_unit_type_label?: string | null;
+                parent_unit_type_label?: string[] | null;
                 /** @description Filter by unit name (partial match) */
                 name?: string | null;
                 page?: number;
