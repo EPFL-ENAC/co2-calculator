@@ -257,6 +257,37 @@ class TestIngest:
 
 
 # ---------------------------------------------------------------------------
+# Denormalized scope columns (stage incident 2026-07-17)
+# ---------------------------------------------------------------------------
+
+
+class TestDenormalizedScopeColumns:
+    def test_build_data_entry_stamps_year_and_unit_id(self):
+        """Regression: API entries carried year=NULL, so the per-year
+        cross-source replace DELETE (keyed on ``data_entries.year``)
+        never matched them and CSV re-uploads mass-collided on
+        DUPLICATE_INSTITUTIONAL_ID."""
+        provider = _make_provider()  # config carries year=2025
+        # Normally populated by _resolve_carbon_report_modules before
+        # any entry is built (see the ingest flow in the tableau base).
+        provider._module_to_unit_id = {77: 42}
+
+        entry = provider._build_data_entry(
+            {
+                "name": "Role Std",
+                "sius_code": "51",
+                "user_institutional_id": "123456",
+                "fte": 0.5,
+                "note": None,
+            },
+            carbon_report_module_id=77,
+        )
+
+        assert entry.year == 2025
+        assert entry.unit_id == 42
+
+
+# ---------------------------------------------------------------------------
 # Factory registration
 # ---------------------------------------------------------------------------
 

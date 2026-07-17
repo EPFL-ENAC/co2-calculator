@@ -208,6 +208,10 @@ class ProfessionalTravelApiProvider(BaseTableauApiProvider):
                 carbon_report_module_id=carbon_report_module_id,
                 data_entry_type_id=DataEntryTypeEnum.plane.value,
                 data=data_payload,
+                # Denormalized scope columns, mirroring the CSV path — the
+                # per-year cross-source replace DELETE keys on ``year``.
+                year=self._ingest_year,
+                unit_id=self._module_to_unit_id.get(carbon_report_module_id),
             )
             entries.append(entry)
             kg_co2eq_overrides.append(override)

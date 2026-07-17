@@ -14,6 +14,30 @@ import {
   type MissingSyncedUnitErrorGroup,
 } from 'src/utils/rowErrors';
 
+/**
+ * Pure color decision for the data-upload button (exported for the
+ * Playwright pure-function tests — Issue #1216 + stage incident
+ * 2026-07-17). CSV result takes precedence (an errored CSV after a
+ * prior API success stays red); an API sync gets the same
+ * ERROR/WARNING/SUCCESS mapping as a CSV upload — a WARNING API sync
+ * (rows landed, some skipped) previously fell through to ``accent``
+ * and the card read as "no data" despite thousands of imported rows.
+ * An unrecognised result falls through to ``accent`` rather than
+ * silently going green.
+ */
+export function resolveDataButtonColor(
+  dataResult?: IngestionResult,
+  apiResult?: IngestionResult,
+): string {
+  if (dataResult === IngestionResult.ERROR) return 'negative';
+  if (dataResult === IngestionResult.WARNING) return 'warning';
+  if (dataResult === IngestionResult.SUCCESS) return 'positive';
+  if (apiResult === IngestionResult.ERROR) return 'negative';
+  if (apiResult === IngestionResult.WARNING) return 'warning';
+  if (apiResult === IngestionResult.SUCCESS) return 'positive';
+  return 'accent';
+}
+
 export function useUploadCard() {
   const { t } = useI18n();
 
@@ -34,19 +58,11 @@ export function useUploadCard() {
   }
 
   function dataButtonColor(row: ImportRow): string {
-    // Issue #1216 — a successful API ingestion (no CSV upload) must
-    // turn the data card green just like a successful CSV does. CSV
-    // result still takes precedence (an errored CSV after a prior
-    // API success stays red), and only an explicit SUCCESS counts —
-    // an API job with an unrecognised result falls through to
-    // ``accent`` rather than silently going green.
     if (row.isDisabled) return 'grey-4';
-    if (row.lastDataJob?.result === IngestionResult.ERROR) return 'negative';
-    if (row.lastDataJob?.result === IngestionResult.WARNING) return 'warning';
-    if (row.lastDataJob?.result === IngestionResult.SUCCESS) return 'positive';
-    if (row.lastApiDataJob?.result === IngestionResult.SUCCESS)
-      return 'positive';
-    return 'accent';
+    return resolveDataButtonColor(
+      row.lastDataJob?.result,
+      row.lastApiDataJob?.result,
+    );
   }
 
   function factorButtonColor(row: ImportRow): string {
@@ -59,7 +75,9 @@ export function useUploadCard() {
 
   function dataButtonLabel(row: ImportRow): string {
     if (row.isDisabled) return '';
-    return row.lastDataJob
+    // An API sync counts as existing data too — without it the card
+    // read "Add Data" after a successful sync of thousands of rows.
+    return row.lastDataJob || row.lastApiDataJob
       ? t('data_management_reupload_data')
       : t('data_management_add_data');
   }
