@@ -199,7 +199,10 @@ class DataIngestionProvider(ABC):
         await audit_service.create_version(
             entity_type="DataIngestionJob",
             entity_id=self.job_id,
-            data_snapshot=job.model_dump(),
+            # mode="json" so datetime columns (created_at is stamped at
+            # insert) serialize to ISO strings — the audit row stores the
+            # snapshot in a JSON column with the stdlib encoder.
+            data_snapshot=job.model_dump(mode="json"),
             change_type=AuditChangeTypeEnum.CREATE,
             changed_by=changed_by,
             change_reason=f"Data ingestion job created via {ingestion_method.value}",
