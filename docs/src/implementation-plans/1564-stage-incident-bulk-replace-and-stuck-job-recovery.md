@@ -34,6 +34,17 @@ complete yearly export and replaces all machine-owned bulk sources.
 - Tests: unit (both providers) + pg integration seed an API row and prove
   it's replaced.
 
+**Follow-up (same incident, second layer):** the replace DELETE keys on
+the denormalized `data_entries.year`, but the API providers built their
+entries **without** `year`/`unit_id` — so the cross-source delete matched
+zero API rows and re-uploads still mass-collided. Both API providers now
+stamp the scope columns (module→unit map built during resolution;
+`_ingest_year` property fails loudly without a configured year), and
+migration `8eeff0a9fa26` backfills existing NULL rows from each entry's
+carbon report. The data card also treats an API sync as existing data
+(re-upload label + same ERROR/WARNING/SUCCESS color mapping as CSV, with
+CSV precedence — a WARNING sync previously rendered as red "Add Data").
+
 Note: the test file itself carried 760 intra-file `(uid, sius_code)`
 duplicate rows — those still skip by design; whether the key needs a third
 component is an open data question, not covered here.
